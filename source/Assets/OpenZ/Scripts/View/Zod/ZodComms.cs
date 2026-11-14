@@ -79,7 +79,7 @@ namespace OpenZ
         };
     }
 
-    public sealed class ZodComms
+    public sealed partial class ZodComms                                                                   // 1.2 item 48: + ZodComms.BlueCard.cs (the blue channel's card)
     {
         public bool IsOpen => state == State.Opening || state == State.Open;
         public bool Visible => state != State.Closed;
@@ -501,6 +501,7 @@ namespace OpenZ
             for (int i = 0; i < vu.Count; i++) vu[i].rectTransform.sizeDelta = new Vector2(3f, 2f + 10f * vuLevel[i]);
             TickCue(now, subBody, subSpeaker, false);
             TickBadge(now);
+            TickBlueCard(now);                                                                         // 1.2 item 48: the blue card's static and dim dot (ZodComms.BlueCard.cs)
         }
 
         void TickCue(float now, OzText body, OzText speaker, bool hideSpeakerWhenEmpty)

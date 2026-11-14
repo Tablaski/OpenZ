@@ -107,7 +107,7 @@ namespace OpenZ.Sim
             if (m.k438FoughtId >= 0 && now - m.k438FoughtAt < ZWorld.NoAutoFlagCalmSec)
             {
                 var f = m.World.Get(m.k438FoughtId);
-                if (Foe(m, f) && Within(m.CenterX, m.CenterY, f.CenterX, f.CenterY, m.AttackRadius + m.World.S.agro_distance)) return true;
+                if (Foe(m, f) && Within(m.CenterX, m.CenterY, f.CenterX, f.CenterY, m.AgroReachTo(f))) return true;
             }
             return false;
         }
@@ -119,7 +119,7 @@ namespace OpenZ.Sim
         static bool Pressed(ZObject m, ZObject e, bool fire)
         {
             if (m.Destroyed || m.KillAt >= 0) return false;
-            if (!Within(m.CenterX, m.CenterY, e.CenterX, e.CenterY, m.AttackRadius + m.World.S.agro_distance) || !m.CanAttackObject(e)) return false;
+            if (!Within(m.CenterX, m.CenterY, e.CenterX, e.CenterY, m.AgroReachTo(e)) || !m.CanAttackObject(e)) return false;
             if (m.WithinAttackRadius(e)) return true;
             return fire && m.WithinAgroRadius(e) && !m.PathUnreachable(e);
         }

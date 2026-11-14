@@ -48,7 +48,7 @@ namespace OpenZ.EditorTools
             var g = UnityEngine.Object.FindFirstObjectByType<OpenZ.ZGame>();
             if (g && !string.IsNullOrEmpty(g.level)) return g.level;
             var n = EditorSceneManager.GetActiveScene().name;
-            return n.Contains("L17") ? "L17" : n.Contains("L02") ? "L02" : null;
+            return n.Contains("L17") ? "L17" : n.Contains("L02") ? "L02" : n.Contains(OzVolcanic.Level) ? OzVolcanic.Level : null;
         }
 
         [MenuItem("OpenZ/Details v2/Build and Place")]

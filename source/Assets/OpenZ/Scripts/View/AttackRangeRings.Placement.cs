@@ -72,6 +72,7 @@ namespace OpenZ
             var z = I; var g = z ? (z.game ? z.game : (z.input && z.input.game ? z.input.game : ZGame.I)) : null;
             if (!z || !g || g.World == null) { violations = 1; return sb.Append("FAIL no game / no AttackRangeRings in the scene\n").ToString(); }
             z.game = g;
+            bool clip = z.edgeClip; z.edgeClip = false;                                                          // the ring's shape, whole: a dot hidden at the map's edge is still this dot (AttackRangeRings.PlayEdge.cs)
             bool placer = OzGunRange.I && OzGunRange.I.isActiveAndEnabled;
             if (!placer) violations++;
             sb.Append(placer ? "OK   " : "FAIL ").Append("OzGunRange is in the scene: the gun being placed gets this same ring (Placement)\n");
@@ -87,13 +88,13 @@ namespace OpenZ
                 guns++;
                 var c = g.Views.TryGetValue(o.Id, out var view) && view ? view.transform.position : g.CenterWorld(o, false); c.y = 0f;   // as Middle
                 float age = z.expandTime + 0.5f * z.holdTime;                                                       // in the hold: full radius, full alpha
-                z.Begin(gun, AuditKey + "gun", o.Owner, o.AttackRadius, 0f); gun.center = c; z.Timing(gun, age, age);
+                z.Begin(gun, AuditKey + "gun", o.Owner, o.RingRadius, 0f); gun.center = c; z.Timing(gun, age, age);
                 z.Begin(unit, AuditKey + "unit", o.Owner, unitPx, 0f); unit.center = c; z.Timing(unit, age, age);
                 float camDist = cam ? Vector3.Distance(cam.transform.position, c) : 40f;
                 float size = Mathf.Clamp(camDist / 40f, z.zoomScale.x, z.zoomScale.y);                             // as Draw, after the landing swell
                 float up = z.lift + 0.35f * (z.dotWidth * 0.5f * size);
                 int want = Mathf.Clamp(Mathf.RoundToInt(2f * Mathf.PI * gun.radius / Mathf.Max(0.2f, z.dotSpacing) / 4f) * 4, z.minDots, z.maxDots);
-                bool radiusOk = Mathf.Abs(gun.radius - (o.AttackRadius + 3) / 8f) < 1e-5f, dotsOk = gun.n == want;
+                bool radiusOk = Mathf.Abs(gun.radius - (o.RingRadius + 3) / 8f) < 1e-5f, dotsOk = gun.n == want;
                 bool matOk = z.Mat(gun.team) && ReferenceEquals(z.Mat(gun.team), z.Mat(unit.team));
                 int shape = 0, liftOff = 0, underWalk = 0, underWalkEdge = 0, points = 0, rockU = 0, bankU = 0, offU = 0, openU = 0, drawnPts = 0;
                 float minWalk = float.PositiveInfinity, maxWalk = float.NegativeInfinity, minDrawn = float.PositiveInfinity, maxDrawn = float.NegativeInfinity;
@@ -134,7 +135,7 @@ namespace OpenZ
                 int bad = (radiusOk ? 0 : 1) + (dotsOk ? 0 : 1) + (matOk ? 0 : 1) + (shape > 0 ? 1 : 0) + (liftOff > 0 ? 1 : 0) + (underWalk > 0 ? 1 : 0);
                 violations += bad;
                 sb.Append(bad == 0 ? "OK   " : "FAIL ").Append(o.Type).Append(" #").Append(o.Id).Append(" (").Append(o.Owner).Append("): ring ").Append(gun.radius.ToString("0.000"))
-                  .Append(" m = (").Append(o.AttackRadius).Append(" + 3) px / 8 ").Append(radiusOk ? "yes" : "NO").Append("; ").Append(gun.n).Append(" dots (the units' spacing: ")
+                  .Append(" m = (").Append(o.RingRadius).Append(" + 3) px / 8 ").Append(radiusOk ? "yes" : "NO").Append("; ").Append(gun.n).Append(" dots (the units' spacing: ")
                   .Append(want).Append(") ").Append(dotsOk ? "yes" : "NO").Append("; material ").Append(matOk ? z.Mat(gun.team).name + " = a unit's" : "DIFFERENT")
                   .Append("; dot shape differs from a unit's at ").Append(shape).Append(" vertices; lift ").Append((up * 100f).ToString("0.0")).Append(" cm (the units'), off at ").Append(liftOff)
                   .Append("; 360 points (").Append(points).Append(" visible vertices): over the walk ground ").Append((minWalk * 100f).ToString("+0.0;-0.0")).Append(" .. ")
@@ -147,6 +148,7 @@ namespace OpenZ
             }
             if (gun.mesh) Destroy(gun.mesh);
             if (unit.mesh) Destroy(unit.mesh);
+            z.edgeClip = clip;
             sb.Append("guns measured: ").Append(guns).Append("; the drawn ground read from ").Append(surf != null && surf.RenderHeights ? "the TER meshes' lattice" : "nowhere (no TrackSurface heights)").Append('\n');
             return sb.ToString();
         }

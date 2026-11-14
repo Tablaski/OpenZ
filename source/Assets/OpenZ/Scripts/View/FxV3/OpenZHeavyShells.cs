@@ -44,6 +44,8 @@ namespace OpenZ
         public static float WhistleVolume = 0.9f, WhistleMinFlight = 0.45f;
         // muzzle
         public static float MuzzleFlashK = 2.4f, MuzzleGroundLight = 1.8f, MuzzleRingRadius = 9f, MuzzleRingSeconds = 0.38f, MuzzleShake = 0.3f;
+        public static float SoftRingInner = 0.76f, SoftRingOpacity = 0.33f;                             // the fort gun's soft ring: its band is the outer 24 % of the radius, peak opacity a third
+        static readonly Vector4 SoftRingTone = new Vector4(0.62f, 0.6f, 0.56f, 1f);                     // pale smoke
         // impact
         public static float CraterRadius = 3.4f, ImpactShake = 1.0f, ImpactShakeRange = 75f, ImpactLight = 26f;
 
@@ -52,13 +54,13 @@ namespace OpenZ
             public bool active, fort, whistled; public Vector3 p0, v0, pos, prev; public float g, T, age, smokeRem, emberT, whistleAt = -1f;
             public Action<Vector3> onLand; public AudioSource src; public Light light;
         }
-        sealed class Ring { public bool active; public Vector3 c; public float age, life, r1; public Material mat; public GameObject go; }
+        sealed class Ring { public bool active, soft; public Vector3 c; public float age, life, r1; public Material mat; public GameObject go; public MeshFilter mf; }
 
         readonly List<Shell> shells = new List<Shell>();
         readonly List<Ring> rings = new List<Ring>();
         readonly List<AudioSource> whistles = new List<AudioSource>();
         readonly List<Light> lights = new List<Light>();
-        Mesh shellMesh, sphere, ringMesh, fortMesh, howitzerMesh; Vector3 nose = Vector3.forward; float shellLen = 0.45f;
+        Mesh shellMesh, sphere, ringMesh, softRingMesh, fortMesh, howitzerMesh; Vector3 nose = Vector3.forward; float shellLen = 0.45f;
         Material bodyMat, bandMat, baseMat, hotMat, shimmerMat, ringShaderMat; AudioClip[] whistleClips;
         /// <summary>
         /// and the howitzer, 4-6 variations each picked without repeats): recorded takes (Resources/OpenZ/Audio/Sfx, a crescendo that ends on
@@ -142,7 +144,7 @@ namespace OpenZ
             whistleClips = new[] { Resources.Load<AudioClip>("OpenZ/Audio/Sfx/sd_shell_whistle_a"), Resources.Load<AudioClip>("OpenZ/Audio/Sfx/sd_shell_whistle_b") };
             if (!whistleClips[0] && !whistleClips[1]) Debug.LogWarning("[OpenZ] heavy shells: sd_shell_whistle_a/_b missing in Resources/OpenZ/Audio/Sfx (no whistle)");
             fortWhistles = LoadBank(BankIncomingFort); howitzerWhistles = LoadBank(BankIncomingHowitzer);
-            ringMesh = FlatRing(64, 0.7f);
+            ringMesh = FlatRing(64, 0.7f); softRingMesh = SoftRing(64, 8, SoftRingInner);
         }
 
         void OnDestroy()
@@ -241,10 +243,10 @@ namespace OpenZ
                 float gy = z.SurfaceY(muzzle);
                 float baseY = fort ? muzzle.y - 1.3f : gy;
                 bool nearGround = muzzle.y - gy < 4f;
-                I.AddRing(new Vector3(muzzle.x + dir.x * 1.2f, baseY + 0.25f, muzzle.z + dir.z * 1.2f), MuzzleRingRadius * (fort ? 1.2f : 1f), MuzzleRingSeconds);
+                I.AddRing(new Vector3(muzzle.x + dir.x * 1.2f, baseY + 0.25f, muzzle.z + dir.z * 1.2f), MuzzleRingRadius * (fort ? 1.2f : 1f), MuzzleRingSeconds, fort);
                 if (nearGround && !z.WetAt(muzzle))
                 {
-                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OpenZFxCatalog.M12Dust.color;
+                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
                     for (int k = 0; k < 16; k++)
                     {
                         float a = k * Mathf.PI * 2f / 16 + UnityEngine.Random.Range(-0.12f, 0.12f);
@@ -282,7 +284,7 @@ namespace OpenZ
                 fx?.Breakup(ground + Vector3.up * 0.4f, "stone", 2.6f * k, 14, 1.15f);
                 if (z)
                 {
-                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OpenZFxCatalog.M12Dust.color;
+                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
                     for (int i = 0; i < 18; i++)
                     {
                         float a = i * Mathf.PI * 2f / 18 + UnityEngine.Random.Range(-0.1f, 0.1f);
@@ -363,6 +365,12 @@ namespace OpenZ
                 if (k >= 1f) { r.active = false; r.go.SetActive(false); continue; }
                 float rad = r.r1 * (1f - (1f - k) * (1f - k));
                 r.go.transform.position = r.c; r.go.transform.localScale = new Vector3(rad * 1.05f, 1f, rad * 1.05f);
+                if (r.soft)
+                {   // the fort gun: a soft puff of air, its softness is all in the mesh, so the shader's band covers it whole
+                    r.mat.SetVector("_RingCenter", r.c); r.mat.SetFloat("_RingRadius", rad * 2f);
+                    r.mat.SetFloat("_RingAlpha", SoftRingOpacity * (1f - Mathf.SmoothStep(0.15f, 1f, k)));
+                    continue;
+                }
                 r.mat.SetVector("_RingCenter", r.c); r.mat.SetFloat("_RingRadius", rad);
                 r.mat.SetVector("_Color", new Vector4(1f, 0.8f, 0.55f, 1f) * (3.5f * (1f - k) * (1f - k)));
             }
@@ -503,7 +511,7 @@ namespace OpenZ
             return l2;
         }
 
-        void AddRing(Vector3 c, float r1, float life)
+        void AddRing(Vector3 c, float r1, float life, bool soft = false)
         {
             if (!ringShaderMat) return;
             Ring r = null;
@@ -515,11 +523,39 @@ namespace OpenZ
                 r.mat.SetFloat("_Shape", 4f); r.mat.SetFloat("_UseVertexColor", 0f); r.mat.SetFloat("_Opaqueness", 0f); r.mat.SetFloat("_Intensity", 1f);
                 r.mat.SetFloat("_BandInner", 0.82f); r.mat.SetFloat("_BandSides", 0f); r.mat.SetFloat("_BandProfile", 1f); r.mat.SetFloat("_RingAlpha", 1f);
                 r.go = new GameObject("HeavyShellRing"); r.go.transform.SetParent(transform, false);
-                r.go.AddComponent<MeshFilter>().sharedMesh = ringMesh;
+                r.mf = r.go.AddComponent<MeshFilter>();
                 var mr = r.go.AddComponent<MeshRenderer>(); mr.sharedMaterial = r.mat; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
                 rings.Add(r);
             }
-            r.active = true; r.c = c; r.age = 0f; r.life = life; r.r1 = r1; r.go.SetActive(true);
+            r.soft = soft; r.mf.sharedMesh = soft ? softRingMesh : ringMesh;
+            r.mat.SetFloat("_UseVertexColor", soft ? 1f : 0f); r.mat.SetFloat("_Opaqueness", soft ? 1f : 0f);
+            r.mat.SetFloat("_BandInner", soft ? 0f : 0.82f); r.mat.SetFloat("_BandProfile", soft ? 0f : 1f);
+            r.mat.SetFloat("_RingAlpha", 1f);
+            if (soft) r.mat.SetVector("_Color", SoftRingTone);
+            r.active = true; r.c = c; r.age = 0f; r.life = life; r.r1 = r1;
+            r.go.transform.position = c; r.go.transform.localScale = new Vector3(0.001f, 1f, 0.001f);           // its first frame is its age 0 (radius 0): a pooled ring kept its last full size, place and full opacity for one frame (a hard hoop at night)
+            r.mat.SetVector("_RingCenter", c); r.mat.SetFloat("_RingRadius", 0.002f); if (soft) r.mat.SetFloat("_RingAlpha", SoftRingOpacity);
+            r.go.SetActive(true);
+        }
+
+        /// <summary>The fort gun's ring: a bell of opacity across a thin band, nothing at either edge (vertex alpha).</summary>
+        static Mesh SoftRing(int seg, int rows, float inner)
+        {
+            var v = new List<Vector3>(); var col = new List<Color>(); var tri = new List<int>();
+            for (int r = 0; r <= rows; r++)
+            {
+                float x = (float)r / rows, rad = Mathf.Lerp(inner, 1f, x), bell = Mathf.Sin(x * Mathf.PI); bell *= bell;
+                for (int i = 0; i <= seg; i++)
+                {
+                    float a = i * Mathf.PI * 2f / seg;
+                    v.Add(new Vector3(Mathf.Cos(a) * rad, 0f, Mathf.Sin(a) * rad)); col.Add(new Color(1f, 1f, 1f, bell));
+                }
+            }
+            int row = seg + 1;
+            for (int r = 0; r < rows; r++)
+                for (int i = 0; i < seg; i++) { int a = r * row + i; tri.AddRange(new[] { a, a + row, a + 1, a + 1, a + row, a + row + 1 }); }
+            var m = new Mesh { name = "HeavyShellSoftRing" }; m.SetVertices(v); m.SetColors(col); m.SetTriangles(tri, 0); m.RecalculateNormals(); m.RecalculateBounds();
+            return m;
         }
 
         /// <summary>Flat annulus (unit outer radius) in XZ, inner fraction `inner`.</summary>

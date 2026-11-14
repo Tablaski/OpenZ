@@ -85,14 +85,14 @@ namespace OpenZ
             bool ring = t >= nextRipple; if (ring) nextRipple = t + Random.Range(1.1f, 1.7f);              // item 227: fewer rings at the feet (they read as big circles from above)
             foreach (var f in foam)
             {
-                if (!DetailKit.OnScreen(cam, f.at, 0.2f)) continue;
+                if (!DetailKit.OnScreen(cam, f.at, 0.2f) || OzL16FlyoverFlora.SpotHeld(f.at)) continue;   // a spot beyond the rim stands back with the far fall (OzL16FlyoverFlora.FarFall.cs)
                 if (Random.value < dt * 8f * f.scale)                                                         // item 227: smaller, fainter, fewer foam puffs (they read as floating bits from above)
                     fx.EmitChannel("m12_smoke", f.at + Random.insideUnitSphere * 0.35f * f.scale + Vector3.up * 0.1f, Vector3.up * Random.Range(0.2f, 0.5f) + windDrift * 0.3f, Random.Range(0.4f, 0.7f), Random.Range(0.18f, 0.36f) * Mathf.Lerp(0.7f, 1f, f.scale), white, 0.4f);
                 if (ring) fx.Ripple(f.at + new Vector3(Random.Range(-0.3f, 0.3f), 0.03f, Random.Range(-0.3f, 0.3f)), 0.18f + 0.14f * f.scale);   // item 227: half-size rings
             }
             foreach (var m in mist)
             {
-                if (!DetailKit.OnScreen(cam, m.at, 0.3f)) continue;
+                if (!DetailKit.OnScreen(cam, m.at, 0.3f) || OzL16FlyoverFlora.SpotHeld(m.at)) continue;   // the far fall's mist stands back with it (OzL16FlyoverFlora.FarFall.cs)
                 if (Random.value < dt * 4f)
                     fx.EmitChannel("m12_dust", m.at + Random.insideUnitSphere * 1.1f * m.scale, windDrift * Random.Range(0.8f, 1.4f) + Vector3.up * 0.25f, Random.Range(2.2f, 3.4f), Random.Range(0.9f, 1.6f) * m.scale, white, 0.2f);
             }

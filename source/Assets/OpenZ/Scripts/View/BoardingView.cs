@@ -128,6 +128,7 @@ namespace OpenZ
             public Transform baseT; public MeshTopSampler baseTop; public float seatBaseY, feetY;
             public TeamPaint gunPaint, crewPaint; public Team gunPaintTeam; public float gunPaintCharred = -1f;   // gunner parented under the gun
             public bool groundStand;                                                               // crews_v2: howitzer gunner on the ground / tower top
+            public string seatKey;                                                                 // a cannon's key in SeatGrow / SeatFit (SeatKey); null = the unit type
         }
 
         class Key
@@ -173,7 +174,10 @@ namespace OpenZ
             // laser): >= 4.9 cm from the static base at every turret yaw (10 deg sweep), >= 10 cm from the barrel over its pitch range (+kick,
             // howitzer recoil), >= 10 cm from the turret, everything above the gun root (tower plinth). Replaces the crews_v2 outrigger saddle
             // (gatling), the ground stand 2.45 m out (howitzer) and the stand on the static base plate (missile cannon).
-            ["gatling"] = new GenSpots { hasSeat = true, turretSeat = true, seat = new Vector3(-0.75f, 0.90f, 1.36f), deckDrop = 0.715f, stepOut = new Vector3(0f, 0f, 1f) },          // beside the drum, levers at the yoke
+            // The gatling's seat kit (in its TurretYaw mesh) is the earlier seat x1.32 about the gunner's hips, the hips 0.20 m back, 0.23 m up and
+            // tiny gunners, a slight seat redesign allowed), clear of the drum, the tilting head (-30 .. +46.5 with the kick) and the base at every
+            // 0.34 m out) on the deck.
+            ["gatling"] = new GenSpots { hasSeat = true, turretSeat = true, seat = new Vector3(-0.95f, 1.13f, 1.50f), deckDrop = 0.945f, stepOut = new Vector3(0f, 0f, 0.75f) },          // beside the drum, levers at the yoke
             ["howitzer"] = new GenSpots { hasSeat = true, turretSeat = true, seat = new Vector3(0.10f, 0.95f, 1.62f), deckDrop = 0.715f, stepOut = new Vector3(0f, 0f, 1f) },         // the layer's seat on the carriage side at the trunnion
             ["missile_cannon"] = new GenSpots { hasSeat = true, turretSeat = true, seat = new Vector3(-2.42f, 0.15f, 0f), deckDrop = 0.715f, stepOut = new Vector3(-1f, 0f, 0f) },    // on a boom platform behind the pods
         };
@@ -268,6 +272,7 @@ namespace OpenZ
                     case ZEventType.DriverHit: { var r = RigOf(View(e.objId)); if (r != null) r.flinch = 0.25f; break; }
                     case ZEventType.Death:
                     {
+                        HatchExitDeath(e.objId);                                                                   // 1.4 DV171 fix round 4: a driver killed while he climbs out of a tank dies where his figure is (View/BoardingView.VehicleExit.cs)
                         var v = View(e.objId);
                         if (v && v.Obj != null && (v.Obj.Kind == ZKind.Vehicle || v.Obj.Kind == ZKind.Cannon)) { if (v.Obj.IsShuttle) ShuttleDoorwayTake(v.Obj.Id); var r = RigOf(v); if (r != null && !CrewDiesLater(e, v, r)) CrewDies(r); }   /* K418: the ramp's file first: saved figures walk on, lost ones are held (BoardingView.ShuttleDoorway.cs) */   /* version 1.1 item 202: with its held explosion (BoardingView.Kc5b.cs) */
                         break;
@@ -338,15 +343,16 @@ namespace OpenZ
             switch (o.Type)
             {
                 case "light": r.mode = Mode.Roof; r.crewScale = 0.67f; r.lid = true; break;
+                case ZMTank.Type: r.mode = Mode.Roof; r.crewScale = 0.67f; r.lid = true; break;   // DV145: the medium tank's dome hatch (its hatch 0.77 x 0.85 m, the light tank v2's 0.73 x 0.69 m)
                 case "medium": r.mode = Mode.Roof; r.crewScale = 0.7f; r.lid = true; break;
                 case "heavy": r.mode = Mode.Roof; r.crewScale = 0.62f; r.lid = true; break;
                 case "missile_launcher": r.mode = Mode.Roof; r.crewScale = 0.62f; break;
-                case "jeep": r.mode = Mode.Seat; r.crewScale = 0.62f; r.visible = true; break;
+                case "jeep": r.mode = Mode.Seat; r.crewScale = 0.62f * JeepGrowNow(r); r.visible = true; break;   // x the seat's measured gain (SeatGrow; the further-back driver's own: BoardingView.JeepSeat.cs)
                 case "apc": r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 0.85f; r.lid = true; break;                   // DV87: the roof hatch its lone driver comes up through (RoundHatch "apc")
                 case "crane": r.mode = Mode.Door; r.rearDoor = false; r.crewScale = 0.8f; r.lid = true; break;   // vehicles_nb_v1 NB24: the cab hatch driver (DV31)
                 case ZWorld.ShuttleType: r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 1f; break;   // DV118: the shuttle's rear ramp (ShuttleRearDoor; the bay's own fit)
                 default:
-                    if (o.Kind == ZKind.Cannon) { r.mode = Mode.Cannon; r.crewScale = 0.72f; r.visible = true; }
+                    if (o.Kind == ZKind.Cannon) { r.mode = Mode.Cannon; r.seatKey = SeatKey(v, o); r.crewScale = 0.72f * SeatGrowOf(r.seatKey); r.visible = true; }   // 2 Nov: x the gun's measured gain (SeatGrow by SeatKey: the gun v2 its own seat, the gun v1 1)
                     else { r.mode = r.hatchTop ? Mode.Roof : r.driverSeat ? Mode.Seat : Mode.Door; r.crewScale = 0.72f; r.visible = r.mode == Mode.Seat; }
                     break;
             }
@@ -355,7 +361,7 @@ namespace OpenZ
             r.model = v.transform.Find("Model"); if (!r.model) r.model = v.transform;
             // (top 0.24 m under the gun top) is hidden whenever the gun faces the camera. There he rides a raised perch over that chair
             // (GunnerPerch: seat, deck, grips, CannonTurretYaw-local), head 0.8 m (x0.72) over the housing. Ground guns keep the chair.
-            if (o.Type == "gun" && o.Kind == ZKind.Cannon && v.OnTower && r.turret && GunnerPerch.Build(r.turret, v))
+            if (o.Type == "gun" && o.Kind == ZKind.Cannon && v.OnTower && r.turret && !OzGun.NoPerch(v) && GunnerPerch.Build(r.turret, v))   // 1.2 v2 units: v1 only (the gun v2's gunner sits in view on its own chair: View/OzGun.cs)
             { r.gunnerSeat = null; LegacyTowerPerch.seat = GunnerPerch.Seat; r.gen = LegacyTowerPerch; }
             if (Gen.TryGetValue(o.Type, out var ms) && !r.hatchTop && !r.gunnerSeat && !r.driverSeat)
             {
@@ -387,8 +393,61 @@ namespace OpenZ
         /// Cannons, the crane cab and the MLRS roof: ElectrobotFitDefault, proven in Play (OpenZ/Electrobot: 5 Crew Fit Check).
         /// Every other type: 1.</summary>
         public static readonly Dictionary<string, float> ElectrobotFit = new Dictionary<string, float>
-        { { "light", 0.69f }, { "medium", 0.66f }, { "heavy", 0.69f }, { "jeep", 0.81f }, { "apc", 0.87f } };
+        { { "light", 0.69f }, { "medium", 0.66f }, { ZMTank.Type, 0.69f }, { "heavy", 0.69f }, { "jeep", 0.81f }, { "apc", 0.87f } };   // DV145 the medium tank (Sim/ZMTank.cs)
         public static float ElectrobotFitDefault = 0.87f;
+        /// <summary>
+        /// Every robot type was measured seated in each of
+        /// howitzer's and missile cannon's seat kits): the largest size with no part through the seat, the console, the gun or the jeep (the
+        /// hands may hold the wheel / grips, the boots may stand in the jeep's footwell). <see cref="SeatGrow"/> raises the seat's crewScale by its
+        /// biggest type's gain; <see cref="SeatFit"/> gives each type its own share of that (at most 1, so a fit only ever shrinks over the last
+        /// two keys of a boarding, as the Electrobot's always did). In the jeep the bulky types (psycho, tough, pyro, sniper, laser) put the head
+        /// through the windscreen frame at today's size: theirs is the size where it clears. A type not listed keeps today's size. The gun v2's
+        /// gunner already touched its box and the gatling's console was modelled round the small gunner: both seats were redone so that every
+        /// type sits at 0.95 of his standing size (the Electrobot 0.90 on the gatling): GenSpots "gatling" and the seat key "gun_v2" (SeatKey).
+        /// The gun v1 and the hatch commanders (the round hatch's collar already holds them): unchanged.
+        /// Off (<see cref="SeatsV2"/> false) = the sizes as before.</summary>
+        public static bool SeatsV2 = true;
+        public static readonly Dictionary<string, float> SeatGrow = new Dictionary<string, float>
+        { { "jeep", 1.1f }, { "gatling", 1.32f }, { "gun_v2", 1.32f }, { "howitzer", 1.16f }, { "missile_cannon", 1.08f } };
+        public static readonly Dictionary<string, Dictionary<string, float>> SeatFit = new Dictionary<string, Dictionary<string, float>>
+        {
+            ["jeep"] = new Dictionary<string, float> { { "grunt", 1f }, { "psycho", 0.727f }, { "tough", 0.745f }, { "pyro", 0.764f }, { "sniper", 0.836f }, { "laser", 0.8f }, { "electrobot", 0.736f } },
+            ["gatling"] = new Dictionary<string, float> { { "grunt", 1f }, { "psycho", 1f }, { "tough", 1f }, { "pyro", 1f }, { "sniper", 1f }, { "laser", 1f }, { "electrobot", 0.947f } },   // its redone seat (GenSpots "gatling"): 0.95 of standing, the Electrobot 0.90
+            ["gun_v2"] = new Dictionary<string, float> { { "grunt", 1f }, { "psycho", 1f }, { "tough", 1f }, { "pyro", 1f }, { "sniper", 1f }, { "laser", 1f }, { "electrobot", 1f } },   // the gun v2's redone seat (SeatKey): 0.95 of standing, every type
+            ["howitzer"] = new Dictionary<string, float> { { "grunt", 0.99f }, { "psycho", 0.931f }, { "tough", 0.983f }, { "pyro", 0.914f }, { "sniper", 0.931f }, { "laser", 1f }, { "electrobot", 0.825f } },   // howitzer_grunt 2 Nov: the grunt 0.99 (was 0.931), his place: SeatPlace
+            ["missile_cannon"] = new Dictionary<string, float> { { "grunt", 1f }, { "psycho", 1f }, { "tough", 0.981f }, { "pyro", 0.981f }, { "sniper", 1f }, { "laser", 1f }, { "electrobot", 0.886f } },
+        };
+        static float SeatGrowOf(string type) => SeatsV2 && type != null && SeatGrow.TryGetValue(type, out var g) ? g : 1f;
+        /// <summary>A cannon's key in <see cref="SeatGrow"/> / <see cref="SeatFit"/>: its type, but "gun_v2" for the gun v2's model (it shares the
+        /// sim type "gun" with the gun v1, whose seat and sizes stay as they were). The gun v2's own seat (a small steel pan on a strut behind its
+        /// box, part of its turret mesh; CannonGunnerSeat 0.16 m higher and 0.36 m further back: GunV2Seat.SeatYawLocal) takes every robot type at
+        /// 0.95 of his standing size, clear of the box, the barrel through its pitch, slide and kick and the base at every turret angle, on the
+        /// </summary>
+        static string SeatKey(UnitView v, ZObject o) => OzGun.Is(o) && v && OzGun.Models.IsV2(v.transform) ? "gun_v2" : o.Type;
+        /// <summary>Where a robot type's hips sit on a cannon seat, moved from its socket (m, in the socket's parent space: on the gun v2 its
+        /// CannonTurretYaw, +z = the back, -z = toward the box). The BS-01 grunt, the gun v2's usual gunner, sits 8 cm closer to the box than
+        /// the socket, so the hand he holds out is on the box's back plate (about 1 cm off it) instead of 9 cm short of it; the seat pan
+        /// reaches 12 cm further forward under him (gun_v2.glb), so he still sits on it. The other types are bigger and already reach: they
+        /// keep the socket. A seat key or type not listed: no shift. Off with <see cref="SeatsV2"/>.</summary>
+        public static readonly Dictionary<string, Dictionary<string, Vector3>> SeatPlace = new Dictionary<string, Dictionary<string, Vector3>>
+        {
+            ["gun_v2"] = new Dictionary<string, Vector3> { { "grunt", new Vector3(0f, 0f, -0.08f) } },
+            // and 4.7 cm higher on the howitzer's seat (TurretYaw space, +x toward the barrel, +y up): his fists on the two levers, not in the
+            ["howitzer"] = new Dictionary<string, Vector3> { { "grunt", new Vector3(-0.065f, 0.047f, 0f) } },
+        };
+        /// <summary>The world shift of figure <paramref name="go"/>'s hips from the cannon seat's socket (<see cref="SeatPlace"/>). It turns,
+        /// kicks and scales with the gun (a fort tower's gun is drawn x 0.72, so is the shift). Zero for every other rig, seat and type.</summary>
+        static Vector3 SeatPlaceShift(Rig r, GameObject go)
+        {
+            // howitzer_grunt 2 Nov: a seat kit on an imported gun's turret (GenSpots turretSeat, no GunnerSeat node: the howitzer) is a point in
+            // its TurretYaw space carried by the turret's yaw only (CarriedSeatRaw): the shift turns and scales (a fort tower's gun x 0.72) with it
+            if (SeatsV2 && r != null && r.mode == Mode.Cannon && r.seatKey != null && go && !r.gunnerSeat && r.seatOnTurret && r.turret && I
+                && SeatPlace.TryGetValue(r.seatKey, out var turretRow) && turretRow.TryGetValue(FigureType(go) ?? "grunt", out var turretD))
+                return I.TurretYawPoint(r, r.seatInTurret + turretD) - I.TurretYawPoint(r, r.seatInTurret);
+            if (!SeatsV2 || r == null || r.mode != Mode.Cannon || r.seatKey == null || !go || !r.gunnerSeat || !r.gunnerSeat.parent) return Vector3.zero;
+            if (!SeatPlace.TryGetValue(r.seatKey, out var row) || !row.TryGetValue(FigureType(go) ?? "grunt", out var d)) return Vector3.zero;   // no RobotV3 = the BS-01 grunt
+            return r.gunnerSeat.parent.TransformVector(d);
+        }
         /// <summary>Vehicle / cannon types where his coil masts stow (ElectrobotCoils: x0.5 about their bases) while he sits; empty: at
         /// the fits above no seat needs it (measured); kept for tuning after the Play check.</summary>
         public static readonly HashSet<string> ElectrobotStowIn = new HashSet<string>();
@@ -400,10 +459,17 @@ namespace OpenZ
 
         static float CrewFit(Rig r, string type)
         {
-            if (type != "electrobot" || r == null || r.obj == null) return 1f;
+            if (r == null || r.obj == null) return 1f;
+            string key = r.seatKey ?? r.obj.Type;                                                             // the seat's key (SeatKey: the gun v2 its own, every other rig its unit type)
+            if (SeatsV2 && SeatFit.TryGetValue(key, out var seat))                                             // 2 Nov: the seat's measured share per type (the BS-01 grunt has no RobotV3 type)
+            {
+                string t = type ?? "grunt";                                                                     // no RobotV3 = the BS-01 grunt (EvilZod sits in none of these seats); not r.crewType: it can still name the last crew while a new one boards
+                return seat.TryGetValue(t, out var s) ? s : 1f / SeatGrowOf(key);                               // a type not measured keeps today's size
+            }
+            if (type != "electrobot") return 1f;
             return ElectrobotFit.TryGetValue(r.obj.Type, out var f) ? f : ElectrobotFitDefault;
         }
-        static float CrewFit(Rig r, GameObject go) => CrewFit(r, FigureType(go));
+        static float CrewFit(Rig r, GameObject go) => HatchGruntFit(r, go, out float hg) ? hg : JeepFit(r, go, out float jf) ? jf : CrewFit(r, FigureType(go));   // the jeep driver: his type's share (BoardingView.JeepSeat.cs); row 54: the grunt in a tank's top hatch (BoardingView.HatchGrunt.cs)
         static float CrewStow(Rig r, GameObject go) =>
             FigureType(go) == "electrobot" && r != null && r.obj != null && (r.mode == Mode.Seat || r.mode == Mode.Cannon) && ElectrobotStowIn.Contains(r.obj.Type) ? 1f : 0f;
         /// <summary>The hatch commander's clip: the Electrobot rests his forearms on the collar (electro_hatch, no gun shown).</summary>
@@ -554,9 +620,9 @@ namespace OpenZ
         /// gunner (imported howitzer / missile cannon, no seat) has its feet on the spot instead.</summary>
         Vector3 SeatRoot(Rig r, Ghost g)
         {
-            SeatPose(r, out var p, out _, out _);
+            SeatPose(r, out var p, out _, out _); p += SeatPlaceShift(r, g.go);                               // + this figure's place on the seat (SeatPlace)
             if (r.standGunner) return p;
-            return p - HipsOffset(g.go, g.hips, r.root.up, pelvisHeight * g.baseScale * r.crewScale * FitNow(g));   // electrobot_v1: + the type's fit
+            return p + JeepSeatShift(r, g.go) - HipsOffset(g.go, g.hips, r.root.up, pelvisHeight * g.baseScale * r.crewScale * FitNow(g));   // electrobot_v1: + the type's fit; the jeep driver's seat shift (BoardingView.JeepSeat.cs)
         }
 
         /// <summary>gunner_seats_v1: the gun has a seat on a platform on its turret (GenSpots.turretSeat) he climbs up to.</summary>
@@ -750,6 +816,7 @@ namespace OpenZ
             if (!prefab) return null;
             var go = Instantiate(prefab, pos, rot, box);
             go.name = "crew_" + type;
+            OzEvilZodView.Figure(go, type, team);                                                        // DV161: a figure of him wears his paint and holds his gun
             UnitLookMotionGate.KeepUnitCrisp(go);                                                        // a crew figure rides a living vehicle: body and rigid kit stay sharp
             var tp = go.GetComponent<TeamPaint>(); if (tp) tp.Team = team;
             var an = go.GetComponentInChildren<Animator>(); if (an) an.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
@@ -1129,6 +1196,7 @@ namespace OpenZ
             }
             HideLive(g);
             BuildExit(g);
+            HatchExitPlan(g, r);                                                                           // 1.4 DV171: a tank's / the mech's driver: the way out keyed again at a human pace, the commander down and the lid open first (View/BoardingView.VehicleExit.cs)
             ghosts.Add(g);
             Place(g, 0f);
             ExitsStarted++;                                                                                // crews_v2 (CannonExitCheck)
@@ -1149,6 +1217,7 @@ namespace OpenZ
                 if (r.obj.Kind == ZKind.Vehicle && !r.obj.IsShuttle && !(r.obj.Type == "apc" && ApcRearDoor.Of(r.view))) StartCoroutine(LatchLater(0.14f, r.root.position, r.obj.Id));
             }
             ShowLive(g);
+            HatchGunHandOver(g, abort);                                                                  // vehicle_exit_gun: his own model's gun checked at the hand-over after the leap (View/BoardingView.VehicleExit.cs)
             ExitWalkEnded(g, abort);                                                                     // K441: the hand-over measured, the shots held meanwhile drawn (View/BoardingView.ExitWalk.cs)
             if (!g.go) return;
             if (!abort && g.enter && !g.demo && r.visible && showSeatedCrew && !r.crew && Crewed(r))
@@ -1192,6 +1261,7 @@ namespace OpenZ
         void CrewDies(Rig r)
         {
             if (ShuttleDoorwayCrewDies(r)) return;   // K418: a shuttle's figures are thrown by its break-up (BoardingView.ShuttleCrewLost), never twice
+            HatchCommanderLeaving(r);                                                                       // 1.4 DV171 fix round 4: the hatch commander of a hull whose driver is getting out IS that driver: taken away, no body, no death cry (View/BoardingView.VehicleExit.cs)
             if (r.crew && r.root) AudioDirector.CrewDeath(r.root.position, r.obj != null ? r.obj.Id : -1);   // sound_v3: the flung crew dies audibly
             // crews_v1: a tower gunner is thrown outward from the fort centre, over the wall (the fort has no colliders: straight
             // down, the ragdoll would drop through the roof into the fort); ground guns as before
@@ -1259,8 +1329,9 @@ namespace OpenZ
         void LateUpdate()
         {
             if (!game || game.World == null) return;
+            if (lateDoneFrame == Time.frameCount) return; lateDoneFrame = Time.frameCount;             // 1.4 DV171 fix round 5: once a frame (OpenZUnitOverlay may ask first: LateFirst, View/BoardingView.VehicleExit.cs)
             float dt = Time.deltaTime; int frame = Time.frameCount;
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value; if (!v || v.Obj == null) continue;
                 if (v.Obj.Kind != ZKind.Vehicle && v.Obj.Kind != ZKind.Cannon) continue;
@@ -1297,6 +1368,7 @@ namespace OpenZ
             var r = g.rig;
             if (!g.go || !r.view || !r.view.gameObject.activeInHierarchy || (g.live && (g.live.Dying || !g.live.gameObject.activeInHierarchy)))
             { EndGhost(g, true); return; }
+            if (HatchExitStep(g, r, dt)) return;                                                         // 1.4 DV171: a driver climbing out: the lid, his sounds, a jump off a destroyed hull; a boarding figure waits while he is on the hull (View/BoardingView.VehicleExit.cs)
             if (g.delay > 0f)
             {
                 g.delay -= dt;
@@ -1356,10 +1428,12 @@ namespace OpenZ
             }
             else if (clip == "jump_takeoff" || clip == "jump_air" || clip == "landing") spd = Mathf.Clamp(0.45f / Mathf.Max(0.1f, k.dur), 0.8f, 2.5f);
             string now = g.clipNow; Play(g.anim, ref now, clip, spd * g.speedMul * SimRate); g.clipNow = now;
+            GunReach(r, g.go, g.anim, g.hips, false);                                                      // sniper_v2: a getting-up gunner's reach goes out (BoardingView.GunReach.cs)
             Band(g.skin, t, g.hips, t.localScale.x);
             float frac = g.total > 0 ? g.time / g.total : 1f;
             bool show = g.enter ? frac < 0.12f : frac > 0.86f;
             if (g.demo) show = frac < 0.06f || frac > 0.94f;
+            if (HatchGunHeld(g)) show = true;                                                              // vehicle_exit_gun: after the leap his gun stays in his hands once it came back (View/BoardingView.VehicleExit.cs)
             if (g.weapon && g.weapon.gameObject.activeSelf != show) g.weapon.gameObject.SetActive(show);
             if (k.hatch || (i + 1 < keys.Count && keys[i + 1].hatch && g.time > acc + k.dur - 0.15f)) r.hatchWant = true;
         }
@@ -1414,7 +1488,7 @@ namespace OpenZ
             }
             bool lidTiming = r.lid && showLidCommander && r.boarding == 0;
             bool wasOpen = r.hatch > 0.05f;
-            float openRate = lidTiming ? 1f / Mathf.Max(0.01f, lidOpenTime) : hatchOpenRate, closeRate = lidTiming ? 1f / Mathf.Max(0.01f, lidCloseTime) : hatchCloseRate;
+            float openRate = lidTiming ? 1f / Mathf.Max(0.01f, HatchLidOpenTime(r)) : hatchOpenRate, closeRate = lidTiming ? 1f / Mathf.Max(0.01f, lidCloseTime) : hatchCloseRate;   // vehicle_exit_jump3: an exit's lid is kicked open (HatchKickSec), every other lid at Zod's lidOpenTime
             r.hatch = Mathf.MoveTowards(r.hatch, r.hatchWant ? 1f : 0f, (lidTiming ? dt * SimRate : dt) * (r.hatchWant ? openRate : closeRate));
             if (r.lid && showLidCommander && r.hinge && r.obj.HasLid)
             {
@@ -1456,9 +1530,10 @@ namespace OpenZ
 
         void PlaceSeated(Rig r)
         {
-            SeatPose(r, out var p, out var q, out var clip);
+            SeatPose(r, out var p, out var q, out var clip); p += JeepSeatShift(r, r.crew);   // the jeep driver's seat shift (BoardingView.JeepSeat.cs)
             float s = r.crewBase * r.crewScale * CrewFit(r, r.crew);                                      // electrobot_v1: the type's crew fit
             ElectrobotCoils.Set(r.crew, CrewStow(r, r.crew));
+            p += SeatPlaceShift(r, r.crew);                                                                // this figure's place on the seat (SeatPlace)
             var t = r.crew.transform;
             HoldOnTurret(r, t);                                                                            // crews_v1: a child of the gun's yaw node
             t.SetPositionAndRotation(p, q); SetWorldScale(t, s);
@@ -1466,6 +1541,7 @@ namespace OpenZ
             if (r.flinch > 0f) p -= (q * Vector3.back) * 0.08f * Mathf.Sin(r.flinch / 0.25f * Mathf.PI);   // driver hit: a jolt
             t.position = p;
             Play(r.crewAnim, ref r.crewClip, clip, 1f, 0.2f);
+            GunReach(r, r.crew, r.crewAnim, r.crewHips, true);                                             // sniper_v2: the sniper on the gun v2 leans in, fists on the box (BoardingView.GunReach.cs)
             Band(r.crewSkin, t, r.crewHips, s);
             if (r.crewWeapon && r.crewWeapon.gameObject.activeSelf) r.crewWeapon.gameObject.SetActive(false);
         }
@@ -1499,8 +1575,11 @@ namespace OpenZ
             r.kick = Mathf.MoveTowards(r.kick, 0f, dt / 0.14f);
             if (r.kick > 0f) shown += (r.crewAim * Vector3.forward) * (0.07f * s * r.kick * r.kick);          // recoil: back, away from the aim
             t.position = Vector3.Lerp(hidden, shown, Mathf.SmoothStep(0, 1, r.crewPop));
+            HatchGruntPlaceUp(r, t, ref shown, s);                                                           // row 54: the grunt in a tank's top hatch, up (View/BoardingView.HatchGrunt.cs)
+            LightV2HatchClear(r, t, up, shown, engaged);                                                     // 1.2 light tank v2: the driver's arms, lift and weapon (View/BoardingView.LightV2Hatch.cs)
+            HatchGruntPlaceSide(r, t, s);                                                                    // row 54: and sideways, after the light tank v2's arms-in centring
             Band(r.crewSkin, t, r.crewHips, s);
-            Play(r.crewAnim, ref r.crewClip, CommanderClip(r, engaged), 1f, 0.15f);                          // electrobot_v1: his forearms on the collar
+            Play(r.crewAnim, ref r.crewClip, LightV2Clip(r, CommanderClip(r, engaged)), 1f, 0.15f);          // electrobot_v1: his forearms on the collar; 1.2 light tank v2: idle once his arms are in
         }
 
         /// <summary>Hips, shoulder-joint and helmet-top heights of the crew figure above its root, in its own (unscaled) units: the
@@ -1649,6 +1728,7 @@ namespace OpenZ
                 {
                     float gs = game ? Mathf.Max(0.05f, game.gameSpeed) : 1f;
                     float secs = Mathf.Clamp(dist / 24f, 0.25f, 1.6f);                                     // real seconds (~ the Tough's rocket)
+                    float simS = secs * gs; if (ShotLine.Cut(from, ref to, ref simS, FxWeapon.Bazooka, null)) secs = simS / gs;   // bullets_straight: it ends on what it meets, its landing with it
                     if (z && z.isActiveAndEnabled) z.Launch(from, to, secs * gs, FxWeapon.Bazooka, true);  // Launch divides by the game speed
                     else if (fx) fx.Projectile(from, to, "rocket", secs, 6f);
                     LegacyMatch.BackBlast(from - dir * 0.8f, flat, fx);

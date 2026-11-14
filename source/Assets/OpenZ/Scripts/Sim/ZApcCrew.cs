@@ -31,8 +31,8 @@ namespace OpenZ.Sim
     ///  - EXIT (ZWorld.Eject, the same command): the passenger squad pops out next to the APC with its stored health and grenades,
     ///    the driver stays, the APC stays owned and keeps its orders. With no passengers Eject is refused (CanEjectCrew() = false:
     ///    the HUD greys its EXIT button, the cursor shows no EXIT).
-    ///  - The APC turns neutral only when its driver dies (a driver snipe; Zod's APC is never snipable, so this only happens if a
-    ///    later change makes it snipable): the driver is lost (Zod: a sniped crew is cleared) and the passengers pop out alive for
+    ///  - The APC turns neutral only when its driver dies (a driver snipe; Zod's APC is never snipable; with DV143 the lone driver
+    ///    up in the roof hatch can be sniped, Sim/ZObject.ApcSnipe.cs): the driver is lost (Zod: a sniped crew is cleared) and the passengers pop out alive for
     ///    the team that owned the APC. A destroyed APC kills everyone aboard (Zod: the crew dies with the vehicle).
     ///  - A repair station keeps the passengers with the drivers while the APC is inside.
     /// Deterministic: no random draw, no frame time, object creation order fixed; every change goes through the existing
@@ -54,7 +54,7 @@ namespace OpenZ.Sim
             || ShuttleEmptyTakes(team);                                                                   // DV118 (K256f): an EMPTY shuttle takes a human team's ordered squad, its leader the pilot (Sim/ZWorld.ShuttleEmpty.cs)
 
         /// <summary>DV15: robot `r` (a squad leader or one of its minions) may board this APC as a passenger.</summary>
-        public bool CanTakePassengers(ZObject r) => r != null && r.IsRobot && !r.Destroyed && CanTakePassengers(r.Owner);
+        public bool CanTakePassengers(ZObject r) => r != null && r.IsRobot && !r.Destroyed && CanTakePassengers(r.Owner) && r.EvilMayEnter(this);
 
         /// <summary>The EXIT command would do something now (HUD button, cursor, right-click): DV15 APC = passengers aboard; Zod rule
         /// otherwise (APC / ejectable cannon with a crew, vapc.cpp:261, zcannon.cpp:51).</summary>
@@ -134,6 +134,7 @@ namespace OpenZ.Sim
             if (!(ApcCrewDeviation || (v != null && v.IsShuttle)) || r == null || v == null || r.KillAt >= 0 || r.IsMinion || !v.CanTakePassengers(r)) return false;
             if (v.IsShuttle) ShuttleBoardSchedule(r, v);                                    // DV118: when each figure reaches the ramp foot, the ramp's hold (Sim/ZWorld.ShuttleRamp.cs)
             v.PassengerType = r.Type;
+            EvilSeatIn(r, v);                                                               // DV161: his rank and clocks ride beside the list (Sim/ZEvilZod.cs)
             v.Passengers.Clear();
             v.Passengers.Add(r.Health);
             r.KillAt = 0;
@@ -182,6 +183,7 @@ namespace OpenZ.Sim
                 Emit(ZEventType.Created, squad[i], v);
             }
             leader.Grenades = v.PassengerGrenades;
+            EvilSeatOut(v, leader);                                                                         // DV161: his rank and clocks back (Sim/ZEvilZod.cs)
             v.Passengers.Clear(); v.PassengerGrenades = 0;
             v.ResetDamageInfo();
             if (v.AttackObject != null && !v.WithinAttackRadius(v.AttackObject)) v.Disengage();         // the driver's rifle may not reach it

@@ -266,7 +266,7 @@ namespace OpenZ
             yield return Shoot(red, rv, "after_day_24", 1.3f, 2.6f, new[] { -1.0f, -0.4f, 0.15f, 0.6f, 1.2f, 1.8f, 2.5f }, true, csv);
             var after = lastShot;
             Verdict("before_flat", before.fired && before.max < 0.01f, $"shot 1 (tilt off): fired {before.fired}, head tilt max {before.max:0.00} deg, bore {before.bore:0.00} deg");
-            Verdict("after_tilts", after.fired && after.atShot > rv.headTilt * 0.9f && after.idle < 0.5f, $"shot 2: head {after.idle:0.00} deg 1.3 s before, {after.atShot:0.00} deg at the shot, max {after.max:0.00} (set {rv.headTilt:0})");
+            Verdict("after_tilts", after.fired && after.atShot > rv.headTilt * 0.9f, $"shot 2: head {after.idle:0.00} deg 1.3 s before (it rises with the barrel's climb), {after.atShot:0.00} deg at the shot, max {after.max:0.00} (set {rv.headTilt:0})");
             Verdict("lob_kept", after.fired && before.fired && Mathf.Abs(after.bore - before.bore) < 1.0f, $"bore elevation at the shot: before {before.bore:0.00}, after {after.bore:0.00} deg (the barrel's own elevation in the head shrinks by the tilt)");
             float settle0 = T; float settleTilt = 99f; while (T - settle0 < 3.5f && !done) { settleTilt = rv.HeadTiltNow; yield return null; }
             Verdict("eases_back", settleTilt < 0.2f, $"~6 s after shot 2 (reloading, target still in range): head tilt {settleTilt:0.00} deg");

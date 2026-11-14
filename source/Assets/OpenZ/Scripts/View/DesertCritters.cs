@@ -791,7 +791,7 @@ namespace OpenZ
         void RefreshUnits()
         {
             unitCount = 0; obsCount = 0; stamp++;
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value;
                 if (!v || v.Dying || !v.gameObject.activeInHierarchy || v.Obj == null) continue;

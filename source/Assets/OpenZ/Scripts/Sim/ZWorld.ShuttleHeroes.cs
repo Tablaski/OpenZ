@@ -104,6 +104,7 @@ namespace OpenZ.Sim
                 var lo = CreateRobotGroup(v.PassengerType, v.LocX, v.LocY, team, hpO.Count);
                 other = new List<ZObject> { lo }; other.AddRange(lo.Minions);
                 HeroCrewOut(v, other, hpO, true);
+                EvilSeatOut(v, lo);                                                                 // DV161 (Sim/ZEvilZod.cs)
             }
             var all = new List<ZObject>(squad); if (other != null) all.AddRange(other);
             ShuttlePlaceCrew(v, all);                                                               // one line on the back slots, the hero squad first (the farthest)
@@ -126,6 +127,7 @@ namespace OpenZ.Sim
             ShuttleEmptyAgain(v);
             Emit(ZEventType.Ejected, v, lead, 0, 0, all.Count, 0, false);                            // flag false: the whole crew left (the ship turns neutral)
             ResetObjectTeam(v, Team.Neutral);
+            DropAttacksOnEmptied(v, true);                                                          // 1.4 DV176 (u2_followups): nobody keeps shooting the emptied ship (Sim/ZWorld.DropEmptied.cs)
             v.ShuttleLastRampUse = ZShuttleRampUse.Unloaded;
             ZObject.ShuttleHeroesEmptied++;
             return true;

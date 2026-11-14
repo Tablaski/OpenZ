@@ -85,6 +85,8 @@ namespace OpenZ.Sim
         // ---- counters for the bot match / parity checks
         public int Orders { get; private set; }               // waypoint lists sent (SEND_WAYPOINTS)
         public int BuildChanges { get; private set; }         // STOP + START pairs sent
+        /// <summary>DV155 statistics (checks): production changes not sent because the building is destroyed.</summary>
+        public int RuinSkips { get; private set; }
         public int Rounds { get; private set; }               // order rounds that passed the delay
         public int RejectedOrders { get; private set; }       // sent waypoint dropped by the server's CheckWaypoint
         public readonly Dictionary<WpMode, int> OrdersByMode = new Dictionary<WpMode, int>();
@@ -104,7 +106,7 @@ namespace OpenZ.Sim
 
         public ZBot(ZWorld world, Team team, int seed)
         {
-            W = world; Team = team; rng = new ZRng(seed * 7919 + (int)team);
+            W = world; Team = team; rng = new ZRng(seed * 7919 + (int)team); mixRng = MixRng(seed, team);   // DV148: the mech / medium tank coin's own stream (ZBot.MechMix.cs)
             BuildClientRegions();
             // connect: the objects arrive without any waypoint list (waypoints only travel in relays)
             foreach (var o in W.Objects) if (o.IsMobile) known[o.Id] = new Known { live = o.Owner == Team };
@@ -144,6 +146,9 @@ namespace OpenZ.Sim
         {
             if (ClientView) ObserveRelays();                  // the event handler runs every 10 ms loop (zbot.cpp:39-57)
             StrikeGroupTick();                                // DV107 enemy strike groups: forming, march, release (ZBot.StrikeGroup.cs); with the switch off it returns at once
+            CpuShuttleTick();                                 // DV138 the computer flies its shuttles: one step a second, Normal and Easy (Sim/ZBot.CpuShuttle.cs); with the switch off it returns at once
+            CpuRepairTick();                                  // 1.2 item 13 DV137: the computer sends its strongest damaged vehicle to repair and back, once every 5 minutes (ZBot.CpuRepair.cs); with the switch off it returns at once
+            DefendTick();                                     // DV136 the computer defends its frontier from 8:00: guards walk to their spots, hold 2 minutes, are released (ZBot.CpuDefend.cs); with the switch off it returns at once
             if (EasySlowTick()) return;                                                 // K434: the Easy computer's order rounds on a 1.3 x slower clock, production on today's (Sim/ZBot.EasySlow.cs); false = this tick below, untouched
             if (W.Time + TIME_EPS < nextAiTime) return;
             bool easy = Difficulty == ZBotDifficulty.Easy;
@@ -170,6 +175,7 @@ namespace OpenZ.Sim
             var units = new List<ZObject>(); var targeted = new List<ZObject>(); var targets = new List<ZObject>();
             CollectOurUnits_3(units, targeted);
             CollectOurTargets_3(targets, allOut);
+            GunManRound(units, targeted, targets);                                         // 1.3 item 11 DV157: squads man the empty guns they pass and the ones at the frontier (ZBot.CpuGunMan.cs); with the switch off it returns at once
             CarParkRound(units, targeted, targets);                                        // boarding_nb_v1 DV37 (L17, Normal CPU): squads to empty vehicles first
             var escorts = ElectrobotHoldBack(units);                                       // DV72: the Electrobot leaves with a unit ordered out near him (ZBot.Electrobot.cs)
             var idleAll = escorts != null ? new List<ZObject>(units) : null;
@@ -210,9 +216,11 @@ namespace OpenZ.Sim
         {
             foreach (var o in W.Objects)
             {
-                if (!o.IsMobile || o.Owner != Team || Gone(o) || o.IsFortDefender) continue;   // fort_defender_v1 DV41: the fort's, not the CPU's
+                if (!o.IsMobile || o.Owner != Team || Gone(o) || o.IsFortDefender || o.EvilGuarding) continue;   // fort_defender_v1 DV41: the fort's, not the CPU's; DV165: nor EvilZod on guard (Sim/ZEvilZod.Appear.cs)
                 if (o.Kind == ZKind.Robot && o.IsMinion) continue;
                 if (o.StrikeHeld) continue;                                                    // DV107: a member of a strike group that forms or marches is no idle unit of the planner (its order rounds, DV37, DV56, DV72)
+                if (o.CpuRepairHeld) continue;                                                 // DV137: a vehicle on its repair trip is no idle unit of the planner (its order rounds, DV37, DV56, DV72) until it is back (ZBot.CpuRepair.cs)
+                if (o.CpuDefendHeld) continue;                                                 // DV136: a guard of the frontier (on its way to its spot or holding it) is no idle unit of the planner either (ZBot.CpuDefend.cs)
                 if (o.IsShuttle) continue;                                                       // DV118: the CPU never uses the playable shuttle (Sim/ZWorld.Shuttle.cs)
                 var wps = KnownWaypoints(o);
                 if (wps.Count > 0)
@@ -399,6 +407,7 @@ namespace OpenZ.Sim
             if (mode == WpMode.None) return;
             bool hostile = mode == WpMode.Attack || mode == WpMode.EnterFort;
             if (Difficulty == ZBotDifficulty.Easy && hostile && !finisher && easyAttackers >= EASY_MAX_ATTACKERS) { EasyHeldBack++; return; }   // DV60: finishing a won game is not an attack wave
+            if (!finisher && DefendTurn(u, t, mode)) return;                                  // DV136: from 8:00 one in four attack / capture orders becomes a defend order, given there (ZBot.CpuDefend.cs); with the switch off it is false at once
             var wp = new ZWaypoint { mode = mode, refId = t.Id, attackTo = true, playerGiven = true };
             if (mode != WpMode.Attack) { wp.x = t.CenterX; wp.y = t.CenterY; }
             else { wp.x = t.LocX + 8; wp.y = t.LocY + 8; }
@@ -427,9 +436,12 @@ namespace OpenZ.Sim
                 string pick = null;
                 foreach (var p in Preferred) if (ZBuildLists.InList(b.Type, b.BuildLevel, p)) { pick = p; break; }
                 pick = LaserPick(b, pick);                                                          // DV71: a Laser squad now and then
+                string zodPick = pick;                                                              // DV145: the pick before DV115 (MTankPick reads it)
                 pick = RobotMixPick(b, HeavyPick(b, pick));                                         // DV115: heavy tanks / missile launchers from 8:00, the robot squads in turn (ZBot.HeavyMix.cs)
+                pick = MechMixPick(b, zodPick, pick);                                               // DV145 the medium tank beside the mech; DV148: mech or medium tank, whichever its team has built fewer of, a coin when even (Sim/ZBot.MechMix.cs; off: DV145's MTankPick)
                 pick = ElectrobotPick(b, pick);                                                     // electrobot_v1 DV46: Zod's pick unless claimed
                 if (pick == null || b.CurUnit == pick) continue;
+                if (b.Destroyed && ZWorld.RuinNoBuildDeviation) { RuinSkips++; continue; }         // DV155: no orders for a ruin (picked first, so every draw of the pick stays as before; Sim/ZWorld.RuinProduction.cs)
                 W.StopBuilding(Team, b);
                 W.StartBuilding(Team, b, pick);
                 BuildChanges++; if (pick == "laser") LaserPicks++;

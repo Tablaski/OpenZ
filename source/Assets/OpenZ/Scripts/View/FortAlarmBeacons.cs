@@ -274,7 +274,7 @@ namespace OpenZ
         bool FortOk()
         {
             if (beacons.Count == 0) return false;
-            foreach (var b in beacons) if (b.Fort != null && !b.Fort.Destroyed && b.FortT && b.FortT.gameObject.activeInHierarchy) return true;
+            foreach (var b in beacons) if (b.Fort != null && !FortFallAtGameOver.Fallen(b.Fort) && b.FortT && b.FortT.gameObject.activeInHierarchy) return true;
             return false;
         }
 
@@ -291,7 +291,7 @@ namespace OpenZ
             var redLin = red.linear; int lit = 0;
             foreach (var b in beacons)
             {
-                bool vis = b.Fort != null && !b.Fort.Destroyed && b.FortT && b.FortT.gameObject.activeInHierarchy;
+                bool vis = b.Fort != null && !FortFallAtGameOver.Fallen(b.Fort) && b.FortT && b.FortT.gameObject.activeInHierarchy;
                 if (vis != b.Shown) { b.Shown = vis; b.Root.gameObject.SetActive(vis); }
                 if (!vis) continue;
                 var wp = b.FortT.TransformPoint(b.Local);                                  // follows the fort (the game-over fall, a shake)

@@ -10,7 +10,7 @@ namespace OpenZ
     /// from the measured speed change. Track meshes scroll their texture. Models without rig nodes (imported medium tank, APC,
     /// crane) get the body motion on the whole model. Driven by UnitView each frame; visual only.
     /// </summary>
-    public class VehicleMotion : MonoBehaviour
+    public partial class VehicleMotion : MonoBehaviour                                                 // 1.2 items 143 / 146: + View/VehicleMotion.Tread.cs, View/VehicleMotion.Gear.cs
     {
         struct Wheel { public Transform t; public Quaternion rest; public float radius, side; }
         struct Steer { public Transform t; public Quaternion rest; }
@@ -24,8 +24,12 @@ namespace OpenZ
         static readonly int StId = Shader.PropertyToID("_BaseMap_ST");
 
         public bool HasBody => body != null;
+        /// <summary></summary>
+        float lastSpeed, lastYawRate; int lastStepFrame = -10;
+        /// <summary></summary>
+        public bool TreadsRolling => Time.frameCount - lastStepFrame <= 1 && (Mathf.Abs(lastSpeed) > 0.05f || Mathf.Abs(lastYawRate) > 0.5f);
 
-        void Awake() => Rescan();
+        void Awake() { ViewScansAwake(); Rescan(); }                                      // 1.4 speed-up 4: into its registry first (View/VehicleMotion.ViewScans.cs)
 
         /// <summary>vehicles_nb_v1 NB23: finds the wheel / steer / track / suspension nodes (again, after WheelSplit cut the APC's and the
         /// crane's wheels out of their single imported mesh).</summary>
@@ -62,8 +66,9 @@ namespace OpenZ
             kPitchV += (-KickFreq * KickFreq * kPitch - 2f * KickDamp * kPitchV) * dt; kPitch += kPitchV * dt;
             var kickRot = Quaternion.Euler(Mathf.Clamp(kPitch, -6f, 6f), 0f, Mathf.Clamp(-kRoll, -6f, 6f));
             bool moving = Mathf.Abs(speed) > 0.05f;                                                  // motion_v1: speed < 0 = backing up (UnitView / HullSteer)
+            lastSpeed = speed; lastYawRate = yawRate; lastStepFrame = Time.frameCount;                // run 11: TreadsRolling
             if (moving && !wasMoving) motionAge = 0; wasMoving = moving; motionAge += dt;
-            travel += speed * dt; yawTravel += yawRate * Mathf.Deg2Rad * dt;
+            float drawn = OzVehicleScaleTest.Of(this); travel += drawn != 1f ? speed * dt / drawn : speed * dt; yawTravel += yawRate * Mathf.Deg2Rad * dt;   // 1.3 item 36: wheels and belts roll with the drawn size of the owner's scale test (1 for players)
             speedSmooth = Mathf.Lerp(speedSmooth, speed, 1f - Mathf.Exp(-10f * dt));
             float a = dt > 0 ? (speedSmooth - prevSpeed) / dt : 0; prevSpeed = speedSmooth;
             accel = Mathf.Lerp(accel, a, 1f - Mathf.Exp(-6f * dt));
@@ -82,8 +87,10 @@ namespace OpenZ
                 foreach (var (r, side) in tracks)
                 {
                     r.GetPropertyBlock(mpb);
-                    mpb.SetVector(StId, new Vector4(1, 1, 0, (travel + yawTravel * side * 1.3f) * 0.25f));
+                    var st = new Vector4(1, 1, 0, (travel + yawTravel * side * 1.3f) * 0.25f);
+                    mpb.SetVector(StId, st);
                     r.SetPropertyBlock(mpb);
+                    ScrollSlots(r, st);                                                                   // 1.2 item 143: the draw uses TeamPaint's per-slot blocks: the scroll goes there too (View/VehicleMotion.Tread.cs)
                 }
             }
 

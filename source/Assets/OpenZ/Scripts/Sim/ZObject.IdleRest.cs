@@ -43,6 +43,7 @@ namespace OpenZ.Sim
             if (!ZWorld.SnipeDeviation || Drivers.Count == 0 || Owner == Team.Neutral || VeteranActive || World.GameOver || !ZWorld.IdleRestTypes.Contains(Type) || HatchShutSpot(time))   // DV87: no rest in the open hatch on a bridge or in a door lane
             { RestEnd(-1); return; }
             if (StrikeHeld) { RestEnd(-1); return; }                                         // DV107: the crew of a strike group's vehicle does not rest in the hatch while the group forms or marches
+            if (CpuDefendHeld) { RestEnd(-1); return; }                                      // DV136: nor the crew of a vehicle standing guard at a frontier flag (ZBot.CpuDefend.cs)
             bool order = Waypoints.Count > 0;
             bool busy = order || IsMoving || AttackObject != null || cgTarget != null || Stunned || hit;
             if (!Resting)
@@ -72,7 +73,7 @@ namespace OpenZ.Sim
         /// <summary>DV75: vehicle types whose crew rests in the hatch. light / medium / heavy are Zod's lid tanks and can be sniped
         /// while resting. The crane only shows its driver (Zod never lets him be sniped; unchanged). The missile launcher is left
         /// out: its roof hatch is a boarding frame and a figure standing in it is cut by that frame.</summary>
-        public static readonly HashSet<string> IdleRestTypes = new HashSet<string> { "light", "medium", "heavy", "crane" };
+        public static readonly HashSet<string> IdleRestTypes = new HashSet<string> { "light", "medium", ZMTank.Type, "heavy", "crane" };   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>DV75: seconds of calm before a crew rests; each vehicle adds its own 0..IdleRestSpreadSeconds (from its id).</summary>
         public static double IdleRestSeconds = 25.0, IdleRestSpreadSeconds = 8.0;
         /// <summary>DV75: seconds between an enemy waking a resting crew (seen, in range, a stun) and the end of the rest: long

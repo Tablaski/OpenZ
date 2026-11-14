@@ -17,7 +17,7 @@ using UnityEngine.Rendering;
 namespace OpenZ
 {
     [DefaultExecutionOrder(5000)]                                                                     // LateUpdate after DayNight / Atmosphere
-    public sealed class FlybySky : MonoBehaviour
+    public sealed partial class FlybySky : MonoBehaviour                                              // + FlybySky.Preload.cs: the start flyover's sky loads with the level, full from its first frame
     {
         public static FlybySky I { get; private set; }
         /// <summary>Fade time in and out (s). The row: "fades out over ~1 s before the hand-back".</summary>
@@ -53,7 +53,7 @@ namespace OpenZ
             IdBandK = Shader.PropertyToID("_FlybyHazeBandK"), IdThrough = Shader.PropertyToID("_FlybySunThrough");
 
         [System.Serializable] public class SkyLevel { public string texture, textureHi; public float[] horizonSRGB, zenithSRGB, sky15SRGB; public float corridorWidthDeg, corridorClearFromDeg, horizonBlendDeg = 3f, hazeToPanoramaHorizon = 1f; }
-        [System.Serializable] public class SkyLevels { public SkyLevel L02, L16, L17; }
+        [System.Serializable] public class SkyLevels { public SkyLevel L02, L07, L16, L17; }
         [System.Serializable] public class SkyJson { public int version; public SkyLevels levels; }
 
         static SkyJson json; static bool jsonTried;
@@ -64,9 +64,26 @@ namespace OpenZ
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
+            WriteRestGlobals();                                                                             // 1.2 item 49: the glow shape and a sun direction before the first frame
             if (I) return;
             var go = new GameObject("FlybySky"); DontDestroyOnLoad(go); I = go.AddComponent<FlybySky>();
         }
+
+        /// <summary>1.2 item 49 (the black world of PLAY AS BLUE): the glow shape and a sun direction as shader globals from the first
+        /// scene on. Only Drive wrote them, while a level-start flyover showed its sky; a process that started a level without one had
+        /// them at 0, and the atmosphere pass's sun glow made pow(0, 0) = NaN on every pixel: a black world. Written here with the sun's
+        /// strength 0 (w), so no glow, disc or dawn tint shows: the glow is x that strength and x _FlybySkyW (0 in gameplay); Drive
+        /// writes its own values in every flyover frame before anything uses them. The shaders guard them as well (Shaders/FlybySky.hlsl).</summary>
+        public static void WriteRestGlobals()
+        {
+            Shader.SetGlobalVector(IdShape, new Vector4(GlowTightExp, GlowWideExp, Mathf.Cos(DiscRadiusDeg * Mathf.Deg2Rad), Mathf.Cos((DiscRadiusDeg + DiscEdgeDeg) * Mathf.Deg2Rad)));
+            Vector3 s = VisualSun(new Vector3(0.94f, 0.16f, -0.3f).normalized);                             // Drive's own direction when a level has no sun
+            Shader.SetGlobalVector(IdSunDir, new Vector4(s.x, s.y, s.z, 0f));
+            BootShape = Shader.GetGlobalVector(IdShape); RestWrites++;
+        }
+        /// <summary>Checks: the glow shape read back right after the last WriteRestGlobals (x = the tight exponent, above 0) and how often it ran.</summary>
+        public static Vector4 BootShape { get; private set; }
+        public static int RestWrites { get; private set; }
 
         public static FlybySky Ensure() { if (!I) Boot(); return I; }
 
@@ -82,7 +99,8 @@ namespace OpenZ
                 if (ta) { try { json = JsonUtility.FromJson<SkyJson>(ta.text); } catch (System.Exception e) { Debug.LogWarning("[OpenZ FlybySky] " + JsonPath + ": " + e.Message); } }
             }
             if (json == null || json.levels == null) return null;
-            return level == "L17" ? json.levels.L17 : level == "L16" ? json.levels.L16 : level == "L02" ? json.levels.L02 : null;
+            return level == "L17" ? json.levels.L17 : level == "L16" ? json.levels.L16 : level == "L02" ? json.levels.L02
+                 : OzVolcanic.Is(level) ? (json.levels.L07 != null && !string.IsNullOrEmpty(json.levels.L07.textureHi) ? json.levels.L07 : json.levels.L02) : null;   // level 7: the desert's dawn sky until its own is in: no entry = no sky and no sun disc
         }
 
         static string Level() => ZGame.I ? ZGame.I.level : null;
@@ -91,14 +109,16 @@ namespace OpenZ
         {
             var fly = ZodFlyover.Live;
             bool flying = fly != null && fly.Active, cine = CaptureKit.CineActive && !CaptureKit.NoFlybySky;
-            bool want = !string.IsNullOrEmpty(Level()) && ((flying && fly.SkyWanted) || cine || ForceOn);    // only in a level scene
+            FpsMode = !string.IsNullOrEmpty(Level()) && FpsWanted(flying, cine);                             // fps_view_sky: the hidden first-person view's sky (FlybySky.FpsView.cs); never while a flyby, a cine or ForceOn has it
+            bool want = !string.IsNullOrEmpty(Level()) && ((flying && fly.SkyWanted) || cine || ForceOn || FpsMode);    // only in a level scene
             float dt = Time.captureFramerate > 0 ? 1f / Time.captureFramerate : Time.unscaledDeltaTime;   // fixed-step captures stay deterministic
             if (want) EnsureLoaded();
             PollLoad();
-            bool ready = tex && Mat();
+            FlightFirstFrame(fly, flying, want);                                                            // a new start flyover's first frame: the sky full at once (FlybySky.Preload.cs)
+            bool ready = tex && Mat() && (!plainTex || FpsMode);                                             // fps_view_sky: a flyby never draws the view's plain map
             float target = want && ready ? 1f : 0f;
             if (!ready) Weight = 0f;
-            float secs = target > Weight || flying || cine || ForceOn ? FadeSeconds : LateFadeSeconds;
+            float secs = FpsMode ? (target > Weight ? FpsFadeSeconds : LateFadeSeconds) : target > Weight || flying || cine || ForceOn ? FadeSeconds : LateFadeSeconds;   // fps_view_sky: the view's short fade in
             Weight = Mathf.MoveTowards(Weight, target, dt / Mathf.Max(0.01f, secs));
             float w = Mathf.SmoothStep(0f, 1f, Weight);
             Shader.SetGlobalFloat(IdW, w);
@@ -106,7 +126,7 @@ namespace OpenZ
             {
                 if (want) offSince = -1f;
                 else if (offSince < 0f) offSince = Time.unscaledTime;
-                else if ((tex || req != null) && Time.unscaledTime - offSince > 2f) Unload();               // gameplay: nothing resident
+                else if ((tex || req != null) && Time.unscaledTime - offSince > 2f && !PreloadHeld()) Unload();   // gameplay: nothing resident (a level-load preload waits for its flyover: FlybySky.Preload.cs)
                 return;
             }
             offSince = -1f;
@@ -115,22 +135,22 @@ namespace OpenZ
 
         void Drive(float w)
         {
-            var cam = Camera.main; if (!cam) return;
+            var cam = FpsMode && OzFpsView.I && OzFpsView.I.Cam ? OzFpsView.I.Cam : Camera.main; if (!cam) return;   // fps_view_sky: the view's own camera
             if (sceneSeen != UnityEngine.SceneManagement.SceneManager.GetActiveScene().handle) LevelRefs();
             var e = Entry(loadedLevel);
             Light sun = RenderSettings.sun ? RenderSettings.sun : dayNight ? dayNight.sun : null;
-            Vector3 s = VisualSun(sun ? -sun.transform.forward : new Vector3(0.94f, 0.16f, -0.3f).normalized);
+            Vector3 s = FpsMode ? FpsSun(sun) : VisualSun(sun ? -sun.transform.forward : new Vector3(0.94f, 0.16f, -0.3f).normalized);
             float t = dayNight ? dayNight.timeOfDay : DayNight.SunriseStart;
             // the paintings are sunrise-graded (README note 3): full painting around the sunrise start, graded to DayNight's colours away from it
             float fromSunrise = Mathf.Abs(Mathf.DeltaAngle(t * 360f, 0.93f * 360f)) / 360f;
             float away = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.07f, 0.15f, fromSunrise));
             float elev = Mathf.Asin(Mathf.Clamp(s.y, -1f, 1f)) * Mathf.Rad2Deg;
-            float sunK = (1f - away) * Mathf.Clamp01((elev + 0.5f) / 3f);                                   // 0.63 at the 1.4 deg drawn sun (the tuned look)
+            float sunK = FpsMode ? FpsSunK(t, elev) : (1f - away) * Mathf.Clamp01((elev + 0.5f) / 3f);      // 0.63 at the 1.4 deg drawn sun (the tuned look); fps_view_sky: in the view by day only
             Color sunLin = sun ? sun.color.linear * Mathf.Min(sun.intensity, 1.2f) : new Color(1f, 0.72f, 0.6f);
 
             Shader.SetGlobalVector(IdSunDir, new Vector4(s.x, s.y, s.z, sunK));
-            Shader.SetGlobalVector(IdGlow, new Vector4(sunLin.r * GlowGain, sunLin.g * GlowGain, sunLin.b * GlowGain, GlowWide));
-            Shader.SetGlobalVector(IdShape, new Vector4(GlowTightExp, GlowWideExp, Mathf.Cos(DiscRadiusDeg * Mathf.Deg2Rad), Mathf.Cos((DiscRadiusDeg + DiscEdgeDeg) * Mathf.Deg2Rad)));
+            Shader.SetGlobalVector(IdGlow, FpsMode ? FpsGlowVector(sunLin, loadedLevel) : new Vector4(sunLin.r * GlowGain, sunLin.g * GlowGain, sunLin.b * GlowGain, GlowWide));   // fps_glow: the view's sun look per level
+            Shader.SetGlobalVector(IdShape, FpsMode ? FpsShapeVector(loadedLevel) : new Vector4(GlowTightExp, GlowWideExp, Mathf.Cos(DiscRadiusDeg * Mathf.Deg2Rad), Mathf.Cos((DiscRadiusDeg + DiscEdgeDeg) * Mathf.Deg2Rad)));
             var disc = new Color(1f, 0.86f, 0.7f).linear * DiscGain;
             Shader.SetGlobalVector(IdDisc, new Vector4(disc.r, disc.g, disc.b, 0f));
             Shader.SetGlobalFloat(IdSeaY, seaY);
@@ -159,6 +179,8 @@ namespace OpenZ
             else { m.SetColor(IdTop, RenderSettings.ambientSkyColor); m.SetColor(IdHor, RenderSettings.fogColor); }
             Color skyLin = (gsky && gsky.HasProperty(IdTop) ? gsky.GetColor(IdTop) : RenderSettings.ambientSkyColor).linear;
             m.SetVector(IdGainH, (Vector4)Div(fogLin, panoH)); m.SetVector(IdGainZ, (Vector4)Div(skyLin, panoZ)); m.SetFloat(IdAway, away);   // raw gains
+            if (plainTex) { m.SetVector(IdGainH, (Vector4)fogLin); m.SetVector(IdGainZ, (Vector4)skyLin); m.SetFloat(IdAway, 1f); }   // fps_view_sky: the plain white map graded to the gameplay gradient
+            if (FpsMode) { FpsDrawFrames++; FpsSkyGain(m, loadedLevel); }                                    // fps_glow: the dome a step darker where the level's look asks (L02 by day)
 
             var rp = new RenderParams(m)
             {
@@ -206,6 +228,8 @@ namespace OpenZ
         {
             string lv = Level(); if (string.IsNullOrEmpty(lv)) return;
             if (lv != loadedLevel) { Unload(); loadedLevel = lv; }
+            if (FpsPlain(lv)) return;                                                                        // fps_view_sky: no painted sky: the gradient with the sun in the view
+            if (plainTex) Unload();                                                                          // fps_view_sky: the view's plain map is never a flyby's
             if (tex || req != null || failedLevel == lv) return;
             var e = Entry(lv);
             if (e == null || string.IsNullOrEmpty(e.textureHi)) { Fail(lv, "no entry in " + JsonPath); return; }
@@ -236,10 +260,10 @@ namespace OpenZ
                 long b = UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(tex);
                 if (b <= 0) b = (long)tex.width * tex.height * (tex.format == TextureFormat.DXT1 || tex.format == TextureFormat.BC4 ? 1 : tex.format == TextureFormat.BC7 || tex.format == TextureFormat.DXT5 ? 2 : 8) / 2;
                 LastUnload = $"{loadedLevel}: {tex.name} {tex.width}x{tex.height} {tex.format} unloaded, freed {b / 1048576f:F1} MB (+ sky material, dome mesh)";
-                Resources.UnloadAsset(tex);
+                if (plainTex) { if (Application.isPlaying) Destroy(tex); else DestroyImmediate(tex); } else Resources.UnloadAsset(tex);   // fps_view_sky: the view's plain map is made, not loaded
                 Debug.Log("[OpenZ FlybySky] " + LastUnload + " - the RTS camera has the view, no sky / sun resident");
             }
-            tex = null; req = null;
+            tex = null; req = null; plainTex = false;
             if (mat) { if (Application.isPlaying) Destroy(mat); else DestroyImmediate(mat); mat = null; }
             if (dome) { if (Application.isPlaying) Destroy(dome); else DestroyImmediate(dome); dome = null; }
         }
@@ -273,7 +297,7 @@ namespace OpenZ
             if (!I) return "FlybySky: not booted";
             var fly = ZodFlyover.Live;
             return $"FlybySky: weight {I.Weight:F2}, level {I.loadedLevel ?? "-"}, panorama {(I.tex ? I.tex.name + " " + I.tex.width + "x" + I.tex.height + " " + I.tex.format : "not resident")}, "
-                 + $"flyover {(fly != null && fly.Active ? fly.Current + (fly.SkyWanted ? " (sky wanted)" : "") : "off")}, cine {CaptureKit.CineActive}, force {ForceOn}; last unload: {LastUnload}";
+                 + $"flyover {(fly != null && fly.Active ? fly.Current + (fly.SkyWanted ? " (sky wanted)" : "") : "off")}, cine {CaptureKit.CineActive}, force {ForceOn}, first-person view {I.FpsMode}{(I.PlainSky ? " (plain sky)" : "")}; last unload: {LastUnload}";
         }
     }
 }

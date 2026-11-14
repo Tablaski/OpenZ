@@ -46,7 +46,7 @@ namespace OpenZ
         [Tooltip("Minimum time the loading screen stays up")] public float minLoadingTime = 1.2f;
         public int sortingOrder = 100;
 
-        enum View { Main, Select, Loading }
+        enum View { Main, Select, Loading, Faction }                                                           // k75a: + Faction, the faction screen between PLAY and the level selection (UI/OpenZMainMenu.Faction.cs)
         enum Side { None, Options, Controls, Credits, Changes, Roadmap, Any = 99 }
 
         // ------------------------------------------------------------------ state
@@ -78,7 +78,7 @@ namespace OpenZ
             public float x, y, w, imgH; public int index;
         }
         readonly Card[] cards = new Card[OzLevelDef.All.Length];
-        HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, optNormal, optEasy, optMedium, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine;   // K347: the HEAD START chip "L02 ONLY" (headChipText) went with the old deploy bar
+        HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, cpuMayhem, optNormal, optEasy, optMedium, optMayhem, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine;   // K347: the HEAD START chip "L02 ONLY" (headChipText) went with the old deploy bar
         float errorUntil;
 
         // options (same keys and look as OpenZPauseMenu)
@@ -99,10 +99,12 @@ namespace OpenZ
         void Awake()
         {
             Time.timeScale = 1f;                                                                            // the pause menu may have left it at 0
+            OzPlayBlue.Disarm("the main menu");                                                            // 1.2 item 11: back on the menu no level is played as blue (the box stays as it is)
+            OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
             levels = OzLevelDef.All;
             string last = PlayerPrefs.GetString(PrefLevel, "L02");
-            focusCard = Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last));
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
+            focusCard = openedWithSelect ? Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last)) : 0;   // a fresh menu opens the battlefield row at the left, on its first card; back from a level it stays on that level
             if (openedWithSelect) { PlayerPrefs.DeleteKey(PrefOpenSelect); PlayerPrefs.Save(); }
         }
 
@@ -151,6 +153,7 @@ namespace OpenZ
             selectRoot = Hud.Node("Select", root); selectRoot.Fill(); selectCg = selectRoot.gameObject.AddComponent<CanvasGroup>();
             BuildMain();
             BuildSelect();
+            BuildFaction();                                                                                    // k75a: the faction screen (UI/OpenZMainMenu.Faction.cs)
             blackFade = Hud.Img(root, "FadeFromBlack", OzUi.GM950); blackFade.rectTransform.Fill();
             ApplyView();
         }
@@ -236,7 +239,8 @@ namespace OpenZ
             // Z turns 30 (1996-2026): the anniversary badge under the logo
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);
 
-            AddItem("PLAY", "SELECT OPERATION", () => GoSelect());
+            AddItem("PLAY", "SELECT FACTION", () => GoFaction());                                              // k75a: the faction screen first (GENERAL ZOD or GENERAL EVILZOD), then the level selection
+            AddItem("UNIT EDITOR", "PLAYGROUND · ALL UNITS · STATS", () => GoUnitEditor());              // 1.2 item 6: the unit editor's playground (UI/OpenZMainMenu.UnitEditor.cs, View/OzUnitEditor.cs)
             AddItem("OPTIONS", "AUDIO · SCROLL · HUD", () => ToggleSide(Side.Options));
             AddItem("CONTROLS", "THE ZOD KEY MAP", () => ToggleSide(Side.Controls));
             AddItem("CHANGES & UPDATES", "WHAT'S NEW SINCE 1996", () => ToggleSide(Side.Changes));
@@ -249,8 +253,8 @@ namespace OpenZ
 
             footer2 = Hud.Label(p, "Footer2", "A FAITHFUL FAN TRIBUTE REMAKE OF Z BY THE BITMAP BROTHERS (1996), CELEBRATING ITS 30TH ANNIVERSARY", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
                 .At(lx, OzMenuLayout.FooterY - 16, OzH.L, false, 1100);
-            footer = Hud.Label(p, "Footer", "OPENZ 1.1 · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
-                .At(lx, OzMenuLayout.FooterY, OzH.L, false, 1100);
+            footer = Hud.Label(p, "Footer", "OPENZ " + OzVersion.Number + " · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
+                .At(lx, OzMenuLayout.FooterY, OzH.L, false, 1100);   // 1.4: the version from OzVersion.Number (1.3 still read "OPENZ 1.2" here)
             // contrast, under the preview caption plate (which ends at y 1020), never over other UI
             versionLabel = Hud.Label(p, "Version", OzVersion.Label, OzMenuLayout.FooterSize, OzUi.Dim, 0.16f, OzStyle.Plain)
                 .At(CW - OzMenuLayout.VersionRX, OzMenuLayout.VersionY, OzH.R, false, 220);
@@ -313,10 +317,11 @@ namespace OpenZ
             Hud.Label(p, "Saved", "SAVED FOR EVERY MATCH", 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OptW - x, 18, OzH.R, false, 240);
             var mp = OptMainPage(p);                                                                         // options tabs: MAIN's fixed controls sit on their own page under the tab strip
             Hud.Label(mp, "CpuLabel", "DIFFICULTY", 10, OzUi.Muted, 0.22f, OzStyle.Plain).At(x, OzMenuLayout.CpuRowLabelY);
-            float bw = (w - 8) / 3f;
+            float bw = (w - 12) / 4f;
             optEasy = SmallButton(mp, "OptEasy", "EASY", new OzRect(x, OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Easy), OzLayout.OptRowText);
             optMedium = SmallButton(mp, "OptMedium", "MEDIUM", new OzRect(x + bw + 4, OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Medium), OzLayout.OptRowText);
             optNormal = SmallButton(mp, "OptHard", "HARD", new OzRect(x + 2 * (bw + 4), OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Hard), OzLayout.OptRowText);
+            optMayhem = SmallButton(mp, "OptMayhem", "MAYHEM", new OzRect(x + 3 * (bw + 4), OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Mayhem), OzLayout.OptRowText);   // 1.4 MAYHEM: HARD + the fog of war
             optCpuHint = Hud.Label(mp, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(x, OzMenuLayout.CpuRowHintY, OzH.L, false, w);
             AddSlider(mp, 0, 0, "MUSIC", "oz_vol_music", "Music");
             AddSlider(mp, 0, 1, "EFFECTS · BATTLE", "oz_vol_effects", "SFX");
@@ -337,17 +342,29 @@ namespace OpenZ
             AddCycle(p, toggles.Count, NightShadows.Label, () => NightShadows.Name, NightShadows.Step);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
-            AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 60 (oz_fps_cap, default 60, saved and applied at once)
-            AddToggle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsOn, v => OzQuality.FpsOn = v);
+            AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
+            toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // 1.3 item 5: "UNLIMITED (VSYNC)" is wider than the 170 u of a cycle row
+            AddCycle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsName, OzQuality.FpsStep);
+            AddToggle(p, toggles.Count, OzSmoothFrames.Label, () => OzSmoothFrames.On, v => OzSmoothFrames.On = v);   // v1.3 item 25: oz_smooth_frames, default OFF, live (View/OzWeakPcOptions.cs)
+            AddCycle(p, toggles.Count, OzSunSteps.Label, () => OzSunSteps.Name, OzSunSteps.Step);         // v1.3 item 25: oz_sun_steps 4 (default) / 2, live
+            AddCycle(p, toggles.Count, OzEndingDebris.Label, () => OzEndingDebris.Name, OzEndingDebris.Step);   // v1.3 item 25: oz_ending_debris FULL (default) / LIGHT, live
+            if (OzGfxApi.Available) AddCycle(p, toggles.Count, OzGfxApi.Label, () => OzGfxApi.Name, OzGfxApi.Step);   // v1.3 item 25: oz_gfx_api DX12 (default) / DX11, from the next start, Windows only
             AddToggle(p, toggles.Count, MechWalk.Label, () => MechWalk.On, v => MechWalk.On = v);
             AddCycle(p, toggles.Count, OzTouch.Label, () => OzTouch.ModeName, OzTouch.StepMode);            // touch and gamepad: AUTO / TOUCH ON / OFF (oz_touch, live; OzTouch.cs)
             AddToggle(p, toggles.Count, OzStrikeGroups.Label, () => OzStrikeGroups.On, v => OzStrikeGroups.On = v);   // DV107 enemy strike groups: oz_strike_groups, default ON (ADVANCED tab, first row; OzStrikeGroups.cs)
+            AddToggle(p, toggles.Count, OzLavaOption.Label, () => OzLavaOption.On, v => OzLavaOption.On = v);   // DV152 level 7 lava: oz_lava_burns, default ON, read at the next level start (OzLavaOption.cs)
+            AddToggle(p, toggles.Count, OzHighGroundOption.Label, () => OzHighGroundOption.On, v => OzHighGroundOption.On = v);   // DV162 high ground shoots farther: oz_high_ground, default ON, read at the next level start (OzHighGroundOption.cs)
+            if (OzFogOfWarOption.InOptions)
+            {
+            AddToggle(p, toggles.Count, OzFogOfWarOption.Label, () => OzFogOfWarOption.On, v => OzFogOfWarOption.On = v);   // 1.4 FOG OF WAR: oz_fog_of_war, default OFF, read at the next level start, view only (UI/OzFogOfWarOption.cs, View/OzFogOfWar.cs)
+            AddCycle(p, toggles.Count, OzFogLookOption.Label, () => OzFogLookOption.Name, OzFogLookOption.Step);   // 1.4 FOG LOOK: oz_fog_look CLOUD SEA (default) / CLOUD BANKS / MIST LAYERS, live (UI/OzFogLookOption.cs)
+            }
             if (OzShuttleStart.InOptions)                                                                      // K347: the SHUTTLE switch is the battlefield screen's box now (UI/OpenZMainMenu.ShuttleStart.cs): the old OPTIONS row below is not built
             AddToggle(p, toggles.Count, OzShuttleOption.Label, () => OzShuttleOption.On, v => OzShuttleOption.On = v);   // DV118 the level 16 shuttle: oz_shuttle, default ON, read at the next level start (OzShuttleOption.cs)
             AddCycle(p, toggles.Count, OzShuttleOrdersOption.Label, () => OzShuttleOrdersOption.Name, OzShuttleOrdersOption.Step);   // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY (default) / ANYWHERE, oz_shuttle_orders, live (OzShuttleOrdersOption.cs); ADVANCED, under SHUTTLE
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // its longest value is wider than the 170 u of a cycle row
             ExeOptions(p);                                                                                   // menu_exe_v1: MUSIC + FULLSCREEN rows, the centred modal
-            foreach (var b in new[] { optEasy, optMedium, optNormal }) if (b != null) optTips[b.Rt] = OzSettingTips.Difficulty;
+            foreach (var b in new[] { optEasy, optMedium, optNormal, optMayhem }) if (b != null) optTips[b.Rt] = OzSettingTips.Difficulty;
             BuildOptTip();
         }
 
@@ -446,8 +463,8 @@ namespace OpenZ
 
         void RefreshOptions()
         {
-            var d = OpenZDifficulty.Level;
-            SetSelected(optNormal, d == GameDifficulty.Hard); SetSelected(optEasy, d == GameDifficulty.Easy); SetSelected(optMedium, d == GameDifficulty.Medium);
+            var d = OpenZDifficulty.Choice;                                                                // 1.4 MAYHEM: the player's choice (MAYHEM is its own button)
+            SetSelected(optNormal, d == GameDifficulty.Hard); SetSelected(optEasy, d == GameDifficulty.Easy); SetSelected(optMedium, d == GameDifficulty.Medium); SetSelected(optMayhem, d == GameDifficulty.Mayhem);
             optCpuHint.Set(OpenZDifficulty.Hint(d));
             foreach (var t in toggles)
             {
@@ -464,8 +481,8 @@ namespace OpenZ
 
         void SetDifficulty(GameDifficulty d)
         {
-            if (OpenZDifficulty.Level == d) return;
-            OpenZDifficulty.Level = d;                                                                    // saves PlayerPrefs oz_difficulty; ZGame reads it at level start
+            if (OpenZDifficulty.Choice == d) return;   // 1.4 MAYHEM: the choice (oz_difficulty, and oz_mayhem for MAYHEM)
+            OpenZDifficulty.Choice = d;                                                                    // saves PlayerPrefs oz_difficulty; ZGame reads it at level start
             Debug.Log($"[OpenZ Menu] difficulty: {OpenZDifficulty.Label(d)}");
         }
 
@@ -528,14 +545,15 @@ namespace OpenZ
         {
             "<b>The Electrobot</b>, a new robot type with a stunning tesla gun",
             "<b>Tech level VII</b>, built only at forts",
-            "<b>The Mechanoid</b>, a walking medium tank",
+            "<b>The Mechanoid</b>, an original walking unit with rocket arms and a hand machine gun",
+            "<b>The Medium Tank</b>, between the light and heavy tanks",            // the new tank of 1.2 (Sim/ZMTank.cs); Sticky fire moves to the right column: 7 + 7 items
             "<b>The fort main defence cannon</b>",
             "<b>The fort roof defender</b>",
             "<b>The nuke finale</b>",
-            "<b>Sticky fire</b>: burning ground, units and wrecks",
         };
         static readonly string[] CreditsOrigB =
         {
+            "<b>Sticky fire</b>: burning ground, units and wrecks",
             "<b>Knockdowns</b> from heavy blasts",
             "<b>Dynamic day and night</b> with searchlights and street lamps",
             "<b>Night rain and thunderstorms</b> on the city map",
@@ -709,19 +727,14 @@ namespace OpenZ
             backBtn = HudButton.Make(p, "Back", "BACK", new Vector2(br.w, br.h), HudButtonKind.Large, 13, 0.16f, HudButtonStyle.Normal, true, OzH.L);
             backBtn.Rt.Place(br);
             Hud.Keycap(backBtn.Content, "Esc", "ESC", br.w - 10, (br.h - 14) * 0.5f);
-            AddHot(backBtn.Rt, View.Select, GoMain, null, backBtn, "ui_menu_back");
-            Hud.Label(p, "Keys", "← →  OPERATION     ENTER  DEPLOY     C  CPU     H  HEAD START     " + OzKeyNames.Name(ShuttleKey) + "  SHUTTLE     " + OzKeyNames.Name(HsKey) + "  HIGH SCORES     ESC  BACK", 9, OzUi.Muted, 0.2f, OzStyle.Plain)
-                .At(XR(OzMenuLayout.SelHintRX), OzMenuLayout.SelHintY, OzH.R, false, 900);
+            AddHot(backBtn.Rt, View.Select, BackFromSelect, null, backBtn, "ui_menu_back");                    // k75a: back to the faction screen (the side is changed there)
+            Hud.Label(p, "Keys", "← →  OPERATION     ENTER  DEPLOY     C  CPU     H  HEAD START     " + OzKeyNames.Name(ShuttleKey) + "  SHUTTLE     " + UnitStatsKeyHint() + OzKeyNames.Name(HsKey) + "  HIGH SCORES     ESC  BACK", 9, OzUi.Muted, 0.2f, OzStyle.Plain)
+                .At(XR(OzMenuLayout.SelHintRX), OzMenuLayout.SelHintY, OzH.R, false, 1200);                // k75a: no B (PLAY AS BLUE) any more: the side is picked on the faction screen, ESC goes back there; 1.2 item 60: N (UNIT STATS) while that selector shows, the box 1200 u
 
-            int n = levels.Length; bool row3 = n > 2;                                                        // three or more: narrower gutters, a 3:2 picture, the row centred in the free band
-            float gap = row3 ? OzMenuLayout.CardGapN : OzMenuLayout.CardGap, gutter = row3 ? OzMenuLayout.CardSideN : OzMenuLayout.CardSide;
-            float aspect = row3 ? OzMenuLayout.CardAspectN : OzMenuLayout.CardImgH / OzMenuLayout.CardImgW;      // picture height / width
-            float maxImgH = row3 ? Mathf.Min(OzMenuLayout.CardMaxImgH, OzMenuLayout.CardRowBottomMax - OzMenuLayout.CardTop - OzMenuLayout.CardMeta) : OzMenuLayout.CardMaxImgH;   // a row of three never reaches under the commander's strip (wider than 16:9: narrower cards, the row stays centred)
-            float w = Mathf.Min((CW - 2 * gutter - gap * (n - 1)) / n, maxImgH / aspect);
-            float ih = w * aspect, x0 = (CW - (n * w + (n - 1) * gap)) * 0.5f;
-            float band = OzLayout.RefH - OzMenuLayout.DeployBarH - OzMenuLayout.CardBandPad - OzMenuLayout.CardBandTop;
-            float top = row3 ? Mathf.Max(OzMenuLayout.CardTop, Mathf.Min(OzMenuLayout.CardBandTop + (band - (ih + OzMenuLayout.CardMeta)) * 0.5f, OzMenuLayout.CardRowBottomMax - (ih + OzMenuLayout.CardMeta))) : OzMenuLayout.CardTop;
-            for (int i = 0; i < n; i++) cards[i] = BuildCard(p, i, x0 + i * (w + gap), top, w, ih);
+            int n = levels.Length;                                                                           // 1.3 item 30: the places come from OzLevelCarousel (UI/OzLevelCarousel.cs): up to three levels the 1.2 row, unchanged; more: today's cards in a carousel
+            var slots = OzLevelCarousel.Place(n, CW); var cardParent = BuildCarousel(p, slots);            // the carousel's window and strip (UI/OpenZMainMenu.Carousel.cs); off: the screen's root, as 1.2
+            for (int i = 0; i < n; i++) cards[i] = BuildCard(cardParent, i, slots[i].x, slots[i].y, slots[i].w, slots[i].ih);
+            BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
             BuildDeployBar(p);
             BuildHighScores(p);                                                                              // the HIGH SCORES button and its popup, last: their pointer areas lie over the cards and the bar (OpenZMainMenu.HighScores.cs)
         }
@@ -818,9 +831,9 @@ namespace OpenZ
 
         void RefreshDeployBar()
         {
-            var d = OpenZDifficulty.Level;
-            SetSelected(cpuNormal, d == GameDifficulty.Hard); SetSelected(cpuEasy, d == GameDifficulty.Easy); SetSelected(cpuMedium, d == GameDifficulty.Medium);
-            cpuHint.Set(OzDeployBar.CpuHint(d));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
+            var d = OpenZDifficulty.Level; var pick = OpenZDifficulty.Choice;                              // 1.4 MAYHEM: the buttons and the hint show the choice; HEAD START and the SHUTTLE slot read the rules' difficulty (MAYHEM = HARD)
+            SetSelected(cpuNormal, pick == GameDifficulty.Hard); SetSelected(cpuEasy, pick == GameDifficulty.Easy); SetSelected(cpuMedium, pick == GameDifficulty.Medium); SetSelected(cpuMayhem, pick == GameDifficulty.Mayhem);
+            cpuHint.Set(OzDeployBar.CpuHint(pick));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
             RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips
             if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set("DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
@@ -831,6 +844,7 @@ namespace OpenZ
         int shownDeployCard = -1;
         void ToggleHeadStart()
         {
+            if (OpenZDifficulty.Choice == GameDifficulty.Mayhem) { Sfx("ui_disabled"); return; }                // 1.4 mayhem_headstart: locked OFF on MAYHEM (the click and the key H); the saved choice is not changed
             bool on = !OpenZDifficulty.HeadStartToggle;                                                      // menu_exe_v1: its own switch (every difficulty, both maps)
             OpenZDifficulty.HeadStartToggle = on;                                                            // saved at once
             Sfx(on ? "ui_toggle_on" : "ui_toggle_off");
@@ -840,7 +854,7 @@ namespace OpenZ
         // ================================================================== views
         void GoSelect()
         {
-            if (view != View.Main) return;
+            if (view != View.Main && view != View.Faction) return;                                             // k75a: from the faction screen (a pick); the tools and proofs still open it from the main menu
             CloseSide();
             view = View.Select; viewAt = OzMotion.Now; selectFrom = selectK; selectTo = 1f;
             selectRoot.gameObject.SetActive(true);
@@ -849,7 +863,7 @@ namespace OpenZ
 
         void GoMain()
         {
-            if (view != View.Select) return;
+            if (view != View.Select && view != View.Faction) return;                                           // k75a: BACK on the faction screen; the level selection's own BACK goes to the faction screen (BackFromSelect), the tools and proofs still come here
             view = View.Main; viewAt = OzMotion.Now; selectFrom = selectK; selectTo = 0f;
             mainRoot.gameObject.SetActive(true);
             Sfx("ui_menu_back");
@@ -864,6 +878,7 @@ namespace OpenZ
             mainRoot.gameObject.SetActive(view == View.Main); selectRoot.gameObject.SetActive(view == View.Select);
             mainCg.alpha = view == View.Main ? 1f : 0f; selectCg.alpha = view == View.Select ? 1f : 0f;
             if (view == View.Select) FocusCard(focusCard, true);
+            ApplyFactionView();                                                                                // k75a: the faction screen (UI/OpenZMainMenu.Faction.cs)
             if (side != Side.None) { var s = side; side = Side.None; OpenSide(s, true); }
         }
 
@@ -898,6 +913,7 @@ namespace OpenZ
             i = Mathf.Clamp(i, 0, levels.Length - 1);
             if (i == focusCard && !force) return;
             bool changed = i != focusCard; focusCard = i;
+            CarouselReveal(i);                                                                               // 1.3 item 30: the carousel slides the selected card into view (UI/OpenZMainMenu.Carousel.cs)
             if (changed && !silent) Sfx("ui_hover");
             if (view == View.Select && (bgLevel != i || force)) SwitchBg(i, OzLevelPreview.PosterTime, true, HardCut, bgLevel == i);
         }
@@ -908,7 +924,7 @@ namespace OpenZ
             lastCardClick = i; lastCardClickAt = OzMotion.Now;
             FocusCard(i, false, true);
             if (!dbl) Sfx("ui_level_select");
-            if (dbl) Deploy();
+            if (dbl) DeployByPlayer();                                                               // 1.2 item 11: the player's own DEPLOY (only it can arm PLAY AS BLUE; UI/OpenZMainMenu.PlayBlue.cs)
         }
 
         // ================================================================== background flybys
@@ -921,7 +937,7 @@ namespace OpenZ
         void SwitchBg(int to, double t, bool loop, float fade, bool keepPlaying = false)
         {
             if (to == bgLevel && keepPlaying) { if (previews[to].VideoOk) previews[to].Player.isLooping = loop; return; }
-            if (to != bgLevel) { bgFrom = bgLevel; bgLevel = to; }
+            if (to != bgLevel) { if (bgFrom >= 0 && bgFrom != to) { if (bgRotateFrom) previews[bgFrom].NextClip(); else previews[bgFrom].Pause(); } bgFrom = bgLevel; bgLevel = to; }   // 1.4: a cut still pending (a second switch within its wait for the first frame): the level it was leaving stops now, as that cut would have (TickBackground), never left decoding unseen
             bgRotateFrom = false;
             bgFadeDur = Mathf.Max(0.01f, OzMotion.Dur(fade, true));
             var p = previews[to];
@@ -934,6 +950,7 @@ namespace OpenZ
         {
             if (bgLevel < 0) { SwitchBg(view == View.Select ? focusCard : FirstFlyby, view == View.Select ? OzLevelPreview.PosterTime : 0, view == View.Select || !CanAlternate, 0.01f); bgFrom = -1; }
             var cur = previews[bgLevel];
+            if (view != View.Loading) cur.StallGuard();                                                       // 1.4: the flyby on screen (menu background, selected card, its blurred backdrop): a decoder stuck on one frame starts again (UI/OzLevelPreview.cs)
             if (bgWaitFrame)                                                                                  // hold the cross-fade until the new clip shows a frame (or 0.8 s)
             {
                 if (cur.ShowingVideo || !cur.VideoOk || OzMotion.Now - bgFadeAt > 0.8f) { bgWaitFrame = false; bgFadeAt = OzMotion.Now; bgShownAt = OzMotion.Now; }
@@ -1015,6 +1032,7 @@ namespace OpenZ
             TickViews(dt);
             if (view == View.Main) { TickItems(dt); TickCaption(); TickSide(); TickCredits(dt); TickChanges(dt); TickRoadmap(dt); TickFeedback(); if (side == Side.Options) RefreshOptions(); TickExe(dt); }
             else if (view == View.Select) { TickCards(dt); RefreshDeployBar(); TickHeadTip(); TickHighScores(dt); }   // menu_exe_v1: head start tooltip
+            else if (view == View.Faction) TickFaction(dt);                                                    // k75a: the faction screen (posters, mood, tips, the pick)
             TickOptTip();
             if (view == View.Select && side != Side.None) side = Side.None;
         }
@@ -1065,6 +1083,7 @@ namespace OpenZ
             float wheel = m.scroll.ReadValue().y;
             if (Mathf.Abs(wheel) > 0.01f && side == Side.Credits && view == View.Main) ScrollCredits(-Mathf.Sign(wheel) * 56f);
             if (Mathf.Abs(wheel) > 0.01f && side == Side.Roadmap && view == View.Main) ScrollRoadmap(-Mathf.Sign(wheel) * 56f);
+            if (Mathf.Abs(wheel) > 0.01f && view == View.Select) CarouselWheel(wheel, mp);                 // 1.3 item 30: the wheel over the level row steps the carousel
         }
 
         void AddHot(RectTransform rt, View v, Action click, Action<bool> hover, HudButton btn, string sfx, Side s = Side.Any)
@@ -1096,12 +1115,14 @@ namespace OpenZ
                 if (HighScoresKeys(kb, left, right, up, down, esc)) return;                              // the HIGH SCORES popup: its key opens it; open, it owns the keyboard (OpenZMainMenu.HighScores.cs)
                 if (left) { if (focusCard <= 0) Sfx("ui_disabled"); FocusCard(focusCard - 1, false); }     // sound_v3: the end of the list answers
                 if (right) { if (focusCard >= levels.Length - 1) Sfx("ui_disabled"); FocusCard(focusCard + 1, false); }
-                if (enter) Deploy();
-                if (esc) GoMain();
-                if (kb.cKey.wasPressedThisFrame) { SetDifficulty(OpenZDifficulty.Next(OpenZDifficulty.Level)); Sfx("ui_tab_switch"); }
+                if (enter) DeployByPlayer();                                                       // 1.2 item 11: the player's own DEPLOY (only it can arm PLAY AS BLUE; UI/OpenZMainMenu.PlayBlue.cs)
+                if (esc) BackFromSelect();                                                         // k75a: back to the faction screen (UI/OpenZMainMenu.Faction.cs)
+                if (kb.cKey.wasPressedThisFrame) DifficultyKey();                                         // 1.4 MAYHEM: EASY, MEDIUM, HARD, MAYHEM, EASY (UI/OpenZMainMenu.Mayhem.cs)
                 if (kb.hKey.wasPressedThisFrame) ToggleHeadStart();
                 if (kb[ShuttleKey].wasPressedThisFrame && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) ToggleShuttleStart(true);   // K347: the SHUTTLE box's key (ui_disabled where it is not offered)
+                if (kb[UnitStatsKey].wasPressedThisFrame && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) SetUnitStats(!OzLevelStats.Box, true);   // 1.2 item 60: the UNIT STATS selector's key (ui_disabled where it is not shown; UI/OpenZMainMenu.UnitStats.cs)
             }
+            else if (view == View.Faction) FactionKeys(left, right, enter, esc);                               // k75a: LEFT / RIGHT focus, ENTER picks, ESC back (the gamepad's D-pad / A / B through OzTouch)
         }
 
         // ---------------------------------------------------------------- animation
@@ -1138,6 +1159,7 @@ namespace OpenZ
                 mainCg.alpha = kIn; selectCg.alpha = kOut;
                 if (kOut <= 0f && selectRoot.gameObject.activeSelf) selectRoot.gameObject.SetActive(false);
             }
+            TickFactionView(kIn, kOut);                                                                        // k75a: the faction screen fades in / out (and its posters close once it is out)
         }
 
         void TickItems(float dt)
@@ -1225,6 +1247,7 @@ namespace OpenZ
         void TickCards(float dt)
         {
             float kIn = OzMotion.T(viewAt, OzMotion.Dur(0.26f, true), 0f);
+            TickCarousel(dt);                                                                                // 1.3 item 30: the carousel's slide, arrows and page bars (UI/OpenZMainMenu.Carousel.cs)
             for (int i = 0; i < cards.Length; i++)
             {
                 var c = cards[i]; var p = previews[i];
@@ -1286,12 +1309,15 @@ namespace OpenZ
             PlayerPrefs.Save();
             Sfx("ui_level_start");
             PlayerPrefs.SetInt(OpenZDifficulty.Key, (int)OpenZDifficulty.Level);                              // menu_exe_v1: ZGame reads the key only when it exists (MEDIUM is a default now)
-            Debug.Log($"[OpenZ Menu] DEPLOY {d.Id} ({d.Scene}): difficulty {OpenZDifficulty.Label(OpenZDifficulty.Level)}, head start {(OpenZDifficulty.HeadStartToggle ? "ON (+" + OpenZDifficulty.HeadStartCount(d.Id) + " vehicles)" : "off")}");
+            OzPlayBlue.Arm(d.Id, pbByPlayer);                                                                 // 1.2 item 11: the PLAY AS BLUE box decides the side of this level (before the loading screen's words); only the player's own DEPLOY arms it
+            OzLevelStats.Arm(d.Id, pbByPlayer);                                                               // 1.2 item 60: UNIT STATS CUSTOM plays this level with the Unit editor's Custom stats (the text kept as it is now); only the player's own DEPLOY arms it (View/OzLevelStats.cs)
+            Debug.Log($"[OpenZ Menu] DEPLOY {d.Id} ({d.Scene}): difficulty {OpenZDifficulty.Label(OpenZDifficulty.Choice)}, head start {(OpenZDifficulty.HeadStartFor(OpenZDifficulty.Choice) ? "ON (+" + OpenZDifficulty.HeadStartCount(d.Id) + " vehicles)" : OpenZDifficulty.HeadStartToggle ? "none on MAYHEM (the saved ON kept)" : "off")}");
             view = View.Loading; loadLevel = focusCard; viewAt = OzMotion.Now;
             if (hotOver?.btn != null) { hotOver.btn.Hovered = false; hotOver.btn.Refresh(); }
             BuildLoading(d);
             for (int i = 0; i < previews.Length; i++) if (i != focusCard) previews[i].Pause();
             loadStartAt = OzMotion.Now; loadShown = 0f;
+            OzLevelWarm.Prepare(d.Id);                                                                        // 6 Nov hang fix: the level's warm list is read BEFORE the held scene load (an async read after it never finished in the exe)
             loadOp = SceneManager.LoadSceneAsync(d.Scene, LoadSceneMode.Single);
             if (loadOp != null) loadOp.allowSceneActivation = false;
             else { Debug.LogWarning("[OpenZ Menu] async load refused: loading " + d.Scene + " directly"); SceneManager.LoadScene(d.Scene); }
@@ -1370,7 +1396,8 @@ namespace OpenZ
             loadingCg.alpha = k; if (mainCg) mainCg.alpha = Mathf.Min(mainCg.alpha, 1f - k); if (selectCg) selectCg.alpha = Mathf.Min(selectCg.alpha, 1f - k);
             if (musicSrc) musicSrc.volume = MusicFallbackVolume * (1f - k);
             if (k >= 1f) foreach (var p in previews) p?.Pause();                                              // the loading screen shows the still: stop decoding
-            float target = loadOp == null ? 1f : Mathf.Clamp01(loadOp.progress / 0.9f);
+            float warm = ueLoading ? 1f : OzLevelWarm.Step(levels[loadLevel].Id);                                 // 1.4: the level's own shader list warms on this screen (View/OzLevelWarm.cs); the Unit editor's loading as before
+            float target = Mathf.Min(loadOp == null ? 1f : Mathf.Clamp01(loadOp.progress / 0.9f), warm);
             float minT = Mathf.Clamp01((OzMotion.Now - loadStartAt) / Mathf.Max(0.1f, minLoadingTime));
             loadShown = Mathf.MoveTowards(loadShown, Mathf.Min(target, 0.25f + 0.75f * minT), dt * 1.6f);
             loadFill.fillAmount = loadShown;
@@ -1379,7 +1406,7 @@ namespace OpenZ
             loadStage.Set(loadShown < 0.48f ? "LOADING TERRAIN" : loadShown < 0.85f ? "DEPLOYING FORCES" : "BRIEFING COMMANDERS");
             OzSoundV3.LoadingStage(loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2, loadShown, Sfx);   // sound_v3
             loadTip.Set(Tips[loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2]);
-            if (loadOp != null && loadShown >= 0.999f && loadOp.progress >= 0.9f && !loadOp.allowSceneActivation)
+            if (loadOp != null && loadShown >= 0.999f && loadOp.progress >= 0.9f && warm >= 1f && !loadOp.allowSceneActivation)   // 1.4: and the level's warm list done (or capped)
             {
                 foreach (var p in previews) p?.Pause();
                 loadOp.allowSceneActivation = true;                                                           // ZGame.Awake reads oz_difficulty and oz_headstart

@@ -221,18 +221,19 @@ namespace OpenZ
         /// the mesh cannot be read or nothing of it lies below y; the whole plant falls then and no stump stays).</summary>
         Mesh CutStump(Stand t, float y)
         {
-            var mf = t.main.GetComponent<MeshFilter>(); var mr = t.main.GetComponent<MeshRenderer>(); var src = mf ? mf.sharedMesh : null;
+            var host = OzL16Outskirts.EdgeModelOf(t.main) ?? t.main;                                // level 16, round 5e: an edge plant drawn by its stand-in is cut from it (OzL16Outskirts.RimEdge.cs)
+            var mf = host.GetComponent<MeshFilter>(); var mr = host.GetComponent<MeshRenderer>(); var src = mf ? mf.sharedMesh : null;
             if (!src || !mr || !src.isReadable) return null;
             var vs = src.vertices; var side = new float[vs.Length]; int below = 0;
-            for (int i = 0; i < vs.Length; i++) { side[i] = t.main.TransformPoint(vs[i]).y - y; if (side[i] < 0f) below++; }
+            for (int i = 0; i < vs.Length; i++) { side[i] = host.TransformPoint(vs[i]).y - y; if (side[i] < 0f) below++; }
             if (below == 0 || below == vs.Length) return null;
-            OzMeshCut.Split(src, vs, side, t.main.InverseTransformDirection(Vector3.up), out var low, out var high);
+            OzMeshCut.Split(src, vs, side, host.InverseTransformDirection(Vector3.up), out var low, out var high);
             if (low.vertexCount == 0 || high.vertexCount == 0) { Destroy(low); Destroy(high); return null; }
-            OzMeshCut.Widen(low, t.main.InverseTransformDirection(Vector3.up), stumpWide);
+            OzMeshCut.Widen(low, host.InverseTransformDirection(Vector3.up), stumpWide);
             made.Add(low); made.Add(high);
-            var go = new GameObject("TreeStump_" + t.tx + "_" + t.ty) { layer = t.main.gameObject.layer };
+            var go = new GameObject("TreeStump_" + t.tx + "_" + t.ty) { layer = host.gameObject.layer };
             var st = go.transform; st.SetParent(t.holder.parent, false);
-            st.SetPositionAndRotation(t.main.position, t.main.rotation); st.localScale = t.main.localScale;           // the holder and the cell have no scale of their own
+            st.SetPositionAndRotation(host.position, host.rotation); st.localScale = host == t.main ? t.main.localScale : host.lossyScale;   // the holder and the cell have no scale of their own (a stand-in: its own size)
             go.AddComponent<MeshFilter>().sharedMesh = low;
             var sr = go.AddComponent<MeshRenderer>(); sr.sharedMaterials = mr.sharedMaterials; sr.shadowCastingMode = mr.shadowCastingMode;
             if (t.cell)
@@ -245,7 +246,7 @@ namespace OpenZ
                 }
             }
             // the cut face: pale fresh wood with a year ring or two, so the stump reads on dark soil from the default camera height
-            var cut = OzMeshCut.CapMesh(low, OzMeshCut.LowCap, t.main.InverseTransformDirection(Vector3.up).normalized);
+            var cut = OzMeshCut.CapMesh(low, OzMeshCut.LowCap, host.InverseTransformDirection(Vector3.up).normalized);
             if (cut)
             {
                 made.Add(cut);
@@ -381,7 +382,7 @@ namespace OpenZ
             var rest = h.position; float depth = t.radius * 1.7f + 0.6f;
             for (s = 0f; s < 1f; s += (game && game.paused ? 0f : Time.deltaTime) / 3f) { h.position = rest + Vector3.down * (depth * s * s); yield return null; }
             foreach (var p in t.plants) if (p) p.gameObject.SetActive(false);
-            if (top) { var mf = t.main.GetComponent<MeshFilter>(); if (mf) mf.sharedMesh = null; made.Remove(top); Destroy(top); }
+            if (top) { var mf = (OzL16Outskirts.EdgeModelOf(t.main) ?? t.main).GetComponent<MeshFilter>(); if (mf) mf.sharedMesh = null; made.Remove(top); Destroy(top); }   // round 5e: a stand-in's own (OzL16Outskirts.RimEdge.cs)
         }
 
         static void Log(Stand t, string what)

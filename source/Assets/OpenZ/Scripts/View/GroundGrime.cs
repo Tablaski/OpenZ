@@ -43,7 +43,7 @@ namespace OpenZ
         static void OnLoaded(Scene s, LoadSceneMode m)
         {
             if (!On || !Application.isPlaying || !s.IsValid()) return;
-            if (!(s.name.StartsWith("L02") || s.name.StartsWith("L16") || s.name.StartsWith("L17"))) return;
+            if (!(s.name.StartsWith("L02") || s.name.StartsWith(OzVolcanic.Level) || s.name.StartsWith("L16") || s.name.StartsWith("L17"))) return;
             if (I && I.gameObject.scene == s) return;
             var go = new GameObject("GroundGrime");
             SceneManager.MoveGameObjectToScene(go, s);
@@ -80,6 +80,11 @@ namespace OpenZ
             if (!mat) { Debug.LogWarning("[OpenZ] ground grime: OpenZ/Grime shader missing"); return; }
             mat.name = "GroundGrime";
             jungle = W.Map.planet == "jungle";
+            if (W.Map.planet == OzVolcanic.Planet)
+            {   // ash, not sand: trodden ground goes a little lighter and greyer, never yellow
+                mat.SetColor("_LightTint", new Color(0.92f, 0.88f, 0.84f)); mat.SetColor("_DarkTint", new Color(0.62f, 0.58f, 0.55f));
+                mat.SetColor("_DeckSand", new Color(0.78f, 0.74f, 0.70f)); mat.SetColor("_RoadSand", new Color(0.78f, 0.74f, 0.70f));
+            }
             if (jungle)
             {   // grass and mud, not sand: trodden ground goes darker and browner, the bridge planks carry dried mud
                 mat.SetColor("_LightTint", new Color(0.96f, 0.86f, 0.70f)); mat.SetColor("_DarkTint", new Color(0.72f, 0.66f, 0.58f));

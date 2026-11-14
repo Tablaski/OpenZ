@@ -29,6 +29,8 @@ namespace OpenZ
         public static float WallSize = 1.35f, WallLifeMin = 2.6f, WallLifeMax = 3.6f, WallLift = 0.9f, WallSpeed = 0.75f, WallAlpha = 0.9f;
         /// <summary>Skirt puffs per ring, size (m), life (s), alpha.</summary>
         public static int SkirtPerRing = 9;
+        /// <summary>1.4 Unit editor only: the extra billow noise and the height (m) over which the dust fades into the ground.</summary>
+        public static float UeNoiseBoost = 0.75f, UeGroundFadeM = 1.5f, UeAlphaK = 1.4f;   // round 2: shorter fade, a little denser
         public static float SkirtSizeMin = 11f, SkirtSizeMax = 17f, SkirtLifeMin = 4f, SkirtLifeMax = 6f, SkirtAlpha = 0.42f;
         /// <summary>Opacity over life (time share, alpha): in over the first quarter, held, then a long thin-out to nothing.</summary>
         public static readonly Vector2[] AlphaKeys = { new Vector2(0f, 0f), new Vector2(0.22f, 1f), new Vector2(0.45f, 0.9f), new Vector2(0.75f, 0.42f), new Vector2(1f, 0f) };
@@ -163,7 +165,14 @@ namespace OpenZ
         {
             var f = Get(); if (!f) return false;
             var g = ZGame.I;
-            Color c = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OpenZFxCatalog.M12Dust.color;
+            bool ue = OzUnitEditor.I;
+            if (f.mat)
+            {
+                f.mat.SetFloat("_NoiseBoost", ue ? UeNoiseBoost : 0f);
+                f.mat.SetFloat("_GroundFade", ue ? UeGroundFadeM : 0f);
+                f.mat.SetFloat("_GroundY", at.y);
+            }
+            Color c = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
             int n = SkirtPerRing + ring / 2;
             float phase = Random.Range(0f, Mathf.PI * 2f);
             for (int j = 0; j < n; j++)
@@ -176,7 +185,8 @@ namespace OpenZ
                 var pos = new Vector3(x, gy + Random.Range(0.6f, 1.6f), z);
                 var vel = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * Random.Range(1.2f, 2.4f) + Vector3.up * Random.Range(0.05f, 0.25f);
                 float size = Random.Range(SkirtSizeMin, SkirtSizeMax) * (0.8f + 0.04f * ring);
-                f.EmitOne(pos, vel, Random.Range(SkirtLifeMin, SkirtLifeMax), size, c, SkirtAlpha * Random.Range(0.8f, 1.1f));
+                if (ue) size *= Random.Range(0.45f, 1.6f);
+                f.EmitOne(pos, vel, Random.Range(SkirtLifeMin, SkirtLifeMax), size, c, SkirtAlpha * Random.Range(0.8f, 1.1f) * (ue ? UeAlphaK : 1f));
                 SkirtPuffs++;
             }
             return true;

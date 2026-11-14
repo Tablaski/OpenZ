@@ -56,7 +56,7 @@ namespace OpenZ
         public ZWorld W => game ? game.World : null;
         public Team Player => game ? game.player : Team.Red;
         /// <summary>The pause menu or the end screen owns the mouse and keyboard.</summary>
-        public bool Modal => (Pause && Pause.IsOpen) || (EndScreen && EndScreen.IsShown) || Arranging || ArrangeHeld;   // ARRANGE INTERFACE owns the mouse too, also for the moment it waits for the pause menu to close (OpenZHud.Arrange.cs)
+        public bool Modal => (Pause && Pause.IsOpen) || (EndScreen && EndScreen.IsShown) || Arranging || ArrangeHeld || OzUeHooks.HudModal;   // ARRANGE INTERFACE owns the mouse too, also for the moment it waits for the pause menu to close (OpenZHud.Arrange.cs); 1.2 item 6: the Unit editor's dialogs
 
         /// <summary>Who owns the current left press: nobody (PlayerInput), a HUD panel, the armed rally tool, or an own
         /// fort / factory (Zod opens its production window on the press and KEEPS the selection, zplayer.cpp:3327-3331; b30: here
@@ -206,6 +206,7 @@ namespace OpenZ
             Minimap.Build(this);            // bottom-right; its width places the unit panel
             BuildUnitPanel();
             BuildBottomBar();
+            BuildRepairKey();                                                                          // 1.2 item 10: the wrench key over the bar's R key (OpenZHud.RepairKey.cs)
             BuildFactoryList();
             BuildStoredCannons();
             BuildMenuButton();
@@ -254,8 +255,10 @@ namespace OpenZ
         }
 
         // ================================================================== input + gating
-        void Update()
+        // duel HUD input capture
+            void Update()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
             if (!Canvas || W == null) return;
             var m = Mouse.current; var kb = Keyboard.current;
             if (m == null) return;
@@ -335,6 +338,7 @@ namespace OpenZ
             RefreshAlertTab();
             RefreshBottomBar();
             RefreshFactoryList();
+            TickRepairKey();                                                                               // 1.2 item 10: after the factory list, whose place it keeps clear of (OpenZHud.RepairKey.cs)
             RefreshStoredCannons();
             RefreshToasts();
             RefreshBanner();
@@ -411,7 +415,8 @@ namespace OpenZ
         {
             Enter(top, new Vector2(0, 90), 0f); Enter(terr, new Vector2(0, 90), 0.06f); Enter(menuBtn.Rt, new Vector2(0, 60), 0.06f);
             Enter(cmdBar, new Vector2(0, -80), 0.12f); Enter(Minimap.Panel, new Vector2(360, 0), 0.18f); Enter(unitPanel, new Vector2(40, 0), 0.24f);
-            bool intro = missionIntro && PlayerPrefs.GetInt("oz_hud_intro", 1) == 1 && !OzMotion.Reduced;
+            // duel HUD ready for shared countdown
+            bool intro = !OpenZ.Multiplayer.DuelRuntime.Active && missionIntro && PlayerPrefs.GetInt("oz_hud_intro", 1) == 1 && !OzMotion.Reduced;
             introAt = OzMotion.Now + (intro ? 2.9f : 0f); introDone = false;
             ControlAt = introAt;
             bannerAt = intro ? OzMotion.Now : -100f;
@@ -447,7 +452,7 @@ namespace OpenZ
 
         void TickMinimal()
         {
-            bool want = OzSettingTips.MinimalUi && !Arranging;                                                 // every panel shows while the player arranges them
+            bool want = (OzSettingTips.MinimalUi || OzUeHooks.HideMatchHud) && !Arranging;                    // every panel shows while the player arranges them; 1.2 item 6: always in the Unit editor's playground (the option is not written)
             float target = want ? 0f : 1f, dur = OzMotion.Dur(0.18f, true);
             minK = dur <= 0f ? target : Mathf.MoveTowards(minK, target, Time.unscaledDeltaTime / dur);
             bool on = minK > 0.001f;
@@ -503,7 +508,7 @@ namespace OpenZ
                         var team = (Team)(int)e.value; var old = (Team)e.radius;
                         int fx = e.x, fy = e.y;
                         System.Action fly = () => { if (rts) rts.FlyTo(ZGame.PxToWorld(fx, fy)); };
-                        if (team == Player && old != Player) { Toast("TERRITORY CAPTURED", "flag", false, fly); if (e.flag) Toast("RADAR ACTIVATED", "radar", false, fly); }
+                        if (team == Player && old != Player) { Toast("TERRITORY CAPTURED", "flag", false, fly); if (e.flag && OzRadarTruth.StandingRadarOf(W, e.objId, team)) Toast("RADAR ACTIVATED", "radar", false, fly); }   // 1.4 radar_voice_fix: a standing radar only (FlagCaptured.flag marks every zone with a radar, a ruin too: View/OzRadarTruth.cs)
                         else if (old == Player && team != Player) { Toast("TERRITORY LOST", "flag", true, fly); Minimap?.PingAlert(fx, fy); }
                         Minimap?.FlashZones();
                         break;
@@ -764,7 +769,7 @@ namespace OpenZ
             unitPanel = Hud.Node("UnitPanel", Root).Place(PanelRect());
             AddBlocker(unitPanel);
             Hud.Plate(unitPanel, "lg", 0f, null, OzUi.TeamPaint(Player), true);
-            string lvl = game.level == "L17" ? "city" : "desert";
+            string lvl = OzVolcanic.PortraitBg(game.level);
             portrait = new PortraitView(unitPanel, OzLayout.UnitPortrait, lvl);
             groupBadge = Hud.Kit(unitPanel, "Group", "Badges/badge_1", new OzRect(OzLayout.UnitBadgeX, OzLayout.UnitBadgeY, 24, 24), null, Image.Type.Simple);
             groupBadge.gameObject.SetActive(false);
@@ -796,6 +801,7 @@ namespace OpenZ
             exitBtn.OnClick = c => ExitSelected();
             AddBlocker(exitBtn.Rt);
             exitBtn.Rt.gameObject.SetActive(false);
+            BuildDriverTab();                                                                                // 1.4 DV171: EXIT DRIVER, 80 % of EXIT CREW in its place (UI/OpenZHud.VehicleExit.cs)
             portraitHot = Hotspot(unitPanel, "PortraitHot", OzLayout.UnitPortrait, PortraitTip);
             portraitHot.OnClick = c => ClickCall();
         }
@@ -815,11 +821,13 @@ namespace OpenZ
         }
 
         HudButton exitBtn; float panelHide;
-        bool CanExit(ZObject o) => o != null && !o.Destroyed && o.Owner == Player && OzShuttleAirOffers.Exit(o) && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only; K430b: the button, its key, the touch key, the gamepad: never a shuttle up in the air (UI/OzShuttleAirOffers.cs)
+        bool CanExit(ZObject o) => o != null && !o.Destroyed && (o.Owner == Player || OzUeHooks.BothTeams(o.Owner)) && OzShuttleAirOffers.Exit(o) && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only; K430b: the button, its key, the touch key, the gamepad: never a shuttle up in the air (UI/OzShuttleAirOffers.cs); 1.2 item 6: both teams in the playground
         public void ExitSelected()
         {
-            bool any = false;
-            foreach (var o in new List<ZObject>(input.Selection)) if (CanExit(o)) any |= input.EjectUnit(o);
+            bool any = false, crew = false;
+            foreach (var o in new List<ZObject>(input.Selection)) if (CanExit(o)) { crew = true; any |= input.EjectUnit(o); }
+            if (crew) CrewExitUsed();                                                                      // 1.4 DV171: EXIT CREW used: no driver for 0.4 s (a double-click, E twice: UI/OpenZHud.VehicleExit.cs)
+            else any = KeyDrivers();                                                                       // 1.4 DV171: no gun / carrier to let out: the drivers of the selected tanks and mechs, not within 0.4 s of EXIT CREW (UI/OpenZHud.VehicleExit.cs)
             if (!any) AudioDirector.UI("ui_order_invalid");
         }
 
@@ -833,6 +841,7 @@ namespace OpenZ
             var sel = input.Selection;
             bool canExit = false; foreach (var o in sel) if (CanExit(o)) { canExit = true; break; }
             exitBtn.Rt.gameObject.SetActiveFast(canExit);
+            RefreshDriverTab(sel, canExit);                                                                  // 1.4 DV171: EXIT DRIVER while EXIT CREW is not shown (UI/OpenZHud.VehicleExit.cs)
             int h = sel.Count; foreach (var o in sel) h = h * 31 + o.Id;
             bool changed = false;
             if (h != selHash || hudUnit == null || !sel.Contains(hudUnit) || hudUnit.Destroyed)
@@ -852,15 +861,17 @@ namespace OpenZ
                 foreach (var s in slides) if (s.rt == unitPanel) s.home = unitPanel.anchoredPosition;                // the exit slides from the new place
             }
             var u = hudUnit;
+            ShuttleCardReset(u);                                                                            // 1.2 item 2: the type chip and the CREW slot of every unit but a shuttle as before (UI/OpenZHud.ShuttleAboard.cs)
             VeteranMarks.PortraitStar(unitPanel, u);                                                        // veterancy_v1 DV12: veteran star
-            if (u != null) EndCall();
+            if (u != null) EndCall("a selection");
             if (u == null)
             {
                 var call = LiveCall();
                 if (call != null) { ShowCall(call); return; }                                                  // NB35: nothing selected: the live transmission
-                if (changed || shownUnit != null || callShown != null)
+                if (CallLostShowing) { ShowCallLost(); return; }                                              // 1.3 item 22: a lost caller's SIGNAL LOST, for CallLostSec
+                if (changed || shownUnit != null || callShown != null || lostShown)
                 {
-                    EndCall();
+                    EndCall(callWhy);
                     shownUnit = null;
                     portrait.Idle();
                     groupBadge.gameObject.SetActiveFast(false);
@@ -894,18 +905,19 @@ namespace OpenZ
             string more = sel.Count > 1 ? $" · +{sel.Count - 1} MORE SELECTED" : "";
             var hu = PanelHealthOf(u);                                                                     // the squad member under the pointer, else the unit itself
             string sub = robot ? (squad > 1 ? $"{(hu != u ? "SQUAD MEMBER" : "SQUAD LEADER")} · {squad} ROBOTS" : "1 ROBOT")
-                       : u.IsShuttle ? OzShuttleHud.Line(u) : u.Drivers.Count > 0 ? $"{(u.Kind == ZKind.Cannon ? "GUNNER" : "DRIVER")} · {OzHeroSquadView.CrewNameOr(u, false, UnitInfo.Name(u.DriverType))}{(u.Drivers.Count > 1 ? " ×" + u.Drivers.Count : "")}"
+                       : u.IsShuttle ? ShuttleSub(u, more) : u.Drivers.Count > 0 ? $"{(u.Kind == ZKind.Cannon ? "GUNNER" : "DRIVER")} · {OzHeroSquadView.CrewNameOr(u, false, UnitInfo.Name(u.DriverType))}{(u.Drivers.Count > 1 ? " ×" + u.Drivers.Count : "")}"
                          + (u.IsApc && ZWorld.ApcCrewDeviation ? (u.Passengers.Count > 0 ? $" · PASSENGERS {OzHeroSquadView.CrewNameOr(u, true, UnitInfo.Name(u.PassengerType))} ×{u.Passengers.Count}" : " · ROOM FOR ONE SQUAD") : "")   // apc_v1 DV15
                        : "EMPTY · ANY ROBOT CAN CAPTURE";
             uSub.Set(sub + more);
-            typeIcon.Rt.gameObject.SetActiveFast(true); typeWell.gameObject.SetActiveFast(true);
-            if (robot) typeIcon.SetGlyph("robot"); else typeIcon.Set(u.Type, u.Owner);
-            uCount.Set(OzText.Tab("×" + (robot ? squad : sameType)));
+            typeIcon.Rt.gameObject.SetActiveFast(!u.IsShuttle); typeWell.gameObject.SetActiveFast(true);       // 1.2 item 2: a shuttle's chip shows who is inside (ShuttleTypeChip)
+            if (!u.IsShuttle) { if (robot) typeIcon.SetGlyph("robot"); else typeIcon.Set(u.Type, u.Owner); uCount.Set(OzText.Tab("×" + (robot ? squad : sameType))); }
+            else ShuttleTypeChip(u);                                                                        // 1.2 item 2: who is aboard, once (round 3)
             uWeapon.Set(UnitInfo.Weapon(u));
-            weaponIcon.enabled = true; Hud.SetIcon(weaponIcon, UnitInfo.WeaponGlyph(u), OzLayout.UnitWeaponIconSize);
+            weaponIcon.enabled = !u.IsShuttle; Hud.SetIcon(weaponIcon, UnitInfo.WeaponGlyph(u), OzLayout.UnitWeaponIconSize);   // 1.2 item 2 round 3: the shuttle has no weapon (DV118): "NONE", no rifle glyph
             bool nades = robot && u.Type != "tough";                                                       // Zod: robots except Tough (zhud.cpp:794-819)
-            if (nades) { uNadeLabel.Set("GRENADES"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "grenade", 24); nadeIcon.color = OzUi.Amber; uNades.Set(OzText.Tab($"{u.SquadGrenades:00}")); }   // KH: + a hero member's own (Alan's)
-            else if (!robot) { uNadeLabel.Set("CREW"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "robot", 24); nadeIcon.color = OzUi.Ink2; uNades.Set(OzText.Tab($"{u.CrewAboard:00}"));   /* apc_v1 DV15: driver + passengers */ }
+            if (nades) { uNadeLabel.Set("GRENADES"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "grenade", 24); nadeIcon.color = OzUi.Amber; uNades.Set(OzText.Tab($"{u.SquadGrenades:00}")); uNades.color = OzUi.Ink; }   // KH: + a hero member's own (Alan's)
+            else if (u.IsShuttle) ShuttlePilotSlot(u);                                                     // 1.2 item 2 round 3: the PILOT (stays in / a hero can exit), not who is aboard again (UI/OpenZHud.ShuttleAboard.cs)
+            else if (!robot) { uNadeLabel.Set("CREW"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "robot", 24); nadeIcon.color = OzUi.Ink2; uNades.Set(OzText.Tab($"{u.CrewAboard:00}")); uNades.color = OzUi.Ink;   /* apc_v1 DV15: driver + passengers */ }
             else { uNadeLabel.Set(""); nadeIcon.enabled = false; uNades.Set(""); }
             // Zod's absolute scale (zhud.cpp:948-1016): green = health / 10000, lost colour up to max health / 10000
             float hp = hu.MaxHealth > 0 ? hu.Health / (float)hu.MaxHealth : 0;
@@ -931,6 +943,7 @@ namespace OpenZ
             float hpAbs = hu.Health / (float)ZConst.MAX_UNIT_HEALTH, maxAbs = hu.MaxHealth / (float)ZConst.MAX_UNIT_HEALTH;
             if (!absoluteHealthBar) { hpAbs = hu.MaxHealth > 0 ? hu.Health / (float)hu.MaxHealth : 0f; maxAbs = 1f; }
             uHealth.Set(hpAbs * kHp, maxAbs * kHp);
+            RadarHpFade(hu);                                                                               // 1.4 radar_enemy_bars DV172: an enemy's bar and number fade with the radar rule (UI/OpenZHud.RadarBars.cs)
         }
 
         /// <summary>The robot whose health the unit panel shows for the selected unit u: while the pointer is on a member of u's squad,
@@ -975,30 +988,137 @@ namespace OpenZ
         // CallShowSec after its last call: its portrait with a hand-held shake, heavy rolling static, signal tears and sparks (each
         // spark burst crackles: ui_transmission), "LIVE" blinking over its name. A click on the screen selects it and flies the camera
         // there (SelectAndFly: RtsCamera.FlyTo, ui_camera_jump); a selection, the unit's death or the end of the calls ends it.
+        // The HUD keeps its own record of the call on screen. It holds CallShowSec (14 s) after the caller's
+        // last call; a NEW caller cannot take the screen within the first CallKeepSec (5 s) of the current one (it is kept and shown
+        // after that, if its call is still fresh); a squad whose leader dies carries on with its next member (Successor, as the selection
+        // follows the squad); a caller that dies (or is lost to the enemy) shows SIGNAL LOST for CallLostSec (2.5 s, the cut crackles)
+        // instead of just vanishing. Every end of a shown call writes one Player.log line with its reason and the time it was shown.
         const string PortraitTip = "COMMS|The selected unit (a random member of the selection, like Zod). Vehicles and guns show their crew at the controls.|";
         const string CallTip = "INCOMING CALL|A unit is calling for help. Click to select it and fly the camera there.|";
-        public const float CallShowSec = 8f;
+        const string LostTip = "SIGNAL LOST|The unit that called for help was lost.|";
+        public const float CallShowSec = 14f, CallKeepSec = 5f, CallLostSec = 2.5f;
         HudButton portraitHot; ZObject callShown;
         /// <summary>Proof counters: transmissions shown, clicks that flew there.</summary>
         public int CallShows { get; private set; }
         public int CallClicks { get; private set; }
         public ZObject CallShown => callShown;
+        /// <summary>1.3 item 22, checks: SIGNAL LOST shown, calls ended, the last end's reason and how long that call was on screen (s).</summary>
+        public int CallLosts { get; private set; }
+        public int CallEnds { get; private set; }
+        public string CallEndWhy { get; private set; } = "";
+        public float CallShownSec { get; private set; }
+        public bool CallLostOnScreen => lostShown;
+        // the record: the caller on screen (callId), its last call and since when it holds the screen; a newer caller held back; the
+        // last call the HUD has taken in; a lost caller's SIGNAL LOST
+        int callId = -1, heldId = -1; float callLast = -100f, callSince = -100f, heldAt = -100f, seenCallAt = -100f, callShownAt, lostAt = -100f;
+        bool lostShown; string callWhy = "the calls stopped", lostName = "";
+
+        /// <summary>The caller now: the squad's next member when its leader is gone (as PlayerInput keeps the squad selected); lost =
+        /// it died or is no longer ours (SIGNAL LOST); null and not lost = it left the map (boarded a vehicle) or is no unit.</summary>
+        ZObject Caller(int id, out bool lost)
+        {
+            lost = false;
+            var o = W.GetAny(id); int guard = 0;
+            while (o != null && (o.Destroyed || o.KillAt >= 0) && guard++ < 8)
+            {   // the rules hand the squad over (Successor) only when the dead leader is deleted, at the start of the next 10 ms tick
+                // (ZWorld.Tick -> DeleteObject -> RemoveObjectFromGroup); until then its live members are still its Minions
+                var next = o.Successor ?? FirstLiveMember(o);
+                if (next == null) break;
+                o = next;
+            }
+            if (o == null || !o.IsUnit) return null;
+            if (o.Destroyed || o.Owner != Player) { lost = true; return null; }
+            if (o.KillAt >= 0) return null;
+            return o;
+        }
+
+        /// <summary>A dead leader's first member still alive and on the field (null: none, e.g. the whole squad died or boarded).</summary>
+        static ZObject FirstLiveMember(ZObject o)
+        {
+            foreach (var m in o.Minions) if (m != null && !m.Destroyed && m.KillAt < 0) return m;
+            return null;
+        }
+
+        /// <summary>Takes in the radio's newest call (AudioDirector.HelpCallId / HelpCallAt): the same caller again renews its time; a new
+        /// one takes the screen unless the current caller is still in its first CallKeepSec (then it waits as the held one).</summary>
+        void TakeCalls(float now)
+        {
+            int id = AudioDirector.HelpCallId; float at = AudioDirector.HelpCallAt;
+            if (id >= 0 && at > seenCallAt)
+            {
+                seenCallAt = at;
+                if (id == callId) callLast = at;
+                else if (Caller(id, out _) == null) { }                                                   // a caller already gone (dead, boarded, no longer ours) is never taken in
+                else if (callId >= 0 && now - callSince < CallKeepSec && now - callLast <= CallShowSec && Caller(callId, out _) != null) { heldId = id; heldAt = at; }
+                else { callId = id; callLast = at; callSince = now; heldId = -1; }
+            }
+            if (heldId >= 0 && (callId < 0 || now - callSince >= CallKeepSec))
+            {   // the held caller's turn, if its call is still fresh and it still calls from the field
+                if (now - heldAt <= CallShowSec && Caller(heldId, out _) != null) { callId = heldId; callLast = heldAt; callSince = now; }
+                heldId = -1;
+            }
+        }
 
         ZObject LiveCall()
         {
-            if (W == null || W.GameOver || !hudVisible) return null;
-            int id = AudioDirector.HelpCallId;
-            if (id < 0 || Time.unscaledTime - AudioDirector.HelpCallAt > CallShowSec) return null;
-            var o = W.GetAny(id);
-            if (o == null || o.Destroyed || o.KillAt >= 0 || o.Owner != Player || !o.IsUnit) return null;
+            if (W == null || W.GameOver || !hudVisible) { callWhy = W != null && W.GameOver ? "the game is over" : "the interface is hidden"; return null; }
+            float now = Time.unscaledTime;
+            TakeCalls(now);
+            if (callId < 0) { callWhy = "the calls stopped"; return null; }
+            var o = Caller(callId, out bool lost);
+            if (o == null)
+            {
+                callWhy = lost ? "the caller was lost" : "the caller left the field (boarded)";
+                if (lost && callShown != null && callShown.Id == callId) { lostAt = now; lostName = OzHeroSquadView.NameOr(callShown, UnitInfo.Name(callShown.Type)); }   // only the caller on screen shows SIGNAL LOST
+                callId = -1;
+                return null;
+            }
+            if (now - callLast > CallShowSec) { callWhy = "its " + CallShowSec.ToString("0") + " s after the last call ran out"; callId = -1; return null; }
+            if (callShown != null && o != callShown && callShown.Id == callId) callShown = o;                   // the squad's next member carries the call on (no new cut)
+            callId = o.Id;
             return o;
+        }
+
+        bool CallLostShowing => lostAt > 0f && Time.unscaledTime - lostAt < CallLostSec && W != null && !W.GameOver && hudVisible;
+
+        /// <summary>1.3 item 22: the lost caller's last moment: the screen cuts to the static NO SIGNAL picture with a crackle, "SIGNAL LOST"
+        /// blinks in its name line, for CallLostSec; a click does nothing (no one to fly to); a selection or a new call ends it.</summary>
+        void ShowCallLost()
+        {
+            if (!lostShown)
+            {
+                LogCallEnd("the caller was lost");
+                callShown = null; lostShown = true; shownUnit = null;
+                portrait.SetTransmit(false); portrait.Idle();
+                AudioDirector.UI("ui_transmission");                                                          // the signal cuts out: a crackle
+                groupBadge.gameObject.SetActiveFast(false);
+                typeIcon.Rt.gameObject.SetActiveFast(false); typeWell.gameObject.SetActiveFast(false);
+                uCount.Set(""); uWeapon.Set(""); uNades.Set(""); uHp.Set(""); SetStatsAlpha(0f);
+                uName.Set("SIGNAL LOST"); uName.FontSize = OzLayout.UnitNameSize; uName.Alpha = 1f;
+                uSub.Set(lostName.Length > 0 ? lostName + " · THE CALL WAS CUT OFF" : "THE CALL WAS CUT OFF");
+                if (portraitHot != null) portraitHot.Tooltip = LostTip;
+                CallLosts++;
+                Debug.Log($"[OpenZ HUD] incoming call: SIGNAL LOST ({lostName}) for {CallLostSec:0.0} s");
+            }
+            uName.color = OzMotion.Reduced || OzMotion.Blink(OzMotion.BlinkSlow) ? (Color)OzUi.Alert : (Color)OzUi.Dim;
+        }
+
+        /// <summary>1.3 item 22: one Player.log line per shown call that ends (its reason and how long it was on screen).</summary>
+        void LogCallEnd(string why)
+        {
+            if (callShown == null) return;
+            float shown = Time.unscaledTime - callShownAt;
+            CallEnds++; CallEndWhy = why; CallShownSec = shown;
+            Debug.Log($"[OpenZ HUD] incoming call ended ({why}): {OzHeroSquadView.NameOr(callShown, UnitInfo.Name(callShown.Type))} #{callShown.Id} shown {shown:0.0} s");
         }
 
         void ShowCall(ZObject o)
         {
             if (callShown != o)
             {
-                callShown = o; shownUnit = null;
+                if (callShown != null) LogCallEnd("a new caller");
+                if (lostShown) { lostShown = false; lostAt = -100f; }
+                callShown = o; shownUnit = null; callShownAt = Time.unscaledTime;
                 portrait.Reselect(false); portrait.SetTransmit(true);
                 AudioDirector.UI("ui_transmission");                                                          // the signal cuts in: a crackle
                 groupBadge.gameObject.SetActiveFast(false);
@@ -1022,16 +1142,22 @@ namespace OpenZ
             if (portrait.Sparked) AudioDirector.UI("ui_transmission");                                        // every spark burst crackles
         }
 
-        void EndCall()
+        void EndCall(string why = "a selection")
         {
+            if (lostShown) { lostShown = false; lostAt = -100f; if (portraitHot != null) portraitHot.Tooltip = PortraitTip; }   // 1.3 item 22: SIGNAL LOST ends too
             if (callShown == null) return;
+            LogCallEnd(why);
             callShown = null; portrait.SetTransmit(false);
             if (portraitHot != null) portraitHot.Tooltip = PortraitTip;
         }
 
+        /// <summary>1.3 item 22, checks: the same as a click on the comms screen (its hotspot calls ClickCall).</summary>
+        public void ProofClickCall() => ClickCall();
+
         void ClickCall()
         {
             var o = callShown;
+            if (o == null && lostShown && hudUnit == null) { OzSfx.Ui("ui_disabled"); return; }               // 1.3 item 22: SIGNAL LOST: no one to fly to (the click answers)
             if (o == null || o.Destroyed || hudUnit != null) return;
             CallClicks++;
             SelectAndFly(o);                                                                                   // like the A tab: select + smooth flight (ui_camera_jump)
@@ -1843,11 +1969,11 @@ namespace OpenZ
             bannerCg = banner.gameObject.AddComponent<CanvasGroup>(); bannerCg.blocksRaycasts = false;
             if (OzKit.Available) Hud.Shadow(banner, "Panels/panel_lg_mask");
             Hud.Kit(banner, "Plate", "Panels/mission_banner", new OzRect(0, 0, r.w, r.h), null);
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             string enemy = TeamColors.Name(Player == Team.Red ? Team.Blue : Team.Red);
             Hud.Label(banner, "Eyebrow", "OPERATION " + lvl, 11, OzUi.Amber, 0.3f).At(OzLayout.BannerTextX, OzLayout.BannerEyebrowY);
             Hud.Label(banner, "Line", $"CAPTURE THE FLAGS · DESTROY THE {enemy} FORT", 20, OzUi.Ink, 0.08f).At(OzLayout.BannerTextX, OzLayout.BannerLineY, OzH.L, false, 600);
-            Hud.Label(banner, "Foot", $"YOU COMMAND {TeamColors.Name(Player)} · CPU COMMANDS {enemy} · ZOD ENGINE RULES", 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.BannerTextX, OzLayout.BannerFootY, OzH.L, false, 600);
+            Hud.Label(banner, "Foot", $"YOU COMMAND {TeamColors.Name(Player)} · CPU COMMANDS {enemy} · {OzLevelStats.BannerRules("ZOD ENGINE RULES")}", 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.BannerTextX, OzLayout.BannerFootY, OzH.L, false, 600);   // 1.2 item 60: a Custom match says CUSTOM STATS here (View/OzLevelStats.cs)
             banner.gameObject.SetActive(false);
         }
 

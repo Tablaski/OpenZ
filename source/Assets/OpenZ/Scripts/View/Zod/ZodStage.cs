@@ -596,7 +596,7 @@ namespace OpenZ
         void ExcludeFromOtherCameras()
         {
             int bit = 1 << Layer;
-            foreach (var c in Camera.allCameras) if (c && c != cam && (c.cullingMask & bit) != 0) c.cullingMask &= ~bit;
+            foreach (var c in Camera.allCameras) if (c && c != cam && c != loungerCam && (c.cullingMask & bit) != 0) c.cullingMask &= ~bit;   // level 7's hot tub stands on this layer and its window camera draws it
         }
 
         /// <summary>Line framing: "tight" / "medium" / "wide" (clip framings override it while they play).</summary>

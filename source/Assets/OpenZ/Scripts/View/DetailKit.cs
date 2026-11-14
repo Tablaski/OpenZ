@@ -225,18 +225,18 @@ namespace OpenZ
         public sealed class Chunks
         {
             public const float SettleTime = 0.3f;
-            struct C { public Transform t; public Vector3 v, w; public float life, rest, sink, scale0; public bool water, landed, alive, settled; public Quaternion r0, r1; public Renderer[] rs; }
+            struct C { public Transform t; public Vector3 v, w; public float life, rest, sink, scale0; public bool water, landed, alive, settled; public Quaternion r0, r1; public Renderer[] rs; public string[] land; }
             readonly C[] cs = new C[48];
             public int Active { get; private set; }
 
-            public void Throw(Transform t, Vector3 vel, Vector3 spin, float life = 14f)
+            public void Throw(Transform t, Vector3 vel, Vector3 spin, float life = 14f, string[] land = null)
             {
                 if (!t) return;
                 for (int i = 0; i < cs.Length; i++)
                 {
                     if (cs[i].alive) continue;
                     t.SetParent(null, true);
-                    cs[i] = new C { t = t, v = vel, w = spin, life = life, alive = true, scale0 = t.localScale.x, rs = t.GetComponentsInChildren<Renderer>() };
+                    cs[i] = new C { t = t, v = vel, w = spin, life = life, alive = true, scale0 = t.localScale.x, rs = t.GetComponentsInChildren<Renderer>(), land = land };
                     return;
                 }
                 t.gameObject.SetActive(false);                                                   // pool full: just vanish
@@ -292,6 +292,7 @@ namespace OpenZ
                         if (wet && g < wyp - 0.05f && p.y <= wyp)
                         {
                             p.y = wyp; c.t.position = p; c.water = true;
+                            if (OzLavaMelt.Live && OzLavaMelt.Take(c.t, Mathf.Abs(c.v.y), OzMeltEnd.Off, "detail part")) c.alive = false;   // level 7, kit LV5: the melt has it now, its slot is free
                             OzWaterLanding.Splash(p, c.t, "detail part", Mathf.Abs(c.v.y));                 // b27: the shared water landing rule (splash, rings and one sound by its size; it then sinks as before)
                             continue;
                         }
@@ -301,7 +302,8 @@ namespace OpenZ
                             if (c.v.y < -2.2f)
                             {
                                 c.v = new Vector3(c.v.x * 0.45f, -c.v.y * 0.3f, c.v.z * 0.45f); c.w *= 0.5f;
-                                Sound("dtl_debris_land", p, 0.35f, "debris", 0.12f, -1, "final-metal-land-a", "final-metal-land-b", "final-metal-land-c");
+                                if (c.land != null) Sound("dtl_debris_land", p, 0.35f, "debris", 0.12f, -1, c.land);
+                                else Sound("dtl_debris_land", p, 0.35f, "debris", 0.12f, -1, "final-metal-land-a", "final-metal-land-b", "final-metal-land-c");
                             }
                             else { c.landed = true; c.rest = 0f; c.r0 = c.t.rotation; c.r1 = Flat(c.r0); c.settled = false; }
                         }

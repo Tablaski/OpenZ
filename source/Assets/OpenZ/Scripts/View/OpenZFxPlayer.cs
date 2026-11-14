@@ -67,6 +67,7 @@ namespace OpenZ
         sealed class Channel
         {
             public FxChannelDef def; public ParticleSystem ps; public ParticleSystemRenderer r; public Material mat;
+            public Channel over;                                                       // shots_over_walls: its twin with the depth test off (BuildOverChannels), null on most
         }
         readonly Dictionary<string, Channel> channels = new Dictionary<string, Channel>();
         readonly Dictionary<string, Mesh> meshes = new Dictionary<string, Mesh>();
@@ -93,6 +94,7 @@ namespace OpenZ
             BakeLibrary();
             SmokeAtlasChannels = 0; SmokeAtlasOn = true;
             foreach (var d in OpenZFxCatalog.Channels) { var c = CreateChannel(d); if (c != null) channels[d.name] = c; }
+            BuildOverChannels();
             ground = new GroundCache();
             BuildDecalPools();
             BuildLights();
@@ -224,7 +226,7 @@ namespace OpenZ
             {
                 if (!meshes.TryGetValue(d.meshName, out particleMesh) || !litShader) return null;
                 mat = new Material(litShader) { name = "FX_" + d.name, renderQueue = d.queue };
-                mat.SetColor("_BaseColor", d.meshColor); mat.SetColor("_EmissionColor", Color.black);
+                mat.SetColor("_BaseColor", d.name == "m12_stone" ? OzVolcanic.Stone(d.meshColor) : d.meshColor); mat.SetColor("_EmissionColor", Color.black);
                 mat.SetFloat("_SrcBlend", (float)BlendMode.One); mat.SetFloat("_DstBlend", (float)BlendMode.Zero); mat.SetFloat("_ZWrite", 1f); mat.SetFloat("_Cull", 2f);
             }
             else
@@ -395,6 +397,25 @@ namespace OpenZ
         }
 
         Channel Ch(string name) => name != null && channels.TryGetValue(name, out var c) ? c : null;
+        /// <summary>shots_over_walls: the channel, or its twin for a shot that flies over a wall.</summary>
+        Channel On(string name, bool over) { var c = Ch(name); return over && c != null && c.over != null ? c.over : c; }
+
+        /// <summary>shots_over_walls: every particle a shot leaves on its way.</summary>
+        static readonly string[] OverChannels = { "m12_bolt", "leg_tracer", "leg_tracer_sleeve", "wv2_mg_tracer", "wv2_laser", "wv2_laser_glow", "wv2_sniper_tracer", "m12_smoke", "leg_smoke", "leg_ember" };
+        /// <summary>The same channel again, same values, with the depth test off and no soft fade (behind a wall a soft fade blanks it). In `channels` under its own
+        /// key, so the MOTION BLUR option stretches it as its original. They sit empty until a shot is flagged.</summary>
+        void BuildOverChannels()
+        {
+            int atlas = SmokeAtlasChannels;
+            foreach (var n in OverChannels)
+            {
+                var c = Ch(n); if (c == null) continue;
+                var t = CreateChannel(c.def); if (t == null) continue;
+                t.mat.SetFloat("_ZTest", 8f); t.mat.SetFloat("_SoftFade", 0f); t.ps.gameObject.name = "FxCh_" + n + "+over";
+                channels[n + "+over"] = t; c.over = t;
+            }
+            SmokeAtlasChannels = atlas;
+        }
 
         /// <summary>
         /// draws from the 4096 smoke flipbook + the 1024 detail-erosion texture (OpenZFxAdditive shape 2, _AtlasOn). Resources keep
@@ -452,6 +473,15 @@ namespace OpenZ
         void EmitP(Channel ch, Vector3 pos, Vector3 vel, float life, float size, Color color, float alpha, float delay = 0f)
         {
             if (ch == null) return;
+            if (geoK != 1f)
+            {   // 1.3 item 32: a blast drawn bigger (BlastInternal): place, speed and size x geoK around the blast's point; a bit that
+                // falls (gravity > 0) rises x sqrt(geoK), so under the same gravity it climbs geoK as high. A point below the blast's
+                // clouds born near the ground would be pushed into it), so only what is above the centre grows upwards
+                var off = pos - geoAt;
+                pos = geoAt + new Vector3(off.x * geoK, off.y > 0f ? off.y * geoK : off.y, off.z * geoK);
+                if (ch.def.gravity > 0f) { vel.x *= geoK; vel.z *= geoK; vel.y *= geoRootK; } else vel *= geoK;
+                size *= geoK;
+            }
             var ep = new ParticleSystem.EmitParams();
             ep.applyShapeToPosition = false;
             ep.position = pos; ep.velocity = vel;
@@ -538,19 +568,20 @@ namespace OpenZ
         public static bool IsWaterTile(Vector3 p) { var c = ClassAt(p); return c == ZClass.Water || c == ZClass.DeepWater; }
         /// <summary>Open water at p: a water tile whose walkable surface (terrain / river bed, or a bridge deck) is not above the
         /// water. Bridge decks over the river are ground, so rings, scorches and tread marks follow them.</summary>
-        public bool WetAt(Vector3 p, float groundY) => IsWaterTile(p) && (float.IsNegativeInfinity(WaterY) || groundY < WaterYAt(p) + DeckClearance);
+        public bool WetAt(Vector3 p, float groundY) => (IsWaterTile(p) && (float.IsNegativeInfinity(WaterY) || groundY < WaterYAt(p) + DeckClearance)) || (OzLava.SurfaceAt(p, out float lavaY) && groundY < lavaY + DeckClearance);   // 1.3 level 7: lava stands in for the water here
         public bool WetAt(Vector3 p) => WetAt(p, Ground(p.x, p.z));
         const float DeckClearance = 0.1f;
         /// <summary>Water surface under p, or the ground when there is no water there.</summary>
-        public float SurfaceY(Vector3 p) => IsWaterTile(p) && !float.IsNegativeInfinity(WaterY) ? Mathf.Max(WaterYAt(p), Ground(p.x, p.z)) : Ground(p.x, p.z);
+        public float SurfaceY(Vector3 p) => OzLava.SurfaceAt(p, out float lavaY) ? Mathf.Max(lavaY, Ground(p.x, p.z)) : IsWaterTile(p) && !float.IsNegativeInfinity(WaterY) ? Mathf.Max(WaterYAt(p), Ground(p.x, p.z)) : Ground(p.x, p.z);
 
         public FxSurface SurfaceAt(Vector3 p)
         {
+            if (ShotLine.HardAt(p)) return FxSurface.Rock;                                              // bullets_straight: a round stopped on a platform's wall, a fort or a pyramid
             switch (ClassAt(p))
             {
                 case ZClass.Water: case ZClass.DeepWater: return WetAt(p) ? FxSurface.Water : FxSurface.Road;   // deck: riveted plates
                 case ZClass.Road: return FxSurface.Road;
-                case ZClass.Impassable: return FxSurface.Rock;
+                case ZClass.Impassable: return OzLava.SurfaceAt(p, out _) && WetAt(p) ? FxSurface.Water : FxSurface.Rock;   // 1.3 level 7: on lava the Water branches run, and Droplets / Ripple / Splash turn to lava
                 default: return FxSurface.Ground;
             }
         }
@@ -614,8 +645,9 @@ namespace OpenZ
 
         /// <summary>legacy_match: an explicit M12 strength s and LEG radius per source (LegacyMatch size table), keeping the kind's
         /// extras (vehicle hero rings, building collapse camera, grenade hot colour).</summary>
-        public void BlastSized(Vector3 at, float s, float legRadiusM, FxBlastKind kind, int id = -1) =>
-            BlastInternal(at, Mathf.Max(0.2f, s), legRadiusM > 0f ? legRadiusM : Mathf.Min(4f * s, OpenZFxCatalog.LegFixedKindMaxRadius), kind, id, false);
+        /// 1.3 item 32: drawK > 1 draws the whole blast that many times as large around its point (a thrown grenade, OzGrenadeBlast).
+        public void BlastSized(Vector3 at, float s, float legRadiusM, FxBlastKind kind, int id = -1, float drawK = 1f) =>
+            BlastInternal(at, Mathf.Max(0.2f, s), legRadiusM > 0f ? legRadiusM : Mathf.Min(4f * s, OpenZFxCatalog.LegFixedKindMaxRadius), kind, id, false, drawK);
 
         /// <summary>Large collapse (building, hangar, bridge, rock wall): explosion + demolition dust + camera 3.2.</summary>
         public void Collapse(Vector3 at, float sizeX, float sizeZ, FxBlastKind kind = FxBlastKind.Building)
@@ -633,41 +665,55 @@ namespace OpenZ
             if (mirrorFxManager) BlastInternal(at, Mathf.Max(0.2f, strength * OpenZFxCatalog.LegacyToM12), Mathf.Min(4f * strength * OpenZFxCatalog.LegacyToM12, OpenZFxCatalog.LegFixedKindMaxRadius), FxBlastKind.Legacy, -1, true);
         }
 
-        void BlastInternal(Vector3 at, float s, float legRadius, FxBlastKind kind, int id, bool mirror)
+        /// <summary>1.3 item 32: while a blast is drawn bigger, EmitP scales every particle by geoK around geoAt (1 = off).</summary>
+        float geoK = 1f, geoRootK = 1f; Vector3 geoAt;
+        void Geo(Vector3 at, float k) { geoK = k; geoRootK = Mathf.Sqrt(k); geoAt = at; }
+
+        void BlastInternal(Vector3 at, float s, float legRadius, FxBlastKind kind, int id, bool mirror, float drawK = 1f)
         {
             if (!enabled) return;
+            Geo(at, 1f);
             if (id < 0) id = ++serial;
             Seed(id);
             if (!mirror && !QuietBlast) Exploded?.Invoke(at, s);                               // mlrs_heavy_v1: cosmetic ripple blasts stay quiet
             float gy = Ground(at.x, at.z);
-            bool onWater = IsWaterTile(at) && !float.IsNegativeInfinity(WaterY) && WaterYAt(at) >= gy - 0.05f;
-            float surf = onWater ? WaterYAt(at) : gy;
+            bool onLava = OzLava.SurfaceAt(at, out float lavaY) && gy < lavaY + DeckClearance && at.y < lavaY + 3f;   // 1.3 level 7: no dust, rubble, ring, crater or scorch, as water: the !onWater tests below
+            bool onWater = onLava || (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY) && WaterYAt(at) >= gy - 0.05f);
+            float surf = onLava ? lavaY : onWater ? WaterYAt(at) : gy;
             at.y = Mathf.Max(at.y, surf + OpenZFxCatalog.M12FloorClamp);                     // floor clamp
             var flat = new Vector3(at.x, surf, at.z);
             bool airBurst = OzShuttleBreakup.IsAirBurst(at, gy, kind);                          // K256e: up in the air (at the flying shuttle): nothing of it on the ground under it
             if (!mirror) OzShuttleBreakup.NoteBlastFx(at, flat, at.y - gy, airBurst, !onWater && !airBurst && (groundLights || shockRings));   // the proof's count
+            // 1.3 item 32: a thrown grenade drawn bigger (OzGrenadeBlast.Bigger, x 1.30): every particle's place, speed and size around
+            // this point, the shock ring, the ground light's reach and the burn mark; the strength (counts, brightness, thresholds),
+            // the point light, the lives and the events stay. Not on water and not in the air: those keep the 1.2 look.
+            float k = !mirror && !onWater && !airBurst && drawK > 1.0001f ? drawK : 1f;
             if (!mirror && !QuietBlast && !onWater && at.y - gy <= OpenZFxCatalog.ScorchMaxHeight) CraterField.OnBlast(flat, s, kind);
 
             // --- M12 impact handler: camera, ground light, scorch
             if (!mirror) Shake.Impact(at, s);
-            if (groundLights && !onWater && !airBurst) GroundLight(flat, s, false, true);                // fx_look: blast flash (longer, stronger)
+            if (groundLights && !onWater && !airBurst) GroundLight(flat, s, false, true, k);             // fx_look: blast flash (longer, stronger); 1.3 item 32: reach x k
             if (scorchMarks && !onWater && at.y - gy <= OpenZFxCatalog.ScorchMaxHeight)
-                Scorch(flat, s, kind == FxBlastKind.Vehicle || kind == FxBlastKind.Building || kind == FxBlastKind.Nuke ? 2 : 1);
+                Scorch(flat, s * k, kind == FxBlastKind.Vehicle || kind == FxBlastKind.Building || kind == FxBlastKind.Nuke ? 2 : 1);   // 1.3 item 32: radius x k (k = 1 for every other blast)
             if (kind == FxBlastKind.Building) Shake.Impact(at, OpenZFxCatalog.ShakeCollapse);
 
             // --- M12 recipe
+            Geo(at, k);                                                                      // 1.3 item 32: on for the particles below (until the ring)
+            try
+            {
             if (!mirror)
             {
                 // fireball sat on the river): on water the spout leads (bigger splash, a second droplet crown, a slower outer ring)
                 // and the fire / core / smoke below are cut to a flash in the spray
-                if (onWater)
+                if (onLava) LavaBlast(flat, s);
+                else if (onWater)
                 {
                     Splash(flat, s * OpenZFxCatalog.BlastWaterSplash * 1.4f);
                     Droplets(flat + Vector3.up * 0.2f, s * 1.8f, 10);
                     Ripple(flat, s * 0.6f, OpenZFxCatalog.RippleLife * 1.2f);
                     Ripple(flat, s * 1.1f, OpenZFxCatalog.RippleLife * 2.2f);
                 }
-                else if (!airBurst) EmitGolden(OpenZFxCatalog.M12Dust, at, s);                // K256e: no ground dust in mid-air
+                else if (!airBurst) EmitGolden(OpenZFxCatalog.M12Dust, at, s, 1f, OzVolcanic.DustTint);                // K256e: no ground dust in mid-air
                 if (rubble && !onWater)
                 {   // fx_look: rubble sized for the RTS camera + chunks thrown high on big blasts
                     float rs = OpenZFxCatalog.RubbleSizeOf(s);
@@ -680,7 +726,9 @@ namespace OpenZ
             }
             EmitGolden(OpenZFxCatalog.M12Sparks, at, s);                                     // the additive "squares"
             if (!mirror) BlastEmbers(at, gy, s);                                             // fx_look: burning bits thrown high
-            if (shockRings && !onWater && !airBurst) RingM12(flat, s);
+            }
+            finally { Geo(at, 1f); }                                                         // 1.3 item 32: off again (the events below draw their own)
+            if (shockRings && !onWater && !airBurst) RingM12(flat, s, k);
             DebrisRequested?.Invoke(at, s, kind);
 
             bool tnt = kind == FxBlastKind.Building || kind == FxBlastKind.Barrel || kind == FxBlastKind.Nuke;
@@ -705,7 +753,12 @@ namespace OpenZ
                 AddLight(at + Vector3.up * OpenZFxCatalog.BlastLightLift, hot, I0 * OpenZFxCatalog.BlastLightGain, range * OpenZFxCatalog.BlastLightRangeMul,
                     life * OpenZFxCatalog.BlastLightLifeMul, OpenZFxCatalog.LegLightDecayPow, 0f, true);   // fx_v2: lifted, stronger, longer
             }
-            if (legGlow) LegGlow(at, airBurst ? at.y - 0.6f : gy, vr, large, hero, hot);   // K256e: an air burst's sparks and fire clouds round it, not on the ground
+            if (legGlow)
+            {
+                Geo(at, k);                                                                  // 1.3 item 32: the glow clouds, sparks and fire clouds x k too
+                try { LegGlow(at, airBurst ? at.y - 0.6f : gy, vr, large, hero, hot); }   // K256e: an air burst's sparks and fire clouds round it, not on the ground
+                finally { Geo(at, 1f); }
+            }
         }
 
         /// <summary>fx_look: glowing embers / burning bits thrown high (7 per unit of s, max 24) on leg_spark: arcs, bounces, fades.</summary>
@@ -763,7 +816,7 @@ namespace OpenZ
 
         // ------------------------------------------------------------------------------------------------ small M12 effects
         /// <summary>dust(at, s): 5 tan puffs, opacity .32.</summary>
-        public void Dust(Vector3 at, float s = 0.5f) => EmitGolden(OpenZFxCatalog.M12Dust, at, s);
+        public void Dust(Vector3 at, float s = 0.5f) => EmitGolden(OpenZFxCatalog.M12Dust, at, s, 1f, OzVolcanic.DustTint);
 
         /// <summary>pop(at, s): 9 blue sparks + dust .26 s.</summary>
         public void Pop(Vector3 at, float s = 0.6f) { EmitGolden(OpenZFxCatalog.M12Pop, at, s); Dust(at, 0.26f * s); }
@@ -777,13 +830,14 @@ namespace OpenZ
                 float a = j * 2.399f + serial * 0.17f;
                 var p = at + new Vector3(Mathf.Cos(a) * width * 0.42f, 1f + j % 3 * 0.3f, Mathf.Sin(a) * depth * 0.42f);
                 EmitP(ch, p, new Vector3(Mathf.Cos(a) * 1.3f, 0.65f + j % 3 * 0.12f, Mathf.Sin(a) * 1.3f), 2.8f + j * 0.1f,
-                    (5.2f + j % 3 * 1.1f) * s * 2f, OpenZFxCatalog.M12Dust.color, OpenZFxCatalog.DemolitionOpacity);
+                    (5.2f + j % 3 * 1.1f) * s * 2f, OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color), OpenZFxCatalog.DemolitionOpacity);
             }
         }
 
         /// <summary>splash(at, s): 12 droplets + ripple(at, s). at = the water surface.</summary>
         public void Splash(Vector3 at, float s = 1f)
         {
+            if (LavaSplash(at, s)) return;
             if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
             if (SoftWater) { SoftSplash(at, s); return; }
             EmitGolden(OpenZFxCatalog.M12Splash, at, s, 1f, waterTint);
@@ -793,6 +847,7 @@ namespace OpenZ
         /// <summary>A few droplets only (wading footfalls): the M12 splash rule with fewer particles.</summary>
         public void Droplets(Vector3 at, float s, int count)
         {
+            if (LavaDrops(at, s, count)) return;
             var L = OpenZFxCatalog.M12Splash; L.count = Mathf.Clamp(count, 1, 12);
             if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
             if (SoftWater) { SoftDrops(at, s, Mathf.Clamp(count, 1, 12), 0.75f); return; }
@@ -802,6 +857,7 @@ namespace OpenZ
         /// <summary>ripple(at, s): a flat ring on the water at y + .09, .75 s (.2 + 6 t), fading 1 - smoothstep(.15,1,t).</summary>
         public void Ripple(Vector3 at, float s = 0.5f, float life = OpenZFxCatalog.RippleLife, float lift = OpenZFxCatalog.RippleLift)
         {
+            if (LavaRipple(at, s, life)) return;
             if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
             // 4 m L02 river; the ring now ends at the nearest bank (+ .4 m under the wet band)
             float maxR = WaterClearance(at, 4.65f * s) + 0.4f;
@@ -952,8 +1008,9 @@ namespace OpenZ
         }
 
         /// <returns>H0 round 3: the round's flight time to `to` (s), 0 when nothing flew.</returns>
-        public float Shot(Vector3 from, Vector3 to, FxWeapon w = FxWeapon.Rifle, FxSurface surface = FxSurface.Auto, float mps = 0f)
+        public float Shot(Vector3 from, Vector3 to, FxWeapon w = FxWeapon.Rifle, FxSurface surface = FxSurface.Auto, float mps = 0f, ZObject target = null)
         {
+            if (ShotLine.Stop(from, to, target, out var wall)) { to = wall; surface = FxSurface.Auto; }   // bullets_straight: it ends on what its line meets, with that surface's impact (View/ShotLine.cs)
             var d = to - from; float dist = d.magnitude;
             Muzzle(from, d, w);
             if (dist < 0.05f) return 0f;
@@ -1029,6 +1086,7 @@ namespace OpenZ
             public Vector3 pos, vel, prev; public float age, life, g, smokeRemainder, legTimer, spinX, spinZ; public int legStep, index;
             public bool ease; public Vector3 from, to;
             public double simEnd = -1;
+            public bool over;                                                              // shots_over_walls: every part of this flight draws over everything
         }
 
         /// <summary>
@@ -1055,6 +1113,9 @@ namespace OpenZ
         public static System.Action<int, FxWeapon, float, float, Vector3, bool> ProjTrace;
         readonly List<Proj> projs = new List<Proj>();
         Material rocketMat, shellMat, tracerMat, exhaustMat, haloMat, grenadeFallbackMat;
+        Material rocketOver, shellOver, tracerOver, exhaustOver, haloOver, blurTailOver, blurTailHotOver;   // shots_over_walls: the same looks with the depth test off
+        /// <summary>The flight ProjectileDrawn is telling about flies over a wall.</summary>
+        public static bool DrawingOver;
         Vector3 rocketNose, shellNose, flameTip; float shellMin, shellMax;
         MaterialPropertyBlock haloBlock;
         // motion smoothing (MOTION BLUR option, OzFxSmooth): the tail quad, its two materials, the sizes of the two projectile meshes
@@ -1101,19 +1162,54 @@ namespace OpenZ
             blurTailHotMat = FxMaterial("blur_tail_hot", FxShape.Streak, 3044, 0f);
             blurTailHotMat.SetFloat("_Squareness", 0f); blurTailHotMat.SetFloat("_CoreMix", 0.5f); blurTailHotMat.SetFloat("_UseVertexColor", 1f);
             SetLinear(blurTailHotMat, "_CoreColor", OpenZFxCatalog.Hex("#fff0b0").linear);
+            // shots_over_walls: the two bodies draw in the transparent queue, just before their tracer and flame: a wall drawn after them would cover them
+            rocketOver = OverCopy(rocketMat); shellOver = OverCopy(shellMat);
+            if (rocketOver) { rocketOver.renderQueue = 3042; rocketOver.SetFloat("_ZWrite", 0f); }
+            if (shellOver) { shellOver.renderQueue = 3042; shellOver.SetFloat("_ZWrite", 0f); }
+            tracerOver = OverCopy(tracerMat); exhaustOver = OverCopy(exhaustMat); haloOver = OverCopy(haloMat);
+            blurTailOver = OverCopy(blurTailMat); blurTailHotOver = OverCopy(blurTailHotMat);
+        }
+
+        static Material OverCopy(Material m)
+        {
+            if (!m) return null;
+            var c = new Material(m) { name = m.name + " (over)", renderQueue = m.renderQueue };
+            c.SetFloat("_ZTest", 8f);
+            return c;
+        }
+
+        int warmOver = 4;
+        /// <summary>shots_over_walls: the first frames draw every twin once, under one pixel, so a first shot over a wall builds no pipeline state in a fight (OpenZPyroFire.Prewarm's way).</summary>
+        void WarmOver()
+        {
+            warmOver--;
+            if (!cam || !ShotLine.OverWalls) return;
+            var at = cam.transform.position + cam.transform.forward * 3f;
+            foreach (var n in OverChannels) { var c = Ch(n); if (c != null && c.over != null) EmitP(c.over, at, Vector3.zero, 0.02f, 0f, Color.black, 0f); }
+            DrawWarm(rocketOver); DrawWarm(shellOver); DrawWarm(tracerOver); DrawWarm(exhaustOver); DrawWarm(haloOver); DrawWarm(blurTailOver); DrawWarm(blurTailHotOver);
+        }
+
+        /// <summary>One material on a 0.1 mm quad in front of the camera, this frame.</summary>
+        public void DrawWarm(Material m)
+        {
+            if (!m || !cam || quad == null) return;
+            var ct = cam.transform;
+            Graphics.DrawMesh(quad, Matrix4x4.TRS(ct.position + ct.forward * 3f, ct.rotation, Vector3.one * 1e-4f), m, 0, null, 0, null, ShadowCastingMode.Off, false);
         }
 
         /// <summary>A projectile flying over the sim's missile delay (M12 projectile(): v = (target - from) / t, v.y += g t / 2) with
         /// its launch flash. Rockets: continuous exhaust flame x15, M12 smoke puffs every .05 s, LEG halo + sparkle trail. Shells:
         /// dark body, hot rear tracer, tank x2.2. Grenades: spinning grenade.glb x1.55. The sim's detonation calls Blast().</summary>
-        public void Launch(Vector3 from, Vector3 to, float duration, FxWeapon w, bool ease = false)
+        public void Launch(Vector3 from, Vector3 to, float duration, FxWeapon w, bool ease = false, bool arc = false)
         {
             var spec = OpenZFxCatalog.ProjectileOf(w);
             // the sim's missile delay (ZEvent.value = explodeTime - time) is in sim seconds; ZGame runs the sim at gameSpeed
             // (ZGame.cs:106, the bot match plays at 4x), so the flight must last delay / gameSpeed real seconds to land on the blast
             duration = RealFlight(duration, ZGame.I ? ZGame.I.gameSpeed : 1f);
             float g = OpenZFxCatalog.GravityOf(w);
-            g = ShotClearance.LiftGravity(from, to, duration, g, w == FxWeapon.Grenade ? 0.3f : ShotClearance.Margin);
+            float lifted = ShotClearance.LiftGravity(from, to, duration, g, w == FxWeapon.Grenade ? 0.3f : ShotClearance.Margin);
+            bool over = !arc && w != FxWeapon.Grenade && w != FxWeapon.Mlrs && ShotLine.FlightOver(from, to, g * duration * duration * 0.5f);   // shots_over_walls: its own arc, no lift, drawn over the wall
+            if (arc || (!over && ShotLine.RaisesArc(w, from, g, lifted, duration))) g = lifted;       // arcing fire only (bullets_straight: a direct shell or rocket ends on what it meets, View/ShotLine.cs)
             var dir = to - from; var heading = dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.forward;
             if (w != FxWeapon.Grenade)
             {
@@ -1123,12 +1219,13 @@ namespace OpenZ
             Proj p = null;
             foreach (var x in projs) if (!x.active) { p = x; break; }
             if (p == null) { if (projs.Count >= OzAirShots.MaxLive) { p = OzAirShots.On ? OldestProjectile() : null; if (p == null) return; } else { p = new Proj(); projs.Add(p); } }   // K337: full = the oldest ends first (was: the new one was not drawn)
-            p.active = true; p.w = w; p.spec = spec; p.pos = p.prev = from; p.age = 0f; p.life = duration; p.g = g;
+            p.active = true; p.w = w; p.spec = spec; p.pos = p.prev = from; p.age = 0f; p.life = duration; p.g = g; p.over = over;
             p.vel = (to - from) / duration; p.vel.y += g * duration * 0.5f;
             p.ease = ease && RocketEasing && w != FxWeapon.Grenade; p.from = from; p.to = to;
             p.simEnd = p.ease ? NextSimEnd : -1; NextSimEnd = -1;
             if (p.ease) p.vel *= RocketEaseStart / (1f - RocketEaseRamp * (1f - RocketEaseStart) * 0.5f);   // out of the tube slower
             p.smokeRemainder = 0f; p.legTimer = 0f; p.legStep = 0; p.spinX = Rand() * 6.28f; p.spinZ = Rand() * 6.28f; p.index = serial++;
+            TubeLaunch(p, from);                                                                       // k87b, item 148: an MLRS rocket is bound to the tube it leaves (View/OpenZFxPlayer.TubeExit.cs)
             if (OzAirShots.On) OnAirLaunch(p, to);                                                     // K337: bound to its round at the flying shuttle (OpenZFxPlayer.AirShots.cs)
         }
 
@@ -1194,9 +1291,11 @@ namespace OpenZ
                     p.pos = q;
                 }
                 else { p.vel.y -= p.g * dt; p.pos += p.vel * dt; }
+                TubeStep(p, dt);                                                                       // k87b, item 148: a bound MLRS rocket is drawn on its tube's axis out of its mouth first (View/OpenZFxPlayer.TubeExit.cs)
                 ProjTrace?.Invoke(p.index, p.w, p.age, p.life, p.pos, p.ease);
                 var dir = p.vel.sqrMagnitude > 1e-6f ? p.vel.normalized : Vector3.forward;
                 var spec = p.spec;
+                DrawingOver = p.over;
                 ProjectileDrawn?.Invoke(p.w, p.pos, p.vel, p.age);                         // vehicle_lights: night glow
                 // body
                 if (spec.mesh == "grenade")
@@ -1221,16 +1320,16 @@ namespace OpenZ
                     var rot = Quaternion.FromToRotation(rocket ? rocketNose : shellNose, dir);
                     var m = spec.bodyThick > 1.001f ? Matrix4x4.TRS(p.pos, rot, Vector3.one) * ThickScale(rocket ? rocketNose : shellNose, spec.bodyScale, spec.bodyThick)   // vehicles_nb_v1 NB6
                                                     : Matrix4x4.TRS(p.pos, rot, Vector3.one * spec.bodyScale);
-                    var mat = rocket ? rocketMat : shellMat;
+                    var mat = p.over ? (rocket ? rocketOver : shellOver) : rocket ? rocketMat : shellMat;
                     if (mat) Graphics.DrawMesh(body, m, mat, 0, null, 0, null, ShadowCastingMode.Off, false);   // only grenades cast
-                    if (spec.tracer && tracerMat) Graphics.DrawMesh(body, m, tracerMat, 0, null, 0, null, ShadowCastingMode.Off, false);
+                    if (spec.tracer && tracerMat) Graphics.DrawMesh(body, m, p.over ? tracerOver : tracerMat, 0, null, 0, null, ShadowCastingMode.Off, false);
                     if (OzFxSmooth.On)
                     {   // MOTION BLUR option: the body smears into a soft tail along its flight, its glowing rear / its flame into a hot one
                         float wide = (rocket ? rocketWide : shellWide) * spec.bodyScale * (spec.bodyThick > 1.001f ? spec.bodyThick : 1f);
                         float half = (rocket ? rocketLong : shellLong) * spec.bodyScale * 0.5f;
-                        DrawBlurTail(p.pos, p.vel, wide, rocket ? OzFxSmooth.RocketTail : OpenZFxCatalog.ShellBody.linear, 1f, false);
-                        if (spec.tracer) DrawBlurTail(p.pos - dir * (half * 0.6f), p.vel, wide * 0.8f, OpenZFxCatalog.ShellTracerLinear, OzFxSmooth.TailTracerGain, true);
-                        else if (spec.exhaust) DrawBlurTail(p.pos - dir * (OpenZFxCatalog.ExhaustDistance * spec.exhaustScale), p.vel, wide * 1.2f, OpenZFxCatalog.ExhaustColor.linear, OzFxSmooth.TailExhaustGain, true);
+                        DrawBlurTail(p.pos, p.vel, wide, rocket ? OzFxSmooth.RocketTail : OpenZFxCatalog.ShellBody.linear, 1f, false, p.over);
+                        if (spec.tracer) DrawBlurTail(p.pos - dir * (half * 0.6f), p.vel, wide * 0.8f, OpenZFxCatalog.ShellTracerLinear, OzFxSmooth.TailTracerGain, true, p.over);
+                        else if (spec.exhaust) DrawBlurTail(p.pos - dir * (OpenZFxCatalog.ExhaustDistance * spec.exhaustScale), p.vel, wide * 1.2f, OpenZFxCatalog.ExhaustColor.linear, OzFxSmooth.TailExhaustGain, true, p.over);
                     }
                 }
                 // M12 continuous exhaust flame: .35 behind, 1.12 x scale, pulse .94 + .10 sin(8 pi age), never fades
@@ -1240,7 +1339,7 @@ namespace OpenZ
                     float pulse = OpenZFxCatalog.ExhaustPulseA + OpenZFxCatalog.ExhaustPulseB * Mathf.Sin(p.age * Mathf.PI * 8f);
                     var fpos = p.pos - dir * OpenZFxCatalog.ExhaustDistance * es;
                     Graphics.DrawMesh(flame, Matrix4x4.TRS(fpos, Quaternion.FromToRotation(flameTip, -dir), Vector3.one * OpenZFxCatalog.ExhaustBaseScale * es * pulse),
-                        exhaustMat, 0, null, 0, null, ShadowCastingMode.Off, false);
+                        p.over ? exhaustOver : exhaustMat, 0, null, 0, null, ShadowCastingMode.Off, false);
                 }
                 // emits a puff every .05 s, which at our rocket speeds left 0.5 m puffs 1-2 m apart. Now by
                 // DISTANCE: a puff every RocketSmokeSpacing x its size along the path (interpolated between frames, jittered size and
@@ -1257,7 +1356,7 @@ namespace OpenZ
                         p.smokeRemainder -= every;
                         float k = seg > 1e-5f ? Mathf.Clamp01(1f - p.smokeRemainder / seg) : 1f;
                         var sp = Vector3.Lerp(p.prev, p.pos, k) - dir * OpenZFxCatalog.ExhaustDistance * spec.exhaustScale + UnityEngine.Random.insideUnitSphere * size * 0.12f;
-                        EmitP(Ch("m12_smoke"), sp, OpenZFxCatalog.RocketSmokeVelocity, OpenZFxCatalog.RocketSmokeLife * UnityEngine.Random.Range(0.85f, 1.1f), size * UnityEngine.Random.Range(0.85f, 1.2f),
+                        EmitP(On("m12_smoke", p.over), sp, OpenZFxCatalog.RocketSmokeVelocity, OpenZFxCatalog.RocketSmokeLife * UnityEngine.Random.Range(0.85f, 1.1f), size * UnityEngine.Random.Range(0.85f, 1.2f),
                             OpenZFxCatalog.M12Smoke.color, OpenZFxCatalog.M12Smoke.alpha);
                     }
                     if (guard >= 12) p.smokeRemainder = 0f;
@@ -1270,10 +1369,10 @@ namespace OpenZ
                         p.legTimer -= OpenZFxCatalog.LegTrailEvery;
                         var tail = p.pos - dir * OpenZFxCatalog.LegTrailTail;
                         int step = ++p.legStep;
-                        EmitP(Ch("leg_smoke"), tail, new Vector3(-dir.x * 0.12f, 0.18f - dir.y * 0.05f, -dir.z * 0.12f), spec.trailSmokeLife, 5f * px * OpenZFxCatalog.LegSmokeScale,
+                        EmitP(On("leg_smoke", p.over), tail, new Vector3(-dir.x * 0.12f, 0.18f - dir.y * 0.05f, -dir.z * 0.12f), spec.trailSmokeLife, 5f * px * OpenZFxCatalog.LegSmokeScale,
                             step % 2 == 1 ? OpenZFxCatalog.LegTrailSmokeA : OpenZFxCatalog.LegTrailSmokeB, 0.9f);
                         if (step % 2 == 0)
-                            EmitP(Ch("leg_ember"), tail, new Vector3(-dir.x * 0.28f, -dir.y * 0.12f, -dir.z * 0.28f), 0.145f, spec.sparklePx * px,
+                            EmitP(On("leg_ember", p.over), tail, new Vector3(-dir.x * 0.28f, -dir.y * 0.12f, -dir.z * 0.28f), 0.145f, spec.sparklePx * px,
                                 step % 4 != 0 ? OpenZFxCatalog.LegSparkleA : OpenZFxCatalog.LegSparkleB, 1f);
                     }
                 }
@@ -1284,7 +1383,7 @@ namespace OpenZ
                     haloBlock.Clear();
                     SetLinear(haloBlock, "_Color", spec.haloColor.linear);
                     haloBlock.SetFloat("_Intensity", spec.haloAlpha * 1.6f);
-                    Graphics.DrawMesh(quad, Matrix4x4.TRS(p.pos, camRot, Vector3.one * size), haloMat, 0, null, 0, haloBlock, ShadowCastingMode.Off, false);
+                    Graphics.DrawMesh(quad, Matrix4x4.TRS(p.pos, camRot, Vector3.one * size), p.over ? haloOver : haloMat, 0, null, 0, haloBlock, ShadowCastingMode.Off, false);
                 }
             }
         }
@@ -1296,31 +1395,18 @@ namespace OpenZ
         /// <summary></summary>
         public void EmitChannel(string channel, Vector3 pos, Vector3 vel, float life, float size, Color color, float alpha, float delay) => EmitP(Ch(channel), pos, vel, life, size, color, alpha, delay);
 
-        /// <summary>
-        /// when the line runs through a bank / a fort (ShotClearance.Bend) it flies two legs over the obstruction (the second leg leaves the
-        /// waypoint when the first arrives). Returns the head's time to `to` (headLife when straight).</summary>
+        /// <summary>A straight round's particle(s) from -> to at `speed`, its head `start` m ahead of the muzzle. One line: the callers end it on
+        /// what it meets (View/ShotLine.cs). Returns the head's time to `to`.</summary>
         public float EmitRound(string channel, string channel2, Vector3 from, Vector3 to, float start, float speed, float headLife,
                                float size, Color color, float alpha, float size2 = 0f, Color color2 = default, float alpha2 = 0f)
         {
             speed = Mathf.Max(0.5f, speed);
-            bool k394Bent = ShotClearance.Bend(from, to, out var w); OzK394RoofShots.Note(from, to, k394Bent, w);   // K394: the roof rounds' check (one null test when it is off)
-            if (!k394Bent)
-            {
-                var dd = to - from; float dist = dd.magnitude; if (dist < 1e-3f) return headLife;
-                var sd = dd / dist; var p0 = from + sd * start;
-                EmitP(Ch(channel), p0, sd * speed, headLife, size, color, alpha);
-                if (channel2 != null) EmitP(Ch(channel2), p0, sd * speed, headLife, size2, color2, alpha2);
-                return headLife;
-            }
-            var d1 = w - from; float l1 = d1.magnitude; var s1 = d1 / Mathf.Max(1e-3f, l1);
-            var d2 = to - w; float l2 = d2.magnitude; var s2 = d2 / Mathf.Max(1e-3f, l2);
-            float tail = Mathf.Max(0f, (to - from).magnitude - start - headLife * speed);                // the straight round's unused end (half its length)
-            float t1 = Mathf.Max(0.01f, (l1 - Mathf.Min(start, l1 * 0.5f)) / speed), t2 = Mathf.Max(0.01f, (l2 - tail) / speed);
-            var q0 = from + s1 * Mathf.Min(start, l1 * 0.5f);
-            EmitP(Ch(channel), q0, s1 * speed, t1, size, color, alpha);
-            EmitP(Ch(channel), w, s2 * speed, t2, size, color, alpha, t1);
-            if (channel2 != null) { EmitP(Ch(channel2), q0, s1 * speed, t1, size2, color2, alpha2); EmitP(Ch(channel2), w, s2 * speed, t2, size2, color2, alpha2, t1); }
-            return t1 + t2;
+            OzK394RoofShots.Note(from, to, false, default);                                              // K394: the roof rounds' check (one null test when it is off)
+            var dd = to - from; float dist = dd.magnitude; if (dist < 1e-3f) return headLife;
+            var sd = dd / dist; var p0 = from + sd * start; bool over = ShotLine.LastOver;              // shots_over_walls: the Stop that decided this line ran just before
+            EmitP(On(channel, over), p0, sd * speed, headLife, size, color, alpha);
+            if (channel2 != null) EmitP(On(channel2, over), p0, sd * speed, headLife, size2, color2, alpha2);
+            return headLife;
         }
         /// <summary></summary>
         public Material CloneChannelMaterial(string channel)
@@ -1376,10 +1462,10 @@ namespace OpenZ
         /// vel in m/s, width in m, linear = its colour (linear). Length = speed x OzFxSmooth.Shutter, at most TailMaxWidths widths and
         /// TailMaxM; nothing under TailMinSpeed or when it would be shorter than it is wide. hot = additive (a glowing rear, gain = its
         /// brightness), else the body's colour over the scene, lit like the body (dark at night). Option off: draws nothing.</summary>
-        public void DrawBlurTail(Vector3 start, Vector3 vel, float width, Color linear, float gain, bool hot)
+        public void DrawBlurTail(Vector3 start, Vector3 vel, float width, Color linear, float gain, bool hot, bool over = false)
         {
             if (!OzFxSmooth.On || blurTailMesh == null || !cam || width <= 0f) return;
-            var mat = hot ? blurTailHotMat : blurTailMat; if (!mat) return;
+            var mat = over ? (hot ? blurTailHotOver : blurTailOver) : hot ? blurTailHotMat : blurTailMat; if (!mat) return;
             float speed = vel.magnitude; if (speed < OzFxSmooth.TailMinSpeed) return;
             float len = Mathf.Min(speed * OzFxSmooth.Shutter, Mathf.Min(OzFxSmooth.TailMaxM, width * OzFxSmooth.TailMaxWidths));
             if (len < width) return;
@@ -1602,25 +1688,39 @@ namespace OpenZ
 
         static Decal NewDecal() { var m = new Mesh { name = "FX_Decal" }; m.MarkDynamic(); return new Decal { mesh = m }; }
 
-        /// <summary>Polar grid conforming to the ground (cached heights) + lift; vertex alpha 0 on water tiles (M12 excludes water).</summary>
+        /// <summary>A jump this big between two rows of a ray is a sheer step (a platform wall, a cliff): the decal ends there, it never stands up as a sheet.</summary>
+        public const float DecalStepCut = 1.2f;
+        float[] polarY; bool[] polarCut;
+
+        /// <summary>Polar grid conforming to the ground (cached heights) + lift; vertex alpha 0 on water tiles (M12 excludes water) and past a sheer step.</summary>
         void BuildPolar(Mesh m, Vector3 c, float rMax, float lift, bool maskWater, bool onWaterSurface)
         {
             bv.Clear(); bc.Clear(); bn.Clear(); bu.Clear(); bt.Clear();
             int seg = 48, rows = Mathf.Clamp(Mathf.CeilToInt(rMax / 0.6f), 3, 24);
-            void Add(Vector3 p)
+            polarY ??= new float[seg]; polarCut ??= new bool[seg];
+            void Add(Vector3 p, int ray)
             {
                 float y = Ground(p.x, p.z);
                 bool water = WetAt(p, y);                                                        // open water only: decks keep the ring
                 if (onWaterSurface && water && !float.IsNegativeInfinity(WaterY)) y = Mathf.Max(y, WaterYAt(p));
+                bool cut = false;
+                if (ray >= 0)
+                {
+                    if (!polarCut[ray] && Mathf.Abs(y - polarY[ray]) > DecalStepCut) polarCut[ray] = true;
+                    cut = polarCut[ray];
+                    if (cut) y = polarY[ray]; else polarY[ray] = y;
+                }
                 bv.Add(new Vector3(p.x, y + lift, p.z)); bn.Add(Vector3.up); bu.Add(new Vector2(p.x - c.x, p.z - c.z));
-                bc.Add(new Color(1f, 1f, 1f, maskWater && water ? 0f : 1f));
+                bc.Add(new Color(1f, 1f, 1f, cut || (maskWater && water) ? 0f : 1f));
             }
-            Add(c);
+            Add(c, -1);
+            float y0 = bv[0].y - lift;
+            for (int i = 0; i < seg; i++) { polarY[i] = y0; polarCut[i] = false; }
             for (int r = 1; r <= rows; r++)
                 for (int i = 0; i < seg; i++)
                 {
                     float a = i * Mathf.PI * 2f / seg, rr = rMax * r / rows;
-                    Add(c + new Vector3(Mathf.Cos(a) * rr, 0f, Mathf.Sin(a) * rr));
+                    Add(c + new Vector3(Mathf.Cos(a) * rr, 0f, Mathf.Sin(a) * rr), i);
                 }
             for (int i = 0; i < seg; i++) { bt.Add(0); bt.Add(1 + (i + 1) % seg); bt.Add(1 + i); }
             for (int r = 1; r < rows; r++)
@@ -1647,11 +1747,11 @@ namespace OpenZ
         }
 
         /// <summary>M12 shock ring: 32-sided pale-gold annulus (.88-1.0) painted on the ground, .9 s (.2 + 6 t), .55 s, no fade.</summary>
-        void RingM12(Vector3 flat, float s)
+        void RingM12(Vector3 flat, float s, float k = 1f)
         {
-            var d = Take(rings); float r0 = OpenZFxCatalog.M12RingScale * s;
+            var d = Take(rings); float r0 = OpenZFxCatalog.M12RingScale * s * k;                // 1.3 item 32: k = a grenade drawn bigger (radius and width x k)
             d.active = true; d.kind = DecalKind.RingM12; d.age = 0f; d.delay = 0f; d.life = OpenZFxCatalog.M12RingLife; d.r0 = r0; d.c = flat; d.birth = Time.time;
-            d.color = OpenZFxCatalog.M12RingTone; d.w0 = OpenZFxCatalog.M12RingWidthOf(s);   // fx_look: band width in metres
+            d.color = OpenZFxCatalog.M12RingTone; d.w0 = OpenZFxCatalog.M12RingWidthOf(s) * k;   // fx_look: band width in metres
             BuildPolar(d.mesh, flat, r0 * 6.2f * 1.02f, OpenZFxCatalog.M12RingLift, true, false);
         }
 
@@ -1665,10 +1765,10 @@ namespace OpenZ
 
         /// <summary>M12 blast ground light: a Gaussian of warm light on the ground, r = 3.5 + 2.3 s,
         /// w = min(1.3, .48 s) exp(-8 age), gone at .48 s. Also fired for every shot (bullet .38 ... MLRS 1.4).</summary>
-        public void GroundLight(Vector3 flat, float s, bool electro = false, bool blast = false)
+        public void GroundLight(Vector3 flat, float s, bool electro = false, bool blast = false, float radiusMul = 1f)
         {
             if (!groundLights) return;
-            float r = OpenZFxCatalog.GroundLightRadiusBase + OpenZFxCatalog.GroundLightRadiusPerS * s;
+            float r = (OpenZFxCatalog.GroundLightRadiusBase + OpenZFxCatalog.GroundLightRadiusPerS * s) * radiusMul;   // 1.3 item 32: a grenade drawn bigger reaches x k (same strength)
             float w = blast ? Mathf.Min(OpenZFxCatalog.GroundLightMaxWBlast, OpenZFxCatalog.GroundLightWPerSBlast * s)   // fx_look
                             : Mathf.Min(OpenZFxCatalog.GroundLightMaxW, OpenZFxCatalog.GroundLightWPerS * s);
             if (!blast)
@@ -2023,7 +2123,7 @@ namespace OpenZ
                 foreach (var kv in channels)                                                 // the catalog's channels; the exp2_ channels keep their own speed stretch
                 {
                     var c = kv.Value; if (c == null || !c.r || c.def.mesh) continue;
-                    if (System.Array.IndexOf(OzFxSmooth.SparkChannels, kv.Key) >= 0)
+                    if (System.Array.IndexOf(OzFxSmooth.SparkChannels, c.def.name) >= 0)         // by the def's name: a twin's key is not on that list
                     {   // sparks: each one a streak along its own velocity (a round head, a tail that fades to nothing); off = the channel as the catalog made it
                         bool streak = smooth || c.def.stretch;
                         c.r.renderMode = streak ? ParticleSystemRenderMode.Stretch : ParticleSystemRenderMode.Billboard;
@@ -2044,6 +2144,7 @@ namespace OpenZ
             }
             StepLights(dt);
             if (e2Ready) StepExp2(dt);
+            if (warmOver > 0) WarmOver();
             StepProjectiles(dt);
             StepDecals(dt);
             StepTracks(dt);

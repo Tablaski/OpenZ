@@ -39,7 +39,7 @@ namespace OpenZ
     /// A/B: <see cref="Enabled"/> false = the pre-v2 look (FxManager.Flame). Menu: OpenZ/FX/Pyro Fire v2.
     /// </summary>
     [DefaultExecutionOrder(97)]
-    public sealed class OpenZPyroFire : MonoBehaviour
+    public sealed partial class OpenZPyroFire : MonoBehaviour                               // DV163: + OpenZPyroFire.Dragon.cs
     {
         public static OpenZPyroFire I { get; private set; }
         /// <summary>A/B switch (false = FxManager.Flame + the CombatAudio one-shot, the look before this package).</summary>
@@ -234,6 +234,7 @@ namespace OpenZ
             ground = new OpenZPyroGroundFire();
             quad = BuildQuad();
             BuildLights();
+            heat.Boot();
             ready = true; Status = "ok";
         }
 
@@ -301,6 +302,26 @@ namespace OpenZ
         public static void Tongue(Vector3 root, float seed, float size, float speed, float fade, float hs, float ss) { if (TonguesReady) I.ground.Loose(root, seed, size, speed, fade, hs, ss); }
         /// <summary>Proof: loose tongues drawn in the last frame.</summary>
         public static int LooseTongues => I && I.ground != null ? I.ground.LooseDrawn : 0;
+
+        /// <summary>1.3, the Unit editor's ramp platforms (View/OzUePlatformView.cs, nothing else calls it): a platform left the field, the walk surface already off: a patch whose
+        /// centre was on the world rect [min, max] (x / z) goes at once; a patch that only reached it has flames and a grid on the deck's height: built again on the floor next
+        /// frame (StepGround). Returns the patches out.</summary>
+        public static int GroundGone(Vector3 min, Vector3 max)
+        {
+            if (!I || I.ground == null) return 0;
+            float x0 = Mathf.Min(min.x, max.x), x1 = Mathf.Max(min.x, max.x), z0 = Mathf.Min(min.z, max.z), z1 = Mathf.Max(min.z, max.z); int k = 0;
+            foreach (var p in I.ground.patches)
+            {
+                if (!p.active) continue;
+                float dx = Mathf.Max(Mathf.Max(x0 - p.c.x, p.c.x - x1), 0f), dz = Mathf.Max(Mathf.Max(z0 - p.c.z, p.c.z - z1), 0f), reach = p.r * 2.4f;   // the grid's halo: BuildSurface, 2.3 x r
+                if (dx <= 0f && dz <= 0f) { p.active = false; k++; }
+                else if (dx * dx + dz * dz < reach * reach) p.builtR = -1f;
+            }
+            GroundsGone += k;
+            return k;
+        }
+        /// <summary>Checks: patches taken with a platform.</summary>
+        public static int GroundsGone;
         /// <summary>
         /// rest wait a frame (a patch grows 12 cm per refresh, so every refresh used to rebuild at once: frame spikes in big fights).</summary>
         public const int MaxGridRebuildsPerFrame = 2;
@@ -321,17 +342,19 @@ namespace OpenZ
         {
             public int id; public UnitView shooter; public ZObject target; public int targetId;
             public bool hatch;                                                             // DV87: the jet of a Pyro who drives a tank, from its open hatch (HatchShot): no shooter view, it starts at BoardingView.DriverMuzzleNow
+            public System.Func<Vector3> mouth; public Transform soundAt; public bool noArc;   // DV163: a dragon's jet starts at its mouth, a jet up or down has no bank arc (OpenZPyroFire.Dragon.cs)
             public Transform follow; public Vector3 toLocal, toWorld; public bool hit;
             public float lastCue, endAt, acc, lastGround, phase;
             public bool loopOn, audible, fallbackAudio; public string loopKey;
             public Vector3 at, dir, end; public float length, sortKey;
             public Transform targetRoot, aimRootT; public Vector3 aimOff, aimRootPos; public bool aimSet, aimRootOk;
-            public float arcH, arcAt = -1f;
+            public float arcH, arcAt = -1f, stopM = -1f;
+            public bool over;                                                                                  // shots_over_walls: new sprites draw over the wall (refreshed with arcH)
         }
         readonly Dictionary<int, Jet> jets = new Dictionary<int, Jet>();
         readonly List<int> jetKeys = new List<int>();
 
-        struct Pending { public float at; public int jetId; public ZObject target; public bool hit; public Vector3 point, from; public Team team; }
+        struct Pending { public float at; public int jetId; public ZObject target; public bool hit, sky; public Vector3 point, from; public Team team; }
         readonly List<Pending> pending = new List<Pending>(64);
 
         void Cue(ZEvent e, ZObject a, ZObject t, UnitView av, Vector3 from, Vector3 to)
@@ -339,7 +362,7 @@ namespace OpenZ
             float now = Time.time; Shots++;
             if (!jets.TryGetValue(a.Id, out var j)) { j = new Jet { id = a.Id, loopKey = "pyro_jet:" + a.Id, phase = Rand() * 10f }; jets[a.Id] = j; j.endAt = -1f; }
             bool fresh = now >= j.endAt || now - j.lastCue > 0.6f;
-            j.shooter = av; j.target = t; j.targetId = t.Id; j.hit = e.flag; j.lastCue = now; j.endAt = now + JetHold;
+            j.noArc = false; j.shooter = av; j.target = t; j.targetId = t.Id; j.hit = e.flag; j.lastCue = now; j.endAt = now + JetHold;
             var game = ZGame.I;
             // where the stream ends: on the body it hits (and moves with it), on the wall it hits, or on the ground for a miss
             j.follow = null;
@@ -361,6 +384,8 @@ namespace OpenZ
                 float tgt = Vector3.Distance(f0, tp), along = Mathf.Clamp(h.magnitude + 0.8f, Mathf.Max(0.5f, tgt - 1.5f), Mathf.Min(Range, tgt + 0.8f));
                 var g = from + hn * along; g.y = G(g.x, g.z) + 0.15f;
                 if (OzShuttleAim.Air(t)) g = OzShuttleAim.FlameMiss(from, t, Range);               // DV118: a miss at the flying shuttle goes up past its side
+                else if (OzTowerAim.On(t)) g = OzTowerAim.FlameMiss(from, t, Range);                // 1.3 item 3: a miss at a fort tower gun goes up past its side (View/OzTowerAim.cs)
+                else if (ShotLine.OverWalls) g = t.IsFortDefender ? FortDefenderView.RoofPoint(g) : OzUePlatformViews.Aim(t, g);   // shots_over_walls: a miss at a man on a roof or a deck lands up there
                 j.toWorld = g;
             }
             if (fresh) { j.acc = 0f; j.at = from; j.aimSet = false; StartJetSound(j, from); }
@@ -383,9 +408,9 @@ namespace OpenZ
             {
                 var j = jets[id];
                 Vector3 hatchMuzzle = default;                                                 // DV87: a hatch driver's jet lives while his figure is up and starts at its muzzle
-                bool shooterOk = j.hatch ? BoardingView.DriverMuzzleNow(j.id, out hatchMuzzle) : j.shooter && j.shooter.isActiveAndEnabled && !j.shooter.Dying;
+                bool shooterOk = j.mouth != null || (j.hatch ? BoardingView.DriverMuzzleNow(j.id, out hatchMuzzle) : j.shooter && j.shooter.isActiveAndEnabled && !j.shooter.Dying);
                 if (now >= j.endAt || !shooterOk) { EndJet(j); jets.Remove(id); continue; }
-                j.at = j.hatch ? hatchMuzzle : j.shooter.MuzzlePos();                          // after WeaponHold (order 80)
+                j.at = j.mouth != null ? j.mouth() : j.hatch ? hatchMuzzle : j.shooter.MuzzlePos();                          // after WeaponHold (order 80)
                 if (j.follow) j.toWorld = JetEnd(j);
                 // kept relative to the target's root, so it never lags a moving target; a new target (or a root that vanished) keeps
                 // the end where it was and sweeps from there, like a hose.
@@ -402,12 +427,13 @@ namespace OpenZ
                 var d = root + j.aimOff - j.at; float dist = d.magnitude;
                 if (dist < 0.2f) continue;
                 j.dir = d / dist;
+                if (now - j.arcAt > 0.14f || j.arcAt < 0f) { j.arcAt = now; if (j.noArc) { j.arcH = 0f; j.stopM = -1f; j.over = false; } else { j.arcH = ShotLine.FlameArc(j.at, root + j.aimOff, j.target, out j.stopM); j.over = ShotLine.LastOver; } }
+                if (j.stopM >= 0f && j.stopM < dist) dist = j.stopM;
                 j.length = Mathf.Min(dist + Overshoot, Range + 1.5f);                      // what is drawn: to the target (+ the splash)
-                if (now - j.arcAt > 0.14f || j.arcAt < 0f) { j.arcAt = now; j.arcH = ShotClearance.ArcHeight(j.at, root + j.aimOff); }
                 j.end = j.at + j.dir * j.length;
                 float life = (Range - 0.5f) / speed;
                 float splashAt = Mathf.Min(dist + 0.3f, Range + 1f);
-                j.audible = OnScreen(j.at, 0.15f);
+                j.audible = OnScreen(j.at, 0.15f) || (j.mouth != null && OnScreen(j.end, 0.15f));   // 1.3 U5: a dragon's flame is heard while it is on screen, though its mouth is above the view
                 bool near = OnScreen(j.at, 0.6f) || OnScreen(j.end, 0.6f);
                 // step(): acc += 300 dt (max 12 a frame), sprites spread along this frame's travel
                 j.acc = Mathf.Min(EmitCapPerFrame, j.acc + EmitRate * (speed / LegacySpeed) * rateK * dt);
@@ -423,7 +449,7 @@ namespace OpenZ
                         var p = j.at + j.dir * (0.05f + (i / (float)Mathf.Max(1, emit)) * speed * Mathf.Min(dt, 1f / 30f));
                         float side = (Rand() - 0.5f) * 2f * sideMax;
                         var v = j.dir * speed + perp * side + Vector3.up * ((Rand() - 0.5f) * 1.1f);
-                        pool.Spawn(p, v, life, 0.44f + Rand() * 0.14f, fa, fe, 0f, -1f, 0f, null, Rand(), Rand(), Rand(), splashAt, j.arcH);
+                        pool.Spawn(p, v, life, 0.44f + Rand() * 0.14f, fa, fe, 0f, -1f, 0f, null, Rand(), Rand(), Rand(), splashAt, j.arcH, j.over);
                     }
                 }
                 // the jet lights its surroundings: light at .55 of the stream, 22 x (.82 + .1 sin 8.3t + .08 sin 23.7t)
@@ -437,7 +463,7 @@ namespace OpenZ
         void EndJet(Jet j)
         {
             var ad = AudioDirector.I;
-            if (ad && j.loopOn) ad.StopLoop(j.loopKey, 0.25f);
+            if (ad && j.loopOn) ad.StopLoop(j.loopKey, j.hatch && OzVehicleQuiet.FlameLoopCut(j.id) ? 0.02f : 0.25f);   // vehicle_exit_jump part B (fix round 2): nobody inside the tank: the flame loop stops in this frame (a 0.02 s de-click fade; View/OzVehicleQuiet.cs)
             if (ad && j.audible && !j.fallbackAudio) AudioDirector.Fire("wpn_pyro_flame_stop", j.at, j.id, stopVol);
             j.loopOn = false;
         }
@@ -462,6 +488,7 @@ namespace OpenZ
 
         void Arrive(Pending p, float now)
         {
+            if (p.sky) return;                                                                    // DV163: a Pyro's flame at a dragon ends in the air, nothing lights up
             var game = ZGame.I; if (!game) return;
             jets.TryGetValue(p.jetId, out var j);
             TouchAlong(p.from, p.point, p.team, now);                                             // critic round 2: what the stream passes through
@@ -474,7 +501,9 @@ namespace OpenZ
             UnitView tv = null; GameObject go = null;
             if (game.Views.TryGetValue(t.Id, out var v) && v) { tv = v; go = v.gameObject; }
             else if (game.StaticViews.TryGetValue(t.Id, out var sgo) && sgo) go = sgo;
+            if (tv && BoardingView.HatchFigureBody(t.Id, out var hatchFig)) go = hatchFig;                       // 1.4 DV171 fix round 4: a driver climbing out of a tank or the mech burns on his figure (View/BoardingView.VehicleExit.cs)
             bool structure = t.Kind == ZKind.Building || t.Kind == ZKind.MapItem || (tv == null && go != null);
+            HeatFlame(tv, structure, now);
             if (go && go.activeInHierarchy && stickyFire) IgniteThing(t, tv, go, structure, p.point, now);
             if (!groundFire || j == null || OzShuttleAim.Air(t)) return;                               // DV118: nothing spills to the ground under the flying shuttle (the rules light none, ZWorld.GroundFire.cs)
             // the stream spills onto the ground around what it hits (feet of a robot, the base of a vehicle / building)
@@ -780,10 +809,12 @@ namespace OpenZ
         void StepGround(float dt, float now)
         {
             ground.Step(dt, now, tongueHeight);
+            patchesOn = 0;
             int rebuilds = 0;
             foreach (var p in ground.patches)
             {
                 if (!p.active) continue;
+                patchesOn++;
                 // patch's grid, and under the per-frame budget it was drawn for a frame or more at the OLD place
                 if (OpenZPyroGroundFire.NeedsRebuild(p) && (p.surf == null || p.builtR < 0f || rebuilds < MaxGridRebuildsPerFrame))
                 {   // grew / drifted: new tongue roots + ground grid (a brand-new patch always builds at once; the rest queue a frame)
@@ -923,7 +954,7 @@ namespace OpenZ
                 if (j.loopOn && !ad.LoopActive(j.loopKey)) j.loopOn = false;
                 if (!j.loopOn)
                 {
-                    int ok = ad.StartLoop(j.loopKey, "wpn_pyro_flame_loop", j.at, j.shooter ? j.shooter.transform : j.hatch && ZGame.I && ZGame.I.Views.TryGetValue(j.id, out var hatchView) && hatchView ? hatchView.transform : null, loopVol * norm, 1f);   // DV87: a hatch driver's flame loop rides his tank
+                    int ok = ad.StartLoop(j.loopKey, "wpn_pyro_flame_loop", j.at, j.soundAt ? j.soundAt : j.shooter ? j.shooter.transform : j.hatch && ZGame.I && ZGame.I.Views.TryGetValue(j.id, out var hatchView) && hatchView ? hatchView.transform : null, loopVol * norm, 1f);   // DV87: a hatch driver's flame loop rides his tank
                     if (ok > 0) { j.loopOn = true; LoopsStarted++; OzSoundLog.Add("PY", "wpn_pyro_flame_loop", "flame_loop", "PLAY loop " + j.loopKey, loopVol * norm, j.at); }
                     else { j.fallbackAudio = true; OzSoundLog.Add("PY", "wpn_pyro_flame_loop", null, "DROP loop (no clips: AudioDirector patch missing?) -> CombatAudio one-shots", 0f, j.at); }
                 }
@@ -973,6 +1004,7 @@ namespace OpenZ
             StepJets(dt, now);
             StepBurns(dt, now, camPos);
             StepGround(dt, now);
+            StepHeat(dt, now);
             pool.splashAgeRate = splashAgeRate; pool.splashKeep = splashSpeedKeep;
             pool.Step(dt);
             PeakSprites = Mathf.Max(PeakSprites, pool.Count);
@@ -996,6 +1028,7 @@ namespace OpenZ
             foreach (var j in jets.Values) if (ad && j.loopOn) ad.StopLoop(j.loopKey, 0.1f);
             if (ad) { ad.StopLoop(GroundLoopKey, 0.2f); ad.StopLoop(BurnLoopKey, 0.2f); }
             jets.Clear(); burns.Clear(); pending.Clear(); pool?.Clear(); ground?.Clear(); groundLoopOn = burnLoopOn = false;
+            HeatClear();
             foreach (var s in slots) { s.l.enabled = false; s.key = -1; s.k = 0f; }
         }
 

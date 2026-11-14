@@ -42,10 +42,12 @@ namespace OpenZ.Sim
             var sent = new List<ZObject>();
             foreach (var u in W.Objects)
             {
-                if (!u.IsMobile || u.Owner != Team || Gone(u) || u.IsFortDefender || u.IsMinion || u.Destroyed || u.KillAt >= 0) continue;
+                if (!u.IsMobile || u.Owner != Team || Gone(u) || u.IsFortDefender || u.IsMinion || u.Destroyed || u.KillAt >= 0 || u.EvilGuarding) continue;   // DV165: EvilZod on guard stays (Sim/ZEvilZod.Appear.cs)
                 if (!(u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) || !u.CanMove || u.Stunned) continue;
                 if (u.Kind == ZKind.Vehicle && u.Type == "crane") continue;                                  // the crane mends, it does not storm forts
                 if (u.StrikeHeld) continue;                                                                  // DV107: a member of a strike group goes with its group
+                if (u.CpuRepairHeld) continue;                                                               // DV137: a vehicle on its repair trip comes back first (ZBot.CpuRepair.cs)
+                if (u.CpuDefendHeld) continue;                                                               // DV136: a guard of the frontier stays at its flag (ZBot.CpuDefend.cs)
                 if (u.Waypoints.Count > 0 || u.IsMoving) continue;                                           // busy (Zod's orders, a grab, a dodge)
                 if (u.AttackObject != null && InReach(u, u.AttackObject)) continue;                            // really fighting (target in its range)
                 ZObject f = null; double fd = double.MaxValue;
@@ -79,7 +81,7 @@ namespace OpenZ.Sim
         static bool InReach(ZObject u, ZObject t)
         {
             if (t.Destroyed || t.KillAt >= 0) return false;
-            double r = u.AttackRadius + 16, dx = t.CenterX - u.CenterX, dy = t.CenterY - u.CenterY;
+            double r = u.RangeTo(t) + 16, dx = t.CenterX - u.CenterX, dy = t.CenterY - u.CenterY;
             return dx * dx + dy * dy <= r * r && u.HasLineOfSight(t);                                  // DV23: no line = it holds its fire and stands
         }
     }

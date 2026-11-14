@@ -78,6 +78,7 @@ namespace OpenZ
         public static void Begin(Transform t, Style style, Action done = null, bool destroy = false, bool puff = true, Vector3? groundPoint = null)
         {
             if (!t) { done?.Invoke(); return; }
+            if (OzLavaMelt.Live && OzLavaMelt.PopWaits(t, done, destroy)) return;                              // level 7, kit LV5: it is melting: this runs when it has gone under, it never scales away
             var p = Instance;
             foreach (var j in p.jobs) if (j.t == t) return;
             var pivot = groundPoint ?? BottomCentre(t);

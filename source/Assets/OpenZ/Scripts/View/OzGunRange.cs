@@ -86,6 +86,7 @@ namespace OpenZ
                 if (placingFrames >= 2 && rpx > 0)
                 {
                     var t = input.PlaceTile;
+                    if (game.World.HighGroundPad(t.x, t.y)) rpx = ZWorld.HighGroundRange(rpx);                 // DV162: a fort tower pad shoots farther (Sim/ZObject.HighGround.cs)
                     float target = input.PlaceValid ? 1f : invalidDim;
                     dim = placingFrames == 2 || type != placeType ? target : Mathf.MoveTowards(dim, target, dt / Mathf.Max(0.01f, dimSeconds));
                     placeType = type;

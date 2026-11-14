@@ -422,9 +422,10 @@ namespace OpenZ.EditorTools
         static string Level16(string settings, string l16MapJson, ZHeroKind k)
         {
             var sb = new StringBuilder();
-            bool was = ZWorld.HeroSquadDeviation;
+            bool was = ZWorld.HeroSquadDeviation, wasBlue = ZWorld.HeroSquadsOffAsBlue;                // DV108 part 2 (1.3 row 80): the PLAY AS BLUE switch off for the red start, on for the blue one, put back after
             try
             {
+                ZWorld.HeroSquadsOffAsBlue = false;
                 ZWorld.HeroSquadDeviation = false;
                 var off = ZWorld.Create(settings, l16MapJson, 1);
                 ZWorld.HeroSquadDeviation = true;
@@ -476,8 +477,19 @@ namespace OpenZ.EditorTools
                     $"level 16 start and campfire tiles: {string.Join(", ", tiles.Select(t => $"{t.what} ({t.x},{t.y})"))}{near}: open ground, clear of the shuttle square ({sq[0]}-{sq[0] + sq[2] - 1}, {sq[1]}-{sq[1] + sq[3] - 1}), the searchlight ({sl[0]},{sl[1]}), every building and map item, every exit lane and fort gate face" +
                     (bad.Count > 0 ? "; WRONG: " + string.Join("; ", bad) : "")));
                 if (brad != null && alan != null) sb.AppendLine(CampCheck(on, brad, alan, sq, sl));
+                // DV108 part 2 (1.3 row 80): ALAN & BRAD are red's heroes: a PLAY AS BLUE start (the switch the game sets) places no hero squad, so no
+                // start camp: the world is the map alone, object for object as with the DV108 switch off; the red start above keeps them
+                ZWorld.HeroSquadsOffAsBlue = true;
+                var asBlue = ZWorld.Create(settings, l16MapJson, 1);
+                ZWorld.HeroSquadsOffAsBlue = false;
+                var blueKeys = asBlue.Objects.Select(Key).OrderBy(x => x, StringComparer.Ordinal).ToList();
+                bool sameAsOff = blueKeys.SequenceEqual(offKeys);
+                int heroBlue = asBlue.Objects.Count(o => o.IsHero), redBlue = asBlue.Objects.Count(o => o.IsRobot && o.Owner == Team.Red), blueBlue = asBlue.Objects.Count(o => o.IsUnit && o.Owner == Team.Blue);
+                sb.AppendLine(OzV11Kit.Verdict(heroBlue == 0 && asBlue.HeroSquadsMade == 0 && sameAsOff && redBlue == redOff && blueBlue == blueOff && heroes.Count == 2,
+                    $"level 16 started as BLUE (PLAY AS BLUE, row 80): hero robots {heroBlue}, squads made {asBlue.HeroSquadsMade}, red start robots {redBlue}, blue units {blueBlue}; " +
+                    $"the map alone ({asBlue.Objects.Count} objects, the same as the switch off: {(sameAsOff ? "yes" : "NO")}); started as RED the two heroes stay ({heroes.Count})"));
             }
-            finally { ZWorld.HeroSquadDeviation = was; }
+            finally { ZWorld.HeroSquadDeviation = was; ZWorld.HeroSquadsOffAsBlue = wasBlue; }
             return sb.ToString();
         }
 

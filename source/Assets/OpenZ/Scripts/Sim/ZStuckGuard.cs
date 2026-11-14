@@ -342,8 +342,8 @@ namespace OpenZ.Sim
                 {
                     if (loser != lowest && now < loser.PS.yieldUntil) continue;
                     var winner = loop[(loop.IndexOf(loser) + loop.Count - 1) % loop.Count];   // the one held by the loser
-                    double hl = Math.Sqrt(loser.Dx * loser.Dx + loser.Dy * loser.Dy) * Math.Sqrt(winner.Dx * winner.Dx + winner.Dy * winner.Dy);
-                    bool headOn = hl > 1e-9 && loser.Dx * winner.Dx + loser.Dy * winner.Dy < -0.5 * hl;
+                    double hl = Math.Sqrt((float)((float)(loser.Dx * loser.Dx) + (float)(loser.Dy * loser.Dy))) * Math.Sqrt((float)((float)(winner.Dx * winner.Dx) + (float)(winner.Dy * winner.Dy)));
+                    bool headOn = hl > 1e-9 && (float)((float)(loser.Dx * winner.Dx) + (float)(loser.Dy * winner.Dy)) < -0.5 * hl;
                     loser.PS.yieldUntil = now + 2.0; loser.PS.Yields++;
                     Log(loser, $"waiting loop of {loop.Count} ({string.Join(" > ", loop.ConvertAll(u => u.Type + "#" + u.Id))}): {(headOn ? "steps aside" : "backs up")}");
                     done = headOn ? StepAsideFor(winner, loser) || BackUp(loser, winner) || StepAsideFor(loser, winner)

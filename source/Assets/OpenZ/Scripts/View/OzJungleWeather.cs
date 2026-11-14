@@ -476,13 +476,13 @@ namespace OpenZ
                     var q = new Vector3(x, 0f, z);
                     var vp = cam.WorldToViewportPoint(q);
                     if (vp.x < -0.05f || vp.x > 1.05f || vp.y < -0.05f || vp.y > 1.05f) continue;
-                    float gy = game ? game.GroundY(x, z) : 0f;
+                    float gy = SplashGround(x, z, game ? game.GroundY(x, z) : 0f, out bool farWet);   // beyond the plateau: the ground drawn there (OzJungleWeather.FarGround.cs)
                     q.y = gy;
-                    if (fxp ? fxp.WetAt(q, gy) : OpenZFxPlayer.IsWaterTile(q))
+                    if (farWet || (fxp ? fxp.WetAt(q, gy) : OpenZFxPlayer.IsWaterTile(q)))
                     {   // open water: the water draws its own fine drop rings; a share of the drops also leaves a ring that is seen from the default height
                         SplashesOnWater++;
                         if (fx.Value() >= waterRingShare) continue;
-                        q.y = fxp ? fxp.WaterYAt(q) : gy;
+                        q.y = farWet ? gy : fxp ? fxp.WaterYAt(q) : gy;
                         ep.position = q + Vector3.up * 0.04f;
                         ep.startSize = s * waterRingSize * fx.Range(0.8f, 1.3f);
                         ep.startLifetime = fx.Range(0.55f, 0.85f);
@@ -517,9 +517,9 @@ namespace OpenZ
                     var c = dripCrowns[fx.Range(0, dripCrowns.Count)];
                     float a = fx.Range(0f, 6.2832f), rr = c.w * Mathf.Sqrt(fx.Value());
                     float x = c.x + Mathf.Cos(a) * rr, z = c.z + Mathf.Sin(a) * rr;
-                    float gy = game ? game.GroundY(x, z) : c.y;
+                    float gy = SplashGround(x, z, game ? game.GroundY(x, z) : c.y, out bool farWet);   // beyond the plateau: the ground drawn there (OzJungleWeather.FarGround.cs)
                     var q = new Vector3(x, gy, z);
-                    if (fxp ? fxp.WetAt(q, gy) : OpenZFxPlayer.IsWaterTile(q)) continue;
+                    if (farWet || (fxp ? fxp.WetAt(q, gy) : OpenZFxPlayer.IsWaterTile(q))) continue;
                     ep.position = q + Vector3.up * 0.05f;
                     ep.startSize = s * fx.Range(0.7f, 1.2f);
                     ep.startLifetime = fx.Range(0.3f, 0.45f);

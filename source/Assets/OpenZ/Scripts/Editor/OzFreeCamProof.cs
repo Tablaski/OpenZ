@@ -13,14 +13,15 @@ namespace OpenZ.EditorTools
     /// Play mode, a level loaded, the HUD shown, no menu and no production window open, a quiet moment (no blast shaking the view),
     /// the pointer inside the Game view and away from its edges, hands off the keys.
     /// Menu: OpenZ/Checks/Free camera (Play mode), or OpenZ.EditorTools.OzFreeCamProof.Run().
-    /// The result is one log line that starts "[OpenZ free camera] PASS 30/30" or "[OpenZ free camera] FAIL" (also in Report).
+    /// The result is one log line that starts "[OpenZ free camera] PASS 33/33" or "[OpenZ free camera] FAIL" (also in Report).
     ///
     /// A  the fixed view is untouched while the testing overlay is hidden: FreeTurn is refused, the camera stands where the fixed
     ///    rule puts it, the minimap frame is the fixed view's frame (3 zoom levels x 3 checks = 9).
     /// B  with the overlay shown: a quarter turn, a half turn, the lowest and the steepest tilt at 3 zoom levels: the view centre
     ///    stays on the point the camera looks at, the camera never flips, never stands under its floor, the top screen row meets
-    ///    the ground inside the far plane (12); at the closest zoom and the lowest tilt at all four map borders the camera keeps
-    ///    the fixed view's closest height over the outer scenery (4).
+    ///    the ground inside the far plane (12); at the lowest tilt the nearest ground on screen is never nearer than the fixed view's
+    ///    at the closest zoom (3; 1.2 item 54, RtsCamera.FreeNear.cs); at the closest zoom and the lowest tilt at all four map
+    ///    borders the camera keeps the old closest height over the outer scenery (FreeEdgeHeight, 4).
     /// C  the minimap frame is the view's footprint on the ground: 3 zoom levels x 6 views x 4 corners = 72 corners, each within
     ///    1 map pixel of its corner ray's meeting point with the ground plane (1).
     /// D  with the view turned 90 degrees a scroll moves along the view's heading, and a minimap click lands the view centre on the
@@ -67,6 +68,13 @@ namespace OpenZ.EditorTools
             if (r.direction.y > -1e-5f) return false;
             p = r.GetPoint(-r.origin.y / r.direction.y);
             return true;
+        }
+
+        /// <summary>The nearest ground on screen (m): the bottom row's middle ray from the camera (its shake taken off) to the y = 0 plane.</summary>
+        static float Nearest(RtsCamera rts, Camera cam)
+        {
+            var ray = cam.ViewportPointToRay(new Vector3(0.5f, 0f, 0f)); ray.origin -= rts.ShakeOffset;
+            return PlaneHit(ray, out var p) ? Vector3.Distance(cam.transform.position - rts.ShakeOffset, p) : 999f;   // from the camera's own position (the ray starts on the near plane, about 0.5 m ahead)
         }
 
         static void Pose(RtsCamera rts, Vector3 at, float h) { rts.focus = new Vector3(at.x, 0f, at.z); rts.SetHeightImmediate(h); rts.TakeShake(); }
@@ -188,6 +196,8 @@ namespace OpenZ.EditorTools
                 rts.FreeTurn(new Vector2(0f, 100000f)); yield return 2;                                   // mouse up = look up: the lowest tilt, the clamp holds
                 good = Limit(rts, cam, g, h, true, out why);
                 Check(good && Mathf.Abs(rts.Tilt - lo) <= 1e-3f, $"B zoom {h:0} lowest tilt: asked {rts.Tilt:0.###} (limit {lo:0.#}), {why}");
+                float near = Nearest(rts, cam), nearFixed = RtsCamera.FixedNearest(rts.minHeight, rts.pitch);       // 1.2 item 54 (RtsCamera.FreeNear.cs): never nearer ground than the fixed view at the closest zoom
+                Check(near >= nearFixed - 0.05f, $"B zoom {h:0} lowest tilt: the nearest ground on screen {near:0.##} m away (the fixed view's at the closest zoom {nearFixed:0.##} m; it may not be nearer)");
                 rts.FreeTurn(new Vector2(0f, -100000f)); yield return 2;                                  // mouse down = look down: the steepest tilt
                 good = Limit(rts, cam, g, h, false, out why);
                 Check(good && Mathf.Abs(rts.Tilt - hi) <= 1e-3f, $"B zoom {h:0} steepest tilt: asked {rts.Tilt:0.###} (limit {hi:0.#}), {why}");

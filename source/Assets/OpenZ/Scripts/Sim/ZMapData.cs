@@ -29,6 +29,16 @@ namespace OpenZ.Sim
         public List<Obj> objects;
         /// <summary>DV108 (Sim/ZHeroSquad.cs): extra hero squads placed on top of <see cref="objects"/> while the switch is on (Zod's maps: none).</summary>
         public List<Obj> heroes;
+        /// <summary>DV152 (Sim/ZWorld.Lava.cs), level 7 only: per tile, row by row, 0 = no lava, 1 = lava crust, 2 = hot lava pool (the
+        /// volcanic tileset's lava tiles, written by the level 7 import tool). Every lava tile keeps class Impassable as in Zod; only the
+        /// lava rule, the sight grid and the view read this. Null or empty on every other map.</summary>
+        public int[] lava;
+
+        /// <summary>DV152: this map has lava tiles.</summary>
+        public bool HasLava => lava != null && width > 0 && lava.Length == width * height;
+        /// <summary>DV152: lava under tile (tx, ty): 0 none (also off the map and on maps without lava), 1 crust, 2 hot pool.</summary>
+        public int LavaKind(int tx, int ty) => !HasLava || tx < 0 || ty < 0 || tx >= width || ty >= height ? 0 : lava[ty * width + tx];
+        public bool LavaAt(int tx, int ty) => LavaKind(tx, ty) > 0;
 
         public int WidthPix => width * ZConst.TILE;
         public int HeightPix => height * ZConst.TILE;
@@ -38,7 +48,9 @@ namespace OpenZ.Sim
         public ZClass ClassAt(int tx, int ty) =>
             tx < 0 || ty < 0 || tx >= width || ty >= height ? ZClass.Impassable : (ZClass)classes[ty * width + tx];
 
-        /// <summary>zmap.cpp:598-615 GetTileWalkSpeed at a pixel: impassable 0, road 1.689, water 0.7, else 1.</summary>
+        /// <summary>zmap.cpp:598-615 GetTileWalkSpeed at a pixel: impassable 0, road 1.689, water 0.7, else 1. DV152: a lava tile (an
+        /// Impassable tile in Zod) walks at <see cref="ZWorld.LavaWalkSpeed"/> while the lava rule is on (only a robot the player sent in
+        /// is ever there).</summary>
         public double TileWalkSpeed(int px, int py)
         {
             if (px < 0 || py < 0) return 0;
@@ -46,7 +58,8 @@ namespace OpenZ.Sim
             if (tx >= width || ty >= height) return 0;
             switch (ClassAt(tx, ty))
             {
-                case ZClass.Impassable: case ZClass.DeepWater: return 0;
+                case ZClass.Impassable: return ZWorld.LavaDeviation && LavaAt(tx, ty) ? ZWorld.LavaWalkSpeed : 0;   // DV152 (Sim/ZWorld.Lava.cs)
+                case ZClass.DeepWater: return 0;
                 case ZClass.Road: return ZConst.ROAD_SPEED;
                 case ZClass.Water: return ZConst.WATER_SPEED;
                 default: return 1.0;

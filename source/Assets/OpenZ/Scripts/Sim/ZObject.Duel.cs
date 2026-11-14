@@ -50,10 +50,10 @@ namespace OpenZ.Sim
         /// <summary>A reverse is only started with room for ReverseRoom x (own speed x its time) before the edge of the band
         /// (the target may back away or dodge at the same time), so it is not cut short by range.</summary>
         public const double ReverseRoom = 2.5;
-        public static int Margin(string type) => type == "heavy" ? 26 : type == "medium" ? 24 : 22;
+        public static int Margin(string type) => type == "heavy" ? 26 : type == "medium" || type == ZMTank.Type ? 24 : 22;   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>Manoeuvre weights in the range band (Arc, Flank, Reverse; sum 100): jeeps race and swerve, heavies circle.</summary>
         public static (int arc, int flank, int rev) Weights(string type) =>
-            type == "jeep" ? (35, 45, 20) : type == "light" ? (50, 30, 20) : type == "medium" ? (55, 25, 20) : (60, 20, 20);
+            type == "jeep" ? (35, 45, 20) : type == "light" ? (50, 30, 20) : type == "medium" || type == ZMTank.Type ? (55, 25, 20) : (60, 20, 20);   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>After this many manoeuvres circling the same way, the next one turns the other way with FlipPct % chance.</summary>
         public const int FlipAfter = 2, FlipPct = 40;
         /// <summary>Chord of a flank dash: the tangent turned this far (deg) toward the target.</summary>
@@ -85,7 +85,7 @@ namespace OpenZ.Sim
         public int DuelSeq => duel?.seq ?? 0;
         /// <summary>Tanks, mech (medium) and jeep: the vehicles that duel (DV9).</summary>
         public bool DuelCapable => Kind == ZKind.Vehicle && MoveSpeed > 0 && Owner != Team.Neutral &&
-                                   (Type == "jeep" || Type == "light" || Type == "medium" || Type == "heavy");
+                                   (Type == "jeep" || Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy");   // DV145 the medium tank (Sim/ZMTank.cs)
 
         /// <summary>ATTACK / AGRO waypoint, target in range (where Zod stops and fires): drive a committed manoeuvre and fire.
         /// Returns ZDuel.Manoeuvre (engaged, moved this tick), ZDuel.Approach (engaged, the waypoint keeps driving its approach:
@@ -125,7 +125,7 @@ namespace OpenZ.Sim
             if (!d.active)
             {
                 bool chained = now - d.endedAt <= 0.02;                                      // the last manoeuvre ended this tick: go straight on
-                if (!chained && Dist(CenterX, CenterY, t.CenterX, t.CenterY) > AttackRadius - ZDuel.EntryBand) return ZDuel.Approach;
+                if (!chained && Dist(CenterX, CenterY, t.CenterX, t.CenterY) > RangeTo(t) - ZDuel.EntryBand) return ZDuel.Approach;
                 if (now < d.retryAt) return ZDuel.Stand;
                 if (!DuelChoose(d, t, agro)) { d.retryAt = now + 0.5; d.Stands++; return ZDuel.Stand; }
             }
@@ -173,7 +173,7 @@ namespace OpenZ.Sim
         {
             var rng = World.DuelRandom;
             double now = World.Time, dist = Dist(CenterX, CenterY, t.CenterX, t.CenterY), v = Math.Max(1.0, RealMoveSpeed);
-            int R = AttackRadius;
+            int R = RangeTo(t);
             double P = R - ZDuel.Margin(Type), dMin = P - ZDuel.ReverseBand, dMax = R - ZDuel.CloseBand;
             int r1 = rng.Next(2), r2 = rng.Next(100), r3 = rng.Next(100), r4 = rng.Next(101);   // fixed draw count per choice
             if (d.sign == 0) d.sign = r1 == 0 ? 1 : -1;
@@ -230,7 +230,7 @@ namespace OpenZ.Sim
         DuelEnd DuelAim(ZDuelState d, ZObject t, bool agro, int look)
         {
             double dist = Dist(CenterX, CenterY, t.CenterX, t.CenterY);
-            int R = AttackRadius;
+            int R = RangeTo(t);
             double P = R - ZDuel.Margin(Type), dMax = R - ZDuel.CloseBand;
             if (d.kind == ZDuelKind.Reverse)
             {                                                                                // backs up to the edge of the band, never out of range
@@ -289,7 +289,7 @@ namespace OpenZ.Sim
                 if (s >= look) break;
             }
             double de = Dist(ex, ey, t.CenterX, t.CenterY);
-            if (de > AttackRadius - ZDuel.EndSlack) return false;
+            if (de > RangeTo(t) - ZDuel.EndSlack) return false;
             if (de < ZPathing.MinSpacing(this, t) + 8) return false;
             if (!t.IsDestroyableImpass && !t.ShuttleAirborne && World.EngageBarrierBetween(ex, ey, t.CenterX, t.CenterY)) return false;   // DV118: not for the flying shuttle
             if (LosActive && !World.Sight.ClearFrom(ex, ey, 0, t)) return false;          // DV23: the end point keeps a clear line

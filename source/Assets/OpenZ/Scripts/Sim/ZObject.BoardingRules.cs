@@ -30,7 +30,7 @@ namespace OpenZ.Sim
         /// <summary>DV58: 15 s at Zod's 100 Hz server tick.</summary>
         public const long EjectLockTicks = 1500;
         /// <summary>DV58: this cannon is locked against auto entries right now (explicit orders still enter).</summary>
-        public bool AutoEnterLocked => ZWorld.EjectLockDeviation && NoAutoEnterUntilTick >= 0 && World != null && World.TickIndex < NoAutoEnterUntilTick;
+        public bool AutoEnterLocked => (ZWorld.EjectLockDeviation && NoAutoEnterUntilTick >= 0 && World != null && World.TickIndex < NoAutoEnterUntilTick) || DriverOutLocked;   // 1.4 DV171: or a tank / the mech whose driver the player let out less than 30 s ago (Sim/ZObject.VehicleExit.cs)
 
         // ================================================================== DV59 enter falls back to a walk
         /// <summary>DV59, ProcessEnterWP: the target can no longer be entered. True = handled (turned into a MOVE, or a minion waits for

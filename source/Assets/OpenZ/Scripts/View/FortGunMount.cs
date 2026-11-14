@@ -233,7 +233,7 @@ namespace OpenZ
 
         void Update()
         {
-            if (fort == null || !baseMf || !baseR || !baseMf.gameObject.activeInHierarchy || (fort.Destroyed && !baseR.enabled)) { Removed++; Destroy(gameObject); return; }   // it goes with its fort's BODY: a destroyed fort stands until the bomb lands (the collapse switches its renderers off), the wreck stays on it till then
+            if (fort == null || !baseMf || !baseR || !baseMf.gameObject.activeInHierarchy || (FortFallAtGameOver.Fallen(fort) && !baseR.enabled)) { Removed++; Destroy(gameObject); return; }   // it goes with its fort's BODY: a destroyed fort stands until the bomb lands (the collapse switches its renderers off), the wreck stays on it till then
             if (!costLogged)
             {   // what the break cost: the longest frame of its first seconds, real time (the first value read here is the frame Build ran in)
                 worstFrameMs = Mathf.Max(worstFrameMs, Time.unscaledDeltaTime * 1000f);

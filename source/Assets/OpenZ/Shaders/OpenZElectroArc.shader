@@ -72,8 +72,10 @@ Shader "OpenZ/ElectroArc"
                 o.positionCS = TransformWorldToHClip(i.positionWS);
                 o.color = i.color; o.uv = i.uv; o.d1 = i.d1;
                 float3 vp = TransformWorldToView(i.positionWS);
-                o.b = float4(i.d2.x, ComputeFogFactor(o.positionCS.z), -vp.z, 0);
+                bool over = i.d2.y > 0.5;                                     // a bolt over a wall: near-plane depth, no soft fade; the fog keeps its true depth
+                o.b = float4(i.d2.x, ComputeFogFactor(o.positionCS.z), over ? 0 : -vp.z, 0);
                 o.screenPos = ComputeScreenPos(o.positionCS);
+                if (over) o.positionCS.z = o.positionCS.w * UNITY_NEAR_CLIP_VALUE * 0.999;
                 return o;
             }
 

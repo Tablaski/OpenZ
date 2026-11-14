@@ -21,6 +21,12 @@ namespace OpenZ
         public GameObject hut, ruin;
         public Color[] debris = { new Color(0.62f, 0.52f, 0.28f), new Color(0.36f, 0.25f, 0.14f), new Color(0.45f, 0.5f, 0.2f) };
         public float ruinSeconds = 9f;
+        /// <summary>Where the bits start over the foot. Defaults: level 16's tall hut. Level 7 sets its low nest (OzL07Scene.Huts).</summary>
+        public float leanHeight = 1.6f, breakHeight = 1.2f;
+        /// <summary>What the hut is made of: chunk pool, sound at half hit points, sound of the break, the name and two takes of the collapse, the sound log tag.
+        /// The defaults are level 16's thatch; level 7 sets its stone hut (OzL07Scene.Huts).</summary>
+        public string chunks = "wood", leanEvent = "dst_debris_wood", breakEvent = "dst_debris_wood", collapseEvent = "dst_l16_hut_collapse",
+            collapseA = "OpenZ/Audio/Sfx/L16/sd_hut_collapse_a", collapseB = "OpenZ/Audio/Sfx/L16/sd_hut_collapse_b", logTag = "L16";
         public bool Broken { get; private set; }
         public bool Leaning { get; private set; }
         int simId = -1; float nextPoll; DetailKit.Bits bits;
@@ -58,10 +64,10 @@ namespace OpenZ
         {
             if (Leaning || Broken) return;
             Leaning = true;
-            var p = transform.position + Vector3.up * 1.6f;
+            var p = transform.position + Vector3.up * leanHeight;
             Bits().Burst(p, 10, 0, 2.2f, 0.07f, new System.Random(GetInstanceID()));
-            if (AudioDirector.Has("dst_debris_wood")) AudioDirector.Fire("dst_debris_wood", p, SimId(), 0.6f, 1.2f);
-            else OzSoundLog.Add("L16", "dst_debris_wood", null, "DROP no event", 0f, p);
+            if (AudioDirector.Has(leanEvent)) AudioDirector.Fire(leanEvent, p, SimId(), 0.6f, 1.2f);
+            else OzSoundLog.Add(logTag, leanEvent, null, "DROP no event", 0f, p);
             if (hut) StartCoroutine(Tilt(hut.transform, new Vector3(5f, 0f, ((GetInstanceID() & 1) == 0 ? 4f : -4f)), 0.35f));
         }
 
@@ -86,22 +92,22 @@ namespace OpenZ
         {
             if (Broken) return;
             Broken = true; Breaks++;
-            var p = transform.position; var c = p + Vector3.up * 1.2f;
+            var p = transform.position; var c = p + Vector3.up * breakHeight;
             if (hut) hut.SetActive(false);
             if (ruin) ruin.SetActive(true);
             var rng = new System.Random(GetInstanceID() * 31 + Time.frameCount);
             for (int i = 0; i < debris.Length; i++) Bits().Burst(c, 12, (byte)i, 3.2f, 0.08f, rng);
             if (FxManager.I)
             {
-                FxManager.I.Breakup(c, "wood", 2.2f, 14, 0.9f);
+                FxManager.I.Breakup(c, chunks, 2.2f, 14, 0.9f);
                 FxManager.I.DemolitionDust(p, 2.4f, 2.4f, 0.45f);
             }
             ScorchDecals.Add(p, 1.8f, ScorchKind.Explosion);
-            if (AudioDirector.Has("dst_debris_wood")) AudioDirector.Fire("dst_debris_wood", c, simId, 1f, 0.95f);
-            else OzSoundLog.Add("L16", "dst_debris_wood", null, "DROP no event", 0f, c);
-            L16Pyramid.Named("dst_l16_hut_collapse", (simId & 1) == 0 ? "OpenZ/Audio/Sfx/L16/sd_hut_collapse_a" : "OpenZ/Audio/Sfx/L16/sd_hut_collapse_b", c, 0.8f);   // two takes, chosen by the hut (no random draw)
+            if (AudioDirector.Has(breakEvent)) AudioDirector.Fire(breakEvent, c, simId, 1f, 0.95f);
+            else OzSoundLog.Add(logTag, breakEvent, null, "DROP no event", 0f, c);
+            L16Pyramid.Named(collapseEvent, (simId & 1) == 0 ? collapseA : collapseB, c, 0.8f);   // two takes, chosen by the hut (no random draw)
             LastBreak = name + " collapsed at " + Time.time.ToString("0.0") + " s";
-            Debug.Log("[OpenZ] L16 hut " + LastBreak);
+            Debug.Log("[OpenZ] " + logTag + " hut " + LastBreak);
             if (ruin) StartCoroutine(RuinAway());
         }
 

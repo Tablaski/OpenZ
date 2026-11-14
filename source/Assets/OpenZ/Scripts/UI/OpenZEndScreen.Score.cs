@@ -9,7 +9,8 @@ namespace OpenZ
     /// did in the level's table: NEW RECORD, its place in the top 10, or why it is not in it. Count, ranks and the table:
     /// OzHighScores.
     ///
-    /// A result enters the table when the level was WON by the player himself in a normal match: not when a CPU played his side
+    /// 144 / 144b: GENERAL ZOD, red, or GENERAL EVILZOD, blue: the same rules, the same tables; the entry keeps its side:
+    /// OzScoreSides, every row of a table shows it): not when a CPU played his side
     /// (bot match, demo, autopilot), not in a test session (also while the gate battery runs, which stages a victory screen),
     /// not when the testing overlay put units on the map. A defeat or a
     /// draw shows its score and rank and the line "WIN THE LEVEL TO ENTER THE TABLE".
@@ -49,10 +50,12 @@ namespace OpenZ
         /// <summary>null = this ending enters the table; else the line the strip shows instead.</summary>
         string UnrankedWhy()
         {
+            var customStats = OzLevelStats.UnrankedWhy(); if (customStats != null) return customStats;      // 1.2 item 60: a Custom stats match, won or lost, is not compared with the others (CUSTOM STATS · NOT IN THE TABLE)
             if (kind == "defeat") return "WIN THE LEVEL TO ENTER THE TABLE";
             if (kind != "victory") return "A DRAW DOES NOT ENTER THE TABLE";
             var W = game.World;
             foreach (var b in W.Bots) if (b.Team == hud.Player) return "THE CPU PLAYED YOUR SIDE · NOT IN THE TABLE";
+            // owner items 144 / 144b: a blue match (GENERAL EVILZOD) is entered as a red one is; its entry keeps the side (OzScoreSides)
             if (GameBoot.TestMode || PlayerPrefs.GetInt("oz_botmatch", 0) == 1 || OzDevEnding.I || GateBattery.Running) return "TEST SESSION · NOT IN THE TABLE";
             return OzHighScores.Unranked;
         }
@@ -70,13 +73,13 @@ namespace OpenZ
                 scoreSubmitted = true; scorePlace = 0; scoreEntry = null;
                 if (scoreWhy == null)
                 {
-                    scoreEntry = new OzScoreEntry { score = scoreParts.total, seconds = (int)W.Time, kills = kills, losses = losses, built = built, zones = zonesMine, zonesTotal = zonesTotal };
-                    scorePlace = OzHighScores.Submit(game.level, game.gameDifficulty, scoreEntry);
+                    scoreEntry = OzScoreSides.Entry(scoreParts.total, W.Time, kills, losses, built, zonesMine, zonesTotal, me);
+                    scorePlace = OzHighScores.Submit(game.level, game.ShownDifficulty, scoreEntry);
                     if (scorePlace == 0) scoreEntry = null;
                 }
                 Debug.Log($"[OpenZ] end screen score: {scoreParts.total} = victory {scoreParts.victory} + speed {scoreParts.speed} + combat {scoreParts.combat} + territory {scoreParts.territory} "
                           + $"(time {(int)W.Time} s, kills {kills}, losses {losses}, zones {zonesMine}/{zonesTotal}), rank {OzHighScores.Rank(scoreParts.total)}, "
-                          + $"{game.level} {OpenZDifficulty.Label(game.gameDifficulty)}: {(scoreWhy != null ? "not entered (" + scoreWhy + ")" : scorePlace > 0 ? "place " + scorePlace + " of the table" : "outside the top " + OzHighScores.TableSize)}");
+                          + $"{game.level} {OpenZDifficulty.Label(game.ShownDifficulty)} as {OzScoreSides.Tag[OzScoreSides.Of(me)]}: {(scoreWhy != null ? "not entered (" + scoreWhy + ")" : scorePlace > 0 ? "place " + scorePlace + " of the table" : "outside the top " + OzHighScores.TableSize)}");
             }
             scoreShown = -1; scoreLanded = scoreRevealed = false; scoreRevealAt = -100f; scoreTableHot = scoreBreakHot = null;
 
@@ -126,10 +129,10 @@ namespace OpenZ
 
         string NoteText()
         {
-            var best = OzHighScores.Best(game.level, game.gameDifficulty);
+            var best = OzHighScores.Best(game.level, game.ShownDifficulty);
             string bestText = best != null ? " · BEST " + OzHighScores.Group(best.score) : "";
             if (scoreWhy != null) return scoreWhy + (kind == "victory" ? "" : bestText);
-            if (scorePlace == 1) return "NEW RECORD · " + game.level + " · " + OpenZDifficulty.Label(game.gameDifficulty);
+            if (scorePlace == 1) return "NEW RECORD · " + game.level + " · " + OpenZDifficulty.Label(game.ShownDifficulty);   // 1.4 MAYHEM: "NEW RECORD · L02 · MAYHEM"
             if (scorePlace > 1) return "PLACE " + scorePlace + " OF THE TOP " + OzHighScores.TableSize + bestText;
             return "OUTSIDE THE TOP " + OzHighScores.TableSize + bestText;
         }
@@ -148,8 +151,8 @@ namespace OpenZ
         /// <summary>The level's table for the hover of the right half (OzHighScores.TableLines: place, rank, score, mission time).</summary>
         string TableTip()
         {
-            string lines = OzHighScores.TableLines(game.level, game.gameDifficulty, scoreEntry);
-            return OzHighScores.TableTitle(game.level, game.gameDifficulty) + "|" + (lines.Length > 0 ? lines : "No victory on this level at this difficulty yet.") + "|";
+            string lines = OzHighScores.TableLines(game.level, game.ShownDifficulty, scoreEntry);
+            return OzHighScores.TableTitle(game.level, game.ShownDifficulty) + "|" + (lines.Length > 0 ? lines : "No victory on this level at this difficulty yet.") + "|";
         }
 
         // ------------------------------------------------------------------ reveal (Animate)

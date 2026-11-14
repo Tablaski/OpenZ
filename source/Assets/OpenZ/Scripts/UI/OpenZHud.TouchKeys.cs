@@ -57,7 +57,7 @@ namespace OpenZ
             MakeTouchKey(0, "BACK", "BACK|Closes what is open and cancels a placement or the rally tool. With nothing open: the pause menu.|ESC", c => { if (!TouchHelpClose()) OzTouch.TapKey(Key.Escape); });
             MakeTouchKey(1, "UI", "MINIMAL UI|Hides or shows the permanent panels.|" + OzBindings.Cap(OzAction.MinimalUi), c => { if (!MinimalUiKey()) OzSfx.Ui("ui_disabled"); });
             MakeTouchKey(2, "HELP", "HELP|The touch gestures and the gamepad buttons.|", c => ShowTouchHelp(!touchHelpOn));
-            MakeTouchKey(3, "EXIT", "EXIT CREW|The crew of the selected gun or carrier gets out.|" + OzBindings.Cap(OzAction.ExitCrew), c => ExitSelected());
+            MakeTouchKey(3, "EXIT", "EXIT CREW|The crew of the selected gun or carrier gets out; with no gun or carrier selected, the drivers of the selected tanks and mechs climb out.|" + OzBindings.Cap(OzAction.ExitCrew), c => ExitSelected());   // 1.4 DV171: + the drivers (UI/OpenZHud.VehicleExit.cs)
             MakeTouchKey(4, "REPAIR", "REPAIR|The damaged vehicles of the selection drive to a repair station and come back.|" + OzBindings.Cap(OzAction.RepairVehicles), c => { if (!input.SendToRepair()) AudioDirector.UI("ui_order_invalid"); });
             MakeTouchKey(5, "ZOOM +", "ZOOM IN|One step closer. Two fingers: pinch. Gamepad: the right trigger.|", c => { if (rts) rts.ZoomBy(1f - Mathf.Clamp(rts.wheelStep, 0.01f, 0.9f)); });
             MakeTouchKey(6, "SPEED -", "GAME SPEED|One step slower.|-", c => { if (!OzSpeedKeys.ProofStep(-1)) OzSfx.Ui("ui_disabled"); });
@@ -175,7 +175,7 @@ namespace OpenZ
             foreach (var o in input.Selection)
             {
                 if (o == null || o.Destroyed || o.Owner != Player) continue;
-                if (!canExit && CanExit(o)) canExit = true;
+                if (!canExit && (CanExit(o) || (KeyExitsDrivers && DriverTabOf(o)))) canExit = true;   // 1.4 DV171: a tank's or the mech's driver too (UI/OpenZHud.VehicleExit.cs)
                 if (!canRepair && o.Kind == ZKind.Vehicle && o.CanBeRepaired()) canRepair = true;
             }
             SetTouchKey(3, canExit); SetTouchKey(4, canRepair);

@@ -31,13 +31,21 @@ namespace OpenZ
         public const float Still = 0.0001f;
         /// <summary>The most notches one frame of Ctrl / Cmd + scroll zooms (the wheel's own limit in the camera).</summary>
         public const float MaxNotchesPerFrame = 3f;
+        /// <summary>v1.3 item 35: the most notches one frame of dt seconds may zoom. At 50 fps and faster MaxNotchesPerFrame (as
+        /// before, so 60 fps is unchanged); slower, as many as 60 fps frames allow in the same time (180 a second), so a slow frame
+        /// never drops wheel notches a fast frame keeps. The frame time counts up to 0.1 s (the game's longest frame step).</summary>
+        public static float MaxNotchesFor(float dt)
+        {
+            if (!(dt > 1f / 50f)) return MaxNotchesPerFrame;
+            return MaxNotchesPerFrame * 60f * Math.Min(dt, 0.1f);
+        }
 
         /// <summary>One frame. sx, sy: the scroll as the input reads it (x to the right, y away from the player / up);
         /// perNotch: how much of it is one wheel notch (1, or 120 where the raw platform range is kept).
         /// The pan moves the ground the way a scroll view moves its content: x along, y the other way (wheel up = the content comes
         /// down = the view goes north). With the system's natural scrolling (a Mac's default) the content, and so the map, follows
         /// the fingers.</summary>
-        public static Result Decide(int setting, float sx, float sy, bool ctrl, bool cmd, bool mac, bool menuInFront, float perNotch)
+        public static Result Decide(int setting, float sx, float sy, bool ctrl, bool cmd, bool mac, bool menuInFront, float perNotch, float maxNotches = MaxNotchesPerFrame)
         {
             var r = new Result();
             if (setting != MoveMap) { r.act = Act.ZoomAsBefore; return r; }
@@ -48,7 +56,7 @@ namespace OpenZ
             if (ctrl || (mac && cmd))
             {
                 if (Math.Abs(y) <= Still) { r.act = Act.None; return r; }                 // a sideways swipe with the zoom key held: nothing
-                r.act = Act.ZoomBy; r.notches = Clamp(y, -MaxNotchesPerFrame, MaxNotchesPerFrame);
+                r.act = Act.ZoomBy; r.notches = Clamp(y, -maxNotches, maxNotches);                 // v1.3 item 35: MaxNotchesFor(dt) from the camera (3 at 50 fps and faster)
                 return r;
             }
             r.act = Act.Pan; r.dragX = x; r.dragY = -y;

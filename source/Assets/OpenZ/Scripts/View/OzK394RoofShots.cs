@@ -20,6 +20,9 @@ namespace OpenZ
     /// muzzle, clears the wall, goes on to its target), else the round stays straight (the terrain and other forts are still tested as
     /// before). The towers and the gun block are not obstacles here: the rules never let him fire through them (FortDefenderLineClear).
     /// Tower guns, the fort's big gun and everything else keep the old test (their muzzles are above the deck band).</para>
+    /// <para><see cref="OverParapet"/>
+    /// line from his muzzle (View/ShotLine.cs; FortGunView.MeshTopAt: the wall in front of him does not stop it). The check's AFTER run counts one
+    /// leg per round; its BEFORE run shows the same path.</para>
     /// </summary>
     public static class OzK394RoofShots
     {

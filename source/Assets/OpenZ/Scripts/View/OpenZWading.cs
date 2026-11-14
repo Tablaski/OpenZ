@@ -93,7 +93,7 @@ namespace OpenZ
             if (float.IsNegativeInfinity(waterY)) { if (shaderHook) Shader.SetGlobalFloat(WadeCountId, 0f); return; }
             float dt = Time.deltaTime; var fx = OpenZFxPlayer.I; var cam = Camera.main;
             int points = 0, wading = 0;
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot) continue;
                 if (!waders.TryGetValue(v, out var w)) { w = new Wader { v = v }; Bind(w); waders[v] = w; }

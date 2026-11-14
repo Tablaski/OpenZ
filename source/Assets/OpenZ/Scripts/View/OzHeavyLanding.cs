@@ -18,7 +18,7 @@ namespace OpenZ
     /// falls back to its box corners, 0.2 m in (as release 1.0). It waits while the game is paused. View only.
     /// Switch: <see cref="Enabled"/> (off = the landing of release 1.0).
     /// </summary>
-    public class OzHeavyLanding : MonoBehaviour
+    public partial class OzHeavyLanding : MonoBehaviour                                              // open_fixes_2nov: + OzHeavyLanding.Aim.cs (where an arc must end)
     {
         public static bool Enabled = true;
         /// <summary>The tank / gun turret tosses get the same landing (no snap; bounce, rock, ground fit), smaller.</summary>
@@ -108,6 +108,8 @@ namespace OpenZ
             l.contactAt = l.touch;
             l.startOffY = l.fits ? -lift : 0f;                                                          // + = its lowest point is still above the ground: it falls the rest
             l.offT = l.startOffY > 0f ? Mathf.Clamp(l.startOffY / Mathf.Max(3f, down), 0.02f, 0.12f) : 0.08f;   // at its touch-down speed; - = it was in: out in 0.08 s
+            if (kind == "turret") l.rockDeg = l.TurretRockDeg(l.rockDeg);                                 // open_fixes_2nov update 1: a long turret rocks less, so its pivot never hops (OzHeavyLanding.RockLever.cs)
+            if (kind == "turret") l.SettlePlan(vel);                                                        // 1.4 wreck_landing: a turret's landing planned now, played after: no rise, no slide up, no pop (OzHeavyLanding.SettleInPlace.cs)
             Landings++; LastKind = kind; LastFit = l.fit; LastSpeed = vel.magnitude; LastBounce = l.bounceH; LastSkid = l.skid; LastAt = Time.time;
             return l;
         }
@@ -118,6 +120,7 @@ namespace OpenZ
             float dt = g && g.paused ? 0f : Time.deltaTime;
             if (dt <= 0f) return;                                                                       // paused: the landing waits, as the cannon's flight does
             t += dt;
+            if (SettleStep()) return;                                                                       // 1.4 wreck_landing: the planned turret landing (OzHeavyLanding.SettleInPlace.cs); off or not a turret: as before
             if (t >= settleT) { Settle(); return; }
             float bounce = t < bounceT ? bounceH * 4f * (t / bounceT) * (1f - t / bounceT) : 0f;
             float k = Mathf.Clamp01(t / skidT), s = skid * (1f - (1f - k) * (1f - k));

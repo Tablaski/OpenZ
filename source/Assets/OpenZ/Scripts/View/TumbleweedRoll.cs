@@ -106,7 +106,7 @@ namespace OpenZ
             if (unitsT <= 0f)
             {
                 unitsT = 0.15f; units.Clear();
-                foreach (var kv in game.Views) if (kv.Value && kv.Value.gameObject.activeInHierarchy) units.Add(kv.Value.transform.position);
+                foreach (var kv in game.LiveViews) if (kv.Value && kv.Value.gameObject.activeInHierarchy) units.Add(kv.Value.transform.position);
             }
             int alive = 0; foreach (var w in ws) if (w.alive) alive++;
             if (alive < count && Time.time >= nextSpawn)

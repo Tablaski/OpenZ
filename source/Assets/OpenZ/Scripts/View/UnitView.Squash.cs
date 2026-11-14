@@ -17,6 +17,7 @@ namespace OpenZ
         public void Squash(ZObject vehicle)
         {
             if (death != Death.None || Obj == null) return;
+            OpenZPyroFire.HeatDeath(this);
             if (reactKind != 0) EndReaction();
             if (hold) hold.Suspended = true;
             var dir = new Vector3(Obj.RunOverDirX, 0f, -Obj.RunOverDirY);

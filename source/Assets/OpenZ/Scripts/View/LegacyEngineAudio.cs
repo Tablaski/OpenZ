@@ -10,7 +10,7 @@ namespace OpenZ
     /// any other crewed vehicle .20. Loops start at a random offset, native pitch, fade out over .12 s
     /// </summary>
     [DefaultExecutionOrder(120)]
-    public class LegacyEngineAudio : MonoBehaviour
+    public partial class LegacyEngineAudio : MonoBehaviour   // 1.4 speed-up 2 (perf_garbage): + View/LegacyEngineAudio.NoGarbage.cs
     {
         public static LegacyEngineAudio I { get; private set; }
         public int maxAudible = 3;
@@ -70,14 +70,14 @@ namespace OpenZ
             {   // nearest 4 to the camera ground focus, the player's own first
                 nextSel = Time.time + reselectEvery;
                 cand.Clear();
-                foreach (var v in game.Views.Values)
+                foreach (var v in game.LiveViewValues)
                 {
                     if (!v || !v.isActiveAndEnabled || v.Dying || v.Obj == null || v.Obj.Destroyed) continue;
                     if (v.Obj.Kind != ZKind.Vehicle || CaptureHold.Shown(v.Obj) == Team.Neutral) continue;   // boarding_nb_v1 NB17
                     if (LegacyMatch.EngineLoop(v.Obj) == null) continue;
                     cand.Add(v);
                 }
-                cand.Sort((a, b) => Score(a, focus).CompareTo(Score(b, focus)));
+                cand.Sort(ByScore(focus));   // 1.4 speed-up 2 (perf_garbage): the same comparison, kept once
                 audible.Clear();
                 for (int i = 0; i < cand.Count && i < maxAudible; i++) audible.Add(cand[i].Obj.Id);
             }
@@ -113,7 +113,7 @@ namespace OpenZ
             {
                 l.cur = Mathf.Lerp(l.cur, l.target, 1f - Mathf.Exp(-dt / (l.target > 0f ? 0.08f : 0.12f)));   // setTargetAtTime .08 / stop .12
                 if (l.target <= 0f && l.cur <= 0.002f) { if (l.s.isPlaying) l.s.Stop(); l.id = -1; continue; }
-                l.s.volume = l.cur * au.LoopBusGain * au.LevelTrim(l.s.clip ? l.s.clip.name : null) * OzMixTrim.CaLin("engine_loop");   // tank-loop -12 LUFS -> leveller
+                l.s.volume = l.cur * au.LoopBusGain * au.LevelTrim(OzGcCache.NameOf(l.s.clip)) * OzMixTrim.CaLin("engine_loop");   // tank-loop -12 LUFS -> leveller   // 1.4 speed-up 2 (perf_garbage): the clip's name read once
                 active++;
             }
             ActiveLoops = active;
@@ -180,7 +180,7 @@ namespace OpenZ
         /// <summary>Mech (medium tank) footfalls: a step every half stride (phase = floor(travel x 3.2 / pi)).</summary>
         void MechSteps(ZGame game, CombatAudio au)
         {
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || v.Obj == null || v.Obj.Type != "medium" || v.Dying || !v.isActiveAndEnabled) continue;
                 var mwd = MechFoley.Walk(v); if (mwd && mwd.Drives) { mech.Remove(v.Obj.Id); continue; }

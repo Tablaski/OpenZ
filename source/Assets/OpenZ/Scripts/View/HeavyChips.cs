@@ -17,7 +17,7 @@ namespace OpenZ
         public static bool Enabled = true;
         /// <summary>Share of heavy hits on a vehicle / cannon that tear a real part off (the rest only chip).</summary>
         public static float PartChance = 0.6f;
-        static readonly HashSet<string> HeavyShooters = new HashSet<string> { "tough", "light", "medium", "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };
+        static readonly HashSet<string> HeavyShooters = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
         public static int Hits { get; private set; }
         static uint n;
 

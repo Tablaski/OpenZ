@@ -129,6 +129,7 @@ namespace OpenZ
             if (rbOf.TryGetValue("Spine1", out var chest)) chest.AddForce(push * 55f * strength, ForceMode.Impulse);   // the chest takes the hit first
             if (rbOf.TryGetValue("Hips", out var hips)) hips.angularVelocity = Vector3.Cross(Vector3.up, push) * Random.Range(2f, 4.5f) * Mathf.Min(strength, 2f);
             active.Add(rd);
+            foreach (var rb in rd.bodies) OzDebrisBodies.Add(rb);                                       // v1.3: DebrisAudit's settle guard reads the registry (View/OzLiveSet.cs)
             OzRockBody.Ragdoll(robot, rd);                                                              // items 331 + 332: the body meets the rocks (when one is near)
             OzBodySounds.Launched(rd, v);                                                               // J15: a soft whoosh when thrown hard, a metal thud when it lands
             return rd;
@@ -210,5 +211,7 @@ namespace OpenZ
 
         /// <summary>Lowest point of the body (for the sink-away).</summary>
         public void OnDisable() { active.Remove(this); }
+        void Awake() { OzLiveSet<RobotRagdoll>.Add(this); }                                            // v1.3: AudioDirector.ScanPhysics reads the registry (View/OzLiveSet.cs)
+        void OnDestroy() { OzLiveSet<RobotRagdoll>.Remove(this); }
     }
 }

@@ -48,6 +48,7 @@ namespace OpenZ
         static bool OnScreen(Vector3 p)
         {
             var cam = Camera.main; if (!cam) return true;
+            if (OzFpsView.Own(p)) return true;   // 1.4 fps_view: the viewed unit's own sound is in view (View/OzFpsView.cs); false while the view is off
             var vp = cam.WorldToViewportPoint(p);
             return vp.z > 0f && vp.x > -ScreenMargin && vp.x < 1f + ScreenMargin && vp.y > -ScreenMargin && vp.y < 1f + ScreenMargin;
         }

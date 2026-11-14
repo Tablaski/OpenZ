@@ -93,6 +93,11 @@ namespace OpenZ
         public float Wetness => wet;
         public bool StormActive => storm != null;
         public float FlashNow { get; private set; }
+        /// <summary>1.4 FOG OF WAR (view only): where the last mid / close flash's light stands (the fog's clouds light up round it).</summary>
+        public Vector3 FlashPoint { get; private set; }
+        /// <summary>1.4 FOG OF WAR (view only, fix round 1): the light of the mid / close flash standing at <see cref="FlashPoint"/> now (0 when the
+        /// brightest flash is a far one or a rumble: those have no point; <see cref="FlashNow"/> sums every flash).</summary>
+        public float FlashPointNow { get; private set; }
 
         // lighting bookkeeping (DayNight rewrites these every Update; see the class summary)
         bool touched; float sunBaseI, sunWrittenI; Color sunBaseC, sunWrittenC;
@@ -283,6 +288,7 @@ namespace OpenZ
             {
                 bool on = lead != null && leadV > 0.01f && (lead.f.Kind == OzStormPlan.Mid || lead.f.Kind == OzStormPlan.Close);
                 flashLight.enabled = on;
+                FlashPointNow = on ? leadV : 0f;
                 if (on)
                 {
                     float h = rts ? rts.height : 70f;
@@ -291,7 +297,7 @@ namespace OpenZ
                     if (lead.bolt) p = lead.strike + Vector3.up * 18f;
                     else { float az = lead.f.Azimuth * Mathf.Deg2Rad; p = focus + new Vector3(Mathf.Sin(az), 0f, Mathf.Cos(az)) * (0.55f * h) + Vector3.up * (0.6f * h + 10f); }
                     float d = Mathf.Max(10f, Vector3.Distance(p, focus));
-                    flashLight.transform.position = p;
+                    flashLight.transform.position = p; FlashPoint = p;
                     flashLight.range = d * 3f;
                     flashLight.intensity = flashPoint * leadV * d * d;                  // ~flashPoint x flash at the view centre (URP 1/d^2)
                     flashLight.color = flashColor;

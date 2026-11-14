@@ -468,6 +468,14 @@ namespace OpenZ
         /// rules it then lies on fall now.</summary>
         public static Quaternion TurretRest(Transform piece, Vector3 p, Quaternion rest, ZObject unit)
         {
+            var pick = TurretPick(piece, p, rest, unit);
+            TurretFell(piece, p, pick, unit);
+            return pick;
+        }
+
+        /// <summary>The pose a turret lies in at `p`, trees touched by nothing: it is picked while the piece still flies.</summary>
+        public static Quaternion TurretPick(Transform piece, Vector3 p, Quaternion rest, ZObject unit)
+        {
             var g = ZGame.I; var w = g ? g.World : null;
             if (!Enabled || !I || !piece || unit == null || w == null) return rest;
             float cover = (float)ZWorld.TurretCoverM(unit.Type); if (cover <= 0f) return rest;
@@ -493,6 +501,20 @@ namespace OpenZ
                 if (cost < best - 0.01f) { best = cost; pick = q; pickK = k; }
             }
             if (pickK != 0) TurretTurned++;
+            return pick;
+        }
+
+        /// <summary>The landing frame: the trees under the pose picked by TurretPick fall now.</summary>
+        public static void TurretFell(Transform piece, Vector3 p, Quaternion pick, ZObject unit)
+        {
+            var g = ZGame.I; var w = g ? g.World : null;
+            if (!Enabled || !I || !piece || unit == null || w == null) return;
+            float cover = (float)ZWorld.TurretCoverM(unit.Type); if (cover <= 0f) return;
+            var near = I.TreesNear(w, p, 7f);
+            if (near.Count == 0) return;
+            var shape = ShapeOf(piece);
+            if (shape.Count == 0) return;
+            var targets = TurretTargets(w, unit, p, cover);
             var from = g.CenterWorld(unit);
             foreach (var t in near)
             {
@@ -503,7 +525,6 @@ namespace OpenZ
                 var hit = t.foot + Vector3.up * 0.6f;
                 if (I.FellDrawn(t, from, hit)) Extras(hit, t.key);
             }
-            return pick;
         }
 
         /// <summary>ZGame (with the rule's switch): how near a rock (m) a turret fells no tree. Above 0 only when the view moves turrets off

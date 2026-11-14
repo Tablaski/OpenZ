@@ -28,7 +28,7 @@ namespace OpenZ
         public static OzHeroAntics I { get; private set; }
 
         /// <summary>AnticDirector's scan hook: true = this robot's antics are the hero rule's, the director starts none on it.</summary>
-        public static bool OwnRule(ZObject o) => Enabled && o != null && o.IsHero;
+        public static bool OwnRule(ZObject o) => Enabled && o != null && (o.IsHero || o.IsEvilZod);
 
         // counters (OzHeroSquadView.Report)
         public static int Drinks, DrinksRefused, DueOffScreen, OtherAntics, Threatened;

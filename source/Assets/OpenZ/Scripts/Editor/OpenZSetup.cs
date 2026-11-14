@@ -163,6 +163,9 @@ namespace OpenZ.EditorTools
                 var gm02 = SaveMat(MatEnv, n, sand); OpenZTexturesV2.ApplyGround(gm02, "L02"); return gm02;   // textures_v2: crisp roads + detail
             }
             if (n == "M_L17_Ground") { var g = Lit(T("L17_ground_paint.png"), 0.05f); g.SetColor("_BaseColor", new Color(0.86f, 0.87f, 0.9f)); var gm17 = SaveMat(MatEnv, n, g); OpenZTexturesV2.ApplyGround(gm17, "L17"); return gm17; }   // textures_v2
+            if (n == "M_L07_Ground") return SaveMat(MatEnv, n, Lit(T("L07_ground_paint.png"), 0.05f));     // level 7: the ash ground
+            if (n == "M_L07_PitBed") return SaveMat(MatEnv, n, TeamMat(new Color(0.09f, 0.075f, 0.07f), null, false, 0, 0.05f));   // level 7: under the lava sheet, seen only at its rim
+            if (n == "M_Cliff_VolcanicRock") return SaveMat(MatEnv, n, Cliff(T("L07_cliff_rock.png")));
             if (n == "M_L16_Ground") { var g16 = SaveMat(MatEnv, n, Lit(T("L16_ground_paint.png"), 0.05f)); OpenZL16Look.ApplyGround(g16, false); return g16; }   // level 16: the layered ground (the baked far picture stays as its far view)
             if (n == "M_Cliff_JungleRock") { var c16 = SaveMat(MatEnv, n, Cliff(T("L16_cliff_rock.png"))); OpenZL16Look.ApplyGround(c16, true); return c16; }   // level 16 rock walls: the same layered recipe (cliff rock from the side), casting shadows
             if (n == "M_Water_Swamp") return SaveMat(MatEnv, n, WaterStylized(true));                      // level 16, first water: the murky preset (the swamp preset replaces it)
@@ -358,12 +361,24 @@ namespace OpenZ.EditorTools
                 if (p.key.StartsWith("bridge")) inst.transform.localPosition = new Vector3(inst.transform.localPosition.x, 0, inst.transform.localPosition.z);
                 root.AddComponent<TeamPaint>();
                 if (p.key == "barrel") HazardBarrel(root);
+                if (p.key == "stop_sign") StopSignPlatesFlat(inst.transform);                     // 1.3 item 10: the FBX turns the octagon plates 22.5 deg about the vertical (they hid the "S" and the "T")
                 PrefabUtility.SaveAsPrefabAsset(root, $"{Pref}/Z_{p.key}.prefab");
                 UnityEngine.Object.DestroyImmediate(root);
             }
             BuildFlag();
             if (!Pf("city_block")) BuildCityBlock();
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>1.3 item 10: the stop sign's three octagon plates (red face, ivory border, steel edge) come out of props_vicecity.fbx
+        /// with their 22.5 deg octagon turn applied about the vertical instead of about the plate's own axis, so each plate stood turned
+        /// against the letters and covered the "S" and the "T". This sets the turn about the plate's axis (flat top, plates parallel to
+        /// the letters), the same rotation as the fixed Z_stop_sign.prefab, so a rebuilt prefab keeps the fix.</summary>
+        static void StopSignPlatesFlat(Transform model)
+        {
+            var flat = new Quaternion(-0.6935199f, 0.13794972f, 0.13794972f, 0.69351995f);
+            foreach (var t in model.GetComponentsInChildren<Transform>(true))
+                if (t.name == "Stop_red_face" || t.name == "Stop_ivory_border" || t.name == "Stop_steel_edge") t.localRotation = flat;
         }
 
         /// <summary>Critic N1: the plank gaps of the intact bridge decks showed the river as cyan hairlines. A thin dark wood
@@ -607,6 +622,31 @@ namespace OpenZ.EditorTools
             RemapEnvironmentOf("L16_environment");
         }
         [MenuItem("OpenZ/L16 Jungle/2 Build L16 Jungle Scene")] public static void BuildL16() => BuildLevel("L16");
+
+        /// <summary>Level 7 only: import settings of its ground picture and rock texture, then the materials of its environment model.
+        /// Same guard as level 16: a foreign material name would overwrite a tuned material of another level, so nothing is remapped then.</summary>
+        [MenuItem("OpenZ/L07 Volcanic/1 Imports and environment materials")]
+        public static string L07ImportsAndMaterials()
+        {
+            SetTexture($"{Tex}/L07_ground_paint.png", 8192, 16, TextureWrapMode.Clamp, false);
+            SetTexture($"{Tex}/L07_cliff_rock.png", 2048, 8, TextureWrapMode.Repeat, false);
+            AssetDatabase.SaveAssets();
+            string model = $"{Env}/L07_environment.fbx";
+            var modelImp = AssetImporter.GetAtPath(model) as ModelImporter;
+            if (modelImp == null) { Debug.LogError("[OpenZ] L07: missing " + model); return "missing " + model; }
+            var own = new HashSet<string> { "M_L07_Ground", "M_L07_PitBed", "M_Cliff_VolcanicRock" };
+            var foreign = AssetDatabase.LoadAllAssetsAtPath(model).OfType<Material>().Select(m => m.name)
+                .Concat(modelImp.GetExternalObjectMap().Keys.Where(k => k.type == typeof(Material)).Select(k => k.name))
+                .Distinct().Where(nm => !own.Contains(nm) && nm != "No Name").ToList();
+            if (foreign.Count > 0)
+            {
+                string why = "[OpenZ] L07: the model carries other materials (" + string.Join(", ", foreign) + "): nothing remapped. Its materials must be M_L07_Ground, M_L07_PitBed, M_Cliff_VolcanicRock.";
+                Debug.LogError(why); return why;
+            }
+            RemapEnvironmentOf("L07_environment");
+            return "L07 materials remapped";
+        }
+        [MenuItem("OpenZ/L07 Volcanic/2 Build L07 Volcanic Scene")] public static void BuildL07() => BuildLevel(OzVolcanic.Level);
         /// <summary>The level being built: Spawn reads it for the choices that differ per level.</summary>
         static string SpawnLv = "L02";
 
@@ -615,7 +655,7 @@ namespace OpenZ.EditorTools
 
         public static string BuildLevel(string lv)
         {
-            bool city = lv == "L17", jungle = lv == "L16";
+            bool city = lv == "L17", jungle = lv == "L16", volcanic = OzVolcanic.Is(lv);
             SpawnLv = lv;
             var log = new System.Text.StringBuilder();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -662,10 +702,11 @@ namespace OpenZ.EditorTools
             // skirt: sea (city) or sand (desert) far beyond the terrain edge so no void shows through border gaps (critic #2)
             var skirt = GameObject.CreatePrimitive(PrimitiveType.Plane); skirt.name = "SKIRT";
             UnityEngine.Object.DestroyImmediate(skirt.GetComponent<Collider>());
-            skirt.transform.position = new Vector3(0, city ? -1.7f : jungle ? -7f : -1.2f, 0);   // below the water surface / harbour + river beds inside the map
+            skirt.transform.position = new Vector3(0, city ? -1.7f : jungle ? -7f : volcanic ? -4f : -1.2f, 0);   // below the water surface / harbour + river beds inside the map
             skirt.transform.localScale = new Vector3(240, 1, 240);                 // (was swallowed by the comment above: SKIRT stayed 10 x 10 m)
             skirt.GetComponent<Renderer>().sharedMaterial = city ? AssetDatabase.LoadAssetAtPath<Material>($"{MatEnv}/M_Water_Harbour.mat")
                                                           : jungle ? SaveMat(MatEnv, "M_Skirt_Jungle", TeamMat(new Color(0.16f, 0.22f, 0.10f), null, false, 0, 0.05f))
+                                                          : volcanic ? SaveMat(MatEnv, "M_Skirt_Ash", TeamMat(new Color(0.11f, 0.095f, 0.09f), null, false, 0, 0.05f))
                                                                  : SaveMat(MatEnv, "M_Skirt_Sand", TeamMat(new Color(0.84f, 0.64f, 0.36f), null, false, 0, 0.05f));
             skirt.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             // sun, sky, fog
@@ -676,9 +717,9 @@ namespace OpenZ.EditorTools
             RenderSettings.skybox = SkyMat();                                  // gradient sky (critic #2: flat grey through the L17 notch)
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Linear; RenderSettings.fogStartDistance = 220; RenderSettings.fogEndDistance = 760;
             var dn = new GameObject("DayNight").AddComponent<DayNight>(); dn.sun = sun; dn.lampRoot = env.transform; dn.timeOfDay = 0.08f;
-            dn.warmth = city ? 0.35f : jungle ? 0.7f : 1f;   // the city reads cool grey, the desert warm (critic: city looked sandy)
+            dn.warmth = city ? 0.35f : jungle ? 0.7f : volcanic ? 0.85f : 1f;   // the city reads cool grey, the desert warm (critic: city looked sandy)
             var atmo = new GameObject("Atmosphere").AddComponent<Atmosphere>();
-            atmo.preset = city || jungle ? Atmosphere.Preset.City : Atmosphere.Preset.Desert; atmo.dayNight = dn; atmo.lampRoot = env.transform; atmo.level = lv;
+            atmo.preset = volcanic ? Atmosphere.Preset.Volcanic : city || jungle ? Atmosphere.Preset.City : Atmosphere.Preset.Desert; atmo.dayNight = dn; atmo.lampRoot = env.transform; atmo.level = lv;
             atmo.groundMaterial = AssetDatabase.LoadAssetAtPath<Material>($"{MatEnv}/M_{lv}_Ground.mat");
             var vol = new GameObject("PostFX").AddComponent<Volume>(); vol.isGlobal = true;
             vol.sharedProfile = AssetDatabase.LoadAssetAtPath<VolumeProfile>($"{Root}/Settings/OpenZ_PostFX.asset");
@@ -722,7 +763,7 @@ namespace OpenZ.EditorTools
             log.AppendLine(AntiClip(env.transform, zroot));
             log.AppendLine("markers " + (markersOk ? "OK" : "WRONG"));
             Directory.CreateDirectory($"{Root}/Scenes");
-            string sp = $"{Root}/Scenes/{lv}_{(city ? "CarPark" : jungle ? "Jungle" : "Desert")}.unity";
+            string sp = $"{Root}/Scenes/{lv}_{(city ? "CarPark" : jungle ? "Jungle" : volcanic ? "Volcanic" : "Desert")}.unity";
             EditorSceneManager.SaveScene(scene, sp);
             var list = EditorBuildSettings.scenes.ToList();
             if (!list.Any(s => s.path == sp)) { list.Add(new EditorBuildSettingsScene(sp, true)); EditorBuildSettings.scenes = list.ToArray(); }
@@ -793,8 +834,10 @@ namespace OpenZ.EditorTools
                 {
                     int idx = int.Parse(new string(type.Where(char.IsDigit).ToArray()));
                     key = city ? (idx == 11 ? "barrel" : idx == 12 ? "crate" : idx == 13 ? "stop_sign" : "city_block")
+                               : OzVolcanic.Is(SpawnLv) ? "rock_desert_2"                 // level 7: map objects 15 and 16 stand as plain markers until the DV2 crystal kit takes their place
                                : (idx >= 9 ? "rock_desert_2" : "cactus_" + (idx % 3));
                     yaw = rng.Next(360);
+                    if (key == "stop_sign") yaw = 0;                                   // 1.3 item 10: the sign's face (-z) looks at the RTS camera (south); the draw above stays, so every later prop keeps its old random yaw
                 }
             }
             var prefab = key != null ? Pf(key) : null;

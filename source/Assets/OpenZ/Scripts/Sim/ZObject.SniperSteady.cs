@@ -91,9 +91,8 @@ namespace OpenZ.Sim
             bool fired = SniperFiredSince(l, time);
             foreach (var m in l.Minions) if (!fired && m != null && !m.Destroyed && m.KillAt < 0) fired = SniperFiredSince(m, time);
             if (!fired) return false;
-            double reach = AttackRadius + ZWorld.SniperEdgeBand;
-            foreach (var o in World.Objects)
-                if (SniperStopsFor(o) && Dist(CenterX, CenterY, o.CenterX, o.CenterY) <= reach && CanSee(o)) return true;
+            foreach (var o in World.NearUnits(CenterX, CenterY, NbRangeReach() + ZWorld.SniperEdgeBand, World.Objects))   // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in reach, same order
+                if (SniperStopsFor(o) && Dist(CenterX, CenterY, o.CenterX, o.CenterY) <= RangeTo(o) + ZWorld.SniperEdgeBand && CanSee(o)) return true;
             return false;
         }
 
@@ -115,7 +114,7 @@ namespace OpenZ.Sim
         {
             if (!SniperSteady || t == null || ZWorld.SniperStandBand <= 0 || !IsMoving) return false;
             double rx = t.CenterX - CenterX, ry = t.CenterY - CenterY, d = Math.Sqrt(rx * rx + ry * ry);
-            if (d <= AttackRadius - ZWorld.SniperStandBand || d < 1) return false;
+            if (d <= RangeTo(t) - ZWorld.SniperStandBand || d < 1) return false;
             if (SniperComes(t)) return false;                                               // it comes nearer: it walks into the band by itself
             int ax = CenterX + (int)(rx / d * ZWorld.SniperStandBand), ay = CenterY + (int)(ry / d * ZWorld.SniperStandBand);
             var wc = World.Map.ClassAt(ax >> 4, ay >> 4);
@@ -152,12 +151,13 @@ namespace OpenZ.Sim
         ZObject SniperStopTarget(ZObject except, bool walking)
         {
             if (AttackObject != null && AttackObject != except && SniperStopsFor(AttackObject) && WithinAttackRadius(AttackObject)) return AttackObject;
-            ZObject best = null; double bd = double.MaxValue, deep = walking ? AttackRadius - ZWorld.SniperStandBand : AttackRadius;
-            foreach (var o in World.Objects)
+            ZObject best = null; double bd = double.MaxValue;
+            foreach (var o in World.NearUnits(CenterX, CenterY, NbRangeReach(), World.Objects))   // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in range, same order
             {
                 if (o == except || !SniperStopsFor(o)) continue;
                 double d = Dist(CenterX, CenterY, o.CenterX, o.CenterY);
-                if (d >= bd || d > AttackRadius || (d > deep && !SniperComes(o)) || !WithinAttackRadius(o)) continue;
+                int reach = RangeTo(o); double deep = walking ? reach - ZWorld.SniperStandBand : reach;
+                if (d >= bd || d > reach || (d > deep && !SniperComes(o)) || !WithinAttackRadius(o)) continue;
                 bd = d; best = o;
             }
             return best;

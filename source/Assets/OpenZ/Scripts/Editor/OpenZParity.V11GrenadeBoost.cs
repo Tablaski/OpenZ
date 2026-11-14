@@ -30,13 +30,15 @@ namespace OpenZ.EditorTools
             var s = ZSettings.Parse(SettingsText);
             int zd = (int)(s.grenade_damage * ZConst.MAX_UNIT_HEALTH), zr = s.grenade_damage_radius;
             int nd = (zd * ZWorld.GrenadeBoostDamagePct + 50) / 100, nr = (zr * ZWorld.GrenadeBoostRadiusPct + 50) / 100, na = (zd * ZWorld.GrenadeAreaDamagePct + 50) / 100;
+            int sd = ZWorld.GrenadeStronger(nd), sa = ZWorld.GrenadeStronger(na);                  // 1.3 item 32: DV160 takes both x ZWorld.GrenadeStrongerPct more (its own row: OpenZParity.V13GrenadeStronger.cs)
             list.Add(new Deviation
             {
                 id = "DV104", change = "A thrown grenade is judged by where it lands: blast radius x 1.2; a direct hit x 1.15, an area hit x 0.9",
                 zod = $"a thrown grenade takes grenade_damage x MAX_UNIT_HEALTH = {zd} HP at the centre of its blast, falling in a straight line to nothing at grenade_damage_radius = {zr} px " +
                       "(zsettings.cpp:269-272, zobject.cpp:2126-2157, zserver.cpp:1076-1098)",
                 openz = $"a grenade thrown by a robot of a squad or by a fort's roof defender reaches {nr} px ({ZWorld.GrenadeBoostRadiusPct} %); a target it lands ON (the blast point inside the target's own box) takes {nd} HP at the centre ({ZWorld.GrenadeBoostDamagePct} % of Zod's, rounded), " +
-                        $"a target only caught in the blast takes {na} HP at the centre ({ZWorld.GrenadeAreaDamagePct} %), both with Zod's straight-line fall-off to {nr} px: " +
+                        $"a target only caught in the blast takes {na} HP at the centre ({ZWorld.GrenadeAreaDamagePct} %), both with Zod's straight-line fall-off to {nr} px " +
+                        $"(since 1.3 DV160 takes both x {ZWorld.GrenadeStrongerPct} %: {sd} and {sa} HP): " +
                         "ZWorld.ThrownGrenadeDamage, ThrownGrenadeAreaDamage, ThrownGrenadeRadius, read where the grenade leaves the hand (Sim/ZObject.cs ProcessAttackDamage, Sim/ZObject.FortDefender.cs FdLob), and ZWorld.BlastHit in ProcessMissileDamage (Sim/ZWorld.GrenadeBoost.cs). " +
                         "Unchanged: the throw range, the +-24 px scatter, the 40 px/s flight, the time between throws, 20 a box, the straight-line fall-off, never the thrower's own side, and the step aside of the unit that is thrown at " +
                         $"(a vehicle that is free to move still leaves most blasts); the blasts of a destroyed grenade crate ({zd} HP, 40 px), of rocks and of every shell and rocket keep their numbers. " +

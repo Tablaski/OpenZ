@@ -75,7 +75,7 @@ namespace OpenZ
             if (!stats.TryGetValue(key, out var s)) stats[key] = s = new Stat();
             s.n++; s.sum += angle; s.max = Mathf.Max(s.max, angle);
             if (depth >= s.deepW) { s.deepW = depth; s.atDeep = angle; }
-            Live[id] = $"{who} {phase} {angle:F1} deg (depth {depth:F2})";
+            if (!AnticDirector.FlyoverQuietNotes) Live[id] = $"{who} {phase} {angle:F1} deg (depth {depth:F2})";   // k75c3: no note string a frame while a flyover's hold runs 100+ antics
         }
 
         sealed class Fit { public int n, capped; public float max; }

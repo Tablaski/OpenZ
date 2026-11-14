@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -182,3 +183,4 @@ namespace OpenZ
         void Finish() { System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "log.csv"), log.ToString()); Time.timeScale = oldScale; Status = $"done {n} frames"; if (rt) rt.Release(); Destroy(gameObject); }
     }
 }
+#endif

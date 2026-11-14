@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections;
 using UnityEngine;
 
@@ -45,3 +46,4 @@ namespace OpenZ
         }
     }
 }
+#endif

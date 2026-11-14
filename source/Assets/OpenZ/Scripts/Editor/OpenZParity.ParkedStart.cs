@@ -64,7 +64,7 @@ namespace OpenZ.EditorTools
             zod = "the radar has no gameplay effect in Zod (bradar.cpp; zplayer.cpp:1146-1188 only plays its sound); the minimap shows every unit",
             openz = "OpenZMinimap: enemy robots / vehicles / cannons are drawn only while an intact radar of the player's stands; own and neutral units, buildings, flags and zones always; the sim and the CPU are unchanged",
             measured = "view rule (no sim state); Play proof in MASTER_TODO NB41",
-            toggle = $"PlayerPrefs oz_radar_dots = {(getInt("oz_radar_dots", 1) == 1 ? "1 (on, default)" : "0 (off: every unit shown)")}",
+            toggle = $"PlayerPrefs oz_radar_dots = {(getInt("oz_radar_dots", 1) == 1 ? "1 (on, default)" : "0 (off: every unit shown)")}; the same switch turns DV172 off (enemy health bars without a radar)",
             status = getInt("oz_radar_dots", 1) == 1 ? DevActive : DevActive + " (off by pref)",
         };
 

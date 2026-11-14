@@ -54,7 +54,7 @@ namespace OpenZ.Sim
             {
                 b = Blocker(a, ox + hw, oy + hh, nx + hw, ny + hh);
                 if (b == null) { s.sideSince = -1; LaneEnter(a, ox, oy, nx, ny); return true; }
-                double bl = Math.Sqrt(b.Dx * b.Dx + b.Dy * b.Dy);
+                double bl = Math.Sqrt((float)((float)(b.Dx * b.Dx) + (float)(b.Dy * b.Dy)));
                 following = Moving(b) && !b.PathHeld && bl > 1e-6 && (b.Dx * hx + b.Dy * hy) > 0.5 * bl;
                 if (!following && GroupQueue(a, b, hx, hy)) following = true;                  // DV44: behind a unit of its own group order: queue
                 if (!following && MateQueue(a, b)) { if (NearGoalBlocked(a, b, out bool arrMate)) { if (arrMate) s.arrive = true; Hold(a, arrMate ? ZPathWait.Arrived : ZPathWait.Held, b); return false; } following = true; }   // DV44 (ZCommit.Follow.cs)
@@ -120,7 +120,7 @@ namespace OpenZ.Sim
                 if (dn2 >= do2 - 1e-9) continue;                                          // not getting closer: allowed
                 if (sl > 1e-9 && Moving(b))
                 {                                                                         // traffic that is not head-on (b's intended heading): right of way
-                    double bl = Math.Sqrt(b.Dx * b.Dx + b.Dy * b.Dy);
+                    double bl = Math.Sqrt((float)((float)(b.Dx * b.Dx) + (float)(b.Dy * b.Dy)));
                     if ((b.Dx * sx + b.Dy * sy) > -0.5 * bl * sl)
                     {                                                                     // ahead / behind along the pair's mean heading (a merge)
                         double mx = sx / sl + b.Dx / bl, my = sy / sl + b.Dy / bl, ml = Math.Sqrt(mx * mx + my * my);
@@ -144,7 +144,9 @@ namespace OpenZ.Sim
         {
             if (b.Owner != a.Owner) return false;
             if (a.PathMode == WpMode.ForceMove)
-            {                                                                              // leaving a factory: any spot just outside the door will do,
+            {
+                if (ZWorld.IsLavaWalk(a.Waypoints[0])) return a.Waypoints[0].refId == ZWorld.RefLavaIn && W.InLavaNow(a) && (a.PathTargetX - CX(a)) * (a.PathTargetX - CX(a)) + (a.PathTargetY - CY(a)) * (a.PathTargetY - CY(a)) <= 24 * 24;   // DV152: a walk in ends at a team-mate only in the lava (ZWorld.Lava.cs)
+                                                                                           // leaving a factory: any spot just outside the door will do,
                 double ex = a.PathTargetX - CX(a), ey = a.PathTargetY - CY(a);             // but not on top of its squad (it came out stacked)
                 return ex * ex + ey * ey <= 24 * 24 && ImpassCount(a, a.LocX, a.LocY) == 0 && !Overlapping(a);
             }
@@ -444,7 +446,7 @@ namespace OpenZ.Sim
                 foreach (var c in near)
                     if (c != a && c.Id < a.Id && Separable(c) && !PairExempt(a, c) && !OwnHull(a, c) && !PassesOwn(c, a) && Math.Abs(CX(c) - CX(a)) < 1.5 && Math.Abs(CY(c) - CY(a)) < 1.5) { b = c; break; }   // (vehicles first: a vehicle on the pixel of a robot of its team is never the one that is moved off it, ZYield.cs)
                 if (b == null) continue;
-                double vl = Math.Sqrt(a.Dx * a.Dx + a.Dy * a.Dy), hx = vl > 1e-6 ? a.Dx / vl : 0, hy = vl > 1e-6 ? a.Dy / vl : -1;
+                double vl = Math.Sqrt((float)((float)(a.Dx * a.Dx) + (float)(a.Dy * a.Dy))), hx = vl > 1e-6 ? a.Dx / vl : 0, hy = vl > 1e-6 ? a.Dy / vl : -1;
                 double r = GateSpacing(a, b) + 1;
                 int flip = ((a.MemberIndex + a.Id) & 1) == 0 ? 1 : -1;
                 bool done = false, walking = Walking(a);
@@ -509,7 +511,7 @@ namespace OpenZ.Sim
                 double fhx = 0, fhy = 0;                                                  // heading of a walking unit (0 = standing)
                 if (Walking(o))
                 {                                                                         // a walking unit is only ever pushed sideways: never faster
-                    double vl = Math.Sqrt(o.Dx * o.Dx + o.Dy * o.Dy), hx = o.Dx / vl, hy = o.Dy / vl, f = px * hx + py * hy;   // than Zod, never
+                    double vl = Math.Sqrt((float)((float)(o.Dx * o.Dx) + (float)(o.Dy * o.Dy))), hx = o.Dx / vl, hy = o.Dy / vl, f = px * hx + py * hy;   // than Zod, never
                     double full = Math.Sqrt(px * px + py * py);                           // held back (no push-back livelock with the gate)
                     px -= f * hx; py -= f * hy;
                     double lat = Math.Sqrt(px * px + py * py);
@@ -625,9 +627,9 @@ namespace OpenZ.Sim
         /// direction from the ids.</summary>
         static (double, double) CoincidentDir(ZObject a, ZObject b)
         {
-            double al = Math.Sqrt(a.Dx * a.Dx + a.Dy * a.Dy), bl = Math.Sqrt(b.Dx * b.Dx + b.Dy * b.Dy);
+            double al = Math.Sqrt((float)((float)(a.Dx * a.Dx) + (float)(a.Dy * a.Dy))), bl = Math.Sqrt((float)((float)(b.Dx * b.Dx) + (float)(b.Dy * b.Dy)));
             int sign = ((a.Id + b.Id) & 1) == 0 ? 1 : -1;
-            if (al > 1e-6 && bl > 1e-6 && (a.Dx * b.Dx + a.Dy * b.Dy) > 0.5 * al * bl)
+            if (al > 1e-6 && bl > 1e-6 && (float)((float)(a.Dx * b.Dx) + (float)(a.Dy * b.Dy)) > 0.5 * al * bl)
                 return (-a.Dy / al * sign, a.Dx / al * sign);
             double ang = ((a.Id * 7919 + b.Id * 104729) % 360) * Math.PI / 180;
             return (Math.Cos(ang), Math.Sin(ang));

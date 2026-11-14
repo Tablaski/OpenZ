@@ -23,7 +23,13 @@ namespace OpenZ
     public class DebrisAudit : MonoBehaviour
     {
         public static bool Guard = true;
+        /// <summary>v1.3: the guard's list of bodies comes from OzDebrisBodies (true) or from a search of the whole scene every 2 s (false,
+        /// the old way, the DEFAULT until check OpenZ/V1.3/Perf/2 E3 reads 0 missing / 0 extra on L02, L16 and L17 through an ending: a
+        /// body source the registry misses would no longer be woken when frozen in the air, a visible change).</summary>
+        public static bool UseRegistry = false;
         public static int Woken { get; private set; }
+        /// <summary>1.3 item 9: vehicle wreck pieces found at rest deep in the ground and lifted onto it (this session).</summary>
+        public static int Lifted { get; private set; }
         static DebrisAudit inst;
         readonly List<Rigidbody> bodies = new List<Rigidbody>();
         float nextScan, nextCheck; int cursor;
@@ -57,7 +63,7 @@ namespace OpenZ
 
         static bool Leaving(Rigidbody rb)
         {
-            if (PopOut.IsPopping(rb.transform)) return true;
+            if (PopOut.IsPopping(rb.transform) || OzLavaMelt.Busy(rb.transform)) return true;              // level 7, kit LV5: the melt holds it, no second splash
             var wp = rb.GetComponent<WreckPieces>(); if (wp && wp.Fading) return true;
             return rb.transform.lossyScale.sqrMagnitude < 0.01f;
         }
@@ -71,6 +77,14 @@ namespace OpenZ
             if (Time.time >= nextScan)
             {
                 nextScan = Time.time + 2f; bodies.Clear();
+                OzDebrisBodies.Prune();                                                                   // v1.3: gone bodies leave the registry on either path (it never grows over a session)
+                if (UseRegistry)
+                {   // v1.3 (item 25): the bodies the game made (View/OzLiveSet.cs OzDebrisBodies), not a search of the whole scene; a hidden
+                    // body is left out as the search left it out; the layer test is the old one
+                    foreach (var rb in OzDebrisBodies.All)
+                        if (rb && rb.gameObject.activeInHierarchy && (rb.gameObject.layer == layer || (rb.GetComponentInChildren<Collider>() is Collider c && c.gameObject.layer == layer))) bodies.Add(rb);
+                }
+                else
                 foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
                     if (rb && rb.gameObject.layer == layer || (rb && rb.GetComponentInChildren<Collider>() is Collider c && c.gameObject.layer == layer)) bodies.Add(rb);
             }
@@ -92,6 +106,7 @@ namespace OpenZ
                     rb.WakeUp(); Woken++;
                     OzWaterLanding.Watch(rb.transform, "debris", rb);                                   // b27: when it now falls into water it splashes and rests like any other piece
                 }
+                else if (WreckGroundRest.LiftPiece(rb, b, gy)) Lifted++;                                // 1.3 item 9: a vehicle wreck piece at rest deep in the ground comes up to lie on it (View/WreckGroundRest.cs)
             }
         }
 
@@ -119,7 +134,7 @@ namespace OpenZ
             string stamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
             sb.AppendLine($"# Debris audit {stamp} ({label})");
             sb.AppendLine();
-            sb.AppendLine($"{rows.Count} debris bodies alive; settle guard woke {Woken} frozen-in-the-air pieces this session.");
+            sb.AppendLine($"{rows.Count} debris bodies alive; settle guard woke {Woken} frozen-in-the-air pieces and lifted {Lifted} sunk wreck pieces this session.");
             sb.AppendLine();
             sb.AppendLine("| source | pieces | floating > 0.3 m | fully sunk | > 75 % buried | builtin cubes | distinct meshes | size spread (max/min height) |");
             sb.AppendLine("|---|---|---|---|---|---|---|---|");
@@ -140,7 +155,7 @@ namespace OpenZ
             sb.AppendLine();
             sb.AppendLine(bad.Count == 0 ? "No floating or sunk piece: PASS" : $"FAIL: {bad.Count} pieces");
             foreach (var s in bad) sb.AppendLine("- " + s);
-            string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../../../../work/records/qc"));
+            string dir = OzProofWords.Records("qc");
             try { Directory.CreateDirectory(dir); File.WriteAllText(Path.Combine(dir, $"debris_audit_{stamp}.md"), sb.ToString()); } catch { }
             Debug.Log($"[OpenZ] debris audit ({label}): {Path.Combine(dir, $"debris_audit_{stamp}.md")}\n{sb}");
         }

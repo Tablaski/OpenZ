@@ -20,7 +20,7 @@ namespace OpenZ
     /// At most 12; each is removed after ~2 min only when off screen with nothing resting in it.
     /// </summary>
     [DefaultExecutionOrder(104)]
-    public sealed class CraterField : MonoBehaviour
+    public sealed partial class CraterField : MonoBehaviour
     {
         public const string Pref = "oz_deformable_ground";
         public const string Label = "EXPERIMENTAL · DEFORMABLE GROUND";
@@ -200,6 +200,7 @@ namespace OpenZ
             }
             catch (System.Exception e) { failed = true; Debug.LogError("[OpenZ Craters] init failed, deformable ground off this match: " + e); return; }
             ready = true;
+            ZGame.GroundGridDirtyAll("deformable ground ready");                            // 1.4 perf_ground_grid: its chunks now carry the walk layer
             if (System.Array.Exists(FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None), r => System.Array.Exists(r.sharedMaterials, m => m && m.shader && m.shader.name == LayeredGround)))   // K264: by the ground's own shader, not the map kind
             {   // the layered ground is laid on by world position on every terrain mesh (ground, stream beds, rock walls, apron):
                 // each of them is cut under a crater, so no neighbouring mesh shows through a bowl at a border
@@ -599,7 +600,7 @@ namespace OpenZ
         // ------------------------------------------------------------------------------------------------ placement
         public static void OnBlast(Vector3 at, float s, FxBlastKind kind)
         {
-            if (!Enabled) return;
+            if (!Enabled || OzUeHooks.NoGroundDressing) return;                                     // 1.2 item 6: not on the Unit editor's code-drawn floor (its patches are the levels' ground)
             var f = Ensure();
             if (!f.ready) return;
             if (kind == FxBlastKind.Nuke || kind == FxBlastKind.Crate || kind == FxBlastKind.Debris || kind == FxBlastKind.Grenade) return;
@@ -762,6 +763,7 @@ namespace OpenZ
                 }
             }
             craters.Add(c); spawned++;
+            GridHold(c);                                                                       // 1.4 perf_ground_grid: GroundY casts its ray here until the crater is gone (View/CraterField.GroundGrid.cs)
             Seat(c);
             Mirror(); PushGlobals();
             foreach (var ch in c.chunks) ScheduleChunk(ch);
@@ -926,6 +928,7 @@ namespace OpenZ
         {
             if (c.dead) return;
             c.dead = true;
+            GridRelease(c);                                                                    // 1.4 perf_ground_grid: its ground is baked again once settled
             foreach (var ch in c.chunks) ch.craters.Remove(c);
             if (c.col) craterCols.Remove(c.col);
             ScorchDecals.ClearIn(c.c, c.v.R);

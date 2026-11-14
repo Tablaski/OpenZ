@@ -20,17 +20,31 @@ namespace OpenZ
         static Thread worker;
         int level, lastLogged = -100;   // 0 normal, 1 warm, 2 hot
         float baseScale = 1f;
+        /// <summary>v1.3 (item 25 g): where the temperature comes from: "driver" (read inside the game from the graphics driver's own
+        /// library, no program started), "nvidia-smi" (the old way, a small program started every 2 s), or "" (none yet / off).</summary>
+        public static volatile string Source = "";
+        static bool windows;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
             if (Application.isEditor || FindFirstObjectByType<HeatGuardRuntime>()) return;
             var go = new GameObject("HeatGuard"); DontDestroyOnLoad(go); go.AddComponent<HeatGuardRuntime>();
+            windows = Application.platform == RuntimePlatform.WindowsPlayer;
             worker = new Thread(Poll) { IsBackground = true, Name = "OpenZ heat guard" }; worker.Start();
         }
 
         static void Poll()
         {
+            // v1.3: the same reading (GPU 0, the core sensor, whole degrees) every 2 s, taken from the driver's library inside the game
+            // instead of starting nvidia-smi each time; when the library cannot be used, the old way below runs exactly as before
+            if (windows && OzNvml.Open())
+            {
+                Source = "driver";
+                while (OzNvml.Read(out int t)) { temp = t; Thread.Sleep(2000); }
+                OzNvml.Close();
+            }
+            Source = "nvidia-smi";
             while (true)
             {
                 try
@@ -62,7 +76,7 @@ namespace OpenZ
                 if (t / 5 != lastLogged / 5) { lastLogged = t; Debug.Log($"[OpenZ] heat guard (take, log only): GPU {t} C"); }
                 int w2 = t >= 88 ? 1 : t < 84 ? 0 : level;
                 if (w2 == level) return;
-                level = w2; HeldFps = level == 1 ? 45 : 0; Application.targetFrameRate = level == 1 ? Mathf.Min(45, GameBoot.CapFps) : GameBoot.CapFps;
+                level = w2; HeldFps = level == 1 ? 45 : 0; OzFpsCap.ApplyLimit(HeldFps);
                 Debug.Log($"[OpenZ] heat guard (take): GPU {t} C -> {(level == 1 ? "45 fps" : "60 fps")}");
                 return;
             }
@@ -71,8 +85,8 @@ namespace OpenZ
             if (want == level) return;
             level = want;
             HeldFps = level == 2 ? 30 : 0;
-            Application.targetFrameRate = level == 2 ? 30 : GameBoot.CapFps;
-            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(level == 2 ? "EMERGENCY 30 fps" : GameBoot.CapFps + " fps")} (render scale stays {baseScale})");
+            OzFpsCap.ApplyLimit(HeldFps);                                                      // 1.3 item 5: the same 30 on UNLIMITED (VSYNC) (vsync off while it holds), the player's own limit (or vsync) back below 85 C
+            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(level == 2 ? "EMERGENCY 30 fps" : GameBoot.CapFps > 0 ? GameBoot.CapFps + " fps" : OzFpsCap.Vsync ? "UNLIMITED (VSYNC) again" : "no limit")} (render scale stays {baseScale})");
         }
 
         void OnApplicationQuit()

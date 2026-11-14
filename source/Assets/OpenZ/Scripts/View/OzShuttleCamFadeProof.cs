@@ -18,7 +18,8 @@ namespace OpenZ
     ///  F2 the fade ON, the flight back: every frame with a cut or the eye inside is fully cut (the fade's value and every hull part's block
     ///     1.00); it eased in and out (no pop); after it everything is back (cut 0, blocks 0, nothing hidden). Pictures k440_f3_on_dither,
     ///     k440_f4_on_gone, k440_f5_on_after (a moment after the pass the held camera turns round to the ship flying on).
-    ///  Z the closest zoom (25 m, following the ship as a player does): the ship drawn as always (cut 0 every frame); k440_z1_25m_follow.
+    ///  Z the closest zoom (RtsCamera.ZoomClosest: 35 m since version 1.2, 25 m when this was built; following the ship as a player
+    ///    does): the ship drawn as always (cut 0 every frame); k440_z1_closest_follow.
     ///  H the standard 70 m view: k440_h70.
     /// Output: <see cref="Folder"/> (the work tree's records, milestones/shuttle_camera_no_clip_k440, found upward at run time). Test only.
     /// </summary>
@@ -169,7 +170,7 @@ namespace OpenZ
             {
                 yield return new WaitForEndOfFrame();
                 zFrames++; zMax = Mathf.Max(zMax, OzShuttleCamFade.CutOf(ship.transform));
-                if (!zShot && s.ShuttleState == ZShuttleState.Cruise && s.ShuttleLift >= 0.999) { zShot = true; Shot("k440_z1_25m_follow"); }
+                if (!zShot && s.ShuttleState == ZShuttleState.Cruise && s.ShuttleLift >= 0.999) { zShot = true; Shot("k440_z1_closest_follow"); }
             }
             if (rts) rts.follow = null;
             yield return WaitFor(Landed, 40f);

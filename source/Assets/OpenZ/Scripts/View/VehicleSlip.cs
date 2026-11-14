@@ -56,6 +56,7 @@ namespace OpenZ
             {
                 case "jeep": return new Chassis { type = type, pivot = false, rate = 380f, slipMax = 5f, look = 3.2f, stand = 0.5f, lmax = 1.6f, rmin = 0.8f, tau = 0.05f, accel = 2400f };
                 case "light": return new Chassis { type = type, pivot = true, rate = 150f, slipMax = 7f, look = 3.2f, stand = 0.35f, lmax = 1.5f, rmin = 0f, tau = 0.06f, accel = 1400f };
+                case OzMediumTank.Type: return new Chassis { type = type, pivot = true, rate = 130f, slipMax = 6.5f, look = 3.3f, stand = 0.35f, lmax = 1.6f, rmin = 0f, tau = 0.07f, accel = 1150f };   // DV145: the medium tank, between the light tank and the heavy
                 case "medium": return new Chassis { type = type, pivot = true, rate = 140f, slipMax = 9f, look = 3.2f, stand = 0.35f, lmax = 1.5f, rmin = 0f, tau = 0.07f, accel = 1200f };   // the mech walks: a little more side step
                 case "heavy": return new Chassis { type = type, pivot = true, rate = 110f, slipMax = 6f, look = 3.4f, stand = 0.35f, lmax = 1.7f, rmin = 0f, tau = 0.08f, accel = 900f };
                 case "missile_launcher": return new Chassis { type = type, pivot = true, rate = 120f, slipMax = 6f, look = 3.4f, stand = 0.35f, lmax = 1.7f, rmin = 0f, tau = 0.08f, accel = 1000f };

@@ -128,6 +128,7 @@ namespace OpenZ
         /// mark on a bridge (the fx import found the same, OpenZFxPlayer.WetAt).</summary>
         static bool IsWater(float x, float z, float h)
         {
+            if (OzLava.SurfaceAt(new Vector3(x, 0f, z), out float lavaY) && h < lavaY + 0.1f) return true;   // 1.3 level 7: no mark on lava
             var g = ZGame.I; if (g == null || g.World == null) return false;
             var p = ZGame.WorldToPx(new Vector3(x, 0, z));
             var c = g.World.Map.ClassAt(p.x >> 4, p.y >> 4);
@@ -256,6 +257,25 @@ namespace OpenZ
             return n;
         }
         public static int DeckCleared;
+
+        /// <summary>1.3, the Unit editor's ramp platforms (View/OzUePlatformView.cs, nothing else calls it): a platform left the field: every mark whose drawn
+        /// square reaches the world rect [min, max] (x / z) goes at once, on any ground: ClearDeck is for water tiles only, and a mark laid on the ground
+        /// beside the ramp's foot climbs the slope. Returns the marks cleared.</summary>
+        public static int ClearOver(Vector3 min, Vector3 max)
+        {
+            if (!I) return 0;
+            float x0 = Mathf.Min(min.x, max.x), x1 = Mathf.Max(min.x, max.x), z0 = Mathf.Min(min.z, max.z), z1 = Mathf.Max(min.z, max.z); int k = 0;
+            for (int i = I.marks.Count - 1; i >= 0; i--)
+            {
+                var m = I.marks[i]; float r = m.radius * 1.6f;                                 // Build: half = radius x 1.3, stretched up to x 1.22
+                if (m.at.x + r < x0 || m.at.x - r > x1 || m.at.z + r < z0 || m.at.z - r > z1) continue;
+                I.Recycle(i); k++;
+            }
+            OverCleared += k;
+            return k;
+        }
+        /// <summary>Checks: marks taken with a platform.</summary>
+        public static int OverCleared;
 
         /// <summary>scorchOpacity + a .15 s fade-in under the fireball.</summary>
         static float Opacity(Mark m, float now)

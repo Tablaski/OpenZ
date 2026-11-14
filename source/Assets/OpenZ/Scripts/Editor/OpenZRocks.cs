@@ -57,7 +57,7 @@ namespace OpenZ.EditorTools
         }
 
         /// <summary>One shared vertex-colour TeamLit material per biome (README settings; desert graded to the L02 sandstone).</summary>
-        static Material Mat(string biome)
+        internal static Material Mat(string biome)
         {
             string p = $"{Dst}/M_RockZ_{biome}.mat";
             var m = AssetDatabase.LoadAssetAtPath<Material>(p);
@@ -76,6 +76,12 @@ namespace OpenZ.EditorTools
             m.SetColor("_DarkColor", Color.black); m.SetFloat("_DarkThreshold", 0.12f);
             // rocks_v2: the atlas is the approved cliffs v3 strata / sand, so no extra grade (matches M_CliffV3_Rock_L02 / L17)
             m.SetFloat("_SatScale", 1f); m.SetFloat("_ValScale", 1f); m.SetFloat("_HueShift", 0f);
+            if (biome == "Volcanic")
+            {   // BUDGETS.md section 5: smooth shading stays (no flat shade), the seams glow from the emission map, day and night
+                m.SetFloat("_FlatShade", 0);
+                var emis = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Dst}/rockz2_emis_Volcanic.png");
+                if (emis) { m.SetTexture("_EmissionMap", emis); m.SetColor("_EmissionMapColor", new Color(2.2f, 1.0f, 0.3f)); m.SetFloat("_EmissionNight", 0f); }
+            }
             m.enableInstancing = true;
             EditorUtility.SetDirty(m);
             return m;
@@ -84,11 +90,18 @@ namespace OpenZ.EditorTools
         static Mesh MeshOf(string name) => AssetDatabase.LoadAllAssetsAtPath($"{Dst}/{name}.fbx").OfType<Mesh>().FirstOrDefault();
 
         [MenuItem("OpenZ/Rocks: Rebuild rocks in open level")]
+        public static string RebuildOpenLevelMenu()
+        {
+            var s = RebuildOpenLevel();                                                // level 7: tint and heights come after the rebuild, as in its menu 3
+            if (EditorSceneManager.GetActiveScene().name.StartsWith(OzVolcanic.Level)) { OzL07Scene.RockTint(); s += OzL07Scene.RockHeights(); }
+            return s;
+        }
+
         public static string RebuildOpenLevel()
         {
             var scene = EditorSceneManager.GetActiveScene();
-            string lv = scene.name.StartsWith("L17") ? "L17" : "L02";
-            string biome = lv == "L17" ? "City" : "Desert";
+            string lv = scene.name.StartsWith("L17") ? "L17" : scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
+            string biome = lv == "L17" ? "City" : OzVolcanic.Is(lv) ? "Volcanic" : "Desert";
             var mat = Mat(biome);
             var pillars = "ABCD".Select(c => MeshOf($"RockZ_{biome}_Pillar_{c}")).ToArray();
             var dmg = MeshOf($"RockZ_{biome}_Damaged"); var rub = MeshOf($"RockZ_{biome}_Rubble");
@@ -110,7 +123,7 @@ namespace OpenZ.EditorTools
             {
                 if (o.Source == null || !byName.TryGetValue($"rock_{o.Source.x}_{o.Source.y}", out var t)) continue;
                 int tx = o.LocX / 16, ty = o.LocY / 16 + 2;                               // the bottom (blocking) tile
-                var rng = new System.Random(tx * 7919 + ty * 104729 + (lv == "L17" ? 17 : 2));
+                var rng = new System.Random(tx * 7919 + ty * 104729 + (lv == "L17" ? 17 : OzVolcanic.Is(lv) ? 7 : 2));
                 var avoid = new HashSet<int>();
                 if (placed.TryGetValue((tx - 1, ty), out var l)) avoid.Add(l);
                 if (placed.TryGetValue((tx, ty - 1), out var u)) avoid.Add(u);
@@ -131,7 +144,7 @@ namespace OpenZ.EditorTools
                 var rp = t.gameObject.AddComponent<RockPillar>();
                 rp.pillar = Part(t, "Pillar", pillars[variant], mat, yaw, sx, s, sz, true);
                 rp.damaged = Part(t, "Damaged", dmg, mat, yaw, sx, s, sz, false);
-                rp.rubble = Part(t, "Rubble", rub, mat, yaw, sx, s, sz, false);
+                rp.rubble = OzVolcanic.Is(lv) ? null : Part(t, "Rubble", rub, mat, yaw, sx, s, sz, false);   // level 7: 877 rocks, the rubble is never drawn (BUDGETS.md finding 2)
                 rp.chunks = chunks; rp.chunkMaterial = mat;
                 count++;
             }

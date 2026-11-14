@@ -18,7 +18,7 @@ namespace OpenZ.EditorTools
     ///  * 225 Hero Shot Takes (Edit or Play): the clips of the one folder (OzHeroShotSound.Folder), each 0.15 .. 4 s; in Play also what
     ///    OzHeroShotSound loaded and how many hero shots played / fell back to the grunt's bolts.
     ///  * 226 Testing Overlay Ghost Paths (Play, a level, open ground in the middle of the view, the Game view in front): ten paths of
-    ///    the P overlay's dragged icon through a virtual mouse of its own and the keyboard's P / Esc; after each path no icon may remain.
+    ///    the testing overlay's dragged icon through a virtual mouse of its own and the keyboard's Alt+P (1.3 item 28) / Esc; after each path no icon may remain.
     ///  * 228 Dead Robot Fade Timeline (Play, a level): stages a red and a blue grunt squad near the view, kills one robot of each
     ///    through the sim's own death path, samples the dead level of the body (TeamPaint.DeadLevel) and of the thrown pieces (_OZDead)
     ///    at +0.1 .. +3.5 s, and takes two pictures (death +0 and +3 s) beside the live squad mates.
@@ -125,15 +125,20 @@ namespace OpenZ.EditorTools
                 InputSystem.QueueStateEvent(kb, new KeyboardState(k)); yield return Frames(2);
                 InputSystem.QueueStateEvent(kb, new KeyboardState()); yield return Frames(2);
             }
+            IEnumerator AltP()                                                                           // 1.3 item 28: the overlay is Alt+P
+            {
+                InputSystem.QueueStateEvent(kb, new KeyboardState(Key.LeftAlt, Key.P)); yield return Frames(2);
+                InputSystem.QueueStateEvent(kb, new KeyboardState()); yield return Frames(2);
+            }
             Vector2 Centre(RectTransform rt) => RectTransformUtility.WorldToScreenPoint(null, rt.TransformPoint(rt.rect.center));
             Vector2 mapDrop = new Vector2(Screen.width * 0.5f, Screen.height * 0.55f);
             try
             {
-                if (OzCheatSpawner.Visible) yield return KeyTap(Key.P);
+                if (OzCheatSpawner.Visible) yield return AltP();
                 MouseAt(vm, mapDrop, false); yield return Frames(2);
-                // 1: P shows the overlay with no icon on the screen (before the kit a blank 60 px ghost sat at the canvas corner on the first show)
-                yield return KeyTap(Key.P);
-                Check(OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible, $"1 P shows the overlay, no icon on the screen (shown {OzCheatSpawner.Visible}, icon {OzCheatSpawner.GhostVisible})");
+                // 1: Alt+P shows the overlay with no icon on the screen (before the kit a blank 60 px ghost sat at the canvas corner on the first show)
+                yield return AltP();
+                Check(OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible, $"1 ALT+P shows the overlay, no icon on the screen (shown {OzCheatSpawner.Visible}, icon {OzCheatSpawner.GhostVisible})");
                 var tile = hud.Root.Find("CheatRed/Cell_tough") as RectTransform; var panel = hud.Root.Find("CheatBlue") as RectTransform;
                 if (!tile || !panel) Check(false, "the overlay's tile CheatRed/Cell_tough or the panel CheatBlue was not found under the HUD root");
                 else
@@ -149,9 +154,9 @@ namespace OpenZ.EditorTools
                     yield return DragTo(mapDrop); bool during = OzCheatSpawner.GhostVisible; MouseAt(vm, mapDrop, false); yield return Frames(3);
                     int made = game.World.Objects.Count - n0;
                     Check(during && !OzCheatSpawner.GhostVisible && made > 0, $"2 drag to the map and drop: the icon followed the drag ({during}), spawned +{made}, no icon left ({!OzCheatSpawner.GhostVisible})");
-                    // 3: P off then P on after a drop: the owner's stuck icon
-                    yield return KeyTap(Key.P); bool hidClean = !OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible; yield return KeyTap(Key.P);
-                    Check(hidClean && OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible, $"3 P off then P on after a drop: no icon comes back (hidden clean {hidClean}, shown again {OzCheatSpawner.Visible}, icon {OzCheatSpawner.GhostVisible})");
+                    // 3: Alt+P off then Alt+P on after a drop: the owner's stuck icon
+                    yield return AltP(); bool hidClean = !OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible; yield return AltP();
+                    Check(hidClean && OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible, $"3 ALT+P off then ALT+P on after a drop: no icon comes back (hidden clean {hidClean}, shown again {OzCheatSpawner.Visible}, icon {OzCheatSpawner.GhostVisible})");
                     // 4: drop back on a panel
                     n0 = game.World.Objects.Count; var pc = Centre(panel);
                     yield return DragTo(pc); MouseAt(vm, pc, false); yield return Frames(3);
@@ -162,10 +167,10 @@ namespace OpenZ.EditorTools
                     // 6: right click mid-drag
                     yield return DragTo(mapDrop); MouseAt(vm, mapDrop, true, true); yield return Frames(2); MouseAt(vm, mapDrop, false); yield return Frames(2);
                     Check(!OzCheatSpawner.GhostVisible && game.World.Objects.Count == n0, $"6 right click mid-drag: cancelled, no icon left ({!OzCheatSpawner.GhostVisible}), nothing spawned (+{game.World.Objects.Count - n0})");
-                    // 7: P mid-drag hides the overlay, P shows it again
-                    yield return DragTo(mapDrop); yield return KeyTap(Key.P); bool gone = !OzCheatSpawner.GhostVisible && !OzCheatSpawner.Visible;
-                    MouseAt(vm, mapDrop, false); yield return Frames(2); yield return KeyTap(Key.P);
-                    Check(gone && OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible && game.World.Objects.Count == n0, $"7 P mid-drag then P again: the icon went with the overlay ({gone}), none when it shows again ({!OzCheatSpawner.GhostVisible}), nothing spawned");
+                    // 7: Alt+P mid-drag hides the overlay, Alt+P shows it again
+                    yield return DragTo(mapDrop); yield return AltP(); bool gone = !OzCheatSpawner.GhostVisible && !OzCheatSpawner.Visible;
+                    MouseAt(vm, mapDrop, false); yield return Frames(2); yield return AltP();
+                    Check(gone && OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible && game.World.Objects.Count == n0, $"7 ALT+P mid-drag then ALT+P again: the icon went with the overlay ({gone}), none when it shows again ({!OzCheatSpawner.GhostVisible}), nothing spawned");
                     // 8: the window loses focus mid-drag (the component's own focus message, called directly)
                     yield return DragTo(mapDrop); OzCheatSpawner.I.CancelDrag(); yield return Frames(1); MouseAt(vm, mapDrop, false); yield return Frames(2);
                     Check(!OzCheatSpawner.GhostVisible && game.World.Objects.Count == n0, $"8 focus lost mid-drag: no icon left ({!OzCheatSpawner.GhostVisible}), nothing spawned (+{game.World.Objects.Count - n0})");
@@ -181,7 +186,7 @@ namespace OpenZ.EditorTools
                     yield return DragTo(drop2); MouseAt(vm, drop2, false); yield return Frames(3);
                     Check(!OzCheatSpawner.GhostVisible && game.World.Objects.Count > n0, $"10 two drags back to back: spawned +{game.World.Objects.Count - n0}, no icon left ({!OzCheatSpawner.GhostVisible})");
                 }
-                if (OzCheatSpawner.Visible) yield return KeyTap(Key.P);
+                if (OzCheatSpawner.Visible) yield return AltP();
                 Check(!OzCheatSpawner.Visible && !OzCheatSpawner.GhostVisible, "11 the overlay hidden at the end, no icon on the screen");
             }
             finally

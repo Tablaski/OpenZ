@@ -49,8 +49,11 @@ namespace OpenZ.Sim
             foreach (var o in Objects)
             {
                 if (o.Owner != team || !o.IsMobile || o.IsMinion || o.Destroyed || o.KillAt >= 0 || o.MoveSpeed <= 0) continue;
+                if (o.IsShuttle && CpuShuttleDeviation) continue;                               // DV138: a computer's shuttle is flown by its own plan only (Sim/ZBot.CpuShuttle.cs)
                 if (o.Waypoints.Count > 0 || o.AttackObject != null || o.HoldPosition || o.Patrolling || o.IsFortDefender) continue;
                 if (o.StrikeHeld) continue;                                                     // DV107: a member of a strike group is not forgotten, it waits for its group
+                if (o.CpuRepairHeld) continue;                                                  // DV137: a vehicle on its repair trip is not forgotten, it comes back (ZBot.CpuRepair.cs)
+                if (o.CpuDefendHeld) continue;                                                  // DV136: a guard of the frontier is not forgotten, it stands guard (ZBot.CpuDefend.cs)
                 if (!stillSince.TryGetValue(o.Id, out var a) || Time - a.t < IdleSweepStillSec * IdleSweepSlow(team)) continue;   // K434: 117 s on Easy
                 bool nearHome = false;
                 foreach (var b in Objects)

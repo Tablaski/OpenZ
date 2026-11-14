@@ -89,6 +89,7 @@ namespace OpenZ
             {
                 case "light": return G(1.65f);
                 case "medium": return G(1.55f);
+                case ZMTank.Type: return G(1.5f);                                            // DV145: the medium tank: the light tank's gun on a heavier hull
                 case "heavy": return G(1.25f);
                 case "jeep": return G(1.35f);
                 case "apc": return G(1.3f);
@@ -104,6 +105,7 @@ namespace OpenZ
             {
                 case "light": return G(1.6f);
                 case "medium": return G(1.5f);
+                case ZMTank.Type: return G(1.45f);                                           // DV145: the medium tank
                 case "heavy": return G(1.15f);
                 case "jeep": return G(1.35f);
                 case "apc": return G(1.3f);

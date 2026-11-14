@@ -3,7 +3,9 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
-    /// FREE CAMERA (Options, GAME tab, under EDGE SCROLL; both the main menu and the pause menu). OFF by default.
+    /// 1.4: this row is MIDDLE MOUSE now (UI/OzCamControls.cs): TURN VIEW = this switch on, DRAG MAP = off, DRAG MAP, ALT TURNS VIEW = on with oz_middle_alt 1
+    /// (the middle button moves the map, with Alt it turns). The saved switch carries over. The lines below describe the switch itself.
+    /// FREE CAMERA (Options, GAME tab, under EDGE SCROLL; both the main menu and the pause menu). ON by default; a player who saved it OFF keeps OFF.
     /// ON: the camera behaves exactly as with the testing overlay (P) open: holding the middle mouse button turns (mouse left / right)
     /// and tilts (mouse up / down) the view round the point it looks at, instead of dragging the map; released, the view stays; the
     /// minimap's view box turns with it; keys, the screen edge, the wheel, fly-tos and clicks follow the turned view (RtsCamera's free
@@ -14,14 +16,14 @@ namespace OpenZ
     public static class OzFreeCam
     {
         public const string PrefKey = "oz_free_camera";
-        public const string Label = "FREE CAMERA";
-        public const string Tip = "FREE CAMERA|Off (default): the middle mouse button drags the map. On: hold the middle mouse button and move the mouse to turn and tilt the view; the minimap's view box turns with it. Switch it off to go back to the fixed view.|";
+        public const string Label = "MIDDLE MOUSE";                                                // 1.4: was FREE CAMERA (UI/OzCamControls.cs)
+        public const string Tip = "MIDDLE MOUSE|What the middle mouse button does when you hold it and move the mouse. TURN VIEW (default): it turns and tilts the view, which stays turned; the minimap's view box turns with it. DRAG MAP: it moves the map and the view stays fixed, north up. DRAG MAP, ALT TURNS VIEW: it moves the map; with Alt held it turns and tilts the view.|";
 
         static int on = -1;
         /// <summary>The player's switch (read once, then kept here; saved at once when set).</summary>
         public static bool On
         {
-            get { if (on < 0) on = PlayerPrefs.GetInt(PrefKey, 0) == 1 ? 1 : 0; return on == 1; }
+            get { if (on < 0) on = PlayerPrefs.GetInt(PrefKey, 1) == 1 ? 1 : 0; return on == 1; }
             set
             {
                 on = value ? 1 : 0; PlayerPrefs.SetInt(PrefKey, on); PlayerPrefs.Save();
@@ -31,9 +33,9 @@ namespace OpenZ
 
         // ---- the CONTROLS tables (OzControlsTable): the row that names the middle mouse button reads differently while this is on
         /// <summary>The main menu's CONTROLS table: the camera row, as built (off) and while the free camera is on.</summary>
-        public const string FullRowOff = "Zoom · middle drag flies the view", FullRowOn = "Zoom · free camera: middle drag turns and tilts";
+        public const string FullRowOff = "Zoom · middle drag flies the view", FullRowOn = "Zoom · middle drag turns and tilts the view";   // 1.4: TURN VIEW in plain words
         /// <summary>The pause menu's and the help overlay's short table: the scroll row, as built (off) and while the free camera is on.</summary>
-        public const string CompactRowOff = "Scroll (arrows too) · wheel zooms", CompactRowOn = "Scroll · zoom · free camera: middle drag";
+        public const string CompactRowOff = "Scroll (arrows too) · wheel zooms", CompactRowOn = "Scroll · zoom · middle drag turns the view";   // 1.4: TURN VIEW in plain words
 
         /// <summary>OzControlsTable hook: a row label of the camera row gets a small live text switch; every other row is left as it is.
         /// Returns the label.</summary>
@@ -41,7 +43,7 @@ namespace OpenZ
         {
             if (label == null || label.rectTransform == null) return label;
             string onText = text == FullRowOff ? FullRowOn : text == CompactRowOff ? CompactRowOn : null;
-            if (onText == null) return label;
+            if (onText == null) return OzRightDragRowText.Hook(label, text);                                // 1.4: an orders row names RIGHT-DRAG SCROLL while it is on (UI/OzRightDragRowText.cs); every other row as built
             var sw = label.rectTransform.gameObject.AddComponent<OzFreeCamRowText>();
             sw.Init(label, text, onText);
             return label;

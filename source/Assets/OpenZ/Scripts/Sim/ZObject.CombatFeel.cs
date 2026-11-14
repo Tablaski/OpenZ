@@ -62,12 +62,12 @@ namespace OpenZ.Sim
         public int KnockCount { get; private set; }
         public int KnockRolls { get; private set; }
         public int KnockSkips { get; private set; }
-        static readonly HashSet<string> KnockHeavy = new HashSet<string> { "tough", "light", "medium", "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };
+        static readonly HashSet<string> KnockHeavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
 
         /// <summary></summary>
         void KnockOnBlast(ZObject o, ZMissile m, float ratio)
         {
-            if (!KnockHoldDeviation || o.Kind != ZKind.Robot || o.Destroyed || o.KillAt >= 0 || o.Health <= 0 || o.IsFortDefender) return;
+            if (!KnockHoldDeviation || o.Kind != ZKind.Robot || o.Destroyed || o.KillAt >= 0 || o.Health <= 0 || o.IsFortDefender || o.IsEvilZod) return;
             if (m.debris || m.grenade) return;
             if (!(ratio < KnockDirectFrac || (m.targetId == o.Id && ratio < KnockTargetFrac))) return;
             var a = GetAny(m.attackerId);

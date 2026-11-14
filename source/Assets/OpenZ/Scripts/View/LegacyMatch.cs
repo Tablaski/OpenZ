@@ -39,6 +39,9 @@ namespace OpenZ
         public struct BlastSpec
         {
             public string label; public FxBlastKind kind; public float s, legRadius, wreck;
+            /// <summary>1.3 item 32: the whole blast drawn this many times as large around its point (0 or 1 = as the table). Only a
+            /// thrown grenade sets it (OzGrenadeBlast.For); only DoBlast passes it on (OpenZFxPlayer.BlastSized).</summary>
+            public float drawK;
             public string key; public float gain, pitch; public string[] clips;
         }
         static BlastSpec B(string label, FxBlastKind kind, float s, float legRadius, string key, string[] clips, float gain, float pitch = 1f, float wreck = 0f) =>
@@ -85,7 +88,7 @@ namespace OpenZ
         public static int TurretLandBlasts, TurretLandSplashes;
         public static readonly BlastSpec DeathCrate = B("grenade / ammo crate", FxBlastKind.Crate, 0.65f, 2.6f, "explosion", BankExplosion, GainExplosion * 0.7f, 1.12f);
 
-        static string TypeOf(ZObject a) => a == null ? "" : a.IsFort ? "howitzer" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type;   // DV7: the fort gun fires howitzer shells
+        static string TypeOf(ZObject a) => a == null ? "" : a.IsFort ? "howitzer" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : OzMediumTank.Gun(a.Type);   // DV7: the fort gun fires howitzer shells; DV145: the medium tank's shell lands as the light tank's
 
         public static BlastSpec ForMissile(ZObject attacker, bool grenade, bool debris, int radiusPx)
         {
@@ -121,7 +124,7 @@ namespace OpenZ
                 case "jeep": return DeathJeep;
                 case "apc": return DeathApc;
                 case "crane": return DeathCrane;
-                case "light": return DeathLight;
+                case "light": case ZMTank.Type: return DeathLight;   // DV145: the medium tank dies as the light tank
                 case "missile_launcher": return DeathMlrs;
                 case "medium": return DeathMedium;
                 case "heavy": return DeathHeavy;
@@ -145,7 +148,7 @@ namespace OpenZ
         public static void DoBlast(Vector3 at, BlastSpec d, int id, FxManager fx)
         {
             float legacy = d.s / OpenZFxCatalog.LegacyToM12;
-            if (Live(out var z)) { FxManager.RaiseExploded(at, legacy); z.BlastSized(at, d.s, d.legRadius, d.kind, id); }
+            if (Live(out var z)) { FxManager.RaiseExploded(at, legacy); z.BlastSized(at, d.s, d.legRadius, d.kind, id, d.drawK); }   // 1.3 item 32: drawK
             else fx?.Explosion(at, legacy);
         }
 
@@ -286,9 +289,9 @@ namespace OpenZ
             var w = ShotWeapon(type);
             if (Live(out var z))
             {
-                float mps = ShotSpeed(ZGame.I ? ZGame.I.gameSpeed : 1f), fl = z.Shot(from, to, w, SurfaceOf(target, e.flag), mps);
+                float mps = ShotSpeed(ZGame.I ? ZGame.I.gameSpeed : 1f), fl = z.Shot(from, to, w, SurfaceOf(target, e.flag), mps, target);
                 if (target != null && target.Destroyed) BlastWave.NoteDrawn(e.objId, target, fl);
-                OzSoundV3.ShotLanded(target, e.flag, to, fl);                                          // sound_v3: bullets on buildings            // H0 round 3: a killing round (GP3 proof)
+                OzSoundV3.ShotLanded(target, e.flag && !ShotLine.LastStopped, to, fl);                                          // sound_v3: bullets on buildings            // H0 round 3: a killing round (GP3 proof)
                 var run = WeaponsV2Runner.I; if (run) run.NoteMps(type + " round", mps);                     // H0 round 3: the speed it was drawn at (GP3)
             }
             else fx?.Bullet(from, to);
@@ -333,7 +336,7 @@ namespace OpenZ
             Launched?.Invoke(a, type, delay);
             var w = MissileWeapon(a, type);
             if (type == "howitzer" && OpenZHeavyShells.Launch(from, to, delay, a != null && a.IsFort)) return;   // nuke_fx_v3: big glowing shell, same arc + flight time
-            if (Live(out var z)) { z.Launch(from, to, delay, w, Eased(type)); return; }
+            if (Live(out var z)) { z.Launch(from, to, delay, w, Eased(type), type == "howitzer"); return; }
             if (!fx) return;
             bool rocket = IsRocket(w);
             fx.LaunchFlash(from, to - from, rocket ? 0.9f : 1.2f);
@@ -492,7 +495,7 @@ namespace OpenZ
             if (v == null || v.Kind != ZKind.Vehicle) return null;
             switch (v.Type)
             {
-                case "light": case "heavy": case "missile_launcher": case "apc": case "crane": return "tank";
+                case "light": case ZMTank.Type: case "heavy": case "missile_launcher": case "apc": case "crane": return "tank";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "medium": return null;
                 default: return "car";                                                                    // jeep
             }

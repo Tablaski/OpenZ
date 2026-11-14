@@ -25,16 +25,16 @@ namespace OpenZ.EditorTools
             finally { ZWorld.ShuttlePlayableDeviation = was; ZWorld.ShuttleOn = wasOn; ZWorld.ExitWalkHoldOn = wasH; }
             list.Add(new Deviation
             {
-                id = "DV132", change = "Out of the carrier first: a robot let out of the shuttle or an APC fights, walks and can be targeted only once its figure has walked out to its spot",
+                id = "DV132", change = "Out of the carrier first: a robot let out of the shuttle or an APC fights, walks and can be targeted only once its figure has walked out to its spot (1.4 DV171: the driver let out of a tank or the mech is held the same way until he lands from his jump off it, but he can be targeted)",
                 zod = "no shuttle in Zod (DV118 is an OpenZ unit) and no APC passengers (DV15); DV118 / DV15 alone let the squad out in one tick onto its spots, where each robot fought at once while its figure was still drawn on its bench or on the ramp",
                 openz = $"each robot let out gets a getting-out time: the shuttle: its ramp-foot moment + its walk to its back slot at {ZWorld.ExitWalkMps:0.0} m/s (at least {ZWorld.ExitWalkMinSec:0.00} s) + {ZWorld.ExitHandSec:0.0} s; " +
                         $"the APC: {ZWorld.ApcExitOpenSec:0.00} s (its ramp) + {ZWorld.ApcExitGapSec:0.00} s a place in the file + its {ZWorld.ApcExitWalkSec:0.0} s walk + {ZWorld.ExitHandSec:0.0} s; " +
-                        "until then it takes no step and fires nothing (orders given meanwhile start then, a fresh start from its spot) and no enemy can pick it as a target (a blast near it still hurts it). " +
-                        "Zod's own crew exits (EJECT from a tank, jeep or gun) unchanged. Deterministic: sim time and the rules' foot schedule. " +
+                        "until then it takes no step and fires nothing (orders given meanwhile start then, a fresh start from its spot) and no enemy can pick it as a target (a blast near it still hurts it; DV171's driver is the exception: he can be picked while he gets out). " +
+                        "Zod's own crew exits (EJECT from a gun; from an APC while DV15 is off) unchanged; 1.4 DV171 (EXIT DRIVER): the driver let out of a light, medium or heavy tank or the mech gets this hold too, for his vehicle's fixed jump-off time (to the touch of his feet, vehicle_exit_jump; ZObject.DriverOutHoldTicks), and is free at once when that hull is destroyed; unlike the others he is a target while held (killable while he gets out; ZObject.DriverOutTarget). Deterministic: sim time and the rules' foot schedule. " +
                         "View: the exit walk is never squeezed by the fight; its walk on to the robot follows a robot that moved and ends on it, turned to its facing; a shot fired while the figure still walks (Zod's own crews) is drawn when it is out (View/BoardingView.ExitWalk.cs); " +
                         $"K441b: the shuttle's walk from the ramp foot to the slot is planned on the ship as drawn and walked at this rule's own {ZWorld.ExitWalkMps:0.0} m/s (at least {ZWorld.ExitWalkMinSec:0.00} s), the very walk counted above, and any walk that would end later is paced up (at most x1.4) to end the {ZWorld.ExitHandSec:0.0} s hand-over before the robot may act",
                 measured = measured,
-                toggle = "ZWorld.ExitWalkHoldOn (code switch, on; off = the robots fight at once, as before); matters only while DV118 makes shuttles or DV15 gives APCs passengers (both off in 'Zod exact')",
+                toggle = "ZWorld.ExitWalkHoldOn (code switch, on; off = the robots fight at once, as before); matters only while DV118 makes shuttles, DV15 gives APCs passengers or DV171 lets a tank's or the mech's driver out (all three off in 'Zod exact')",
                 status = pass ? DevActive : DevCheck,
             });
         }

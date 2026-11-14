@@ -23,15 +23,15 @@ namespace OpenZ.Sim
     /// <item><b>B. Bridges and doors</b>: on a spot kit b1 protects (ZWorld.SnipeSafeSpot: a standing bridge and 88 px before each
     /// end, the exit lane of a fort or factory) the lid of a tank stays shut and shuts when it is open (looked at every tick of
     /// an open lid, after the tick's move and before the driver's shot: no driver ever fires from such a spot), a crew does not
-    /// rest there, and the APC driver does not come up. Zod's lid roll is drawn as before. The crane (its driver can never be
-    /// shot out) keeps DV31 everywhere.</item>
+    /// rest there, and the APC driver does not come up. Zod's lid roll is drawn as before. The crane: with DV141 its driver stays
+    /// inside on such a spot too, in a ruin and while the crane works (Sim/ZObject.CraneSnipe.cs); elsewhere DV31 as it is.</item>
     /// <item><b>C. Troop carrier</b>: an owned APC with its one driver and nobody else aboard fires as in 1.0 (its crew weapon, the
     /// lone driver's with CrewRifleMul: for the default grunt exactly the crane driver's numbers; engage rules unchanged), but the
     /// driver now comes up through the roof hatch to do it: he is up from the moment the APC has a target to fire at until
     /// <see cref="ZWorld.CraneGunLinger"/> after the APC last had one, and the first shot of a fight waits
     /// <see cref="ZWorld.CraneGunPopSeconds"/> for him. With passengers aboard, for a veteran crew and on a bridge / in a door
-    /// lane he stays inside and the APC fires out of its side ports as before. He cannot be shot out (the APC is not on Zod's
-    /// list, unchanged).</item>
+    /// lane he stays inside and the APC fires out of its side ports as before. While he is up he can be shot out (DV143,
+    /// Sim/ZObject.ApcSnipe.cs; the APC is not on Zod's list).</item>
     /// </list>
     /// View: <see cref="ZEventType.DriverShot"/> per shot of a tank driver (BoardingView.DriverFire.cs draws his weapon and plays
     /// its sound); a Tough driver's rocket is a normal missile with ZMissile.driver set (its blast is drawn as a bazooka's). The
@@ -71,7 +71,7 @@ namespace OpenZ.Sim
         public int DriverGunDamage { get { var u = DriverGunRow; return u == null ? 0 : DriverGunType == "grunt" ? u.Damage * ZWorld.CrewRifleMul : u.Damage; } }
         /// <summary>DV87: seconds from one shot of the hatch driver to the next: his type's attack_speed (the Electrobot: his bolt
         /// to bolt cycle, ZElectro.CycleTicks).</summary>
-        public double DriverGunCycle { get { var u = DriverGunRow; return u == null ? 0 : DriverGunType == ZElectro.Type ? ZElectro.Seconds(ZElectro.CycleTicks) : u.attack_speed; } }
+        public double DriverGunCycle { get { var u = DriverGunRow; return u == null ? 0 : DriverGunType == ZElectro.Type ? ZElectro.Seconds(ZElectro.CycleTicks) : ZWorld.ReloadOf(DriverGunType, u); } }   // 1.2 sniper balance
         /// <summary>DV87: the hatch driver's range in px (his type's attack_radius, measured from the vehicle's centre).</summary>
         public int DriverGunRadius { get { var u = DriverGunRow; return u == null ? 0 : u.attack_radius; } }
         ZUnitSettings DriverGunRow => World == null ? null : World.S.Unit(DriverGunType);
@@ -81,7 +81,7 @@ namespace OpenZ.Sim
         /// test (ZWorld.SnipeSafeSpot, with its switch). fresh = asked now: the lid roll, every tick of an open lid
         /// (DriverFireStep), the APC driver in a fight (so only vehicles with somebody up pay for it). Without it the answer of
         /// the last ZWorld.HatchSpotSeconds is used (the rest check of every crewed tank, which stands still).
-        /// The crane is not asked: its driver cannot be shot out and DV31 stays as it is.</summary>
+        /// The crane is not asked here: DV141 asks for it itself (Sim/ZObject.CraneSnipe.cs, CraneHatchHeld).</summary>
         internal bool HatchShutSpot(double time, bool fresh = false)
         {
             if (!ZWorld.DriverFireDeviation || World == null || Kind != ZKind.Vehicle || !(HasLid || IsApc)) return false;
@@ -125,7 +125,7 @@ namespace OpenZ.Sim
             if (type == "tough") { DriverRocket(time, t, u, damage); return; }
             if (type == ZElectro.Type) { DriverBolt(time, t, damage); return; }
             if (type == "pyro") GroundFireShot(t);                                                    // DV117: a hatch Pyro's shot lights the ground at its target, hit or miss (Sim/ZWorld.GroundFire.cs)
-            if (CoverMiss(t, World.Rng.Roll(), u.attack_damage_chance, type == "pyro")) { World.Emit(ZEventType.DriverShot, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (Zod's hit roll, zobject.cpp:2187; DV122: a kneeling / lying sniper is a smaller target, Sim/ZObject.ProneTarget.cs)
+            if (CoverMiss(t, World.Rng.Roll(), ZWorld.HitChanceOf(type, u), type == "pyro")) { World.Emit(ZEventType.DriverShot, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (Zod's hit roll, zobject.cpp:2187; DV122: a kneeling / lying sniper is a smaller target, Sim/ZObject.ProneTarget.cs)
             DriverHits++;
             int hp0 = t.Health;
             t.DamageHealth(damage); t.LastEnemyHit = time;
@@ -139,7 +139,7 @@ namespace OpenZ.Sim
         bool DriverFireValid(ZObject o, int radius)
         {
             if (o == null || o == this || !o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) return false;
-            if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, radius)) return false;
+            if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, HighRange(radius, o))) return false;
             if (!o.ShuttleAirborne && World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) return false;   // DV118: no ground tile stops a shot at the flying shuttle
             return HasLineOfSight(o);
         }

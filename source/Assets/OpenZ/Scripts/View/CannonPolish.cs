@@ -32,6 +32,7 @@ namespace OpenZ
         public static int BreakOff(Transform turret, string type, int id)
         {
             if (!turret) return 0;
+            if (GunV2Seat.NoChair(turret, type)) return 0;                                         // k92, item 140: the gun v2 has no chair (View/OzGun.K92.cs)
             int n = 0, tris = 0; var centre = turret.position;
             foreach (var mf in turret.GetComponentsInChildren<MeshFilter>())
             {
@@ -101,7 +102,7 @@ namespace OpenZ
             {
                 var ctr = new Vector3(kv.Value.x, kv.Value.y, kv.Value.z) / kv.Value.w;
                 bool chair = gen ? allKit[kv.Key] && ctr.x * seat.x + ctr.z * seat.z > 0f          // the seat's side of the turn axis
-                                   : (ctr - seat).magnitude < 0.6f;
+                                   : (ctr - seat).magnitude < 0.7f;
                 if (chair) chairRoots.Add(kv.Key);
             }
             if (chairRoots.Count == 0) return null;

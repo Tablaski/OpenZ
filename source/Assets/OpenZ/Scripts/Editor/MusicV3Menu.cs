@@ -8,8 +8,9 @@ namespace OpenZ.EditorTools
 {
     /// <summary>music_v3: OpenZ > Music v3. Check tracks = every added clip loads, is tagged "zopen" in its events, has a meta row and
     /// the right length (MUSIC V3 CHECK OK / FAIL, with a loud FAIL when music_v2's apply.py wiped the added clips); Run scenarios = the
-    /// MusicCore timelines on this project's real playlists (EditMode is fine); in Play mode: Status, forced attacks (view-side reading
-    /// only, the sim is untouched), a Zod line for the duck check, the overlay and Skip. In a level these replace OpenZ > Music v2 >
+    /// MusicCore timelines on this project's real playlists (EditMode is fine); Run fort reader scenarios (music_drama) = the fort
+    /// reading on real headless worlds of L02 and L17 (units ordered at a fort, the walls rule, fights elsewhere; Edit mode only); in Play mode: Status, forced
+    /// attacks (view-side reading only, the sim is untouched), a Zod line for the duck check, the overlay and Skip. In a level these replace OpenZ > Music v2 >
     /// Status / Skip (music_v2's A / B voices only play the main menu while music_v3 is on).</summary>
     public static class MusicV3Menu
     {
@@ -85,7 +86,8 @@ namespace OpenZ.EditorTools
                     if (!meta.TryGetValue(n, out var m)) continue;
                     float tail = Mathf.Clamp(Mathf.Min(m.tail, m.len * 0.25f), Mathf.Min(2.5f, m.len * 0.25f), 8f);
                     list.Add(new MusicTrack { id = list.Count, name = n, pool = pool, length = m.len, tail = tail, gainDb = e.volDb + c.gainDb, entries = m.entries,
-                                              dramaIn = pool == MusicPool.Drama ? m.dramaIn : 0f, intensity = m.intensity, eventId = id, zopen = c.line == "zopen", guest = c.line == "guest" });
+                                              dramaIn = pool == MusicPool.Drama ? m.dramaIn : 0f, intensity = m.intensity, eventId = id, zopen = c.line == "zopen", guest = c.line == "guest",
+                                              dramaDb = pool == MusicPool.Drama ? MusicDramaGain.For(lv, n) : null });   // music_drama: the measured drama lift, as AudioDirector.AddPool
                 }
             }
             Add("mus_" + lv + "_calm", MusicPool.Calm); Add("mus_" + lv + "_attacking", MusicPool.Battle); Add("mus_fort_danger", MusicPool.Drama);
@@ -97,12 +99,37 @@ namespace OpenZ.EditorTools
         public static void RunScenarios()
         {
             var sb = new StringBuilder();
-            bool ok = MusicCoreScenarios.RunAll(Catalog("l02"), Catalog("l17"), s => sb.AppendLine(s), 20, 40);
+            bool ok = MusicCoreScenarios.RunAll(Catalog("l02"), Catalog("l17"), s => sb.AppendLine(s), 20, 40, Catalog("l07"));   // music_drama: + L07 for the drama gain table
             string head = sb.ToString(); int cut = head.IndexOf("DETAIL", StringComparison.Ordinal);
             string summary = cut > 0 ? head.Substring(0, cut) : head;
             if (ok) Debug.Log("[music_v3] " + summary); else Debug.LogError("[music_v3] " + summary);
             try { var p = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "..", "..", "..", "work", "tmp", "music_v3", "editor_scenarios.txt")); System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p)); System.IO.File.WriteAllText(p, head); Debug.Log("[music_v3] timelines: " + p); }
             catch (Exception ex) { Debug.LogWarning("[music_v3] could not write the timelines: " + ex.Message); }
+        }
+
+        /// <summary>music_drama: MusicFortReaderScenarios on headless L02 / L17 worlds (Edit mode only: refused in Play mode, as the run sets the
+        /// rules' static switches for its own worlds; nothing in the scene is touched).</summary>
+        [MenuItem("OpenZ/Music v3/Run fort reader scenarios (walls, fort under fire)")]
+        public static void RunReaderScenarios()
+        {
+            if (Application.isPlaying) { Debug.LogWarning("[music_drama] Run fort reader scenarios in Edit mode only: it sets the rules' static switches (put back afterwards) and builds worlds of its own, which a running match shares"); return; }
+            var st = Resources.Load<TextAsset>("OpenZ/default_settings");
+            if (!st) { Debug.LogError("[music_drama] OpenZ/default_settings missing"); return; }
+            var sb = new StringBuilder();
+            bool ok = MusicFortReaderScenarios.RunAll(st.text, lv => { var m = Resources.Load<TextAsset>($"OpenZ/Maps/{lv}_grid"); return m ? m.text : null; }, s => sb.AppendLine(s));
+            if (ok) Debug.Log("[music_drama] " + sb); else Debug.LogError("[music_drama] " + sb);
+        }
+
+        /// <summary>music_drama Play proof: the drama order starts a fresh round (strongest first: zopendramatic3 opens it). Deletes only
+        /// the two keys AudioDirector.MusicV3 keeps the order in (oz_music_drama_bag, oz_music_drama_last; read when a match builds its
+        /// music), Edit mode only, so the next match starts a new round.</summary>
+        [MenuItem("OpenZ/Music v3/Reset the drama order - next match starts strongest first (Edit mode)")]
+        public static void ResetDramaOrder()
+        {
+            if (Application.isPlaying) { Debug.LogWarning("[music_drama] reset the drama order in Edit mode (a running match read it at its start)"); return; }
+            string bag = PlayerPrefs.GetString("oz_music_drama_bag", ""), last = PlayerPrefs.GetString("oz_music_drama_last", "");
+            PlayerPrefs.DeleteKey("oz_music_drama_bag"); PlayerPrefs.DeleteKey("oz_music_drama_last"); PlayerPrefs.Save();
+            Debug.Log($"[music_drama] drama order reset (was: last '{last}', still to play '{bag}'): the next match's first drama is the strongest track");
         }
 
         static AudioDirector Live() { var ad = AudioDirector.I; if (!Application.isPlaying || !ad) { Debug.Log("[music_v3] enter Play mode in a level first"); return null; } return ad; }
@@ -119,11 +146,50 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/Music v3/Force HEAVY attack on OUR fort 20 s (Play mode)")]
         public static void ForceHeavy() { var ad = Live(); if (ad) ad.MusicV3Force(4, 20f); }
 
-        [MenuItem("OpenZ/Music v3/Force ONE unit shooting our fort 30 s - must NOT start the drama (Play mode)")]
+        [MenuItem("OpenZ/Music v3/Force ONE 2-point unit at our fort while it is hit 30 s - must NOT start the drama (Play mode)")]
         public static void ForceOne() { var ad = Live(); if (ad) ad.MusicV3Force(3, 30f); }
+
+        [MenuItem("OpenZ/Music v3/Force ONE light tank hitting our fort 20 s - drama after 3 s (Play mode)")]
+        public static void ForceLight() { var ad = Live(); if (ad) ad.MusicV3Force(6, 20f); }
+
+        [MenuItem("OpenZ/Music v3/Force a Tough squad rocketing our fort 20 s - drama after 3 s (Play mode)")]
+        public static void ForceTough() { var ad = Live(); if (ad) ad.MusicV3Force(7, 20f); }
 
         [MenuItem("OpenZ/Music v3/Force idle units parked at our fort 60 s - must NOT start the drama (Play mode)")]
         public static void ForceIdle() { var ad = Live(); if (ad) ad.MusicV3Force(5, 60f); }
+
+        /// <summary>music_drama Play proof (the lead's real L02 match): the player's own order, as a click would give it, to our nearest light tank
+        /// and our nearest robot squad (one that can hurt the fort first: Toughs or grenades): attack THEIR fort. Nothing is made or moved by
+        /// the menu itself; the drama must then come 3 s after their fort takes its first hit (log "[MusicV3] ... BIG ATTACK on their fort:
+        /// fort under fire ..." or "big attack"). L02 starts with no light tank of ours: board one of the two neutral ones first.</summary>
+        [MenuItem("OpenZ/Music v3/Play proof - send our light tank + a squad at THEIR fort (Play mode)")]
+        public static void ProofAttackTheirs()
+        {
+            if (!Live()) return;
+            var g = ZGame.I; var w = g ? g.World : null;
+            if (w == null) { Debug.Log("[music_drama] no live world"); return; }
+            Team me = g.player, them = me == Team.Red ? Team.Blue : Team.Red;
+            OpenZ.Sim.ZObject fort = null; foreach (var o in w.Objects) if (o.IsFort && o.Owner == them && !o.Destroyed) { fort = o; break; }
+            if (fort == null) { Debug.Log("[music_drama] their fort is gone"); return; }
+            OpenZ.Sim.ZObject Near(System.Func<OpenZ.Sim.ZObject, bool> ok)
+            {
+                OpenZ.Sim.ZObject best = null; double bd = double.MaxValue;
+                foreach (var o in w.Objects)
+                {
+                    if (o.Destroyed || o.Owner != me || o.IsMinion || !ok(o)) continue;
+                    double d = (double)(o.CenterX - fort.CenterX) * (o.CenterX - fort.CenterX) + (double)(o.CenterY - fort.CenterY) * (o.CenterY - fort.CenterY);
+                    if (d < bd) { bd = d; best = o; }
+                }
+                return best;
+            }
+            var tank = Near(o => o.Kind == OpenZ.Sim.ZKind.Vehicle && o.Type == "light");
+            var squad = Near(o => o.IsRobot && o.HasExplosives()) ?? Near(o => o.IsRobot);                 // a squad that can hurt the fort first (Toughs, grenades)
+            int sent = 0;
+            foreach (var u in new[] { tank, squad })
+                if (u != null && w.SendWaypoints(me, u, new[] { new OpenZ.Sim.ZWaypoint { mode = OpenZ.Sim.WpMode.Attack, refId = fort.Id, x = fort.CenterX, y = fort.CenterY } })) sent++;
+            Debug.Log($"[music_drama] Play proof: {sent} order(s) to attack the {them} fort: {(tank != null ? "light tank " + tank.Id : "NO light tank of ours (L02 starts with none: first send a squad into one of the two neutral light tanks, then use this menu again)")}, " +
+                      $"{(squad != null ? squad.Type + " squad " + squad.Id + (squad.HasExplosives() ? " (can hurt the fort)" : " (no grenades: it cannot hurt the fort; only its attack on the fort's guns / defender counts)") : "no squad")}");
+        }
 
         [MenuItem("OpenZ/Music v3/Clear forced reading (Play mode)")]
         public static void ForceClear() { var ad = Live(); if (ad) ad.MusicV3Force(0, 0f); }

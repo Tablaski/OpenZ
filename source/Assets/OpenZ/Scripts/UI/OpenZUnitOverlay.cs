@@ -42,7 +42,8 @@ namespace OpenZ
         /// <summary>production_badge_v2: idle producers (nothing chosen) keep a badge with the TECH level: own = SELECT (TimerIdle, on), enemy
         /// = IDLE (EnemyTimerIdle, off). LevelTags: every robot / vehicle factory without a badge (neutral, idle enemy, destroyed) keeps its
         /// level as a small TECH [n] tag, like Zod's level_img (brobot.cpp:377-380, bvehicle.cpp:381). CompactEnemy / CompactOwn: badges
-        /// shrink to the medallion above OzLayout.TagCompactEnter m of camera height (the overview; enemies on, own off).</summary>
+        /// shrink to the medallion above OzLayout.TagCompactEnter m of camera height (the overview; enemies on, own off); a producing
+        /// building's badge keeps its time at every height (1.2 item 71, UI/OpenZUnitOverlay.TimeAlways.cs).</summary>
         public static bool TimerIdle = true, EnemyTimerIdle = false, LevelTags = true, CompactEnemy = true, CompactOwn = false;
         /// <summary>production_badge_v2, view-only: this frame's badge / level tag screen rects by building id (px, bottom-left origin),
         /// read by the proof captures to crop around the real badge.</summary>
@@ -72,6 +73,9 @@ namespace OpenZ
         {
             public RectTransform rt; public Image glow, brackets, barFrame, barFill, barLost, badge, chipBg, chipBar, star, nade; public RectTransform bar, chip; public OzText label;
             public int group = -2;
+            // 1.2 item 2 round 3: who is aboard a shuttle, on its name chip (UI/OpenZUnitOverlay.ShuttleAboard.cs; built for the first shuttle)
+            public RectTransform tail; public Image tailDiv; public OzRoundFace tailFace0, tailFace1; public OzText tailCount;
+            public int tailShip = -1, tailFaces; public OzShuttleHud.Aboard tailWho; public string tailText = "", tailShows = ""; public float tailCountW;
         }
         sealed class ItemMark { public RectTransform rt; }
 
@@ -116,7 +120,7 @@ namespace OpenZ
                 m.barFrame = Hud.Kit(m.bar, "Frame", "Bars/hp_world_frame", new OzRect(0, 0, 16, 5), null); m.barFrame.rectTransform.Fill();
                 if (!OzKit.Available) m.barFrame.color = OzUi.A(Color.black, 0.78f);
                 m.barLost = Hud.Img(m.bar, "Lost", OzUi.HpLost); m.barLost.rectTransform.Fill(1, 1, 1, 1);
-                m.barFill = Hud.Img(m.bar, "Fill", OzUi.Go); m.barFill.rectTransform.Fill(1, 1, 1, 1);
+                m.barFill = Hud.Img(m.bar, "Fill", OzUi.HpBar); m.barFill.rectTransform.Fill(1, 1, 1, 1);   // 1.2 item 8: a little darker green (a player asked)
                 if (OzKit.Available)
                 {
                     m.barLost.sprite = OzKit.GetSprite("Bars/bar_fill_lost"); m.barFill.sprite = OzKit.GetSprite("Bars/bar_fill_health");
@@ -172,9 +176,12 @@ namespace OpenZ
         float nextAlways;
         Camera rtsCamC; RtsCamera rtsCamOf;
         Camera RtsCam() { if (rtsCamOf != hud.rts || !rtsCamC) { rtsCamOf = hud.rts; rtsCamC = hud.rts.GetComponent<Camera>(); } return rtsCamC; }
-        void LateUpdate()
+        void LateUpdate() { BoardingView.LateFirst(); long ozT0 = OzPerfNumbers.Now(); LateUpdateDraw(); OzPerfNumbers.OverlayDone(ozT0); }   // 1.3 item 38 (log only): the overlay's own time for the per-minute perf line; 1.4 DV171 fix round 5: BoardingView's frame first, once (a climbing driver's frame and bar on this frame's figure; View/BoardingView.VehicleExit.cs)
+        void LateUpdateDraw()
         {
             used = 0; bUsed = 0; lUsed = 0; iUsed = 0;
+            OzRadarBars.Tick(game); HoverRadarId = -1; HoverRadarAlpha = -1f;                                 // 1.4 radar_enemy_bars DV172: the radar rule's frame (the switches, the radar, the fade; View/OzRadarBars.cs), before any mark
+            AboardBegin();                                                                                   // 1.2 item 2: the proof's list of shuttle name chips with who is aboard
             if (hud == null || game == null || game.World == null || !canvas || !canvas.enabled || hud.Modal) { HoverMember = null; HoverShownId = -1; HoverShown01 = -1f; Hide(); return; }
             if (hideSelectionRings && rings && rings.enabled) rings.enabled = false;
             var cam = hud.rts ? RtsCam() : Camera.main; if (!cam) { Hide(); return; }
@@ -187,7 +194,7 @@ namespace OpenZ
             if (groups != null) foreach (var kv in groups) foreach (var o in kv.Value) if (o != null && !groupOf.ContainsKey(o)) groupOf[o] = kv.Key;
 
             HoverMember = null; HoverShownId = -1; HoverShown01 = -1f;
-            ZObject hover = hud.PointerOverUi ? null : HoverUnit(cam, hud.Pointer);
+            ZObject hover = hud.PointerOverUi || PlayerInput.MatchDecided(W) ? null : HoverUnit(cam, hud.Pointer);   // 1.2 item 68: nothing hovered once the match is decided (View/PlayerInput.MatchEnd.cs)
             var pointed = HoverMember;                                                                       // the robot under the pointer itself (a squad member, not its leader)
             foreach (var u in sel)
             {
@@ -211,10 +218,13 @@ namespace OpenZ
                 foreach (var o in W.Objects)
                 {
                     if (!o.IsUnit || o.IsMinion || o.Destroyed || o.KillAt >= 0 || o.Health >= o.MaxHealth || sel.Contains(o) || o == hover) continue;
+                    if (OzFogOfWar.Covers(o)) continue;                                                    // 1.4 FOG OF WAR: no health bar on a unit under the fog (View/OzFogOfWar.cs)
+                    if (OzRadarBars.BarAlpha(o) <= OzRadarBars.Hidden) { OzRadarBars.SkippedAlways++; continue; }   // 1.4 DV172: no mark at all on an enemy without a radar (a lone grenade icon or star would tell which enemies are hurt)
                     if (!UnitRect(cam, o, out var ar)) continue;
-                    if (SquadSplit(o)) DrawSquadBars(cam, sf, o, 0.6f); else Draw(ar, sf, o, default, 0, false, -1, true, 0.6f);
+                    if (SquadSplit(o)) DrawSquadBars(cam, sf, o, 0.6f, null, true); else Draw(ar, sf, o, default, 0, false, -1, true, 0.6f, false, null, true);   // 1.4 DV172: always: the whole mark fades with an enemy's bar
                 }
 
+            DrawLavaThermos(cam, sf, W);                                                                 // level 7: the heat of each robot in lava (UI/OpenZUnitOverlay.Thermo.cs)
             var open = hud.Production ? hud.Production.Building : null;
             if (open != null)
             {
@@ -226,6 +236,7 @@ namespace OpenZ
                 foreach (var o in W.Objects)
                 {
                     if (o.Kind != ZKind.MapItem || o.Type != "grenades" || o.Destroyed || o.KillAt >= 0) continue;
+                    if (OzFogOfWar.Covers(o)) continue;                                                    // 1.4 FOG OF WAR: no crate marker under the fog (View/OzFogOfWar.cs)
                     var sp = cam.WorldToScreenPoint(game.CenterWorld(o) + Vector3.up * 1.6f);
                     if (sp.z < 0 || sp.x < -20 || sp.x > Screen.width + 20 || sp.y < -20 || sp.y > Screen.height + 20) continue;
                     var m = NextItem(); m.rt.anchoredPosition = Px(new Vector2(sp.x, sp.y + 2f * sf * Mathf.Sin(Time.unscaledTime * 2.2f + o.Id)), sf);   // ui_quality_v1: whole pixels
@@ -298,7 +309,7 @@ namespace OpenZ
             bool limRed = W.UnitLimitReached(Team.Red), limBlue = W.UnitLimitReached(Team.Blue);        // once per frame, not per building
             var player = hud.Player;
             float camH = hud.rts ? hud.rts.height : 70f;
-            compactView = compactView ? camH >= OzLayout.TagCompactExit : camH >= OzLayout.TagCompactEnter;
+            compactView = CompactViewAt(compactView, camH);                                                    // the rule the time check uses (UI/OpenZUnitOverlay.TimeAlways.cs)
             var size = badgeRoot.rect.size; float e = OzLayout.TagEdge;
             BadgeRects.Clear(); BadgeClickBegin();   // K429: this frame's clickable badge boxes (UI/OpenZUnitOverlay.BadgeClick.cs)
             foreach (var st in tags.Values) st.Seen = false;
@@ -307,6 +318,7 @@ namespace OpenZ
             foreach (var b in W.Objects)
             {
                 if (!b.IsProducer) continue;
+                if (OzFogOfWar.Covers(b)) continue;                                                        // 1.4 FOG OF WAR: no badge on a building under the fog (View/OzFogOfWar.cs)
                 bool own = b.Owner == player;
                 bool remind = FactoryReminder(b, own);   // factory reminder (k247, UI/OzFactoryReminder.cs): a factory he captured and has not set up yet
                 bool want = OzBadgeState.Wants(b, own) || remind;   // factory reminder (k247, UI/OzFactoryReminder.cs): it keeps its badge (the mark sits on it) even with idle badges off
@@ -349,7 +361,7 @@ namespace OpenZ
                 if (st == null) continue;
                 // ---- the badge
                 bool paused = b.Owner == Team.Red ? limRed : b.Owner == Team.Blue && limBlue;
-                bool compact = own ? CompactOwn && compactView : CompactEnemy && compactView;
+                bool compact = BadgeCompact(own, compactView, b);                                              // 1.2 item 71: a producing building keeps its time at every height
                 if (st.Want) st.Build(b, own, paused, compact, now, dt); else st.Fade(now);
                 float s = own ? TimerScale : TimerScale * EnemyTimerScale;
                 var badge = NextBadge();
@@ -412,7 +424,7 @@ namespace OpenZ
         /// player chose); an enemy = the enemy's shown team colour (blue when the enemy is blue, red when the player chose blue);
         /// neutral grey. Buildings keep the amber frame; health bars keep green / amber / red by health.</summary>
         public static Color OwnSelection = new Color(0.34f, 0.96f, 0.46f, 1f);
-        Color BracketColor(ZObject o) => o.Owner == hud.Player ? OwnSelection : o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner);
+        Color BracketColor(ZObject o) => o.Owner == hud.Player && !OzUeHooks.TeamBrackets ? OwnSelection : OzUeHooks.DarkMarks ? OzUeHooks.DeepMark(o.Owner) : o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner);   // 1.2 item 6: the playground's brackets in each team's colour (both teams pick); 1.3 item 26: in the deep tone on its light floors
 
         /// <summary>(g) proof: hover rect changes of a unit that has not moved (the rect is logged in whole pixels; a still unit under a
         /// still camera must give 0 changes). Counters read by the Play check.</summary>
@@ -447,8 +459,8 @@ namespace OpenZ
         bool SquadSplit(ZObject u)
         {
             if (u == null || u.Kind != ZKind.Robot || u.Minions.Count == 0) return false;
-            sqAll.Clear(); if (BoardingView.FigureShown(u)) sqAll.Add(u);                                  // K431: members still inside their carrier are not in the squad's bars
-            foreach (var m in u.Minions) if (m != null && !m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m)) sqAll.Add(m);
+            sqAll.Clear(); if (BoardingView.FigureShown(u) && !OzFogOfWar.Covers(u)) sqAll.Add(u);        // K431: members still inside their carrier are not in the squad's bars; 1.4 fog_hover_leak: nor members the fog hides
+            foreach (var m in u.Minions) if (m != null && !m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m) && !OzFogOfWar.Covers(m)) sqAll.Add(m);
             if (sqAll.Count < 2) { apartIds.Remove(u.Id); return false; }
             var c = Vector3.zero;
             foreach (var m in sqAll) { var p = ViewPos(m); c += new Vector3(p.x, 0f, p.z); }
@@ -465,7 +477,7 @@ namespace OpenZ
 
         /// <summary>pointed = the squad member under the pointer (null = none): the shared bar of the members still together shows
         /// its health while the pointer is on one of them.</summary>
-        void DrawSquadBars(Camera cam, float sf, ZObject u, float alpha, ZObject pointed = null)
+        void DrawSquadBars(Camera cam, float sf, ZObject u, float alpha, ZObject pointed = null, bool always = false)
         {
             sqCore.Clear(); sqApart.Clear();
             foreach (var m in sqAll) (apartIds.Contains(m.Id) ? sqApart : sqCore).Add(m);
@@ -473,12 +485,12 @@ namespace OpenZ
             if (sqCore.Count > 0)
             {
                 sqPts.Clear(); foreach (var m in sqCore) sqPts.Add(ViewPos(m));
-                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(u), 1.9f * OzHeroSquadView.Tall(u), out var cr)) Draw(cr, sf, sqCore.Contains(u) ? u : sqCore[0], default, 0, false, -1, true, alpha, true, pointed != null && sqCore.Contains(pointed) ? pointed : null);
+                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(u), 1.9f * OzHeroSquadView.Tall(u), out var cr)) Draw(cr, sf, sqCore.Contains(u) ? u : sqCore[0], default, 0, false, -1, true, alpha, true, pointed != null && sqCore.Contains(pointed) ? pointed : null, always);
             }
             foreach (var m in sqApart)
             {
                 sqPts.Clear(); sqPts.Add(ViewPos(m));
-                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(m), 1.9f * OzHeroSquadView.Tall(m), out var mr)) { Draw(mr, sf, m, default, 0, false, -1, true, alpha, true, m == pointed ? m : null); MemberBars++; }
+                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(m), 1.9f * OzHeroSquadView.Tall(m), out var mr)) { Draw(mr, sf, m, default, 0, false, -1, true, alpha, true, m == pointed ? m : null, always); MemberBars++; }
             }
         }
 
@@ -500,7 +512,8 @@ namespace OpenZ
         /// <summary>hpOf = the robot under the pointer when it belongs to o's squad (null = none): the bar then shows that robot's
         /// own health (every squad member has its own), never the leader's in its place. The star and the grenade icon stay the
         /// squad's (o).</summary>
-        void Draw(Rect screen, float sf, ZObject o, Color bracket, int brackets, bool hovered, int group, bool bar, float alpha, bool barOnly = false, ZObject hpOf = null)
+        // 1.4 radar_enemy_bars DV172: always = a mark of HEALTH BARS ON EVERY DAMAGED UNIT (its bar, grenade icon and star only): all of it fades with an enemy's bar.
+        void Draw(Rect screen, float sf, ZObject o, Color bracket, int brackets, bool hovered, int group, bool bar, float alpha, bool barOnly = false, ZObject hpOf = null, bool always = false)
         {
             var m = NextMark();
             var ho = hpOf != null && !hpOf.Destroyed && hpOf.MaxHealth > 0 ? hpOf : o;                        // whose health the bar shows
@@ -522,29 +535,43 @@ namespace OpenZ
             }
             m.glow.enabled = m.brackets.enabled && m.glow.sprite != null;
             bool showBar = bar && o.MaxHealth > 0 && (brackets > 0 || hovered || alpha < 1f || barOnly) && o.Kind != ZKind.Building;
-            m.bar.gameObject.SetActiveFast(showBar);
-            if (showBar)
+            // 1.4 radar_enemy_bars DV172 (View/OzRadarBars.cs): an enemy's bar only while the player owns a standing radar, faded in and out by one
+            // shared factor kb (1 for own and neutral objects: everything below as before). Held back, the bar's own images are off and its dash ring
+            // too; the grenade icon and the veteran star keep their place (always: they fade with it); the bar node is off when nothing of it shows.
+            // showBar keeps the name chip's place, so nothing jumps at the end of a fade.
+            float kb = showBar ? OzRadarBars.BarAlpha(o) : 1f, ab = alpha * kb, am = always ? ab : alpha;
+            bool drawBar = showBar && kb > OzRadarBars.Hidden;
+            bool nd = showBar && o.Kind == ZKind.Robot && o.Grenades > 0 && m.nade.sprite != null;
+            bool barNode = drawBar || (showBar && am > OzRadarBars.Hidden && (nd || o.VeteranActive));       // o.VeteranActive: VeteranMarks.BarStar's own test (MaxHealth > 0 is in showBar)
+            if (showBar) { OzRadarBars.Note(o, drawBar); if (hpOf != null) { HoverRadarId = ho.Id; HoverRadarAlpha = drawBar ? ab : 0f; } }
+            m.bar.gameObject.SetActiveFast(barNode);
+            if (barNode)
             {
                 // Zod (zobject.cpp:611-700): the box is as long as the unit's max health (36 px per 10000), green = health, yellow = lost
                 float len = Mathf.Clamp(barPer10k * ho.MaxHealth / (float)ZConst.MAX_UNIT_HEALTH, minBar, maxBar);
                 m.bar.sizeDelta = new Vector2(len, OzLayout.HpBarH); m.bar.anchoredPosition = new Vector2(0, OzLayout.HpBarGap);
                 float f = Mathf.Clamp01(ho.Health / (float)ho.MaxHealth);
                 m.barFill.fillAmount = f; m.barLost.fillAmount = 1f;
-                if (hpOf != null) { HoverShownId = ho.Id; HoverShown01 = f; }
+                if (hpOf != null && drawBar) { HoverShownId = ho.Id; HoverShown01 = f; }                    // 1.4 DV172: a bar held back is no hover bar
                 if (OzKit.Available) { var s = OzKit.GetSprite(f < 0.3f ? "Bars/bar_fill_health_low" : "Bars/bar_fill_health"); if (m.barFill.sprite != s) m.barFill.sprite = s; }
-                else m.barFill.color = f < 0.3f ? (Color)OzUi.Alert : (Color)OzUi.Go;
-                SetAlpha(m.barFrame, alpha); SetAlpha(m.barFill, alpha); SetAlpha(m.barLost, alpha);
-                VeteranMarks.BarStar(m.bar, o, alpha);                                              // veterancy_v1 DV12: veteran star
-                bool nd = o.Kind == ZKind.Robot && o.Grenades > 0 && m.nade.sprite != null;
+                else m.barFill.color = f < 0.3f ? (Color)OzUi.Alert : (Color)OzUi.HpBar;
+                if (m.barFrame.enabled != drawBar) m.barFrame.enabled = drawBar;                    // 1.4 DV172: the bar's own images (pooled marks: set every time)
+                if (m.barLost.enabled != drawBar) m.barLost.enabled = drawBar;
+                if (m.barFill.enabled != drawBar) m.barFill.enabled = drawBar;
+                SetAlpha(m.barFrame, ab); SetAlpha(m.barFill, ab); SetAlpha(m.barLost, ab);
+                VeteranMarks.BarStar(m.bar, o, am);                                                 // veterancy_v1 DV12: veteran star
                 if (m.nade.enabled != nd) m.nade.enabled = nd;
-                if (nd) { SetAlpha(m.nade, alpha); NadeShown++; }
+                if (nd) { SetAlpha(m.nade, am); NadeShown++; }
+                OzEvilZodCircle.Draw(m.bar, drawBar ? ho : null, ab);                               // DV161: the dash's filling circle beside the bar (UI/OzEvilZodCircle.cs); 1.4 DV172: hidden with the bar
             }
-            m.chip.gameObject.SetActiveFast(hovered);
-            if (hovered)
+            bool aboard = AboardChip(o, brackets, hovered), chipOn = hovered || aboard;              // 1.2 item 2 round 3: a shuttle with someone aboard keeps its name chip while selected, who is aboard on it
+            m.chip.gameObject.SetActiveFast(chipOn);
+            if (chipOn)
             {
                 bool own = o.Owner == hud.Player;
                 m.label.Set(OzHeroSquadView.NameOr(o, UnitInfo.Name(o.Type)));                     // DV108: ALAN & BRAD
                 float tw = m.label.preferredWidth, w = tw + 16f + (own ? 11f : 0f);
+                w = AboardTail(m, o, aboard, 9f + tw + (own ? 10f : 0f), w);                          // 1.2 item 2: "SHUTTLE ★ | (face) ×3" (UI/OpenZUnitOverlay.ShuttleAboard.cs)
                 m.chip.sizeDelta = new Vector2(w, OzLayout.HoverChipH);
                 m.chip.anchoredPosition = new Vector2(0, OzLayout.HpBarGap + (showBar ? OzLayout.HpBarH + 4f : 0f) + 4f);
                 m.label.At(9, OzLayout.HoverChipH * 0.5f, OzH.L, true, tw + 8);
@@ -677,8 +704,8 @@ namespace OpenZ
         {
             if ((u.Kind == ZKind.Cannon || u.Kind == ZKind.Vehicle || u.Kind == ZKind.Building) && MeshRect(cam, u, out r)) return true;   // PA2: tight to the model
             members.Clear(); farMembers.Clear();
-            sqMembers.Clear(); sqScreen.Clear(); sqWorld.Clear(); if (BoardingView.FigureShown(u)) sqMembers.Add(u);   // K431: a robot still inside its carrier gets no frame or bar (View/BoardingView.ExitRings.cs)
-            foreach (var m in u.Minions) if (!m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m)) sqMembers.Add(m);
+            sqMembers.Clear(); sqScreen.Clear(); sqWorld.Clear(); if (BoardingView.FigureShown(u) && !OzFogOfWar.Covers(u)) sqMembers.Add(u);   // K431: a robot still inside its carrier gets no frame or bar (View/BoardingView.ExitRings.cs); 1.4 fog_hover_leak: nor one the fog hides
+            foreach (var m in u.Minions) if (!m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m) && !OzFogOfWar.Covers(m)) sqMembers.Add(m);
             if (sqMembers.Count == 0) { r = default; return false; }                                     // K431: the whole squad still inside
             foreach (var m in sqMembers) { var wp = ViewPos(m); sqWorld.Add(wp); sqScreen.Add(cam.WorldToScreenPoint(wp + Vector3.up * 0.9f)); }
             int anchor = 0, most = -1; float reach = FrameReach * Screen.height;
@@ -716,6 +743,8 @@ namespace OpenZ
         public ZObject HoverMember { get; private set; }
         /// <summary>Play check: the unit whose health the hover bar showed this frame (-1 = no hover bar) and the fill drawn (0..1).</summary>
         public static int HoverShownId = -1; public static float HoverShown01 = -1f;
+        /// <summary>1.4 DV172 Play check: the unit under the pointer whose bar Draw was asked for this frame (-1 = none) and the alpha its bar got (0 = held back by the radar rule).</summary>
+        public static int HoverRadarId = -1; public static float HoverRadarAlpha = -1f;
         static readonly List<ZObject> hoverHits = new List<ZObject>(); static readonly List<float> hoverDist = new List<float>();
 
         /// <summary>The unit under the pointer (own or not; last in list order like Zod, minion = its leader). Sets HoverMember.</summary>
@@ -725,6 +754,7 @@ namespace OpenZ
             foreach (var o in game.World.Objects)
             {
                 if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || !BoardingView.FigureShown(o)) continue;   // K431: no mouse-over box on the empty spot of a robot still inside its carrier
+                if (OzFogOfWar.Covers(o)) continue;                                                        // 1.4 fog_hover_leak: a unit the fog hides is no hover hit (no box, name or bar: an empty spot; View/OzFogOfWar.cs Covers, always false outside MAYHEM)
                 var p = ViewPos(o);
                 var c = cam.WorldToScreenPoint(p + Vector3.up * 0.9f);
                 if (o.IsShuttle) { if (OzShuttleOverlay.Hovered(o, mp, out float sd)) { hit = o; hoverHits.Add(o); hoverDist.Add(sd); } continue; }   // DV118: the shuttle by its drawn outline (UI/OzShuttleOverlay.cs)

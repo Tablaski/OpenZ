@@ -13,19 +13,20 @@ namespace OpenZ.EditorTools
     /// Main menu (Play, scene MainMenu): menu "OpenZ/Checks/K18 main menu: flybys + FREE CAMERA row (Play)".
     ///   M1 the main menu's flyby rotation holds L02 and L17 and not L16; M2 the Jungle card still has its preview; M3 back from the
     ///   level select with the Jungle card focused, the menu's background leaves L16 within 1 s; M4 OPTIONS, GAME tab: FREE CAMERA is
-    ///   the row right under EDGE SCROLL; M5 FREE CAMERA is off when never set; M6 / M7 the CONTROLS camera row reads the off text with
+    ///   the row right under EDGE SCROLL; M5 FREE CAMERA is on when never set (as saved otherwise); M6 / M7 the CONTROLS camera row reads the off text with
     ///   the switch off and the free camera text with it on.
     /// A level (Play, after the briefing, no menu open, a quiet moment): menu "OpenZ/Checks/K18 level: free camera, zoom, dead colours, turret (Play)".
-    ///   L1 the zoom limits are 25 / 200 m; L2 the standard 70 m is inside them and unchanged; L3 / L4 a zoom asked past either end
+    ///   L1 the zoom limits are 35 / 200 m (the first 1.2 step 30, 1.1: 25 / 200; level 16 its own widest); L2 the standard 70 m is
+    ///   inside them and unchanged; L3 / L4 a zoom asked past either end
     ///   stops on it; L5 switch off, testing overlay hidden: a turn is refused (the fixed view); L6 switch on, overlay hidden: a
     ///   quarter turn and the lowest tilt are taken, the view centre stays on the focus, the minimap uses the free frame; L7 the free
-    ///   camera at the closest and the widest zoom keeps the zoom's distance (it respects the limits); L8 switch off again: the fixed
+    ///   camera at the closest and the widest zoom keeps the zoom's distance at the steepest tilt (it respects the limits); L8 switch off again: the fixed
     ///   view is back within 1 s; L9 / L10 the pause menu's GAME tab holds FREE CAMERA, the short CONTROLS row follows the switch;
     ///   L11 the sound table has no "Let's nuke them all!" line; L12 every dead robot body in the scene shows the dead colours (paler,
     ///   same value) and every live robot the live ones, with at least one dead red and one dead blue body measured (numbers in the
     ///   line); L13 (only with B8, OzK18Check.B8.cs) on level 16 the blue fort's north-east tower (tile 54,9) holds the blue rocket
     ///   turret with its view on the pad; L14 thrown parts tinted > 0: after pop deaths, their thrown parts and their team-coloured
-    ///   pieces took the dead colours (valid only after a fight with pop deaths); L15 the scroll speed at 25 / 70 / 200 m is the one of
+    ///   pieces took the dead colours (valid only after a fight with pop deaths); L15 the scroll speed at 35 / 70 / 200 m is the one of
     ///   the old zoom span 22..230; L16 the sounds' zoom gain at 70 m is the one of the old span.
     /// The switch FREE CAMERA, the camera and the zoom are put back when it ends.
     /// Picture helper: "OpenZ/Checks/K18 frame the blue fort at the standard zoom (Play, level 16)".
@@ -80,7 +81,7 @@ namespace OpenZ.EditorTools
         static void PutBackPref()
         {
             if (hadPref) OzFreeCam.On = prefWas == 1;
-            else { OzFreeCam.On = false; PlayerPrefs.DeleteKey(OzFreeCam.PrefKey); PlayerPrefs.Save(); }
+            else { OzFreeCam.On = true; PlayerPrefs.DeleteKey(OzFreeCam.PrefKey); PlayerPrefs.Save(); }   // never set: the default (ON) in the cache, no saved key
         }
 
         static void Finish()
@@ -169,7 +170,7 @@ namespace OpenZ.EditorTools
             m.ProofOptTab(OzSettingTips.TabGame); yield return 2;
             string rows = m.ProofOptTabRows;
             Check(RowUnder(rows, "EDGE SCROLL", OzFreeCam.Label), $"M4 OPTIONS, GAME tab rows: {rows}");
-            Check((hadPref && prefWas == 1) || !OzFreeCam.On, $"M5 FREE CAMERA {(OzFreeCam.On ? "ON" : "OFF")} (saved before: {(hadPref ? prefWas.ToString() : "never set")})");
+            Check(hadPref ? OzFreeCam.On == (prefWas == 1) : OzFreeCam.On, $"M5 FREE CAMERA {(OzFreeCam.On ? "ON" : "OFF")} (saved before: {(hadPref ? prefWas.ToString() : "never set")})");
             OzFreeCam.On = false; bool off = RowsRead(false); string offT = RowTexts();
             OzFreeCam.On = true; bool on = RowsRead(true); string onT = RowTexts();
             Check(off, $"M6 CONTROLS camera row, switch off ({RowCount()} rows): {offT}");
@@ -187,12 +188,14 @@ namespace OpenZ.EditorTools
             if (OzCheatSpawner.Visible) OzCheatSpawner.I.Show(false);
             rts.FreeLookOff(); OzFreeCam.On = false; yield return 2;
 
-            // zoom limits
-            Check(Mathf.Approximately(rts.minHeight, RtsCamera.ZoomClosest) && Mathf.Approximately(rts.maxHeight, RtsCamera.ZoomWidest), $"L1 zoom limits {rts.minHeight:0.#} / {rts.maxHeight:0.#} m (were 22 / 230)");
+            // zoom limits (1.2: level 16 has its own widest zoom, OzL16Outskirts.MaxHeight)
+            float widest = OzL16Outskirts.I ? Mathf.Min(RtsCamera.ZoomWidest, OzL16Outskirts.MaxHeight) : RtsCamera.ZoomWidest;
+            Check(Mathf.Approximately(rts.minHeight, RtsCamera.ZoomClosest) && Mathf.Approximately(RtsCamera.ZoomClosest, 35f) && Mathf.Approximately(rts.maxHeight, widest),
+                  $"L1 zoom limits {rts.minHeight:0.#} / {rts.maxHeight:0.#} m (want 35 / {widest:0}: the closest {RtsCamera.ZoomClosest:0} since version 1.2's second step, its first 30; 1.1: 25 / 200, before: 22 / 230)");
             Check(70f > rts.minHeight && 70f < rts.maxHeight, $"L2 the standard view 70 m inside the limits (now {h0:0.#} m)");
             rts.SetHeightImmediate(5f); float lo = rts.height; rts.SetHeightImmediate(900f); float hi = rts.height;
             Check(Mathf.Approximately(lo, RtsCamera.ZoomClosest), $"L3 asked 5 m: {lo:0.##} m");
-            Check(Mathf.Approximately(hi, RtsCamera.ZoomWidest), $"L4 asked 900 m: {hi:0.##} m");
+            Check(Mathf.Approximately(hi, widest), $"L4 asked 900 m: {hi:0.##} m (want {widest:0})");
             rts.SetHeightImmediate(70f); yield return 2;
 
             // the switch
@@ -208,13 +211,13 @@ namespace OpenZ.EditorTools
             Check(took && Mathf.Abs(Mathf.DeltaAngle(yaw, 90f)) < 0.05f && Mathf.Abs(rts.Tilt - Mathf.Max(22f, RtsCamera.FreeTiltMin)) < 1e-3f && off < 0.1f && boxOk,
                   $"L6 switch on, overlay hidden: turn taken {took}, yaw {yaw:0.##}, lowest tilt {rts.Tilt:0.##}, view centre {off:0.###} m off the focus; the minimap's drawn view box: {boxWhy}");
             float worst = 0f;
-            foreach (float h in new[] { RtsCamera.ZoomClosest, RtsCamera.ZoomWidest })
+            foreach (float h in new[] { RtsCamera.ZoomClosest, widest })
             {
                 rts.SetHeightImmediate(h); rts.FreeTurn(new Vector2(0f, -100000f)); rts.TakeShake(); yield return 2;     // the steepest tilt: no floor in the way
                 float want = h / Mathf.Sin(rts.pitch * Mathf.Deg2Rad), got = Vector3.Distance(cam.transform.position, rts.focus);
                 worst = Mathf.Max(worst, Mathf.Abs(got - want));
             }
-            Check(worst < 0.1f, $"L7 free camera at 25 and 200 m keeps the zoom's distance (worst {worst:0.###} m)");
+            Check(worst < 0.1f, $"L7 free camera at {RtsCamera.ZoomClosest:0} and {widest:0} m keeps the zoom's distance (worst {worst:0.###} m)");
             rts.SetHeightImmediate(70f);
             OzFreeCam.On = false; float tOff = Time.unscaledTime;
             while (rts.FreeLook && Time.unscaledTime - tOff < 3f) yield return 1;

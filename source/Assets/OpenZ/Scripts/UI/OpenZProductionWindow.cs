@@ -159,6 +159,7 @@ namespace OpenZ
             bRally.OnClick = c => { if (hud.Rally.Armed) hud.Rally.Disarm(); else { hud.Rally.Arm(); if (hud.Rally.Armed) Close(true); } };
             bClear.OnClick = c => hud.Rally.Clear(Building);
             DressButtons();   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): bigger close X; STOP, CLEAR, wide green SET RALLY; PLACE moves into the CANNONS row
+            RepeatSwitchBuild();   // 1.4 queue REPEAT switch (UI/OpenZProductionWindow.RepeatQueue.cs): the caption REPEAT and the tiles OFF / LAST / ALL at the end of the QUEUE row, the clear-rally X
             AudioDirector.manualProductionAnnounce = true;
             win.gameObject.SetActive(false);
         }
@@ -427,7 +428,7 @@ namespace OpenZ
             lastProg = prog; lastCurUnit = b.CurUnit;
             progShown = prog < progShown - 0.5f ? prog : Mathf.Lerp(progShown, prog, 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));   // eases between sim ticks
             progFill.fillAmount = progShown;
-            float pw = OzLayout.ProdProgress.w;
+            float pw = ProgressW;   // 1.4 STOP move (UI/OpenZProductionWindow.StopMove.cs): the bar's own width, shorter with STOP beside it (was OzLayout.ProdProgress.w)
             bool edgeOn = progShown > 0.005f && progShown < 0.995f; progEdge.enabled = edgeOn && progEdge.sprite != null;
             if (edgeOn) progEdge.rectTransform.anchoredPosition = new Vector2(pw * progShown - 3f, 0);
             bool sheen = building && st == "BUILDING" && progSheen.sprite != null && !OzMotion.Reduced;
@@ -536,10 +537,9 @@ namespace OpenZ
                 if (bRepeat.Selected != b.RepeatProduction) { bRepeat.Selected = b.RepeatProduction; bRepeat.Refresh(); }
                 bRepeat.Label.Set(b.RepeatProduction ? "REPEAT ON" : "REPEAT OFF");
             }
-            queueHint.Set(hud.Rally.Armed ? "RALLY TOOL ARMED · CLICK THE MAP · ESC CANCELS"
-                        : pend != null ? $"RALLY ROUTE · {pend.Count} POINTS · RELEASE SHIFT TO SEND"
-                        : b.RallyPoints.Count > 0 ? $"RALLY · {b.RallyPoints.Count} POINT{(b.RallyPoints.Count > 1 ? "S" : "")} · MAX 5 · CLICK TO REMOVE" : "MAX 5 · CLICK TO REMOVE");
+            queueHint.Set(QueueHint(b, pend));   // 1.4 queue REPEAT switch (UI/OpenZProductionWindow.RepeatQueue.cs): beside the switch the hint starts at x 70 with short rally texts; 1.3's row keeps these texts
             queueHint.color = hud.Rally.Armed || pend != null ? (Color)OzUi.Amber : (Color)OzUi.Dim;
+            RepeatSwitchText(b, paused);   // 1.4 queue REPEAT switch (UI/OpenZProductionWindow.RepeatQueue.cs): the lit tile, the marks on the slots, the slot tags, the texts while the list loops
             bPlace.Label.Set(b.StoredCannons.Count > 1 ? $"PLACE ×{b.StoredCannons.Count}" : "PLACE");
         }
 

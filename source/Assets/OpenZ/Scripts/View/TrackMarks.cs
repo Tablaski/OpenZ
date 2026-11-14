@@ -153,7 +153,7 @@ namespace OpenZ
 
         public static TrackMarks Ensure()
         {
-            if (PlayerPrefs.GetInt("oz_tracks", 1) == 0) return null;
+            if (PlayerPrefs.GetInt("oz_tracks", 1) == 0 || OzUeHooks.NoGroundDressing) return null;   // 1.2 item 6: not on the Unit editor's code-drawn floor (no terrain there)
             if (I) return I;
             var g = ZGame.I; if (!g) return null;
             var found = FindFirstObjectByType<TrackMarks>(); if (found) return found;
@@ -769,7 +769,7 @@ namespace OpenZ
             var col = GameObject.Find("COL_Terrain");                                                       // ZGame.cs:46
             s.terrain = col ? col.GetComponent<Collider>() : null;
             s.walkMask = ZGame.WalkLayer >= 0 ? 1 << ZGame.WalkLayer : 0;
-            s.fallbackDust = s.City ? new Color32(118, 100, 88, 255) : new Color32(205, 160, 104, 255);
+            s.fallbackDust = s.City ? new Color32(118, 100, 88, 255) : s.map.planet == OzVolcanic.Planet ? OzVolcanic.FallbackDust : new Color32(205, 160, 104, 255);
             s.fallbackSoft = (byte)(s.City ? 80 : 255);
             float windDeg = 28f;
             try { s.ReadPaint(ref windDeg); }

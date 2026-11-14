@@ -34,7 +34,10 @@ namespace OpenZ
         ZGame game; CombatView combat;
 
         // ------------------------------------------------------------------------------------------ tuning
-        public static float LaserSpeedMul = 1f;          // x Zod's 37.5 m/s (elaser.cpp:9)
+        public static float LaserSpeedMul = 1.2f;
+        /// <summary>1.4 laser_beam_speed: the width (m) of the laser bolt's soft green sleeve (wv2_laser_glow, 4.2 x as long as wide): 0.5 before,
+        /// 0.42 = a crisper, less flame-like beam. The white-cored bolt itself (0.13 m wide, 1.7 m long) is as before.</summary>
+        public const float LaserSleeveWidth = 0.42f;
         public static float SniperTracerMps = CombatView.ZodBulletMps;
         public static float MgTracerMul = 1f;            // x Zod's 37.5 m/s (ebullet.cpp:7)
         public static readonly Color LaserCore = new Color(0.62f, 1f, 0.55f), LaserGlow = new Color(0.16f, 1f, 0.22f), LaserLight = new Color(0.35f, 1f, 0.4f);
@@ -204,7 +207,7 @@ namespace OpenZ
 
         FxSurface SurfaceOf(ZObject t, bool hit, Vector3 at, OpenZFxPlayer z)
         {
-            if (hit && t != null) return t.Kind == ZKind.Robot ? FxSurface.Unit : t.Kind == ZKind.MapItem ? FxSurface.Rock : FxSurface.Metal;
+            if (hit && t != null) return t.Kind == ZKind.Robot ? (t.IsEvilZod ? FxSurface.Metal : FxSurface.Unit) : t.Kind == ZKind.MapItem ? FxSurface.Rock : FxSurface.Metal;
             return z ? z.SurfaceAt(at) : FxSurface.Ground;
         }
 
@@ -213,6 +216,16 @@ namespace OpenZ
         {
             var r = RigFor(a, av); r.fallbackFrom = from;
             shots.Add(new PendingShot { e = e, a = a.Id, t = t.Id, type = type, to = to, oldFrom = from, kill = WeaponsV2.KillRoll(e, t) });
+        }
+
+        /// <summary>DV163: the target id of a shot at a dragon (no object). `to` is the end of the round, a sky miss, nothing lands; a psycho's burst spreads round it itself.</summary>
+        public const int SkyTarget = -2;
+        public bool QueueSkyShot(ZObject a, string type, UnitView av, Vector3 from, Vector3 to)
+        {
+            if (!Live(out _)) return false;
+            var r = RigFor(a, av); r.fallbackFrom = from;
+            shots.Add(new PendingShot { e = new ZEvent { type = ZEventType.Hitscan, objId = a.Id, otherId = SkyTarget }, a = a.Id, t = SkyTarget, type = type, to = to, oldFrom = from });
+            return true;
         }
 
         public bool SniperAllow(UnitView av, ZEvent e, ZObject t)
@@ -281,7 +294,7 @@ namespace OpenZ
         {
             if (now < nextAttach) return;
             nextAttach = now + 0.5f;
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || v.Obj == null || v.Obj.Kind != ZKind.Robot || !v.isActiveAndEnabled) continue;
                 var ty = v.Obj.Type;
@@ -415,7 +428,7 @@ namespace OpenZ
             var from = MuzzleNow(r, S.to, out _);
             if (r.robot && r.view) { r.view.OnFire(); if (r.pose) r.pose.OnRound(2.5f, 0f); }
             NoteMps("grunt bolt", LegacyMatch.ShotSpeed(Speed));
-            if (Live(out var z)) { float fl = z.Shot(from, S.to, FxWeapon.Bolt, LegacyMatch.SurfaceOf(t, S.e.flag), LegacyMatch.ShotSpeed(Speed)); if (S.kill) BlastWave.NoteDrawn(S.a, t, fl); }
+            if (Live(out var z)) { float fl = z.Shot(from, S.to, FxWeapon.Bolt, LegacyMatch.SurfaceOf(t, S.e.flag), LegacyMatch.ShotSpeed(Speed), t); if (S.kill) BlastWave.NoteDrawn(S.a, t, fl); }
             else FxManager.I?.Bullet(from, S.to);
             if (CombatAudio.I && !OzHeroSquadView.PlayShot(S.a, from, CombatAudio.I)) CombatAudio.I.PlayPitched("bolt", from, LegacyMatch.GainBolt, 0.2f, S.a, 1f, WeaponsV2.Pick(LegacyMatch.BankBolt));   // DV108: a hero's shot: its own three sounds
             MetalPing(S, t, from);
@@ -454,6 +467,7 @@ namespace OpenZ
             {
                 if (r.mg == null) continue;
                 if (r.view && (r.view.Dying || r.view.Reacting)) { r.mg.ArmedUntil = -1f; r.mg.Clip = -1; continue; }   // review: a dead psycho stops firing (rounds came out of the ragdoll up to ~1 s); rebase: so does a knocked-down one (deaths_mech_v1 draws its held shots when it is up)
+                if (OzVehicleQuiet.HatchGunQuiet(r.id)) { r.mg.ArmedUntil = -1f; r.mg.Clip = -1; continue; }   // vehicle_exit_jump part B (fix rounds 1, 2): nobody inside the vehicle (a tank's hatch driver, an APC's crew): the burst and its MG clip stop in this frame (View/OzVehicleQuiet.cs)
                 if (r.hatch && !BoardingView.DriverMuzzleNow(r.id, out _)) { r.mg.ArmedUntil = -1f; r.mg.Clip = -1; continue; }   // DV87: a tank's hatch driver dropped back in: his machine gun stops with him (no round out of a shut hatch)
                 int started = r.mg.Step(now, out int due);
                 if (started >= 0)
@@ -461,6 +475,7 @@ namespace OpenZ
                     MgBursts++;
                     var au = CombatAudio.I;
                     if (au) au.PlayPitched("mg", MuzzleNow(r, r.lastTo, out _), WeaponsV2.GainMg, 0f, r.id, 1f, MgClipNames[started]);
+                    if (au && !r.robot) OzVehicleQuiet.NoteVoice(r.id, MgClipNames[started][0], MuzzleNow(r, r.lastTo, out _));   // vehicle_exit_jump part B (fix round 1): a vehicle rig's burst voice (fix round 2: every vehicle), stopped with its quiet
                 }
                 for (int i = 0; i < due; i++) MgRound(r, now);
             }
@@ -485,8 +500,9 @@ namespace OpenZ
             else
             {
                 var off = Random.insideUnitCircle.normalized * Random.Range(0.7f, 2.2f);
-                to = OzShuttleAim.High(t) ? OzShuttleAim.SkyMiss(from, t) : HitSurface.MissGround(from, aimAt + new Vector3(off.x, 0f, off.y));                // IM1: where the line lands
+                to = r.lastTarget == SkyTarget ? OzShuttleAim.MissPast(from, aimAt, 0.2f, 1.6f, 10f) : OzShuttleAim.High(t) ? OzShuttleAim.SkyMiss(from, t) : OzTowerAim.On(t) ? OzTowerAim.Miss(from, t) : HitSurface.MissGround(from, aimAt + new Vector3(off.x, 0f, off.y));                // IM1: where the line lands   // 1.3 item 3: past a fort tower gun up there (View/OzTowerAim.cs)
             }
+            if (ShotLine.Stop(from, to, t, out var wall)) { to = wall; hit = false; }                  // bullets_straight: it ends on what its line meets (View/ShotLine.cs)
             var d = to - from; float dist = d.magnitude; if (dist < 0.1f) return;
             var sd = d / dist;
             float speed = LegacyMatch.ShotSpeed(Speed) * MgTracerMul; NoteMps("psycho tracer", speed);
@@ -580,16 +596,37 @@ namespace OpenZ
         void LaserBolt(Rig r, Vector3 from, Vector3 dir, Vector3 to, bool hit, int target, bool first, bool kill = false)
         {
             if (!Live(out var z)) return;
+            if (ShotLine.Stop(from, to, game.World.GetAny(target), out var wall)) { to = wall; hit = false; }   // bullets_straight: it ends on what its line meets (View/ShotLine.cs)
             var d = to - from; float dist = d.magnitude; if (dist < 0.2f) return;
             var sd = d / dist;
             float speed = LegacyMatch.ShotSpeed(Speed) * LaserSpeedMul, len = LaserBoltLength, half = len * 0.5f; NoteMps("laser bolt", speed);
             float start = Mathf.Min(half + 0.15f, dist * 0.5f), life = HeadTimeAt("laser", dist, speed);
             if (kill) BlastWave.NoteDrawn(r.id, game.World.GetAny(target), life);
-            if (channelsReady) life = z.EmitRound("wv2_laser", "wv2_laser_glow", from, to, start, speed, life, 0.13f, LaserCore, 1f, 0.5f, LaserGlow, 0.9f);
+            if (channelsReady) life = z.EmitRound("wv2_laser", "wv2_laser_glow", from, to, start, speed, life, 0.13f, LaserCore, 1f, LaserSleeveWidth, LaserGlow, 0.9f);
             else life = z.EmitRound("m12_bolt", null, from, to, start, speed, life, OpenZFxCatalog.BoltWidth, LaserGlow, 1f);
             var t = game.World.GetAny(target);
             hits.Add(Anc(new Hit { at = Time.time + life, pos = to, kind = first ? HitKind.LaserStrong : HitKind.LaserWeak, target = target, shooter = r.id, hit = hit, surf = SurfaceOf(t, hit, to, z) }));
             LaserBolts++;
+        }
+
+        // ---- 1.4 laser_beam_speed: the charge before the release
+        /// <summary>
+        /// fire_*_n01.png: a green ball on the gun) for the 0.05-0.08 s step just before the fire frame, drawn as a small green glow with a white
+        /// core on the drawn muzzle for that step. CombatView.StepFireClocks calls it when a laser robot's ZodClientFire clock enters the step.
+        /// View only: the clock, the shots, the sounds and the sim are as before. A laser robot on foot, alive and not knocked down only.</summary>
+        public int LaserCharges;
+        public const float LaserChargeSize = 0.45f, LaserChargeCore = 0.16f;
+        public static void LaserCharge(ZGame g, int id, double simSeconds)
+        {
+            var r = I; if (!r || !WeaponsV2.Enabled || g == null || g.World == null || !Live(out var z)) return;
+            var a = g.World.Get(id); if (a == null || a.Kind != ZKind.Robot || a.Type != "laser") return;
+            if (!g.Views.TryGetValue(id, out var v) || !v || !v.isActiveAndEnabled || v.Dying || v.Reacting) return;
+            var pose = v.GetComponent<RobotWeaponPose>(); float s = pose ? pose.Scale : 1f;
+            float life = Mathf.Clamp((float)simSeconds / Mathf.Max(0.25f, g.gameSpeed), 0.03f, 0.1f);        // the step on the real clock (3 to 5 frames at 60 fps)
+            var at = DrawnMuzzle(g, a);
+            z.EmitChannel(r.Ch("wv2_glow", "leg_cloud"), at, Vector3.zero, life, LaserChargeSize * s, LaserGlow, 0.85f);
+            z.EmitChannel("m12_core", at, Vector3.zero, life, LaserChargeCore * s, LaserCore, 0.9f);
+            r.LaserCharges++;
         }
 
         void Zap(Vector3 at, bool strong, bool hit, int target, FxSurface surf)
@@ -634,20 +671,19 @@ namespace OpenZ
                 if (!z.WetAt(gp)) z.Dust(gp, 0.5f);
             }
             var to = S.e.flag ? S.to : GroundHit(from, S.to);
+            bool walled = ShotLine.Stop(from, to, t, out var wall); if (walled) to = wall;             // bullets_straight: it ends on what its line meets (View/ShotLine.cs)
             var d = to - from; float dist = d.magnitude;
             if (dist > 0.2f)
             {
                 var sd = d / dist;
                 float speed = SniperTracerMps * Speed, len = 2.6f, start = Mathf.Min(len * 0.5f + 0.2f, dist * 0.5f), life = HeadTimeAt("sniper", dist, speed);
-                bool bent = ShotClearance.Bend(from, to, out var bw);
                 life = z.EmitRound(Ch("wv2_sniper_tracer", "leg_tracer"), null, from, to, start, speed, life, 0.07f, SniperTrail, 1f);
                 if (S.kill) BlastWave.NoteDrawn(S.a, t, life);
                 NoteMps("sniper crack", speed);
-                if (bent) { Trail(from + sd * 0.3f, bw, Vector3.Distance(from, bw) / speed, 0.5f, 0.07f * Mathf.Max(1f, s * 0.8f)); Trail(bw, to, life, 0.5f, 0.07f * Mathf.Max(1f, s * 0.8f)); }
-                else Trail(from + sd * 0.3f, to, dist / speed, 0.5f, 0.07f * Mathf.Max(1f, s * 0.8f));
+                Trail(from + sd * 0.3f, to, dist / speed, 0.5f, 0.07f * Mathf.Max(1f, s * 0.8f), ShotLine.LastOver);
                 // H0 round 3: the impact (sparks, ping) comes when the crack's head arrives (was dist / speed: 0.075 s after the drawn round had gone)
-                hits.Add(Anc(new Hit { at = Time.time + life, pos = to, dir = sd, kind = HitKind.Sniper, target = t != null ? t.Id : -1, shooter = r.id, hit = S.e.flag,
-                                   driver = S.e.flag && S.e.flag2, surf = SurfaceOf(t, S.e.flag, to, z) }));
+                hits.Add(Anc(new Hit { at = Time.time + life, pos = to, dir = sd, kind = HitKind.Sniper, target = t != null ? t.Id : -1, shooter = r.id, hit = S.e.flag && !walled,
+                                   driver = S.e.flag && S.e.flag2 && !walled, surf = SurfaceOf(t, S.e.flag && !walled, to, z) }));
             }
             if (au)
             {
@@ -656,7 +692,7 @@ namespace OpenZ
                 OzSoundV3.SniperBolt(from, a.Id);                                                      // sound_v3
                 sounds.Add(new DelayedSound { at = Time.time + Random.Range(0.16f, 0.28f), key = "sniper_tail", pos = from, vol = WeaponsV2.GainSniperEcho * WeaponsV2.EvenGain(ep, WeaponsV2.BankSniperEcho), emitter = a.Id, bank = ep });
             }
-            if (S.e.flag && t != null && t.Kind != ZKind.Robot && t.Kind != ZKind.MapItem && !S.e.flag2 && !OpenZHitSparks.Active)   // review: hitsparks_v1's sniper burst rings itself
+            if (S.e.flag && !walled && t != null && t.Kind != ZKind.Robot && t.Kind != ZKind.MapItem && !S.e.flag2 && !OpenZHitSparks.Active)   // review: hitsparks_v1's sniper burst rings itself
                 sounds.Add(new DelayedSound { at = Time.time + HeadTimeAt("sniper", dist, SniperTracerMps * Speed), key = "metal_ping", pos = S.to, vol = 0.4f, emitter = t.Id, bank = MetalPingBank, throttle = 0.5f });
             SniperShots++;
         }
@@ -781,7 +817,7 @@ namespace OpenZ
         enum BeamKind { Free, Sight, Trail, Arc }
         sealed class Beam { public LineRenderer lr; public BeamKind kind; public float age, life, grow, fade; public Vector3 a, b; public Color c; public float w; public MaterialPropertyBlock mpb; }
         readonly List<Beam> beams = new List<Beam>(32);
-        Material beamMat;
+        Material beamMat, beamOver; int warmBeam = 4;                                                 // shots_over_walls: beamOver = the same with the depth test off
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
         void BuildBeams()
@@ -789,6 +825,7 @@ namespace OpenZ
             beamMat = Resources.Load<Material>("OpenZ/WeaponsV2/M_WV2_Beam");
             if (!beamMat) { var sh = Shader.Find("OpenZ/Beam"); if (sh) beamMat = new Material(sh) { name = "M_WV2_Beam (runtime)" }; }
             if (!beamMat) { Debug.LogWarning("[weapons_v2] OpenZ/Beam shader missing: no sniper sight / vapour trail / laser arcs"); return; }
+            beamOver = new Material(beamMat) { name = "M_WV2_Beam (over)" }; beamOver.SetFloat("_ZTest", 8f);
             for (int i = 0; i < 28; i++)
             {
                 var go = new GameObject("WV2Beam" + i); go.transform.SetParent(transform, false);
@@ -810,7 +847,7 @@ namespace OpenZ
                 if (b.kind != BeamKind.Sight && b.age / Mathf.Max(0.01f, b.life) > bestAge) { bestAge = b.age / Mathf.Max(0.01f, b.life); best = i; }
             }
             if (best < 0) return -1;
-            var x = beams[best]; x.kind = k; x.age = 0f; x.lr.enabled = true; x.lr.positionCount = 2;
+            var x = beams[best]; x.kind = k; x.age = 0f; x.lr.enabled = true; x.lr.positionCount = 2; x.lr.sharedMaterial = beamMat;
             return best;
         }
         void FreeBeam(int i) { if (i < 0 || i >= beams.Count) return; beams[i].kind = BeamKind.Free; beams[i].lr.enabled = false; }
@@ -832,10 +869,11 @@ namespace OpenZ
         }
 
         /// <summary>The sniper's vapour trail: grows with the tracer head over `grow` s, then fades over `fade` s.</summary>
-        void Trail(Vector3 a, Vector3 b, float grow, float fade, float width)
+        void Trail(Vector3 a, Vector3 b, float grow, float fade, float width, bool over = false)
         {
             int i = TakeBeam(BeamKind.Trail); if (i < 0) return;
             var x = beams[i]; x.life = grow + fade; x.grow = Mathf.Max(0.01f, grow); x.fade = fade;
+            if (over && beamOver) x.lr.sharedMaterial = beamOver;
             SetBeam(i, a, a, width, SniperTrail, 2.2f, 0.9f); x.a = a; x.b = b;
         }
 
@@ -861,6 +899,7 @@ namespace OpenZ
 
         void StepBeams(float dt)
         {
+            if (warmBeam > 0) { warmBeam--; if (ShotLine.OverWalls && OpenZFxPlayer.I) OpenZFxPlayer.I.DrawWarm(beamOver); }   // shots_over_walls: no pipeline state built in a fight
             for (int i = 0; i < beams.Count; i++)
             {
                 var x = beams[i];

@@ -37,6 +37,8 @@ namespace OpenZ.Sim
             new Dictionary<(string attacker, string target), int>
             {
                 [("grunt", "grunt")] = 125,    // 9 hits fell a grunt (Zod: 99): two fresh squads standing in range, one is dead after about 10 s
+                [("grunt", "sniper")] = 100,   // 1.2 sniper balance: 18 hits fell a sniper (Zod 11: 160 hits, rifles could not hurt them)
+                [("psycho", "sniper")] = 90,   // 1.2 sniper balance: 20 hits fell a sniper (Zod 26: 68 hits)
             };
     }
 }

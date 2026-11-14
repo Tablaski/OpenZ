@@ -148,6 +148,9 @@ namespace OpenZ
 
         float Floor(Vector3 p, float minPx) => minPx <= 0f ? 0f : minPx * Vector3.Distance(camPos, p) / pxPerRad;
 
+        /// <summary>shots_over_walls: the next ribbons draw over everything (their vertices get the near plane's depth, OpenZ/ElectroArc).</summary>
+        public bool Over;
+
         void Grow(Vector3 p) { if (!any) { bounds = new Bounds(p, Vector3.one); any = true; } else bounds.Encapsulate(p); }
 
         /// <summary>A camera-facing strip through pts[0..n-1]. width = full glow width (m), coreFrac = core share of it, gains = HDR,
@@ -170,7 +173,7 @@ namespace OpenZ
                 float taper = t < 0.15f ? Mathf.Lerp(startW, 1f, t / 0.15f) : t > 0.85f ? Mathf.Lerp(1f, endW, (t - 0.85f) / 0.15f) : 1f;
                 float w = Mathf.Max(width * taper, Floor(p, minPx)) * 0.5f;
                 var c = new Color(glow.r, glow.g, glow.b, strength);
-                var d1 = new Vector4(coreFrac, coreGain, glowGain, seed); var d2 = new Vector4(mode, 0f, 0f, 0f);
+                var d1 = new Vector4(coreFrac, coreGain, glowGain, seed); var d2 = new Vector4(mode, Over ? 1f : 0f, 0f, 0f);
                 pos.Add(p - side * w); col.Add(c); uv0.Add(new Vector2(t, -1f)); uv1.Add(d1); uv2.Add(d2);
                 pos.Add(p + side * w); col.Add(c); uv0.Add(new Vector2(t, 1f)); uv1.Add(d1); uv2.Add(d2);
                 Grow(p);

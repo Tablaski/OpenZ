@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -440,3 +441,4 @@ namespace OpenZ
         void OnDestroy() { if (Running) { Running = false; if (Time.timeScale == 0f) Time.timeScale = 1f; } }
     }
 }
+#endif

@@ -19,6 +19,10 @@ namespace OpenZ.Sim
     /// Deterministic: whole numbers only, no random draw, no clock. Switch: ZWorld.GrenadeBoostDeviation (the game sets it at
     /// every start: on, off in 'Zod exact' and with oz_grenade_boost = 0; headless default off, so every parity row and every
     /// other check runs with Zod's grenade). With the switch off every number and the blast line are Zod's own, tick for tick.
+    /// its two numbers are taken x GrenadeStrongerPct / 100 more (115: a direct hit 1916 -> 2203, an area hit 1499 -> 1724 at the
+    /// centre of the blast, each rounded half up); the 36 px radius, the fall-off, the throw, the flight, the scatter, the time between
+    /// throws and 20 a box stay as they were. It acts only while DV104 is on, so 'Zod exact' and oz_grenade_boost = 0 keep Zod's
+    /// OpenZ/V1.3/Grenades stronger: counted (headless, DV160), Editor/OzV13GrenadeCount.cs).
     /// </summary>
     public sealed partial class ZWorld
     {
@@ -27,14 +31,25 @@ namespace OpenZ.Sim
         /// is on (each rounded to a whole number).</summary>
         public const int GrenadeBoostRadiusPct = 120, GrenadeBoostDamagePct = 115, GrenadeAreaDamagePct = 90;
 
+        /// <summary>DV160 (1.3 item 32): the shipped per cent on top of DV104's direct and area hit (100 = the 1.2 grenade).</summary>
+        public const int ShippedGrenadeStrongerPct = 115;
+        /// <summary>DV160: the per cent in use. Static so the counted check can measure the 1.2 grenade (100) beside the shipped step;
+        /// the check snapshot (Editor/OzV11Kit.GameSwitches) puts it back. Nothing in the game changes it.</summary>
+        public static int GrenadeStrongerPct = ShippedGrenadeStrongerPct;
+
+        /// <summary>DV160: hp x GrenadeStrongerPct / 100, rounded half up (whole numbers only).</summary>
+        public static int GrenadeStronger(int hp) => GrenadeStrongerPct == 100 ? hp : (hp * GrenadeStrongerPct + 50) / 100;
+
         /// <summary>Zod's grenade damage at the centre of the blast: grenade_damage x MAX_UNIT_HEALTH (1666).</summary>
         public int ZodGrenadeDamage => (int)(S.grenade_damage * ZConst.MAX_UNIT_HEALTH);
 
-        /// <summary>The damage a thrown grenade carries (a direct hit at the centre of its blast; Zod: grenade_damage x MAX_UNIT_HEALTH).</summary>
-        public int ThrownGrenadeDamage => GrenadeBoostDeviation ? (ZodGrenadeDamage * GrenadeBoostDamagePct + 50) / 100 : ZodGrenadeDamage;
+        /// <summary>The damage a thrown grenade carries (a direct hit at the centre of its blast; Zod: grenade_damage x MAX_UNIT_HEALTH).
+        /// DV104 x DV160 while the rule is on (1666 -> 1916 -> 2203).</summary>
+        public int ThrownGrenadeDamage => GrenadeBoostDeviation ? GrenadeStronger((ZodGrenadeDamage * GrenadeBoostDamagePct + 50) / 100) : ZodGrenadeDamage;
 
-        /// <summary>An area hit's damage at the centre of the blast: Zod's less one tenth (1499); Zod's own with the rule off.</summary>
-        public int ThrownGrenadeAreaDamage => GrenadeBoostDeviation ? (ZodGrenadeDamage * GrenadeAreaDamagePct + 50) / 100 : ZodGrenadeDamage;
+        /// <summary>An area hit's damage at the centre of the blast: Zod's less one tenth (1499), then DV160 (1724); Zod's own with the
+        /// rule off.</summary>
+        public int ThrownGrenadeAreaDamage => GrenadeBoostDeviation ? GrenadeStronger((ZodGrenadeDamage * GrenadeAreaDamagePct + 50) / 100) : ZodGrenadeDamage;
 
         /// <summary>The blast radius of a thrown grenade in px (Zod: grenade_damage_radius).</summary>
         public int ThrownGrenadeRadius => GrenadeBoostDeviation ? (S.grenade_damage_radius * GrenadeBoostRadiusPct + 50) / 100 : S.grenade_damage_radius;

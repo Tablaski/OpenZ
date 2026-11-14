@@ -86,6 +86,11 @@ namespace OpenZ.Sim
         /// <summary>DV108 switch: the level data's "heroes" entries are placed as extra hero squads. The game sets it at every start
         /// (off in 'Zod exact'); off by default so every headless world is the map alone.</summary>
         public static bool HeroSquadDeviation = false;
+        /// <summary>
+        /// ALAN &amp; BRAD are the red side's heroes. On: the level data's "heroes" entries are not placed (no squad, so no start camp). The game
+        /// sets it at every start: on only when the human commands BLUE (PLAY AS BLUE, View/ZGame.cs). Off by default: every headless world,
+        /// a red start, a bot match and the parity runs are as before.</summary>
+        public static bool HeroSquadsOffAsBlue = false;
         /// <summary>DV108 statistics (checks): hero squads created in this world.</summary>
         public int HeroSquadsMade { get; private set; }
 
@@ -93,7 +98,7 @@ namespace OpenZ.Sim
         /// the level data becomes an extra hero squad of its owner. Nothing of the map is replaced. Switch off: nothing happens.</summary>
         void AddHeroSquads()
         {
-            if (!HeroSquadDeviation || Map == null || Map.heroes == null) return;
+            if (!HeroSquadDeviation || HeroSquadsOffAsBlue || Map == null || Map.heroes == null) return;   // DV108 part 2: none in a PLAY AS BLUE start (row 80)
             foreach (var o in Map.heroes)
             {
                 if (o == null || ZHeroSquads.Get(o.squad) == null) continue;

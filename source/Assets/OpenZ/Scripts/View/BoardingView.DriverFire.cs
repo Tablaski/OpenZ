@@ -57,6 +57,7 @@ namespace OpenZ
         {
             p = default;
             if (!I || I.game == null || !I.game.Views.TryGetValue(id, out var v) || !v || !I.rigs.TryGetValue(v, out var r)) return false;
+            if (OzVehicleQuiet.Quiet(r.obj)) { OzVehicleQuiet.MuzzleRefused(); return false; }                  // vehicle_exit_jump part B (fix round 1): nobody inside: his weapon is quiet from this frame (the burst, the laser volley, the jet; View/OzVehicleQuiet.cs)
             return I.DriverMuzzle(r, out p);
         }
 
@@ -67,7 +68,7 @@ namespace OpenZ
             p = default;
             if (!r.lid || !r.crew || !r.crew.activeInHierarchy || r.crewPop <= 0.3f) return false;
             float s = r.crewBase * r.crewScale * CrewFit(r, r.crew);
-            bool gun = r.crewWeapon && r.crewWeapon.gameObject.activeSelf;
+            bool gun = r.crewWeapon && r.crewWeapon.gameObject.activeSelf && !LightV2GunHidden(r);           // 1.2 light tank v2: not drawn = in front of his chest
             if (!r.crewMuzzle) r.crewMuzzle = FindMuzzle(r.crew);
             p = gun && r.crewMuzzle ? r.crewMuzzle.position
                                     : r.crew.transform.position + r.root.up * (r.cmdShoulder * s) + (r.crewAim * Vector3.back) * ((gun ? 0.6f : 0.35f) * s);
@@ -83,6 +84,7 @@ namespace OpenZ
             if (!v || v.Obj == null || !v.gameObject.activeInHierarchy) return;
             var r = RigOf(v); if (r == null) return;
             var veh = r.obj; var t = game.World.GetAny(e.otherId);
+            if (OzVehicleQuiet.Quiet(veh)) { OzVehicleQuiet.DriverShotDropped(veh); return; }                    // vehicle_exit_jump part B (fix round 1): the vehicle seen empty: no shot of its hatch driver drawn from this frame (View/OzVehicleQuiet.cs)
             string type = veh.DriverGunType;
             bool killed = t != null && t.Destroyed;
             float now = Time.time;
@@ -116,6 +118,7 @@ namespace OpenZ
                 // inside a vehicle / gun / building footprint on the wall that faces this tank), after the sim's own flight time
                 var land = ZGame.PxToWorld(e.x, e.y); land.y = game.GroundY(land.x, land.z);
                 var end = land + Vector3.up * 0.25f;
+                if (ShotLine.OverWalls) end = OzUePlatformViews.Aim(t, end);                                   // shots_over_walls: at a unit on a deck, never at the wall's foot (CombatView gets this through AirAim)
                 if (t != null && !t.Destroyed && t.Kind != ZKind.Robot && t.Kind != ZKind.MapItem &&
                     Mathf.Abs(e.x - t.CenterX) <= t.WidthPix * 0.44f && Mathf.Abs(e.y - t.CenterY) <= t.HeightPix * 0.44f)
                 {
@@ -123,6 +126,12 @@ namespace OpenZ
                     end = body && HitSurface.OnBody(body, v.transform.position + Vector3.up * 1.2f, land + Vector3.up * 1f, out var wall, out _) ? wall : land + Vector3.up * 0.75f;
                 }
                 if (t != null && t.IsFortDefender) end = FortDefenderView.RoofPoint(end);
+                if (OzTowerAim.On(t))
+                {   // 1.3 item 3: a rocket at a fort tower gun ends on the gun up there, on the point CombatView draws its blast (OnSurface from this tank + 1.2 m; View/OzTowerAim.cs)
+                    var tw = OzTowerAim.Aim(t, land); var tbody = DriverTargetBody(t);
+                    end = tbody && HitSurface.OnBody(tbody, v.transform.position + Vector3.up * 1.2f, tw + Vector3.up * 1f, out var twall, out _) ? twall : tw;
+                }
+                e.driver = true; ShotLine.Cut(ref e, t, FxWeapon.Bazooka, from, ref end);                      // bullets_straight: it ends where its arc meets something, with its burst there (View/ShotLine.cs)
                 var rd = end - from; float rl = rd.magnitude; var rdir = rl > 1e-3f ? rd / rl : -r.root.forward;
                 var flat = new Vector3(rdir.x, 0f, rdir.z); flat = flat.sqrMagnitude > 1e-4f ? flat.normalized : Vector3.forward;
                 if (live)
@@ -142,7 +151,7 @@ namespace OpenZ
             bool hit = e.flag || type == ZElectro.Type;
             var aim = t != null ? AimPoint(t) : ZGame.PxToWorld(e.x, e.y) + Vector3.up;
             Vector3 to;
-            if (!hit) to = HitSurface.MissGround(from, aim + new Vector3(Random.Range(-1.6f, 1.6f), Random.Range(-0.4f, 0.8f), Random.Range(-1.6f, 1.6f)));
+            if (!hit) to = OzTowerAim.On(t) ? OzTowerAim.Miss(from, t) : HitSurface.MissGround(from, aim + new Vector3(Random.Range(-1.6f, 1.6f), Random.Range(-0.4f, 0.8f), Random.Range(-1.6f, 1.6f)));   // 1.3 item 3: past a fort tower gun up there
             else
             {
                 to = aim + Random.insideUnitSphere * 0.3f;

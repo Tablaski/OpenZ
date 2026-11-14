@@ -25,7 +25,7 @@ namespace OpenZ.EditorTools
         static readonly (string attacker, string target)[] Pairs =
         {
             ("psycho", "jeep"), ("psycho", "gatling"), ("psycho", "light"),
-            ("jeep", "jeep"), ("jeep", "gatling"), ("jeep", "light"),
+            ("jeep", "jeep"), ("jeep", "gatling"), ("jeep", "light"), ("jeep", "medium"),
             ("grunt", "jeep"), ("grunt", "gatling"), ("grunt", "light"), ("gatling", "light"), ("gatling", "jeep"), ("sniper", "jeep"), ("sniper", "light"),
         };
 
@@ -124,7 +124,7 @@ namespace OpenZ.EditorTools
         static readonly Dictionary<(string, string), string> Wanted = new Dictionary<(string, string), string>
         {
             [("psycho", "jeep")] = "about 39", [("psycho", "gatling")] = "12-16", [("psycho", "light")] = "8-10",
-            [("jeep", "jeep")] = "about 21", [("jeep", "gatling")] = "about 8", [("jeep", "light")] = "6-8",
+            [("jeep", "jeep")] = "about 21", [("jeep", "gatling")] = "about 8", [("jeep", "light")] = "12-14 (1.2)", [("jeep", "medium")] = "9-11 (1.2)",
             [("gatling", "light")] = "about 12", [("grunt", "jeep")] = "as before (16)", [("grunt", "gatling")] = "about 4", [("grunt", "light")] = "0-1",
         };
 

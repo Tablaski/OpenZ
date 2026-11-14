@@ -9,7 +9,8 @@
 //  - every plant cell shows its full plants (the far, thinned mesh is not drawn), and
 //  - plants that stand more than GroundMargin metres outside the map (no ground under them) are not drawn,
 //  - the far fall's sheet of water (the part of the wall falls' sheet mesh that stands that far outside the map: a column 68 m
-//    high whose cliff a low camera does not show) is not drawn; the four falls inside the map stay.
+//    high whose cliff a low camera does not show) is not drawn; the four falls inside the map stay. The steep camera leaves it out
+//    too while the land beyond the rim is on: that hill's jungle is not drawn there either (OzL16FlyoverFlora.FarFall.cs).
 // With the last shot of the flyover (a cut, a steep camera again) everything is back exactly as it was. Nothing is built or
 // destroyed, no rule is read: only what is drawn changes. Level 16 only; it attaches itself to that scene.
 // Play check: return OpenZ.OzL16FlyoverFlora.Status();
@@ -94,6 +95,7 @@ namespace OpenZ
             bool want = ForceOn || (game && game.level == Level && (FlybySky.ForceOn || (fly != null && fly.Active && fly.Cine && fly.SkyWanted)));
             if (want != on) Set(want);
             if (on) TickFar();
+            FarFallHold();                                                                        // the far fall stands back in the steep look too (OzL16FlyoverFlora.FarFall.cs)
         }
 
         void Set(bool want)

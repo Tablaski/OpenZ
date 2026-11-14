@@ -51,6 +51,9 @@ namespace OpenZ
         public static float TurnSmooth = 0.28f, TurnSmoothJeep = 0.14f;
         /// <summary>Turn-rate deceleration (deg/s^2) when the vehicle stops: the hull settles instead of finishing a turn in place.</summary>
         public static float StopDecel = 900f;
+        /// <summary>1.4 DV173: while a tank / the mech with a non-grunt driver steps aside (ZObject.PremiumDodgeNow) its hull eases this much quicker
+        /// (the ease time / it, the turn cap x it). Every other vehicle and moment: TurnSmooth / TurnSmoothJeep and the cap as given.</summary>
+        public static float PremiumDodgeTurn = 1.15f;
 
         /// <summary>Turret arc (full width, deg) inside which a standing vehicle keeps its hull still while it fires.</summary>
         public static float TurretArcFor(string type) => 360f;   // tanks, mech waist, jeep gun and MLRS rack all traverse fully
@@ -128,7 +131,9 @@ namespace OpenZ
                 hull = Mathf.Repeat(hull + 180f, 360f) - 180f;
                 return hull;
             }
-            hull = Mathf.SmoothDampAngle(hull, goal, ref rate, jeep ? TurnSmoothJeep : TurnSmooth, maxRate, dt);
+            float smooth = jeep ? TurnSmoothJeep : TurnSmooth;
+            if (o.PremiumDodgeNow) { smooth /= PremiumDodgeTurn; maxRate *= PremiumDodgeTurn; }       // 1.4 DV173: a tank / the mech with a non-grunt driver turns its hull quicker while it steps aside (view only)
+            hull = Mathf.SmoothDampAngle(hull, goal, ref rate, smooth, maxRate, dt);
             if (Mathf.Abs(Mathf.DeltaAngle(hull, goal)) < 0.05f && Mathf.Abs(rate) < 0.5f) { hull = goal; rate = 0f; }
             hull = Mathf.Repeat(hull + 180f, 360f) - 180f;
             return hull;

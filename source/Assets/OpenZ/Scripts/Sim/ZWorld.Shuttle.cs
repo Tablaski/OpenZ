@@ -57,7 +57,8 @@ namespace OpenZ.Sim
     ///  * The landing: about one in <see cref="ZWorld.ShuttleRoughEvery"/> (by the landing's number, never on a repair station) is a rough
     ///    one: the crash at the touchdown (<see cref="ZWorld.ShuttleRoughCrashSec"/>), resting tilted
     ///    (<see cref="ZWorld.ShuttleRoughRestSec"/>), the levelling (<see cref="ZWorld.ShuttleRoughLevelSec"/>); EXIT, the ramp and a
-    ///    take-off wait until it stands level (ShuttleLevelledAt). No hit points are lost.
+    ///    take-off wait until it stands level (ShuttleLevelledAt). No hit points are lost (1.3 item 7, DV154: the BIG crash landing,
+    ///    one crash landing in three, costs a quarter of the full health down to a safe floor and never destroys it: Sim/ZWorld.ShuttleBigCrash.cs).
     ///  * The map edge: every target is clamped to the map, <see cref="ZWorld.ShuttleEdgeTiles"/> tiles in from each edge, and the
     ///    flight never takes its middle nearer than one tile (plus half its box) to an edge.
     ///  * Flags: it never captures one (only robots who came out of it do).
@@ -97,7 +98,7 @@ namespace OpenZ.Sim
         /// <summary>DV118: off the ground (climbing, flying, hovering or coming down).</summary>
         public bool ShuttleAirborne => IsShuttle && (ShuttleState != ZShuttleState.Landed || ShuttleLift > 0);
         /// <summary>DV118: boarding and unloading are possible now (true for every other vehicle): standing on the ground, a human team's.</summary>
-        public bool ShuttleDoorOk => !IsShuttle || (ShuttleState == ZShuttleState.Landed && ShuttleLift <= 0 && World != null && World.IsHumanTeam(Owner));
+        public bool ShuttleDoorOk => !IsShuttle || (ShuttleState == ZShuttleState.Landed && ShuttleLift <= 0 && World != null && World.ShuttleTeamCanUse(Owner));   // DV138: a human team's, or with the rule on a computer's (Sim/ZBot.CpuShuttle.cs)
         /// <summary>DV118: its height above the ground in metres (the view, the checks).</summary>
         public double ShuttleHeightM => IsShuttle ? ShuttleLift * ZWorld.ShuttleCruiseM : 0;
 
@@ -125,7 +126,9 @@ namespace OpenZ.Sim
         void ShuttleDescentBegins()
         {
             int n = ShuttleLandings + 1;
-            ShuttleRoughLanding = ShuttleRepairTarget < 0 && (ZWorld.ShuttleRoughProofNext || ShuttleHash(Id, n) % ZWorld.ShuttleRoughEvery == 0);
+            bool rough = ShuttleLandingPick(n, out bool big);                                // 1.3 item 7 DV154: today's one in 4, or the big crash (switch off: exactly the old test; Sim/ZWorld.ShuttleBigCrash.cs)
+            ShuttleRoughLanding = ShuttleRepairTarget < 0 && rough;
+            ShuttleBigCrash = ShuttleRepairTarget < 0 && big;
             ShuttleRoughSide = (ShuttleHash(Id + 7, n) & 1) == 0 ? 1 : -1;
         }
 
@@ -139,8 +142,9 @@ namespace OpenZ.Sim
                 ShuttleRoughLandings++; ZWorld.ShuttleRoughProofNext = false;
                 ShuttleLevelStartAt = now + ZWorld.ShuttleRoughCrashSec + ZWorld.ShuttleRoughRestSec;
                 ShuttleLevelledAt = ShuttleLevelStartAt + ZWorld.ShuttleRoughLevelSec;
+                if (ShuttleBigCrash) ShuttleBigCrashHit();                                  // 1.3 item 7 DV154: a quarter of the full health, never under the safe floor, never destroyed (Sim/ZWorld.ShuttleBigCrash.cs)
             }
-            else { ShuttleRoughLanding = false; ShuttleLevelStartAt = ShuttleLevelledAt = now; }
+            else { ShuttleRoughLanding = false; ShuttleBigCrash = false; ShuttleLevelStartAt = ShuttleLevelledAt = now; }
         }
 
         /// <summary>Over its repair station's deck point, the pad free: the hover turn begins (state Cruise, no movement) and the station's
@@ -212,7 +216,7 @@ namespace OpenZ.Sim
                         if (!far) { shuttleNewGoal = false; ShuttleTakeOffHeld = false; break; }
                         if (ShuttleRampPhase != ZShuttleRamp.Shut || ShuttleExitPending || w.Time < ShuttleRampHoldUntil || w.Time < ShuttleLevelledAt) { ShuttleTakeOffHeld = true; break; }   // the ramp first (and level after a rough landing): the order is kept and taken the moment it is shut
                         if (ShuttleLiftWait(dt) || ShuttleAirRoomWait()) { ShuttleTakeOffHeld = true; break; }   // K256e: a unit within 2 m of the footprint: it waits (at most 3 s), robots are blown aside (ZWorld.ShuttleGround.cs); K338: another ship up within 10 m: it waits, that ship gives way
-                        shuttleNewGoal = false; ShuttleTakeOffHeld = false; ShuttleRoughLanding = false;
+                        shuttleNewGoal = false; ShuttleTakeOffHeld = false; ShuttleRoughLanding = false; ShuttleBigCrash = false;
                         ShuttleState = ZShuttleState.Climb; ShuttleFlights++; ShuttleNoLand = ""; w.ShuttleNote(ZShuttleNoteKind.TakeOff, this);
                         break;
                     case ZShuttleState.Descend: shuttleNewGoal = false; ShuttleState = ZShuttleState.Climb; w.ShuttleNote(ZShuttleNoteKind.Aborted, this, "new order"); break;   // up again first, then on
@@ -326,6 +330,7 @@ namespace OpenZ.Sim
         {
             if (!ShuttleOn) { L16ShuttleOptionOff = true; sight = null; return true; }
             if (!ShuttlePlayableDeviation) return false;
+            if (L16PocketForBlue()) { L16ShuttleOptionOff = true; sight = null; return true; }   // 1.2 item 111 DV144: the player commands blue: the red fort's pocket stays empty, his ship stands by the blue fort (ZWorld.SideShuttles.cs)
             var q = L16ShuttleSquare;
             PlayableShuttle = CreatePlayableShuttle((q[0] * 2 + q[2]) * 8, (q[1] * 2 + q[3]) * 8, ShuttleTeam);   // the middle of the decoration's square
             sight = null;
@@ -341,6 +346,7 @@ namespace OpenZ.Sim
             s.MaxHealth = s.Health = ShuttleHpFrom(light != null ? light.MaxHealth : 3378);   // DV131 (K443): the light tank's hit points x 1.2, the same for every team (Sim/ZWorld.ShuttleHp.cs)
             s.MoveSpeed = (int)Math.Round((jeep != null ? jeep.move_speed : 17) * ShuttleJeepFactor);
             s.RealMoveSpeed = s.MoveSpeed;
+            CustomShuttle(s);                                                               // 1.2 item 60 DV142: a Custom level's shuttle hit points and speed, as the Unit editor sets them (ZWorld.CustomStats.cs); off: nothing
             s.Damage = 0; s.AttackRadius = 0; s.DamageRadius = 0; s.CanSnipe = false; s.CanBeSnipedFlag = false; s.HasLid = false;
             s.ShuttleState = ZShuttleState.Landed; s.ShuttleLift = 0; s.ShuttleHeadingDeg = headingDeg;
             s.ShuttlePlace(cx, cy);

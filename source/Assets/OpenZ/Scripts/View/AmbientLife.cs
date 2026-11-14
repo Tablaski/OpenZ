@@ -28,7 +28,7 @@ namespace OpenZ
     /// Boots itself in every level scene (ZGame present), like FactoryViews.
     /// </summary>
     [DefaultExecutionOrder(72)]
-    public class AmbientLife : MonoBehaviour
+    public partial class AmbientLife : MonoBehaviour                                         // DV152 level 7: + AmbientLife.Dragons.cs
     {
         public static AmbientLife I { get; private set; }
         /// <summary>Set false (e.g. in ZGame.Awake) to add AmbientLife by hand instead of the auto boot.</summary>
@@ -160,7 +160,7 @@ namespace OpenZ
 
         class Bird
         {
-            public bool eagle; public int id, home; public Rig rig; public System.Random rng; public BS st; public float stT;
+            public bool eagle, dragon; public int id, home; public Rig rig; public System.Random rng; public BS st; public float stT;
             public Vector3 pos, vel; public float yaw, pitch, pitchExtra, roll, vy, speed, cruise, alt, clear, transitAlt;
             public Vector3[] route; public int wp; public Vector2 centre; public float radius, dir = 1f, hold;
             public float flapW, flapT, flapRate, burstT, burstLeft, w1, tuckW; public int pose0 = GlideF, hold1;
@@ -168,6 +168,7 @@ namespace OpenZ
             public int perch = -1; public float perchLeft, landT, swoopT, headYaw, headAim, headT, stretchT, stretchLeft, callT, turnYaw, takeYaw, checkT;
             public Quaternion rot = Quaternion.identity; public Vector3 spinAxis; public float spinRate, popScale = 1f, respawn, featherT;
             public float span, hitR, groundY, groundT, avoidT, avoidYaw; public Transform head, wingL, wingR; public Quaternion wingLRest, wingRRest;
+            public bool simPass, dgFlame; public int dgSerial; public float dgNod, dgLookT; public Transform dgSp2, dgSp3; public Vector3 dgMouthL; public Func<Vector3> dgMouthF;   // DV163: a dragon on a pass of the rules (AmbientLife.DragonAttack.cs)
             public bool Alive => st != BS.Fall && st != BS.Down && st != BS.Gone;
             public bool Perched => st == BS.Perch || st == BS.Land;
         }
@@ -239,6 +240,7 @@ namespace OpenZ
             BuildShared();
             if (level == "L02") { if (eagles) SpawnEagles(); if (worms) SpawnWorms(); }
             else if (level == "L17") { if (gulls) SpawnGulls(); }
+            else if (level == "L07") { if (dragons) SpawnDragons(); }                                       // level 7: lava dragons in the place of Z's volcanic pterodactyls (AmbientLife.Dragons.cs)
             FxManager.Exploded += OnExplosion; subscribed = true;
             int e = 0, g = 0; foreach (var b in birds) if (b.eagle) e++; else g++;
             Debug.Log($"[OpenZ] AmbientLife {level}: {e} eagles, {wormList.Count} sandworm holes, {g} seagulls (water y {waterY:F2}, walk mask {walkMask})");
@@ -363,6 +365,7 @@ namespace OpenZ
             var rig = new Rig { root = root, pivot = pivot, orient = orient, model = go.transform };
             foreach (var c in go.GetComponentsInChildren<Collider>(true)) Destroy(c);          // decor: nothing to click or hit
             rig.rends = go.GetComponentsInChildren<Renderer>(true);
+            OzGrd.KeepCpuCulling(rig.rends);                                                              // v1.3: Visible() reads isVisible: these stay with the engine's own culling (View/OzLiveSet.cs)
             foreach (var r in rig.rends)
             {
                 var n = Mathf.Max(1, r.sharedMaterials.Length); var arr = new Material[n];
@@ -564,6 +567,7 @@ namespace OpenZ
         void Update()
         {
             if (game == null || game.World == null || (birds.Count == 0 && wormList.Count == 0)) return;
+            using var groundRay = ZGame.GroundRayOnlyIf(anyDragon);                             // 1.4 perf_ground_grid: a dragon's pass is a rule input (DV163): the ray, as before
             float dt = game.paused ? 0f : Mathf.Min(Time.deltaTime, 0.05f) * Mathf.Clamp(game.gameSpeed, 0.25f, 2f);
             clock += dt;
             if (!cam) cam = Camera.main;
@@ -575,6 +579,7 @@ namespace OpenZ
             {
                 for (int i = 0; i < wormList.Count; i++) StepWorm(wormList[i], dt);
                 for (int i = 0; i < birds.Count; i++) StepBird(birds[i], dt);
+                DragonStep(dt);                                                                 // DV163: level 7 only, nothing else has a dragon (AmbientLife.DragonAttack.cs)
                 if (perchCool != null) for (int i = 0; i < perchCool.Length; i++) if (perchCool[i] > 0f) perchCool[i] -= dt;
                 StepBits(dt);
             }
@@ -587,7 +592,7 @@ namespace OpenZ
         void RefreshUnits()
         {
             unitCount = 0;
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || v.Dying || !v.gameObject.activeInHierarchy) continue;
                 if (unitCount == unitPos.Length) Array.Resize(ref unitPos, unitPos.Length * 2);
@@ -631,6 +636,7 @@ namespace OpenZ
         /// <summary>Would a path point at p (height y) fly into a building, rock pillar or hut? (rects grown by `grow` m)</summary>
         bool Blocked(Vector3 p, float grow)
         {
+            if (DragonShipBlocks(p, grow)) return true;                                               // DV163: a landed shuttle; the list is empty off level 7
             for (int i = 0; i < obstRect.Count; i++)
             {
                 var r = obstRect[i];
@@ -685,7 +691,7 @@ namespace OpenZ
                 if (b.callT <= 0f)
                 {
                     b.callT = 15f + R(b.rng, 0f, 5f);
-                    if (b.rng.Next(3) == 0 && !night) { Sound(b.eagle ? SndEagleCry : SndGullCall, b.pos, b.eagle ? 0.8f : 0.7f, 100 + b.id); if (b.st == BS.Perch) b.headAim = R(b.rng, -20f, 20f); }
+                    if (b.rng.Next(3) == 0 && !night) { Sound(b.dragon ? SndDragonCall : b.eagle ? SndEagleCry : SndGullCall, b.pos, b.eagle ? 0.8f : 0.7f, 100 + b.id); if (b.st == BS.Perch) b.headAim = R(b.rng, -20f, 20f); }
                 }
             }
         }
@@ -765,7 +771,9 @@ namespace OpenZ
                 b.groundY = Mathf.Max(Surface(b.pos.x, b.pos.z), Mathf.Max(Surface(a1.x, a1.z), Surface(a2.x, a2.z)));
             }
             float floor = b.groundY + b.clear;
+            if (b.dragon) floor = DragonFloor(floor, b.pos);                                         // DV163: over the hull of a flying shuttle
             float want = Mathf.Max(alt + 1.4f * Mathf.Sin(clock * 0.11f + b.id), floor);             // Zod: slow height changes
+            if (b.dragon) want = DragonCeiling(want, b.pos);                                         // DV163: nor up through the hull from under it
             float climbMax = b.pos.y < floor - 1f ? 4.5f : 2.2f;                                     // below the safe height: climb hard
             float vyWant = Mathf.Clamp((want - b.pos.y) * 0.45f, -1.3f, climbMax);
             b.vy = Mathf.MoveTowards(b.vy, vyWant, (climbMax > 3f ? 4f : 1.6f) * dt);
@@ -780,7 +788,7 @@ namespace OpenZ
         /// <summary>Follow the current Hermite piece; true while on the path. Sets velocity, yaw, bank and pitch from the path.</summary>
         bool FollowPath(Bird b, float dt, out float u, out int piece)
         {
-            b.pt += dt; Vector3 p;
+            b.pt = DragonClock(b, dt); Vector3 p;                                                  // DV163: frame time, a pass of the rules on the rules' clock
             if (b.pt < b.t1) { u = b.pt / b.t1; piece = 1; p = Hermite(b.h0, b.m0 * b.t1, b.h1, b.m1 * b.t1, u); }
             else if (b.pt < b.t1 + b.t2) { u = (b.pt - b.t1) / b.t2; piece = 2; p = Hermite(b.h1, b.m1 * b.t2, b.h2, b.m2 * b.t2, u); }
             else { u = 1f; piece = 3; return false; }
@@ -838,12 +846,14 @@ namespace OpenZ
                 }
             }
             if (!clear) { if (verbose) Debug.Log($"[OpenZ] AmbientLife: eagle {b.id} swoop blocked"); return; }
+            if (b.dragon && DragonShipOnPath(b)) return;                                             // DV163: no swoop whose path comes near a flying shuttle
             b.st = BS.Swoop; b.stT = 0f; b.tuckW = 0f; b.flapFromTuck = false;
             if (verbose) Debug.Log($"[OpenZ] AmbientLife: eagle {b.id} swoops at {(prey != null ? "worm " + prey.id : "the sand")} ({g.x:F0}, {g.z:F0})");
         }
 
         void Swoop(Bird b, float dt)
         {
+            if (b.dragon && DragonSwoopAway(b)) return;                                              // DV163: a plain swoop leaves its path near a flying shuttle (a pass of the rules breaks off by the rules)
             if (!FollowPath(b, dt, out float u, out int piece)) { EndPath(b); return; }
             bool flap = piece == 1 ? u > 0.8f : u < 0.75f;
             if (flap && !b.flapFromTuck) { b.flapFromTuck = true; b.flapT = (TuckF - FlapA) / Fps / Mathf.Max(0.01f, b.rig.loopLen); }   // flap on from the tucked pose
@@ -993,7 +1003,7 @@ namespace OpenZ
             b.rot = b.rig.root.rotation; b.spinAxis = RandUnit(b.rng); b.spinRate = R(b.rng, 280f, 560f);
             b.st = BS.Fall; b.stT = 0f; b.pose0 = GlideF; b.hold1 = LimpF; b.w1 = 0.7f; b.featherT = 0f; b.headYaw = 0f;
             Feathers(b, b.pos, b.eagle ? 16 : 12, 2.2f);
-            Sound(SndBirdHit, b.pos, 0.9f, 300 + b.id);
+            Sound(b.dragon ? SndDragonHit : SndBirdHit, b.pos, 0.9f, 300 + b.id);
             if (!b.eagle) Sound(SndGullCall, b.pos, 0.8f, 100 + b.id);
             b.rig.Shadows(true);
             if (verbose) Debug.Log($"[OpenZ] AmbientLife: {(b.eagle ? "eagle" : "gull")} {b.id} hit at ({b.pos.x:F0}, {b.pos.y:F0}, {b.pos.z:F0})");
@@ -1003,11 +1013,13 @@ namespace OpenZ
         {
             b.vel += Vector3.down * 9.81f * dt; b.vel *= 1f - 0.4f * dt;
             b.pos += b.vel * dt;
+            if (b.dragon) DragonFallPush(b, dt);                                                     // DV163: a falling dragon slides off a flying hull
             b.rot = Quaternion.AngleAxis(b.spinRate * dt, b.spinAxis) * b.rot;
             b.featherT -= dt; if (b.featherT <= 0f) { b.featherT = 0.12f; Feathers(b, b.pos, 1, 0.4f); }
             float s = Surface(b.pos.x, b.pos.z, out bool water);
             if (b.pos.y > s + 0.25f) return;
             var at = new Vector3(b.pos.x, s, b.pos.z);
+            if (b.dragon && DragonIntoLava(b, at)) return;                                           // DV163: down on lava: gone in a splash of it
             if (water)
             {   // splash: light blue pop sparks + dust read as spray; the bird is gone
                 if (fx) fx.Pop(at + Vector3.up * 0.1f, 1f);
@@ -1078,6 +1090,7 @@ namespace OpenZ
             float tb = b.hold1 > 0 ? rig.T(b.hold1) : rig.T(FlapA) + Mathf.Repeat(b.flapT, 1f) * rig.loopLen;
             rig.Pose(ta, tb, Mathf.Clamp01(b.w1));
             if (b.head && Mathf.Abs(b.headYaw) > 0.1f) b.head.rotation = Quaternion.AngleAxis(b.headYaw, rig.root.up) * b.head.rotation;
+            if (b.dragon) DragonNod(b, rig);                                                         // DV163: the neck bends down while the flame is on
         }
 
         /// <summary>No clip imported: flap the wing roots about the body axis (world-space deltas, independent of bone axes).</summary>
@@ -1257,7 +1270,7 @@ namespace OpenZ
             float reach = 1.2f + 2.4f * strength;                                                  // PropBreakables reach
             for (int i = 0; i < birds.Count; i++)
             {
-                var b = birds[i]; if (!b.Alive) continue;
+                var b = birds[i]; if (!b.Alive || b.simPass) continue;                             // DV163: on a pass its life is the rules'
                 float r = reach + b.hitR, d2 = (b.pos - at).sqrMagnitude;
                 if (d2 < r * r) KillBird(b, at, true);
                 else if (!b.eagle && b.Perched && d2 < 28f * 28f) StartTakeOff(b, at, true);
@@ -1278,6 +1291,7 @@ namespace OpenZ
             for (int i = 0; i < ev.Count; i++)
             {
                 var e = ev[i];
+                if (e.type == ZEventType.DragonEvent) { DragonSeen(e); continue; }                 // DV163 (AmbientLife.DragonAttack.cs)
                 if (e.type != ZEventType.Hitscan) continue;
                 if (!ShotSegment(e, out var a, out var b)) continue;
                 OnShot(a, b);
@@ -1299,7 +1313,7 @@ namespace OpenZ
         {
             for (int i = 0; i < birds.Count; i++)
             {
-                var bd = birds[i]; if (!bd.Alive) continue;
+                var bd = birds[i]; if (!bd.Alive || bd.simPass) continue;                          // DV163: on a pass its life is the rules'
                 float d = DistPointSegment(bd.pos, a, b);
                 if (d < bd.hitR) KillBird(bd, a, false);
                 else if (!bd.eagle && bd.Perched && d < 9f) StartTakeOff(bd, a, true);
@@ -1354,6 +1368,7 @@ namespace OpenZ
 
         void Feathers(Bird b, Vector3 at, int n, float burst)
         {
+            if (b.dragon) { DragonEmbers(at, n); return; }                                         // level 7: a lava dragon sheds embers (AmbientLife.Dragons.cs)
             for (int i = 0; i < n; i++)
             {
                 byte m = b.eagle ? (b.rng.Next(3) == 0 ? MFeatherWhite : MFeatherBrown) : (b.rng.Next(3) == 0 ? MFeatherGrey : MFeatherWhite);

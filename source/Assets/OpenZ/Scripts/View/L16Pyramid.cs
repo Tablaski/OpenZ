@@ -60,6 +60,18 @@ namespace OpenZ
             return (y <= PlatformY ? Mathf.Lerp(FootHalf, TopHalf, y / PlatformY) : TempleHalf) * size;
         }
 
+        /// <summary>bullets_straight (View/ShotLine.cs): a world point inside a pyramid's stepped shape (the rubble mound is not).</summary>
+        public static bool Inside(Vector3 p)
+        {
+            for (int i = 0; i < All.Count; i++)
+            {
+                var y = All[i]; if (y.Stage >= 2) continue;
+                var l = p - y.transform.position; float h = y.HalfAt(l.y);
+                if (h > 0f && Mathf.Abs(l.x) <= h && Mathf.Abs(l.z) <= h) return true;
+            }
+            return false;
+        }
+
         bool ShotHits(Vector3 a, Vector3 b)
         {
             var la = a - transform.position; var lb = b - transform.position;

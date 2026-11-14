@@ -19,6 +19,7 @@ namespace OpenZ
         void HeroRegenLine(ZObject hu)
         {
             if (uHpLabel == null) return;
+            if (RadarHpLabel(hu)) return;                                                              // 1.4 radar_enemy_bars DV172: an enemy shown without a radar: "HEALTH · NEEDS RADAR" (UI/OpenZHud.RadarBars.cs)
             int pct = hu != null && hu.Kind == ZKind.Robot && hu.MaxHealth > 0 && !hu.Destroyed ? ZHeroBoost.RegenPct(hu.Hero) : 0;
             if (pct <= 0)
             {

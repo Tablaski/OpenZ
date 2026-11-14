@@ -12,8 +12,8 @@ namespace OpenZ
     /// the shooter's own pad excluded).</item>
     /// <item><see cref="LiftGravity"/>: ballistic shells / rockets / grenades (OpenZFxPlayer.Launch, OpenZHeavyShells): the arc keeps its
     /// end points and flight time; only its height grows (the visual gravity rises until the arc clears every sample by the margin).</item>
-    /// <item><see cref="Bend"/>: straight rounds (bolts, tracers, MG, laser, sniper): a waypoint above the highest obstruction; the round
-    /// flies muzzle -> waypoint -> target at its own speed (two straight legs, the second emitted when the first arrives).</item>
+    /// <item>Straight rounds (bolts, tracers, MG, laser, sniper) and direct rockets and shells are no longer lifted: they end on what they
+    /// </item>
     /// <item><see cref="ArcHeight"/>: the pyro's flame stream (OpenZPyroFlamePool): the parabola height over the straight stream.</item>
     /// </list>
     /// The first 0.5 m (the muzzle) and the last metre (the target / impact) are never tested.
@@ -78,29 +78,6 @@ namespace OpenZ
             if (need <= g + 0.01f) return g;
             ArcsRaised++;
             return Mathf.Min(need, Mathf.Max(g, cap));
-        }
-
-        /// <summary>A straight round from -> to that would run through the ground / a fort: the waypoint w above the worst obstruction
-        /// (both legs clear every sample). False = the straight line is clear.</summary>
-        public static bool Bend(Vector3 from, Vector3 to, out Vector3 w, float margin = 0.3f)
-        {
-            w = default;
-            if (!Enabled || !ZGame.I) return false;
-            if (OzK394RoofShots.OverParapet(from, to, margin, out w)) { RoundsBent++; return true; }   // K394: a fort roof man's round: over his fort's real parapet only where it must
-            var d = to - from; if (d.x * d.x + d.z * d.z < 4f) return false;
-            float best = Gaps(from, to, margin, out int wi);
-            if (best <= 0.02f || wi <= 0) return false;
-            float sb = wi / (float)N, L = best;
-            for (int i = 1; i < N; i++)
-            {
-                if (gaps[i] <= 0f) continue;
-                float s = i / (float)N, tri = s <= sb ? s / sb : (1f - s) / (1f - sb);
-                if (tri > 0.05f) L = Mathf.Max(L, gaps[i] / tri);
-            }
-            L = Mathf.Min(L, MaxLift);
-            w = from + d * sb + Vector3.up * L;
-            RoundsBent++;
-            return true;
         }
 
         /// <summary>The flame stream's parabola height h (the stream at s rises 4 h s (1 - s) over the straight line) that clears the bank;

@@ -84,7 +84,7 @@ namespace OpenZ
         //      ONE may drive each thing: when a BS01Stance component sits on this view, this package steps back automatically (no
         //      procedural stance, no stance / tough clips, no own rocket hold while BS01Stance holds it); the sight, glint, crack,
         //      tube raise (WeaponHold aim), recoil and FX stay. Found by type NAME (no compile dependency on the other package).
-        Component ext; float nextExtScan; System.Reflection.PropertyInfo extPose, extBusy, extHolds;
+        Component ext; float nextExtScan; BS01Stance extStance;
         /// <summary>True when robot_models_v2's BS01Stance drives this robot's stance / tough clips.</summary>
         public bool External => ext;
         void ScanExternal(float now)
@@ -92,17 +92,13 @@ namespace OpenZ
             if (ext || now < nextExtScan) return;
             nextExtScan = now + 1f;
             ext = GetComponent("BS01Stance");
-            if (!ext) return;
-            var ty = ext.GetType();
-            extPose = ty.GetProperty("Pose"); extBusy = ty.GetProperty("Busy"); extHolds = ty.GetProperty("HoldsFire");
+            extStance = ext as BS01Stance;                                                            // v1.3 (item 25): read directly, no reflection each frame (the same assembly)
         }
-        T ExtGet<T>(System.Reflection.PropertyInfo p, T fallback)
-        {
-            if (!ext || p == null) return fallback;
-            try { return p.GetValue(ext) is T v ? v : fallback; } catch (System.Exception) { return fallback; }
-        }
+        // v1.3: the three values as the reflection read them: the fallback while there is no stance (or it is gone), a missing pose reads ""
+        bool ExtBusy => extStance ? extStance.Busy : false;
+        string ExtPose => extStance ? extStance.Pose ?? "" : "";
         /// <summary>robot_models_v2's BS01Stance is holding this Tough's first rocket for tough_prepare (UnitAim holds it).</summary>
-        public bool ExternalHoldsFire => ExtGet(extHolds, false);
+        public bool ExternalHoldsFire => extStance ? extStance.HoldsFire : false;
 
         public static RobotWeaponPose Attach(UnitView v)
         {
@@ -255,7 +251,7 @@ namespace OpenZ
             if (v.sqrMagnitude < 1e-4f) return false;
             dir = v.normalized;
             float el = Mathf.Asin(Mathf.Clamp(dir.y, -1f, 1f)) * Mathf.Rad2Deg;
-            float elHi = OzShuttleAim.High(t) ? 50f : 30f;                                            // DV118: the tube lifts higher at the flying shuttle
+            float elHi = OzShuttleAim.High(t) || OzTowerAim.On(t) ? 50f : 30f;                       // DV118: the tube lifts higher at the flying shuttle; 1.3 item 3: and at a fort tower gun (View/OzTowerAim.cs)
             if (el > elHi || el < -20f) { var flat = new Vector3(dir.x, 0f, dir.z).normalized; dir = Tilt(flat, Vector3.up, Mathf.Clamp(el, -20f, elHi)); }
             return true;
         }
@@ -265,7 +261,7 @@ namespace OpenZ
         public void OnToughFire() { if (Tough == null) return; Tough.OnFire(Time.time); OnRound(External ? 0f : 10f, 0.16f); if (!External && !View.Reacting) OnToughFireClip(); }   // review: BS01Stance plays its own tough_fire (retry: and climbs its own tube); rebase: never over a deaths_mech_v1 knockdown
 
         /// <summary>retry: the sniper is (going) prone: its first visible shot waits until it lies steady (prone down 0.8 s).</summary>
-        public bool GoingProne => External ? ExtGet(extBusy, false) && ExtGet(extPose, "") == "prone" : Want == Stance.Prone && Current != Stance.Stand && poseRaw < 1f;
+        public bool GoingProne => External ? ExtBusy && ExtPose == "prone" : Want == Stance.Prone && Current != Stance.Stand && poseRaw < 1f;
 
         /// <summary>The target the sim will engage (UnitAim.Predict's rule, zobject.cpp:1603-1853): the raise starts as soon as a
         /// Tough stands still with an enemy in range, up to one passive-engage check (0.5 s) before the sim engages.</summary>
@@ -295,8 +291,8 @@ namespace OpenZ
             if (!WeaponsV2.Enabled) return;                                                           // review: the A/B toggle also turns the body recoil / brace / servo off
             if (View.Reacting) { rootWritten = false; return; }
             if (!External) ToughClips(before);                                                        // review: BS01Stance plays tough_prepare itself
-            bool rising = External ? ExtGet(extBusy, false) && !extWasBusy : before <= 0.01f && Tough.Raise01 > 0.01f;   // retry: with BS01Stance the whirr goes with ITS tough_prepare
-            if (External) extWasBusy = ExtGet(extBusy, false);
+            bool rising = External ? ExtBusy && !extWasBusy : before <= 0.01f && Tough.Raise01 > 0.01f;   // retry: with BS01Stance the whirr goes with ITS tough_prepare
+            if (External) extWasBusy = ExtBusy;
             if (rising && now - servoAt > 1.5f && CombatAudio.I)
             {   servoAt = now; CombatAudio.I.PlayPitched("servo", transform.position + Vector3.up * 1.8f * scale, WeaponsV2.GainServo, 0.5f, o.Id, 1f, WeaponsV2.Pick(WeaponsV2.BankServo)); }
             if (External) return;                                                                     // retry: tough_fire (BS01Stance) kicks the body + steps back itself: never twice
@@ -575,7 +571,7 @@ namespace OpenZ
         void MirrorExternal()
         {
             EngagementStance();                                                                       // retry: engagement tracking (SniperGoesDown asks it too)
-            bool busy = ExtGet(extBusy, false); string pose = ExtGet(extPose, "");
+            bool busy = ExtBusy; string pose = ExtPose;
             Current = !busy ? Stance.Stand : pose == "prone" ? Stance.Prone : pose == "kneel" ? Stance.Kneel : Stance.Stand;
             PoseWeight = Current == Stance.Stand ? 0f : 1f; poseRaw = 0f; hasWritten = false;
         }
@@ -591,7 +587,7 @@ namespace OpenZ
             if (!anim || !anim.isActiveAndEnabled || !anim.isInitialized) return;
             var o = View.Obj;
             bool engaged = o.AttackObject != null && !o.AttackObject.Destroyed;
-            if (!WeaponsV2.Enabled || !engaged || o.IsMoving || clipActive || View.Reacting || (External && ExtGet(extBusy, false))) { kickHold = false; return; }   // rebase: + deaths_mech_v1 knockdown   // retry: a STANDING sniper next to BS01Stance too
+            if (!WeaponsV2.Enabled || !engaged || o.IsMoving || clipActive || View.Reacting || (External && ExtBusy)) { kickHold = false; return; }   // rebase: + deaths_mech_v1 knockdown   // retry: a STANDING sniper next to BS01Stance too
             if (anim.IsInTransition(0)) return;
             var info = anim.GetCurrentAnimatorStateInfo(0);
             if (info.shortNameHash != ShootingHash) { kickHold = false; return; }

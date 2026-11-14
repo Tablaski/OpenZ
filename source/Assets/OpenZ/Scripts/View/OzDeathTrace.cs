@@ -134,7 +134,7 @@ namespace OpenZ
         void Write()
         {
             done.AddRange(tracks); tracks.Clear();
-            string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../../../../work/records/qc"));
+            string dir = OzProofWords.Records("qc");
             try { Directory.CreateDirectory(dir); } catch { dir = Application.temporaryCachePath; }
             string stamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var md = new StringBuilder();

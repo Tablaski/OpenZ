@@ -8,11 +8,14 @@ using UnityEngine.SceneManagement;
 
 namespace OpenZ
 {
-    /// <summary>One line of a level's table: the result itself. It carries no name.</summary>
+    /// <summary>One line of a level's table: the result itself and the side it was won with. It carries no name.</summary>
     [Serializable]
     public class OzScoreEntry
     {
         public int score, seconds, kills, losses, built, zones, zonesTotal;
+        /// <summary>
+        /// EVILZOD). An entry of a file from before has none and reads as 0 (until then only red entered a table).</summary>
+        public int side;
     }
 
     /// <summary>The top results of one level on one difficulty, best first.</summary>
@@ -55,7 +58,8 @@ namespace OpenZ
     /// The table: the 10 best victories of each level on each difficulty, best first; equal scores: the shorter mission first,
     /// then the older entry. Kept in one small file next to the game's own saved data (Application.persistentDataPath /
     /// highscores.json), written when an entry is added. It never leaves the computer. An entry is the result only (score,
-    /// mission time, units killed, lost and built, zones): no name is asked for, stored or shown. A file written by an earlier
+    /// blue enters the same tables under the same rules as a red one; every row shows its side; an entry from before the side was
+    /// kept reads as red; OzScoreSides): no name is asked for, stored or shown. A file written by an earlier
     /// build, which holds a name with every entry, is read as it is; the name is not kept and is gone at the next write.
     /// View side only: the sim never reads any of it.
     /// </summary>
@@ -206,7 +210,7 @@ namespace OpenZ
         public static string TableTitle(string level, GameDifficulty d) => "TOP " + TableSize + " · " + level + " · " + OpenZDifficulty.Label(d);
 
         /// <summary>
-        /// time); the entry `mark` (the result of the match just played) gets an arrow. Empty text = no entry yet. Shown by the
+        /// colour, rank, score, mission time); the entry `mark` (the result of the match just played) gets an arrow. Empty text = no entry yet. Shown by the
         /// TOP 10 tooltip of the end screen's strip.</summary>
         public static string TableLines(string level, GameDifficulty d, OzScoreEntry mark = null)
         {
@@ -216,15 +220,18 @@ namespace OpenZ
             {
                 var e = list[i];
                 if (i > 0) sb.Append('\n');
-                sb.Append(i + 1).Append(".  ").Append(Rank(e.score)).Append("  ").Append(Group(e.score)).Append("  ").Append(UnitInfo.Duration(e.seconds));
+                sb.Append(i + 1).Append(".  ").Append(OzScoreSides.Rich(e)).Append("  ")
+                  .Append(Rank(e.score)).Append("  ").Append(Group(e.score)).Append("  ").Append(UnitInfo.Duration(e.seconds));
                 if (mark != null && e == mark) sb.Append("  ◀");
             }
             return sb.ToString();
         }
 
         /// <summary>Adds a result. Returns its place 1 .. 10, or 0 when it did not make the table. Written at once.</summary>
-        public static int Submit(string level, GameDifficulty d, OzScoreEntry e)
+        // duel separate from solo scores
+            public static int Submit(string level, GameDifficulty d, OzScoreEntry e)
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return 0;
             if (e == null || string.IsNullOrEmpty(level)) return 0;
             var t = Table(level, d, true);
             int at = 0;

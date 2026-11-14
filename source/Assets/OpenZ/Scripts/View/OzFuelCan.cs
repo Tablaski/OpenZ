@@ -339,14 +339,17 @@ namespace OpenZ
             state = State.Water; sinkT = 0f; sinkFrom = new Vector3(p.x, Mathf.Min(p.y, wy), p.z);
             rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None; col.enabled = false;
             OzWaterLanding.Splash(new Vector3(p.x, wy, p.z), OzWaterSize.Small, "fuel can", v.magnitude, false, id);
-            Splashes++; restOn = "water";
+            Splashes++; restOn = "water"; lavaMelting = OzLavaMelt.Take(transform, v.magnitude, OzMeltEnd.Keep, "fuel can");   // level 7, kit LV5
             if (batch != null) { batch.inWater++; if (wasLanded) { if (firstOnGround) batch.landedGround--; else batch.landedOther--; } }   // it rolled in after landing: counted once, as in the water
             ClearFirst();
             Report();
         }
 
+        bool lavaMelting;
+
         void WaterSink(float dt)
         {
+            if (lavaMelting) { if (OzLavaMelt.Busy(transform)) return; lavaMelting = false; Off(); return; }
             sinkT += dt; float k = Mathf.Clamp01(sinkT / 1.1f);
             transform.position = sinkFrom + Vector3.down * 0.6f * Mathf.SmoothStep(0f, 1f, k);
             if (k > 0.65f) transform.localScale = baseScale * Mathf.Max(0.001f, 1f - (k - 0.65f) / 0.35f);
@@ -356,7 +359,7 @@ namespace OpenZ
         /// <summary>It goes with the wreck: into the ground over SinkSeconds, smaller in the last third.</summary>
         void StartSink()
         {
-            if (state == State.Sinking || state == State.Off) return;
+            if (state == State.Sinking || state == State.Off || OzLavaMelt.Busy(transform)) return;   // level 7, kit LV5: melting: its life and the cap wait until it is under
             state = State.Sinking; sinkT = 0f; sinkFrom = transform.position; glideT = -1f; ClearFirst();
             rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None; col.enabled = false;
             Report();

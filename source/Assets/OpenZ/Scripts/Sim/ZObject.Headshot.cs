@@ -25,7 +25,7 @@ namespace OpenZ.Sim
         /// t has left (at least the normal hit); every other hit = <paramref name="hit"/> unchanged (no roll, nothing counted).</summary>
         internal int HeadshotHit(ZObject t, int hit)
         {
-            if (!ZWorld.SniperHeadshotDeviation || Type != "sniper" || t == null || t.Kind != ZKind.Robot || t.Health <= 0) return hit;
+            if (!ZWorld.SniperHeadshotDeviation || Type != "sniper" || t == null || t.Kind != ZKind.Robot || t.Health <= 0 || t.IsEvilZod) return hit;
             if (!World.HeadshotRoll(this, t)) return hit;
             t.HeadshotBy = Id; t.HeadshotAt = World.Time;
             return Math.Max(hit, t.Health);
@@ -38,7 +38,7 @@ namespace OpenZ.Sim
         /// worlds, the parity report's other rows, the counted checks); View/ZGame.cs sets it at every start, off in 'Zod exact'.</summary>
         public static bool SniperHeadshotDeviation = false;
         /// <summary>DV116: the headshot chance of one sniper hit on a robot (per cent).</summary>
-        public const int HeadshotPct = 15;
+        public static int HeadshotPct = 8;
 
         /// <summary>DV116 statistics (checks): sniper hits on robots that rolled, and the headshots among them.</summary>
         public int HeadshotRolls { get; private set; }

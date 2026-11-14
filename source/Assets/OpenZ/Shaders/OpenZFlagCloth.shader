@@ -14,6 +14,11 @@
 // crease shade / crest sheen from the wave normal, translucency toward the sun blocked by double layers, and the team
 // emblem read from the owner vertex colour: red = five-point star, blue = double chevrons (light applique with a stitched
 // edge), neutral = plain warm grey cloth (no emblem). _EmblemMode 1 / 2 forces star / chevrons for both, 3 = off.
+// Version 1.2, owner item 5b (View/FlagView.Looks.cs, OzFlagLamp.hlsl), at night only (x the flags' night, the global _OZFlagLook.x):
+//   cloth TEXCOORD1.w = its night amount 0..1: a red / blue cloth glows softly from inside (_OZFlagLook.z), a neutral one is lit by
+//   its pool of light (_OZFlagLook.w); pole TEXCOORD1 = (lamp colour x amount (linear rgb), phase seed) on the finial ball's vertices
+//   (uv.y = 2), else 0: the ball is a lamp that blinks like a radio mast's (_OZFlagLook.y). Every value lives in the meshes: still no
+//   per-renderer properties.
 Shader "OpenZ/FlagCloth"
 {
     Properties
@@ -176,6 +181,7 @@ Shader "OpenZ/FlagCloth"
             #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "OpenZNightV2.hlsl"                                            // night_v2: day-sky reflection fix
+            #include "OzFlagLamp.hlsl"                                              // v1.2 owner item 5b: the night lamp + glowing cloth
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 
@@ -189,6 +195,7 @@ Shader "OpenZ/FlagCloth"
                 float4 positionCS : SV_POSITION; float4 uvSize : TEXCOORD0; float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2; float4 color : TEXCOORD3; float2 foldFog : TEXCOORD4;
                 float slope : TEXCOORD5;                                // VX70: 1 - |n.z| of the waved cloth (creases)
+                float4 night : TEXCOORD6;                               // v1.2: TEXCOORD1 (cloth: .w night amount; pole: lamp rgb, seed)
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -204,6 +211,7 @@ Shader "OpenZ/FlagCloth"
                 o.uvSize = float4(i.uv, i.size.xy); o.color = i.color;
                 o.foldFog = float2(fold, ComputeFogFactor(vp.positionCS.z));
                 o.slope = 1.0 - abs(normalize(n).z);                   // the droop turns about z: n.z is the wave's own tilt
+                o.night = i.size;
                 return o;
             }
 
@@ -219,6 +227,7 @@ Shader "OpenZ/FlagCloth"
                 half3 albedo = i.color.rgb;                           // linear owner colour (cloth) / paint (pole)
                 half occlusion = 1, smooth = _Smoothness, metal = 0;
                 half layers = 0;                                          // VX70: double cloth layers (hem, tape, emblem)
+                half teamK = 0;                                           // 1 = a red / blue cloth (v1.2: its night glow)
                 half3 transAlb = albedo;
                 if (isCloth)
                 {
@@ -247,7 +256,7 @@ Shader "OpenZ/FlagCloth"
                     // team (from the owner colour FlagView writes): red / blue get the emblem, neutral grey stays plain
                     half isRed = step(0.12, team.r) * step(team.b * 2.5, team.r);
                     half isBlue = step(0.12, team.b) * step(team.r * 2.5, team.b);
-                    half teamK = saturate(isRed + isBlue);
+                    teamK = saturate(isRed + isBlue);
                     int mode = (int)round(_EmblemMode);
                     // (both shapes evaluated outside flow control: fwidth needs uniform control flow)
                     float fieldW = size.x - _HeaderWidth;
@@ -307,6 +316,14 @@ Shader "OpenZ/FlagCloth"
                 s.occlusion = occlusion; s.normalTS = half3(0, 0, 1);
                 half glowK = smoothstep(0.3h, 1.0h, i.color.a);                                   // energy <= 0.3 = flutter only
                 s.emission = isCloth ? albedo * glowK * _CaptureGlow : half3(0, 0, 0);            // capture flash, blooms
+                half flagNight = saturate((half)_OZFlagLook.x);
+                if (flagNight > 0.001h)
+                {   // v1.2 owner item 5b, night only: "05 Blinking lamp and glowing cloth" on red / blue flags, the pool's light on neutral cloth
+                    if (isCloth)
+                        s.emission += albedo * (half)(i.night.w * flagNight * (teamK > 0.5h ? _OZFlagLook.z : _OZFlagLook.w));
+                    else if (i.uvSize.y > 1.5)                                                      // the finial ball = the lamp
+                        s.emission += (half3)i.night.xyz * (half)(_OZFlagLook.y * flagNight * OZFlagBlink(_Time.y, i.night.w));
+                }
 
                 InputData d = (InputData)0;
                 d.positionWS = i.positionWS; d.positionCS = i.positionCS;

@@ -43,6 +43,7 @@ namespace OpenZ
         }
     }
 
+#if !OZ_RELEASE
     /// <summary>A/B capture: the four shore spots of ShoreCapture x day / dusk at 70 m, A then B, same frame each;
     /// </summary>
     public class ShoreBeachCapture : MonoBehaviour
@@ -79,4 +80,5 @@ namespace OpenZ
             Destroy(gameObject);
         }
     }
+#endif
 }

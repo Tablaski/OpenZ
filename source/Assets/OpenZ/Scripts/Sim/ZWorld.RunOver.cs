@@ -41,13 +41,15 @@ namespace OpenZ.Sim
         /// <summary>DV65: v may drive into r (and r walk into v) without the spacing gate: a moving crewed vehicle and an enemy robot.</summary>
         public static bool RunOverPair(ZObject v, ZObject r) =>
             RunOverDeviation && v != null && r != null && v.Kind == ZKind.Vehicle && r.Kind == ZKind.Robot && v.Owner != Team.Neutral && r.Owner != Team.Neutral
-            && v.Owner != r.Owner && v.Drivers.Count > 0 && ZPathing.Moving(v) && !r.IsFortDefender;
+            && v.Owner != r.Owner && v.Drivers.Count > 0 && ZPathing.Moving(v) && !r.IsFortDefender && !r.IsEvilZod;
 
         /// <summary>ZWorld.Tick after the pathing layer's end of tick: hull contacts of moving crewed vehicles with enemy robots.</summary>
         void RunOverTick()
         {
             if (!RunOverDeviation) return;
             int n = Objects.Count;
+            bool fast = PerfFastRules;                                                   // 1.3 item 25: the robots of Objects[0..n) listed once, same order (Sim/ZWorld.PerfRules.cs)
+            if (fast) ListRunOverRobots(n);
             for (int i = 0; i < n && i < Objects.Count; i++)
             {
                 var v = Objects[i];
@@ -57,11 +59,15 @@ namespace OpenZ.Sim
                 if (dl < 1e-6) continue;
                 double hx = v.Dx / dl, hy = v.Dy / dl, px = -hy, py = hx;
                 double halfLen = ZPathing.VehicleRadiusOf(v.Type), halfW = halfLen * RunOverHalfWidth;
-                for (int j = 0; j < n && j < Objects.Count; j++)
+                bool listed = fast && roRemoves == objRemoves;                           // (nothing leaves Objects during the pass; if it ever did, Objects itself as before)
+                var nbl = NbRunOverNear(v, n);                                           // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in the 40 px box of the hull, same order
+                int m = nbl != null ? nbl.Count : listed ? roRobots.Count : n;
+                for (int j = 0; j < m && (nbl != null || listed || j < Objects.Count); j++)
                 {
-                    var r = Objects[j];
+                    var r = nbl != null ? nbl[j] : listed ? roRobots[j] : Objects[j];
                     if (r.Kind != ZKind.Robot || r.Destroyed || r.KillAt >= 0 || r.Health <= 0 || r.Owner == Team.Neutral || r.Owner == v.Owner) continue;   // never the own team
-                    if (r.IsFortDefender || r.PathInBuildingStage || r.FortRushOn) continue;
+                    if (r.IsFortDefender || r.PathInBuildingStage || r.FortRushOn || r.IsEvilZod) continue;
+                    if (r.DriverOutOnHull) continue;                                                       // 1.4 DV171 final fix: a driver held while he climbs out of a tank is on its hull, not on the ground: not run over until his hold ends (Sim/ZObject.VehicleExit.cs)
                     double rx = r.CenterX - v.CenterX, ry = r.CenterY - v.CenterY;
                     if (Math.Abs(rx) > 40 || Math.Abs(ry) > 40) continue;
                     double along = rx * hx + ry * hy, lat = rx * px + ry * py, rr = ZPathing.Radius(r);

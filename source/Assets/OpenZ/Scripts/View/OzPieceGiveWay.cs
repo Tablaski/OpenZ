@@ -42,7 +42,7 @@ namespace OpenZ
             if (!any) { if (boxes.Count > 0) boxes.Clear(); if (lastPos.Count > 0) lastPos.Clear(); return; }   // idle: no old place is kept (a way measured across a pause would be far too long)
             Looks++;
             units.Clear();
-            foreach (var kv in g.Views)
+            foreach (var kv in g.LiveViews)
             {
                 var v = kv.Value; if (!v || !v.gameObject.activeInHierarchy) continue;
                 var o = v.Obj; if (o == null || o.Destroyed || (o.Kind != ZKind.Robot && o.Kind != ZKind.Vehicle)) continue;

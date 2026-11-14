@@ -26,9 +26,13 @@ namespace OpenZ
         /// <summary>The slam's and the bounce's peak (screen px at the 1080 px reference, the camera at its default height or nearer, the
         /// crash at the screen centre); the strength left at the screen edge (x of the centre's).</summary>
         public static float SlamPx = 7f, BouncePx = 3f, EdgeK = 0.6f;
+        /// <summary>1.3 item 7 (DV154): the BIG crash landing's slam and bounce (px, as above: between a building's blast, 9 px, and the fort
+        /// shell's landing, 10.5 px; the bounce at the small-kick limit, 4.5 px) and its camera jitter (x the crash's own). The same gate: the
+        /// CAMERA SHAKE option and CALM MODE still turn it off, off screen there is none.</summary>
+        public static float BigSlamPx = 10f, BigBouncePx = 4.5f, BigKickK = 1.4f;
         /// <summary>Proof: requests, kicks, refused by the gate (switch, calm mode, the pause between kicks), off screen; the last request's
         /// screen factor, zoom factor and peak px (after both factors; 0 when it did not kick) and its verdict.</summary>
-        public static int Asked, Kicks, Refused, OffScreen, Slams, Bounces;
+        public static int Asked, Kicks, Refused, OffScreen, Slams, Bounces, BigSlams, BigBounces;
         public static float LastScreenK, LastZoomK, LastPx;
         public static string LastVerdict = "none";
         public static bool LogToConsole;
@@ -54,28 +58,31 @@ namespace OpenZ
             return Mathf.Clamp(OpenZFxCatalog.ShakeKickRefSpan / Mathf.Max(1f, span), OpenZFxCatalog.ShakeKickFarK, 1f);
         }
 
-        /// <summary>The crash's first ground contact (the hull's middle, the slam point for the camera's own jitter).</summary>
-        public static bool Slam(Vector3 hull, Vector3 slamPoint)
+        /// <summary>The crash's first ground contact (the hull's middle, the slam point for the camera's own jitter); big = the 1.3 big crash
+        /// (BigSlamPx and the jitter x BigKickK, the same gate).</summary>
+        public static bool Slam(Vector3 hull, Vector3 slamPoint, bool big = false)
         {
-            Slams++;
+            Slams++; if (big) BigSlams++;
+            float kickK = big ? BigKickK : 1f;
             var rc = Object.FindFirstObjectByType<RtsCamera>();
             if (OpenZFxShake.I == null)
             {   // no effect shake in this scene: the crash's old camera kick alone (the gate still decides)
-                slamKicked = rc && rc.Shake(OzShuttleTouchdown.Kick, slamPoint, "wreck_slam");
-                Note("slam", "no effect shake: the camera's own kick only -> " + (slamKicked ? "KICK" : "refused"));
+                slamKicked = rc && rc.Shake(OzShuttleTouchdown.Kick * kickK, slamPoint, "wreck_slam");
+                Note(big ? "big slam" : "slam", "no effect shake: the camera's own kick only -> " + (slamKicked ? "KICK" : "refused"));
                 return slamKicked;
             }
-            slamKicked = Ask(hull, SlamPx, "crash_landing", false, "slam");
-            if (slamKicked && rc) rc.Shake(OzShuttleTouchdown.Kick * LastScreenK, slamPoint, "wreck_slam", true, true);   // the camera's own short jitter: the second part of this kick
+            slamKicked = Ask(hull, big ? BigSlamPx : SlamPx, "crash_landing", false, big ? "big slam" : "slam");
+            if (slamKicked && rc) rc.Shake(OzShuttleTouchdown.Kick * LastScreenK * kickK, slamPoint, "wreck_slam", true, true);   // the camera's own short jitter: the second part of this kick
             return slamKicked;
         }
 
-        /// <summary>The bounce: the hull's other side bangs down after the slam (a smaller kick, the second part of the slam's).</summary>
-        public static bool Bounce(Vector3 hull)
+        /// <summary>The bounce: the hull's other side bangs down after the slam (a smaller kick, the second part of the slam's); big = the 1.3
+        /// big crash (BigBouncePx).</summary>
+        public static bool Bounce(Vector3 hull, bool big = false)
         {
-            Bounces++;
-            if (OpenZFxShake.I == null) { Note("bounce", "no effect shake: none"); return false; }
-            return Ask(hull, BouncePx, "crash_bounce", slamKicked, "bounce");
+            Bounces++; if (big) BigBounces++;
+            if (OpenZFxShake.I == null) { Note(big ? "big bounce" : "bounce", "no effect shake: none"); return false; }
+            return Ask(hull, big ? BigBouncePx : BouncePx, "crash_bounce", slamKicked, big ? "big bounce" : "bounce");
         }
 
         static bool Ask(Vector3 at, float px0, string src, bool always, string what)
@@ -113,6 +120,6 @@ namespace OpenZ
             if (LogToConsole) Debug.Log(line);
         }
 
-        public static void ResetCounts() { Asked = Kicks = Refused = OffScreen = Slams = Bounces = 0; LastScreenK = LastZoomK = LastPx = 0f; LastVerdict = "none"; Log.Clear(); }
+        public static void ResetCounts() { Asked = Kicks = Refused = OffScreen = Slams = Bounces = BigSlams = BigBounces = 0; LastScreenK = LastZoomK = LastPx = 0f; LastVerdict = "none"; Log.Clear(); }
     }
 }

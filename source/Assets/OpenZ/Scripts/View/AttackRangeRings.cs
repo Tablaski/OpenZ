@@ -59,6 +59,7 @@ namespace OpenZ
             public Mesh mesh; public Vector3[] v; public Color32[] c;
             public float[] h; public Vector3 hAt; public float hR = -1f;
             public bool live;
+            public bool held;                                                                                  // 1.4 range_rings_option: ALWAYS holds this ring (View/OzRingHold.cs)
         }
 
         readonly List<Ring> rings = new List<Ring>();
@@ -102,14 +103,23 @@ namespace OpenZ
             var baseMat = overlayMaterial;
             if (!baseMat) { var so = GetComponent<SelectionOverlay>(); if (!so) so = Object.FindFirstObjectByType<SelectionOverlay>(); if (so) baseMat = so.overlayMaterial; }
             if (!baseMat) { var sh = Shader.Find("OpenZ/Overlay"); if (!sh) return null; baseMat = new Material(sh); }
-            // ground-disc team colours (TeamColors: brighter than the paint so a ring reads on sand and concrete)
-            Color c = t == Team.Red ? TeamColors.DiscRed : t == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
             m = new Material(baseMat) { name = "OZ_RangeRing_" + t };
-            m.SetColor("_Color", new Color(c.r * glow, c.g * glow, c.b * glow, 1f));
+            m.SetColor("_Color", DotColour(t));
             m.SetFloat("_ZTest", (float)CompareFunction.LessEqual);                                      // under the units (they cover it)
             mats[t] = m;
             return m;
         }
+
+        /// <summary>A team's dot colour: the ground-disc team colours (TeamColors: brighter than the paint so a ring reads on sand and
+        /// concrete) x glow (HDR, blooms). 1.3 item 26: on the Unit editor's light floors (OzUeHooks.DarkMarks, never in a level) the team's
+        /// deep tone instead (not HDR), so the ring reads on the light floor.</summary>
+        Color DotColour(Team t)
+        {
+            if (inkDark) return OzUeHooks.DeepMark(t);
+            Color c = t == Team.Red ? TeamColors.DiscRed : t == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
+            return new Color(c.r * glow, c.g * glow, c.b * glow, 1f);
+        }
+        bool inkDark;
 
         // ------------------------------------------------------------------ public
         /// <summary>Plays the rings for the current selection now (context menu, stills, tests).</summary>
@@ -121,6 +131,7 @@ namespace OpenZ
         {
             if (!game) game = input && input.game ? input.game : ZGame.I;
             if (!input || !game || game.World == null) return;
+            if (inkDark != OzUeHooks.DarkMarks) { inkDark = !inkDark; foreach (var kv in mats) if (kv.Value) kv.Value.SetColor("_Color", DotColour(kv.Key)); }   // 1.3 item 26: false in every level
             var sel = input.Selection;
             // what changed? (a box drag grows the selection every frame: wait for its release, which sets SelectTime)
             curSel.Clear(); bool added = false;
@@ -132,6 +143,7 @@ namespace OpenZ
             lastSel.Clear(); foreach (var id in curSel) lastSel.Add(id);
             if (curSel.Count > 0 && (reselect || (added && !dragging))) Rebuild(sel);
             else if (curSel.Count == 0) DropAll();
+            else if (!dragging) KeepRings(sel);                                                                // 1.4 RANGE RINGS ALWAYS: the rings made again when they no longer fit the selection (AttackRangeRings.KeepOption.cs); FADE: nothing
 
             if (rings.Count == 0) return;
             float now = Time.unscaledTime;
@@ -142,7 +154,7 @@ namespace OpenZ
                 // members: alive and still selected (a unit leaves the selection when it dies or changes owner)
                 for (int u = r.units.Count - 1; u >= 0; u--) { var o = r.units[u]; if (o == null || o.Destroyed || !curSel.Contains(o.Id)) r.units.RemoveAt(u); }
                 if (r.units.Count == 0 && r.dropAt < 0f) r.dropAt = now;
-                float age = now - r.t0, life = expandTime + holdTime + fadeTime;
+                float age = RingAge(r, now), life = expandTime + holdTime + fadeTime;                         // 1.4 range_rings_option: FADE now - r.t0 as before; ALWAYS holds the player's rings (AttackRangeRings.KeepOption.cs)
                 bool done = age >= life || (r.dropAt >= 0f && now - r.dropAt >= dropFade);
                 if (done) { Recycle(r); rings.RemoveAt(i); continue; }
                 if (r.units.Count > 0) r.center = Middle(r.units);
@@ -173,13 +185,13 @@ namespace OpenZ
                 Ring best = null; float bd = mergeDistance * mergeDistance;
                 foreach (var r in rings)
                 {
-                    if (r.type != o.Type || r.team != o.Owner || r.radiusPx != o.AttackRadius) continue;
+                    if (r.type != o.Type || r.team != o.Owner || r.radiusPx != o.RingRadius) continue;   // DV162: the range from where it stands (Sim/ZObject.HighGround.cs)
                     var d = Middle(r.units) - p; float dd = d.x * d.x + d.z * d.z;
                     if (dd <= bd) { bd = dd; best = r; }
                 }
                 if (best != null) { best.units.Add(o); continue; }
                 var n = pool.Count > 0 ? pool.Pop() : new Ring();
-                Begin(n, o.Type, o.Owner, o.AttackRadius, now);                                                // the one set-up of every ring (Begin)
+                Begin(n, o.Type, o.Owner, o.RingRadius, now);                                                // the one set-up of every ring (Begin)
                 n.units.Add(o);
                 rings.Add(n);
             }
@@ -194,6 +206,7 @@ namespace OpenZ
             n.radius = (radiusPx + 3) / 8f;                                                                    // zobject.cpp:739-740 (attack_radius + 3) px, 8 px = 1 m
             n.units.Clear();
             n.t0 = now; n.dropAt = -1f; n.hR = -1f; n.live = false;
+            n.held = false;                                                                                    // 1.4 range_rings_option: a pooled ring starts unheld
             int want = Mathf.Clamp(Mathf.RoundToInt(2f * Mathf.PI * n.radius / Mathf.Max(0.2f, dotSpacing) / 4f) * 4, minDots, maxDots);
             Alloc(n, want);
         }
@@ -278,6 +291,7 @@ namespace OpenZ
                     float ga = i * 2f * Mathf.PI / g;
                     r.h[i] = game.GroundY(r.center.x + Mathf.Cos(ga) * r.curR, r.center.z + Mathf.Sin(ga) * r.curR);
                 }
+                if (edgeClip) EdgeHeights(r);                                                                 // 1.3: a hidden sample takes its nearest shown one's height, the last dot stays off the slope (AttackRangeRings.PlayEdge.cs)
             }
             float len = dotLength * 0.5f * size, wid = dotWidth * 0.5f * size;
             float up = lift + 0.35f * wid;                                                                    // + a little for a sideways slope under a big (far zoom) dot
@@ -294,6 +308,7 @@ namespace OpenZ
                 p.y = hc + up;
                 byte a = core;
                 if (unionSameType && Covered(r, p)) a = 0;
+                if (edgeClip && a != 0) a = EdgeAlpha(a, p.x, p.z);                                           // 1.3: outside the play area the dot is not drawn, eased over the last half metre (AttackRangeRings.PlayEdge.cs)
                 var ca = BlindRingDotGrey(r, d, ang, a);                                                   // K333b / K333c: over a blind arc of its gun the dot fades out for its grey twin (AttackRangeRings.BlindClearer.cs)
                 int b = d * V;
                 r.v[b] = p; r.c[b] = ca;

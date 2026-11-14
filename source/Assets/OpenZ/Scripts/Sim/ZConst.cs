@@ -21,7 +21,8 @@ namespace OpenZ.Sim
     public enum WpMode { None = -1, Move = 0, Enter, Attack, ForceMove, CraneRepair, UnitRepair, Agro, EnterFort, Dodge, PickupGrenades }
 
     /// <summary>Zod waypoint record (zobject.h:157-195) with its field-by-field equality.</summary>
-    public struct ZWaypoint : System.IEquatable<ZWaypoint>
+    // duel waypoint wire serialization
+            [System.Serializable] public struct ZWaypoint : System.IEquatable<ZWaypoint>
     {
         public WpMode mode;
         public int refId;

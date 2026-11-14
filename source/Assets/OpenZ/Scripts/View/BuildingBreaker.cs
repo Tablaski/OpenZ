@@ -263,6 +263,8 @@ namespace OpenZ
             public BuildingBreaker owner; public Rigidbody rb; public float life; public Bounds footprint;
             public ConcreteChunkLib.Entry lib;
             float age, contactAt = -10; int contacts; bool resting; Vector3 popBase;           // endings_v1: the pop keeps the piece's own scale
+            void Awake() { OzLiveSet<Piece>.Add(this); }                                             // v1.3: AudioDirector.ScanPhysics reads the registry (View/OzLiveSet.cs)
+            void OnDestroy() { OzLiveSet<Piece>.Remove(this); }
             void Start() { OzWaterLanding.Watch(transform, "building piece", rb); }             // b27: the shared water landing rule (rubble that never flies is not enabled and never gets here)
             void OnCollisionEnter(Collision c)
             {
@@ -280,7 +282,7 @@ namespace OpenZ
             {
                 age += Time.deltaTime;
                 if (resting) return;
-                if (age < life) return;
+                if (age < life || OzLavaMelt.Busy(transform)) return;                               // level 7, kit LV5: a late landing melts first
                 if (footprint.Contains(transform.position) && rb && rb.IsSleeping() && (GetInstanceID() & 1) == 0)
                 { rb.isKinematic = true; resting = true; return; }                                  // part of the rubble pile
                 // debrisPopScale: +12 % then shrink to nothing over the last .5 s

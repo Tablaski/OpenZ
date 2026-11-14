@@ -145,7 +145,7 @@ namespace OpenZ
             if (BlastFellFlora)
                 foreach (var f in floraTrees)
                 {   // the level's other trees (read at the level start; one that went away or fell meanwhile is passed over)
-                    if (!f.plant || !f.plant.gameObject.activeInHierarchy || f.plant.parent == null || !f.plant.parent.name.StartsWith("T_")) continue;
+                    if (!f.plant || !f.plant.gameObject.activeInHierarchy || f.plant.parent == null || !(f.plant.parent.name.StartsWith("T_") || BlastOutside(f.plant.parent))) continue;   // level 16, round 5e: also the plants outside the map (OzTreeFall.RimEdge.cs)
                     Vector3 d = f.foot - at; d.y = 0f; float dist = d.magnitude;
                     if (dist > BlastFellRadius) continue;
                     if (FallsIntoScene(f.foot, f.height, f.radius)) { keptUp++; continue; }

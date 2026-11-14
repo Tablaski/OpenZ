@@ -30,7 +30,7 @@ namespace OpenZ.EditorTools
         static string Folder { get { var p = Path.Combine(OpenZPaths.Records, "milestones", "v1_1_20261012", "J15"); Directory.CreateDirectory(p); return p; } }
         static IEnumerator run; static string running = ""; static float speedWas = -1f;
         static ZGame G => ZGame.I; static ZWorld W => ZGame.I ? ZGame.I.World : null;
-        public const float StandardHeight = 70f, CloseHeight = RtsCamera.ZoomClosest;   // the closest zoom (25 m; it was a fixed 22): hook of kit K18 (RtsCamera.ZoomLimits.cs)
+        public const float StandardHeight = 70f, CloseHeight = RtsCamera.ZoomClosest;   // the closest zoom (35 m since version 1.2, first 30; 25 m in 1.1; it was a fixed 22): hook of kit K18 (RtsCamera.ZoomLimits.cs)
 
         static void Begin(string name, IEnumerator e, bool l16)
         {

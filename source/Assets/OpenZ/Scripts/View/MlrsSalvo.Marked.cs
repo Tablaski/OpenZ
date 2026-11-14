@@ -227,7 +227,7 @@ namespace OpenZ
             if (!RackLive(m.shooter)) return false;
             var v = game.Views[m.shooter]; var o = v.Obj;
             var from = v.MuzzlePos();
-            v.OnFire();                                                                               // tube empties, rack kick, hull jolt, next tube
+            RippleFiring = true; try { v.OnFire(); } finally { RippleFiring = false; }               // tube empties, rack kick, hull jolt, next tube; 1.2 v2 units: a marked ripple rocket kicks the launcher only, the hull rocks once per salvo (View/MlrsSalvo.Model.cs)
             MlrsSideKick.Kick(v, from, m.to);
             float simLeft = Mathf.Max(0.05f, (float)(m.simEnd - game.World.Time));                   // sim s until rocket 1's blast
             var z = OpenZFxPlayer.I; bool live = z && z.isActiveAndEnabled; int before = live ? z.ProjectileSerial : 0;

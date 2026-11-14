@@ -29,7 +29,7 @@ namespace OpenZ.EditorTools
         static readonly StringBuilder fails = new StringBuilder();
         static string dir;
         static Mouse mouse, sysMouse;
-        static bool kept; static int tip0, cap0, fpsOn0, capFps0, target0;
+        static bool kept; static int tip0, cap0, fpsOn0, capFps0, target0, vsync0;
 
         [MenuItem("OpenZ/Checks/Slow computer helpers (Play mode)")]
         public static void Run()
@@ -74,7 +74,7 @@ namespace OpenZ.EditorTools
         static void Keep()
         {
             tip0 = PlayerPrefs.GetInt(OpenZHud.SlowTipPref, 0); cap0 = PlayerPrefs.GetInt(OzFpsCap.Pref, -1); fpsOn0 = PlayerPrefs.GetInt(OzQuality.FpsPref, 0);
-            capFps0 = GameBoot.CapFps; target0 = Application.targetFrameRate; kept = true;
+            capFps0 = GameBoot.CapFps; target0 = Application.targetFrameRate; vsync0 = QualitySettings.vSyncCount; kept = true;   // 1.3 item 5: the vsync of UNLIMITED (VSYNC) is put back too
         }
 
         static void PutBack()
@@ -86,7 +86,7 @@ namespace OpenZ.EditorTools
             PlayerPrefs.SetInt(OpenZHud.SlowTipPref, tip0);
             if (cap0 < 0) PlayerPrefs.DeleteKey(OzFpsCap.Pref); else PlayerPrefs.SetInt(OzFpsCap.Pref, cap0);
             PlayerPrefs.SetInt(OzQuality.FpsPref, fpsOn0); PlayerPrefs.Save();
-            GameBoot.CapFps = capFps0; Application.targetFrameRate = target0; HeatGuardRuntime.HeldFps = 0;
+            GameBoot.CapFps = capFps0; Application.targetFrameRate = target0; QualitySettings.vSyncCount = vsync0; HeatGuardRuntime.HeldFps = 0;
         }
 
         static void MouseEv(Vector2 p, bool down)
@@ -258,10 +258,10 @@ namespace OpenZ.EditorTools
             PlayerPrefs.DeleteKey(OzFpsCap.Pref);
             Check(rows.Contains(OzQuality.Label) && rows.Contains(OzFpsCap.Label) && OzFpsCap.Saved == 60, $"M1 the main menu's GRAPHICS tab holds the row (rows: {rows}); with no saved value it reads {OzFpsCap.Name}");
             yield return Shot("options_graphics_main_menu");
-            OzFpsCap.Step(1); yield return 2f; yield return Measure(null, 4f);
+            OzFpsCap.Set(30); yield return 2f; yield return Measure(null, 4f);                              // v1.3: four values now (30 / 40 / 60 / VSYNC): set, not stepped
             Check(OzFpsCap.Saved == 30 && mFps > 28.5f && mFps < 31f, $"M2 one step: {OzFpsCap.Name}, {mFps:0.0} frames a second in the menu");
             yield return Shot("options_graphics_main_menu_30");
-            OzFpsCap.Step(1); yield return 2f; yield return Measure(null, 3f);
+            OzFpsCap.Set(60); yield return 2f; yield return Measure(null, 3f);
             Check(OzFpsCap.Saved == 60 && mFps > 55f && mFps < 61.5f, $"M3 the next step: {OzFpsCap.Name}, {mFps:0.0} frames a second");
             menu.ProofOpen("none");
             Finish("main menu", "the row in the main menu's OPTIONS");

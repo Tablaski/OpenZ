@@ -131,8 +131,10 @@ namespace OpenZ.Sim
             double nx = LocX + XOver + dx, ny = LocY + YOver + dy;
             int inx = (int)Math.Floor(nx), iny = (int)Math.Floor(ny);
             if (!ignoreWalls && !World.Pathing.BoxAllowed(this, LocX, LocY, inx, iny)) return false;
+            if (World.LavaPushOut(this, inx, iny)) return false;                          // DV152: a robot sent into lava is not pushed out of it (Sim/ZWorld.Lava.cs)
             LocX = inx; LocY = iny; XOver = nx - inx; YOver = ny - iny;
             CenterX = LocX + (WidthPix >> 1); CenterY = LocY + (HeightPix >> 1);
+            World.NbMoved(this);                                                       // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): the neighbour grid follows the push
             return true;
         }
     }

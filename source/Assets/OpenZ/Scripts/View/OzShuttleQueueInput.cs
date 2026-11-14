@@ -45,10 +45,12 @@ namespace OpenZ
             into.Add(new ZWaypoint { mode = WpMode.Move, x = o.ShuttleGoalX, y = o.ShuttleGoalY, playerGiven = true });
         }
 
-        /// <summary>PlayerInput.Flush, first: after a Shift queue, every flying shuttle's list gets its route still to fly in front.</summary>
+        /// <summary>PlayerInput.Flush, first: after a Shift queue, every flying shuttle's list gets its route still to fly in front; every other
+        /// unit's list gets the order it already has in front (1.2 item 9, rule DV135, View/OzShiftAppend.cs).</summary>
         public static void Prefix(ZWorld w, Dictionary<ZObject, List<ZWaypoint>> pending)
         {
             bool shift = shiftSet; shiftSet = false;
+            OzShiftAppend.Prefix(pending, shift);                                                    // 1.2 item 9 (DV135): a Shift queue goes after the units' current order (not the shuttles: below)
             if (!shift || w == null || pending == null || !ZWorld.ShuttleQueueDeviation) return;
             foreach (var kv in pending)
             {

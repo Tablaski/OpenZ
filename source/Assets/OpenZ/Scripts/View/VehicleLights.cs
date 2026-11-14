@@ -65,7 +65,7 @@ namespace OpenZ
     /// </list>
     /// </summary>
     [DefaultExecutionOrder(80)]   // Update before NightLights (90) ticks the budget; LateUpdate after UnitView (60) placed the vehicles
-    public class VehicleLights : MonoBehaviour
+    public partial class VehicleLights : MonoBehaviour                                              // fps_glow (7 Nov 2026): + View/VehicleLights.FpsGlow.cs (the first-person view's glow sizes)
     {
         public static VehicleLights I { get; private set; }
         /// <summary>Set false (e.g. in ZGame.Awake) to add VehicleLights by hand.</summary>
@@ -235,7 +235,7 @@ namespace OpenZ
             {
                 var v = kv.Value;
                 if (!v || v.Obj == null || v.Obj.Kind != ZKind.Vehicle || rigOf.ContainsKey(v)) continue;
-                if (!specs.TryGetValue(v.Obj.Type, out var spec))
+                if (!specs.TryGetValue(OzV2Units.LightsKey(v, specs.ContainsKey), out var spec))   // 1.2 v2 units: a v2 view takes its own entry ("light@v2")
                 {
                     if (unknownTypes.Add(v.Obj.Type)) Debug.LogWarning($"[OpenZ] VehicleLights: no sockets for vehicle type '{v.Obj.Type}' (vehicle_lights.json)");
                     rigOf[v] = null; continue;
@@ -566,7 +566,7 @@ namespace OpenZ
             bool any = Mathf.Max(Mathf.Max(r.ChA.x, r.ChA.y), Mathf.Max(r.ChA.z, r.ChA.w)) > 0.002f ||
                        Mathf.Max(Mathf.Max(chB.x, chB.y), Mathf.Max(chB.z, chB.w)) > 0.002f;
             r.GlowOn = any;
-            if (any)
+            if (any && !OzFpsView.Holds(r.View))                                                           // fps_view_sky (2b): not the viewed unit's own glows (the eye sits in their halos)
             {
                 if (Changed(r.ChA, r.ShownA) || Changed(chB, r.ShownB) || team != r.ShownTeam)
                 {
@@ -574,14 +574,14 @@ namespace OpenZ
                     r.GlowBlock.SetVector(ChAId, r.ChA); r.GlowBlock.SetVector(ChBId, chB); r.GlowBlock.SetColor(TeamId, team);
                 }
                 for (int i = 0; i < r.GlowMounts.Count; i++)
-                    if (r.GlowMounts[i]) Draw(r.GlowMeshes[i], r.GlowMounts[i].localToWorldMatrix, glowMat, r.GlowBlock);
+                    if (r.GlowMounts[i]) { var gm = FpsGlowMesh(r, r.GlowMeshes[i], r.GlowMounts[i]); if (gm) Draw(gm, r.GlowMounts[i].localToWorldMatrix, glowMat, r.GlowBlock); }   // fps_glow: in the view at most 1.5 % of the screen a billboard (else its cores, else not drawn); outside the view the mesh as it is
                 if (r.FaultMesh && r.FaultMount) DrawFault(r, chB, team);                                // vehicles_nb_v1 NB10
             }
 
             // haze cones and ground pool (the maxEffectVehicles lit vehicles nearest the camera focus)
             float dusk = Mathf.Lerp(0.25f, 1f, r.Night);
             r.BeamOn = false; r.PoolOn = false;
-            if (r.BeamMesh && r.HeadNode)
+            if (r.BeamMesh && r.HeadNode && !OzFpsView.Holds(r.View) && !FpsHoldBeam(r))                    // fps_view_sky (2b): nor its haze cones (they start at the eye); fps_glow: nor another's cone the eye stands in or by
             {
                 float bk = beams && heat < 2 ? beamGain * r.EffK * r.HeadNorm * Mathf.Pow(r.Night, 0.8f) * r.Var.power : 0f;   // ground_lights_fix: was heat < 1; lights_tail_v1: cone x power
                 if (SetColor(r.BeamBlock, r.HeadLin * bk, ref r.BeamShown)) { r.BeamOn = true; Draw(r.BeamMesh, r.HeadNode.localToWorldMatrix, beamMat, r.BeamBlock); }
@@ -618,7 +618,7 @@ namespace OpenZ
             var a = new Vector4(r.ChA.x * r.FaultK, 0f, 0f, 0f); var b = new Vector4(0f, 0f, chB.z * r.FaultK, 0f);
             if (a.x + b.z <= 0.002f) return;
             if (Changed(a, r.FaultShownA) || Changed(b, r.FaultShownB)) { r.FaultShownA = a; r.FaultShownB = b; r.FaultBlock.SetVector(ChAId, a); r.FaultBlock.SetVector(ChBId, b); r.FaultBlock.SetColor(TeamId, team); }
-            Draw(r.FaultMesh, r.FaultMount.localToWorldMatrix, glowMat, r.FaultBlock);
+            var fm = FpsGlowMesh(r, r.FaultMesh, r.FaultMount); if (fm) Draw(fm, r.FaultMount.localToWorldMatrix, glowMat, r.FaultBlock);   // fps_glow: the failing lamp's glow sized the same way in the view
         }
 
         // ------------------------------------------------------------------ lights_tail_v1: the per-vehicle look + faults that read

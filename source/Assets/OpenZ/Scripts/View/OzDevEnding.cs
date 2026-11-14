@@ -55,6 +55,7 @@ namespace OpenZ
             {
                 if (kb.wKey.wasPressedThisFrame) Fall(true, "Ctrl+Alt+W");
                 if (kb.lKey.wasPressedThisFrame) Fall(false, "Ctrl+Alt+L");
+                if (kb.nKey.wasPressedThisFrame) FortFallAtGameOver.DebugLeave("Ctrl+Alt+N");              // open_fixes_3nov rows 76 / 77: the enemy's last unit goes without dying
                 if (kb.kKey.wasPressedThisFrame) KillNearest("any", "Ctrl+Alt+K");
             }
             TimedKill(g);
@@ -65,7 +66,7 @@ namespace OpenZ
                 if (t < endAt - 25.0) g.gameSpeed = fast;
                 else { g.gameSpeed = 1f; slowed = true; Debug.Log($"[OpenZ] -ozdev: real Zod speed from {t:0} s (the take window)"); }
             }
-            if (t >= endAt) { fired = true; Fall(endKind != "loss", "-ozend at " + t.ToString("0")); }
+            if (t >= endAt) { fired = true; if (endKind == "leave") FortFallAtGameOver.DebugLeave("-ozend leave at " + t.ToString("0")); else Fall(endKind != "loss", "-ozend at " + t.ToString("0")); }   // open_fixes_3nov: -ozend leave <s>
         }
 
         /// <summary>

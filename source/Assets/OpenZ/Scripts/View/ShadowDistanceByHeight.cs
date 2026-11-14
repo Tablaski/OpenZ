@@ -30,7 +30,7 @@ namespace OpenZ
             var cam = Camera.main;
             if (!On || !urp || !cam || ZGame.I == null) return;
             float far = 0f; var plane = new Plane(Vector3.up, Vector3.zero);
-            foreach (var vp in new[] { new Vector3(0f, 1f, 0f), new Vector3(1f, 1f, 0f), new Vector3(0.5f, 1f, 0f) })
+            foreach (var vp in OzGcCache.ShadowCorners)   // 1.4 speed-up 2 (perf_garbage): the same three points, one array
             {
                 var ray = cam.ViewportPointToRay(vp);
                 far = Mathf.Max(far, plane.Raycast(ray, out float d) && d > 0f ? d : cam.farClipPlane * 0.3f);

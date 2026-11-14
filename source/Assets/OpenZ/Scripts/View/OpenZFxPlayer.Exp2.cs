@@ -350,7 +350,7 @@ namespace OpenZ
             z.e2Cells.TryGetValue(key, out var cell);
             bool roll = Exp2Force == 1 || Hash01(id) < chance * Exp2Chance / 0.45f;
             if (!roll) { z.e2Cells[key] = new E2Cell { n = 0, t = now }; return Exp2Kind.None; }
-            if (IsWaterTile(at) && z.WetAt(at)) return Exp2Kind.None;
+            if ((IsWaterTile(at) || OzLava.SurfaceAt(at, out _)) && z.WetAt(at)) return Exp2Kind.None;
             if (Exp2Force != 1 && cell.n >= 2 && now - cell.t < 1f) { z.e2Cells[key] = new E2Cell { n = 0, t = now }; return Exp2Kind.None; }
             if (!z.BudgetOk(want)) { Exp2Fallbacks++; return Exp2Kind.None; }
             z.e2Cells[key] = new E2Cell { n = cell.n + 1, t = now };

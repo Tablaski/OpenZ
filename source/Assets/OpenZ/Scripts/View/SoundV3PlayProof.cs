@@ -25,7 +25,7 @@ namespace OpenZ
     ///           F4 a bridge destroyed and rebuilt (repair timer shortened for the harness), F5 three empty guns captured; SoundV3Proof.Report.
     ///   ui    = SoundV3Proof.Begin, then the UI walk with queued Input System events (real mouse / keys): hover, right-click orders
     ///           (capture, enter, pickup, repair), EXIT CREW (E), Shift add / remove, double-click, HUD group store / recall / empty,
-    ///           rally tool (arm, Shift chain, Esc, CLEAR), a greyed button, the P cheat (hover, drag to the map, drop on a panel), the pause
+    ///           rally tool (arm, Shift chain, Esc, CLEAR), a greyed button, the ALT+P cheat (hover, drag to the map, drop on a panel), the pause
     ///           menu EFFECTS / VOICE sliders, then a WIN (L02) / LOSS (L17) and the end screen; Report, then the coverage sweep.
     /// </summary>
     [DefaultExecutionOrder(20)]
@@ -552,8 +552,8 @@ namespace OpenZ
                 yield return Wait(0.4f);
             }
             else Mark("U8 no own producer");
-            // U9 P cheat: hover tiles, drag a red grunt tile to the map, drop a blue tile back on the panel
-            yield return Tap(Key.P); yield return Wait(0.8f);
+            // U9 ALT+P cheat (1.3 item 28): hover tiles, drag a red grunt tile to the map, drop a blue tile back on the panel
+            yield return Tap(Key.P, Key.LeftAlt); Keys(); yield return F(3); yield return Wait(0.8f);   // 1.3 item 28: Alt+P (Tap leaves the modifier down: let it go)
             var redCol = hud.Root.Find("CheatRed"); var blueCol = hud.Root.Find("CheatBlue");
             if (redCol && blueCol)
             {
@@ -577,7 +577,7 @@ namespace OpenZ
                 }
             }
             else Mark($"U9 cheat columns not found (DevEnabled {OzCheatSpawner.DevEnabled})");
-            yield return Tap(Key.P); yield return Wait(0.6f);
+            yield return Tap(Key.P, Key.LeftAlt); Keys(); yield return F(3); yield return Wait(0.6f);   // 1.3 item 28: Alt+P closes it
             // U10 pause menu EFFECTS / VOICE sliders: press on the thumb, release (value unchanged)
             var pm = FindFirstObjectByType<OpenZPauseMenu>();
             if (pm)

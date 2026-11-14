@@ -43,10 +43,21 @@ namespace OpenZ
             AddCycle(p, toggles.Count, OzSettings.ResLabel, () => OzSettings.ResolutionName, OzSettings.StepResolution);   // RESOLUTION, under FULLSCREEN (OzSettingTips.TabRows): NATIVE (default) and the lower steps of this display (oz_res_h), saved and applied at once
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // its longest value is wider than the 170 u of a cycle row
             AddToggle(p, toggles.Count, OzOvertake.Label, () => OzOvertake.On, v => OzOvertake.On = v);         // DV105 FAST UNITS PASS SLOW ONES: oz_overtake, default OFF, from the next match (OzOvertake.cs); its tab and place come from OzSettingTips
-            AddToggle(p, toggles.Count, OzFreeCam.Label, () => OzFreeCam.On, v => OzFreeCam.On = v);         // FREE CAMERA: oz_free_camera, default OFF, live (OzFreeCam.cs); its tab and place come from OzSettingTips
+            CamControlRows(p);                                                                               // 1.4: MIDDLE MOUSE (was FREE CAMERA, its saved switch carries over), SCROLL SPEED, RIGHT-DRAG SCROLL (UI/OpenZMainMenu.CamControls.cs); tab and place from OzSettingTips
             AddCycle(p, toggles.Count, OzOverlapOption.Label, () => OzOverlapOption.Name, OzOverlapOption.Step);   // FRIENDLY UNITS OVERLAP: NO (default) / YES, oz_overlap, live (OzOverlapOption.cs); its tab and place (under HIT FLASH, GAME tab) come from OzSettingTips
+            AddCycle(p, toggles.Count, OzRangeRingsOption.Label, () => OzRangeRingsOption.Name, OzRangeRingsOption.Step);   // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS, oz_range_rings, live (UI/OzRangeRingsOption.cs); GAME, under HEALTH BARS (OzSettingTips)
+            AddCycle(p, toggles.Count, OzVehicleSizeOption.Label, () => OzVehicleSizeOption.Name, OzVehicleSizeOption.Step);   // VEHICLE SIZE: 60 to 100 %, oz_vehicle_size, default 90 %, live (OzVehicleSizeOption.cs); GAME, under FRIENDLY UNITS OVERLAP (OzSettingTips)
             AddCycle(p, toggles.Count, OzTrackpadScroll.Label, () => OzTrackpadScroll.Name, OzTrackpadScroll.Step);   // TRACKPAD SCROLL: ZOOM (default) / MOVE MAP, oz_trackpad_scroll, live (OzTrackpadScroll.cs); its tab and place (ADVANCED, under TOUCH · GAMEPAD) come from OzSettingTips
+            AddToggle(p, toggles.Count, OzLensEdges.Label, () => OzLensEdges.On, v => OzLensEdges.On = v);   // CHROMATIC ABERRATION · LENS EDGES: oz_chroma, default OFF, live (View/OzLensEdges.cs); its tab and place (GRAPHICS, under MOTION BLUR) come from OzSettingTips
+            AddToggle(p, toggles.Count, OzMassLod.Label, () => OzMassLod.On, v => OzMassLod.On = v);         // 1.3 MASS BATTLES · LIGHTER WHEN SLOW: oz_mass_lod, default OFF, live (View/OzMassLod.cs); GRAPHICS, last row (OzSettingTips)
+            // 1.3 item 40: lighter rows for a slower processor (View/OzLightRows.cs; every default = today's look, live, saved; GRAPHICS, after MASS BATTLES)
+            AddToggle(p, toggles.Count, OzLightRows.LightestLabel, () => OzLightRows.Lightest, v => OzLightRows.Lightest = v);   // a helper: no saved value of its own
+            AddToggle(p, toggles.Count, OzLightRows.ShadowsLabel, () => OzLightRows.ShadowsOn, v => OzLightRows.ShadowsOn = v);   // oz_lite_shadows, default ON
+            AddToggle(p, toggles.Count, OzLightRows.AoLabel, () => OzLightRows.AoOn, v => OzLightRows.AoOn = v);             // oz_lite_ao, default ON
+            AddCycle(p, toggles.Count, OzLightRows.TreesLabel, () => OzLightRows.TreesName, OzLightRows.TreesStep);          // oz_lite_trees FULL (default) / LIGHT / LIGHTEST
+            AddCycle(p, toggles.Count, OzLightRows.WrecksLabel, () => OzLightRows.WrecksName, OzLightRows.WrecksStep);       // oz_lite_wrecks FULL (default) / LIGHT
             float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
+            foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
             optionsScale = Mathf.Min(OptionsMaxScale, ModalMaxH / h, (CW - OzMenuLayout.CreditsX - 60f) / OptW);   // beside the list: 60 u stay free on the right
             Modal(optionsRt, OptW, h, Side.Options, true);
         }
@@ -132,11 +143,11 @@ namespace OpenZ
             if (chip.bg) chip.bg.transform.parent.gameObject.SetActive(false);
             var lbl = p.Find("HeadLabel"); if (lbl && lbl.GetComponent<Graphic>() is Graphic g) g.color = OzUi.Ink2;
             var hr = OzMenuLayout.HeadStart; float headX = XR(hr.x);
-            headTip = Hud.Node("HeadStartTip", p).Place(new OzRect(headX - 70, hr.y - 156, 336, 136));
+            headTip = Hud.Node("HeadStartTip", p).Place(new OzRect(headX - 70, hr.y - 172, 336, 152));
             Hud.Plate(headTip, "md", 0f, OzUi.Amber);
             headTipCg = headTip.gameObject.AddComponent<CanvasGroup>(); headTipCg.alpha = 0f; headTipCg.blocksRaycasts = false;
             Hud.Label(headTip, "Title", "HEAD START · KEY H", 12, OzUi.Amber, 0.2f).At(16, 14, OzH.L, false, 300);
-            Hud.Label(headTip, "Body", "Extra vehicles wait at your fort when the match starts.\nL02 DESERT: 2 light tanks, 2 jeeps, 1 mech, crewed.\nL16 JUNGLE: 2 jeeps, 1 light tank, crewed.\nL17 CAR PARK: 1 MLRS, 1 heavy tank, parked empty.\nOFF: the standard map start.",
+            Hud.Label(headTip, "Body", "Extra vehicles wait at your fort when the match starts.\nL02 DESERT: 2 light tanks, 2 jeeps, 1 mech, crewed.\nL07 VOLCANO: 2 jeeps, 1 light tank, crewed.\nL16 JUNGLE: 2 jeeps, 1 light tank, crewed.\nL17 CAR PARK: 1 MLRS, 1 heavy tank, parked empty.\nMAYHEM or OFF: none, the standard map start.",
                       11, OzUi.Ink2, 0f, OzStyle.Plain).Body(16, 36, 304);
             headTip.gameObject.SetActive(false);
         }
@@ -145,6 +156,16 @@ namespace OpenZ
         void RefreshHeadStart(GameDifficulty d)
         {
             string id = levels[focusCard].Id; bool on = OpenZDifficulty.HeadStartToggle; int n = OpenZDifficulty.HeadStartCount(id);
+            if (OpenZDifficulty.Choice == GameDifficulty.Mayhem)                                               // 1.4 mayhem_headstart: MAYHEM locks HEAD START OFF as the SHUTTLE slot is locked (its words); the saved choice stays
+            {
+                if (headRow.Interactable) { headRow.Interactable = false; headRow.Refresh(); }
+                headText.Set(OzShuttleStart.LockedRowMayhem); headText.color = OzUi.Dim;
+                headState.Set("OFF"); headState.color = OzUi.Dim;
+                headKnob.color = OzUi.A(OzUi.GM500, OzDeployBar.LockKnobA);
+                headKnob.rectTransform.anchoredPosition = new Vector2(DeployBlockW - 12 - 48 + 2, headKnob.rectTransform.anchoredPosition.y);
+                headHint.Set(OzDeployBar.HeadOff); headHint.color = OzUi.Dim;
+                return;
+            }
             if (!headRow.Interactable) { headRow.Interactable = true; headRow.Refresh(); }
             headText.Set(n > 0 ? $"+{n} VEHICLES" : "NOT ON THIS MAP"); headText.color = n > 0 ? (Color)OzUi.Ink : (Color)OzUi.Dim;
             headState.Set(on ? "ON" : "OFF"); headState.color = on ? (Color)OzUi.Amber : (Color)OzUi.Muted;

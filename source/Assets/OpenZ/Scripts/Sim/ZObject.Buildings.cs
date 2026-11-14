@@ -123,10 +123,13 @@ namespace OpenZ.Sim
         /// <summary>zbuilding.cpp:633-667: T = base * (1 - 0.5 z) * (1 + 1.25 (1 - hp/max)), from the ORIGINAL start time.</summary>
         public double BuildTimeModified(int baseSeconds)
         {
+            // OpenZ duel hook: production policy belongs to the match.
+            if (World?.DuelConfiguration != null) return World.DuelBuildSeconds(this, baseSeconds);
             double z = Math.Max(0, Math.Min(1, ZoneOwnage));
             double t = baseSeconds - baseSeconds * 0.5 * z;
             double hp = MaxHealth > 0 ? (double)Health / MaxHealth : 1;
             t += t * 1.25 * (1.0 - hp);
+            if (World != null && World.CpuBuildFaster(Owner)) t *= ZWorld.CpuBuildFasterScale;   // 1.4 DV175: on MAYHEM the computer's side builds in 90 % of the time (Sim/ZWorld.CpuBuild.cs); every other side: Zod's time, untouched
             return t;
         }
         public void RecalcBuildTime()
@@ -137,15 +140,18 @@ namespace OpenZ.Sim
         /// <summary>zbuilding.cpp:621-631: only when the fraction really changed.</summary>
         public void ResetBuildTime(double zoneOwnage)
         {
+            // OpenZ duel hook: preserve work already completed.
+            if (DuelResetZoneBuildTime(zoneOwnage)) return;
             if (zoneOwnage == ZoneOwnage) return;
             ZoneOwnage = zoneOwnage;
             RecalcBuildTime();
         }
 
-        /// <summary>zbuilding.cpp:115-144 SetBuildingProduction (no destroyed check, like Zod).</summary>
+        /// <summary>zbuilding.cpp:115-144 SetBuildingProduction (no destroyed check in Zod; DV155: a destroyed building takes none).</summary>
         public bool SetBuildingProduction(string unit)
         {
             if (Owner == Team.Neutral || !IsProducer || unit == null) return false;
+            if (Destroyed && ZWorld.RuinNoBuildDeviation) { ZWorld.RuinStartsRefused++; return false; }   // DV155: no build clock on a ruin, so nothing comes out of it when it is rebuilt (Sim/ZWorld.RuinProduction.cs)
             if (World.GameOver && ZWorld.EndFreezeDeviation) return false;                                // endgame_ui_v1 (DV10): no production after the win
             if (unit == CurUnit) return false;
             if (!ZBuildLists.InList(Type, BuildLevel, unit)) return false;
@@ -158,6 +164,7 @@ namespace OpenZ.Sim
         public bool AddBuildingQueue(string unit, bool pushToFront = true)
         {
             if (Owner == Team.Neutral || !IsProducer || Queue.Count >= MAX_QUEUE_ITEMS) return false;
+            if (Destroyed && ZWorld.RuinNoBuildDeviation) { ZWorld.RuinStartsRefused++; return false; }   // DV155: a ruin queues nothing either
             if (World.GameOver && ZWorld.EndFreezeDeviation) return false;                                // endgame_ui_v1 (DV10)
             if (!ZBuildLists.InList(Type, BuildLevel, unit)) return false;
             if (pushToFront && !ZWorld.FifoQueueDeviation) Queue.Insert(0, unit); else Queue.Add(unit);   // DV21: first in, first out
@@ -185,6 +192,7 @@ namespace OpenZ.Sim
         {
             if (ZWorld.FifoQueueDeviation)
             {   // DV21: the next queued unit in order; an empty queue repeats the unit just built while REPEAT is on, else goes idle
+                if (RepeatQueueStep()) return;                                                 // DV169 REPEAT QUEUE: the finished unit goes back to the end of the queue, the list loops (Sim/ZObject.RepeatQueue.cs); off = the lines below as before
                 string next = Queue.Count > 0 ? Queue[0] : RepeatProduction ? CurUnit : null;
                 if (Queue.Count > 0) Queue.RemoveAt(0);
                 StopBuildingProduction(false);
@@ -224,6 +232,7 @@ namespace OpenZ.Sim
             RepairWaypoints.Clear(); RepairWaypoints.AddRange(unit.Waypoints);
             StoreRepairPassengers(unit);                                                                   // apc_v1 DV15: the passengers ride along
             HeroSeatsStore(unit);                                                                          // DV108: and who of a hero squad sits where (Sim/ZHeroSquad.cs)
+            GunLossStore(unit);                                                                            // DV149: and a hand gun it lost stays lost (Sim/ZObject.MechGunLoss.cs)
             RepairingUnit = true; RepairTime = World.Time + 5;
             return true;
         }
@@ -368,6 +377,7 @@ namespace OpenZ.Sim
                 }
                 else if (cur.stage == Stage.Wait) return;
             }
+            if (cur.stage == Stage.Wait && RepairWaitOffSpot(t)) return;                                // 1.2 item 67: pushed off its waiting spot while it waited: back to it first (ZObject.RepairSpot.cs)
             bool stoppable = !(cur.stage == Stage.EnterBuilding || cur.stage == Stage.ExitBuilding);
             if (!ProcessMoveOrKillWP(dt, stoppable)) return;
             if (!ReachedTarget()) return;

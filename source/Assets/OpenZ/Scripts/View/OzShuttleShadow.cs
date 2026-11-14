@@ -521,7 +521,7 @@ namespace OpenZ
         bool CursorOverBlocked(ZObject o, float dt)
         {
             var mouse = Mouse.current; var g = ZGame.I;
-            if (o == null || !o.ShuttleAirborne || mouse == null || !mouse.rightButton.isPressed || g == null || g.World == null) { cursorHold = 0f; cursorRaw = false; aimRaw = false; Aimed = false; return false; }
+            if (o == null || !o.ShuttleAirborne || mouse == null || !mouse.rightButton.isPressed || OzRightDrag.Scrolling(mouse) || g == null || g.World == null) { cursorHold = 0f; cursorRaw = false; aimRaw = false; Aimed = false; return false; }
             var inp = FindInput();
             var hud = OpenZHud.I;
             if (!inp || !inp.Selection.Contains(o) || inp.Hover != null || (hud && hud.PointerOverUi)) { cursorHold = 0f; cursorRaw = false; aimRaw = false; Aimed = false; return false; }

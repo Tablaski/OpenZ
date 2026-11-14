@@ -341,6 +341,8 @@ namespace OpenZ.Sim
         /// window opens when the start test allows it (a human team's own ship, no flip on, the steady cruise, the way). true = opened.</summary>
         public bool ShuttleKickOrder(Team team, ZObject s)
         {
+            // OpenZ duel command: ShuttleKick
+            if (DuelIsReplica) return DuelSend(team, s, new DuelOrder { Kind = DuelOrderKind.ShuttleKick });
             if (!ShuttleKickDeviation || s == null || !s.IsShuttle) return false;
             ShuttleKickOrders++;
             if (!IsHumanTeam(team) || s.Owner != team || !s.ShuttleKickCan(out _)) { ShuttleKickOrdersRefused++; s.ShuttleKickRefused++; return false; }

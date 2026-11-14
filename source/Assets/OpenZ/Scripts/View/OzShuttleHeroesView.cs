@@ -5,7 +5,7 @@ namespace OpenZ
 {
     /// <summary>
     /// K256f2 (rule DV118, view only): what the player sees and hears of a HERO pilot (Sim/ZWorld.ShuttleHeroes.cs). The unit panel names
-    /// him ("PILOT BRAD": he gets out on EXIT, "EXIT READY" with him alone aboard too, UI/OzShuttleHud.cs), and when the crew has left and
+    /// him ("PILOT BRAD CAN EXIT": he gets out on EXIT, "EXIT READY" with him alone aboard too, UI/OzShuttleHud.cs), and when the crew has left and
     /// the ship goes dark (View/OzShuttleEmptyLook.cs: lit to dark, which only happens when a hero pilot got out with everyone) its engine
     /// dies with the game's own engine shut-down cue, as every vehicle whose crew is gone.
     /// </summary>
@@ -17,8 +17,9 @@ namespace OpenZ
         /// <summary>Proof counters: power-downs played, and asked for while the row was missing.</summary>
         public static int PowerDowns, PowerDownsMissing;
 
-        /// <summary>The unit panel's word for the pilot: "PILOT", or "PILOT BRAD" (the hero's name) when he gets out on EXIT.</summary>
-        public static string PilotWord(ZObject u) => u != null && u.ShuttleHeroPilot ? "PILOT " + OzHeroSquadView.CrewNameOr(u, false, "HERO") : "PILOT";
+        /// <summary>The unit panel's word for the pilot: "PILOT STAYS IN" (he never gets out), or "PILOT BRAD CAN EXIT" (the hero's name)
+        /// in the words, both ways.</summary>
+        public static string PilotWord(ZObject u) => u != null && u.ShuttleHeroPilot ? "PILOT " + OzHeroSquadView.CrewNameOr(u, false, "HERO") + " CAN EXIT" : "PILOT STAYS IN";
 
         /// <summary>OzShuttleEmptyLook: the lit ship has just gone dark (its crew left): the engine dies.</summary>
         public static void PowerDown(ZObject o, Vector3 at)

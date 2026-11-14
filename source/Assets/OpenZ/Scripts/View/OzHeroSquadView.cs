@@ -54,8 +54,10 @@ namespace OpenZ
         public static float AlanToBrad => (float)OzHeroCampPlan.AlanToBrad;
         /// <summary>How many times a grunt's height this robot is drawn (1 for every robot that is not a hero): the map's pick box,
         /// selection frame and health bar of a robot use it.</summary>
-        public static float Tall(ZObject o)
+        public static float Tall(ZObject o) => BoardingView.HatchFigureTall(o, TallOwn(o));   // 1.4 DV171 fix round 4: a driver growing out of a tank's hatch: his boxes at his drawn size (View/BoardingView.VehicleExit.cs)
+        static float TallOwn(ZObject o)
         {
+            if (o != null && o.IsEvilZod) return OzEvilZodView.Tall;                                       // DV161
             if (o == null || !o.IsHero) return 1f;
             return o.HeroMemberName == "brad" ? AlanToGrunt / Mathf.Max(0.5f, AlanToBrad) : AlanToGrunt;
         }
@@ -340,6 +342,15 @@ namespace OpenZ
         }
 
         static Texture Portrait(ZHeroKind k, Team team) => k == null ? null : PortraitKey(OzHeroPair.KindKey(k), team);
+
+        /// <summary>1.2 item 2 (the shuttle's faces of who is aboard, UI/OpenZHud.ShuttleAboard.cs): one member's own picture
+        /// (portrait_brad_red), member -1 = the kind's picture of all of them; a missing picture: the kind's; null = none.</summary>
+        public static Texture MemberPortrait(ZHeroKind k, int member, Team team)
+        {
+            if (k == null) return null;
+            Texture t = member >= 0 && k.Members != null && member < k.Members.Length ? PortraitKey(k.Members[member], team) : null;
+            return t ? t : Portrait(k, team);
+        }
 
         static Texture2D PortraitKey(string who, Team team)
         {

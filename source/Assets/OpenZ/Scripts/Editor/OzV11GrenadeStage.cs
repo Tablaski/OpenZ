@@ -14,8 +14,9 @@ namespace OpenZ.EditorTools
     /// (b31, Play mode), or OpenZ.EditorTools.OzV11GrenadeStage.Run().
     ///
     /// On open ground the helper looks for itself (plain ground or road, clear of every object, as far from every unit as the
-    /// level allows) four blasts go off in the same frame, in a row from west to east, 9 m apart:
-    ///   1  a grenade as it was drawn until now (the blast table's Grenade row: strength 0.75, glow radius 3.0 m)
+    /// level allows) four blasts go off in the same frame, in a row from west to east, 10 m apart:
+    ///   1  a grenade as it was drawn in 1.2, for the same radius (1.3 item 32's bigger blast left out: drawK 1; before 1.3 this row
+    ///      was the blast table's Grenade row, strength 0.75, glow radius 3.0 m, as drawn before 1.1's KC2)
     ///   2  a grenade as it is drawn now, for the radius the rules give a thrown grenade at this moment (View/OzGrenadeBlast.cs),
     ///      through the game's own path for a landing grenade, so its sound plays and is in the sound log
     ///   3  a Tough's rocket (the table's row, strength 1.0)
@@ -24,7 +25,7 @@ namespace OpenZ.EditorTools
     /// touched: no missile, no damage, no unit; rockets and shells are shown in their usual look (their second explosion look,
     /// which the game draws on some hits, is left out so that the four can be compared).
     /// Two rows are staged, one after the other: the first clean, the second 14 m further north with a thin white circle on the
-    /// ground at each blast's REAL radius (30 px, the thrown grenade's radius now, 40 px, 40 px). Three pictures per row from the
+    /// ground at each blast's REAL radius (the thrown grenade's radius now twice, 40 px, 40 px). Three pictures per row from the
     /// normal game camera (height 70): 0.22 s after the blasts (the fire at its largest), 0.5 s (the shock ring out), 2.6 s (the
     /// burn marks). The file names carry "day" or "night" by the level's own night value: run it once by day and once by night.
     ///
@@ -35,7 +36,7 @@ namespace OpenZ.EditorTools
     {
         const string Tag = "[OpenZ grenade blasts staged]";
         const string RunKey = "OpenZ.V11.GrenadeStage.startedAt";
-        const float MaxSeconds = 120f, CamHeight = 70f, Apart = 9f, RowApart = 14f;
+        const float MaxSeconds = 120f, CamHeight = 70f, Apart = 10f, RowApart = 14f;   // 1.3 item 32: 10 m apart (was 9): two 4.5 m circles side by side
         public static string Report = "not run";
         /// <summary></summary>
         public static string Folder;
@@ -191,9 +192,10 @@ namespace OpenZ.EditorTools
             else if (!FindPlace(W, out bx, out by, out far)) { Report = Tag + " NOT RUN: no open ground of 24 x 16 tiles found on this level; give a tile by hand (OzV11GrenadeStage.TileX / TileY)"; Debug.LogError(Report); yield break; }
             int rulePx = W.ThrownGrenadeRadius; float night = NightGrade.NightK; string when = night > 0.5f ? "night" : "day";
             var now = OzGrenadeBlast.For(rulePx);
+            var was = now; was.drawK = 1f;                                                          // 1.3 item 32: the same grenade as 1.2 drew it
             var rows = new (string name, LegacyMatch.BlastSpec spec, int realPx)[]
             {
-                ("a grenade as it was drawn until now", LegacyMatch.Grenade, 30),
+                ("a grenade as drawn in 1.2 (item 32 off)", was, rulePx),
                 ("a grenade as it is drawn now", now, rulePx),
                 ("a Tough's rocket", LegacyMatch.Bazooka, 40),
                 ("a light tank's shell", LegacyMatch.LightShell, 40),
@@ -201,14 +203,18 @@ namespace OpenZ.EditorTools
             sb.AppendLine($"Grenade blasts on screen: level {g.level}, Game view {Screen.width}x{Screen.height}, game speed {g.gameSpeed:0.##}, time scale {Time.timeScale:0.##}, time of day {NightGrade.TimeOfDay:0.000} (night value {night:0.00}: {when}).");
             sb.AppendLine($"The rule DV104 is {(ZWorld.GrenadeBoostDeviation ? "ON" : "OFF")}: a thrown grenade takes {W.ThrownGrenadeDamage} HP within {rulePx} px ({rulePx / 8f:0.00} m).");
             sb.AppendLine($"Place: tiles {bx},{by} to {bx + 23},{by + 15}" + (far >= 0f ? $", found by the helper; the nearest unit is {far / 16f:0.0} tiles from its middle." : ", given by hand."));
-            sb.AppendLine("From west to east, 9 m apart (strength, glow radius, how far the fire reaches at its largest, the blast's real radius, fire / real):");
+            sb.AppendLine($"From west to east, {Apart:0} m apart (strength, drawn size factor, glow radius, how far the fire reaches at its largest, the blast's real radius, fire / real):");
+            sb.AppendLine($"1.3 item 32: the bigger grenade blast is {(OzGrenadeBlast.Bigger ? "ON" : "OFF (rows 1 and 2 look the same)")} (OzGrenadeBlast.Bigger, x {OzGrenadeBlast.BiggerK:0.00}).");
             foreach (var r in rows)
-                sb.AppendLine($"  {r.name}: strength {r.spec.s:0.00}, glow radius {r.spec.legRadius:0.0} m, fire to {FireEdge(r.spec.s):0.00} m, real radius {r.realPx} px = {r.realPx / 8f:0.00} m, {100f * FireEdge(r.spec.s) / (r.realPx / 8f):0} %");
+            {
+                float k = r.spec.drawK > 1f ? r.spec.drawK : 1f, fire = FireEdge(r.spec.s) * k;
+                sb.AppendLine($"  {r.name}: strength {r.spec.s:0.00}, drawn x {k:0.00}, glow radius {r.spec.legRadius:0.0} m, fire to {fire:0.00} m, real radius {r.realPx} px = {r.realPx / 8f:0.00} m, {100f * fire / (r.realPx / 8f):0} %");
+            }
             focus0 = rts.focus; height0 = rts.height; camKept = true;
             var ears = Object.FindFirstObjectByType<AudioListener>();
             for (int row = 0; row < 2; row++)
             {
-                bool circles = row == 1;
+                bool circles = false;
                 var mid = ZGame.PxToWorld((bx + 12) * 16, (by + 11) * 16); mid.z += row * RowApart; mid.y = 0f;   // row 2 lies 7 tiles further north, still inside the box
                 rts.focus = mid; rts.SetHeightImmediate(CamHeight);
                 yield return 0.6f;                                                                          // the camera has settled
@@ -239,7 +245,7 @@ namespace OpenZ.EditorTools
                 {
                     var heard = OzSoundLog.Since(t0).FindAll(e => e.key != null && e.key.Contains("explosion"));
                     float dist = ears ? Vector3.Distance(ears.transform.position, at[1]) : -1f;
-                    sb.AppendLine($"Row 1: the grenade's blast went through the game's own path {OzGrenadeBlast.Drawn - drawn0} time(s): radius {OzGrenadeBlast.LastRadiusPx} px, strength {OzGrenadeBlast.LastStrength:0.00}, glow radius {OzGrenadeBlast.LastGlowRadius:0.0} m.");
+                    sb.AppendLine($"Row 1: the grenade's blast went through the game's own path {OzGrenadeBlast.Drawn - drawn0} time(s): radius {OzGrenadeBlast.LastRadiusPx} px, strength {OzGrenadeBlast.LastStrength:0.00}, glow radius {OzGrenadeBlast.LastGlowRadius:0.0} m, drawn x {OzGrenadeBlast.LastDrawK:0.00}.");
                     sb.AppendLine($"Sound log of that blast ({heard.Count} line(s) with the key 'explosion'; the listener is {dist:0} m from it; time, source, key, clip, outcome, volume, distance):");
                     foreach (var line in OzSoundLog.Format(heard).Split('\n')) if (line.Trim().Length > 0) sb.Append("    ").AppendLine(line.TrimEnd());
                 }

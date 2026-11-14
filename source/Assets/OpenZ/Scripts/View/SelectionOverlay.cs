@@ -19,6 +19,11 @@ namespace OpenZ
         // Enemy target markers stay red
         static readonly Color SelColor = new Color(0.30f, 1f, 0.42f, 0.95f);
         Mesh selRing;
+        // 1.3 item 26: the Unit editor's light floors (OzUeHooks.DarkMarks; never in a level): the same rings and dots in a dark ink (not HDR,
+        // no bloom), at least 3:1 against both light floors (Editor/OzV13LightFloorsCheck.cs)
+        static readonly Color SelInk = new Color(0.05f, 0.36f, 0.13f, 0.95f), MinionInk = new Color(0.05f, 0.36f, 0.13f, 0.92f),
+                              MarkerInk = new Color(0.40f, 0.26f, 0.04f, 1f), PathInk = new Color(0.30f, 0.20f, 0.05f, 0.90f);
+        bool darkInk;
 
         void Awake()
         {
@@ -49,8 +54,18 @@ namespace OpenZ
             float k = Mathf.Lerp(1f, NightDim, Mathf.Clamp01(NightGrade.NightK));
             if (Mathf.Abs(k - dimNow) < 0.002f) return;
             dimNow = k; DotBrightness = k;
-            markerMat.SetColor("_Color", new Color(MarkerBase.r * k, MarkerBase.g * k, MarkerBase.b * k, MarkerBase.a));
-            pathMat.SetColor("_Color", new Color(PathBase.r * k, PathBase.g * k, PathBase.b * k, PathBase.a));
+            Color mb = darkInk ? MarkerInk : MarkerBase, pb = darkInk ? PathInk : PathBase;                 // 1.3 item 26 (darkInk: only the Unit editor's light floors)
+            markerMat.SetColor("_Color", new Color(mb.r * k, mb.g * k, mb.b * k, mb.a));
+            pathMat.SetColor("_Color", new Color(pb.r * k, pb.g * k, pb.b * k, pb.a));
+        }
+
+        /// <summary>1.3 item 26: the rings and dots in their dark ink (true) or as in the levels (false); the dots take it in ApplyNight.</summary>
+        void FloorInk(bool dark)
+        {
+            darkInk = dark;
+            selMat.SetColor("_Color", dark ? SelInk : Hdr(SelColor, 1.9f));
+            minionMat.SetColor("_Color", dark ? MinionInk : Hdr(new Color(0.30f, 1f, 0.42f, 0.55f), 1.5f));
+            dimNow = -1f;
         }
 
         // ---- every dot on the surface drawn under it
@@ -73,6 +88,7 @@ namespace OpenZ
                 float wy = fx ? fx.WaterYAt(p) : float.NegativeInfinity;
                 if (!float.IsNegativeInfinity(wy) && wy > y) y = wy;
             }
+            if (OzLava.SurfaceAt(p, out float lavaY) && lavaY > y) y = lavaY;                              // 1.3 level 7
             p.y = y + lift;
             return p;
         }
@@ -132,6 +148,7 @@ namespace OpenZ
         {
             if (!input || !input.game || input.game.World == null) return;
             var g = input.game;
+            if (darkInk != OzUeHooks.DarkMarks) FloorInk(!darkInk);                                          // 1.3 item 26: false in every level
             ApplyNight(); DotsSeated = 0; DotsOnDeckLegs = 0;
             float now = Time.unscaledTime;
             var kbd = UnityEngine.InputSystem.Keyboard.current;
@@ -142,10 +159,10 @@ namespace OpenZ
                 if (o.Destroyed || o.KillAt >= 0) continue;                                                   // KC4b: got into a vehicle / gun / troop carrier / fort (or leaving the game): no ring left on the map
                 float r = (o.Kind == ZKind.Robot ? 0.95f * OzHeroSquadView.Tall(o) : 1.9f) * OzRingClock.Pulse;   // subtle pulse (K403: on the rings' own frame clock, View/OzRingClock.cs: smooth in a fixed-step recording too); KC4b: a hero's ring grows with him
                 var cp = g.Views.TryGetValue(o.Id, out var ov) && ov ? ov.transform.position : g.CenterWorld(o);
-                cp.y = ov && ov.OnTower ? ov.transform.position.y : g.GroundY(cp.x, cp.z);            // crews_v1: a tower gun's ring on its pad
+                cp.y = ov && ov.OnTower ? ov.transform.position.y : g.GroundY(cp.x, cp.z); OzLavaWade.Lift(ref cp, 0.2f);            // crews_v1: a tower gun's ring on its pad
                 if (!o.IsShuttle) { if (BoardingView.FigureAt(o, ref cp)) Draw(selRing, cp + Vector3.up * 0.25f, r, selMat); }   /* K431: none while it is still inside its carrier, at its figure while it gets out (View/BoardingView.ExitRings.cs) */                   // clears the render terrain (it can sit above the collider), still under the feet
                 else OzShuttleShadowRing.Draw(g, o, r / 1.9f, selMat);                                  // K256e: the shuttle's own ring (View/OzShuttleShadowRing.cs): inside its frame, the tank's band, on the drawn ground; none in the air, on a deck or in a crash landing
-                foreach (var m in o.Minions) { if (m.KillAt >= 0) continue; var mp = g.Views.TryGetValue(m.Id, out var mv) ? mv.transform.position : g.CenterWorld(m); if (BoardingView.FigureAt(m, ref mp)) Draw(selRing, mp + Vector3.up * 0.25f, 0.7f * OzHeroSquadView.Tall(m), minionMat); }   /* K431: a member still inside its carrier gets no ring, one getting out its ring at its figure */   // KC4b: a hero's size; none for a member that left the map
+                foreach (var m in o.Minions) { if (m.KillAt >= 0) continue; var mp = g.Views.TryGetValue(m.Id, out var mv) ? mv.transform.position : g.CenterWorld(m); if (BoardingView.FigureAt(m, ref mp)) { OzLavaWade.Lift(ref mp, 0.2f); Draw(selRing, mp + Vector3.up * 0.25f, 0.7f * OzHeroSquadView.Tall(m), minionMat); } }   /* K431: a member still inside its carrier gets no ring, one getting out its ring at its figure */   // KC4b: a hero's size; none for a member that left the map
                 if (o.Patrolling)
                 {
                     var pa = Px(g, o.PatrolAx, o.PatrolAy, out bool paDeck); var pb = Px(g, o.PatrolBx, o.PatrolBy, out bool pbDeck);
@@ -172,14 +189,23 @@ namespace OpenZ
                     float ms = queuing ? 0.45f : 0.45f * (mAge < 0.12f ? Mathf.Lerp(0.6f, 1.3f, mAge / 0.12f) : Mathf.Lerp(1.3f, 1.05f, (mAge - 0.12f) / (markLife - 0.12f)));
                     for (int i = 0; i < o.Waypoints.Count; i++) Draw(ring, Px(g, o.Waypoints[i].x, o.Waypoints[i].y, out d) + Vector3.up * 0.08f, ms, pathMat);
                 }
-                // Shift-queued orders (not sent yet): brighter dots + a marker ring at every waypoint
+                // Shift-queued orders (not sent yet): brighter dots + a marker ring at every waypoint. 1.2 item 9 (DV135): their line goes on
+                // from where the list that will be sent goes on: the end of the order the queue is added to, or the unit itself when nothing
+                // of its order stays (View/OzShiftAppend.cs PreviewFrom); a shuttle's line as before
                 if (input.Pending.TryGetValue(o, out var q))
+                {
+                    if (!o.IsShuttle)
+                    {
+                        if (OzShiftAppend.PreviewFrom(o, out int qx, out int qy)) prev = Px(g, qx, qy, out prevDeck);
+                        else { prev = g.CenterWorld(o); prevDeck = OnDeck(prev); }
+                    }
                     foreach (var w in q)
                     {
                         var p = Px(g, w.x, w.y, out d);
                         Leg(g, prev, prevDeck, p, d, 0.6f, 0.9f, 0.12f, 0.16f, markerMat);
                         Draw(ring, p + Vector3.up * 0.1f, 0.7f, markerMat); prev = p; prevDeck = d;
                     }
+                }
             }
             // (the old pulsing yellow order ring at input.MarkerPos is gone: the restyled HUD draws the "-ED" order marker,
         }

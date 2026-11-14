@@ -38,7 +38,7 @@ namespace OpenZ
             var s = OzPlayableShuttle.Of(t); if (s) last = s;
             return t.ShuttleAirborne && s && !s.BrokenUp && s.isActiveAndEnabled;
         }
-        public static bool AirId(int id) { var s = OzPlayableShuttle.OfId(id); return s && s.Obj != null && Air(s.Obj); }
+        public static bool AirId(int id) { if (id == OpenZElectroFx.SkyTarget) return true; var s = OzPlayableShuttle.OfId(id);   /* DV163: a bolt at a dragon, nothing of it on the ground */ return s && s.Obj != null && Air(s.Obj); }
         /// <summary>Up high enough that a shot at it goes up (the pads more than 2.5 m over the ground).</summary>
         public static bool High(ZObject t) => Air(t) && Ship.ShownHeight >= 2.5f;
 
@@ -58,7 +58,7 @@ namespace OpenZ
         /// aim, with their lead) at the hull's middle height it will have after simDelay; anything else: `ground` unchanged.</summary>
         public static Vector3 AirAim(ZObject t, Vector3 ground, float simDelay)
         {
-            if (!Air(t)) return OzAirShots.LostAim(t, ground);                                         // K337: a round in flight when the ship broke up bursts up there (View/OzAirShots.cs)
+            if (!Air(t)) return OzTowerAim.Aim(t, OzAirShots.LostAim(t, ground));                      // K337: a round in flight when the ship broke up bursts up there (View/OzAirShots.cs); 1.3 item 3: a fort tower gun's round goes up to the drawn gun (View/OzTowerAim.cs)
             return OzAirShots.AimUp(t, new Vector3(ground.x, RootYAt(simDelay) + MidM, ground.z));      // K337: inside the map and under the ceiling; the ship's height remembered
         }
 
@@ -86,15 +86,22 @@ namespace OpenZ
         {
             if (!Air(t)) return from;
             var s = Ship;
-            var c = s.transform.TransformPoint(new Vector3(0f, MidM, 0f));
-            var d = c - from; float len = d.magnitude; if (len < 0.5f) return c + Vector3.up * MissRun;
+            return MissPast(from, s.transform.TransformPoint(new Vector3(0f, MidM, 0f)), MissNear, MissFar, MissRun);
+        }
+
+        /// <summary>SkyMiss's line for any drawn target up in the air (1.3 item 3: also a fort tower gun, View/OzTowerAim.cs): past its middle c
+        /// (near .. far m from it, round the line of fire), on `run` m into the sky, remembered as a sky miss (IsSkyMiss: no impact up there);
+        /// a shooter above it misses into the ground below.</summary>
+        public static Vector3 MissPast(Vector3 from, Vector3 c, float near, float far, float run)
+        {
+            var d = c - from; float len = d.magnitude; if (len < 0.5f) return c + Vector3.up * run;
             var n = d / len;
             var a = Vector3.Cross(n, Mathf.Abs(n.y) > 0.95f ? Vector3.right : Vector3.up).normalized; var b = Vector3.Cross(n, a);
-            float ang = Random.value * Mathf.PI * 2f, r = Random.Range(MissNear, MissFar);
+            float ang = Random.value * Mathf.PI * 2f, r = Random.Range(near, far);
             var aim = c + (a * Mathf.Cos(ang) + b * Mathf.Sin(ang)) * r;
             var dir = (aim - from).normalized;
             if (dir.y < -0.05f) return HitSurface.MissGround(from, aim);
-            var end = OzAirShots.MissLine(from, from + dir * ((aim - from).magnitude + MissRun));   // K337: it ends inside the map and under the ceiling
+            var end = OzAirShots.MissLine(from, from + dir * ((aim - from).magnitude + run));   // K337: it ends inside the map and under the ceiling
             Remember(end);
             return end;
         }
@@ -137,6 +144,7 @@ namespace OpenZ
         /// the flying ship (within 10 m of its hull), the extras burst round it in the air; else on the ground as before.</summary>
         public static float SalvoEndY(Vector3 to, Vector3 p, float groundY)
         {
+            if (OzTowerAim.SalvoY(to, p, groundY, out float towerY)) return towerY;                      // 1.3 item 3: the salvo's own round ended at a fort tower gun: its extras up there too (View/OzTowerAim.cs)
             OzPlayableShuttle s = null; float best = 10f;                                               // the flying ship nearest the salvo's own end
             for (int i = 0; i < OzPlayableShuttle.Count; i++)
             {
@@ -170,7 +178,7 @@ namespace OpenZ
                 case "fort gun": return 1.6f;
                 case "howitzer": return 1.4f;
                 case "heavy": case "gun": return 1.2f;
-                case "light": case "medium": case "missile_launcher": case "missile_cannon": case "tough": return 1.0f;
+                case "light": case "medium": case ZMTank.Type: case "missile_launcher": case "missile_cannon": case "tough": return 1.0f;   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "grenade": return 0.9f;
                 case "pyro": case "electrobot": return 0.6f;
                 default: return 0.55f;
@@ -227,6 +235,7 @@ namespace OpenZ
         /// <summary>CombatView.DrawShot: a drawn rifle / gun / laser / flame round at t (start = the muzzle, end = where it is drawn ending).</summary>
         public static void NoteShot(ZEvent e, ZObject a, ZObject t, Vector3 from, Vector3 to)
         {
+            OzTowerAim.NoteShot(e, a, t, from, to);                                                      // 1.3 item 3: the tower-gun proof's counts (View/OzTowerAim.cs)
             if (t == null || !t.IsShuttle || !Air(t)) return;
             string key = KeyOf(a, false);
             if (e.flag) Hit(a != null && a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a != null ? a.Type : "?", from, to);
@@ -245,6 +254,7 @@ namespace OpenZ
         public static void NoteFired(ZEvent e, ZObject a, ZObject t, Vector3 from, Vector3 to)
         {
             OzAirShots.Fired(e, a, t, from, to);                                                        // K337: the round's record (View/OzAirShots.cs)
+            OzTowerAim.NoteFired(e, a, t, from, to);                                                     // 1.3 item 3: the tower-gun proof's counts (View/OzTowerAim.cs)
             if (!Recording || t == null || !t.IsShuttle || !Air(t)) return;
             string key = KeyOf(a, e.flag);
             var p = P(key); p.shots++;
@@ -257,6 +267,7 @@ namespace OpenZ
         /// <summary>CombatView.MissileExploded: the drawn blast of a rocket, shell or grenade the rules aimed at t.</summary>
         public static void NoteBlast(ZEvent e, ZObject a, ZObject t, Vector3 at)
         {
+            OzTowerAim.NoteBlast(e, a, t, at);                                                          // 1.3 item 3: the tower-gun proof's counts (View/OzTowerAim.cs)
             if (t == null || !t.IsShuttle || !Air(t)) return;
             float hd = HullDist(at);
             if (hd <= 1.5f) Hit(e.flag ? "grenade" : a != null && a.IsFort ? "fort gun" : a != null ? (a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type) : "?",
@@ -273,6 +284,7 @@ namespace OpenZ
         /// <summary>OpenZElectroFx: a drawn tesla bolt at t (it always ends on the target's body).</summary>
         public static void NoteBolt(ZObject a, ZObject t, Vector3 from, Vector3 end)
         {
+            OzTowerAim.NoteBolt(a, t, from, end);                                                        // 1.3 item 3: the tower-gun proof's counts
             if (t == null || !t.IsShuttle || !Air(t)) return;
             Hit("electrobot", from, end);
             if (!Recording) return;

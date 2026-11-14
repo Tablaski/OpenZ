@@ -13,7 +13,7 @@ namespace OpenZ
 
         /// <summary>The text on the row now (for the checks).</summary>
         public string Text => label != null ? label.text : "";
-        public bool ShowsFreeCamera => shown == 1;
+        public bool ShowsFreeCamera => shown == (int)OzCamControls.Middle.TurnView || shown == (int)OzCamControls.Middle.DragMapAltTurns;   // 1.4: the free look may turn the view
 
         public void Init(OzText l, string off, string on) { label = l; offText = off; onText = on; shown = -1; Refresh(); }
 
@@ -24,9 +24,9 @@ namespace OpenZ
         public void Refresh()
         {
             if (label == null) return;
-            int want = OzFreeCam.On ? 1 : 0;
+            int want = (int)OzCamControls.MiddleMode;                                                        // 1.4: TURN VIEW 0, DRAG MAP 1, the Alt way 2 (UI/OzCamControls.cs)
             if (want == shown) return;
-            shown = want; label.Set(want == 1 ? onText : offText);
+            shown = want; label.Set(OzCamControls.CameraRowText(offText, onText, want));
         }
     }
 }

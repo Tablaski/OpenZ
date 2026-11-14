@@ -110,7 +110,7 @@ namespace OpenZ
             var dir = d.normalized;
             if (dir.y > -0.02f) dir = (dir + Vector3.down * 0.25f).normalized;                              // a flat shot drops into the ground behind
             if (!g.GroundPoint(new Ray(from, dir), out var gp)) return aim;
-            // bank right in front of him; a miss lands past the aim point (the drawn round flies over the bank: ShotClearance.Bend)
+            // bank right in front of him; a miss lands past the aim point (the drawn round then ends on the bank: View/ShotLine.cs)
             float reach = new Vector2(aim.x - from.x, aim.z - from.z).magnitude, hitAt = new Vector2(gp.x - from.x, gp.z - from.z).magnitude;
             if (ShotClearance.Enabled && reach > 2f && hitAt < reach * 0.8f)
             {

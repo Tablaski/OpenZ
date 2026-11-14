@@ -140,7 +140,7 @@ namespace OpenZ
             centre = new Vector3(at.x, fxp ? fxp.SurfaceY(at) : (ZGame.I ? ZGame.I.GroundY(at.x, at.z) : at.y), at.z);
             rumbleId = 91000 + (int)(t0 * 10f) % 1000;
             var g = ZGame.I;
-            dustColor = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OpenZFxCatalog.M12Dust.color;
+            dustColor = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
             var add = Resources.Load<Material>("OpenZ/FX/M_FxAdditive"); var addShader = add && add.shader ? add.shader : Shader.Find("OpenZ/FxAdditive");
             if (addShader)
             {
@@ -156,6 +156,7 @@ namespace OpenZ
             }
             BuildMeshes();
             BuildGroundDistort();
+            OverlayBuild();                                                                          // 1.3 rows 45, 46: the soft ring drawn on top (OpenZFortShockwave.Overlay.cs)
             ScanProps();                                                                             // rigidbodies: first Update (nextBodyScan 0)
             var rts = Rts();
             var focus = rts ? rts.focus : (Camera.main ? Camera.main.transform.position : centre);
@@ -236,6 +237,7 @@ namespace OpenZ
 
         void UpdateRing(float k)
         {
+            if (overlayOn && OverlayRingUpdate(k)) return;                                             // 1.3 rows 45, 46: one flat soft ring over everything
             if (!frontMat && !trailMat) return;
             if (SurfaceRing && SurfaceRingUpdate(k)) return;                                           // item 215: the ring runs over the ground (OpenZFortShockwave.Surface.cs)
             float r0 = radius * (TrailInner - 0.02f), r1 = radius * 1.02f, rm = (r0 + r1) * 0.5f;
@@ -388,7 +390,8 @@ namespace OpenZ
         {
             bodies.Clear();
             foreach (var rb in FindObjectsByType<Rigidbody>(FindObjectsSortMode.None))
-                if (rb && !rb.isKinematic && !pushed.Contains(rb)) bodies.Add(rb);
+                if (rb && !rb.isKinematic && !pushed.Contains(rb) && !LateBody(rb)) bodies.Add(rb);   // open_fixes_2nov: not what came after the front (OpenZFortShockwave.Late.cs)
+            lastScanAge = age;
         }
 
         void PushBodies(float k)
@@ -551,6 +554,7 @@ namespace OpenZ
             foreach (var m in new[] { frontMat, trailMat, waveMat, gRingMat, areaMat }) if (m) Destroy(m);
             if (ringMesh) Destroy(ringMesh); if (waveMesh) Destroy(waveMesh); if (gRingMesh) Destroy(gRingMesh); if (areaMesh) Destroy(areaMesh);
             SurfaceDestroy();                                                                         // item 215
+            OverlayDestroy();                                                                         // 1.3 rows 45, 46
             if (last == this) last = null;
         }
 

@@ -4,8 +4,9 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
-    /// 1 = Easy; 2 = Medium is new.</summary>
-    public enum GameDifficulty { Hard = 0, Easy = 1, Medium = 2 }
+    /// stored in oz_difficulty (it keeps 0 = HARD, oz_mayhem 1 marks MAYHEM) and never reaches a rule or the computer: only
+    /// OpenZDifficulty.Choice, ZGame.ShownDifficulty, the menus' texts and the score tables (OzHighScores keys them by Label) carry it.</summary>
+    public enum GameDifficulty { Hard = 0, Easy = 1, Medium = 2, Mayhem = 3 }
 
     /// <summary>
     /// Difficulty choice shared by the menus: PlayerPrefs "oz_difficulty". ZGame reads it when a level starts; setting it during
@@ -16,6 +17,7 @@ namespace OpenZ
     ///   HARD   = the Zod CPU, Zod build lists, map start units + one missile cannon on each fort's door tower (ZWorld.FortDoorGunDeviation);
     ///            the deliberate OpenZ rule changes (DV rows) apply on every difficulty.
     /// All three are OpenZ deviations (parity report, Deviations: DV4; Hard also DV73).
+    ///   MAYHEM = HARD for the rules and the CPU (Level reads HARD) + the fog of war in that match (View/OzFogOfWar.cs WhyOff); 1.4 MAYHEM,
     /// </summary>
     public static class OpenZDifficulty
     {
@@ -24,8 +26,29 @@ namespace OpenZ
         public static GameDifficulty Level
         {
             get { int v = PlayerPrefs.GetInt(Key, (int)GameDifficulty.Medium); /* menu_exe_v1: MEDIUM is the default */ return v == 1 ? GameDifficulty.Easy : v == 2 ? GameDifficulty.Medium : GameDifficulty.Hard; }
-            set { PlayerPrefs.SetInt(Key, (int)value); PlayerPrefs.Save(); ApplyLive(value); }
+            set { if (value == GameDifficulty.Mayhem) { Choice = value; return; } PlayerPrefs.SetInt(Key, (int)value); PlayerPrefs.SetInt(MayhemKey, 0); PlayerPrefs.Save(); ApplyLive(value); }   // 1.4 MAYHEM: a rules difficulty set here clears MAYHEM; Level = Mayhem is Choice = Mayhem
         }
+
+        /// <summary>
+        /// oz_difficulty so every place that stores or puts back the rules' difficulty as a number (DEPLOY, the -take snapshot and its
+        /// restore, the one-time repair, a 1.3 game on the same computer) keeps working: they see HARD. Ignored while Level is not HARD.</summary>
+        public const string MayhemKey = "oz_mayhem";
+        /// <summary>The player chose MAYHEM (Level HARD and oz_mayhem 1).</summary>
+        public static bool MayhemChosen => Level == GameDifficulty.Hard && PlayerPrefs.GetInt(MayhemKey, 0) == 1;
+        /// <summary>The difficulty the player chose, as the menus show it: EASY, MEDIUM, HARD or MAYHEM (Level stays the rules' one:
+        /// MAYHEM is HARD there). Set: saved at once (oz_difficulty the rules' value, oz_mayhem 1 only for MAYHEM).</summary>
+        public static GameDifficulty Choice
+        {
+            get => MayhemChosen ? GameDifficulty.Mayhem : Level;
+            set
+            {
+                var r = Rules(value);
+                PlayerPrefs.SetInt(Key, (int)r); PlayerPrefs.SetInt(MayhemKey, value == GameDifficulty.Mayhem ? 1 : 0); PlayerPrefs.Save();
+                ApplyLive(r);
+            }
+        }
+        /// <summary>The difficulty the rules and the computer play: MAYHEM is HARD (1.4 MAYHEM).</summary>
+        public static GameDifficulty Rules(GameDifficulty d) => d == GameDifficulty.Mayhem ? GameDifficulty.Hard : d;
 
         /// <summary>The CPU handicap of a difficulty: only Easy softens the bot.</summary>
         public static ZBotDifficulty Bot(GameDifficulty d) => d == GameDifficulty.Easy ? ZBotDifficulty.Easy : ZBotDifficulty.Normal;
@@ -41,23 +64,27 @@ namespace OpenZ
         public const string HeadStartPref = "oz_headstart";
         public static bool HeadStartToggle { get => PlayerPrefs.GetInt(HeadStartPref, 0) == 1; set { PlayerPrefs.SetInt(HeadStartPref, value ? 1 : 0); PlayerPrefs.Save(); } }
         public static bool HeadStart(GameDifficulty d, bool toggle) => toggle;
-        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : level == "L16" ? ZGame.HeadStartL16Types.Length : 0;
-        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : level == "L16" ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : "";
+        /// <summary>
+        /// The head start a match of this chosen difficulty gets: the saved switch, never on MAYHEM. The switch itself
+        /// is kept (it comes back on EASY, MEDIUM and HARD).</summary>
+        public static bool HeadStartFor(GameDifficulty choice) => choice != GameDifficulty.Mayhem && HeadStartToggle;
+        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : level == "L16" ? ZGame.HeadStartL16Types.Length : OzVolcanic.Is(level) ? ZGame.HeadStartL07Types.Length : 0;
+        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : level == "L16" || OzVolcanic.Is(level) ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : "";
 
-        public static string Label(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : "HARD";
+        public static string Label(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : d == GameDifficulty.Mayhem ? "MAYHEM" : "HARD";   // 1.4 MAYHEM
 
         /// <summary>One-line explanation for the level select / options.</summary>
         public static string Hint(GameDifficulty d) => d == GameDifficulty.Easy
             ? "EVERY UNIT UNLOCKED · GENTLE CPU"
-            : d == GameDifficulty.Medium ? "FACTORIES 2 TECH LEVELS UP · ZOD CPU" : "Z'S BUILD LISTS · FORT MISSILE CANNONS";
+            : d == GameDifficulty.Medium ? "FACTORIES 2 TECH LEVELS UP · ZOD CPU" : d == GameDifficulty.Mayhem ? "HARD + FOG OF WAR · FORT MISSILE CANNONS · ENEMY BUILDS 10 % FASTER" : "Z'S BUILD LISTS · FORT MISSILE CANNONS";
 
-        public static GameDifficulty Next(GameDifficulty d) => d == GameDifficulty.Easy ? GameDifficulty.Medium : d == GameDifficulty.Medium ? GameDifficulty.Hard : GameDifficulty.Easy;
+        public static GameDifficulty Next(GameDifficulty d) => d == GameDifficulty.Easy ? GameDifficulty.Medium : d == GameDifficulty.Medium ? GameDifficulty.Hard : d == GameDifficulty.Hard ? GameDifficulty.Mayhem : GameDifficulty.Easy;   // 1.4 MAYHEM: EASY, MEDIUM, HARD, MAYHEM, EASY
 
         static void ApplyLive(GameDifficulty d)
         {
             var g = ZGame.I;
             if (g == null || g.World == null) return;
-            g.gameDifficulty = d; g.difficulty = Bot(d);
+            d = Rules(d); g.gameDifficulty = d; g.difficulty = Bot(d);   // 1.4 MAYHEM: a running match gets the rules' difficulty (HARD); its MAYHEM (the fog) is fixed at its start
             foreach (var b in g.World.Bots) b.Difficulty = g.BotDifficulty(b.Team);
             g.ApplyTechBonus();
         }

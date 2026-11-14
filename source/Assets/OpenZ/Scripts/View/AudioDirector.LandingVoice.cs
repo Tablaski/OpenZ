@@ -34,6 +34,7 @@ namespace OpenZ
             if (ExternalVoiceBusy != null && ExternalVoiceBusy()) return false;
             bool robotLine = d.channel == "alan_main" || d.channel == "alan_alert";
             if (robotLine && !RobotChatter.Allows(id)) return false;
+            if (robotLine && RobotLineWouldDrop(id, d)) return false;                               // 1.4 radar_voice_fix: the director would drop it (DV118's hold past its time, the robot line gap, the voice floor past its wait); held behind Rachel and said 0.3 s after her, or said after a wait within its own, is "yes" as in P (View/AudioDirector.VoiceFloor.cs)
             float cooldown = robotLine ? RobotChatter.Cooldown(id, d.cooldown) : d.cooldown;
             return !(cooldown > 0 && lastLine.TryGetValue(id, out var lt) && Time.unscaledTime - lt < cooldown);
         }

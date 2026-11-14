@@ -21,13 +21,36 @@ namespace OpenZ
     /// </summary>
     public class WreckPieces : MonoBehaviour
     {
-        public const int MaxGroups = 12, MaxLive = 72;
+        public const int MaxGroups = 12, MaxLiveFull = 72, MaxLiveLight = 36;
+        /// <summary>The most pieces that live at once: 72 as before; 36 while WRECKS AND DEBRIS is LIGHT (1.3 item 40, View/OzLightRows.cs).</summary>
+        public static int MaxLive => OzLightRows.WrecksLight ? MaxLiveLight : MaxLiveFull;
+        /// <summary>1.3 item 40: the row went to LIGHT during play: the oldest pieces past the cap leave now, the way the cap lets them go.</summary>
+        public static void TrimLive() { while (live.Count > MaxLive) { var old = live[0]; live.RemoveAt(0); if (old) old.Retire(); } }
         static readonly List<WreckPieces> live = new List<WreckPieces>();
         static readonly Regex Launchers = new Regex("barrel|turret|cannon|launcher|pod|rocket|gun|spin|rack|boom|arm", RegexOptions.IgnoreCase);
 
         /// <summary>Sinking out at the end of its life (DebrisAudit skips it).</summary>
         public bool Fading => popping;
+        WreckSinkGate.Ticket sinkTicket;                                                              // k93, item 154: its wait while on camera (View/WreckSinkGate.cs)
         Rigidbody rb; float age, life, burnUntil, smokeT, lastContact = -10f, fadeT, sinkDepth, massKg; int contacts, id; bool frozen, popping, landed; Vector3 sinkFrom;
+        /// <summary>The unit (sim id) this piece came from (counted checks).</summary>
+        public int UnitId => id;
+
+        /// <summary>
+        /// apart). Set by UnitView only while it breaks a dead tower gun of WreckFx.TowerWreckTypes (its parts at the death, its seat kit at the
+        /// toss, its base at the break): every piece made then meets the statics and the rocks (OzRockBody) whatever its size. The fort has no
+        /// collider but OzStaticSolid's, which only bodies of OzRockBody.BigM (1 m) and more meet, so on a tower the smaller pieces (the gatling's
+        /// two thin base plates, the missile cannon's four small base bins, the seat kits) fell through the tower top into the fort. False (every
+        /// other death) = as before.</summary>
+        public static bool MeetStatics;
+        /// <summary>Proof: pieces smaller than OzRockBody.BigM that met the statics by MeetStatics.</summary>
+        public static int SmallMetStatics;
+        static Vector3 SolidSize(Vector3 size)
+        {
+            if (!MeetStatics || Mathf.Max(size.x, Mathf.Max(size.y, size.z)) >= OzRockBody.BigM) return size;
+            SmallMetStatics++;
+            return Vector3.Max(size, Vector3.one * OzRockBody.BigM);
+        }
 
         /// <summary>Breaks `view`'s wreck (everything under it except `skip`) into pieces. Returns the number of pieces.</summary>
         public static int Break(UnitView view, Transform skip, Vector3 centre, float power, int id, float charred)
@@ -51,6 +74,7 @@ namespace OpenZ
                 }
                 bool wheel = WheeledBreakup.IsWheelName(mr.name);
                 if (wheel) RollingWheel.BurnTyre(mr.transform);
+                if (!wheel) OzTreadBreak.Ensure(view, mr, mf);                                                 // item 72: a track without baked fragments gets them now (OzTreadBreak.cs)
                 var frag = wheel ? null : mr.transform.Find("OZ_WreckFragments");
                 if (frag && OzTankWreck.Pieces(view, mr, mf, frag, groups, charred)) continue;                 // item 378: a tank's own broken pieces instead of the bins (OzTankWreck.cs)
                 if (frag)
@@ -69,6 +93,7 @@ namespace OpenZ
                 g.Add(mr.transform);
             }
             OzTankWreck.Regroup(view, groups);                                                            // item 378: torn track lengths, wheels and lamps ride on the piece they sit in
+            OzTreadBreak.Regroup(view, groups);                                                           // item 72: the MLRS track lengths ride on the hull pieces, the budget joins where parts sit
             if (groups.Count == 0) return 0;
             // largest first, the smallest merged into the largest until the budget holds
             groups.Sort((a, b) => Verts(b).CompareTo(Verts(a)));
@@ -108,7 +133,7 @@ namespace OpenZ
                 if (whooshes < 2 && Launchers.IsMatch(names)) { whooshes++; AudioDirector.Fire("dst_turret_toss", b.center, id); }   // the big parts whoosh up
                 made.Add((p, mass));
                 live.Add(p);
-                OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, b.size, p.life - 1f, () => p && p.Fading);   // items 331 + 332: a big piece meets the rocks
+                OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, SolidSize(b.size), p.life - 1f, () => p && p.Fading);   // items 331 + 332: a big piece meets the rocks; 1.3 item 16: on a tower every piece (MeetStatics)
             }
             made.Sort((a, b) => b.mass.CompareTo(a.mass));
             for (int i = 0; i < made.Count && i < 3; i++) made[i].p.burnUntil = 3.5f + ((RobotDeathRule.Hash(id, i, 21u) & 255u) / 255f) * 2.5f;   // burnPieces
@@ -142,7 +167,7 @@ namespace OpenZ
             foreach (var r in go.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             var p = go.AddComponent<WreckPieces>();
             p.rb = body; p.id = id; p.life = Lifetime(id, 20); p.massKg = mass;
-            OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, b.size, p.life - 1f, () => p && p.Fading);       // items 331 + 332
+            OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, SolidSize(b.size), p.life - 1f, () => p && p.Fading);       // items 331 + 332; 1.3 item 16: on a tower every piece (MeetStatics)
             live.Add(p);
             while (live.Count > MaxLive) { var old = live[0]; live.RemoveAt(0); if (old) old.Retire(); }
             return true;
@@ -662,14 +687,14 @@ namespace OpenZ
                 frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
                 foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             }
-            if (age > life && !popping) Retire();
+            if (age > life && !popping && !WreckSinkGate.Hold(ref sinkTicket, id, gameObject, transform.position)) Retire();   // k93, item 154: off camera only, inside the cap (one wreck per unit id)
         }
 
         /// <summary>
         /// over 2.5 s (a faint dust puff), then is destroyed.</summary>
         void Retire()
         {
-            if (popping) return;
+            if (popping || OzLavaMelt.Busy(transform)) return;                                                // level 7, kit LV5: melting: the cap cannot cut it short, its own life ends it after the melt
             popping = true; live.Remove(this);
             if (rb) { rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None; }
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;

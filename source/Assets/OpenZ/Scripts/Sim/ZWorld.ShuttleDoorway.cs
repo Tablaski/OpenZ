@@ -121,6 +121,7 @@ namespace OpenZ.Sim
                 for (int j = i; j > 0 && ZHeroSeat.Rank(order[j].seat) < ZHeroSeat.Rank(order[j - 1].seat); j--) { var t = order[j]; order[j] = order[j - 1]; order[j - 1] = t; }
             var lead = CreateRobotGroup(string.IsNullOrEmpty(order[0].type) ? "grunt" : order[0].type, o.LocX, o.LocY, team, order.Count);
             var squad = new List<ZObject> { lead }; squad.AddRange(lead.Minions);
+            EvilSeatOut(o, lead);                                                                          // DV161: saved on the ramp, his rank and clocks with him (Sim/ZEvilZod.cs)
             var hp = new List<int>(); var seats = new List<ZHeroSeat>();
             foreach (var s in order) { hp.Add(s.hp); seats.Add(s.seat); }
             if (seats.Exists(x => x != null))

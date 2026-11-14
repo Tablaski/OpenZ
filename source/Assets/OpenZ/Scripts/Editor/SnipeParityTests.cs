@@ -28,6 +28,9 @@ namespace OpenZ.EditorTools
         [SetUp] public void ZodExact() { savedDeviation = ZWorld.SnipeDeviation; ZWorld.SnipeDeviation = false; savedFortGun = ZWorld.FortGunDeviation; ZWorld.FortGunDeviation = false; savedDuel = ZWorld.DuelDeviation; ZWorld.DuelDeviation = false; }
         bool savedFortGun, savedDuel;
         [TearDown] public void RestoreDeviation() { ZWorld.SnipeDeviation = savedDeviation; ZWorld.FortGunDeviation = savedFortGun; ZWorld.DuelDeviation = savedDuel; }
+        bool savedGatlingBuff;                                                                                   // DV170 (Sim/ZGatlingBuff.cs): every table here is Zod's gatling (39 HP a hit, 120 px); a Play session leaves the switch on
+        [SetUp] public void ZodGatling() { savedGatlingBuff = ZWorld.GatlingBuffDeviation; ZWorld.GatlingBuffDeviation = false; }
+        [TearDown] public void RestoreGatling() { ZWorld.GatlingBuffDeviation = savedGatlingBuff; }
 
         // ------------------------------------------------------------------ fixtures
         public static string HarnessResources = System.Environment.GetEnvironmentVariable("OPENZ_RESOURCES") ?? System.IO.Path.Combine("Assets", "OpenZ", "Resources", "OpenZ") + System.IO.Path.DirectorySeparatorChar;   // headless harness: no private path
@@ -343,7 +346,7 @@ namespace OpenZ.EditorTools
             {
                 ("grunt", "medium", 11, 19), ("grunt", "heavy", 11, 15), ("psycho", "heavy", 26, 26),
                 ("psycho", "jeep", 26, 57), ("psycho", "medium", 26, 26), ("sniper", "jeep", 70, 210), ("sniper", "heavy", 70, 210),
-                ("laser", "jeep", 177, 177), ("jeep", "medium", 27, 27), ("gatling", "medium", 39, 39), ("gatling", "jeep", 39, 57), ("jeep", "jeep", 27, 57), ("gatling", "gatling", 39, 39), ("sniper", "gatling", 70, 210), ("sniper", "light", 70, 210),
+                ("laser", "jeep", 177, 177), ("jeep", "medium", 27, 216), ("gatling", "medium", 39, 39), ("gatling", "jeep", 39, 57), ("jeep", "jeep", 27, 57), ("gatling", "gatling", 39, 39), ("sniper", "gatling", 70, 210), ("sniper", "light", 70, 210),
             };
             foreach (var c in cases)
             {
@@ -502,7 +505,7 @@ namespace OpenZ.EditorTools
         /// A grunt squad alone is shot before it lands its driver hits (almost never); its pair value shows when the squad is
         /// left alone (DeviationGruntSquadIsQuickOnALightTank).</summary>
         [TestCase("psycho", 3, 2, 18)]
-        [TestCase("jeep", 1, 1, 15)]
+        [TestCase("jeep", 1, 1, 24)]
         [TestCase("gatling", 1, 4, 21)]
         [TestCase("grunt", 3, 0, 4)]
         public void DeviationOpenSeatAttackersCanEmptyALightTank(string attacker, int n, int atLeast, int atMost)

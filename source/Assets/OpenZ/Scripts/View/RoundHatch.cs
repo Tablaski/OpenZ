@@ -11,7 +11,7 @@ namespace OpenZ
     /// View only, no sim state. BoardingView.RigOf calls Ensure before it reads the hinge; idempotent.
     /// </summary>
     [DisallowMultipleComponent]
-    public class RoundHatch : MonoBehaviour
+    public partial class RoundHatch : MonoBehaviour                                                     // 1.2 item 110: + RoundHatch.HeavyV2.cs
     {
         class Spec
         {
@@ -32,6 +32,11 @@ namespace OpenZ
         static readonly Dictionary<string, Spec> Specs = new Dictionary<string, Spec>
         {
             ["light"] = new Spec { parent = "TankTurretYaw", prefix = "tank_", center = new Vector3(0f, 1.5563f, 0.199f), tilt = 0f,
+                                   rOut = 0.50f, rIn = 0.40f, bottom = 0.005f, top = 0.11f, floor = -0.26f,
+                                   plate = true, plateHx = 0.625f, plateHz = 0.64f, plateRc = 0.18f, plateTop = 0.03f, plateBottom = -0.26f, lidR = 0.485f },
+            // DV145: the medium tank: the light tank v2's spec ("tank_"), its modelled hatch on the dome is used (tank_v2_HatchFrame: the rim 0.11 over it,
+            // RoundHatch.HeavyV2.cs); the collar numbers are the fallback build only
+            [OzMediumTank.Type] = new Spec { parent = "TankTurretYaw", prefix = "tank_", center = new Vector3(0f, 0.982f, 0f), tilt = 0f,
                                    rOut = 0.50f, rIn = 0.40f, bottom = 0.005f, top = 0.11f, floor = -0.26f,
                                    plate = true, plateHx = 0.625f, plateHz = 0.64f, plateRc = 0.18f, plateTop = 0.03f, plateBottom = -0.26f, lidR = 0.485f },
             ["medium"] = new Spec { parent = "MechWaistYaw", prefix = "mech_", center = new Vector3(0.10f, 1.563f, -0.256f), tilt = 8.3f,
@@ -68,7 +73,9 @@ namespace OpenZ
             if (rh) { if (rh.Hinge) rh.Hinge.localRotation = rh.hingeRest; return rh.Frame ? rh : null; }
             rh = root.gameObject.AddComponent<RoundHatch>();
             rh.spec = s;
+            if (rh.UseModelled(root)) return rh;                                                          // 1.2 item 110: heavy tank v2: its modelled real hatch, nothing built (RoundHatch.HeavyV2.cs)
             if (!rh.Build(root)) { return null; }
+            rh.MechV2Look(root);                                                                          // the mech v2: its hatch pictures on the built lid, plate and collar (RoundHatch.MechV2.cs)
             var tp = root.GetComponent<TeamPaint>(); if (tp) tp.Apply();                                  // team / charred blocks on the new parts
             return rh;
         }

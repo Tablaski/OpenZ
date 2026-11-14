@@ -14,9 +14,10 @@ namespace OpenZ
     //
     // The popup is a centred plate over a dark scrim, drawn above everything of this screen (a canvas of its own sorting, so the
     // commander's small transmission window never lies over it). One block per level in the menu's order (Desert, Jungle,
-    // Car Park), for one difficulty at a time: the tabs EASY / MEDIUM / HARD, opening on the difficulty chosen on this screen.
+    // Car Park), for one difficulty at a time: the tabs EASY / MEDIUM / HARD / MAYHEM (1.4), opening on the difficulty chosen on this screen.
     // A tab only changes what the popup shows, never the chosen difficulty. A block lists up to 10 victories, best first, with
-    // exactly what a table entry stores (OzScoreEntry): place, rank (from the score), score, mission time, units killed,
+    // exactly what a table entry stores (OzScoreEntry): place, the side it was won with (the FACTION tag: ZOD on red, EVILZOD on
+    // blue; UI/OpenZMainMenu.HighScoresSide.cs), rank (from the score), score, mission time, units killed,
     // units lost, units built, zones held of the map's zones. The best entry of a level is marked (amber line, wash, stripe).
     // A level without a victory on that difficulty says so in one line. When the blocks are taller than the view (three full
     // tables) the view scrolls: wheel, up / down, page up / page down; a thumb shows where.
@@ -36,28 +37,30 @@ namespace OpenZ
         public const Key HsKey = Key.T;
         // the button (canvas units; anchored like BACK to the right edge)
         public const float HsBtnW = 168f, HsBtnH = 32f, HsBtnGap = 12f;
-        // the plate (plate-local units, top-left origin)
-        public const float HsW = 940f, HsH = 780f, HsPad = 28f, HsHead = 44f, HsTabY = 56f, HsTabX = 132f, HsTabW = 120f, HsTabH = 26f, HsTabGap = 4f, HsViewY = 96f, HsFoot = 44f;
+        // the plate (plate-local units, top-left origin); 1024 u wide since the FACTION tag (84 u more than before: the number
+        // columns keep their room)
+        public const float HsW = 1024f, HsH = 780f, HsPad = 28f, HsHead = 44f, HsTabY = 56f, HsTabX = 132f, HsTabW = 120f, HsTabH = 26f, HsTabGap = 4f, HsViewY = 96f, HsFoot = 44f;
         // a level's block inside the view: title line, column titles, rows, room to the next block
         public const float HsBlockHead = 34f, HsColHead = 22f, HsRowH = 22f, HsBlockGap = 18f, HsEmptyH = 26f, HsContentPad = 6f;
         const float HsScrimAlpha = 0.62f;                                                                     // the OPTIONS modal's scrim
         const int HsSortAbove = 5;                                                                            // above the menu canvas and the commander's window (+1), under the confirm modal (+50)
-        static readonly GameDifficulty[] HsTabs = { GameDifficulty.Easy, GameDifficulty.Medium, GameDifficulty.Hard };
+        static readonly GameDifficulty[] HsTabs = { GameDifficulty.Easy, GameDifficulty.Medium, GameDifficulty.Hard, GameDifficulty.Mayhem };   // 1.4 MAYHEM: its own tables ("MAYHEM"); 4 tabs end at x 624, the note starts at x 712
         /// <summary>The table's columns: title, left edge and width in the view, right-aligned or not. Boxes never overlap.
-        /// The place ends at x 26; the rank starts at x 44 in a 170 u box (the longest rank name is 139 u wide); the room right of
-        /// it, x 216 to 866, holds the six number columns as equal 80 u boxes with 34 u between them, so their right edges stand
-        /// 114 u apart: 296, 410, 524, 638, 752, 866. With the widest values and the titles, the free room between two neighbours
-        /// is 67 to 79 u from the rank on.</summary>
+        /// The place ends at x 26; the FACTION tag stands at x 42 in a 70 u chip (UI/OpenZMainMenu.HighScoresSide.cs; not a column of
+        /// this list: the cells keep their numbers); the rank starts at x 128 in a 170 u box (the longest rank name is 139 u wide);
+        /// the room right of it, x 300 to 950, holds the six number columns as equal 80 u boxes with 34 u between them, so their
+        /// right edges stand 114 u apart: 380, 494, 608, 722, 836, 950. With the widest values and the titles, the free room between
+        /// two neighbours is 67 to 79 u from the rank on (the place, the tag and the rank: 16 u apart).</summary>
         static readonly (string title, float x, float w, bool right)[] HsCols =
         {
-            ("#", 0f, 26f, true), ("RANK", 44f, 170f, false), ("SCORE", 216f, 80f, true), ("TIME", 330f, 80f, true),
-            ("KILLED", 444f, 80f, true), ("LOST", 558f, 80f, true), ("BUILT", 672f, 80f, true), ("ZONES", 786f, 80f, true),
+            ("#", 0f, 26f, true), ("RANK", 128f, 170f, false), ("SCORE", 300f, 80f, true), ("TIME", 414f, 80f, true),
+            ("KILLED", 528f, 80f, true), ("LOST", 642f, 80f, true), ("BUILT", 756f, 80f, true), ("ZONES", 870f, 80f, true),
         };
-        /// <summary>The table's right edge in the view (the last column's, 4 u inside the 870 u view): the numbers, their titles and
+        /// <summary>The table's right edge in the view (the last column's, 4 u inside the 954 u view): the numbers, their titles and
         /// a level's count line all end here.</summary>
         static float HsTableRight => HsCols[HsCols.Length - 1].x + HsCols[HsCols.Length - 1].w;
 
-        sealed class HsRow { public RectTransform rt; public bool best; public OzText[] cells; }
+        sealed class HsRow { public RectTransform rt; public bool best; public OzText[] cells; public HsSideTag side; }
         sealed class HsBlock { public RectTransform rt, cols; public OzText count, empty; public HsRow[] rows; public int shown; }
 
         HudButton hsBtn; RectTransform hsRoot, hsPanel, hsView, hsContent, hsTrack, hsClose; Canvas hsCanvas; CanvasGroup hsCg; Image hsScrim, hsThumb;
@@ -158,6 +161,7 @@ namespace OpenZ
             b.cols = Hud.Node("Columns", b.rt).Place(new OzRect(0, HsBlockHead, vw, HsColHead));
             foreach (var c in HsCols)
                 HsLabel(b.cols, "Col_" + c.title, c.title, 9, OzUi.Muted, 0.2f).At(c.right ? c.x + c.w : c.x, HsColHead * 0.5f, c.right ? OzH.R : OzH.L, true, c.w);
+            HsSideTitle(b.cols);                                                                             // the FACTION title (UI/OpenZMainMenu.HighScoresSide.cs)
             b.rows = new HsRow[OzHighScores.TableSize];
             for (int r = 0; r < b.rows.Length; r++)
             {
@@ -177,6 +181,7 @@ namespace OpenZ
                     row.cells[c] = HsLabel(row.rt, "Cell_" + col.title, "", 12, ink, c == 1 ? 0.04f : 0.02f)
                         .At(col.right ? col.x + col.w : col.x, HsRowH * 0.5f, col.right ? OzH.R : OzH.L, true, col.w);
                 }
+                row.side = HsSideTagMake(row.rt);                                                            // the row's FACTION tag
                 b.rows[r] = row;
             }
             b.empty = HsLabel(b.rt, "Empty", "", 11, OzUi.Muted, 0.14f).At(0, HsBlockHead + HsEmptyH * 0.5f, OzH.L, true, vw);
@@ -191,7 +196,7 @@ namespace OpenZ
             hsRoot.gameObject.SetActive(true);
             hsCanvas.overrideSorting = true; hsCanvas.sortingOrder = canvas.sortingOrder + HsSortAbove;       // set on the shown popup: its own sorting, above this screen
             if (!hsPanel) BuildHighScoresPanel();
-            if (!instant || hsTab < 0) hsTab = System.Array.IndexOf(HsTabs, OpenZDifficulty.Level);            // opens on the difficulty chosen on this screen
+            if (!instant || hsTab < 0) hsTab = System.Array.IndexOf(HsTabs, OpenZDifficulty.Choice);            // opens on the difficulty chosen on this screen
             if (hsTab < 0) hsTab = 1;
             if (!instant) hsScroll = hsTarget = 0f;
             FillHighScores();
@@ -260,6 +265,7 @@ namespace OpenZ
                     row.cells[5].Set(OzText.Tab(e.losses.ToString()));
                     row.cells[6].Set(OzText.Tab(e.built.ToString()));
                     row.cells[7].Set(e.zonesTotal > 0 ? OzText.Tab(e.zones + "/" + e.zonesTotal) : "-");       // an entry without the zone numbers shows a dash
+                    HsSideFill(row.side, e);                                                                 // ZOD on red / EVILZOD on blue (an older entry: ZOD)
                 }
                 float h = HsBlockHead + (n > 0 ? HsColHead + n * HsRowH : HsEmptyH);
                 b.rt.anchoredPosition = new Vector2(0, -y); b.rt.sizeDelta = new Vector2(b.rt.sizeDelta.x, h);

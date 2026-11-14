@@ -86,6 +86,7 @@ namespace OpenZ.Sim
                 while (ZL17Balance.CrewBoards && vehicles.Count > 0 && v == null)
                 {
                     var c = vehicles[0]; vehicles.RemoveAt(0);
+                    if (c.DriverOutLocked) continue;                                                       // 1.4 DV171: its driver was let out less than 30 s ago: no start crew walks in (Sim/ZObject.VehicleExit.cs)
                     if (!c.Destroyed && c.Owner == Team.Neutral && c.Drivers.Count == 0) v = c;         // already taken / lost: the next one
                 }
                 if (ZL17Balance.CrewBoards && v == null) { squads.Clear(); continue; }                   // every start vehicle already has a crew: no more
@@ -97,6 +98,7 @@ namespace OpenZ.Sim
                         SendWaypoints(f.Owner, crew, new[] { new ZWaypoint { mode = WpMode.ForceMove, refId = -1, x = ex, y = ey },
                                                              new ZWaypoint { mode = WpMode.Enter, refId = v.Id, x = v.CenterX, y = v.CenterY } }))
                         L17CrewsBoardOrders[(int)f.Owner]++;
+                    if (v != null) L17CrewSent(crew);                                                      // 1.4 DV171 fix round 5: the crew's robots noted: an EXIT on its vehicle turns this ENTER into a walk (Sim/ZObject.VehicleExit.cs)
                 }
                 more |= squads.Count > 0;
             }

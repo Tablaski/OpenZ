@@ -20,7 +20,7 @@ namespace OpenZ
             OD700 = new Color32(48, 52, 42, 255), OD600 = new Color32(59, 64, 47, 255), OD500 = new Color32(79, 85, 64, 255), Khaki = new Color32(214, 207, 174, 255),
             Ink = new Color32(244, 242, 234, 255), Ink2 = new Color32(200, 202, 191, 255), Muted = new Color32(141, 146, 134, 255), Dim = new Color32(92, 97, 90, 255),
             AmberLo = new Color32(185, 130, 48, 255), Amber = new Color32(242, 184, 75, 255), AmberHi = new Color32(255, 217, 131, 255), Signal = new Color32(232, 102, 42, 255),
-            Alert = new Color32(255, 90, 60, 255), AlertText = new Color32(255, 180, 163, 255), Go = new Color32(126, 217, 87, 255), GoLo = new Color32(79, 168, 58, 255), HpLost = new Color32(247, 203, 107, 255),
+            Alert = new Color32(255, 90, 60, 255), AlertText = new Color32(255, 180, 163, 255), Go = new Color32(126, 217, 87, 255), HpBar = new Color32(116, 200, 80, 255), GoLo = new Color32(79, 168, 58, 255), HpLost = new Color32(247, 203, 107, 255),
             RedDeep = new Color32(110, 23, 16, 255), Red = new Color32(176, 40, 30, 255), RedHi = new Color32(217, 69, 47, 255), RedText = new Color32(240, 138, 116, 255),
             BlueDeep = new Color32(28, 48, 112, 255), Blue = new Color32(47, 79, 168, 255), BlueHi = new Color32(77, 115, 217, 255), BlueText = new Color32(157, 180, 255, 255),
             NeutralDeep = new Color32(95, 91, 83, 255), Neutral = new Color32(156, 150, 138, 255), NeutralText = new Color32(200, 194, 180, 255), HazardInk = new Color32(20, 22, 24, 255),
@@ -292,6 +292,15 @@ namespace OpenZ
         public float Tracking { set { if (tmp) tmp.characterSpacing = value * 100f; } }
         public OzStyle Material { set { if (tmp) tmp.fontSharedMaterial = mats[(int)value]; } }
         public float preferredWidth => tmp ? tmp.preferredWidth : leg.preferredWidth;
+        /// <summary>1.2 item 2: the width a text would take at the label's own size (before the fit shrinks it), e.g. to pick a shorter
+        /// wording that fits (UI/OpenZHud.ShuttleAboard.cs). Measures only: the label keeps its text.</summary>
+        public float WidthAt(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return 0f;
+            if (tmp) { float w = tmp.GetPreferredValues(s, 99999f, 0f).x; return tmp.fontSize > 0.01f ? w * size / tmp.fontSize : w; }
+            var st = leg.GetGenerationSettings(Vector2.zero); st.fontSize = Mathf.Max(1, Mathf.RoundToInt(size));
+            return leg.cachedTextGeneratorForLayout.GetPreferredWidth(mode == 0 ? StripTmpTags(s) : s, st) / Mathf.Max(0.01f, leg.pixelsPerUnit);
+        }
         public float preferredHeight => tmp ? tmp.GetPreferredValues(cur, rectTransform.rect.width, 0f).y : leg.preferredHeight;
         public void SetActive(bool on) { if (graphic && graphic.gameObject.activeSelf != on) graphic.gameObject.SetActive(on); }
 
@@ -383,13 +392,20 @@ namespace OpenZ
     {
         public static readonly string[] MenuNames = { "MainMenu", "OpenZ_Menu", "Menu", "FrontEnd" };
         public static void Restart() { Time.timeScale = 1f; SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex); }
+        /// <summary>1.3 row 58 DV165: the lose screen's REPLAY and RETRY after a DEFEAT: the level again, and that start's ZGame.Awake takes <see cref="RetryAfterLoss"/>
+        /// once (a blue player then starts with EvilZod at the blue fort, Sim/ZEvilZod.Appear.cs). A win, a draw, the pause menu's RESTART LEVEL and the main menu never set it.</summary>
+        public static void RestartAfterLoss() { RetryAfterLoss = true; Restart(); }
+        public static bool RetryAfterLoss { get; private set; }
+        /// <summary>ZGame.Awake: this start's flag, cleared at once (every start takes it, so it never reaches a later one).</summary>
+        public static bool TakeRetryAfterLoss() { bool r = RetryAfterLoss; RetryAfterLoss = false; return r; }
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] static void ResetRetry() => RetryAfterLoss = false;
         /// <summary>L02 -> L17 -> main menu (or back to the first level when the front end is not in the build yet).</summary>
         public static void Next()
         {
             Time.timeScale = 1f;
             int i = SceneManager.GetActiveScene().buildIndex, n = SceneManager.sceneCountInBuildSettings;
             string next = null;
-            for (int k = i + 1; k < n; k++) { var p = SceneUtilityPath(k); if (p.Contains("L17") || p.Contains("L16") || p.Contains("L02")) { next = p; break; } }
+            for (int k = i + 1; k < n; k++) { var p = SceneUtilityPath(k); if (p.Contains("L17") || p.Contains("L16") || p.Contains(OzVolcanic.Level) || p.Contains("L02")) { next = p; break; } }
             if (next != null) SceneManager.LoadScene(next);
             else { PlayerPrefs.SetInt("oz_menu_open_select", 1); MainMenu(); }   // after the last level: back to the level select (guide 9.13)
         }

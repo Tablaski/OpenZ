@@ -21,7 +21,7 @@ namespace OpenZ
         // parity P5: Z draws and plays a hitscan shot on the client's own fire-animation clock (ZodClientFire), not on every server
         // damage roll: about half as many shots as rolls (grunt 1/s for 2 rolls/s). Damage stays on the sim. `last` = the latest
         // roll (hit / miss / driver hit), redrawn when the clock falls due.
-        sealed class FireClock { public ZodClientFire clock; public double armedUntil = -1; public ZEvent last; public bool killDrawn; }
+        sealed class FireClock { public ZodClientFire clock; public double armedUntil = -1; public ZEvent last; public bool killDrawn; public bool charged; }   // charged: 1.4 laser_beam_speed, this charge step's glow is out
         readonly Dictionary<int, FireClock> clocks = new Dictionary<int, FireClock>();
         readonly List<int> expired = new List<int>();
         readonly List<ZEvent> due = new List<ZEvent>();
@@ -60,7 +60,7 @@ namespace OpenZ
 
         //      from the shooter first meets the target's body, not at its centre. The body is the sim footprint (Zod's hit box)
         //      inset 12 %, as tall as the model class; robots keep their aim point.
-        static float BodyHeight(ZObject t) => t.IsShuttle ? 5.1f : t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : t.Type == "heavy" || t.Type == "medium" ? 2.6f : 2.1f;
+        static float BodyHeight(ZObject t) => t.IsShuttle ? 5.1f : t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : t.Type == "heavy" || t.Type == "medium" || t.Type == ZMTank.Type ? 2.6f : 2.1f;   // DV145 the medium tank (Sim/ZMTank.cs)
 
         bool BodyBounds(ZObject t, out Bounds b)
         {
@@ -109,8 +109,10 @@ namespace OpenZ
 
         static float Strength(int radius) => 0.2f + 0.02f * radius;          // plan/04: 40 px -> 1.0, 80 px -> 1.8
 
-        void LateUpdate()
+        // duel event forwarding
+            void LateUpdate()
         {
+            OpenZ.Multiplayer.DuelRuntime.CaptureEvents(game);
             if (game == null || game.World == null) return;
             var fx = FxManager.I; var au = CombatAudio.I;
             var ev = game.World.Events;
@@ -118,6 +120,9 @@ namespace OpenZ
             {
                 var e = ev[i]; Handled++;
                 var a = game.World.GetAny(e.objId); var b = game.World.GetAny(e.otherId);   // deleted earlier this frame still counts
+                if (OzEvilZodFx.Wants(e.type)) OzEvilZodFx.Handle(e, a);                     // DV161: his shot and his power dash (View/OzEvilZodFx.cs)
+                if (OzEvilZodCone.Wants(e.type)) OzEvilZodCone.Handle(e, a, b);              // DV167: the robots his shot hit in its cone: sparks, the close kill's throw (View/OzEvilZodCone.cs)
+                if (OzEvilZodAutoLog.Wants(e)) OzEvilZodAutoLog.Handle(e, a, b);            // 1.4: his auto dash (flag on EvilDashStart): the first ones go to the log (View/OzEvilZodAutoLog.cs)
                 if (OpenZElectroFx.Wants(e.type)) OpenZElectroFx.Handle(e, a, b);            // electrobot_v1: tesla bolt, stun FX, zap deaths, deploy strike, barks
                 switch (e.type)
                 {
@@ -125,7 +130,9 @@ namespace OpenZ
                     case ZEventType.MissileFired: MissileFired(e, a, b, fx, au); break;
                     case ZEventType.MissileExploded:
                     {
+                        if (OzVehicleQuiet.ImpactDropped(e, game.World.Time)) break;                                  // vehicle_exit_jump part B (fix round 2): a shell its emptied vehicle never drew lands unseen (View/OzVehicleQuiet.cs)
                         var at = OzShuttleAim.AirAim(b, PxGround(e.x, e.y), 0f);                                          // DV118: a blast at the flying shuttle bursts up at its hull
+                        BoardingView.HatchExitBlastAt(b, ref at);                                                     // 1.4 DV171 fix round 4: and bursts there (View/BoardingView.VehicleExit.cs)
                         if (b != null && b.IsFortDefender) at = FortDefenderView.RoofPoint(at);             // fort_defender_v1 DV41: on the roof where he stands
                         if (b != null && !b.Destroyed && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))
                         {   // bug #13: a shell that lands inside a building / vehicle footprint bursts on the wall facing the shooter
@@ -133,7 +140,7 @@ namespace OpenZ
                             at = OnSurface(b, src, at + Vector3.up * 1f);                             // IM1: on the drawn wall
                         }
                         OzShuttleAim.NoteBlast(e, a, b, at);                                            // DV118: the gallery's counts, the last hit on the ship
-                        LegacyMatch.MissileBlast(e, a, b, at, fx, au);                                 // legacy_match: size + sound per source (LEGACY_MATCH.md 1)
+                        if (!ShotLine.Take(e, fx, au)) LegacyMatch.MissileBlast(e, a, b, at, fx, au);  // legacy_match: size + sound per source (LEGACY_MATCH.md 1); bullets_straight: a round cut on a wall burst there when it arrived
                         NoteBlast(at, e.radius);                                                      // deaths_mech_v1: ragdolls fly from this blast's centre
                         OzDeathTrace.Blast(e, at);
                         HitReactions.OnBlast(game, e, a, at);                                         // deaths_mech_v1: survivors are knocked down / stagger, shrapnel
@@ -173,6 +180,7 @@ namespace OpenZ
             }
             ev.Clear();
             StepFireClocks(fx, au);
+            ShotLine.Step(game.World, fx, au);                                                         // bullets_straight: bursts of rounds cut on a wall
         }
 
         void Hitscan(ZEvent e, ZObject a, ZObject t, FxManager fx, CombatAudio au)
@@ -193,7 +201,7 @@ namespace OpenZ
             if (kind == ZodClientFire.Kind.PerRoll) return false;
             double now = game.World.Time;
             if (!clocks.TryGetValue(a.Id, out var c)) clocks[a.Id] = c = new FireClock { clock = new ZodClientFire(kind, a.Id * 7919 + 17) };
-            if (now > c.armedUntil || c.last.otherId != t.Id) { c.clock.Reset(now); c.killDrawn = false; }   // a new attack: the fire sprite starts over (zrobot.cpp:96,161)
+            if (now > c.armedUntil || c.last.otherId != t.Id) { c.clock.Reset(now); c.killDrawn = false; c.charged = false; }   // a new attack: the fire sprite starts over (zrobot.cpp:96,161)
             c.armedUntil = now + a.AttackSpeed + 0.15; c.last = e;
             if (WeaponsV2.KillRoll(e, t) && !c.killDrawn) { c.killDrawn = true; DrawShot(e, a, t, fx, au); }   // the killing roll always shows (its death plays this frame); weapons_v2 review: so does the driver snipe (the sim disengages every attacker that tick)
             return true;
@@ -210,7 +218,10 @@ namespace OpenZ
             {
                 var c = kv.Value;
                 if (now > c.armedUntil) { expired.Add(kv.Key); continue; }                             // stopped attacking
-                if (c.clock.Advance(now) == 0) continue;
+                if (OzVehicleQuiet.DropClock(game.World.Get(kv.Key))) { expired.Add(kv.Key); continue; }   // vehicle_exit_jump part B: an empty vehicle's fire clock draws nothing more (View/OzVehicleQuiet.cs)
+                int fell = c.clock.Advance(now);
+                if (c.clock.Charging != c.charged) { c.charged = c.clock.Charging; if (c.charged) WeaponsV2Runner.LaserCharge(game, kv.Key, c.clock.NextStep - now); }   // 1.4 laser_beam_speed: Zod's charge sprite before the release (View only)
+                if (fell == 0) continue;
                 var a = game.World.Get(kv.Key); var t = game.World.Get(c.last.otherId);
                 if (a == null || t == null || t.Destroyed) { expired.Add(kv.Key); continue; }
                 due.Add(c.last);
@@ -225,11 +236,12 @@ namespace OpenZ
         void DrawShot(ZEvent e, ZObject a, ZObject t, FxManager fx, CombatAudio au)
         {
             if (a == null || t == null) return;
+            if (OzVehicleQuiet.Mute(a)) return;                                                       // vehicle_exit_jump part B: no shot of a vehicle whose driver is gone after the frame it was seen empty (View/OzVehicleQuiet.cs)
             var av = ViewOf(e.objId);
             if (av && av.HoldShotWhileDown(e, t)) return; if (BoardingView.HoldShotWhileExiting(e, a, t)) return;   /* K441: still walking out of a carrier: drawn when its walk is over (View/BoardingView.ExitWalk.cs) */                                             // deaths_mech_v1: knocked down: drawn when it is up
             if (UnitAim.HoldShot(av, e, t)) return;                                                   // combatview: turn onto the target first
             if (WeaponsV2.SkipShot(e, a, t, av)) return;                                               // weapons_v2: the sniper aims (visible shots only; Zod's rolls go on)
-            DrawnShots++;
+            DrawnShots++; OzVehicleQuiet.Drawn(a);                                                    // vehicle_exit_jump part B: counted per vehicle (View/OzVehicleQuiet.cs)
             if (av && !WeaponsV2.OwnsRecoil(a)) av.OnFire();                                           // weapons_v2: the runner kicks when the round really leaves
             Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = PosOf(t);
             if (a.Kind == ZKind.Vehicle && a.Type == "apc" && !BoardingView.TryCrewMuzzle(a.Id, out _) && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;
@@ -237,10 +249,12 @@ namespace OpenZ
             Vector3 chest = default; bool crewAim = (CrewAim.SmallArms(type) || e.flag2) && CrewAim.Point(t, out chest);
             if (crewAim) to = CrewAim.Impact(from, chest, e.flag);                                    // on the chest from any side (no hull test), misses fly past him
             else if (!e.flag && OzShuttleAim.High(t)) to = OzShuttleAim.SkyMiss(from, t);           // DV118: a miss at the flying shuttle flies past it into the sky
+            else if (!e.flag && OzTowerAim.On(t)) to = OzTowerAim.Miss(from, t);                     // 1.3 item 3: a miss at a fort tower gun passes it up there and flies on into the sky (View/OzTowerAim.cs)
             else if (!e.flag) to = HitSurface.MissGround(from, to + new Vector3(Random.Range(-1.6f, 1.6f), Random.Range(-0.4f, 0.8f), Random.Range(-1.6f, 1.6f)));   // miss: IM1 on the ground where the line lands
             else if (e.flag2) to = SeatPos(t);                                                     // driver hit: the round goes into the hatch / seat
             else to = OnSurface(t, from, OzShuttleAim.HitAim(t, to) + new Vector3(Random.Range(-0.5f, 0.5f), Random.Range(-0.3f, 0.5f), Random.Range(-0.5f, 0.5f)));   // bug #13 / IM1: on the real surface
             to = UnitView.HeadshotShotEnd(e, a, t, ViewOf(t.Id), to);
+            BoardingView.HatchExitShotEnd(t, from, e.flag, ref to);                                   // 1.4 DV171 fix round 4: a shot at a driver climbing out of a tank or the mech ends on his figure (View/BoardingView.VehicleExit.cs)
             OzShuttleAim.NoteShot(e, a, t, from, to);                                                // DV118: the gallery's counts, the last hit on the ship                                   // DV116: a sniper's headshot ends at the head (UnitView.Headshot.cs)
             if (WeaponsV2.Shot(this, e, a, t, type, av, from, to)) return;                             // weapons_v2: bolt / MG burst / laser bolts / crack from the drawn muzzle
             switch (type)
@@ -357,12 +371,15 @@ namespace OpenZ
         void MissileFired(ZEvent e, ZObject a, ZObject t, FxManager fx, CombatAudio au)
         {
             if (a == null) return;
+            if (OzVehicleQuiet.Mute(a)) return;                                                       // vehicle_exit_jump part B (View/OzVehicleQuiet.cs)
             var av = ViewOf(e.objId);
             if (av) av.ShotWhileDown();                                                               // deaths_mech_v1: a rocket / grenade must leave now: up fast
             if (WeaponsV2.HoldMissile(this, av, e, a, t)) return;                                      // weapons_v2: bazooka raised + settled first (lands on the sim's blast)
             if (UnitAim.HoldShot(av, e, t)) return;                                                   // combatview: turret / body onto the target first
-            string type = a.IsFort ? "howitzer" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type;   // apc_v1 DV15
+            OzVehicleQuiet.Drawn(a);                                                                  // vehicle_exit_jump part B: counted per vehicle (View/OzVehicleQuiet.cs)
+            string type = OzMediumTank.Gun(a.IsFort ? "howitzer" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type);   // apc_v1 DV15; DV145: the medium tank fires the light tank's gun (its shell, flash, sounds; View/OzMediumTank.cs)
             Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = OzShuttleAim.AirAim(t, PxGround(e.x, e.y) + Vector3.up * 0.25f, e.value);   // DV118: up to the flying shuttle (the hull's middle, where it will be)
+            BoardingView.HatchExitBlastAt(t, ref to);                                                 // 1.4 DV171 fix round 4: a shell, rocket or grenade at a driver climbing out of a tank or the mech lands at his figure (View/BoardingView.VehicleExit.cs)
             if (a.Kind == ZKind.Vehicle && a.Type == "apc" && !BoardingView.TryCrewMuzzle(a.Id, out _) && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;   // the passengers' rockets and grenades leave a side hatch too; DV87: not while the lone driver is up in the roof hatch
             if (t != null && !e.flag && BodyBounds(t, out var tb) && tb.Contains(new Vector3(to.x, tb.center.y, to.z)))
             {
@@ -375,6 +392,7 @@ namespace OpenZ
                 else to = OzShuttleAim.Air(t) ? OnSurface(t, from, to + Vector3.up * 0.75f) : SurfaceHit(t, from, to + Vector3.up * 0.75f);   // DV118: on the flying ship's drawn hull                              // bug #13: the shell ends on the wall it hits
             }
             if (t != null && t.IsFortDefender) to = FortDefenderView.RoofPoint(to);                  // fort_defender_v1 DV41: he stands on the fort roof
+            if (!e.flag && ShotLine.Direct(type)) ShotLine.Cut(ref e, t, LegacyMatch.MissileWeapon(a, type), from, ref to);   // bullets_straight: a direct rocket or shell ends where its arc meets something, with its burst there (View/ShotLine.cs)
             float delay = e.value;
             bool grenade = e.flag;
             if (!(a.IsFort && FortGunView.Handles(a.Id))) OzShuttleAim.NoteFired(e, a, t, from, to);   // DV118: the gallery's counts (the fort's own shell: FortGunView)
@@ -492,9 +510,11 @@ namespace OpenZ
                 case ZKind.Robot:
                     if (o.Squashed && v) { v.Squash(game.World.GetAny(e.otherId)); break; }
                     if (o.Eaten && v) { v.EatenByCrocodile(); break; }                                        // level 16: taken by a crocodile (UnitView.Eaten.cs, CrocodileView.cs)
+                    if (OzEvilZodThrow.TakesDeath(game, e, o, v)) break;                                       // 1.3 row 71: EvilZod's close shot throws the body back from him, when his pellet arrives (View/OzEvilZodThrow.cs)
                     var kv = ViewOf(e.otherId); var from = kv ? kv.transform.position : p + Random.insideUnitSphere;   // thrown away from the killer
                     float prox = 1f;
                     if (e.flag2 && BlastNear(p, out var bc, out var bk)) { from = bc; prox = bk; }                 // deaths_mech_v1: this frame's blast centre
+                    else if (e.flag2 && e.otherId < 0 && OzUeNuke.ThrowFrom(p, out var nf)) from = nf;               // 1.3 item 2: a Unit editor NUKE death: thrown out and up from the bomb, as the level ending throws (OpenZEnding.Release)
                     else if (e.flag2 && kv) from = Vector3.Lerp(from, p, 0.6f) + Random.insideUnitSphere * 0.6f;   // an older splash hit: near the impact
                     float wave = BlastWave.RobotDelay(game, e, o, out var waveFrom, out bool ripple);             // combat_nb_v1 NB3: when the front reaches it
                     if (ripple) { from = waveFrom; var dr = p - waveFrom; dr.y = 0f; prox = BlastPower(dr.magnitude, 5f); }
@@ -503,6 +523,7 @@ namespace OpenZ
                         if (has) from = HitReactions.SafeFrom(p, from, sp);
                         HitReactions.NoteImpulse(o, e.flag2 ? "death_splash" : e.flag ? "death_fire" : "death_shot", p, raw, from, has ? sp : raw);
                     }
+                    if (v) v.DeathWinsNow();                                                                         // vehicle_exit_gun 2b: a reaction being drawn is frozen where it is, a waiting one dropped; the hold below stays: he is thrown when his drawn round lands (View/UnitView.DeathWins.cs)
                     if (v && wave > 0.015f) { v.HoldForDeath(wave + 0.5f); StartCoroutine(RobotDeathLater(v, e, o, from, prox, wave, au)); break; }
                     OzDeathTrace.DeathEvent(e, o, from);
                     if (v) v.Die(e.flag, e.flag2, from, e.otherId, prox);
@@ -540,7 +561,9 @@ namespace OpenZ
                         break;
                     }
                     if (o.Type == ZWorld.DetailPropType) { if (!OzTreeCrush.HoldsDeath(game, e, o)) DetailPropHub.SimDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p); break; }
-                    if (o.Type == ZWorld.WreckType && HarbourDetails.SimWreckDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p)) break;   // l17_details_v1 DV39: the wreck breaks and sinks (no stone burst)
+                    if (o.Type == ZWorld.WreckType && (OzUeHooks.ObstacleDied(o, p) || HarbourDetails.SimWreckDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p))) break;   // l17_details_v1 DV39: the wreck breaks and sinks (no stone burst); 1.2 item 6: the playground's holo obstacle breaks up as a hologram (View/OzUeObstacleView.cs)
+                    if (o.Type == ZWorld.PlatformType && OzUeHooks.PlatformDied(o, p)) break;            // 1.3 the Unit editor: a ramp platform breaks, its deck goes first (View/OzUePlatformView.cs)
+                    if (OzL07Crystal.SimDied(game, o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p, fx, au)) break;   // 1.3 level 7: stump, shards, yellow-green chips, the glass break (View/OzL07Crystal.cs); no other level has the component
                     if (PropToss.TryToss(game, o, p)) break;                                             // deaths_mech_v1: barrels fly to the sim's debris point
                     if (o.Type == "grenades")
                     {

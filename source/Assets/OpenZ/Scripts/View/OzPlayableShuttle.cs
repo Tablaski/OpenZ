@@ -159,7 +159,7 @@ namespace OpenZ
         public static void Spawn(ZGame g)
         {
             var s = g != null && g.World != null ? g.World.PlayableShuttle : null;
-            if (s == null) return;
+            if (s == null || g.World.L16ShuttleOptionOff) return;                                 // 1.2 item 111 DV144: the red fort's pocket is empty (a blue player): his ship by the blue fort is drawn from the unit prefab (OzShuttleEmptyLook.SpawnMapShuttles)
             var ship = Object.FindFirstObjectByType<L16Shuttle>(FindObjectsInactive.Include);
             if (!ship) { if (ZWorld.L17DrawnFromPrefab(g.World)) return; Debug.LogWarning("[OpenZ] shuttle: no ship in the scene to draw the playable shuttle with"); return; }   // K444: level 17's ships are drawn from the unit prefab (OzShuttleEmptyLook.SpawnMapShuttles)
             var go = ship.gameObject;
@@ -221,7 +221,7 @@ namespace OpenZ
             if (w.L16ShuttleOptionOff)
             {
                 ship.gameObject.SetActive(false);
-                Debug.Log("[OpenZ] shuttle: the option SHUTTLE is off: no shuttle on this level");
+                Debug.Log(w.PlayableShuttle != null ? "[OpenZ] shuttle: the red fort's pocket stays empty: the player commands blue, his shuttle stands by the blue fort (DV144)" : "[OpenZ] shuttle: the option SHUTTLE is off: no shuttle on this level");
                 return true;
             }
             ship.enabled = false;                                                                 // the playable shuttle's view drives the ship
@@ -394,7 +394,7 @@ namespace OpenZ
                 case ZShuttleState.Cruise: case ZShuttleState.Hover:
                 {
                     float skyY = sky.Wanted(p, vel, true, out _, out _);
-                    float target = Mathf.Max(ruleY, skyY);
+                    float target = Mathf.Max(ruleY - OzUePlatformViews.UnderM(p.x, p.z), skyY);   // 1.3 the Unit editor: the rule height keeps to the real floor over a ramp platform, only the sky top lifts the ship (View/OzUePlatformView.cs); 0 in every level
                     if (!haveY) drawnY = target;
                     if (target > drawnY) drawnY = Mathf.SmoothDamp(drawnY, target, ref yVel, 0.5f, climbMaxMps, dt);   // K256j (M11): 3.6 -> climbMaxMps 3.2 m/s (OzPlayableShuttle.Climb.cs)
                     else drawnY = Mathf.SmoothDamp(drawnY, target, ref yVel, 1.2f, 2f, dt);
@@ -499,6 +499,7 @@ namespace OpenZ
         void DyingPose(float dt)
         {
             dyingT += dt;
+            if (FeetHeight < 0.5f && OpenZEnding.Holds(Obj.Id)) dyingT = Mathf.Min(dyingT, 1.6f);
             float k = Mathf.Clamp01(1f - dyingT / 1.6f);
             dyingPos += dyingVel * (k * dt);
             var gy = game.GroundY(dyingPos.x, dyingPos.z);
@@ -603,7 +604,7 @@ namespace OpenZ
                 switch (n.kind)
                 {
                     case ZShuttleNoteKind.TakeOff: if (BrokenUp) break; Sound("shuttle_spool_up"); Sound("shuttle_takeoff"); jets.TakeOff(); wash.Burst(1f); break;
-                    case ZShuttleNoteKind.CannotLand: if (BrokenUp) break; Voice("vo_shuttle_no_land"); AudioDirector.UI("ui_error"); LastSound = "ui_error"; break;
+                    case ZShuttleNoteKind.CannotLand: if (BrokenUp) break; Voice("vo_shuttle_no_land"); if (!CpuShipQuiet) AudioDirector.UI("ui_error"); LastSound = "ui_error"; break;   // DV138: the player's error beep only for a ship that is not another side's
                     case ZShuttleNoteKind.Landed: if (!BrokenUp && !Obj.Destroyed) Landed(w, n); break;   // K418: destroyed at the touchdown: no landing sound, spring or voice for it
                     case ZShuttleNoteKind.Aborted: roughArmed = false; break;
                     case ZShuttleNoteKind.Crashed: case ZShuttleNoteKind.Wrecked:
@@ -661,7 +662,7 @@ namespace OpenZ
                 CrashBegin(dir, (float)(Obj.ShuttleLevelStartAt - Obj.ShuttleTouchdownAt), (float)(Obj.ShuttleLevelledAt - Obj.ShuttleTouchdownAt));   // K256e (OzPlayableShuttle.Crash.cs)
             }
             if (pad) { hotSaid = false; return; }                                                    // on the repair station: no landing line, no joke
-            LandingOneVoice(w, n, rough);                                                            // K407: ONE landing voice, the robot's OR Rachel's, never both (View/OzPlayableShuttle.LandingVoice.cs)
+            if (!CpuShipQuiet) LandingOneVoice(w, n, rough);                                                            // K407: ONE landing voice, the robot's OR Rachel's, never both (View/OzPlayableShuttle.LandingVoice.cs); DV138: none for another side's ship
         }
 
         /// <summary>Rachel's landing line: one frame, then while any voice speaks (at most 3.5 s), then 0.3 s, then the announcer's queue
@@ -696,7 +697,7 @@ namespace OpenZ
         }
 
         void Sound(string id) { LastSound = id; AudioDirector.Fire(id, transform.position, Obj != null ? Obj.Id : -1); }
-        void Voice(string id) { LastVoice = id; if (id == "vo_shuttle_landed" && (crashOn || roughArmed)) CrashLandedLines++; AudioDirector.Say(id); }
+        void Voice(string id) { LastVoice = id; if (id == "vo_shuttle_landed" && (crashOn || roughArmed)) CrashLandedLines++; if (CpuShipQuiet) return; AudioDirector.Say(id); }   // DV138: another side's ship never speaks to the player (View/OzPlayableShuttle.CpuQuiet.cs)
 
         /// <summary>For the cursor (the "cannot land here" mark): can the selected shuttle land at this world point, and why not.</summary>
         public static bool LandableAt(ZWorld w, ZObject s, Vector3 world, out string why)

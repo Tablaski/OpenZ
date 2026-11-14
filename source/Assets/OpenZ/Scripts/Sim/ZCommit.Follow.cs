@@ -787,6 +787,7 @@ namespace OpenZ.Sim
                         sx = (int)Math.Round(tx); sy = (int)Math.Round(ty); Want(mc, mx, my, sx, sy); return true;
                     }
                 }
+                if (AheadWalk(m, l, mx, my)) return false;                               // DV166: where the follow would stand it, farther than AheadReach from him or a wall / rock right in front of it: its own path to the goal (ZCommit.AheadWalk.cs)
                 mode = 4; mc.standing = true; mc.vCmd = 0; sx = (int)Math.Round(mx); sy = (int)Math.Round(my); return true;
             }
             // pace: the smoothed leader's speed, DV24's catch-up behind the place, slower ahead of it (walking on slowly while the

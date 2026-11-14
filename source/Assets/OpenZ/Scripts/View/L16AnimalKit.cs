@@ -138,6 +138,7 @@ namespace OpenZ
                 go.transform.localScale = go.transform.localScale * scale;
                 foreach (var c in go.GetComponentsInChildren<Collider>(true)) Object.Destroy(c);
                 r.rends = go.GetComponentsInChildren<Renderer>(true);
+                OzGrd.KeepCpuCulling(r.rends);                                                            // v1.3: Visible() reads isVisible: these stay with the engine's own culling (View/OzLiveSet.cs)
                 foreach (var rd in r.rends)
                 {
                     var old = rd.sharedMaterials; var arr = new Material[Mathf.Max(1, old.Length)];

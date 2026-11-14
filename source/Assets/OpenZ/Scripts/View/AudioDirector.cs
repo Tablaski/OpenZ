@@ -63,6 +63,7 @@ namespace OpenZ
         public string[] routes;
         public SoundClipRef[] clips;
         [NonSerialized] public List<AudioClip> loaded;
+        [NonSerialized] public bool clipsWait;                                                     // the main menu: its clips load when the event first plays
         [NonSerialized] public List<float> gains;
         [NonSerialized] public List<string> lines;
         [NonSerialized] public List<bool> standins;
@@ -399,7 +400,7 @@ namespace OpenZ
         {
             var hud = OpenZHud.I;
             bool banner = hud && hud.missionIntro && PlayerPrefs.GetInt("oz_hud_intro", 1) == 1 && !OzMotion.Reduced;
-            return banner && HasClips("ann_level_start") && !TeamColors.Swap ? "ann_level_start" : "ann_battle_start";
+            return banner && HasClips("ann_level_start") && !TeamColors.WordsFlip ? "ann_level_start" : "ann_battle_start";
         }
 
         void OnDestroy()
@@ -411,6 +412,7 @@ namespace OpenZ
 
         void LoadTable()
         {
+            bool lazy = gameObject.scene.name == "MainMenu";
             var ta = Resources.Load<TextAsset>(TablePath);
             if (!ta) { Debug.LogWarning("[AudioDirector] " + TablePath + ".json missing: import the sound tables into Assets/OpenZ/Resources/OpenZ/Audio"); return; }
             var t = JsonUtility.FromJson<SoundTable>(ta.text);
@@ -426,14 +428,7 @@ namespace OpenZ
             {
                 d.loaded = new List<AudioClip>(); d.gains = new List<float>(); d.lines = new List<string>(); d.standins = new List<bool>();
                 bool skipClips = OwnedByCombatAudio(d.id) || Silent.Contains(d.id);                 // CombatAudio's own banks play these
-                if (d.clips != null && !skipClips)
-                    foreach (var c in d.clips)
-                    {
-                        if (c.standin && !useStandins) continue;
-                        var clip = Clip(c.res);
-                        if (!clip) continue;
-                        d.loaded.Add(clip); d.gains.Add(c.gainDb); d.lines.Add(c.line ?? ""); d.standins.Add(c.standin);
-                    }
+                if (d.clips != null && !skipClips) { if (lazy) d.clipsWait = true; else LoadClips(d); }   // the main menu: an event's clips load when it first plays (Def): a sound table of thousands of clips cost 2.3 s before the first frame
                 if (d.routes == null) d.routes = new string[0];
                 if (d.maxVoices <= 0) d.maxVoices = 1;
                 if (d.pitchMul <= 0) d.pitchMul = 1f;
@@ -441,6 +436,18 @@ namespace OpenZ
                 defs[d.id] = d;
             }
             Loaded = true;
+        }
+
+        void LoadClips(SoundEventDef d)
+        {
+            d.clipsWait = false;
+            foreach (var c in d.clips)
+            {
+                if (c.standin && !useStandins) continue;
+                var clip = Clip(c.res);
+                if (!clip) continue;
+                d.loaded.Add(clip); d.gains.Add(c.gainDb); d.lines.Add(c.line ?? ""); d.standins.Add(c.standin);
+            }
         }
 
         AudioClip Clip(string res)
@@ -452,7 +459,12 @@ namespace OpenZ
             return c;
         }
 
-        public SoundEventDef Def(string id) => id != null && defs.TryGetValue(id, out var d) ? d : null;
+        public SoundEventDef Def(string id)
+        {
+            if (id == null || !defs.TryGetValue(id, out var d)) return null;
+            if (d.clipsWait) LoadClips(d);
+            return d;
+        }
         bool HasClips(string id) { var d = Def(id); return d != null && d.loaded.Count > 0; }
 
         Voice NewVoice(string name)
@@ -583,11 +595,13 @@ namespace OpenZ
             public const float LessCooldownMul = 2.5f, LessSelectGap = 1.5f;
             /// <summary>Idle chatter and banter Less drops (with the vo_idle_x_* repeat-click jokes).</summary>
             static readonly HashSet<string> Idle = new HashSet<string> { "vo_calm_chatter", "vo_taunt", "vo_kill_quip", "vo_boom", "vo_boom_brad", "vo_push", "vo_loud_gun", "vo_drive_scare",
-                "vo_vehicle_passenger", "vo_target_destroyed", "vo_hurt", "vo_building_events", "vo_electro_zap", "vo_electro_kill" };
+                "vo_vehicle_passenger", "vo_target_destroyed", "vo_hurt", "vo_building_events", "vo_electro_zap", "vo_electro_kill", "vo_hero_evilzod_kill" };
             /// <summary>Key events Minimal keeps (besides every order acknowledgement vo_order_*).</summary>
             static readonly HashSet<string> Key = new HashSet<string> { "vo_under_attack", "vo_promoted", "vo_nuke_reaction", "vo_nuke_delivery", "vo_game_start",
-                "vo_territory_taken", "vo_vehicle_captured", "vo_gun_captured", "vo_low_health", "vo_snipe_success", "vo_sniper_warning", "vo_grenade_warning", "vo_electro_spawn" };
+                "vo_territory_taken", "vo_vehicle_captured", "vo_gun_captured", "vo_low_health", "vo_snipe_success", "vo_sniper_warning", "vo_grenade_warning", "vo_electro_spawn", "vo_hero_evilzod_low" };
             public static int Skipped;
+            /// <summary>Run 10 1d: the idle chatter, banter and kill quips (the lines a waiting "Boom!" cheer holds back).</summary>
+            public static bool IsChatter(string id) => id != null && (id.StartsWith("vo_idle_x_", System.StringComparison.Ordinal) || Idle.Contains(id)) && id != "vo_boom" && id != "vo_boom_brad";
             public static bool Allows(string id)
             {
                 int l = Level;
@@ -687,6 +701,7 @@ namespace OpenZ
             if (d.is3D && d.inViewOnly && !sweeping && cam)
             {
                 var vp = cam.WorldToViewportPoint(pos);
+                if (OzFpsView.Own(pos)) vp = new Vector3(0.5f, 0.5f, 1f);   // 1.4 fps_view: the viewed unit's own sound is in view (View/OzFpsView.cs); false while the view is off
                 bool inView = vp.z > 0 && vp.x > -0.35f && vp.x < 1.35f && vp.y > -0.35f && vp.y < 1.35f;       // Zod PlayWavRestricted, as CombatAudio
                 if (!inView)
                 {
@@ -712,7 +727,7 @@ namespace OpenZ
             v.src.loop = false;
             Apply(v);
             v.src.Play();
-            OzSoundLog.Add("AD", id, v.src.clip ? v.src.clip.name : null, "PLAY " + d.bus, v.src.volume, v.src.transform.position);
+            OzSoundLog.Add("AD", id, OzGcCache.NameOf(v.src.clip), OzGcCache.PlayNote(d.bus), v.src.volume, v.src.transform.position);   // 1.4 speed-up 2 (perf_garbage): the same log text, made once
             lastStarted = v;
             Count(Plays, id); Played++;
             if (sweeping) Count(SweepPlays, id);
@@ -837,7 +852,7 @@ namespace OpenZ
                 var m = new List<int>();
                 for (int i = 0; i < n; i++) if (LineMatch(d.lines[i], lineFilter) && i != d.lastIdx) m.Add(i);
                 if (m.Count == 0) for (int i = 0; i < n; i++) if (LineMatch(d.lines[i], lineFilter)) m.Add(i);
-                if (TeamColors.Swap && m.Exists(i => !TeamColors.NamesColour(d.lines[i]))) m.RemoveAll(i => TeamColors.NamesColour(d.lines[i]));   // colour lines out while swapped
+                if (TeamColors.WordsFlip && m.Exists(i => !TeamColors.NamesColour(d.lines[i]))) m.RemoveAll(i => TeamColors.NamesColour(d.lines[i]));   // colour lines out while swapped (1.2 item 11: or played as blue)
                 if (m.Count > 0) return d.lastIdx = m[UnityEngine.Random.Range(0, m.Count)];
             }
             if (d.bag == null || d.bag.Count == 0)
@@ -848,7 +863,7 @@ namespace OpenZ
             int k = d.bag[0]; d.bag.RemoveAt(0);
             // While the team colours are swapped, a take that names a colour ("GG, blue!", "Blue's not your colour!") is skipped for
             // the next one of the bag (the other lines stay neutral); only if every take names one it plays.
-            if (TeamColors.Swap && d.lines != null && d.lines.Count >= n && NamesColourCount(d) < n)
+            if (TeamColors.WordsFlip && d.lines != null && d.lines.Count >= n && NamesColourCount(d) < n)   // 1.2 item 11: also while the human is blue
                 for (int guard = 0; guard < 2 * n && TeamColors.NamesColour(d.lines[k]); guard++)
                 {
                     if (d.bag.Count == 0) d.bag = Enumerable.Range(0, n).OrderBy(_ => UnityEngine.Random.value).ToList();
@@ -885,7 +900,7 @@ namespace OpenZ
         {
             float m = 0, a = 0, r = 0, att = 0.15f, rel = 0.8f;
             float now = Time.unscaledTime;
-            ducks.RemoveAll(x => x.until < now);
+            ducks.RemoveAll(DuckOver(now));   // 1.4 speed-up 2 (perf_garbage): kept predicate (View/AudioDirector.NoGarbage.cs)
             foreach (var x in ducks) { m = Mathf.Min(m, x.music); a = Mathf.Min(a, x.amb); r = Mathf.Min(r, x.robots); att = Mathf.Min(att, x.attack); rel = Mathf.Max(rel, x.release); }
             a = Mathf.Min(a, combatAmbDuck);
             duckMusic = Smooth(duckMusic, m, att, rel, dt); duckAmb = Smooth(duckAmb, a, att, rel, dt); duckRobots = Smooth(duckRobots, r, att, rel, dt);
@@ -935,6 +950,7 @@ namespace OpenZ
             float dt = Time.unscaledDeltaTime;
             TickPendingAlan();
             ShuttleHeldTick();                                                                             // DV118: the robot lines held behind the shuttle landing line
+            VoiceFloorGateTick();                                                                          // 1.4 radar_voice_fix: DV118's hold keeps a held shuttle line behind Rachel's waiting lines (View/AudioDirector.VoiceFloor.cs)
             ShuttleRound3Tick();                                                                           // K256e: the shuttle line held behind Rachel (View/AudioDirector.ShuttleRound3.cs)
             if (!game && ZGame.I) { game = ZGame.I; BuildAmbienceEmitters(); }
             if (!cam) cam = Camera.main;
@@ -1035,6 +1051,11 @@ namespace OpenZ
         bool Wet(Vector3 p) { var c = ClassAt(p); return c == ZClass.Water || c == ZClass.DeepWater; }
         bool City => game && game.level == "L17";
         bool Jungle => game && game.level == "L16";
+        bool Volcanic => game && OzVolcanic.Is(game.level);
+        /// <summary>Level 7: lava under this point, once the lava sounds are in (the sim's own tile data, read only).</summary>
+        bool LavaUnder(Vector3 p) { if (!Volcanic || !HasClips("rob_step_lava")) return false; var px = ZGame.WorldToPx(p); return W != null && W.LavaAtPx(px.x, px.y); }
+        /// <summary>The level's music pool: level 7 its own once the tracks are in, else the shared desert pool (as level 16).</summary>
+        string MusicLv => City ? "l17" : Volcanic && HasClips("mus_l07_calm") ? "l07" : "l02";
 
         /// <summary>Level 16, the ground under a point for steps and wheels: "road", "water", "mud" (a ground tile that touches a
         /// water tile: the rim of a swamp pool) or "grass". Any other level: null.</summary>
@@ -1058,6 +1079,7 @@ namespace OpenZ
         bool OnScreen(Vector3 p, float margin = 0.1f)
         {
             if (!cam) return true;
+            if (OzFpsView.Own(p)) return true;   // 1.4 fps_view: the viewed unit's own sound is in view (View/OzFpsView.cs); false while the view is off
             var vp = cam.WorldToViewportPoint(p);
             return vp.z > 0 && vp.x > -margin && vp.x < 1f + margin && vp.y > -margin && vp.y < 1f + margin;
         }
@@ -1083,7 +1105,7 @@ namespace OpenZ
         void UpdateGatlings()
         {
             if (gatLast.Count == 0) return;
-            foreach (var id in gatLast.Keys.ToList())
+            foreach (var id in KeysInto(gatLast, gcGatKeys))   // 1.4 speed-up 2 (perf_garbage): the same keys in the same order, a kept list
                 if (Time.time - gatLast[id] > 1.2f) { Play("wpn_gatling_spindown", gatPos.TryGetValue(id, out var gp) ? gp : ListenerPos, id); gatLast.Remove(id); }
         }
         void BurnGround(Vector3 at)
@@ -1105,8 +1127,11 @@ namespace OpenZ
             switch (e.type)
             {
                 case ZEventType.Hitscan: OnHitscan(e, a, b); break;
+                case ZEventType.EvilDashStart: case ZEventType.EvilDashGo: case ZEventType.EvilDashEnd: case ZEventType.EvilDashReady:
+                case ZEventType.EvilShot: case ZEventType.EvilReload: case ZEventType.EvilHealStep: case ZEventType.EvilGuardOut: EzEvent(e, a, b); break;   // DV161 (Voice/AudioDirector.EvilZod.cs); DV165 his line out of the fort
                 case ZEventType.MissileFired: OnMissileFired(e, a, b); break;
                 case ZEventType.DriverShot: UnderAttack(a, b, e.flag); break;                             // DV87: shot at by a tank's hatch driver: the same alert rules as any shot (the shot's own sound: BoardingView.DriverFire.cs)
+                case ZEventType.MechHandGun: UnderAttack(a, b, e.flag); break;                            // DV146: shot at by a mech's hand gun: the same alert rules as any shot (its sound: View/MechHandGunView.cs)
                 case ZEventType.MissileExploded: OnExploded(e, a, b); break;
                 case ZEventType.Death: OnDeath(e, a, b); break;
                 case ZEventType.Sniped: OnSniped(e, a, b); break;
@@ -1231,7 +1256,7 @@ namespace OpenZ
                 switch (type)
                 {
                     case "tough": Owned("wpn_tough_bazooka"); Owned("proj_rocket_flight"); if (a.Kind == ZKind.Robot) Owned("wpn_tough_backblast"); break;   // weapons_v2 + SOUND-bundle flight
-                    case "light": Owned("wpn_light_tank"); break;
+                    case "light": case ZMTank.Type: Owned("wpn_light_tank"); break;   // DV145: the light tank's gun
                     case "medium": Owned("wpn_medium_tank"); break;
                     case "heavy": Owned("wpn_heavy_tank"); break;
                     case "missile_launcher": Owned("wpn_mlrs"); break;
@@ -1255,6 +1280,7 @@ namespace OpenZ
             }
             Owned(e.radius <= 40 ? "exp_small" : e.radius <= 80 ? "exp_medium" : "exp_large");
             if (wet) Play(e.radius <= 40 && HasClips("exp_water_small") ? "exp_water_small" : "exp_water", at, -1);   // PL7: splash layer
+            else if (LavaUnder(at) && HasClips("lava_hit_shell")) Play("lava_hit_shell", at, -1);                     // level 7: into lava
             if (t != null && !e.flag && (t.Kind == ZKind.Vehicle || t.Kind == ZKind.Cannon)) Owned("imp_rocket_armor");
             if (t != null && t.Type == "rock" && !t.Destroyed) Play("dst_rock_chip", at + Vector3.up * 1.5f, t.Id);
             if (t != null && t.Kind == ZKind.Robot) HitGrunt(t);                                              // death_voices_v1
@@ -1297,7 +1323,7 @@ namespace OpenZ
                 case ZKind.Vehicle:
                     if (VehicleDeathLater(e, o, p)) break;                                              // version 1.1 item 202: with its held explosion (AudioDirector.Kc5b.cs)
                     Owned("exp_vehicle_death");
-                    if (o.Type == "light" || o.Type == "medium" || o.Type == "heavy") Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);
+                    if (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy") Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);   // DV145 the medium tank (Sim/ZMTank.cs)
                     // b27: the plunge sound that stood here (at the death, on a water tile) is made by the wreck itself when it really falls into the water (OzWaterLanding, UnitView.BeginWreck)
                     wrecks[o.Id] = (p, Time.time);
                     break;
@@ -1310,6 +1336,7 @@ namespace OpenZ
                     if (o.Type == "rock") RockDeath(p);
                     break;
             }
+            EzKillOther(killer, o);                                                                 // DV161: his kill line when he is not the human's side (Voice/AudioDirector.EvilZod.cs)
             // Alan kill logic (zplayer_events.cpp:927-959): our killer = the A unit or within 100 px of it
             if (killer != null && killer.Owner == Player && o.Owner != Player && o.Owner != Team.Neutral && o.IsUnit)
             {
@@ -1317,10 +1344,11 @@ namespace OpenZ
                 killTimes.Add(now); killTimes.RemoveAll(x => now - x > 6f);
                 var quip = Def("vo_kill_quip");
                 bool quipCooling = quip != null && lastLine.TryGetValue("vo_kill_quip", out var ql) && Time.unscaledTime - ql < Mathf.Max(1f, quip.cooldown);
-                if (BoomCandidate(killer, o, p)) { }                                                    // a good kill on camera: the cheer comes when the fight there is over, no quip now
+                if (EzKill(killer)) { }                                                                 // DV161: his own kill line, no cheer, quip or taunt (Voice/AudioDirector.EvilZod.cs)
+                else if (BoomCandidate(killer, o, p)) { }                                               // a good kill on camera: the cheer comes when the fight there is over, no quip now
                 else if (killer.LastAttackPlayerGiven) Say("vo_target_destroyed");
                 else if (killTimes.Count >= 3 && quipCooling && OnScreen(p)) { Say("vo_taunt"); killTimes.Clear(); }
-                else if (distress == null || killer.Id == distress.id || Near(killer, W.Get(distress.id), 100)) Say("vo_kill_quip");
+                else if (distress == null || killer.Id == distress.id || Near(killer, W.Get(distress.id), 100)) KillQuip();   // 1.2 item 63: each line of the pool in turn, "Smokin'!" among them (Voice/AudioDirector.KillLines.cs)
             }
         }
 
@@ -1395,7 +1423,7 @@ namespace OpenZ
                 DeathSound(p, DeathVoices.Cause.Crush, o.Id, true);
                 return;
             }
-            DeathSound(p, DeathCauseOf(e, o, killer), o.Id);
+            DeathSound(p, DeathCauseOf(e, o, killer), o.Id, EzIs(o));                               // DV161: he falls as metal, no cry
         }
 
         /// <summary>One robot death: cry, voiceless body death or (limiter) nothing; 3D at the robot. A cry the view culls falls back
@@ -1428,7 +1456,7 @@ namespace OpenZ
         /// <summary>A hit that does not kill: now and then a short grunt at the robot (on screen, 3D, limiter in DeathVoices).</summary>
         void HitGrunt(ZObject t)
         {
-            if (!deathVoices || t == null || t.Destroyed || t.Kind != ZKind.Robot || !HasClips(DeathVoices.GruntEvent)) return;
+            if (!deathVoices || t == null || t.Destroyed || t.Kind != ZKind.Robot || EzIs(t) || !HasClips(DeathVoices.GruntEvent)) return;
             if (UnityEngine.Random.value >= hitGruntChance) return;
             float now = Time.time;
             if (gruntAt.TryGetValue(t.Id, out var last) && now - last < hitGruntPerRobot) return;
@@ -1520,47 +1548,75 @@ namespace OpenZ
         /// those are taken. The cheer is then spoken by the killer's own voice once the fight there is over: no enemy that can
         /// shoot within BoomEnemyM of the killer and the killer attacking nothing for BoomQuiet s, the killer still alive and on
         /// screen, the announcer, the commander and the robots silent. It waits for that at most BoomWait s and is dropped
-        /// otherwise. Never two cheers within BoomGap s in the whole game. The electrobot keeps its own kill lines.</summary>
-        public static float BoomGap = 32f, BoomQuiet = 1.5f, BoomEnemyM = 26f, BoomWait = 7f, BoomChance = 0.7f;
-        /// <summary>Checks: cheers spoken, good kills on camera that asked, cheers dropped while waiting.</summary>
-        public static int Booms, BoomAsked, BoomDropped;
-        float lastBoom = -100f, boomAt, boomQuietSince = -1f; int boomKiller = -1; string boomWhat;
+        /// otherwise. Never two cheers within BoomGap s in the whole game. The electrobot keeps its own kill lines. 1.2 item 63: a fight
+        /// that goes on no longer drops it: BoomLull s after the kill it comes at the first quiet moment (Voice/AudioDirector.KillLines.cs).</summary>
+        // In a real fight 5 cheers were asked and 0 played (they waited for a quiet battlefield and quiet voices, at
+        // most 7 s). Now: only a MEDIUM or BIG enemy vehicle (medium tank, mech, heavy, MLRS, APC, crane) or a gun destroyed on camera
+        // asks; the cheer comes BoomLull s after the kill (the blast first), waits only for a robot line still speaking (never cut
+        // mid-word), the announcer, the commander / Zod / EvilZod and a cutscene, and holds every other robot chatter / quip line while
+        // it waits (BoomHoldsChatter); it is dropped only BoomWait s after the kill. BoomGap and BoomChance as before.
+        public static float BoomGap = 32f, BoomQuiet = 1.5f, BoomEnemyM = 26f, BoomWait = 3f, BoomChance = 0.7f;
+        /// <summary>Checks: cheers spoken, good kills on camera that asked (gap free), taken (after BoomChance), cheers dropped while
+        /// waiting; big kills on camera by the player's units (gap or not); chatter lines held for a waiting cheer.</summary>
+        public static int Booms, BoomAsked, BoomDropped, BoomTaken, BoomBigKills, BoomHeld;
+        /// <summary>Checks: the last drop's reason.</summary>
+        public static string BoomDropWhy = "";
+        /// <summary>Checks: seconds from the kill to each cheer said.</summary>
+        public static readonly List<float> BoomDelays = new List<float>();
+        float lastBoom = -100f, boomAt, boomQuietSince = -1f; int boomKiller = -1; bool boomWaiting; string boomWhat, boomKillerType;
+        /// <summary>The kinds of kill the cheer is for: a medium or big vehicle, or a gun (never a jeep, a light tank or a robot).</summary>
+        static readonly HashSet<string> BoomVehicles = new HashSet<string> { ZMTank.Type, "medium", "heavy", "missile_launcher", "apc", "crane" };
+        public static bool BoomKill(ZObject victim) => victim != null && (victim.Kind == ZKind.Cannon || (victim.Kind == ZKind.Vehicle && BoomVehicles.Contains(victim.Type)));
+        /// <summary>A cheer is waiting: SayImpl holds the robots' chatter and quips for it.</summary>
+        bool BoomPending => boomWaiting;
 
         bool BoomCandidate(ZObject killer, ZObject victim, Vector3 p)
         {
             if (killer == null || victim == null || killer.Owner != Player || killer.Type == ZElectro.Type) return false;
-            if (victim.Kind != ZKind.Vehicle && victim.Kind != ZKind.Cannon) return false;         // never for a robot killed in a robot fight
+            if (!BoomKill(victim)) return false;                                                    // a medium / big vehicle or a gun only
             if (!OnScreen(p, 0f)) return false;                                                     // only a kill the player sees
+            BoomBigKills++;
             float now = Time.unscaledTime;
-            if (boomKiller >= 0 || now - lastBoom < BoomGap) return false;
+            if (boomWaiting || now - lastBoom < BoomGap) return false;
             BoomAsked++;
             if (UnityEngine.Random.value > BoomChance) return false;                                // not every win gets one
-            boomKiller = killer.Id; boomAt = now; boomQuietSince = -1f; boomWhat = victim.Type;
+            BoomTaken++;
+            boomWaiting = true; boomKiller = killer.Id; boomKillerType = killer.Type; boomAt = now; boomQuietSince = -1f; boomWhat = victim.Type;
+            OzSoundLog.Add("dir", "vo_boom", null, "cheer asked: " + killer.Type + " #" + killer.Id + " destroyed a " + victim.Type + " on camera");
             return true;
+        }
+
+        void BoomDrop(string why)
+        {
+            boomWaiting = false; boomKiller = -1; BoomDropped++; BoomDropWhy = why;
+            OzSoundLog.Add("dir", "vo_boom", null, "cheer dropped: " + why);
+            Debug.Log("[OpenZ] cheer dropped: " + why);
         }
 
         void BoomTick()
         {
-            if (boomKiller < 0) return;
+            if (!boomWaiting) return;
             float now = Time.unscaledTime; var k = W.Get(boomKiller);
-            if (k == null || k.Destroyed || gameOver || now - boomAt > BoomWait) { boomKiller = -1; BoomDropped++; return; }
-            bool fight = k.AttackObject != null;
-            if (!fight)
-                foreach (var e in W.Objects)
-                {
-                    if (e == null || e.Destroyed || !e.IsUnit || e.Owner == Team.Neutral || e.Owner == Player || !e.CanAttack()) continue;
-                    if (Near(e, k, (int)(BoomEnemyM * 8f))) { fight = true; break; }
-                }
-            if (fight) { boomQuietSince = -1f; return; }                                            // the fight there goes on
-            if (boomQuietSince < 0f) boomQuietSince = now;
-            if (now - boomQuietSince < BoomQuiet) return;
-            if (!OnScreen(PosOf(k), 0f)) { boomKiller = -1; BoomDropped++; return; }                // the camera left
-            if ((rachel.busy && rachel.src && rachel.src.isPlaying) || rachelQueue.Count > 0 || AlanBusy || (ExternalVoiceBusy != null && ExternalVoiceBusy())) return;   // never over another voice: wait
-            string id = UnitVoices.SecondVoice(k.Type) ? "vo_boom_brad" : "vo_boom";
-            boomKiller = -1; lastBoom = now; Booms++;
+            if (gameOver) { BoomDrop("the match ended"); return; }
+            if (now - boomAt > BoomWait)
+            {
+                string who = (rachel.busy && rachel.src && rachel.src.isPlaying) || rachelQueue.Count > 0 ? "the announcer" : (ExternalVoiceBusy != null && ExternalVoiceBusy()) ? "the commander" : AlanBusy ? "a robot line" : "the voice rules";
+                BoomDrop(who + " still spoke " + BoomWait.ToString("0.0") + " s after the kill"); return;
+            }
+            bool fight = k != null && !k.Destroyed && k.AttackObject != null;                      // the killer may have died since: its voice still cheers on the radio
+            if (fight) boomQuietSince = -1f;                                                        // the fight there goes on
+            else if (boomQuietSince < 0f) boomQuietSince = now;
+            if (!CheerMoment(now, fight)) return;                                                   // run 10 1d: BoomLull s after the kill (Voice/AudioDirector.KillLines.cs)
+            if ((rachel.busy && rachel.src && rachel.src.isPlaying) || rachelQueue.Count > 0 || AlanBusy || (ExternalVoiceBusy != null && ExternalVoiceBusy()) || !QuietLineFloorFree()) return;   // never over another voice (a robot line is never cut): wait; 1.4 radar_voice_fix: and the voice floor is free (then it starts at once, never in the robot pending slot)
+            string type = k != null ? k.Type : boomKillerType;
+            string id = UnitVoices.SecondVoice(type) ? "vo_boom_brad" : "vo_boom";
+            int before = Plays.TryGetValue(id, out var n0) ? n0 : 0;
+            boomWaiting = false;                                                                    // not pending while it speaks (SayImpl's chatter hold off)
             Say(id);
-            OzSoundLog.Add("VO", id, null, "CHEER by " + k.Type + " #" + k.Id + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it");
-            Debug.Log("[OpenZ] cheer " + id + " by " + k.Type + " #" + k.Id + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it; cheers so far " + Booms);
+            if ((Plays.TryGetValue(id, out var n1) ? n1 : 0) <= before) { boomWaiting = true; return; }   // not said this frame (a rule held it): try again next frame
+            lastBoom = now; Booms++; BoomDelays.Add(now - boomAt);
+            OzSoundLog.Add("VO", id, null, "CHEER by " + type + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it");
+            Debug.Log("[OpenZ] cheer " + id + " by " + type + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it; cheers so far " + Booms);
         }
 
         // ---- boarding / capture: the foley is CombatView's EnterSequence + BoardingView; here the lines
@@ -1578,9 +1634,10 @@ namespace OpenZ
         void EnteredLines(ZObject r, ZObject v, Team before, Team lastSide)
         {
             if (v.Destroyed || v.Owner == Team.Neutral) return;                                             // NB17: lost again (sniped / destroyed) during the climb-in
+            EzBoardedOther(r, before);                                                                      // DV161: his boarding line when he is not the human's side (Voice/AudioDirector.EvilZod.cs)
             if (r != null && r.Owner == Player)
             {
-                if (before == Player) { if (v.Kind == ZKind.Vehicle && !HvBoarded(v) && !v.IsShuttle) { Say("vo_vehicle_enter"); IconicBoarded(v, 0.25f); } }   // DV118: the shuttle says its own "All aboard!" (OzPlayableShuttle)   // KC4b: ALAN & BRAD say their own boarding lines   // robot_iconic_lines_v1: + a passenger (squad of 2+, rare)
+                if (before == Player) { if (EzBoarded(r)) { } else if (v.Kind == ZKind.Vehicle && !HvBoarded(v) && !v.IsShuttle) { Say("vo_vehicle_enter"); IconicBoarded(v, 0.25f); } }   // DV118: the shuttle says its own "All aboard!" (OzPlayableShuttle)   // KC4b: ALAN & BRAD say their own boarding lines   // robot_iconic_lines_v1: + a passenger (squad of 2+, rare)
                 else if (v.Kind == ZKind.Cannon) { Say("vo_gun_captured"); V3GunCaptured(); }             // sound_v3: + Rachel "Gun captured."
                 else if (v.Kind == ZKind.Vehicle && HvBoarded(v)) HvCaptured();                            // KC4b: ALAN & BRAD capture with their own lines, the announcer after them (AudioDirector.HeroVoices.cs)
                 else if (!AlanBusy && OpenZVoiceV3.CaptureQuip())
@@ -1601,7 +1658,7 @@ namespace OpenZ
             if (v == null) return;
             var p = PosOf(v);
             if (v.Type == "apc") Play("veh_apc_ramp", p, v.Id);
-            if (!v.IsShuttle) Schedule(0.45f, () => Play("rob_land", p, v.Id));                          // the shuttle's crew walks down its ramp (the ramp foot's step clank): nobody jumps down
+            if (!v.IsShuttle && !(v.IsHatchVehicle && BoardingView.HatchExitOn && BoardingView.I)) Schedule(0.45f, () => Play("rob_land", p, v.Id));   // the shuttle's crew walks down its ramp (the ramp foot's step clank): nobody jumps down; 1.4 DV171: a tank's driver lands when his climb down ends (View/BoardingView.VehicleExit.cs)
             bool sniped = snipedAt.TryGetValue(v.Id, out var st) && Time.time - st < 1.5f;
             if (leader != null && leader.Owner == Player && !v.Destroyed && !sniped && !v.IsShuttle) Say("vo_vehicle_exit");   // DV118: the shuttle says its own "Everybody out!"
         }
@@ -1661,12 +1718,12 @@ namespace OpenZ
             if (team == Player && !flagView)
             {
                 if (Time.time - lastTerritoryAnn >= 6f) { lastTerritoryAnn = Time.time; Announce("ann_territory_captured"); }   // a repeat stays silent
-                if (e.flag) Schedule(1.2f, () => Announce("ann_radar_online"));                           // FlagCaptured.flag = the zone has a radar
+                if (e.flag) Schedule(1.2f, () => { var line = OzRadarLine.EventFor(W, team, e.objId); if (line != null) Announce(line); });   // FlagCaptured.flag = the zone has a radar; 1.2 item 16: first radar / back online / another radar, a ruin: none (View/OzRadarLine.cs)
             }
             if (old == Player && team != Player)
             {
                 if (!flagView) { UI("ter_zone_lost"); Announce("ann_territory_lost"); }
-                if (e.flag) Schedule(1.2f, () => Announce("ann_radar_lost"));
+                if (e.flag) RadarLostAsk(e);                                                   // 1.4 radar_voice_fix: only when our LAST standing radar was taken (not a ruin, not while another stands), right behind "Territory lost." (View/AudioDirector.VoiceFloor.cs)
             }
         }
 
@@ -1748,9 +1805,11 @@ namespace OpenZ
         {
             var d = Def(id); Count(Triggers, id);
             if (d == null || !voices) return;
+            if (HoldMatchLine(id, ref filter)) return;                                                 // 1.2 item 56: no match-state line (nor a losing help-cry take) in the Unit editor's playground (View/AudioDirector.MatchLines.cs)
             if (OpenZVictory.MutesVoice(id)) return;                                  // fx_v2 CHECK: only the end sequence speaks while it runs
             if (ExternalVoiceBusy != null && ExternalVoiceBusy()) return;               // zod_cameo: Alan never talks over Commander Zod
             bool robotLine = d.channel == "alan_main" || d.channel == "alan_alert";
+            if (robotLine && BoomPending && RobotChatter.IsChatter(id)) { BoomHeld++; OzSoundLog.Add("dir", id, null, "held: a \"Boom!\" cheer waits"); return; }   // run 10 1d: the cheer before chatter / quips
             if (robotLine && !RobotChatter.Allows(id)) { RobotChatter.Skipped++; OzSoundLog.Add("dir", id, null, "robot chatter " + RobotChatter.Names[RobotChatter.Level] + ": skipped"); return; }
             float cooldown = robotLine ? RobotChatter.Cooldown(id, d.cooldown) : d.cooldown;
             if (cooldown > 0 && lastLine.TryGetValue(id, out var lt) && Time.unscaledTime - lt < cooldown) return;
@@ -1768,6 +1827,7 @@ namespace OpenZ
                     OzSoundLog.Add("dir", id, null, "dropped (robot line gap)");
                     return;
                 }
+                if (VoiceFloorHoldsRobotLine(id, filter, d)) return;                                  // 1.4 radar_voice_fix: never over another voice: waits (at most 1 s), then said or skipped (View/AudioDirector.VoiceFloor.cs)
                 if (!PlayVoice(d, alanMain, filter)) return;
                 alanMainLast = Time.unscaledTime; alanMainId = id; alanMainUntil = Time.unscaledTime + Mathf.Max(0f, alanMainClipLeft());
             }
@@ -1779,7 +1839,7 @@ namespace OpenZ
                     if (id == "vo_promoted") { pendingPromo = id; pendingPromoFilter = filter; pendingPromoAt = Time.unscaledTime; OzSoundLog.Add("dir", id, null, "waits (Alan busy)"); }
                     return;
                 }
-                if (alanAlert.busy && alanAlert.src.isPlaying) alanAlert.src.Stop();
+                if (VoiceFloorHoldsRobotLine(id, filter, d)) return;                                  // 1.4 radar_voice_fix: waits for the floor (call-outs 1.5 s, end lines 6 s); was: an end line stopped a speaking call-out mid-word
                 if (!PlayVoice(d, alanAlert, filter)) return;
             }
             else { Play(id, ListenerPos, -1, 1f, 1f, filter); return; }                // yelps (2D one-shots)
@@ -1799,7 +1859,7 @@ namespace OpenZ
             if (pendingPromo != null && alanMain != null)
             {
                 if (Time.unscaledTime - pendingPromoAt > PromoWait) { OzSoundLog.Add("dir", pendingPromo, null, "dropped (waited " + PromoWait + " s)"); pendingPromo = null; }
-                else if (!AlanBusy)
+                else if (!AlanBusy && PromoFloorFree)                                                  // 1.4 radar_voice_fix: and the voice floor is free
                 {
                     var pid = pendingPromo; var pf = pendingPromoFilter; pendingPromo = null;
                     if (pendingAlan != null && Family(pendingAlan) == "vo_select") pendingAlan = null;            // chatter yields to the promotion
@@ -1807,10 +1867,10 @@ namespace OpenZ
                 }
             }
             if (pendingAlan == null || alanMain == null) return;
-            if (Time.unscaledTime - pendingAlanAt > PendingAlanMax) { pendingAlan = null; return; }
+            if (VoiceFloorPendingWaits()) return;                                                  // 1.4 radar_voice_fix: the waiting robot line waits for the floor, or is skipped after its own wait (was: PendingAlanMax)
             if (alanMain.src && alanMain.src.isPlaying) return;
             var id = pendingAlan; var f = pendingAlanFilter; pendingAlan = null; alanMainLast = -1f;
-            SayImpl(id, f);
+            VoiceFloorRelease(id, f);                                                              // 1.4 radar_voice_fix: SayImpl, its own rules asked again
         }
 
         float VoiceLen() => 0.2f + (alanMain.src.isPlaying ? alanMain.src.clip.length : alanAlert.src.isPlaying ? alanAlert.src.clip.length : 1f);
@@ -1818,16 +1878,18 @@ namespace OpenZ
         bool PlayVoice(SoundEventDef d, Voice ch, string filter)
         {
             if (d.loaded.Count == 0) return false;
+            if (VoiceFloorGuard(d, ch)) return false;                                               // 1.4 radar_voice_fix: never over another voice line (the safety net of every path)
             if (!AlertGate.Check(d.id, out var held)) { OzSoundLog.Add("VO", d.id, null, "DROP " + held, 0f); return false; }   // repeated alerts: once per group per 30 s, 7 s apart (skipped, not queued)
             int idx = Pick(d, filter);
             ch.def = d; ch.busy = true; ch.loop = false; ch.start = Time.unscaledTime; ch.offLin = 1f; ch.fade = ch.fadeTarget = 1f;
             ConfigureSource(ch, d, d.loaded[idx]);
             ch.src.spatialBlend = 0f; ch.combatMix = false; ch.lp.enabled = false;
+            EzVoiceFilter(ch, d);                                                                   // DV161: his takes are finished: the radio filter is off for them (Voice/AudioDirector.EvilZod.cs)
             ch.baseLin = Db(d.volDb + d.gains[idx]);
             ch.src.pitch = d.pitchMul * (1f + (d.pitchVar > 0 ? UnityEngine.Random.Range(-d.pitchVar, d.pitchVar) : 0f));
             Apply(ch); ch.src.Play();
             var ca = CA;
-            if (ca)
+            if (ca && !EzNoDuck(d))                                                                        // DV161: his attack and dash lines leave the full damage shot alone
             {   // audio_v2: Alan ducks the combat buses -4 dB and the world -1 dB, Rachel -6 / -2 (was -6 dB on every SFX incl. doors, foley)
                 bool r = ch == rachel;
                 ca.DuckFor(ch.src.clip.length / Mathf.Max(0.5f, Mathf.Abs(ch.src.pitch)) + 0.15f, r ? -6f : -4f, r ? -2f : -1f);
@@ -1857,7 +1919,7 @@ namespace OpenZ
             ["ann_territory_captured"] = "territory", ["ann_territory_lost"] = "territory_lost",
             ["ann_robot_factory_captured"] = "factory", ["ann_vehicle_factory_captured"] = "factory", ["ann_repair_captured"] = "factory",
             ["ann_factory_lost"] = "factory_lost", ["ann_repair_lost"] = "factory_lost",
-            ["ann_radar_online"] = "radar", ["ann_radar_lost"] = "radar_lost",
+            ["ann_radar_online"] = "radar", ["ann_radar_first"] = "radar", ["ann_radar_back_online"] = "radar", ["ann_radar_lost"] = "radar_lost",   // 1.2 item 16: the first-radar and back-online lines are radar lines too
             ["ann_vehicle_captured"] = "unit_captured", ["ann_gun_captured"] = "unit_captured",
             ["ann_robot_manufactured"] = "made", ["ann_vehicle_manufactured"] = "made", ["ann_gun_manufactured"] = "made",
         };
@@ -1868,6 +1930,8 @@ namespace OpenZ
 
         bool AnnounceImpl(string id, string lineFilter = null)
         {
+            if (HoldMatchLine(id)) return false;                                                       // 1.2 item 56: no match-state line in the Unit editor's playground (View/AudioDirector.MatchLines.cs)
+            if (OzUeHooks.MuteAnnouncer) return false;                                  // 1.2 item 6: no announcer in the Unit editor's playground (unit voices and world sounds stay)
             var d = Def(id); Count(Triggers, id);
             kindDropped = false;
             if (d == null || !voices) return false;
@@ -1891,8 +1955,9 @@ namespace OpenZ
             }
             lastLine[id] = now;
             rachelQueue.Add(new Line { d = d, t = now, f = lineFilter });
-            rachelQueue.Sort((x, y) => x.d.rank.CompareTo(y.d.rank));
-            while (rachelQueue.Count > 3) rachelQueue.RemoveAt(rachelQueue.Count - 1);
+            QueueSortStable();                                                                     // 1.4 radar_voice_fix: by rank, lines of one rank in the order asked (was List.Sort: not stable)
+            QueueTrim();                                                                           // 1.4 radar_voice_fix: at most 3 waiting lines as before (was: the last one removed); "Territory lost." + its "Radar lost." count as one
+            RadarLostAfter(id);                                                                    // 1.4 radar_voice_fix: "Radar lost." right behind "Territory lost." (View/AudioDirector.VoiceFloor.cs)
             return true;
         }
 
@@ -1900,16 +1965,16 @@ namespace OpenZ
         {
             float now = Time.unscaledTime;
             foreach (var ch in new[] { alanMain, alanAlert, rachel }) { if (ch.busy && !ch.src.isPlaying && !AudioListener.pause) ch.busy = false; if (ch.busy) Apply(ch); }
-            rachelQueue.RemoveAll(q => now - q.t > 4f && q.d.rank > 3);                          // stale lines dropped (ranks 1-3 kept)
+            VoiceFloorTick(now);                                                                   // 1.4 radar_voice_fix: who is audible (the voice floor, View/OzVoiceFloor.cs); the paired "Radar lost." held behind "Territory lost."
+            rachelQueue.RemoveAll(q => now - q.t > 4f && q.d.rank > 3 && !RadarPairKeeps(q.d, now));                          // stale lines dropped (ranks 1-3 kept)
             if (rachelQueue.Count == 0) return;
             var next = rachelQueue[0];
             if (rachel.busy && rachel.src.isPlaying)
             {
-                if (next.d.rank < rachel.def.rank && now - rachel.start > 0.3f) rachel.src.Stop();   // a higher rank may cut after 0.3 s
-                else return;
+                return;                                                                            // 1.4 radar_voice_fix: a speaking line is never cut (was: a higher rank cut it after 0.3 s); the queue is sorted, the higher rank goes next
             }
             if (RachelWaitsForShuttleLine(now)) return;                                                     // K256e: every Rachel line waits while a shuttle line plays + 0.3 s (View/AudioDirector.ShuttleRound3.cs)
-            if (AlanBusy && (now - next.t < 0.6f || next.d.id == "ann_shuttle_landing") && !ShuttleLandingStepsAside(now, ref next)) return;   // DV118: the landing line waits for Alan; a line that may speak goes first                                         // Rachel waits at most 0.6 s for Alan
+            if (VoiceFloorHoldsRachel(now, next.d, next.t)) return;                                      // 1.4 radar_voice_fix: waits while any voice speaks, starts 0.3 s after it (was: at most 0.6 s for Alan, then over him; DV118 let an older line go over him)
             if (ExternalVoiceBusy != null && ExternalVoiceBusy() && now - next.t < 12f) return;  // zod_cameo: Rachel waits for Commander Zod
             rachelQueue.RemoveAt(0);
             if (PlayVoice(next.d, rachel, next.f))
@@ -1946,6 +2011,7 @@ namespace OpenZ
         {
             var ca = CA; if (!ca || names == null || key == null) return false;
             string id = "raw_" + key;
+            if (defs.TryGetValue(id, out var dw) && dw.clipsWait) LoadClips(dw);
             if (!defs.TryGetValue(id, out var d))
             {
                 d = new SoundEventDef
@@ -1986,6 +2052,7 @@ namespace OpenZ
                 Distress(victim, victim);                                                   // a robot nearby shouts too (never over Rachel)
                 return;
             }
+            if (EzIs(victim)) return;                                                                      // DV161: he calls for nobody
             var v = victim.Leader ?? victim;
             float now = Time.time;
             NotePressure(v, victim, attacker);                                              // help_cries: heavy-fire tracker
@@ -2223,11 +2290,11 @@ namespace OpenZ
         {   // polish vo_low_health: a player unit under 25 % (once per unit until it is back over 50 %)
             foreach (var o in W.Objects)
             {
-                if (!o.IsUnit || o.Owner != Player || o.MaxHealth <= 0) continue;
+                if (!o.IsUnit || (o.Owner != Player && !EzIs(o)) || o.MaxHealth <= 0) continue;        // DV161: his low health line on any side, on screen below
                 if (o.Destroyed) { lowHealth.Remove(o.Id); continue; }
                 float k = (float)o.Health / o.MaxHealth;
                 if (k >= 0.5f) lowHealth.Remove(o.Id);
-                else if (k < 0.25f && lowHealth.Add(o.Id) && OnScreen(PosOf(o), 0.2f)) Say("vo_low_health");
+                else if (k < 0.25f && lowHealth.Add(o.Id) && OnScreen(PosOf(o), 0.2f)) { if (EzIs(o)) EzLow(); else Say("vo_low_health"); }   // DV161: his own line
             }
         }
 
@@ -2307,10 +2374,7 @@ namespace OpenZ
                         ElectroVoices.Ordered(input.Selection);                                                // electrobot_v1: his move / attack pools (Say routes this frame's classic line)
                         NoteWalkOrder(input.Selection);
                         if (input.Selection.Count > 0 && !V3EjectOrder())                                        // sound_v3: OnEjected says the exit line
-                        {   // unit_voices_v1: a per-type move / attack / repair line (share unitOrderShare), else the classic line; "No way!" stays classic
-                            bool noWay = attack && NoWayOrder();
-                            if (!UvOrder(attack, noWay)) ClassicOrderLine(attack, noWay);                       // the shared pool of the answering unit's voice
-                        }
+                            OrderVoice(attack);                                                                    // unit_voices_v1: a per-type move / attack / repair line (share unitOrderShare), else the classic line; 1.2 item 62: Zod's no-way answer, paced (Voice/AudioDirector.NoWayLines.cs)
                         if (input.Selection.Count > 0) EngineRev.Ordered(input.Selection);
                     }
                     else UvRefused(attack);                                                                 // unit_voices_v1: a cannon asked to move / a crane asked to attack
@@ -2366,15 +2430,16 @@ namespace OpenZ
         //      zunitrating.cpp:57-128, the UCR_WILL_DIE rows (attacker -> victim types); every other pair is even or a win.
         static readonly Dictionary<string, HashSet<string>> WillDie = new Dictionary<string, HashSet<string>>
         {
-            ["grunt"] = new HashSet<string> { "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "gatling", "gun", "howitzer", "missile_cannon", "jeep", "light", "medium", "heavy", "missile_launcher" },
-            ["psycho"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "medium", "heavy", "missile_launcher" },
+            ["grunt"] = new HashSet<string> { "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "gatling", "gun", "howitzer", "missile_cannon", "jeep", "light", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
+            ["psycho"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
             ["sniper"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "missile_launcher" },
             ["tough"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
             ["electrobot"] = new HashSet<string> { "missile_cannon", "missile_launcher" },   // electrobot_v1: the Tough's row (same health)
             ["pyro"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
             ["laser"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
-            ["jeep"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "gun", "howitzer", "missile_cannon", "light", "medium", "heavy", "missile_launcher" },
+            ["jeep"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "gun", "howitzer", "missile_cannon", "light", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
             ["light"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
+            [ZMTank.Type] = new HashSet<string> { "missile_cannon", "missile_launcher" },   // DV145: the medium tank fights as the light tank (its gun)
             ["medium"] = new HashSet<string> { "missile_launcher" },
             ["missile_launcher"] = new HashSet<string> { "howitzer" },
         };
@@ -2405,7 +2470,7 @@ namespace OpenZ
         public void LidSound(bool open, Vector3 pos, int id, float vol = 1f) { if (vehicleFoley) Play(open ? "veh_lid_open" : "veh_lid_close", pos, id, vol); }
         void UpdateVehicles()
         {
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value; if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Vehicle || !v.Obj.HasLid) continue;
                 if (BoardingView.LidVoiced.Contains(v.Obj.Id)) { lids.Remove(v.Obj.Id); continue; }
@@ -2419,16 +2484,29 @@ namespace OpenZ
         //      tank) walks (LegacyEngineAudio's metal steps). Engines stay LegacyEngineAudio's.
         [Tooltip("audio_v2: tracks / tyre loops under the 3 nearest moving crewed vehicles on screen")] public bool vehicleSurfaceLoops = true;
         float nextSurf;
+        // v1.3 (item 25): the same picks as before without new collections each call: the 3 nearest in a small array (stable, as
+        // OrderBy kept equal distances in their order), the loop keys made once per unit, the key list copied into a kept buffer.
+        readonly HashSet<string> surfKeep = new HashSet<string>();
+        readonly UnitView[] surfNear = new UnitView[3]; readonly float[] surfNearD = new float[3];
+        readonly List<string> surfKeyBuf = new List<string>();
+        readonly Dictionary<int, string> surfKeys = new Dictionary<int, string>(), marchKeys = new Dictionary<int, string>(), wadeKeys = new Dictionary<int, string>();
+        /// <summary>prefix + id, made once per id (the same text the old code built each time).</summary>
+        static string KeyOf(Dictionary<int, string> cache, string prefix, int id) { if (!cache.TryGetValue(id, out var k)) { k = prefix + id; cache[id] = k; } return k; }
         void UpdateVehicleSurface()
         {
             if (!vehicleSurfaceLoops || Time.time < nextSurf) return;
             nextSurf = Time.time + 0.25f;
-            var lp = ListenerPos; var keep = new HashSet<string>();
-            var near = game.Views.Values.Where(v => v && v.isActiveAndEnabled && !v.Dying && v.Obj != null && v.Obj.Kind == ZKind.Vehicle && v.Obj.Owner != Team.Neutral
-                                                    && v.Obj.IsMoving && SurfaceEvent(v.Obj.Type) != null && OnScreen(v.transform.position, 0.05f))
-                                        .OrderBy(v => (v.transform.position - lp).sqrMagnitude).Take(3).ToList();
-            foreach (var v in near)
+            var lp = ListenerPos; var keep = surfKeep; keep.Clear();
+            int nearN = 0;
+            foreach (var v in game.LiveViewValues)
             {
+                if (!(v && v.isActiveAndEnabled && !v.Dying && v.Obj != null && v.Obj.Kind == ZKind.Vehicle && v.Obj.Owner != Team.Neutral
+                      && v.Obj.IsMoving && SurfaceEvent(v.Obj.Type) != null && OnScreen(v.transform.position, 0.05f))) continue;
+                nearN = OzNearestN.Insert(surfNear, surfNearD, nearN, v, (v.transform.position - lp).sqrMagnitude);   // = OrderBy(distance).Take(3), stable (View/OzLiveSet.cs)
+            }
+            for (int q = 0; q < nearN; q++)
+            {
+                var v = surfNear[q]; surfNear[q] = null;
                 string ev = SurfaceEvent(v.Obj.Type);
                 if (ev == "veh_wheels_sand" && (City || ClassAt(v.transform.position) == ZClass.Road)) ev = "veh_wheels_asphalt";
                 else if (ev == "veh_wheels_sand" && Jungle)
@@ -2437,11 +2515,12 @@ namespace OpenZ
                     string want = jg == "water" ? "veh_wheels_water" : jg == "mud" ? "veh_wheels_mud" : "veh_wheels_grass";
                     if (HasClips(want)) ev = want;
                 }
-                string key = "surf:" + v.Obj.Id; keep.Add(key);
+                string key = KeyOf(surfKeys, "surf:", v.Obj.Id); keep.Add(key);
                 if (Jungle && LoopActive(key) && surfEv.TryGetValue(key, out var surfWas) && surfWas != ev) StopLoop(key, 0.25f);   // the ground changed under it: the next look starts the other loop
                 else if (!LoopActive(key)) { StartLoop(key, ev, v.transform.position, v.transform); surfEv[key] = ev; }
             }
-            foreach (var k in loops.Keys.ToList()) if (k.StartsWith("surf:") && !keep.Contains(k)) StopLoop(k, 0.35f);
+            surfKeyBuf.Clear(); surfKeyBuf.AddRange(loops.Keys);
+            foreach (var k in surfKeyBuf) if (k.StartsWith("surf:") && !keep.Contains(k)) StopLoop(k, 0.35f);
         }
         readonly Dictionary<string, string> surfEv = new Dictionary<string, string>();
         static string SurfaceEvent(string type)
@@ -2449,7 +2528,7 @@ namespace OpenZ
             switch (type)
             {
                 case "heavy": return I && I.HasClips("veh_tracks_heavy_loop") ? "veh_tracks_heavy_loop" : "veh_tracks_loop";   // sound_v3: its own heavier tread loop
-                case "light": case "missile_launcher": return "veh_tracks_loop";
+                case "light": case ZMTank.Type: case "missile_launcher": return "veh_tracks_loop";
                 case "jeep": case "apc": case "crane": return "veh_wheels_sand";
                 default: return null;
             }
@@ -2477,7 +2556,7 @@ namespace OpenZ
         {
             switch (type)
             {
-                case "jeep": return "veh_engine_jeep"; case "light": return "veh_engine_light"; case "heavy": return "veh_engine_heavy";
+                case "jeep": return "veh_engine_jeep"; case "light": case ZMTank.Type: return "veh_engine_light"; case "heavy": return "veh_engine_heavy";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": return "veh_engine_apc"; case "missile_launcher": return "veh_engine_mlrs"; case "crane": return "veh_engine_crane";
                 default: return null;
             }
@@ -2490,7 +2569,7 @@ namespace OpenZ
         void UpdateWrecks()
         {
             float now = Time.time;
-            foreach (var k in craneWork.Keys.ToList())
+            foreach (var k in KeysInto(craneWork, gcCraneKeys))   // 1.4 speed-up 2 (perf_garbage): the same keys in the same order, a kept list
             {
                 var c = craneWork[k];
                 if (now >= c.next) { Play("veh_crane_work", c.p, k); craneWork[k] = (c.p, now + UnityEngine.Random.Range(1.8f, 3f)); }
@@ -2630,6 +2709,7 @@ namespace OpenZ
         static float CentreDist2(Vector3 p)
         {
             var c = Camera.main; if (!c) return 0f;
+            if (OzFpsView.Own(p)) return 0f;   // 1.4 fps_view: the viewed unit's own sound is in view (View/OzFpsView.cs); false while the view is off
             var vp = c.WorldToViewportPoint(p); return (vp.x - 0.5f) * (vp.x - 0.5f) + (vp.y - 0.5f) * (vp.y - 0.5f);
         }
 
@@ -2637,21 +2717,22 @@ namespace OpenZ
         {
             if (dt <= 0f) return;
             bool close = !rts || rts.height < footstepMaxHeight;                                             // audio_v2: was 60 m (no single steps at the 70 m default)
+            if (OzFpsView.On) close = true;                                                                  // 1.4 fps_view: the eye stands on the ground, single steps are heard (View/OzFpsView.cs); false while the view is off
             stepTokens = Mathf.Min(stepsPerSecond, stepTokens + dt * stepsPerSecond);
             ambientStepTokens = Mathf.Min(1f, ambientStepTokens + dt * AmbientStepsPerSecond);
-            var marching = new Dictionary<int, (Vector3 sum, int n, bool water, float g)>();
+            var marching = marchBuf; marching.Clear();                                                       // v1.3: kept and cleared (a cleared table hands out its entries in the order they are put in, as a new one)
             walkers.Clear();
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value; if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.Dying) continue;
                 var o = v.Obj;
                 if (!rob.TryGetValue(o.Id, out var s)) rob[o.Id] = s = new RobState { last = v.transform.position };
                 var pos = v.transform.position; float step = (pos - s.last).magnitude; s.last = pos;
                 if (step > 3f) { s.dist = 0; continue; }                                       // teleport (exit, spawn)
-                var cls = ClassAt(pos); bool water = cls == ZClass.Water || cls == ZClass.DeepWater;
+                var cls = ClassAt(pos); bool water = cls == ZClass.Water || cls == ZClass.DeepWater || LavaUnder(pos);   // level 7: lava wades like water, its own sounds below
                 bool moving = step / dt > 0.25f;
                 var lead = o.Leader ?? o; bool running = lead.IsRunning || o.FortRushOn || o.YieldRunOn;                      // boarding_nb_v1 DV34
-                float g = WalkGain(o, lead);
+                float g = EzIs(o) ? 1f : WalkGain(o, lead);                                            // DV161: his slow walk outlasts an order's window: every step of his counts
                 bool heard = g > 0f && OnScreen(pos, 0.02f);
                 if (moving && s.still > 1f && heard) Play("rob_servo", pos + Vector3.up, o.Id);  // starts moving (an ordered robot only)
                 s.still = moving ? 0f : s.still + dt;
@@ -2669,20 +2750,22 @@ namespace OpenZ
             }
             // the stepping robots that may be heard: ordered + on screen, the MaxStepVoices nearest the screen centre
             stepAllowed.Clear();
-            foreach (var w in walkers.Where(x => x.g > 0f).OrderBy(x => x.cd).Take(MaxStepVoices)) stepAllowed.Add(w.o.Id);
+            NearestStepVoices();                                                                              // v1.3: = walkers.Where(g > 0).OrderBy(cd).Take(MaxStepVoices), no allocation
             foreach (var w in walkers)
             {
                 var o = w.o; var s = w.s;
-                float stride = o.Type == "tough" ? 0.9f : w.running ? 0.8f : 0.6f;
+                if (o.EvilDashing) { s.dist = 0f; continue; }                                               // DV161: no steps in the dash
+                float stride = EzIs(o) ? EzStride : o.Type == "tough" ? 0.9f : w.running ? 0.8f : 0.6f;
                 if (s.dist < stride) continue;
                 s.dist = 0;
-                string ev = w.water ? "rob_step_water" : o.Type == "tough" ? "mech_tough_step" : o.IsFortDefender ? "rob_step_metal" : OnBridge(o) ? (City ? "rob_step_metal" : "rob_step_wood")
+                string ev = w.water ? (LavaUnder(w.pos) ? "rob_step_lava" : "rob_step_water") : o.Type == "tough" ? "mech_tough_step" : o.IsFortDefender ? "rob_step_metal" : OnBridge(o) ? (City ? "rob_step_metal" : "rob_step_wood")
                           : City || w.cls == ZClass.Road ? "rob_step_concrete" : Jungle ? (JungleGround(w.pos) == "mud" && HasClips("rob_step_mud") ? "rob_step_mud" : HasClips("rob_step_grass") ? "rob_step_grass" : "rob_step_sand") : "rob_step_sand";
                 if (stepTokens < 1f || !OnScreen(w.pos, 0.02f)) continue;                                   // audio_v2: on screen, 12 steps / s at most
                 if (stepAllowed.Contains(o.Id))
                 {
                     stepTokens -= 1f; WalkOrderedSteps++;
                     Play(ev, w.pos, o.Id, (w.running ? Db(2f) : 1f) * w.g, w.running ? 1.05f : 1f);
+                    EzStep(o, w.pos, w.g);                                                                   // DV161: the stomp and the armour on top of the surface step
                 }
                 else if (ambientStepTokens >= 1f)
                 {   // everyone else: a rare, quiet single step (the battlefield is not silent, never a carpet of steps)
@@ -2691,17 +2774,51 @@ namespace OpenZ
                 }
             }
             // one loop per ordered moving squad (bible: never 4 x footsteps), wading loop in water; MaxMarchLoops nearest the screen centre
-            var live = new HashSet<string>();
-            foreach (var kv in marching.OrderBy(x => CentreDist2(x.Value.sum / x.Value.n)).Take(MaxMarchLoops))
+            var live = marchLive; live.Clear();
+            int marchN = NearestMarches(marching);                                                            // v1.3: = marching.OrderBy(centre distance).Take(MaxMarchLoops), same order
+            for (int mi = 0; mi < marchN; mi++)
             {
+                var kv = marchNear[mi];
                 var c = kv.Value.sum / kv.Value.n;
-                string key = (kv.Value.water ? "wade:" : "march:") + kv.Key; live.Add(key);
-                string ev = kv.Value.water ? "rob_wade" : "rob_squad_march";
+                string key = kv.Value.water ? KeyOf(wadeKeys, "wade:", kv.Key) : KeyOf(marchKeys, "march:", kv.Key); live.Add(key);
+                string ev = kv.Value.water ? (Volcanic && HasClips("rob_wade_lava") ? "rob_wade_lava" : "rob_wade") : "rob_squad_march";
                 if (!LoopActive(key)) { StartLoop(key, ev, c); WalkLoopStarts++; if (!kv.Value.water) { var d = Def(ev); if (d != null && d.loaded.Count > 1) ForceClip(key, d, City || ClassAt(c) == ZClass.Road ? 1 : 0); } }
                 SetLoop(key, kv.Value.g, 1f, c);                                                          // eases out with the order window
             }
             if (live.Count > WalkPeakLoops) WalkPeakLoops = live.Count;
-            foreach (var k in loops.Keys.ToList()) if ((k.StartsWith("march:") || k.StartsWith("wade:")) && !live.Contains(k)) StopLoop(k, 0.4f);
+            robKeyBuf.Clear(); robKeyBuf.AddRange(loops.Keys);
+            foreach (var k in robKeyBuf) if ((k.StartsWith("march:") || k.StartsWith("wade:")) && !live.Contains(k)) StopLoop(k, 0.4f);
+        }
+        // v1.3 (item 25): UpdateRobots' kept collections and its two nearest-N picks (stable: of equal distances the earlier one first,
+        // as OrderBy keeps them; the distances are computed once each, as OrderBy does).
+        readonly Dictionary<int, (Vector3 sum, int n, bool water, float g)> marchBuf = new Dictionary<int, (Vector3 sum, int n, bool water, float g)>();
+        readonly HashSet<string> marchLive = new HashSet<string>();
+        readonly List<string> robKeyBuf = new List<string>();
+        KeyValuePair<int, (Vector3 sum, int n, bool water, float g)>[] marchNear = new KeyValuePair<int, (Vector3 sum, int n, bool water, float g)>[0];
+        float[] marchNearD = new float[0];
+        int[] stepNearId = new int[0]; float[] stepNearD = new float[0];
+        void NearestStepVoices()
+        {
+            int cap = MaxStepVoices; if (cap <= 0) return;
+            if (stepNearId.Length != cap) { stepNearId = new int[cap]; stepNearD = new float[cap]; }
+            int n = 0;
+            for (int i = 0; i < walkers.Count; i++)
+            {
+                var w = walkers[i]; if (!(w.g > 0f)) continue;
+                n = OzNearestN.Insert(stepNearId, stepNearD, n, w.o.Id, w.cd);
+            }
+            for (int i = 0; i < n; i++) stepAllowed.Add(stepNearId[i]);
+        }
+        int NearestMarches(Dictionary<int, (Vector3 sum, int n, bool water, float g)> marching)
+        {
+            int cap = MaxMarchLoops; if (cap <= 0) return 0;
+            if (marchNear.Length != cap) { marchNear = new KeyValuePair<int, (Vector3 sum, int n, bool water, float g)>[cap]; marchNearD = new float[cap]; }
+            int n = 0;
+            foreach (var kv in marching)
+            {
+                n = OzNearestN.Insert(marchNear, marchNearD, n, kv, CentreDist2(kv.Value.sum / kv.Value.n));
+            }
+            return n;
         }
         void ForceClip(string key, SoundEventDef d, int idx)
         {
@@ -2719,12 +2836,14 @@ namespace OpenZ
         {
             if (Time.time < nextScan) return;
             nextScan = Time.time + 0.5f;
-            foreach (var r in FindObjectsByType<RobotRagdoll>(FindObjectsSortMode.None))
-                if (relayed.Add(r.GetInstanceID())) AttachImpacts(r.gameObject, "dst_ragdoll_impact", "dst_ragdoll_splash");
-            foreach (var p in FindObjectsByType<BuildingBreaker.Piece>(FindObjectsSortMode.None))
-                if (relayed.Add(p.GetInstanceID())) AttachImpacts(p.gameObject, null, "dst_debris_splash");
-            foreach (var c in FindObjectsByType<RockChunkLife>(FindObjectsSortMode.None))
-                if (relayed.Add(c.GetInstanceID())) AttachImpacts(c.gameObject, "dst_rock_chunks", HasClips("wtr_debris_plop") ? "wtr_debris_plop" : "dst_debris_splash");
+            // v1.3 (item 25): the registries hold what FindObjectsByType searched the whole scene for (OzLiveSet.cs); a hidden object is
+            // skipped, as the search skipped it
+            foreach (var r in OzLiveSet<RobotRagdoll>.All)
+                if (r && r.gameObject.activeInHierarchy && relayed.Add(r.GetInstanceID())) AttachImpacts(r.gameObject, "dst_ragdoll_impact", "dst_ragdoll_splash");
+            foreach (var p in OzLiveSet<BuildingBreaker.Piece>.All)
+                if (p && p.gameObject.activeInHierarchy && relayed.Add(p.GetInstanceID())) AttachImpacts(p.gameObject, null, "dst_debris_splash");
+            foreach (var c in OzLiveSet<RockChunkLife>.All)
+                if (c && c.gameObject.activeInHierarchy && relayed.Add(c.GetInstanceID())) AttachImpacts(c.gameObject, "dst_rock_chunks", HasClips("wtr_debris_plop") ? "wtr_debris_plop" : "dst_debris_splash");
         }
 
         // ============================================================================================================================
@@ -2856,7 +2975,8 @@ namespace OpenZ
         void SwitchMusic()
         {
             if (!MusicOn || game == null) return;
-            if (MusicV3Owns) return;   /* music_v3: MusicCore owns the in-game music */ string lv = City ? "l17" : "l02";
+            if (OzUeHooks.MenuMusic) { if (musicDef == null || musicDef.id != "mus_menu") StartMenuMusic(); return; }   // 1.2 item 6: the main menu's music in the Unit editor's playground (View/OzUnitEditor.cs turns this scene's MusicCore off)
+            if (MusicV3Owns) return;   /* music_v3: MusicCore owns the in-game music */ string lv = MusicLv;
             SoundEventDef d; int idx = -1;   /* music_v2: the playlist picks */
             if (danger == Danger.Fort || (finalPush && danger != Danger.Calm)) { d = Def("mus_fort_danger"); if (!MusicPlaylistOn(d)) idx = City ? 1 : 0;   /* music_v2 */ }
             else d = Def(danger == Danger.Attacking ? "mus_" + lv + "_attacking" : "mus_" + lv + "_calm");
@@ -2924,7 +3044,7 @@ namespace OpenZ
         void UpdateAmbience(float dt)
         {
             if (game == null) return;
-            if (!dayNight) dayNight = FindFirstObjectByType<DayNight>();
+            if (!dayNight) dayNight = OzViewScans.DayNightNow();                                       // 1.4 speed-up 4: the same answer from a registry (View/OzViewScans.cs), no search of the whole scene each frame
             float t = dayNight ? dayNight.timeOfDay : 0.08f;
             // 0 noon, 0.3 sunset, 0.4 blue hour, 0.55 night, 0.9 dawn (DayNight.cs); ~20 s crossfades at the 12 min cycle
             float wDay = 1f - Ramp(t, 0.26f, 0.32f) + Ramp(t, 0.86f, 0.94f);
@@ -2933,6 +3053,11 @@ namespace OpenZ
             bool jungleBeds = Jungle && HasClips("amb_l16_day") && HasClips("amb_l16_swamp") && HasClips("amb_l16_night");
             if (City) { Bed("amb_l17_day", wDay + wDusk); Bed("amb_l17_night_fog", wNight); }
             else if (jungleBeds) { Bed("amb_l16_day", wDay * OzJungleLife.DayBedShare); Bed("amb_l16_swamp", wDusk); Bed("amb_l16_night", wNight); }   // level 16: the jungle by day, the swamp at dusk, the jungle night
+            else if (Volcanic)
+            {   // level 7: its own beds; until they are in, only the plain wind of the desert dusk (no insects, no night crickets)
+                if (HasClips("amb_l07_day") && HasClips("amb_l07_night")) { Bed("amb_l07_day", wDay + wDusk); Bed("amb_l07_night", wNight); }
+                else Bed("amb_l02_dusk", 1f);
+            }
             else { Bed("amb_l02_day", wDay); Bed("amb_l02_dusk", wDusk); Bed("amb_l02_night", wNight); }
             float now = Time.time; var lp = ListenerPos;
             if (now > nextAmbSort)
@@ -2961,6 +3086,11 @@ namespace OpenZ
             {   // level 16: bird calls from the trees by day, an insect swell now and then (no sand gust, no desert crow)
                 if (now > nextCrow) { nextCrow = now + UnityEngine.Random.Range(12f, 26f); if (!night && !OzJungleLife.BirdsAway) Play("amb_l16_bird_call", Around(15f, 45f) + Vector3.up * 6f, -1); }
                 if (now > nextGust) { nextGust = now + UnityEngine.Random.Range(30f, 60f); Play("amb_l16_insect_swell", lp, -1); }
+            }
+            else if (Volcanic)
+            {   // level 7: a far rumble now and then (the lava bed itself is OzLava's); no sand gust, no crow, no owl, no hare
+                if (now > nextGust) { nextGust = now + UnityEngine.Random.Range(35f, 75f); if (HasClips("amb_l07_rumble")) Play("amb_l07_rumble", lp, -1); }
+                if (now > nextCritter) { nextCritter = now + UnityEngine.Random.Range(20f, 40f); if (HasClips("amb_l07_hut_critters") && L07HutAnimals.LiveHutNear(lp, 40f * 40f + 900f, out var hutAt)) Play("amb_l07_hut_critters", hutAt, -1); }   // the animals of the nearest standing hut, as the desert's branch below
             }
             else if (!City)
             {

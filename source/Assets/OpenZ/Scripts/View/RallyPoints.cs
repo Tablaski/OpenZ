@@ -162,7 +162,7 @@ namespace OpenZ
 
             // armed on the press, so a Z-order that just dropped the last selected unit (PlayerInput.Flush) never also sets a rally
             if (mouse.rightButton.wasPressedThisFrame) rightArmed = Selected != null && input.Selection.Count == 0;
-            if (rightArmed && mouse.rightButton.wasReleasedThisFrame) { rightArmed = false; RightRelease(mp, kb.shiftKey.isPressed); }
+            if (rightArmed && mouse.rightButton.wasReleasedThisFrame) { rightArmed = false; if (OzRightDrag.Click(mouse, OzRightDrag.SiteRally)) RightRelease(mp, kb.shiftKey.isPressed); }   // 1.4: a drag sets no rally point (View/OzRightDrag.cs)
             if (kb.shiftKey.wasReleasedThisFrame && !kb.shiftKey.isPressed && Pending.Count > 0) Send();
         }
 

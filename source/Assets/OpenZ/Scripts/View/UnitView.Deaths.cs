@@ -33,6 +33,17 @@ namespace OpenZ
         public static float FlameDeck = 0.7f, FlameHeight = 0.7f, FlameWidth = 0.7f;
         /// <summary>Proof: wrecks that got flames / wrecks the seeded chance left with puffs only.</summary>
         public static int FlameWrecks, FlameSkips;
+        /// <summary>1.3 item 16: a dead gun of these types on a fort tower is a burnt wreck (its fort cream paint takes the burn, TeamPaint.FortPaletteBurns;
+        /// before it stayed cream: near white) and falls apart on its pad when its turret flies (before: tower guns never broke); every piece of it
+        /// (its parts at the death, its seat kit, its base) meets the fort however small (WreckPieces.MeetStatics; before, the pieces under 1 m fell
+        /// that stand on fort towers). The same guns on the ground as before. Switch: TowerWreckLook (off = as before).</summary>
+        public static bool TowerWreckLook = true;
+        public static readonly HashSet<string> TowerWreckTypes = new HashSet<string> { "howitzer", "gun", "gatling", "missile_cannon" };
+        internal static bool TowerWreck(string type) => TowerWreckLook && type != null && TowerWreckTypes.Contains(type);
+        /// <summary>Proof: tower gun wrecks burnt / broken on their pad by the rule.</summary>
+        public static int TowerWrecksBurnt, TowerWrecksBroken;
+        /// <summary>1.3 item 16: this dead cannon stands on a fort tower and is of a type above.</summary>
+        internal static bool TowerWreck(UnitView v) => v && v.OnTower && v.Obj != null && v.Obj.Kind == ZKind.Cannon && TowerWreck(v.Obj.Type);
 
         static PhysicsMaterial mat;
         /// <summary></summary>
@@ -105,17 +116,23 @@ namespace OpenZ
         void BeginWreck()
         {
             death = Death.Wreck; weight = 0f; smokeT = 0f;
+            if (paint && WreckFx.TowerWreck(this)) { paint.FortPaletteBurns = true; WreckFx.TowerWrecksBurnt++; }   // 1.3 item 16: the tower gun's fort cream burns like every wreck's paint
             charNow = Mathf.Max(WreckFx.CharStart, paint ? paint.Charred : 0f); charStep = 0;   // pyro_fire_v2 review: a hull the fire charred (up to .62) never flashes lighter as it dies
             if (paint) paint.Charred = charNow;
             uint h = RobotDeathRule.Hash(Obj.Id, 0, 11u);
             burnEnd = 5f + h % 3u;                                                                       // Zod: 5 + rand() % 3 s
             bool light = Obj.Kind == ZKind.Vehicle && (Obj.Type == "jeep" || Obj.Type == "apc" || Obj.Type == "crane");
-            flipWreck = WreckFx.Flips && light && WreckFx.Chance(h >> 2, 3u);
+            flipWreck = (WreckFx.Flips && light && WreckFx.Chance(h >> 2, 3u)) || OzUePlatformViews.Fallen(this);   // 1.3 the Unit editor: a vehicle on a destroyed ramp platform takes the rigidbody wreck's way down, every chassis (View/OzUePlatformView.cs)
             if (Obj.Kind == ZKind.Cannon)
             {
                 cannonToss = turret != null;
                 tossAt = 2f + (h >> 8) % 201u / 100f;                                                    // Zod: 2 + rand() % 3 s
-                if (WreckFx.CannonBreak && !OnTower && WreckFx.Chance(h >> 5, 2u)) breakAt = tossAt;     // tower guns stay on their pad
+                tossAt = GunSpinTossAt(tossAt);                                                          // 1.3 item 17: a gun's / howitzer's spinning flight 30 % shorter, still landing on the rules' debris blast (View/UnitView.GunSpin.cs)
+                if (WreckFx.CannonBreak && (OnTower ? WreckFx.TowerWreck(Obj.Type) : WreckFx.Chance(h >> 5, 2u))) breakAt = tossAt;     // tower guns stay on their pad; 1.3 item 16: a tower gun of TowerWreckTypes falls apart there when its turret flies
+                if (OnTower && breakAt >= 0f) WreckFx.TowerWrecksBroken++;
+                WreckPieces.MeetStatics = WreckFx.TowerWreck(this);                                      // 1.3 item 16: on a tower its parts meet the fort however small
+                try { OzGunBreakup.AtDeath(this, turret, Obj); }                                         // k97b, item 176: the gun falls apart at its death: its barrel, collar and outer parts fly (View/OzGunBreakup.cs); what is left is tossed at Zod's time as before
+                finally { WreckPieces.MeetStatics = false; }
             }
             else
             {
@@ -133,7 +150,7 @@ namespace OpenZ
         /// with the upper model), the gun goes with it at once: its turret flies and its base, the plate with the turret ring, breaks
         /// into parts that fall to the ground. Without this the base stayed in the air over the broken tower until its smoulder ended.</summary>
         bool towerFell;
-        bool TowerCollapsed() => towerState > 0 && towerFort && towerFort.TryGetComponent<BuildingBreaker>(out var bb) && bb.Collapsed;
+        bool TowerCollapsed() => (towerState > 0 && towerFort && towerFort.TryGetComponent<BuildingBreaker>(out var bb) && bb.Collapsed) || OzUePlatformViews.Fallen(this);   // 1.3 the Unit editor: a gun on a destroyed ramp platform goes the fallen tower gun's way (View/OzUePlatformView.cs)
         /// <summary>Play check: dead tower guns thrown down with their collapsed fort.</summary>
         public static int TowerGunsFell;
 
@@ -155,7 +172,10 @@ namespace OpenZ
                     var tp = turret.position;
                     WreckFx.SparkFountain(tp, 24, 3f, RobotDeathRule.Hash(Obj.Id, 1, 12u));
                     AudioDirector.Fire("dst_turret_toss", tp, Obj.Id);
-                    GunChairDebris.BreakOff(turret, Obj.Type, Obj.Id);
+                    WreckPieces.MeetStatics = WreckFx.TowerWreck(this);                                  // 1.3 item 16: on a tower the seat kit meets the fort
+                    try { GunChairDebris.BreakOff(turret, Obj.Type, Obj.Id); }
+                    finally { WreckPieces.MeetStatics = false; }
+                    if (paint && WreckFx.TowerWreck(this)) { charNow = Mathf.Max(charNow, WreckFx.CharEnd); charStep = 3; paint.Charred = charNow; }
                     TossTurret();
                 }
             }
@@ -199,8 +219,8 @@ namespace OpenZ
                 else if (FxManager.I) FxManager.I.Dust(at, 0.35f * k);
             }
             bool tossDone = !tossed || (tossLanded && tossT > tossDur + 3f);
-            if (breakDone && tossDone && deathT > breakAt + 0.5f) { BeginFade(); return; }              // the pieces live on; a landed turret sinks away
-            if (deathT > WreckFx.SmoulderSeconds && tossDone) BeginFade();
+            if (breakDone && tossDone && deathT > breakAt + 0.5f) { if (!WreckSinkWaits()) BeginFade(); return; }              // the pieces live on; a landed turret sinks away   // k93, item 154: on camera it waits (View/WreckSinkGate.cs)
+            if (deathT > WreckFx.SmoulderSeconds && tossDone && !WreckSinkWaits()) BeginFade();   // k93, item 154: sinks off camera only, inside the cap (View/WreckSinkGate.cs)
         }
 
         /// <summary>
@@ -280,6 +300,7 @@ namespace OpenZ
         {
             StopWreckFire(1f);
             fading = true; fadeT = 0f; fadeFrom = transform.position; fadeDepth = RockFadeDepth(Mathf.Max(0.6f, LocalBounds().size.y * 0.8f));   // items 331 + 332: a flipped hull on a rock pops away instead
+            TossFadeBegin();                                                                           // open_fixes_2nov wreck_toss_landing: the landed turret goes its whole height under (UnitView.TossAim.cs)
             if (wreckBody) wreckBody.isKinematic = true;
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             FxManager.I?.Dust(transform.position + Vector3.up * 0.3f, 0.5f);
@@ -289,7 +310,7 @@ namespace OpenZ
         {
             fadeT += dt; float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(fadeT / WreckFx.FadeSeconds));
             transform.position = fadeFrom + Vector3.down * fadeDepth * k;
-            if (tossed) tossed.position += Vector3.down * 0.5f * dt;
+            if (tossed && !TossFadeStep(k)) tossed.position += Vector3.down * 0.5f * dt;                // open_fixes_2nov: under the ground before it is removed (was 1.25 m in all)
             if (fadeT >= WreckFx.FadeSeconds) Hide();
         }
 
@@ -367,7 +388,10 @@ namespace OpenZ
             else OpenZHitSparks.Burst(c, Vector3.down, FxWeapon.MachineGun, FxSurface.Metal, 1.6f, false);
             if (wreckBody) { Destroy(wreckBody); wreckBody = null; }
             ApcDome.BreakOff(this, c, cook ? 0.55f : 1f, Obj.Id); ApcRearDoor.BreakOff(this, c, cook ? 0.55f : 1f, Obj.Id);
-            int n = WreckPieces.Break(this, tossed, c, cook ? 0.55f : 1f, Obj.Id, charNow);
+            int n;
+            WreckPieces.MeetStatics = WreckFx.TowerWreck(this);                                          // 1.3 item 16: a tower gun's base pieces meet the fort however small (they land on the tower top or fall down its side)
+            try { n = WreckPieces.Break(this, tossed, c, cook ? 0.55f : 1f, Obj.Id, charNow); }
+            finally { WreckPieces.MeetStatics = false; }
             if (n == 0) { breakDone = false; breakAt = -1f; }                                          // nothing to break: stays a wreck
             else if (ApcCraneKit.HullStays(this)) { breakDone = false; breakAt = -1f; }
         }
@@ -383,7 +407,8 @@ namespace OpenZ
         /// KnockUntil): the knockdown's fall / lie / get-up are stretched so it stands just before then; &lt;= 0 = the view's own timing.</summary>
         public void React(Vector3 blast, int kind, uint seed, float delay, float hold = -1f, float pushScale = 1f)   // DV65: pushScale (a run-over topples short, in the vehicle's path)
         {
-            if (Obj == null || Obj.Kind != ZKind.Robot || death != Death.None || !isActiveAndEnabled || OpenZEnding.Holds(Obj.Id)) return;
+            if (Obj == null || Obj.Kind != ZKind.Robot || Obj.IsEvilZod || death != Death.None || !isActiveAndEnabled || OpenZEnding.Holds(Obj.Id)) return;   // DV161: he never flinches
+            if (DeathWinsRefuses()) return;                                                            // vehicle_exit_gun 2b: the death wins: no reaction on a robot the rules have dead or whose death is held (View/UnitView.DeathWins.cs)
             if (reactKind == 3 && reactT < upEnd) return;                                              // already down
             if (kind < reactKind && reactT >= 0f && reactT < reactDur) return;                            // a stronger reaction is playing
             if (kind == 3 && hold <= 0f && HitReactions.DownCount() >= HitReactions.MaxDown) kind = 2;   // DV51: the sim caps it (ZWorld.KnockMaxDown)
@@ -560,7 +585,7 @@ namespace OpenZ
         public static float KnockFrac = 0.75f;
         /// <summary>Test aid: blasts without an attacker count as heavy until this Time.time.</summary>
         public static float ForceHeavyUntil = -1f;
-        static readonly HashSet<string> Heavy = new HashSet<string> { "tough", "light", "medium", "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };
+        static readonly HashSet<string> Heavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
 
         public static int DownCount()
         {
@@ -576,7 +601,7 @@ namespace OpenZ
             string type = attacker == null ? null : attacker.IsFort ? "howitzer" : attacker.Type;
             bool heavy = !debris && !grenade && ((type != null && Heavy.Contains(type)) || (attacker == null && Time.time < ForceHeavyUntil));
             int chips = 0;
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || !v.isActiveAndEnabled || v.Dying) continue;
                 var o = v.Obj; if (o == null || !o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;

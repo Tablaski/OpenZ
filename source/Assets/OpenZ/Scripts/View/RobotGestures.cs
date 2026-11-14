@@ -30,7 +30,7 @@ namespace OpenZ
 
         public static bool Begin(UnitView v, Kind k, float delay)
         {
-            if (!v || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.Dying || !v.gameObject.activeInHierarchy) return false;
+            if (!v || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.Obj.IsEvilZod || v.Dying || !v.gameObject.activeInHierarchy) return false;   // DV161: he salutes nobody
             var g = v.GetComponent<RobotGestures>(); if (!g) g = v.gameObject.AddComponent<RobotGestures>();
             if (!g.Bind(v)) return false;
             g.kind = k; g.speed = Random.Range(0.92f, 1.08f); g.t0 = Time.time + delay; g.stopAt = -1f; g.peakLift = 0f; g.counted = false;

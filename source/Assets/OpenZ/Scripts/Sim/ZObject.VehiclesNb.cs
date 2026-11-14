@@ -57,11 +57,12 @@ namespace OpenZ.Sim
             {
                 if (!EstimateMissileTarget(t, MissileSpeed, out tx, out ty)) { tx = t.CenterX; ty = t.CenterY; }
                 tx += World.Rng.Next(32) - 16; ty += World.Rng.Next(32) - 16;                 // Zod's scatter (zobject.cpp:2150-2151)
+                HeavyRockAim(t, ref tx, ref ty);                                                // DV164: at the rock's drawn foot (Sim/ZObject.HeavyRock.cs)
                 ShellOverCover(t, ref tx, ref ty);                                              // DV122: the second shell too may skim over a kneeling / lying sniper (Sim/ZObject.ProneTarget.cs)
             }
             else { t = null; tx = hpTx; ty = hpTy; }                                         // target gone: the barrel was already laid
             var m = new ZMissile { team = Owner, attackerId = Id, targetId = t != null ? t.Id : hpTargetId, playerGiven = hpPlayerGiven,
-                                   damage = hpDamage, radius = DamageRadius, x = tx, y = ty };
+                                   damage = hpDamage, radius = DamageRadius, x = tx, y = ty, onlyId = hrShellRock };
             m.CalcExplodeTime(CenterX, CenterY, MissileSpeed, time);
             World.AddMissile(m);
             World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, false, true);   // flag2: second barrel
@@ -89,6 +90,7 @@ namespace OpenZ.Sim
             if (Type != "crane" || Kind != ZKind.Vehicle) return;
             if (!ZWorld.CraneGunDeviation || Owner == Team.Neutral || Drivers.Count == 0) { cgTarget = null; cgUpSince = -1; return; }
             var u = CraneRifle; if (u == null) return;
+            if (CraneHatchHeld(time)) return;                                                   // DV141: while the crane works, on a bridge / in a door lane (DV82) or in a ruin the driver stays inside (Sim/ZObject.CraneSnipe.cs)
             if (cgTarget != null && !CraneGunValid(cgTarget, u.attack_radius)) cgTarget = null;
             if (time >= cgNextScan)
             {
@@ -119,7 +121,7 @@ namespace OpenZ.Sim
             bool threat = o.AttackObject == this;
             if (!threat && o.Waypoints.Count > 0) { var w = o.Waypoints[0]; threat = (w.mode == WpMode.Attack || w.mode == WpMode.Agro) && w.refId == Id; }
             if (!threat) return false;
-            if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, radius)) return false;
+            if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, HighRange(radius, o))) return false;
             if (!o.ShuttleAirborne && World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) return false;   // DV118: no ground tile stops a shot at the flying shuttle
             return HasLineOfSight(o);
         }

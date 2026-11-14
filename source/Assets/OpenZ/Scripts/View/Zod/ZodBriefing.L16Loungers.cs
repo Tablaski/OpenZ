@@ -25,6 +25,8 @@ namespace OpenZ
         {
             ZodComms.Host = null;                                                                       // every line starts with the commander's plate; BoysHostBegin sets the other name
             if (kind != Kind.Briefing || mode != Mode.Level || line == null || line.host != "boys" || !game) return false;
+            var tub = OzL07HotTubSet.For(game.level);                                                   // level 7: the hot tub holds the line the same way
+            if (tub) return tub.Ready;
             var set = OzL16LoungerSet.For(game.level);
             return set && set.Ready;
         }
@@ -32,8 +34,9 @@ namespace OpenZ
         /// <summary>StartPerf, in place of StartBoys + AddAlanCueFx. False = the set could not start (the caller opens as on every level).</summary>
         bool BoysHostBegin(Perf p)
         {
+            var tub = OzL07HotTubSet.For(game.level);
             var set = OzL16LoungerSet.For(game.level);
-            if (!set || p?.line == null) return false;
+            if ((!set && !tub) || p?.line == null) return false;
             var a = new List<Vector2>(); var b = new List<Vector2>();
             if (p.line.cues != null)
                 foreach (var c in p.line.cues)
@@ -42,7 +45,8 @@ namespace OpenZ
                     else if (IsBradCue(c)) b.Add(new Vector2(c.start, c.end));
                 }
             // the line's clock: seconds on the voice clip (negative before it); +infinity while the window closes; NaN when the line is gone
-            if (!set.BriefBegin(stage, voice, a, b, () => perf == p ? (p.done ? float.PositiveInfinity : p.t) : float.NaN, VoiceGain())) return false;
+            System.Func<float> lineClock = () => perf == p ? (p.done ? float.PositiveInfinity : p.t) : float.NaN;
+            if (tub ? !tub.BriefBegin(stage, voice, a, b, lineClock, VoiceGain()) : !set.BriefBegin(stage, voice, a, b, lineClock, VoiceGain())) return false;
             ZodComms.Host = BoysHostName; comms?.ApplyRank();
             stage.GazeBoys = false;
             BoysHostLines++;
@@ -58,6 +62,6 @@ namespace OpenZ
         }
 
         /// <summary>The window's signal meter also follows the two robots' jaws on their loungers.</summary>
-        static float LoungerMouth01 => OzL16LoungerSet.I ? OzL16LoungerSet.I.Mouth01 : 0f;
+        static float LoungerMouth01 => OzL16LoungerSet.I ? OzL16LoungerSet.I.Mouth01 : OzL07HotTubSet.I ? OzL07HotTubSet.I.Mouth01 : 0f;
     }
 }

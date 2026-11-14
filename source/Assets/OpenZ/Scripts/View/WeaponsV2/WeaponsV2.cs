@@ -76,7 +76,7 @@ namespace OpenZ
             ["wv2_sniper_echo_a"] = -16.5f, ["wv2_sniper_echo_b"] = -20.1f, ["wv2_sniper_echo_c"] = -19.4f,
             ["wv2_laser_fire_a"] = -9.3f, ["wv2_laser_fire_b"] = -9.2f, ["wv2_laser_fire_c"] = -9.3f, ["wv2_laser_fire_d"] = -9.3f,
             ["wv2_laser_zap_1"] = -10.1f, ["wv2_laser_zap_2"] = -13.4f, ["wv2_laser_zap_3"] = -10.7f, ["wv2_laser_zap_4"] = -13.6f, ["wv2_laser_zap_5"] = -12.1f,
-            ["wv2_backblast_a"] = -15.4f, ["wv2_backblast_b"] = -8.3f, ["wv2_backblast_c"] = -15.4f,
+            ["wv2_backblast_a"] = -15.4f, ["wv2_backblast_b"] = -9.3f, ["wv2_backblast_c"] = -15.4f,
         };
         /// <summary>Sound-pack clips (Resources/OpenZ/Audio/Sfx) CombatAudio does not load by itself.</summary>
         static readonly Dictionary<string, float> PackLufs = new Dictionary<string, float>

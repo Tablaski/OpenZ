@@ -40,7 +40,8 @@ namespace OpenZ
         static float HullGrow(Rig r)
         {
             if (r == null || !r.view || r.obj == null || r.obj.Kind != ZKind.Vehicle) return 1f;
-            return Mathf.Clamp(r.view.ExitScaleNow, 0.05f, 1f);
+            float k = OzVehicleScaleTest.Of(r.view), s = r.view.ExitScaleNow;                          // 1.3 item 36: x the owner's vehicle scale test (View/OzVehicleScaleTest.cs; 1 for players)
+            return Mathf.Clamp(k != 1f ? s * k : s, 0.05f, 1f);
         }
 
         /// <summary>Hook (LateUpdate, the first loop, before the boarding ghosts and StepRig use crewScale): crewScale = full x grow.</summary>
@@ -110,8 +111,8 @@ namespace OpenZ
             s.seated = r.visible;
             if (r.visible)
             {
-                I.SeatPose(r, out var p, out _, out _);
-                s.anchor = p;
+                I.SeatPose(r, out var p, out _, out _); p += SeatPlaceShift(r, r.crew);                  // + his place on the seat (SeatPlace)
+                s.anchor = p + JeepSeatShift(r, r.crew);                                                   // + the jeep driver's seat shift (BoardingView.JeepSeat.cs)
                 s.drawn = r.crewHips ? r.crewHips.position : t.position + up * (I.pelvisHeight * s.size);
             }
             else
@@ -122,7 +123,7 @@ namespace OpenZ
                 float cut = r.cmdHips + I.commanderCut * (r.cmdShoulder - r.cmdHips);
                 var shown = top + up * (0.03f * sz) - up * (cut * sz);
                 var hidden = shown - up * ((r.cmdTop - cut + 0.35f) * sz);
-                s.anchor = Vector3.Lerp(hidden, shown, Mathf.SmoothStep(0, 1, r.crewPop));
+                s.anchor = Vector3.Lerp(hidden, shown, Mathf.SmoothStep(0, 1, r.crewPop)) + HatchGruntUp(r, sz) + HatchGruntSide(r, sz);   // + row 54: the hatch grunt's place (BoardingView.HatchGrunt.cs)
                 s.drawn = t.position;
             }
             var hips = r.crewHips ? r.crewHips.position : t.position;

@@ -51,6 +51,9 @@ namespace OpenZ
             Enabled = !global::OpenZ.OzRelease.IsRelease && (Arg("-showcase") || Arg("-demo") || Arg("-cinematic") || Arg("-maptop"));
         }
 
+        /// <summary>A dev exe's -demo: the level is a bot match, for this run only.</summary>
+        public static bool DemoRun;
+
         void Start() { if (!global::OpenZ.OzRelease.IsRelease) StartCoroutine(Args()); }
 
         IEnumerator Args()
@@ -58,10 +61,12 @@ namespace OpenZ
             if (argsDone) yield break;
             argsDone = true;
             var lvl = ArgVal("-level");
-            if (Arg("-demo")) { PlayerPrefs.SetInt("oz_botmatch", 1); PlayerPrefs.Save(); }
+            if (Arg("-demo") && !Arg("-ozblue")) DemoRun = true;                                                  // this run only: nothing saved
             if (!string.IsNullOrEmpty(lvl) && !Application.isEditor)
             {
-                string scene = lvl.ToUpper().Contains("17") ? "L17_CarPark" : "L02_Desert";
+                var def = System.Array.Find(global::OpenZ.OzLevelDef.All, d => lvl.Contains(d.Number));              // every level of the menu, not only L02 and L17
+                string scene = def != null ? def.Scene : "L02_Desert";
+                if (def != null && Arg("-ozblue")) global::OpenZ.OzPlayBlue.ProofArm(def.Id);                        // the level as blue, with the computer on both sides (SetDemo)
                 if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != scene) UnityEngine.SceneManagement.SceneManager.LoadScene(scene);
             }
             float w = 0; while ((!ZGame.I || ZGame.I.World == null) && w < 60f) { w += Time.unscaledDeltaTime; yield return null; }
@@ -105,8 +110,9 @@ namespace OpenZ
         void SetDemo(bool on)
         {
             var G = ZGame.I; var W = G.World;
-            W.Bots.RemoveAll(b => b.Team == Team.Red);
-            if (on) W.Bots.Add(new ZBot(W, Team.Red, G.seed + 202) { Difficulty = ZBotDifficulty.Normal });
+            var side = G.player;                                                                            // the human's side: red, or blue with -ozblue
+            W.Bots.RemoveAll(b => b.Team == side);
+            if (on) W.Bots.Add(new ZBot(W, side, G.seed + 202) { Difficulty = ZBotDifficulty.Normal });
             if (!on) PlayerPrefs.SetInt("oz_botmatch", 0);
             Debug.Log("[OpenZ] demo mode (CPU vs CPU) " + (on ? "ON" : "off"));
         }

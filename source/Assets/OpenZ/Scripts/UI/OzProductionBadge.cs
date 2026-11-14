@@ -109,14 +109,16 @@ namespace OpenZ
         }
 
         /// <summary>The unit's face: robots = the BS-01 portrait (team), vehicles / cannons = the production-card icon (the card art the
-        /// player picked, red like the production window uses for both teams); else the class glyph.</summary>
+        /// player picked) in the team's shown paint (1.2 item 66: face_&lt;unit&gt;_blue beside face_&lt;unit&gt;_red; a type without a blue
+        /// face keeps the red one); else the class glyph.</summary>
         public static string FaceFor(string unit, Team team)
         {
             if (string.IsNullOrEmpty(unit)) return "face_glyph_robot";
             bool art = OpenZUnitOverlay.TimerPortrait > 0f;
             var key = (unit, TeamColors.Shown(team), art);                                             // swap-safe cache key
             if (faceCache.TryGetValue(key, out var f)) return f;                                      // no per-frame string building
-            string k = !art ? null : ZBuildLists.IsRobot(unit) ? "face_" + unit + "_" + TeamName(team) : "face_" + unit + "_red";
+            string k = !art ? null : "face_" + OzV2Units.FaceUnit(OzHeavyTank.FaceUnit(unit)) + "_" + TeamName(team);   // 1.2 item 66: vehicles and cannons in the team's paint too; 1.2 item 117: face_heavy_v2_* while v2 is drawn; 1.2 v2 units: face_light_v2_*
+            if (k != null && !ZBuildLists.IsRobot(unit) && Get(1, k) == null && Get(2, k) == null) k = "face_" + unit + "_red";   // no blue face of this type: the red one
             f = k != null && (Get(1, k) != null || Get(2, k) != null) ? k : "face_glyph_" + UnitInfo.ClassGlyph(unit);
             faceCache[key] = f;
             return f;

@@ -10,10 +10,10 @@ namespace OpenZ
     // own. In a level MusicCore owns ALL the music (regular playlists, fort-attack drama, end music); the music_v2 A / B voices
     // then stay idle (SwitchMusic returns, the fixed end-music timers are skipped) and only play the main menu.
     //  - Inputs per frame: real dt (fades, playback), SIM seconds (the difference of W.Time: the attack holds, like the fort's hit
-    //    record) and play seconds (real time while the game runs: the drama length and the interlude), oz_music, pause, Zod's
-    //    danger state as the calm / battle mood (CALM -> calm; ATTACKING and FORT -> battle: one lone unit never brings the
+    //    record) and play seconds (real time while the game runs: the drama length and the 5-minute limit), oz_music, pause, Zod's
+    //    danger state as the calm / battle mood (CALM -> calm; ATTACKING and FORT -> battle: Zod's state never brings the
     //    drama), a VIEW-SIDE reading of both forts every 0.25 s (MusicFortReader: reads W.Objects, writes nothing: the sim stays
-    //    deterministic), the sim's game over, the end screen (the same test OpenZEndScreen uses), the sting length, Zod speaking
+    //    deterministic; music_drama: measured to the forts' walls), the sim's game over, the end screen (the same test OpenZEndScreen uses), the sting length, Zod speaking
     //    (ZodBriefing.Speaking) and the shared music duck (Rachel / Alan).
     //  - Output: volume = MusicCore gain (fade x clip gain x the deepest duck) x master x the Music bus WITHOUT its duck
     //    (MusicCore already took the deepest of it and Zod's) x the pause dip; the 900 Hz pause low-pass like the A / B voices.
@@ -73,8 +73,10 @@ namespace OpenZ
                 {   // OpenZ > Music v3 > Force ...: a synthetic reading for the Play proof (view only, the sim is untouched)
                     var big = new FortReading { alive = true, score = 9f, units = 5, outerScore = 9f, sinceHit = 0f };          // a big attack (not heavy)
                     var heavy = new FortReading { alive = true, score = 14f, units = 6, outerScore = 14f, sinceHit = 0f };      // >= 3 units worth >= 12, hitting
-                    var one = new FortReading { alive = true, score = 5f, units = 1, outerScore = 5f, sinceHit = 0f };
+                    var one = new FortReading { alive = true, score = 2f, units = 1, outerScore = 2f, sinceHit = 0f };          // music_drama: ONE 2-pt unit engaged while the fort is hit (a jeep at the gate; a jeep itself cannot hurt a fort): never the drama
                     var idle = new FortReading { alive = true, score = 0f, units = 0, outerScore = 12f, sinceHit = 999f };      // parked, not engaged
+                    var light = new FortReading { alive = true, score = 3f, units = 1, outerScore = 3f, sinceHit = 0f };        // music_drama: ONE light tank hitting (3 pts): fort under fire
+                    var tough = new FortReading { alive = true, score = 2f, units = 2, outerScore = 2f, sinceHit = 0f };        // music_drama: a Tough squad (2 robots, 2 pts) rocketing: fort under fire
                     switch (mv3ForceKind)
                     {
                         case 1: mv3Ours = big; break;
@@ -82,6 +84,8 @@ namespace OpenZ
                         case 3: mv3Ours = one; break;
                         case 4: mv3Ours = heavy; break;
                         case 5: mv3Ours = idle; break;
+                        case 6: mv3Ours = light; break;
+                        case 7: mv3Ours = tough; break;
                     }
                 }
             }
@@ -97,7 +101,7 @@ namespace OpenZ
             if (!mv3FirstSaved && !string.IsNullOrEmpty(mv3.FirstPicked))
             {
                 mv3FirstSaved = true; MusicFirstTrack = mv3.FirstPicked;
-                try { PlayerPrefs.SetString("oz_music_first_" + (City ? "l17" : "l02"), mv3.FirstPicked); } catch (Exception) { }
+                try { PlayerPrefs.SetString("oz_music_first_" + MusicLv, mv3.FirstPicked); } catch (Exception) { }
                 Debug.Log($"[MusicV3] level start music: {mv3.FirstPicked} (random from the whole pool, not {mv3.AvoidFirst})");
             }
             if (mv3.DramaPicks != mv3DramaSaved) SaveDramaBag();                                              // a dramatic track was picked: the next match and the next start of the game go on from here
@@ -133,7 +137,7 @@ namespace OpenZ
 
         bool BuildMusicV3()
         {
-            string lv = City ? "l17" : "l02";
+            string lv = MusicLv;
             var tracks = new List<MusicTrack>(); var clips = new List<AudioClip>();
             var extra = MusicV3Extras();
             AddPool(tracks, clips, Def("mus_" + lv + "_calm"), MusicPool.Calm, extra);
@@ -153,8 +157,11 @@ namespace OpenZ
             mv3DramaSaved = mv3.DramaPicks;
             mv3LastSimTime = -1;
             int z = tracks.FindAll(t => t.zopen).Count;
+            var dg = tracks.FindAll(t => t.pool == MusicPool.Drama); int measured = dg.FindAll(t => t.dramaDb.HasValue).Count;   // music_drama: the drama lift in the live line
+            float dLo = 99f, dHi = -99f; foreach (var t in dg) { float g = MusicCore.DramaDbOf(t, musicV3Config); dLo = Mathf.Min(dLo, g); dHi = Mathf.Max(dHi, g); }
             Debug.Log($"[MusicV3] live: {lv}, {tracks.Count} tracks (calm {mv3.PoolCount(MusicPool.Calm)}, battle {mv3.PoolCount(MusicPool.Battle)}, drama {mv3.PoolCount(MusicPool.Drama)}, " +
-                      $"victory {mv3.PoolCount(MusicPool.Victory)}, menu {mv3.PoolCount(MusicPool.Menu)}; {z} added), music {(MusicOn ? "on" : "OFF (oz_music)")}, Zod duck {musicV3Config.zodDuckDb:0.0} dB");
+                      $"victory {mv3.PoolCount(MusicPool.Victory)}, menu {mv3.PoolCount(MusicPool.Menu)}; {z} added), music {(MusicOn ? "on" : "OFF (oz_music)")}, Zod duck {musicV3Config.zodDuckDb:0.0} dB" +
+                      (dg.Count > 0 ? $", drama lift {dLo:+0.0;-0.0}..{dHi:+0.0;-0.0} dB ({measured} of {dg.Count} measured), strongest first" : ""));
             if (z == 0) Debug.LogWarning("[MusicV3] NO added (zopen) tracks in this level's playlists: the sound table lost them (was the music v2 import run again after music v3?). Import music v3 again, then OpenZ > Music v3 > Check tracks.");
             return true;
         }
@@ -173,6 +180,7 @@ namespace OpenZ
                     id = clips.Count, name = c.name, pool = pool, length = c.length, tail = MusicXfade(c), gainDb = d.volDb + d.gains[i],
                     entries = m != null ? m.entries : null, zopen = line == "zopen", guest = line == "guest", eventId = d.id,
                     dramaIn = pool == MusicPool.Drama && x != null ? x.dramaIn : 0f, intensity = x != null ? x.intensity : 0f,
+                    dramaDb = pool == MusicPool.Drama ? MusicDramaGain.For(MusicLv, c.name) : null,                        // music_drama: the measured lift (at least +4 LU over this level's battle songs)
                 });
                 clips.Add(c);
             }
@@ -202,9 +210,11 @@ namespace OpenZ
             return "[MusicV3] " + mv3.Status() + $"  forts: ours {mv3Ours}, theirs {mv3Theirs}{(Time.unscaledTime < mv3ForceUntil ? $" (FORCED {mv3ForceKind}, {mv3ForceUntil - Time.unscaledTime:0} s left)" : "")}\n  " +
                    (mv3Out != null ? mv3Out.Describe() : "");
         }
-        /// <summary>kind 1 = big attack on our fort (9 pts, 5 units, hitting), 2 = on the enemy fort, 3 = ONE unit shooting our fort (must NOT
-        /// start the drama), 4 = HEAVY attack on our fort (14 pts, 6 units: may cut the interlude to 25 s), 5 = idle units parked by our
-        /// fort (12 pts, not engaged: must never start or hold the drama), 0 = clear.</summary>
+        /// <summary>kind 1 = big attack on our fort (9 pts, 5 units, hitting), 2 = on the enemy fort, 3 = ONE 2-point unit engaged at our fort while
+        /// it is hit (a jeep at the gate, 1 unit: must NOT start the drama), 4 = HEAVY attack on our fort (14 pts, 6 units: the 5-minute limit applies to it too), 5 = idle units
+        /// parked by our fort (12 pts, not engaged: must never start or hold the drama), 6 = ONE light tank hitting our fort (3 pts: the fort
+        /// under fire, music_drama: the drama after 3 s), 7 = a Tough squad rocketing our fort (2 robots, 2 pts: under fire, the drama after
+        /// 3 s), 0 = clear.</summary>
         public void MusicV3Force(int kind, float seconds) { mv3ForceKind = kind; mv3ForceUntil = kind == 0 ? -1f : Time.unscaledTime + seconds; mv3NextRead = 0f; Debug.Log($"[MusicV3] force {kind} for {seconds:0} s (view-side reading only)"); }
         public void MusicV3Skip() { if (mv3 != null) mv3.Skip(); else Debug.Log("[MusicV3] not active here (the main menu plays music_v2: use Music v2 > Skip)"); }
         public MusicCore MusicV3Core => mv3;

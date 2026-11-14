@@ -105,8 +105,10 @@ namespace OpenZ
             bannerField = typeof(RulesView).GetField("banner", BindingFlags.NonPublic | BindingFlags.Instance);   // its OnGUI banner is replaced by this screen
         }
 
-        void Update()
+        // duel owns its end screen
+            void Update()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
             if (hud == null || game == null || game.World == null) return;
             var W = game.World;
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
@@ -144,7 +146,7 @@ namespace OpenZ
             post = kind == "victory" ? new OzPost("OZ_EndScreen", -45f, -0.9f, 0.35f) : kind == "defeat" ? new OzPost("OZ_EndScreen", -70f, -1.1f, 0.45f) : new OzPost("OZ_EndScreen", -60f, -1f, 0.4f);
             Color accent = win ? OzUi.Amber : kind == "defeat" ? (Color)OzUi.Alert : (Color)OzUi.Ink2;
             float cx = OzLayout.RefW * 0.5f;
-            string level = game.level == "L17" ? "THE CAR PARK" : game.level == "L16" ? "THE JUNGLE" : "THE DESERT";
+            string level = game.level == "L17" ? "THE CAR PARK" : game.level == "L16" ? "THE JUNGLE" : OzVolcanic.Is(game.level) ? OzVolcanic.EndName : "THE DESERT";
             string lvlCode = game.level;
             Team enemy = me == Team.Red ? Team.Blue : Team.Red;
 
@@ -176,7 +178,7 @@ namespace OpenZ
             var well = Hud.Kit(flankL, "Well", "Panels/well_6", new OzRect(8, 8, OzLayout.EndFlankWell, OzLayout.EndFlankWell), OzKit.Available ? (Color?)null : OzUi.GM950);
             var pm = Hud.Kit(flankL, "PortraitMask", "Portrait/portrait_mask", new OzRect(8, 8, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple);
             if (OzKit.GetSprite("Portrait/portrait_mask") != null) pm.gameObject.AddComponent<Mask>().showMaskGraphic = false; else pm.color = OzUi.GM950;
-            Hud.Kit(pm.transform, "Bg", "Portrait/portrait_bg_" + (game.level == "L17" ? "city" : "desert"), new OzRect(0, 0, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple);
+            Hud.Kit(pm.transform, "Bg", "Portrait/portrait_bg_" + OzVolcanic.PortraitBg(game.level), new OzRect(0, 0, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple);
             var art = Hud.Node("Art", pm.transform); art.Fill(); var ri = art.gameObject.AddComponent<RawImage>(); ri.raycastTarget = false;
             ri.texture = OzHeroSquadView.FacePortrait(face, me); ri.enabled = ri.texture != null;   // DV108: the hero squad's picture (else UnitArt.Portrait)
             Hud.Kit(flankL, "Frame", "Portrait/portrait_frame", new OzRect(8, 8, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple).enabled = OzKit.Available;
@@ -268,8 +270,9 @@ namespace OpenZ
             // buttons + hint
             BuildScore(accent, sx0);                                                                     // score, rank and the level's table (OpenZEndScreen.Score.cs)
             string primary = win ? "CONTINUE" : "RETRY";
-            Button(0, "REPLAY", cx - 330, 220, HudButtonStyle.Normal, OzScenes.Restart, "REPLAY|Play this level again from the start.|R");
-            Button(1, primary, cx - 100, 200, HudButtonStyle.Primary, win ? (System.Action)OzScenes.Next : OzScenes.Restart,
+            System.Action again = kind == "defeat" ? (System.Action)OzScenes.RestartAfterLoss : OzScenes.Restart;   // 1.3 row 58 DV165: after a DEFEAT the level again with the retry flag (UI/OzUi.cs OzScenes)
+            Button(0, "REPLAY", cx - 330, 220, HudButtonStyle.Normal, again, "REPLAY|Play this level again from the start.|R");
+            Button(1, primary, cx - 100, 200, HudButtonStyle.Primary, win ? (System.Action)OzScenes.Next : again,
                    win ? "CONTINUE|The next operation.|ENTER" : "RETRY|Fight this battle again.|ENTER");
             Button(2, "MAIN MENU", cx + 110, 220, HudButtonStyle.Normal, OzScenes.MainMenu, OzScenes.HasMenu ? "MAIN MENU|Back to the front end.|ESC" : "MAIN MENU|The front end is not in the build yet: this loads the first level.|ESC");
             focusRing = Hud.Kit(root, "Focus", "Buttons/btn_l_focus", new OzRect(OzAnchor.TC, cx - 104, OzLayout.EndButtonsY - 4, 208, 58), OzUi.Amber);

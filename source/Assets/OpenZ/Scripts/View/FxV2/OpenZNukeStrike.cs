@@ -23,7 +23,7 @@ namespace OpenZ
     /// strike. Impacted is raised for OpenZVictory (voices, celebration, end screen). Pause-safe: the slow motion never writes the
     /// time scale while the pause menu holds it at 0, and always restores 1.
     /// </summary>
-    public sealed class OpenZNukeStrike : MonoBehaviour
+    public sealed partial class OpenZNukeStrike : MonoBehaviour   // 1.3 item 2: + View/FxV2/OpenZNukeStrike.Playground.cs (the Unit editor's NUKE)
     {
         public static bool Enabled = true;
         // flight (m, s, real time)
@@ -166,6 +166,7 @@ namespace OpenZ
                 PaintPlane(model);
                 root.localScale = Vector3.one * PlaneScale;
                 plane = root;
+                if (playground) LightPlaneBlur(model);
                 var ca = CombatAudio.I; var clip = ca ? ca.Clip("v3-aircraft-engine-a") : null;
                 if (clip)
                 {
@@ -265,7 +266,7 @@ namespace OpenZ
             if (missile) { missile.gameObject.SetActive(true); missile.position = releasePos; }
             CombatAudio.I?.Play("launch", releasePos, 0.8f, 0f, -1, "v3-bomb-release-a");
             CombatAudio.I?.PlayPitched("nuke", releasePos, 1.0f, 0f, -1, DescentPitch, "nuke-descent-20260909");
-            OpenZVoiceV3.OnBombReleased(ours);                                            // voice_lines_v3: "Here comes the delivery!"
+            if (!playground) OpenZVoiceV3.OnBombReleased(ours);                           // voice_lines_v3: "Here comes the delivery!" (1.3 item 2: not for the Unit editor's NUKE)
         }
 
         /// <summary></summary>
@@ -308,7 +309,8 @@ namespace OpenZ
         void Impact()
         {
             impacted = true;
-            impactTime = LastImpactTime = Time.time; LastImpactPoint = target;
+            impactTime = Time.time;
+            if (!playground) { LastImpactTime = impactTime; LastImpactPoint = target; }           // 1.3 item 2: the endings, the victory and the level fauna read these; the Unit editor's NUKE keeps out of them
             if (missile) missile.gameObject.SetActive(false);
             if (impactY > target.y + 1f && OpenZFxPlayer.I)                                           // combat_nb_v1 NB29: the bomb bursts where it hits the roof
                 OpenZFxPlayer.I.Blast(new Vector3(target.x, impactY + 0.5f, target.z), 9f, FxBlastKind.Missile, 98000 + (int)(t0 * 10f) % 1000, 2.2f);
@@ -317,10 +319,10 @@ namespace OpenZ
             try { act?.Invoke(); }
             catch (Exception e) { Debug.LogException(e); }
             OpenZBloomDirector.Flash(1f);
-            StartCoroutine(SlowMotion());
+            if (!playground) StartCoroutine(SlowMotion());                                // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
             StartCoroutine(Aftermath());
-            try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); }
-            Debug.Log($"[OpenZ] nuke strike impact at {target} ({(ours ? "our fort" : "enemy fort")}), {Time.time - t0:F1} s after the fort fell");
+            if (!playground) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }   // 1.3 item 2: no victory / ending for the Unit editor's NUKE
+            Debug.Log($"[OpenZ] nuke strike impact at {target} ({(playground ? "the Unit editor's NUKE" : ours ? "our fort" : "enemy fort")}), {Time.time - t0:F1} s after the {(playground ? "call" : "fort fell")}");
         }
 
         bool slowing; float scaleWritten = -1f;
@@ -374,7 +376,7 @@ namespace OpenZ
             if (shake == null) yield break;
             // (ShakeNukeRumble, ~1 s at full strength, eased out by ShakeNukeRumbleSeconds), above the fort fall without a strike
             shake.TimedRumble(at, OpenZFxCatalog.ShakeNukeRumble, OpenZFxCatalog.ShakeNukeRumbleSeconds, "nuke");
-            OzEndingVignette.Begin(ours ? 1 : 0);
+            if (!playground) OzEndingVignette.Begin(ours ? 1 : 0);
         }
 
         void OnDestroy()

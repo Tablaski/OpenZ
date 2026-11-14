@@ -15,7 +15,7 @@ namespace OpenZ
     /// Ctrl+R/V/C/A select all robots/vehicles/cannons/robots+vehicles; R/V/G cycle one unit and fly to it.
     /// Hit tests use each unit's Zod rectangle (16 px robots, 32 px vehicles/cannons) projected to the screen.
     /// </summary>
-    public class PlayerInput : MonoBehaviour
+    public partial class PlayerInput : MonoBehaviour
     {
         public ZGame game;
         public RtsCamera cam;
@@ -51,23 +51,28 @@ namespace OpenZ
 
         void OnDestroy() { realBounds.Clear(); }
 
-        void Update()
+        // duel input capture
+            void Update()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
             var mouse = Mouse.current; var kb = Keyboard.current;
             if (mouse == null || kb == null || game == null || game.World == null) return;
+            OzOrderWatch.Tick(game.World);                                                              // 1.3 item 29: one log line for an order that leaves units standing (View/OzOrderWatch.cs)
             for (int i = 0; i < Selection.Count; i++)                                                   // a selected squad leader died: keep the squad selected (its new leader)
             {
                 var s = Selection[i]; int guard = 0;
                 while (s != null && (s.Destroyed || s.KillAt >= 0) && s.Successor != null && guard++ < 8) s = s.Successor;   // KC4b: also a leader who left the map (boarded): the squad's next member stays selected
                 if (s != null && s.Leader != null && !s.Leader.Destroyed && s.Leader.KillAt < 0 && s.Leader.Owner == s.Owner) s = s.Leader;   // bug 12 / 18: a picked member -> its (new) leader
-                if (s != null && s != Selection[i] && !s.Destroyed && s.Owner == game.player && !Selection.Contains(s)) Selection[i] = s;
+                if (s != null && s != Selection[i] && !s.Destroyed && Mine(s.Owner) && !Selection.Contains(s)) Selection[i] = s;   // 1.2 item 6: both teams in the Unit editor's playground (View/PlayerInput.BothSides.cs)
                 else if (s != null && s != Selection[i] && Selection.Contains(s)) { Selection.RemoveAt(i); i--; }
             }
-            Selection.RemoveAll(selPrune ??= o => o.Destroyed || o.Owner != game.player || (o.KillAt >= 0 && W.Get(o.Id) != o));   // KC4b: a robot removed from the map (boarded) leaves the selection once the squad's hand-over is followed
+            Selection.RemoveAll(selPrune ??= o => o.Destroyed || !Mine(o.Owner) || (o.KillAt >= 0 && W.Get(o.Id) != o));   // KC4b: a robot removed from the map (boarded) leaves the selection once the squad's hand-over is followed; 1.2 item 6: both teams in the playground
+            if (FpsViewStep(kb)) return;                                                              // 1.4 fps_view: Alt+F, and nothing else here while the first-person view is on (View/PlayerInput.FpsView.cs)
             Vector2 mp = mouse.position.ReadValue();
-            Hover = HoverAt(mp);
+            if (EndLockStep(mouse, mp)) return;                                                   // 1.2 item 68: the match is decided: no selection, order or hover (View/PlayerInput.MatchEnd.cs)
+            long ozHv = OzPerfNumbers.Now(); Hover = FortGateHover(HoverAt(mp), mp); OzPerfNumbers.HoverDone(ozHv);   // 1.3 item 38 (log only): the hover pick's time for the per-minute perf line; 1.4: an enemy fort's gate zone and its parts (View/PlayerInput.FortGate.cs)
 
-            bool over = W.GameOver && ZWorld.EndFreezeDeviation;                                 // endgame_ui_v1: after the win no orders (selection + camera stay)
+            bool over = (W.GameOver && ZWorld.EndFreezeDeviation) || OzUeHooks.OrdersHeld;      // endgame_ui_v1: after the win no orders (selection + camera stay); 1.2 item 6: none after the playground's right-drag pan or right-click pick (View/OzUeHooks.cs)
             if (over) { if (Placing != null) CancelPlace(); pending.Clear(); }
             else UpdatePlacement(mouse, kb, mp);
             if (Placing != null) return;                                                  // placement owns the mouse (Zod: next left release places)
@@ -98,22 +103,22 @@ namespace OpenZ
             if (!over && !ctrl && !alt && Selection.Count > 0)
             {
                 if (OzBindings.Pressed(OzAction.Patrol)) { PatrolArmed = true; AudioDirector.UI("ui_click"); Debug.Log("[OpenZ Orders] patrol armed: right-click the far end"); }
-                if (OzBindings.Pressed(OzAction.StopUnits)) OrderEach((w, u) => w.SendStop(game.player, u), "stop");
+                if (OzBindings.Pressed(OzAction.StopUnits)) OrderEach((w, u) => w.SendStop(SideOf(u), u), "stop");   // 1.2 item 6: each unit's own team in the playground
                 if (OzBindings.Pressed(OzAction.HoldPosition)) OrderEach((w, u) => w.SendHold(game.player, u), "hold position");
             }
             if (PatrolArmed && (over || Selection.Count == 0 || mouse.leftButton.wasPressedThisFrame)) { PatrolArmed = false; AudioDirector.UI("ui_cancel"); }
-            if (PatrolArmed && !over && mouse.rightButton.wasReleasedThisFrame && InView(mp))
+            if (PatrolArmed && !over && OzRightDrag.Click(mouse, OzRightDrag.SitePatrol) && InView(mp))       // 1.4 RIGHT-DRAG SCROLL: the release of a drag is no click (View/OzRightDrag.cs)
             {
                 PatrolArmed = false;
                 if (game.GroundPoint(Cam.ScreenPointToRay(mp), out var pg))
                 {
                     var pt = ZGame.WorldToPx(pg);
                     MarkerPos = pg;
-                    OrderEach((w, u) => !OzShuttleOrderAim.PatrolRefused(w, u, pt.x, pt.y) && w.SendPatrol(game.player, u, pt.x, pt.y), $"patrol to ({pt.x},{pt.y})");   // K256g SHUTTLE ORDERS: no patrol for a shuttle to a place where it can never land
+                    OrderEach((w, u) => !OzShuttleOrderAim.PatrolRefused(w, u, pt.x, pt.y) && w.SendPatrol(SideOf(u), u, pt.x, pt.y), $"patrol to ({pt.x},{pt.y})");   // K256g SHUTTLE ORDERS: no patrol for a shuttle to a place where it can never land; 1.2 item 6: each unit's own team in the playground
                 }
                 else AudioDirector.UI("ui_order_invalid");
             }
-            else if (!over && mouse.rightButton.wasReleasedThisFrame && InView(mp) && Selection.Count > 0)
+            else if (!over && OzRightDrag.Click(mouse, OzRightDrag.SiteOrders) && InView(mp) && Selection.Count > 0)   // 1.4 RIGHT-DRAG SCROLL: a drag gives no order
             {
                 // the last click of a queue: Shift let go just before the right button used to make it a plain order that replaced
                 // the whole queue (the units went straight to the last point). It is the queue's last point: the queue is sent with it.
@@ -142,7 +147,7 @@ namespace OpenZ
             for (int d = 0; d <= 9; d++)
             {
                 var key = kb[d == 0 ? Key.Digit0 : (Key)((int)Key.Digit1 + d - 1)];            // Input System order: Digit1..Digit9, then Digit0
-                if (!key.wasPressedThisFrame) continue;
+                if (!key.wasPressedThisFrame || BothSides) continue;                                 // 1.2 item 6: the digit keys are the Unit editor's team keys (no control groups there)
                 if (ctrl) groups[d] = new List<ZObject>(Selection);
                 else if (groups.TryGetValue(d, out var g))
                 {
@@ -214,6 +219,7 @@ namespace OpenZ
         public Rect ScreenRect(ZObject o)
         {
             var c = Cam;
+            if (o.Kind == ZKind.Robot && ExitPick(o, c, out var xr)) return xr;                        // 1.2 item 2f: a robot getting out of a carrier is picked at its walking figure, none while still inside (View/PlayerInput.ExitPick.cs)
             // but the model is drawn up to ~2 m off it (UnitView spacing offset + eased display, bridge decks, knock pushes), so a click on
             // the drawn robot / vehicle missed (squad members spread out, a lone robot and some vehicles unselectable, an enemy tank with the
             // GO cursor): units are picked where they are DRAWN; (3 + 22) vehicles / guns / buildings get a tight box from their real mesh
@@ -447,7 +453,7 @@ namespace OpenZ
             if (!additive) Selection.Clear();
             foreach (var o in W.Objects)
             {
-                if (!OwnPickable(o, game.player)) continue;
+                if (!Pickable(o)) continue;                                                       // 1.2 item 6: both teams in the playground (View/PlayerInput.BothSides.cs)
                 var head = PickHead(o); if (head == null || Selection.Contains(head)) continue;
                 if (r.Overlaps(ScreenRect(o))) Selection.Add(head);
             }
@@ -456,8 +462,9 @@ namespace OpenZ
         void CollectClick(Vector2 mp, bool ctrl = false)
         {
             if (!additive) Selection.Clear();
-            var cands = W.Objects.Where(o => OwnPickable(o, game.player) && ScreenRect(o).Contains(mp))
-                                 .Select(PickHead).Where(o => o != null).Distinct().ToList();
+            var hits = W.Objects.Where(o => Pickable(o) && ScreenRect(o).Contains(mp)).ToList();   // 1.2 item 6: both teams in the playground (View/PlayerInput.BothSides.cs)
+            ExitPickFirst(hits);                                                                          // 1.2 item 2f: a robot walking out beats the ship it leaves (View/PlayerInput.ExitPick.cs)
+            var cands = hits.Select(PickHead).Where(o => o != null).Distinct().ToList();
             if (cands.Count == 0) { lastClickType = null; return; }
             var pick = cands[UnityEngine.Random.Range(0, cands.Count)];                  // Zod picks one at random (zplayer.cpp:2583-2614); view RNG: never the sim's seeded stream (unit_voices_v1 review)
             // double-click: every own unit of that type on screen (standard RTS)
@@ -466,7 +473,7 @@ namespace OpenZ
             {
                 var screen = new Rect(0, 0, Screen.width, Screen.height);
                 Selection.Clear();
-                Selection.AddRange(W.OwnedSelectable(game.player).Where(o => OzHeroSquadView.FaceKey(o) == pickKind && screen.Overlaps(ScreenRect(o))));
+                Selection.AddRange(W.OwnedSelectable(SideOf(pick)).Where(o => OzHeroSquadView.FaceKey(o) == pickKind && screen.Overlaps(ScreenRect(o))));   // 1.2 item 6: the picked unit's team
                 lastClickType = null; SelectAllAt = Time.unscaledTime; SelectVoice(); return;              // sound_v3
             }
             lastClickType = pickKind; lastClickTime = Time.unscaledTime;
@@ -543,6 +550,7 @@ namespace OpenZ
         ZObject HoverAt(Vector2 mp)
         {
             ZObject h = null, hu = null;
+            bool far = HoverPreCull && FarBegin();                                                         // 1.3 item 39: the pre-cull of objects far from the pointer (View/PlayerInput.HoverCull.cs)
             int treeX = -100000, treeY = -100000;                                                          // DV88: the tile under the pointer (levels with trees that can be felled only)
             if (W.TreeTiles.Count > 0 && game.GroundPoint(Cam.ScreenPointToRay(mp), out var treeAt)) { var tp = ZGame.WorldToPx(treeAt); treeX = tp.x >> 4; treeY = tp.y >> 4; }
             var kbd = Keyboard.current; bool forceBridge = kbd != null && kbd.ctrlKey.isPressed;
@@ -553,18 +561,19 @@ namespace OpenZ
             bool robotSel = false; foreach (var s in Selection) if (s != null && s.Kind == ZKind.Robot && s.Owner == game.player && !s.Destroyed) { robotSel = true; break; }
             foreach (var o in W.Objects)
             {
-                if ((o.Destroyed && o.Kind != ZKind.Building) || (o.IsMinion && o.Owner == game.player)) continue;   // DV16: an ENEMY squad member is a target (Zod hovers minions too); only our own minions are skipped
+                if ((o.Destroyed && o.Kind != ZKind.Building) || (o.IsMinion && o.Owner == game.player && !BothSides)) continue;   // DV16: an ENEMY squad member is a target (Zod hovers minions too); only our own minions are skipped; 1.2 item 6: in the playground every member (both teams pick)
+                if (OzFogOfWar.Covers(o)) continue;                                                        // 1.4 FOG OF WAR: nothing of another side in ground not explored yet is hovered or clicked (View/OzFogOfWar.cs); always false with the fog off
                 if (o.BlockTiles != null && W.IsTreeTile(o) && (Mathf.Abs((o.LocX >> 4) - treeX) > 8 || Mathf.Abs((o.LocY >> 4) - treeY) > 8)) continue;   // DV88: a tree more than 8 tiles from the pointer cannot be under it (its pick box is at most 4.5 m high): no pick box is worked out for it
                 // target only when explicitly ordered (Ctrl held = attack)
                 if (o.IsBridge && !forceBridge && !(craneSel && o.Destroyed)) continue;
                 bool interesting = o.Type == "flag" || o.Type == "grenades" || o.Kind == ZKind.Building || o.Type == "rock" || o.Type == ZWorld.WreckType /* l17_details_v1 DV39 */ ||
                                    o.Type == ZWorld.DetailPropType ||
                                    o.Type == "hut" || o.Type.StartsWith("map_object") || /* ZF4 / BP3: huts (base props), cacti, boulders, blocks: Zod hovers every object (zplayer_events.cpp:129-141) */
-                                   ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner != game.player) ||
+                                   ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && (BothSides || o.Owner != game.player)) ||   /* 1.2 item 6: every unit in the playground */
                                    (robotSel && o.Owner == game.player && o.CanTakePassengers(game.player));   // (11): an own APC with room
-                if (interesting && ScreenRect(o).Contains(mp)) { if (o.IsUnit && !o.Destroyed) hu = o; else h = o; }
+                if (interesting && !(far && HoverFar(o, mp)) && ScreenRect(o).Contains(mp)) { if (o.IsUnit && !o.Destroyed) hu = o; else h = o; }   // 1.3 item 39: an object whose pick box cannot reach the pointer is not asked for it
             }
-            return hu ?? h;
+            return hu ?? h ?? OzUeHooks.PlatformUnder(mp);                                               // 1.3 the Unit editor: with Ctrl held the ramp platform under the pointer is the target (View/OzUeHooks.cs); null in every level
         }
 
         /// <summary>Hostile unit within attack radius + agro distance (zplayer.cpp:2726-2744).</summary>
@@ -592,15 +601,15 @@ namespace OpenZ
             if (h == null) return wp;
             wp.refId = h.Id;
             if (h.Type == "flag") return wp;                                                // move onto the flag = capture
-            bool notOurs = h.Owner != game.player;
+            bool notOurs = BothSides ? h.Owner != u.Owner : h.Owner != game.player;   // 1.2 item 6: per unit in the playground (red units attack a blue one, blue units move to it)
             // zplayer.cpp:2746-2881 special rows
             // orders never divert to fight on the way (Zod's attackTo diversion hijacked them, zobject.cpp:2561/2645)
             if (u.CanBeRepaired() && h.CanRepairUnit(u.Owner)) { wp.mode = WpMode.UnitRepair; wp.attackTo = false; wp.x = h.CenterX - 8; wp.y = h.CenterY; return wp; }
             if (u.Type == "crane" && h.CanBeRepairedByCrane(u.Owner) && h.GetCraneCenter(out int kx, out int ky)) { wp.mode = WpMode.CraneRepair; wp.attackTo = false; wp.x = kx; wp.y = ky; return wp; }
-            if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && OnFortDoor(h, x, y)) { wp.mode = WpMode.EnterFort; wp.attackTo = false; return wp; }
+            if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && FortEnterClick(h, x, y, ctrl)) { wp.mode = WpMode.EnterFort; wp.attackTo = false; return wp; }   // 1.4: Zod's door, the gate zone, the fort's body without Ctrl (View/PlayerInput.FortGate.cs)
             if (h.Destroyed) { wp.refId = -1; return wp; }                                     // rubble: just move there
             // captures it, as in Zod); only Ctrl (force attack) attacks it
-            if (h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrl) { wp.refId = -1; return wp; }
+            if ((h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrl) || OzUeHooks.PlainObstacleClick(h, ctrl)) { wp.refId = -1; return wp; }   // 1.2 item 6: the playground's holo obstacle too (Ctrl attacks it)
             if (ZWorld.EmptyClickWaypoint(u, h, ctrl, ref wp)) return wp;                     // DV81: an empty vehicle or gun is attacked only with Ctrl held; without it robots enter (below), vehicles move next to it, guns get no order (Sim/ZWorld.EmptyTargets.cs)
             switch (u.Kind)
             {
@@ -610,6 +619,7 @@ namespace OpenZ
                     // enter / pickup aim at the object's centre, not the clicked ground point: in 3D the click on a model's top lands
                     // outside its footprint and the order then ended silently next to it (Zod's 2D click is always inside the sprite)
                     if (h.Type == "grenades" && u.Type != "tough" && u.CanPickupGrenades()) { wp.mode = WpMode.PickupGrenades; wp.attackTo = false; wp.x = h.CenterX; wp.y = h.CenterY; return wp; }
+                    if (u.IsEvilZod && h.Owner == Team.Neutral && (h.Kind == ZKind.Vehicle || h.Kind == ZKind.Cannon)) { wp.refId = -1; return wp; }   // DV161: too big for it: a plain move to the point (Ctrl still attacks it, above; Sim/ZEvilZod.cs)
                     if ((h.Owner == Team.Neutral && (h.Kind == ZKind.Vehicle || h.Kind == ZKind.Cannon)) || h.CanTakePassengers(u)) { wp.mode = WpMode.Enter; wp.attackTo = false; wp.x = h.CenterX; wp.y = h.CenterY; return wp; }
                     if (notOurs) wp.mode = WpMode.Attack;
                     return wp;
@@ -639,7 +649,7 @@ namespace OpenZ
         {
             if (u == null) return false;
             pending.Remove(u);                                                                            // ClearDevWayPointsOfSelected
-            bool ok = OzShuttleAirOffers.ExitOrder(u) && W.Eject(game.player, u);                     // K430b: no EXIT order up in the air (refused with the blip below; UI/OzShuttleAirOffers.cs)
+            bool ok = OzShuttleAirOffers.ExitOrder(u) && W.Eject(SideOf(u), u);                       // K430b: no EXIT order up in the air (refused with the blip below; UI/OzShuttleAirOffers.cs); 1.2 item 6: the unit's own team in the playground
             if (!ok) AudioDirector.UI("ui_order_invalid");
             else { MarkerTime = Time.unscaledTime; EjectedAt = MarkerTime; }                             // sound_v3
             return ok;
@@ -674,7 +684,7 @@ namespace OpenZ
 
         void UpdatePlacement(Mouse mouse, Keyboard kb, Vector2 mp)
         {
-            if (OzBindings.Pressed(OzAction.PlaceCannon) && !kb.ctrlKey.isPressed && Placing == null && !(OzCheatSpawner.OwnsP && OzBindings.KeyOf(OzAction.PlaceCannon) == Key.P))   /* bound key (C), not with Ctrl: Ctrl+C is ALL CANNONS */                  // dev flag on: P = cheat overlay, placement via PLACE
+            if (OzBindings.Pressed(OzAction.PlaceCannon) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed && Placing == null)   /* bound key (C), not with Ctrl: Ctrl+C is ALL CANNONS */                  // 1.3 item 28: the testing overlay is Alt+P now, so a cannon key bound to P works with the dev flag on too; never with Ctrl (Ctrl+C = ALL CANNONS) or Alt (Alt+P = the overlay), like the other plain keys
             {
                 var h = Hover != null && Hover.Owner == game.player && Hover.StoredCannons.Count > 0 ? Hover : null;
                 if (h == null) foreach (var o in W.Objects) if (o.Kind == ZKind.Building && o.Owner == game.player && o.StoredCannons.Count > 0) { h = o; break; }
@@ -727,6 +737,7 @@ namespace OpenZ
 
         void SelectVoice() { if (W.GameOver) return; if (Selection.Any(o => o.Kind == ZKind.Robot)) CombatAudio.I?.Voice("select", CombatAudio.AlanSelect, 0.85f, 0.8f, true); }
 
+        readonly List<ZObject> watched = new List<ZObject>();                                         // 1.3 item 29: the units an order was sent to (OzOrderWatch)
         /// <summary>zplayer.cpp:2942-3016: send every pending list (Z held: only the unit nearest to its first waypoint).</summary>
         void Flush(bool zHeld, Vector2 mp)
         {
@@ -738,13 +749,14 @@ namespace OpenZ
                 {
                     var w0 = pending[u][0]; return (u.LocX - w0.x) * (double)(u.LocX - w0.x) + (u.LocY - w0.y) * (double)(u.LocY - w0.y);
                 }).FirstOrDefault();
-            bool robots = false; int took = 0;
+            bool robots = false; int took = 0; watched.Clear();
             foreach (var kv in pending)
                 if (only == null || kv.Key == only)
                 {
-                    int kept = kv.Key.CanOverwriteWP() ? 0 : 1;
-                    if (W.SendWaypoints(game.player, kv.Key, kv.Value)) { if (kv.Key.Kind == ZKind.Robot) robots = true; if (kv.Key.Waypoints.Count > kept) took++; }
+                    int kept = kv.Key.CanOverwriteWP() || ZWorld.IsLavaWalk(kv.Key.Waypoints[0]) ? 0 : 1;
+                    if (W.SendWaypoints(SideOf(kv.Key), kv.Key, kv.Value)) { bool tookIt = kv.Key.Waypoints.Count > kept; if (tookIt && kv.Key.Kind == ZKind.Robot) robots = true; if (tookIt) took++; watched.Add(kv.Key); }   // 1.2 item 6: each unit's own team in the playground; 1.3 item 29: only a robot that took the order answers it
                 }
+            OzOrderWatch.Watch(W, watched);                                                                // 1.3 item 29: looked at again 1 s of battle time later (View/OzOrderWatch.cs)
             if (took == 0 && pending.Count > 0) AudioDirector.UI("ui_order_invalid");                   // every waypoint refused (cannot attack / enter that)
             if (robots) CombatAudio.I?.Voice("order_ack", CombatAudio.AlanOrder, 0.9f, 0.8f, true);        // Alan acknowledges (plan/05)
             pending.Clear();

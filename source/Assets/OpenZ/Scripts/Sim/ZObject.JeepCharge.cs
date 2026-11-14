@@ -135,7 +135,8 @@ namespace OpenZ.Sim
         bool ChargeWants(ZObject t, int sx, int sy, bool keep, int extra = 0)
         {
             if (t == null || t.Kind != ZKind.Robot || t.Destroyed || t.KillAt >= 0 || t.Health <= 0) return false;
-            if (t.Owner == Team.Neutral || t.Owner == Owner || t.IsFortDefender || t.PathInBuildingStage || t.FortRushOn) return false;
+            if (t.Owner == Team.Neutral || t.Owner == Owner || t.IsFortDefender || t.PathInBuildingStage || t.FortRushOn || t.IsEvilZod) return false;
+            if (t.DriverOutOnHull) return false;                                                         // 1.4 DV171 final fix: a driver climbing out of a tank is on its hull: no charge at him until his hold ends (Sim/ZObject.VehicleExit.cs)
             if (!ChargeStrong(t) && !Within(CenterX, CenterY, t.CenterX, t.CenterY, keep ? ZWorld.ChargeCloseKeepPx : ZWorld.ChargeClosePx)) return false;
             return Within(sx, sy, t.CenterX, t.CenterY, ChargeLeash + extra);
         }
@@ -202,7 +203,7 @@ namespace OpenZ.Sim
             {
                 if (o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) continue;
                 int reach;
-                if (o.Kind == ZKind.Cannon) { if (o.Drivers.Count == 0 || !o.CanAttack()) continue; reach = o.AttackRadius; }
+                if (o.Kind == ZKind.Cannon) { if (o.Drivers.Count == 0 || !o.CanAttack()) continue; reach = o.RangeTo(t); }
                 else if (o.Kind == ZKind.Building && (o.Type == "fort_front" || o.Type == "fort_back") && ZWorld.FortGunDeviation)
                 { var hw = World.S.Unit("howitzer"); if (hw == null) continue; reach = FortGunRange(hw); }
                 else continue;

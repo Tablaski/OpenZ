@@ -19,7 +19,7 @@ namespace OpenZ
         public static int Deaths, Parts, Wheels, HullBins, Cores, Stubs, Slumps;
         public static string Last = "";
         static readonly HashSet<string> Types = new HashSet<string> { "jeep", "apc", "crane", "missile_launcher" };
-        static readonly HashSet<string> Big = new HashSet<string> { "TurretYaw", "Seat_driver", "mlrs_HatchHinge", "MLRSRackPitch", "mlrs_EntryRail" };
+        static readonly HashSet<string> Big = new HashSet<string> { "TurretYaw", "Seat_driver", "mlrs_HatchHinge", "MLRSRackPitch", "mlrs_EntryRail", "mlrs_v2_Ladder" };   // 1.2 v2 units: the MLRS v2's ladder
 
         public static bool Applies(ZObject o) => Enabled && o != null && o.Kind == ZKind.Vehicle && Types.Contains(o.Type);
         public static bool IsWheelName(string n) => n.StartsWith("Wheel_") || n.StartsWith("WheelSpin_");
@@ -54,9 +54,10 @@ namespace OpenZ
                 else if (o.Type == "missile_launcher")
                 {
                     Add(root, cand, "mlrs_HatchHinge"); Add(root, cand, "mlrs_EntryRail", "mlrs_EntryRail.001", "mlrs_EntryRung", "mlrs_EntryRung.001", "mlrs_EntryRung.002", "mlrs_EntryRung.003");
+                    Add(root, cand, "mlrs_v2_Ladder");                                                     // 1.2 v2 units: the MLRS v2's ladder in place of v1's rails (v1 has no such node: its list is unchanged)
                     Add(root, cand, "MLRS_headlamp"); Add(root, cand, "MLRS_headlamp.001"); Add(root, cand, "MLRSLoadedRocket_0" + (1 + h % 8u));
                     Add(root, cand, "MLRSLoadedRocket_0" + (1 + (h >> 4) % 8u)); Add(root, cand, "MLRSRackPitch");
-                    if ((h >> 9) % 10u < 3u) Add(root, cand, (h >> 11) % 2u == 0u ? "MLRS_RegularTread_L" : "MLRS_RegularTread_R");
+                    if ((h >> 9) % 10u < 3u && OzTreadBreak.TearWholeTrack) Add(root, cand, (h >> 11) % 2u == 0u ? "MLRS_RegularTread_L" : "MLRS_RegularTread_R");   // item 72: never a whole track loop
                 }
                 uint s = h | 1u;
                 for (int i = cand.Count - 1; i > 0; i--) { int j = (int)(WreckFx.Rnd(ref s) * (i + 1)); var t = cand[i]; cand[i] = cand[j]; cand[j] = t; }
@@ -545,7 +546,7 @@ namespace OpenZ
             var fxp = OpenZFxPlayer.I;
             if (!wet && fxp && fxp.isActiveAndEnabled && OzWaterLanding.OpenWaterNear(p, radius + 0.5f, out float wy, out float wbed))   // b27: the drawn water with the bed under it, not the map's water tiles
             {
-                bool deep = wy - wbed >= OzWaterLanding.SinkDepth;
+                bool deep = wy - wbed >= OzWaterLanding.SinkDepth || OzLavaMelt.Live;                       // level 7: lava takes a wheel at any depth
                 if (p.y - radius * 0.4f <= wy && (deep || !waded))
                 {   // b27: into the water: the shared water landing rule makes the splash, the rings and one sound. Deep water: it sinks
                     // away as before. A ford or a stream shallower than the wheel sinks: one splash, then it rolls on and falls flat on the bed
@@ -556,6 +557,7 @@ namespace OpenZ
                     {
                         wet = true; wetT = age;
                         StopLoop(0.15f);
+                        if (OzLavaMelt.Take(transform, sp, OzMeltEnd.Destroy, "wheel")) { popping = true; live.Remove(this); return; }   // level 7, kit LV5
                         if (rb) { rb.linearDamping = 4f; rb.angularDamping = 4f; }
                     }
                 }

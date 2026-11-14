@@ -79,7 +79,7 @@ Shader "OpenZ/FlybySky"
                 float h = smoothstep(0.0, max(1e-3, _FlybyHorizonBlend), d.y);
                 half3 sky = lerp((half3)_HorizonColor.rgb, pano, (half)h) + FlybyGlow(d);                  // the same glow is in the far haze
                 float c = dot(d, s);
-                float disc = smoothstep(_FlybySunShape.w, _FlybySunShape.z, c) * smoothstep(-0.002, 0.006, d.y);
+                float disc = smoothstep(_FlybySunShape.w, max(_FlybySunShape.z, _FlybySunShape.w + 1e-6), c) * smoothstep(-0.002, 0.006, d.y);   // 1.2 item 49: never smoothstep(0, 0, c) (FlybySky.hlsl)
                 sky += (half3)_FlybySunDisc.rgb * (half)(disc * _FlybySunDir.w);
                 return half4(lerp(grad, sky, (half)saturate(_FlybySkyW)), 1);
             }

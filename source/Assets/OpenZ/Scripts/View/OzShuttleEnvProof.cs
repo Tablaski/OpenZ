@@ -121,6 +121,7 @@ namespace OpenZ
         static void MouseEv(Vector2 p, MouseButton? b = null) { var st = new MouseState { position = p }; if (b.HasValue) st = st.WithButton(b.Value); InputSystem.QueueStateEvent(Mouse.current, st); }
         static void Key1(Key k) { InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(k)); }
         static void Key0() { InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState()); }
+        static void KeyAlt(Key k) { InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.LeftAlt, k)); }   // 1.3 item 28: the testing panel is Alt+P
 
         bool Move(int x, int y) => Move(s, x, y);
         bool Move(ZObject o, int x, int y) => W.SendWaypoints(me, o, new[] { new ZWaypoint { mode = WpMode.Move, x = x, y = y, playerGiven = true } });
@@ -706,8 +707,8 @@ namespace OpenZ
             if (!OzCheatSpawner.I) { Check("P the testing panel is there (the dev flag on)", false); yield break; }
             Team mine = me, theirs = them; var cam = Camera.main; var mid = rts ? rts.focus : Vector3.zero;
             follow = false;
-            Key1(Key.P); yield return null; yield return null; Key0(); yield return null; yield return null;
-            Check("P opens the testing panel", OzCheatSpawner.Visible);
+            KeyAlt(Key.P); yield return null; yield return null; Key0(); yield return null; yield return null;
+            Check("P ALT+P opens the testing panel", OzCheatSpawner.Visible);
             var cells = new[] { FindUi("Cheat" + (mine == Team.Red ? "Red" : "Blue"), "Cell_" + ZWorld.ShuttleType), FindUi("Cheat" + (theirs == Team.Red ? "Red" : "Blue"), "Cell_" + ZWorld.ShuttleType) };
             Check("P the shuttle's tile in both columns, each with its portrait", cells.All(c => c && c.GetComponentInChildren<UnityEngine.UI.RawImage>(true) && c.GetComponentInChildren<UnityEngine.UI.RawImage>(true).texture));
             yield return Wait(0.3f); Shot("p1_panel_open_shuttle_tiles_h70"); yield return OzProofPictures.AfterGrab();
@@ -726,7 +727,7 @@ namespace OpenZ
                 if (k == 0) own = o; else foe = o;
                 Log($"P dropped {(k == 0 ? mine : theirs)} shuttle #{(o != null ? o.Id : -1)} at px {(o != null ? o.CenterX + "," + o.CenterY : "-")} (refused {OzCheatShuttle.Refused}: {OzCheatShuttle.LastWhy})");
             }
-            Key1(Key.P); yield return null; yield return null; Key0(); yield return null; yield return null;
+            KeyAlt(Key.P); yield return null; yield return null; Key0(); yield return null; yield return null;
             yield return Wait(0.5f);
             Shot("p3_both_dropped_ships_in_the_frame_h70"); yield return OzProofPictures.AfterGrab();
             bool bothIn = true;

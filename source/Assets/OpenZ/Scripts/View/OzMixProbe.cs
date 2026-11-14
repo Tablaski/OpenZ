@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -68,6 +69,14 @@ namespace OpenZ
             A("shot", "shot_missile_cannon", "missile cannon roar", "ca:mc_rocket", -11f, p => LegacyMatch.LaunchSound("missile_cannon", p, E(), ca));
             A("shot", "shot_laser", "laser fire", "ca:laser", -11f, p => { var lp = WeaponsV2.Pick(WeaponsV2.BankLaserFire); ca.PlayPitched("laser", p, WeaponsV2.GainLaserFire * WeaponsV2.EvenGain(lp, WeaponsV2.BankLaserFire), 0f, -1, 1f, lp); });
             A("shot", "shot_electro", "Electrobot zap", "ad:wpn_electro_fire", -11f, p => AudioDirector.Fire("wpn_electro_fire", p, E()));
+            A("shot", "shot_evilzod", "EvilZod shot", "ad:wpn_evilzod_shot", -6.5f, p => AudioDirector.Fire(AudioDirector.EzShotId, p, E()));   // DV161: the rows below: his sound kit's targets
+            A("shot", "shot_evilzod_dash", "EvilZod dash shot", "ad:wpn_evilzod_shot", -5f, p => AudioDirector.Fire(AudioDirector.EzShotId, p, E(), AudioDirector.EzDashShotGain));
+            A("shot", "shot_evilzod_reload", "EvilZod reload", "ad:wpn_evilzod_reload", -13f, p => AudioDirector.Fire(AudioDirector.EzReloadId, p, E()));
+            A("shot", "shot_evilzod_kick", "EvilZod dash kick", "ad:wpn_evilzod_dash_kick", -11f, p => AudioDirector.Fire(AudioDirector.EzKickId, p, E()));
+            A("whoosh", "wh_evilzod", "EvilZod dash whoosh", "ad:wpn_evilzod_dash_whoosh", -9f, p => AudioDirector.Fire(AudioDirector.EzWhooshId, p, E()));
+            A("impact", "imp_evilzod_stop", "EvilZod dash stop", "ad:wpn_evilzod_dash_stop", -10f, p => AudioDirector.Fire(AudioDirector.EzStopId, p, E()));
+            A("impact", "imp_evilzod_skid", "EvilZod dash skid", "ad:wpn_evilzod_dash_skid", -14f, p => AudioDirector.Fire(AudioDirector.EzSkidId, p, E()));
+            A("foley", "step_evilzod", "EvilZod stomp", "ad:rob_evilzod_stomp", -19f, p => AudioDirector.Fire(AudioDirector.EzStompId, p, E()));
             A("shot", "shot_sniper", "sniper crack", "ca:sniper", -11f, p => { var sp = WeaponsV2.Pick(WeaponsV2.BankSniper); ca.PlayPitched("sniper", p, WeaponsV2.GainSniper * WeaponsV2.EvenGain(sp, WeaponsV2.BankSniper), 0f, -1, 1f, sp); });
             A("shot", "shot_pyro", "pyro flame (start + loop)", "ad:wpn_pyro_flame_*", -12f, p => { AudioDirector.Fire("wpn_pyro_flame_start", p, E()); ad.StartLoop("mixprobe:pyro", "wpn_pyro_flame_loop", p); });
             L[L.Count - 1].loopKey = "mixprobe:pyro"; L[L.Count - 1].dur = 2.2f;
@@ -303,3 +312,4 @@ namespace OpenZ
         }
     }
 }
+#endif

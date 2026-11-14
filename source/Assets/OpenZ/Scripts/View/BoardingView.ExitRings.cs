@@ -60,6 +60,7 @@ namespace OpenZ
             if (g == null || !g.go) return 0;                                        // no walk (or it was just dropped): its model shows from this frame
             if (!g.go.activeInHierarchy) return 1;                                  // a hatch / seat / door figure waiting its turn inside
             if (g.seatK >= 0 && g.time < g.scaleT0) return 1;                       // shuttle / APC: on the bench, in the aisle or the doorway (scaleT0 = the moment at the ramp's sill, BuildShuttleExit / BuildApcExit)
+            if (HatchFigureMark(g, ref p)) return 2;                                 // 1.4 DV171 fix round 4: a tank's hatch figure: at its feet, raised to the rim while they are in the hatch (View/BoardingView.VehicleExit.cs)
             p = g.go.transform.position; return 2;
         }
 

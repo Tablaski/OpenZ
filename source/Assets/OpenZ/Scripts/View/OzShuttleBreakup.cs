@@ -268,7 +268,7 @@ namespace OpenZ
                 for (int j = i + 1; j < grp.pieces.Count; j++)
                 {
                     var a = grp.pieces[i].col; var b = grp.pieces[j].col; if (!a || !b) continue;
-                    if (Depth(a, b) <= HoldDepth) continue;
+                    if (Depth(a, b) <= HoldDepth && !TumbleHoldAtBreak(grp, grp.pieces[i], grp.pieces[j])) continue;   // 1.3 item 15b: in an air break the neighbours are held apart too while they fly (OzShuttleBreakup.Tumble.cs)
                     Physics.IgnoreCollision(a, b, true); grp.held.Add(new Pair { a = a, b = b, pa = grp.pieces[i], pb = grp.pieces[j] }); HeldPairs++;
                 }
             // the launch: the ship's drawn velocity + a scatter out of the hull's middle
@@ -291,6 +291,7 @@ namespace OpenZ
                 CrackThrow(how, ref vo, ref vu, ref sp);                                               // K256h: the crack's low, slow, tumbling throw (OzShuttleBreakup.Altitude.cs)
                 BigThrow(how, air, pc.Kind, ref vo, ref vu, ref sp);                                   // K396: an air break throws the pieces out of the big blast, harder and spinning (OzShuttleBreakup.BigBlast.cs)
                 var v0 = vel + dir * (vo * outK) + Vector3.up * (vu * upK) + shove * R(1.2f, 2.4f);   // + the killing round's push
+                sp = TumbleSpin(pc, v0 - vel, sp);                                                     // 1.3 item 15: each piece tumbles from its own push and size (OzShuttleBreakup.Tumble.cs; no random draw)
                 if (!ThrowVary(o, grp, holder, pc, how, vel, dir, vo * outK, vu * upK, v0, sp)) pc.Launch(v0, Random.onUnitSphere * sp);   // K399: each piece its own throw, spin and moment (OzShuttleBreakup.ThrowVary.cs)
             }
             OzTreeCrush.ShuttleBurst(o, grp.pieces, centre, air, how);                               // item 360: the hull comes down where the rules fell the trees, a big piece into each (OzTreeCrush.cs)
@@ -365,7 +366,7 @@ namespace OpenZ
         float age, lastHit = -1f, lastKnock = -1f, stayAt = -1f, otherAt = -1f, burnUntil, burnT, snapT = -1f, sinkT = -1f, sinkSpeed, retryAt = -1f, retryVol, retryPitch;
         Vector3 retryPos, snapFrom, snapTo, touchAt; int hits, knockTries; bool frozen, crashed, bigFire, touching, retiring, fired; string otherName;
 
-        void Launch(Vector3 v, Vector3 w) { rb.linearVelocity = v; rb.angularVelocity = w; }
+        void Launch(Vector3 v, Vector3 w) { rb.linearVelocity = v; rb.angularVelocity = w; TumbleAir(); }   // 1.3 item 15: little spin damping while it flies (OzShuttleBreakup.Tumble.cs)
         Vector3 Centre() => rb ? rb.worldCenterOfMass : transform.position;
         bool WantsRest => !frozen && rb && age > 0.6f && (rb.IsSleeping() || age > 7f || (rb.linearVelocity.sqrMagnitude < 0.04f && rb.angularVelocity.sqrMagnitude < 0.1f));
 
@@ -446,7 +447,7 @@ namespace OpenZ
                 {
                     var q = grp.held[i];
                     if (!q.a || !q.b || !q.pa || !q.pb || q.pa.retiring || q.pb.retiring) { grp.held.RemoveAt(i); continue; }
-                    if (Depth(q.a, q.b) <= HoldDepth) { Physics.IgnoreCollision(q.a, q.b, false); grp.held.RemoveAt(i); ReleasedPairs++; continue; }
+                    if (!TumbleKeep(q.pa, q.pb) && Depth(q.a, q.b) <= HoldDepth) { Physics.IgnoreCollision(q.a, q.b, false); grp.held.RemoveAt(i); ReleasedPairs++; continue; }   // 1.3 item 15b: an air break's pair stays apart while both fly and can reach each other (OzShuttleBreakup.Tumble.cs)
                     if (!q.forced && (q.pa.WantsRest || q.pb.WantsRest)) { q.forced = true; ForcedPairs++; Physics.IgnoreCollision(q.a, q.b, false); if (q.pa.rb && !q.pa.rb.isKinematic) q.pa.rb.WakeUp(); if (q.pb.rb && !q.pb.rb.isKinematic) q.pb.rb.WakeUp(); }
                 }
             }
@@ -470,6 +471,7 @@ namespace OpenZ
 
         void Freeze()
         {
+            Touchdown();                                                                                      // 1.3 item 15: its rest as before
             frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
             DeckRest(); OutOfStatics();                                                                       // K256k: never left inside a building, gun or rock (OzShuttleBreakup.Shell.cs)
                                                                                                   // lying on a repair station's deck: it clears away (OzShuttleBreakup.Look.cs)
@@ -538,6 +540,7 @@ namespace OpenZ
         void OnCollisionEnter(Collision c)
         {
             if (keeper || retiring || frozen) return;
+            TumbleContact(c);                                                                                 // 1.3 item 15: down on the ground (or on a piece at rest): the spin damping as before
             float sp = c.relativeVelocity.magnitude;
             var at = c.contactCount > 0 ? c.GetContact(0).point : transform.position; touchAt = at;
             if (age < 0.06f || hits >= 6 || age - lastHit < 0.25f || sp < 1.2f) return;

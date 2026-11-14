@@ -115,8 +115,8 @@ namespace OpenZ.EditorTools
         /// probe): the man who comes up, his type, health, range, damage, hit chance and the gaps between his shots over 20 s.</summary>
         internal static string Kc5SniperCase(bool on, out string type, out int range, out int damage, out double gap, out int shots)
         {
-            bool was = ZWorld.FortSniperDeviation, fd = ZWorld.FortDefenderDeviation, fg = ZWorld.FortGunDeviation;
-            ZWorld.FortSniperDeviation = on; ZWorld.FortDefenderDeviation = true; ZWorld.FortGunDeviation = false;
+            bool was = ZWorld.FortSniperDeviation, fd = ZWorld.FortDefenderDeviation, fg = ZWorld.FortGunDeviation, sb = ZWorld.SniperBalanceDeviation;
+            ZWorld.FortSniperDeviation = on; ZWorld.FortDefenderDeviation = true; ZWorld.FortGunDeviation = false; ZWorld.SniperBalanceDeviation = false;   // 1.2: the probe measures Zod's sniper row
             type = "-"; range = 0; damage = 0; gap = -1; shots = 0;
             try
             {
@@ -151,7 +151,7 @@ namespace OpenZ.EditorTools
                 return $"{man.Type} #{man.Id}, {man.MaxHealth} HP, range {man.AttackRadius} px, {man.Damage} HP a hit at {man.DamageChance:0.00}, " +
                        $"shortest gap {(gap < 0 ? "-" : gap.ToString("0.00"))} s over {shots} shots, snipes drivers {(man.CanSnipe ? "yes" : "no")}";
             }
-            finally { ZWorld.FortSniperDeviation = was; ZWorld.FortDefenderDeviation = fd; ZWorld.FortGunDeviation = fg; }
+            finally { ZWorld.FortSniperDeviation = was; ZWorld.FortDefenderDeviation = fd; ZWorld.FortGunDeviation = fg; ZWorld.SniperBalanceDeviation = sb; }
         }
 
         static Deviation DevFortSniper()

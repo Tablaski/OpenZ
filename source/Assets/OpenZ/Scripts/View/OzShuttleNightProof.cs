@@ -488,7 +488,7 @@ namespace OpenZ
         // N11: a shuttle dropped from the testing panel (its spawn path: OzCheatShuttle.Spawn) has the same night lights
         IEnumerator N11()
         {
-            Log("N11 a shuttle dropped from the testing panel (P) at night, then flown a short hop");
+            Log("N11 a shuttle dropped from the testing panel (ALT+P) at night, then flown a short hop");
             int[] q = null;
             foreach (float a in new[] { 90f, -90f, 180f, 0f, 45f, -45f, 135f, -135f }) { var c = Pad(320, (float)s.ShuttleHeadingDeg + a, 40); if (c != null && OpenAround(c[0], c[1], 9f)) { q = c; break; } }   // K256e: no hut near
             if (q == null) q = Pad(320, (float)s.ShuttleHeadingDeg + 90f, 160);

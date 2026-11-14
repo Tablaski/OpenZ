@@ -210,11 +210,12 @@ namespace OpenZ
         /// (the table events are in-view only). Water keeps its own splash.</summary>
         public static void GroundImpact(Vector3 at, FxSurface s)
         {
-            if (!Enabled || s == FxSurface.Water || s == FxSurface.Unit || s == FxSurface.Metal) return;
+            bool lava = s == FxSurface.Water && OzLava.SurfaceAt(at, out _);                                 // 1.3 level 7: no stone chips, a small pop
+            if (!Enabled || (s == FxSurface.Water && !lava) || s == FxSurface.Unit || s == FxSurface.Metal) return;
             float now = Time.unscaledTime; missTokens = Mathf.Min(4f, missTokens + (now - missAt) * 4f); missAt = now;
             if (missTokens < 1f || !Chance(0.35f)) return;
             missTokens -= 1f;
-            AudioDirector.Fire(s == FxSurface.Ground ? "imp_bullet_sand" : "imp_bullet_stone", at, -1, Random.Range(0.8f, 1f));
+            AudioDirector.Fire(lava ? OzLava.SndPopSmall : s == FxSurface.Ground ? "imp_bullet_sand" : "imp_bullet_stone", at, -1, Random.Range(0.8f, 1f));
         }
         /// <summary>LegacyMatch.Shot: a round that hits a building also chips its masonry (imp_bullet_stone) when it lands (50 %).</summary>
         public static void ShotLanded(ZObject target, bool hit, Vector3 to, float flight)
@@ -259,7 +260,7 @@ namespace OpenZ
             switch (t)
             {
                 case "heavy": case "howitzer": return 0.75f;
-                case "medium": return 0.9f;
+                case "medium": case ZMTank.Type: return 0.9f;   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "gatling": case "jeep": return 1.25f;
                 default: return 1f;
             }
@@ -276,7 +277,7 @@ namespace OpenZ
             if (!slew.TryGetValue(o.Id, out var s)) slew[o.Id] = s = new Slewer { lastStart = -9f, lastLock = -9f };
             float now = Time.time, rate = Mathf.Max(Mathf.Abs(yawVel), Mathf.Abs(pitchVel) * 1.5f);
             s.pos = at.position; s.seen = Time.unscaledTime;
-            string key = "slew:" + o.Id;
+            string key = OzGcCache.SlewKey(o.Id);   // 1.4 speed-up 2 (perf_garbage): the same text, made once per unit (View/OzGcCache.cs)
             bool visible = CamHeight() < 110f && OnScreen(s.pos, 0.05f) && !o.Destroyed;
             if (hasTarget && !s.hadTarget && visible && (o.Type == "missile_cannon" || o.Type == "missile_launcher" || o.Type == "howitzer") && Chance(0.6f) && now - s.lastLock > 3f)
             { s.lastLock = now; AudioDirector.Fire("wpn_target_lock", s.pos, o.Id); }
@@ -443,7 +444,7 @@ namespace OpenZ
         sealed class VehState { public bool moving; public float movingSince, lastYaw, lastPitch, lastRoll; public bool init; }
         static readonly Dictionary<int, VehState> veh = new Dictionary<int, VehState>();
         static float vehNext;
-        static bool Tracked(string t) => t == "light" || t == "heavy" || t == "missile_launcher";
+        static bool Tracked(string t) => t == "light" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher";   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>AudioDirector.Update (sound_v3 tick): the vehicles on screen: a brake hiss when a vehicle halts after driving 1.5 s
         /// (30 %), a track squeal when a tracked vehicle pivots in place (hull yaw over 60 deg/s while standing), a suspension creak on
         /// bumps (pitch / roll rate spikes, 4 %, one per vehicle per 2.5 s). Camera under 110 m. The table events carry cooldowns and voice limits.</summary>

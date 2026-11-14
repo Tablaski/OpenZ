@@ -6,11 +6,11 @@ namespace OpenZ.Sim
     /// zbuildlist.cpp:22-236: which units each producing building may build at each blevel (0..5). Entry 0 is the default
     /// production. FORT_BACK uses the FORT_FRONT list. Level only gates the list; it never changes the build time.
     /// </summary>
-    public static class ZBuildLists
+    public static partial class ZBuildLists   // DV145: + Sim/ZMTank.cs (the medium tank after the mech)
     {
         public static readonly string[] Cannons = { "gatling", "gun", "howitzer", "missile_cannon" };
         public static bool IsCannon(string t) => System.Array.IndexOf(Cannons, t) >= 0;
-        public static bool IsRobot(string t) => t == "grunt" || t == "psycho" || t == "sniper" || t == "tough" || t == "pyro" || t == "laser" || t == ZElectro.Type;   // electrobot_v1 DV45
+        public static bool IsRobot(string t) => t == "grunt" || t == "psycho" || t == "sniper" || t == "tough" || t == "pyro" || t == "laser" || t == ZElectro.Type || t == ZEvilZod.Type;   // electrobot_v1 DV45
 
         static readonly string[][] Fort =
         {
@@ -68,9 +68,9 @@ namespace OpenZ.Sim
             if (level < 0 || level > 5) return System.Array.Empty<string>();
             switch (buildingType)
             {
-                case "fort_front": case "fort_back": return ZWorld.ElectrobotDeviation ? FortE[level] : Fort[level];   // DV45: forts only, every level (TECH VII)
+                case "fort_front": case "fort_back": return MTankList(ZWorld.ElectrobotDeviation ? FortE : Fort, level);   // DV45: forts only, every level (TECH VII); DV145: the medium tank right after the mech
                 case "robot_factory": return Robot[level];
-                case "vehicle_factory": return Vehicle[level];
+                case "vehicle_factory": return MTankList(Vehicle, level);   // DV145: the medium tank right after the mech
             }
             return System.Array.Empty<string>();
         }

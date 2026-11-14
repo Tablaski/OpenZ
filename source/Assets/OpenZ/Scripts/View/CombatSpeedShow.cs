@@ -410,7 +410,7 @@ namespace OpenZ
             {
                 case "grunt": return "a grunt bolt (shooter-project bolt, Zod 37.5 m/s)";
                 case "psycho": return "the psycho's MG tracers (37.5 m/s)";
-                case "laser": return "the laser's double-tap green dashes (37.5 m/s)";
+                case "laser": return "the laser's double-tap green dashes (45 m/s = 1.2 x Zod's 37.5, 1.4 laser_beam_speed)";
                 case "pyro": return "the pyro's flame stream (Zod flame 37.5 m/s)";
                 case "jeep": return "the jeep's gun bolts (37.5 m/s)";
                 case "gatling": return "the gatling cannon's MG tracers (37.5 m/s)";

@@ -71,7 +71,7 @@ Shader "OpenZ/AtmosphereFullscreen"
 
             float WaterMask(float3 p)
             {
-                float2 uv = (p.xz - _FogMapRect.xy) / _FogMapRect.zw;
+                float2 uv = (p.xz - _FogMapRect.xy) / max(_FogMapRect.zw, 1e-4);                 // 1.2 item 49: the map size is 0 until Atmosphere read a map grid (never x / 0)
                 if (any(uv < 0) || any(uv > 1)) return 0;
                 return SAMPLE_TEXTURE2D_LOD(_FogWaterMask, sampler_FogWaterMask, uv, 0).r;
             }
@@ -79,7 +79,7 @@ Shader "OpenZ/AtmosphereFullscreen"
             // eases to the level's outside value over 40 m, so the banks never run out in clamped streaks or stop at the border.
             float2 WaterNear(float3 p)
             {
-                float2 uv = (p.xz - _FogMapRect.xy) / _FogMapRect.zw;
+                float2 uv = (p.xz - _FogMapRect.xy) / max(_FogMapRect.zw, 1e-4);                 // 1.2 item 49: as in WaterMask (never x / 0, never 0 x inf below)
                 float2 m = SAMPLE_TEXTURE2D_LOD(_FogWaterMask, sampler_FogWaterMask, saturate(uv), 0).rg;
                 float2 o = max(0, max(-uv, uv - 1)) * _FogMapRect.zw;
                 return lerp(m, _LowFogShape.yy, saturate(length(o) / 40.0));
@@ -220,7 +220,14 @@ Shader "OpenZ/AtmosphereFullscreen"
                 {
                     float3 oc = cam - _AtmoHole.xyz; float bq = dot(oc, dir);
                     float hq = bq * bq - (dot(oc, oc) - _AtmoHole.w * _AtmoHole.w);
-                    if (hq > 0) { float tn = -bq - sqrt(hq); if (tn > 0 && tn < dist) dist = tn; }
+                    if (hq > 0)
+                    {
+                        // sphere's outline, a hard round edge the size of the fireball round the smoke (plain on level 7's dark ash under its
+                        // warm haze). It now eases in from the outline to 55 % of the radius, the same ease as AtmoColumnHit: no line
+                        float c = sqrt(max(0, _AtmoHole.w * _AtmoHole.w - hq));             // the ray's closest pass to the centre
+                        float k = 1 - smoothstep(0.55 * _AtmoHole.w, _AtmoHole.w, c);
+                        float tn = -bq - sqrt(hq); if (tn > 0 && tn < dist) dist = lerp(dist, tn, k);
+                    }
                 }
                 // endings round 4: the level 16 ending's blast cloud writes no depth either: inside its stem and cap the fog and the far haze
                 // run only to the cloud's front, so the far hills behind it no longer haze it more than the open sky (no line at the horizon)
@@ -283,8 +290,8 @@ Shader "OpenZ/AtmosphereFullscreen"
                 // so the sun-scatter term inside every cast shadow boiled frame to frame (up to one step of in-scatter per pixel).
                 float jitter = Ign(uv * _ScreenParams.xy);
                 Light sun = GetMainLight();
-                float3 phaseDir = (sky && _FlybySkyW > 0) ? normalize(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW)) : sun.direction;   // sky only: the ground keeps its haze
-                if (farW > 0 && _FlybySkyW > 0) phaseDir = normalize(lerp(phaseDir, normalize(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW)), farW));   // endings round 4: the far land's in-scatter as the sky's
+                float3 phaseDir = (sky && _FlybySkyW > 0) ? FlybySafeDir(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW), sun.direction) : sun.direction;   // sky only: the ground keeps its haze; 1.2 item 49: never normalize(0) (FlybySky.hlsl)
+                if (farW > 0 && _FlybySkyW > 0) phaseDir = FlybySafeDir(lerp(phaseDir, FlybySafeDir(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW), sun.direction), farW), phaseDir);   // endings round 4: the far land's in-scatter as the sky's; 1.2 item 49: never normalize(0)
                 float phase = HG(dot(dir, phaseDir), _FogG) * 12.566371;   // normalised so isotropic = 1
                 float trans = 1; float3 scat = 0;
                 int lampCount = (int)_FogLampCount;

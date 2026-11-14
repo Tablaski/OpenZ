@@ -3,6 +3,7 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
+    /// 30, 60 or UNLIMITED (VSYNC), OzFpsCap). Test mode (PlayerPrefs "oz_testmode" = 1,
     /// </summary>
     public static class GameBoot
     {
@@ -20,9 +21,9 @@ namespace OpenZ
             if (TestMode) { QualitySettings.vSyncCount = 0; Application.targetFrameRate = 30; }
             else
             {
-                CapFps = OzFpsCap.Saved;                                                 // FRAME RATE LIMIT (Options): 60 unless the player chose 30
+                CapFps = OzFpsCap.Saved;                                                 // FRAME RATE LIMIT (Options): 60 unless the player chose 30, or -1 = UNLIMITED (VSYNC) (1.3 item 5)
                 if (!Application.isEditor && DevArg("-ozdev") && DevArg("-cap72")) { CapFps = 72; Debug.Log("[OpenZ] -ozdev -cap72: capture session, 72 fps cap (OBS take recipe)"); }
-                QualitySettings.vSyncCount = 0; Application.targetFrameRate = CapFps;
+                OzFpsCap.ApplyLimit(0);
             }
         }
 

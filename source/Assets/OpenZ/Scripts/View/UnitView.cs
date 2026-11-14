@@ -61,6 +61,8 @@ namespace OpenZ
         /// </summary>
         public static readonly List<Vector3> Obstacles = new List<Vector3>();
         Transform tossed; Vector3 tossFrom, tossTo, tossAxis; float tossT, tossDur = -1, tossSpin, tossApex; bool tossLanded;
+        const float TossEaseSeconds = 0.6f, TossEaseShare = 0.3f;                                       // the last 0.6 s of the flight, or 30 % of a shorter one: the wild spin eases into the pose it lands in
+        bool tossEasing; float tossEaseAt; Quaternion tossEaseFrom, tossEaseFix, tossEaseRest;
         UnitAim gunAim; bool popping; float heading;                                             // combatview: gun aim, removal pop, path heading
         public BS01Stance Stance => stance;                                                        // robot_models_v2 review: RobotLegIK lets a kneeling / prone sniper's legs go
         double clearPx;                                                                            // robot_models_v2 review: v3 body building clearance (px)
@@ -76,11 +78,11 @@ namespace OpenZ
         /// <summary>crews_v2: the tower pad index (TowerMounts.PadLocal) of a tower gun.</summary>
         public int TowerPad => towerPad;
 
-        bool IsTank => Obj.Type == "light" || Obj.Type == "medium" || Obj.Type == "heavy";
+        bool IsTank => Obj.Type == "light" || Obj.Type == "medium" || Obj.Type == ZMTank.Type || Obj.Type == "heavy";   // DV145 the medium tank (Sim/ZMTank.cs)
         float HullRate => Obj.Kind == ZKind.Robot ? TurnRate : VehicleSlip.Enabled ? VehicleSlip.RateOf(Obj.Type) : Obj.Type == "jeep" ? 380f : 150f;   // vehicles_nb_v1 NB21: per chassis
         float TurretRate => Obj.Type == "jeep" ? 420f : Obj.Kind == ZKind.Cannon ? 140f : 110f;
 
-        enum Death { None, Anim, Airborne, Melt, Wreck, Gone, Ragdoll }
+        enum Death { None, Anim, Airborne, Melt, Wreck, Gone, Ragdoll, LavaMelt, Evil }   // DV152: LavaMelt (UnitView.LavaMelt.cs)
         RobotRagdoll ragdoll;
         Death death; float deathT; Vector3 deathFrom, deathTo, spinAxis; float smokeT;
 
@@ -135,6 +137,7 @@ namespace OpenZ
                     var bb = rs[0].bounds; foreach (var r in rs) if (!(r is ParticleSystemRenderer) && !(r is TrailRenderer) && !(r is LineRenderer)) bb.Encapsulate(r.bounds);
                     float half = Mathf.Max(bb.extents.x, bb.extents.z);
                     radius = Mathf.Clamp(half * (o.Kind == ZKind.Cannon ? 0.95f : 0.8f), radius, 3f);
+                    radius = OzGun.ViewRadius(this, o, OzMlrs.ViewRadius(this, o, OzHeavyTank.ViewRadius(this, o, radius)));      // 1.2 item 110: heavy tank v2 keeps v1's footprint (its longer barrels left out); 1.2 v2 units: the MLRS v2 too (its rear plate left out); the gun v2 keeps robots clear of its chair's sweep (View/OzGun.cs)
                 }
             }
             maxSep = o.Kind == ZKind.Robot ? 3.2f : 3.0f;                                                    // enough to walk clear of a cannon; long trucks need 3 m
@@ -166,11 +169,11 @@ namespace OpenZ
             if (CraneMuzzle(out var cm)) return cm;                                                    // vehicles_nb_v1 NB24: the crane's hatch driver's rifle
             if (gunAim && gunAim.TryMuzzle(out var gm)) return gm;                                     // combatview: the aimed (next) barrel
             if (muzzle) return muzzle.position;
-            float h = Obj.Kind == ZKind.Robot ? 1.25f : Obj.Kind == ZKind.Cannon ? 1.3f : 1.45f, f = Obj.Kind == ZKind.Robot ? 0.55f : 1.2f;
+            float k = OzVehicleScaleTest.Of(this), h = Obj.Kind == ZKind.Robot ? 1.25f : Obj.Kind == ZKind.Cannon ? 1.3f : 1.45f * k, f = Obj.Kind == ZKind.Robot ? 0.55f : 1.2f * k;   // 1.3 item 36: x the owner's vehicle scale test (1 for players)
             Vector3 fwd = Quaternion.Euler(0, AimYaw(), 0) * Vector3.forward;
             return transform.position + Vector3.up * h + fwd * f;
         }
-        public Vector3 AimPos() => transform.position + Vector3.up * (Obj.Kind == ZKind.Robot ? 0.95f : 1.0f);
+        public Vector3 AimPos() => transform.position + Vector3.up * (Obj.Kind == ZKind.Robot ? 0.95f : 1.0f * OzVehicleScaleTest.Of(this));   // 1.3 item 36: the aim point stays on the drawn hull (1 for players)
 
         float AimYaw()
         {
@@ -194,6 +197,7 @@ namespace OpenZ
         public void OnFire()
         {
             if (Obj != null && Obj.Kind == ZKind.Vehicle && (Obj.Type == "crane" || Obj.ApcDriverUp)) { LastFireAt = Time.time; return; }   // vehicles_nb_v1 NB24: the hatch driver's rifle (DV31): no hull jolt; DV87: the APC's lone driver in the roof hatch too
+            if (QuietStopFire()) return;                                                                 // vehicle_exit_jump2 A: a held shot of an emptied vehicle: its barrel slides, its hull does not jolt (View/UnitView.QuietStop.cs)
             shotAge = 0f; LastFireAt = Time.time;
             if (gunAim) { gunAim.OnFire(); HeavyBarrelKick(); }                                        // combatview: barrel recoil, spin-up, next barrel; vehicles_nb_v1 NB6: hull rocks to the barrel's side
             if (stance && stance.OnFire()) return;                                                     // robot_models_v2: the stance plays the kneel / prone / tough fire clip
@@ -212,8 +216,9 @@ namespace OpenZ
             var front = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
             if (weapon) weapon.localPosition = weaponRest;
             bool gunRig = gunAim && gunAim.HasRig;                                                       // combatview: UnitAim slides the barrels along their axis
-            if (turret && (!gunRig || Obj.Type == "heavy")) turret.localPosition = turretRestPos;    // mlrs_heavy_v1: the heavy's turret shoves too
+            if (turret && (!gunRig || Obj.Type == "heavy" || HeavyRecoil.Types.Contains(Obj.Type))) turret.localPosition = turretRestPos;    // mlrs_heavy_v1: the heavy's turret shoves too; 1.2 v2 units: the light tank's head kicks too (HeavyRecoil)
             if (!gunRig) foreach (var (t, rest) in barrels) if (t) t.localPosition = rest;
+            if (HeavyHullRecoil(dt)) return;                                                             // 1.2 items 132 / 132b: the heavy's eased head kick + body rock (View/HeavyRecoil.cs); below = the switch-off path
             if (r <= 0.001f) return;
             if (Obj.Kind == ZKind.Robot)
             {
@@ -245,10 +250,12 @@ namespace OpenZ
         {
             if (death != Death.None) return;
             if (FortDefenderDropsIn()) return;                                                         // fort_defender_v1 DV41: shot while half down the well
+            bool hatchBody = BoardingView.HatchExitDies(this, ref fire);                               // 1.4 DV171 fix round 5: a driver killed while he climbs out of a tank: his own model drawn in his figure's place first; on its hull a deck under him (View/BoardingView.VehicleExit.cs)
+            OpenZPyroFire.HeatDeath(this);
             AnticCancel("death", true);                                                                 // robot antics: props off, the weapon back before the death pose / pop
             if (TryGetComponent(out RobotWeaponPose wpose)) wpose.BeforeDeath();                       // weapons_v2: ragdoll from the kneeling / lying pose
             if (hold) hold.Suspended = true;
-            if (reactKind != 0) EndReaction();
+            if (reactKind != 0) { DeathWinsEnd(); EndReaction(); DeathWinsGripOff(); }                                       // vehicle_exit_gun 2b: a reaction frozen at his death event ends here, before the death's own push (nothing added to it; View/UnitView.DeathWins.cs); u2_followups: the gun grip stays off on the dying body (View/UnitView.DeathOwns.cs)
             deathT = 0; deathFrom = transform.position;
             if (Obj != null) OzGlowFade.Begin(gameObject, Obj.Kind != ZKind.Robot);                      // its glows fade out and stay off on the body (a wreck: the team glow of its paint)
             OzDeathTrace.Died(this, fire, missile, blast);
@@ -259,8 +266,12 @@ namespace OpenZ
                 // picked deterministically from the robot and killer ids (RobotDeathRule), on the blast / kill frame
                 var killer = killerId >= 0 ? game.World.GetAny(killerId) : null;
                 var kind = RobotDeathRule.Pick(Obj.Id, killerId, killer != null ? killer.Type : null, fire, missile, out int variant);
+                bool lavaBody = Obj.LavaKilled || Obj.InLava;                                               // 1.3 level 7: shot dead in lava it melts as well; the sim's flags are only read
                 if (fdMan && kind == RobotDeathKind.Pop) kind = RobotDeathKind.Ragdoll;                     // fort_defender_v1 DV41: thrown off the roof deck (its pop bits would fall through it)
-                if (HeadshotDeath(blast, killerId)) { Live.Remove(this); return; }                         // DV116: a sniper's headshot: the head falls off, the body collapses (UnitView.Headshot.cs)
+                if (hatchBody && kind == RobotDeathKind.Pop) kind = RobotDeathKind.Ragdoll;                // 1.4 DV171 fix round 5: on a tank's deck or in its hatch: thrown, as the fort defender (the pop bits would fall through the hull)
+                if (!lavaBody && EvilZodShock(blast)) { Live.Remove(this); return; }                   // DV161: no ragdoll: arcs through his body, then it bursts (UnitView.EvilZod.cs)
+                if (lavaBody) kind = RobotDeathKind.Melt;                                              // DV152: lava always melts (no pop, no ragdoll): the lava melt below
+                if (!lavaBody && HeadshotDeath(blast, killerId)) { Live.Remove(this); return; }                       // DV116: a sniper's headshot: the head falls off, the body collapses (UnitView.Headshot.cs)
                 uint fh = RobotDeathRule.Hash(Obj.Id, killerId, 4u);
                 if (kind == RobotDeathKind.Pop && RobotPopDeath.Play(this, variant, blast, RobotDeathRule.Hash(Obj.Id, killerId, 3u)))
                 {
@@ -274,6 +285,7 @@ namespace OpenZ
                     if (missile) RagdollFlight.Begin(gameObject, blast, fh, RobotHeight());
                     RagdollFlail.Begin(gameObject, missile ? 1f : 0.55f, fh);                                      // limbs flail in the air
                 }
+                else if (lavaBody) { death = Death.LavaMelt; BeginLavaMelt(fh); }                    // DV152: sags, glows white-hot and runs down into the lava (UnitView.LavaMelt.cs)
                 else if (missile)
                 {
                     death = Death.Airborne;
@@ -308,13 +320,17 @@ namespace OpenZ
             tossFrom = turret.position;
             if (m != null) { tossTo = ZGame.PxToWorld(m.x, m.y); tossDur = Mathf.Max(0.6f, OpenZFxPlayer.RealFlight((float)(m.explodeTime - game.World.Time), game.gameSpeed)); }   // deaths_mech_v1: sim s -> real s (lands on the sim's blast at any game speed)
             else { tossTo = transform.position + new Vector3(Random.Range(-4f, 4f), 0, Random.Range(-4f, 4f)); tossDur = 3.5f; }
+            tossDur = GunSpinFlight(tossDur);                                                        // 1.3 item 17: the owner's alternative only (GunSpin.EndsSooner): the same start, a shorter flight (View/UnitView.GunSpin.cs)
             tossTo.y = game.GroundY(tossTo.x, tossTo.z) + 0.35f;
             if (OzWaterLanding.OpenWaterAt(tossTo, out float tossWater)) tossTo.y = tossWater + 0.1f;   // b27: over open water it comes down on the surface (the water landing rule takes it from there)
             tossApex = Mathf.Min(7f, 9.81f * tossDur * tossDur / 8f);                                // a real 3.5 s arc peaks at 15 m, out of the RTS view
             OzRockSolid.TurretLanding(Obj.Id, turret, tossFrom, ref tossTo, ref tossApex);                      // items 331 + 332: it lands on free ground (no rock), its arc clear of rocks
             tossed = turret; turret = null; tossed.SetParent(null, true);
             foreach (var r in tossed.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
-            tossAxis = Random.onUnitSphere; tossSpin = Random.Range(300f, 620f); tossT = 0; tossLanded = false;
+            tossAxis = Random.onUnitSphere; tossSpin = Random.Range(300f, 620f); tossT = 0; tossLanded = false; tossEasing = false;
+            TossAimRest();                                                                           // open_fixes_2nov wreck_toss_landing: the pose it lands in now, the arc's end at its ground (UnitView.TossAim.cs)
+            TossWholePlan();                                                                         // open_fixes_2nov update 1: the whole flight turns into that pose, the spin still slows into it (UnitView.TossWhole.cs)
+            GunSpinNote(m, tossDur);                                                                 // 1.3 item 17: the check's record (View/UnitView.GunSpin.cs)
             FxManager.I?.Explosion(tossFrom, 1.2f);
         }
 
@@ -326,20 +342,45 @@ namespace OpenZ
             float k = Mathf.Clamp01(tossT / tossDur);
             var p = Vector3.Lerp(tossFrom, tossTo, k); p.y += 4f * tossApex * k * (1 - k);
             tossed.position = p;
-            tossed.rotation = Quaternion.AngleAxis(tossSpin * dt, tossAxis) * tossed.rotation;
+            float easeLeft = tossDur - tossT;
+            if (TossWholeStep(k)) { }                                                                    // open_fixes_2nov update 1: planned at the throw (UnitView.TossWhole.cs); else row 25's ease as before
+            else if (!tossEasing && easeLeft > Mathf.Min(TossEaseSeconds, tossDur * TossEaseShare))
+                tossed.rotation = Quaternion.AngleAxis(tossSpin * dt, tossAxis) * tossed.rotation;
+            else
+            {
+                if (!tossEasing)
+                {   // the pose it will lie in, picked once for the point it lands on; one fixed correction, so the turn can never flip side while it spins
+                    tossEasing = true; tossEaseAt = tossT; tossEaseFrom = tossed.rotation;
+                    if (!tossRestPicked)                                                                     // open_fixes_2nov: picked at the throw when its arc was aimed (TossAimRest)
+                    {
+                    var rest = Quaternion.Euler(Random.Range(-35f, 35f), Random.Range(0f, 360f), Random.Range(100f, 160f));   // lands on its side
+                    tossEaseRest = OzTreeCrush.TurretPick(tossed, tossTo, rest, Obj);                       // item 360: it lies on the trees it fells, never through a standing one (OzTreeCrush.cs)
+                    }
+                    float spun = tossSpin * Mathf.Max(0f, easeLeft) / 3f;
+                    tossEaseFix = tossEaseRest * Quaternion.Inverse(Quaternion.AngleAxis(spun, tossAxis) * tossEaseFrom);
+                }
+                float span = Mathf.Max(0.001f, tossDur - tossEaseAt), u = Mathf.Clamp01((tossT - tossEaseAt) / span), un = 1f - u;
+                float deg = tossSpin * span * (1f - un * un * un) / 3f;                                     // the spin slows to nothing on the landing frame
+                tossed.rotation = Quaternion.Slerp(Quaternion.identity, tossEaseFix, Mathf.SmoothStep(0f, 1f, u)) * Quaternion.AngleAxis(deg, tossAxis) * tossEaseFrom;
+            }
             if (k >= 1)
             {
                 tossLanded = true;
-                var tossRest = Quaternion.Euler(Random.Range(-35f, 35f), Random.Range(0f, 360f), Random.Range(100f, 160f));   // lands on its side
-                tossRest = OzTreeCrush.TurretRest(tossed, p, tossRest, Obj);                                // item 360: it lies on the trees it fells, never through a standing one (OzTreeCrush.cs)
-                tossed.rotation = OzHeavyLanding.TurretRest(tossed, p, tossRest, new Vector3((tossTo.x - tossFrom.x) / Mathf.Max(0.1f, tossDur), (tossTo.y - tossFrom.y - 4f * tossApex) / Mathf.Max(0.1f, tossDur), (tossTo.z - tossFrom.z) / Mathf.Max(0.1f, tossDur)));   // item 172: no snap: it tips onto its side, bounces a little, lies on the ground
+                OzTreeCrush.TurretFell(tossed, p, tossEaseRest, Obj);                                       // the trees it comes down on fall as it lands
+                tossed.rotation = tossEaseRest;
+                tossed.rotation = OzHeavyLanding.TurretRest(tossed, p, tossEaseRest, new Vector3((tossTo.x - tossFrom.x) / Mathf.Max(0.1f, tossDur), (tossTo.y - tossFrom.y - 4f * tossApex) / Mathf.Max(0.1f, tossDur), (tossTo.z - tossFrom.z) / Mathf.Max(0.1f, tossDur)));   // item 172: no snap: it tips onto its side, bounces a little, lies on the ground
                 if (!OzWaterLanding.Enter(tossed, "turret", new Vector3((tossTo.x - tossFrom.x) / Mathf.Max(0.1f, tossDur), -4f * tossApex / Mathf.Max(0.1f, tossDur), (tossTo.z - tossFrom.z) / Mathf.Max(0.1f, tossDur)), false, false))   // b27: into water = the shared rule (splash, rings, one sound, it rests partly under the surface)
-                    TossLanded(p);                                                                      // deaths_mech_v1: clang + dust + kick, only on screen
+                    TossLanded(TossDustAt(p));                                                          // deaths_mech_v1: clang + dust + kick, only on screen; open_fixes_2nov: at the old landing height (UnitView.TossAim.cs)
             }
         }
 
-        public void Hide() { AnticCancel("removed", true); death = Death.Gone; Live.Remove(this); if (tossed) Destroy(tossed.gameObject); gameObject.SetActive(false); }
+        public void Hide() { AnticCancel("removed", true); death = Death.Gone; Live.Remove(this); if (tossed && !OzLavaMelt.PopWaits(tossed, null, true)) Destroy(tossed.gameObject); gameObject.SetActive(false); }   // level 7, kit LV5: a melting turret is destroyed when it is under
         void OnDestroy() { AnticCancel("destroyed", true); Live.Remove(this); if (tossed) Destroy(tossed.gameObject); StopWreckFire(0.5f); }
+        /// <summary>v1.3: bumped whenever a unit view is shown, hidden or destroyed (OnEnable / OnDisable): ZGame.LiveViews rebuilds
+        /// its list of shown views on the next read after a change, and never otherwise.</summary>
+        public static int LiveVersion;
+        void OnEnable() { LiveVersion++; }
+        void OnDisable() { LiveVersion++; }
 
         void UpdateDeath(float dt)
         {
@@ -351,6 +392,7 @@ namespace OpenZ
                     float T = airT; float k = Mathf.Clamp01(deathT / T);                            // deaths_mech_v1: Zod's 3.5-4.4 s (was 1.3 s)
                     var p = Vector3.Lerp(deathFrom, deathTo, k); p.y += Mathf.Sin(k * Mathf.PI) * airH;
                     transform.position = p;
+                    if (k > 0.5f && LavaLanding(p)) break;                                  // 1.3 level 7: it came down in lava
                     if (k >= 1f && deathT - dt < T) OzBodySounds.FlightLanded(p, deathFrom, deathTo, T, airH, GetInstanceID());   // J15: the metal body thud on its landing frame
                     if (k < 1) transform.rotation = Quaternion.AngleAxis(Mathf.SmoothStep(0, 1, k) * 100f, spinAxis) * Quaternion.Euler(0, yaw + modelYaw, 0);   // falls back, no spin
                     else if (deathT < T + 0.05f && anim) anim.CrossFadeInFixedTime("death_back", 0.05f);
@@ -365,8 +407,11 @@ namespace OpenZ
                     if (k >= 1) Hide();
                     break;
                 }
+                case Death.LavaMelt: UpdateLavaMelt(dt); break;                                      // DV152 (UnitView.LavaMelt.cs)
+                case Death.Evil: if (deathT > 6f) Hide(); break;                                     // DV161: OzEvilZodFx ends it long before
                 case Death.Anim: if (deathT > 5f) PopAway(); break;
                 case Death.Ragdoll:
+                    if (RagdollInLava()) break;                                              // 1.3 level 7: thrown into lava, it melts there
                     if (deathT > 13f) PopAway();
                     break;
                 case Death.Wreck: UpdateWreck(dt); break;                                           // deaths_mech_v1: burn, sparks, flip / break, fade (UnitView.Deaths.cs)
@@ -413,7 +458,7 @@ namespace OpenZ
             if (Obj == null || death == Death.Gone) return;
             if (death != Death.None) { UpdateDeath(Time.deltaTime); return; }
             if (OpenZEnding.Holds(Obj.Id)) return;                                  // endings_v1: dead in the sim, dies in the nuke's wave (OpenZEnding moves it)
-            if (deathHoldUntil > Time.time) return;                                 // combat_nb_v1 NB3: dead in the sim, thrown when the blast front reaches it (BlastWave)
+            if (deathHoldUntil > Time.time) { DeathHoldLand(Time.deltaTime); return; }                                 // combat_nb_v1 NB3: dead in the sim, thrown when the blast front reaches it (BlastWave); u2_followups: a knockdown frozen in its blast arc at his death event finishes the arc to the ground during the hold (View/UnitView.DeathOwns.cs)
             if (game.World.Get(Obj.Id) != Obj) { if (OzShuttleBreakup.KeepsDrawn(this)) return; Hide(); return; }   // entered a vehicle, removed (K256h: a shot-down shuttle stays drawn until its break-up takes it)
             if (((Time.frameCount + Obj.Id) & 31) == 0) UnitLookMotionGate.KeepUnitCrisp(gameObject);     // parts added after the bind (hatch, lid, kit) stay out of the motion blur too; about twice a second per unit, spread over the frames
             if (syncedFrame != Time.frameCount) Sync(Time.deltaTime);
@@ -446,7 +491,7 @@ namespace OpenZ
             sepOffset += Vector3.ClampMagnitude(sepCorr * Mathf.Min(1f, 12f * dt), 2f * dt);          // relax the overlap, at most 2 m/s (parity P4: no fast view-only slides)
             // drift back when free (take2 legs): a robot only while it walks (a standing robot never skates); a vehicle only while
             // clear of every unit (spacing + 0.12 m), so a parked tank neither shoves standing robots nor stays ~2 m off its sim spot
-            if (sepCorr.sqrMagnitude < 1e-6f && (Obj.Kind == ZKind.Robot ? Obj.IsMoving || walkShown || SettleNow() : !sepTouch))   // K420: a saved robot steps back onto its rules place (View/UnitView.Settle.cs)
+            if (sepCorr.sqrMagnitude < 1e-6f && !AnticHoldsPlace && (Obj.Kind == ZKind.Robot ? Obj.IsMoving || walkShown || SettleNow() : !sepTouch))   // K420: a saved robot steps back onto its rules place (View/UnitView.Settle.cs); not while a flyover antic holds its place (UnitView.Antics.cs)
                 // members apart while stacked) pulled the drawn V together for ~4 s once the sim had spread it (sniper pair 0.9 m drawn vs 2.7 m sim)
                 sepOffset = Vector3.MoveTowards(sepOffset, Vector3.zero, (Obj.Kind == ZKind.Robot ? 0.8f : 0.2f) * dt);
             if (sepOffset.magnitude > maxSep) sepOffset = sepOffset.normalized * maxSep;
@@ -455,7 +500,8 @@ namespace OpenZ
             {
                 // damped, never faster than the sim); only a real teleport (> 6 m: exits, spawns) snaps
                 float simSpeed = Mathf.Sqrt(Obj.Dx * Obj.Dx + Obj.Dy * Obj.Dy) / 8f;
-                if (!dispInit || (disp - p).sqrMagnitude > 36f) { disp = p; dispVel = Vector3.zero; dispInit = true; lastDisp = p; bodyVel = Vector3.zero; strideSpeed = 0f; }
+                if (EvilZodDrawn(p)) { }                                                                 // DV161: the power dash's burst is drawn where the rules have him (UnitView.EvilZod.cs)
+                else if (!dispInit || (disp - p).sqrMagnitude > 36f) { disp = p; dispVel = Vector3.zero; dispInit = true; lastDisp = p; bodyVel = Vector3.zero; strideSpeed = 0f; }
                 else if (!walkShown && (p - disp).sqrMagnitude < StandHold * StandHold) dispVel = Vector3.zero;   // motion_v1: a standing robot does not creep with sim jostle
                 else
                 {   // parity P4 ("cap view smoothing at sim speed"): the spring keeps a 1.15x margin (a plain 1.0x maxSpeed settles a few %
@@ -476,14 +522,14 @@ namespace OpenZ
                 // hysteresis (0.3 / 0.15 m/s) + dwell (stand >= 0.25 s, walk >= 0.45 s = one step); a robot that stops to shoot stands at once
                 // motion_v1: the drawn speed alone decides (the old sim term `simWalk && shown > 0.05` kept the legs cycling on a held body)
                 float shown = strideSpeed; bool simWalk = moving && Obj.MoveSpeed > 0;
-                bool aiming = !simWalk && Obj.AttackObject != null && !Obj.AttackObject.Destroyed;
+                bool aiming = !simWalk && ((Obj.AttackObject != null && !Obj.AttackObject.Destroyed) || Obj.DragonAiming);   // DV163
                 bool wantWalk = walkShown ? shown > WalkOff : shown > WalkOn;
                 gaitT += dt;
                 if (wantWalk != walkShown && (gaitT >= (walkShown ? MinWalk : MinStand) || (!wantWalk && aiming))) { walkShown = wantWalk; gaitT = 0f; }
                 if (!walkShown) runShown = false;
             }
 
-            bool engaged = Obj.AttackObject != null && !Obj.AttackObject.Destroyed;
+            bool engaged = (Obj.AttackObject != null && !Obj.AttackObject.Destroyed) || Obj.DragonAiming;   // DV163: the upper body up at a dragon
             bool vehicle = Obj.Kind == ZKind.Vehicle;
             float speed01 = moving && Obj.MoveSpeed > 0 ? Mathf.Clamp01(Mathf.Sqrt(Obj.Dx * Obj.Dx + Obj.Dy * Obj.Dy) / (Obj.MoveSpeed * 1.689f)) : 0f;
             var moveDir = moving ? new Vector3(Obj.Dx, 0, -Obj.Dy).normalized : Vector3.zero;
@@ -493,7 +539,7 @@ namespace OpenZ
             prevYaw = yaw;
             bool anticFaces = antic != null && antic.OwnsFacing;                                     // fishing / the lounger: the antic alone turns the robot (AnticFace)
             if (anticFaces) { }
-            else if (vehicle) { yaw = ExitHull(SteerHull(moving, engaged, dt), dt); p = NoCrab(p, moving, speed01, moveDir, dt); ExitHoldSlip(); }   // vehicles_nb_v1 NB21/22: steers into sideways moves, never glides;                                     // motion_v1: path-following hull (dead zone, hold, commit); the turret tracks
+            else if (vehicle) { yaw = ExitHull(SteerHull(moving, engaged, dt), dt); p = NoCrab(p, moving, speed01, moveDir, dt); ExitHoldSlip(); p = ExitLaneHold(p); }   // vehicles_nb_v1 NB21/22: steers into sideways moves, never glides;                                     // motion_v1: path-following hull (dead zone, hold, commit); the turret tracks   // k102: held in a gate, kept between its walls (View/UnitView.ExitFit.K102.cs)
             else if (bodyGoes)
             {   // motion_v1: a walking robot faces where its drawn body goes (low-passed), not the sim's one-tick sidestep / re-aim headings
                 float to = Mathf.Atan2(legDir.x, legDir.z) * Mathf.Rad2Deg;
@@ -506,6 +552,7 @@ namespace OpenZ
                 yaw = Mathf.MoveTowardsAngle(yaw, AimYaw(), TurnRate * 0.6f * dt);        // robots and turret-less cannons turn to shoot
             if (!anticFaces && gunAim && (Obj.Kind == ZKind.Robot || (Obj.Kind == ZKind.Cannon && !turret)))     // combatview: face the shot fast and eased
                 yaw = gunAim.AdjustBodyYaw(yaw, Mathf.Atan2(legDir.x, legDir.z) * Mathf.Rad2Deg, Obj.IsMoving || walkShown, dt);   // take2 legs: legDir / walkShown
+            EvilZodYaw(dt);                                                                             // DV161 (UnitView.EvilZod.cs)
             heading = Obj.IsMoving ? Mathf.MoveTowardsAngle(heading, Mathf.Atan2(moveDir.x, moveDir.z) * Mathf.Rad2Deg, HullRate * dt) : yaw;   // combatview: formation follows the path
             float yawRate = dt > 0 ? Mathf.DeltaAngle(prevYaw, yaw) / dt : 0f;
 
@@ -546,7 +593,7 @@ namespace OpenZ
                 else if (!PlaceFortDefender(ref p)) { p = GrabKeepOut(p, dt); p.y = game.GroundY(p.x, p.z) + yOffset; }
                 transform.position = p;
                 transform.rotation = Quaternion.Euler(0, yaw + modelYaw, 0);
-                if (reactKind != 0) ApplyReaction(dt);                                               // deaths_mech_v1: knockdown / stagger / flinch (view only)
+                if (reactKind != 0) ApplyReaction(ReactStep(dt));                                    // deaths_mech_v1: knockdown / stagger / flinch (view only); vehicle_exit_gun 2b: frozen (step 0) from his death event until his death is drawn (View/UnitView.DeathWins.cs)
             }
             if (turret && !(gunAim && gunAim.HasRig))                                                 // combatview: UnitAim solves yaw + pitch on the muzzle
             {
@@ -555,7 +602,10 @@ namespace OpenZ
                 if (!Obj.UnmannedHeld) turretAim = Mathf.MoveTowardsAngle(turretAim, want, TurretRate * dt);   /* DV79 unmanned stop: nobody inside, the turret stays where it points */                     // turrets slew instead of snapping
                 turret.rotation = Quaternion.AngleAxis(turretAim - yaw, transform.up) * (transform.rotation * turretRest);
             }
+            GroundGearBefore(dt);                                                                       // 1.2 items 137 / 146: the tracks stay on the ground, only the hull and turret rock (View/UnitView.GroundGear.cs)
+            QuietStop();                                                                                // vehicle_exit_jump2 A: a vehicle emptied this frame (EXIT, sniped): its recoil and suspension springs at rest now (View/UnitView.QuietStop.cs)
             ApplyRecoil(dt);
+            GroundGearAfter();
             if (Obj.Kind == ZKind.Robot && skin)
             {
                 // carries the armature's 1/60 scale, so the band can't be measured in object space)

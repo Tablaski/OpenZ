@@ -53,13 +53,13 @@ namespace OpenZ.Sim
                 case PfTile.Water: speed = (float)(1.0 / ZConst.WATER_SPEED); v = false; break;
                 case PfTile.Road: speed = (float)(1.0 / (ZConst.ROAD_SPEED + 0.5)); break;
             }
-            int side = (int)(100 * speed);                 // int * float -> float, truncated to int
+            int side = (int)(float)(100 * speed);                 // int * float -> float, truncated to int
             int diag = (int)((1.414 * 100) * speed);       // double * float -> double, truncated
             robot[x, y] = new Info { side = side, diag = diag, passable = r };
             vehicle[x, y] = new Info { side = side, diag = diag, passable = v };
             robotNoRocks[x, y] = robot[x, y];
             vehicleNoRocks[x, y] = vehicle[x, y];
-            if (t == PfTile.Water && WaterCost != 1f) { robot[x, y].side = robotNoRocks[x, y].side = (int)(100 * (speed * WaterCost)); robot[x, y].diag = robotNoRocks[x, y].diag = (int)((1.414 * 100) * (speed * WaterCost)); }   // level 16: the swamp weighs double for robots
+            if (t == PfTile.Water && WaterCost != 1f) { robot[x, y].side = robotNoRocks[x, y].side = (int)(float)(100 * (float)(speed * WaterCost)); robot[x, y].diag = robotNoRocks[x, y].diag = (int)((1.414 * 100) * (float)(speed * WaterCost)); }   // level 16: the swamp weighs double for robots
         }
 
         /// <summary>zpath_finding.cpp:473-546: a vehicle tile weighs the sum of its 2x2 footprint.</summary>
@@ -253,12 +253,54 @@ namespace OpenZ.Sim
         sealed class PArray
         {
             public P[] list = new P[1000]; public int size; public readonly int[,] index;
+            /// <summary>1.3 item 25 (the open list only, ZWorld.PerfFastRules): a binary min-heap of list places keyed by (f, place), so the
+            /// pop takes in O(log n) the very entry Zod's scan takes (the lowest f; among equal f the first in list order). Add and Zod's
+            /// swap-remove keep it in step; the list, its order and the index (its stale entries included) are exactly as before.</summary>
+            public bool Heaped;
+            int[] heap = new int[1000], hpos = new int[1000]; int hsize;
             public PArray(int w, int h) { index = new int[w, h]; for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) index[i, j] = -1; }
-            public void Add(P p) { if (size >= list.Length) Array.Resize(ref list, list.Length + 1000); list[size] = p; index[p.x, p.y] = size; size++; }
+            public void Add(P p) { if (size >= list.Length) Array.Resize(ref list, list.Length + 1000); list[size] = p; index[p.x, p.y] = size; size++; if (Heaped) HeapInsert(size - 1); }
             public void Remove(int x, int y)
             {
                 int i = index[x, y]; if (i == -1) return;
+                if (Heaped) { HeapDelete(hpos[i]); if (i != size - 1) HeapDelete(hpos[size - 1]); }   // (keys read before the list changes)
                 index[x, y] = -1; size--; list[i] = list[size]; index[list[i].x, list[i].y] = i;
+                if (Heaped && i != size) HeapInsert(i);                                         // the last entry, now at place i
+            }
+            /// <summary>The place of the entry Zod's lowest_f_cost scan returns (Heaped only, size > 0).</summary>
+            public int MinPos => heap[0];
+            bool Less(int a, int b) => list[a].f < list[b].f || (list[a].f == list[b].f && a < b);
+            void HeapInsert(int pos)
+            {
+                if (hsize >= heap.Length) Array.Resize(ref heap, heap.Length * 2);
+                if (pos >= hpos.Length) Array.Resize(ref hpos, Math.Max(hpos.Length * 2, pos + 1));
+                heap[hsize] = pos; hpos[pos] = hsize; hsize++;
+                Up(hsize - 1);
+            }
+            void HeapDelete(int k)
+            {
+                int last = heap[--hsize];
+                if (k == hsize) return;
+                heap[k] = last; hpos[last] = k;
+                Down(k); Up(hpos[last]);
+            }
+            void Up(int k)
+            {
+                int p = heap[k];
+                while (k > 0) { int pk = (k - 1) >> 1, q = heap[pk]; if (!Less(p, q)) break; heap[k] = q; hpos[q] = k; k = pk; }
+                heap[k] = p; hpos[p] = k;
+            }
+            void Down(int k)
+            {
+                int p = heap[k];
+                while (true)
+                {
+                    int c = 2 * k + 1; if (c >= hsize) break;
+                    if (c + 1 < hsize && Less(heap[c + 1], heap[c])) c++;
+                    int q = heap[c]; if (!Less(q, p)) break;
+                    heap[k] = q; hpos[q] = k; k = c;
+                }
+                heap[k] = p; hpos[p] = k;
             }
             /// <summary>Back to an empty list with every index at -1, for the next search. An entry that left the open list is on the
             /// closed list (`moved`), so the two lists name every tile whose index was ever set (Remove leaves the index of the last
@@ -267,7 +309,7 @@ namespace OpenZ.Sim
             {
                 for (int i = 0; i < size; i++) index[list[i].x, list[i].y] = -1;
                 if (moved != null) for (int i = 0; i < moved.size; i++) index[moved.list[i].x, moved.list[i].y] = -1;
-                size = 0;
+                size = 0; hsize = 0;
             }
         }
         PArray aOpen, aClosed;                                                          // the two lists of the search, kept between searches (cleared, not built anew)
@@ -280,12 +322,17 @@ namespace OpenZ.Sim
             if (aOpen == null || aOpen.index.GetLength(0) != W || aOpen.index.GetLength(1) != H) { aOpen = new PArray(W, H); aClosed = new PArray(W, H); }
             else { aOpen.Clear(aClosed); aClosed.Clear(null); }                           // (what the last search left; a search that threw is cleared here too)
             var open = aOpen; var closed = aClosed;
+            open.Heaped = ZWorld.PerfFastRules;                                           // 1.3 item 25: the same pops from a heap (set before the first Add)
             open.Add(new P { x = sx, y = sy });
             P cp = default;
             while (open.size > 0)
             {
-                cp = open.list[0];                                         // lowest_f_cost: first strictly lower wins
-                for (int i = 0; i < open.size; i++) if (cp.f > open.list[i].f) cp = open.list[i];
+                if (open.Heaped) cp = open.list[open.MinPos];                  // 1.3 item 25: the same entry (lowest f, first in list order) from the heap
+                else
+                {
+                    cp = open.list[0];                                         // lowest_f_cost: first strictly lower wins
+                    for (int i = 0; i < open.size; i++) if (cp.f > open.list[i].f) cp = open.list[i];
+                }
                 Work += open.size + 8;                                         // DV44 path budget (ZCommit.cs): counter only
                 if (cp.x == ex && cp.y == ey) break;
                 open.Remove(cp.x, cp.y); closed.Add(cp);
@@ -298,13 +345,14 @@ namespace OpenZ.Sim
             if (cp.x == ex && cp.y == ey)
                 while (true)
                 {
-                    path.Insert(0, cp);
+                    if (open.Heaped) path.Add(cp); else path.Insert(0, cp);       // 1.3 item 25: Add, then one Reverse below (the same list)
                     int i = closed.index[cp.px, cp.py];                            // (a tile is on the closed list once: its index is where Zod's walk of the list finds it)
                     if (i < 0) i = closed.size; else cp = closed.list[i];
                     Work += i + 1;                                                 // DV44 path budget (ZCommit.cs): counter only (what that walk cost)
                     if (i >= closed.size) { path.Clear(); break; }
                     if (cp.x == sx && cp.y == sy) break;
                 }
+            if (open.Heaped) path.Reverse();
             // remove redundant points (same direction in and out)
             for (int i = 0; i < path.Count;)
             {

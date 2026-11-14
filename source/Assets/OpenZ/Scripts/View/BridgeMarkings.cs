@@ -97,7 +97,8 @@ namespace OpenZ
         /// <summary>Finds each bridge's INTACT deck plate (the placed view or RulesView's "_intact" variant made at run time).</summary>
         void Scan()
         {
-            var root = GameObject.Find("ZodObjects");
+            if (OzViewScans.SkipPlateSearch(decks.TrueForAll(d => d.Plate))) return;           // 1.4 speed-up 4: every deck has its plate, nothing to search (View/OzViewScans.cs)
+            var root = OzViewScans.ZodRoot();
             if (!root) return;
             foreach (var d in decks)
             {

@@ -58,7 +58,7 @@ namespace OpenZ
             shuttleState = Hud.Label(live, "State", "", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(bw - OzDeployBar.StateRX, mid, OzH.R, true, 40);
             var locked = Hud.Node("Locked", shuttleRow.Content); locked.Fill();
             shuttleLockCg = locked.gameObject.AddComponent<CanvasGroup>(); shuttleLockCg.blocksRaycasts = false;
-            Hud.Label(locked, "Text", OzShuttleStart.LockedRow, 11, OzUi.Dim, 0.1f, OzStyle.Plain).At(OzDeployBar.WordsX, mid, OzH.L, true, WordsBox(bw, false));
+            shuttleLockRow = Hud.Label(locked, "Text", OzShuttleStart.LockedRow, 11, OzUi.Dim, 0.1f, OzStyle.Plain).At(OzDeployBar.WordsX, mid, OzH.L, true, WordsBox(bw, false));   // 1.2 item 11: kept, its words name the lock's cause
             Hud.Kit(locked, "Knob", "Buttons/switch_knob", new OzRect(bw - OzDeployBar.TrackRX + 2f, (rh - OzDeployBar.KnobH) * 0.5f, OzDeployBar.KnobW, OzDeployBar.KnobH), OzUi.A(OzUi.GM500, OzDeployBar.LockKnobA), Image.Type.Simple);
             AddHot(shuttleRow.Rt, View.Select, () => ToggleShuttleStart(false), hv => shuttleTipOn = hv, shuttleRow, null);
             shuttleHint = Hud.Label(shuttleRt, "Hint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(0, OzDeployBar.HintY - top, OzH.L, false, bw);
@@ -67,7 +67,7 @@ namespace OpenZ
             // a rebuild (a new screen size) shows the state at once
             string id = levels[focusCard].Id; var d = OpenZDifficulty.Level;
             bool slot = OzShuttleStart.HasSlot(id);
-            shuttleShown = slot && OzShuttleStart.Offered(id, d);
+            shuttleShown = slot && OzShuttleStart.Offered(id, d) && !PlayBlueLocksShuttle();             // 1.2 item 11: locked while the PLAY AS BLUE box is on (UI/OpenZMainMenu.PlayBlue.cs)
             shuttleK = shuttleKFrom = shuttleKTo = slot ? 1f : 0f; shuttleKAt = -10f;
             shuttleLockK = shuttleLockFrom = shuttleLockTo = slot && !shuttleShown ? 1f : 0f; shuttleLockAt = -10f;
             shuttleTipK = 0f; shuttleTipOn = false;
@@ -89,11 +89,11 @@ namespace OpenZ
         void RefreshShuttleStart(GameDifficulty d, bool slot)
         {
             if (!shuttleRt) return;
-            bool want = slot && OzShuttleStart.Offered(levels[focusCard].Id, d);
+            bool want = slot && OzShuttleStart.Offered(levels[focusCard].Id, d) && !PlayBlueLocksShuttle();   // 1.2 item 11: locked while the PLAY AS BLUE box is on
             if (want != shuttleShown)
             {
                 shuttleShown = want; if (!want) shuttleTipOn = false;
-                Debug.Log($"[OpenZ Menu] shuttle box: {(want ? "offered" : slot ? "locked (HARD)" : "no slot")} ({levels[focusCard].Id}, {OpenZDifficulty.Label(d)}; {(OzShuttleStart.On ? "ON" : "OFF")})");
+                Debug.Log($"[OpenZ Menu] shuttle box: {(want ? "offered" : slot ? (d != GameDifficulty.Hard && PlayBlueLocksShuttle() ? "locked (PLAY AS BLUE)" : "locked (HARD)") : "no slot")} ({levels[focusCard].Id}, {OpenZDifficulty.Label(d)}; {(OzShuttleStart.On ? "ON" : "OFF")})");
             }
             float dt = Time.unscaledDeltaTime, dur = Mathf.Max(0.01f, OzMotion.Dur(OzMotion.Short, true)), now = OzMotion.Now;
             bool hidden = shuttleK <= 0.001f, locked = slot && !want;
@@ -136,6 +136,7 @@ namespace OpenZ
             shuttleHint.Set(box ? OzShuttleStart.HintOn : OzShuttleStart.HintOffFor(levels[focusCard].Id));   // K444: level 17's words with the box off (its car-park shuttle stays)
             shuttleHint.color = OzUi.A(box ? OzUi.Ink2 : OzUi.Muted, 1f - e);
             shuttleLockHint.color = OzUi.A(OzUi.Dim, e);
+            PlayBlueShuttleWords();                                                                          // 1.2 item 11: "NOT ON HARD" or "NOT AS BLUE" (UI/OpenZMainMenu.PlayBlue.cs)
         }
 
         /// <summary>A click on the row (only while the box is offered) or the key (where it is not offered: ui_disabled).</summary>
@@ -147,7 +148,7 @@ namespace OpenZ
             ShuttleToggles++;
             Sfx(on ? "ui_toggle_on" : "ui_toggle_off");
             ShowShuttle();
-            Debug.Log($"[OpenZ Menu] shuttle box: {(on ? "ON" : "OFF")} ({levels[focusCard].Id}, {OpenZDifficulty.Label(OpenZDifficulty.Level)}: {(on ? "the shuttle stands by your fort" : "no shuttle")}; {OzShuttleStart.Pref} {(on ? 1 : 0)}, saved)");
+            Debug.Log($"[OpenZ Menu] shuttle box: {(on ? "ON" : "OFF")} ({levels[focusCard].Id}, {OpenZDifficulty.Label(OpenZDifficulty.Choice)}: {(on ? "the shuttle stands by your fort" : "no shuttle")}; {OzShuttleStart.Pref} {(on ? 1 : 0)}, saved)");
         }
 
         // ---------------------------------------------------------------- proof hooks (OzShuttleStartProof, Play only)
@@ -162,6 +163,6 @@ namespace OpenZ
         public void ProofShuttleTipHover(bool on) => shuttleTipOn = on;
         public void ProofToggleShuttle(bool byKey) => ToggleShuttleStart(byKey);
         /// <summary>What the block says: "ON / PARKED BY YOUR FORT", "OFF / NO SHUTTLE", or locked "NOT ON HARD / EASY · MEDIUM ONLY".</summary>
-        public string ProofShuttleText => shuttleState == null ? "" : shuttleLockK > 0.5f ? OzShuttleStart.LockedRow + " / " + shuttleLockHint.text : shuttleState.text + " / " + shuttleHint.text;
+        public string ProofShuttleText => shuttleState == null ? "" : shuttleLockK > 0.5f ? OzShuttleStart.LockedRowFor(OpenZDifficulty.Choice) + " / " + shuttleLockHint.text : shuttleState.text + " / " + shuttleHint.text;
     }
 }

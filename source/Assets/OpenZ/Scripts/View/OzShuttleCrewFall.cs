@@ -111,10 +111,12 @@ namespace OpenZ
             var g = ZGame.I; float dt = g && g.paused ? 0f : Time.deltaTime;
             if (dt <= 0f) return;
             age += dt;
+            if (OzLavaMelt.Busy(transform)) return;                                                             // level 7, kit LV5: it is melting, the melt moves it
             if (sinkT >= 0f) { sinkT += dt; transform.position += Vector3.down * (sinkDepth / 3f) * dt; if (sinkT >= 3f) Destroy(gameObject); return; }
             if (age >= wreckAt) { Retire(); return; }
             if (scripted) { ScriptedStep(dt); return; }
             if (!rd) return;
+            if (OzLavaMelt.Live && RagdollInLava()) return;                                                     // level 7, kit LV5: at the lava, not when it has come to rest (OzShuttleCrewFall.Lava.cs)
             if (held.Count > 0 && age >= nextCheck)
             {
                 nextCheck = age + 0.2f;
@@ -186,7 +188,7 @@ namespace OpenZ
             transform.rotation = Quaternion.AngleAxis(90f, axis) * rot0;                                       // on its back
             landPose?.Invoke(gameObject);
             var to = pos;
-            if (wet) { OzWaterLanding.Splash(pos, OzWaterSize.Small, "robot body"); RestOn = "water"; InWater++; }
+            if (wet) { OzWaterLanding.Splash(pos, OzWaterSize.Small, "robot body"); RestOn = "water"; InWater++; OzLavaMelt.Take(transform, vel.magnitude, OzMeltEnd.Hide, "robot body"); }
             else
             {
                 OzBodySounds.FlightLanded(pos, from, to, Mathf.Max(0.2f, age), 0.5f, emitter);

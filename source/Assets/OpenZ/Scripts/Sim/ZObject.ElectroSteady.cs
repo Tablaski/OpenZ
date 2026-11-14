@@ -69,7 +69,7 @@ namespace OpenZ.Sim
             if (!ElectroSteady || elPhase == ElectroPhase.Windup || t == null || !t.IsMoving) return false;
             double rx = t.CenterX - CenterX, ry = t.CenterY - CenterY;
             if (t.Dx * rx + t.Dy * ry <= 0) return false;                                   // standing still or coming nearer
-            return Math.Sqrt(rx * rx + ry * ry) > AttackRadius - ZWorld.ElectroStandBand;
+            return Math.Sqrt(rx * rx + ry * ry) > RangeTo(t) - ZWorld.ElectroStandBand;
         }
 
         /// <summary>DV83: the nearest enemy unit he can hit from where he stands (range, clear line), ties by object order.</summary>
@@ -80,7 +80,7 @@ namespace OpenZ.Sim
             {
                 if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner || !CanAttackObject(o)) continue;
                 double d = Dist(CenterX, CenterY, o.CenterX, o.CenterY);
-                if (d >= bd || d > AttackRadius || !WithinAttackRadius(o)) continue;
+                if (d >= bd || d > RangeTo(o) || !WithinAttackRadius(o)) continue;
                 bd = d; best = o;
             }
             return best;

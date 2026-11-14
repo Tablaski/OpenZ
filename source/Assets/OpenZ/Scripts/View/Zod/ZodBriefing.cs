@@ -111,8 +111,9 @@ namespace OpenZ
 
         static void Install(Scene s, bool fromFlow)
         {
-            if (!Application.isPlaying || !s.IsValid() || !Enabled) return;
+            if (!Application.isPlaying || !s.IsValid() || !Enabled || OzPlayBlue.NoStoryIn(s.name)) return;   // 1.2 item 11: no cameo in a level played as blue (red's story scenes are off there; View/OzPlayBlue.cs)
             if (I && I.gameObject.scene == s) return;
+            if (OzUeHooks.NoCameo(s)) return;                                                     // 1.2 item 6: no briefing, transmissions or idle lines in the Unit editor's playground
             var go = new GameObject("ZodCameo");
             if (go.scene != s) SceneManager.MoveGameObjectToScene(go, s);
             pendingFromFlow = fromFlow;
@@ -122,7 +123,7 @@ namespace OpenZ
         /// <summary>AudioDirector.HoldStartLines: true until the briefing has handed the level to the player.</summary>
         static bool HoldingStart() => I && I.mode == Mode.Level && I.phase != Phase.Play;
         /// <summary>AudioDirector.ExternalVoiceBusy: Zod's window is up and his line is not over (paused = not speaking).</summary>
-        static bool ZodSpeaking() => I && I.perf != null && !I.perf.done && I.perf.t < I.SpeakingUntil(I.perf) + 0.15f && !AudioListener.pause;   // K439: on the win line until the boys' last giggle (ZodBriefing.WinSoda.cs)
+        static bool ZodSpeaking() => (I && I.perf != null && !I.perf.done && I.perf.t < I.SpeakingUntil(I.perf) + 0.15f && !AudioListener.pause) || EvilLineSpeaking();   // K439: on the win line until the boys' last giggle (ZodBriefing.WinSoda.cs); 1.2 items 98c / 99: + EvilZod's line on the blue card (ZodBriefing.EvilLines.cs)
         /// <summary>True while Commander Zod has the floor (his window is up and the line is not over).</summary>
         public static bool Speaking => ZodSpeaking();
         /// <summary>True while the level-start briefing owns the game (sim waiting, camera flying).</summary>
@@ -181,6 +182,7 @@ namespace OpenZ
                 nextAutoCheck = Time.unscaledTime + 1f;
                 automated = CaptureKit.Enabled || GateBattery.Running || NightLumaCheck.Running || FindFirstObjectByType<OzCombatSoundCheck>()
                             || FindFirstObjectByType<IdleLegsCheck>() || FindFirstObjectByType<CombatViewCheck>();
+                automated |= OzFpsBench.Running;                                                        // the frame rate bench (-oz-fpsbench, View/OzFpsBench.cs): no briefing, idle or ending line over its measure
 #if UNITY_EDITOR
                 automated |= FindFirstObjectByType<InputSelfTest>();                                    // editor-only harness
 #endif
@@ -566,6 +568,7 @@ namespace OpenZ
         void LateUpdate()
         {
             if (fly != null && fly.Active && !(AudioListener.pause)) fly.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f));
+            LoadingCutTick();                                                                                  // 1.2 item 160: nothing of the comms over the loading screen (ZodBriefing.LoadingCut.cs)
             comms?.Tick();
         }
 
@@ -621,6 +624,7 @@ namespace OpenZ
         {
             if (!menu) return;
             string view = MenuView(), side = MenuSide();
+            if (BlueCommsRules(view, now)) return;                                                     // 1.2 item 48: PLAY AS BLUE ticked: no Zod on the battlefield screen, the blue channel's card (ZodBriefing.BlueComms.cs)
             if (perf != null)
             {
                 bool leave = perf.kind == Kind.Greeting ? view != "Main" || side != "None" : perf.kind == Kind.Quip && view != "Select";

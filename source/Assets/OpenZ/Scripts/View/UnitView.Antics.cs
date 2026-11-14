@@ -28,6 +28,8 @@ namespace OpenZ
         /// <summary>The robot's front (the view yaw), world space.</summary>
         public Vector3 AnticFront => Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
         public float AnticYaw => yaw;
+        /// <summary>Under a level-start flyover's hold a robot in its antic keeps its drawn place: the view's spacing drift does not walk it back (UnitView.Sync), so no robot glides or turns while it drinks or phones; the overlap push still parts two robots that touch.</summary>
+        public bool AnticHoldsPlace => antic != null && AnticDirector.SimHeldForFlyover;
 
         /// <summary>A humanoid robot whose controller has the antic states (grunt + the V3 types; never the Generic laser).</summary>
         public bool CanAntic
@@ -47,9 +49,10 @@ namespace OpenZ
         {
             if (Obj == null || Obj.Destroyed || Dying) return "dead";
             if (game == null || game.World == null || game.World.GameOver) return "game over";
-            if (Obj.Waypoints.Count > 0) return "order";
-            if (Obj.Leader != null && (Obj.Leader.Waypoints.Count > 0 || Obj.Leader.IsMoving)) return "squad order";
-            if (Obj.IsMoving || walkShown) return "moving";
+            bool held = AnticDirector.SimHeldForFlyover;                                             // k75c3: under a level-start flyover's hold the sim does not tick: an order or a sim velocity is no motion the player sees; the drawn body (walkShown) decides
+            if (!held && Obj.Waypoints.Count > 0) return "order";
+            if (!held && Obj.Leader != null && (Obj.Leader.Waypoints.Count > 0 || Obj.Leader.IsMoving)) return "squad order";
+            if (!held && (Obj.IsMoving || walkShown)) return "moving";                               // under the hold the drawn step does not count either (a view-side spacing nudge of a standing squad; the antic's clip takes the legs over)
             if (Obj.AttackObject != null) return "enemy (engaged)";
             if (Obj.Stunned) return "stunned";
             if (anticHp >= 0f && Obj.Health < anticHp) return "hit";
@@ -59,7 +62,7 @@ namespace OpenZ
             if (stance && stance.Busy) return "stance";
             if (fdMan) return "fort defender";
             if (OpenZEnding.Holds(Obj.Id)) return "ending";
-            if (AnticDirector.IsSelected(Obj)) return "selected";
+            if (!held && AnticDirector.IsSelected(Obj)) return "selected";                           // no click can come under the hold; the drive ends every antic before the hand-back
             return null;
         }
 
@@ -75,7 +78,7 @@ namespace OpenZ
                 if (AnticsEnabled && AnticDirector.Enabled && !AnticDirector.I && CanAntic) AnticDirector.Ensure();
                 return false;
             }
-            if (busy == null) busy = AnticDirector.ThreatReason(this);
+            if (busy == null && !(AnticDirector.SimHeldForFlyover && AnticDirector.FlyoverIgnoresThreats)) busy = AnticDirector.ThreatReason(this);   // under the hold an enemy in the distance cannot shoot: no cancel for it (the drive does not refuse for it either)
             if (busy != null) { AnticCancel(busy, false); return false; }
             if (!antic.Tick(anim, dt)) { AnticStop(false, "done"); return false; }
             anim.speed = 1f;

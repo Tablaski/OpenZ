@@ -53,7 +53,9 @@ namespace OpenZ
             new GameObject("OpenZNukePrewarm").AddComponent<OpenZNukePrewarm>();
         }
 
-        IEnumerator Start()
+        void Start() { OzStartAhead.Run(this, Warm(), "the nuke's prewarm"); }                      // a blue start of level 16: before the first picture, its warm render's frames as before (OzStartAhead.cs, owner items 86 / 142)
+
+        IEnumerator Warm()
         {
             for (int i = 0; i < 6; i++) yield return null;                                           // let the level's own Start work pass
             var sw = new Stopwatch();
@@ -93,11 +95,15 @@ namespace OpenZ
 
         static void Collect(Type t, List<MethodInfo> into, int depth)
         {
+#if ENABLE_IL2CPP
+            return;                                                                                      // 1.3 final: an IL2CPP player is compiled ahead (nothing to JIT) and has no GetMethodBody (it threw and stopped the whole prewarm: objects and GPU warm-up too)
+#else
             if (t == null || t.ContainsGenericParameters || depth > 2) return;
             const BindingFlags F = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
             foreach (var m in t.GetMethods(F))
                 if (!m.IsAbstract && !m.ContainsGenericParameters && m.GetMethodBody() != null) into.Add(m);
             foreach (var nt in t.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)) Collect(nt, into, depth + 1);   // coroutines, lambdas
+#endif
         }
 
         IEnumerator WarmRender()

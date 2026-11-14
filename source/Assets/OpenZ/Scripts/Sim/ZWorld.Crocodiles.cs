@@ -820,6 +820,7 @@ namespace OpenZ.Sim
             if (!ZWorld.CrocFleeDeviation || !ZWorld.CrocodileDeviation || World.Crocs.Count == 0 || time < nextCrocLook) return;
             nextCrocLook = time + 0.5;
             if (IsMinion || Waypoints.Count > 0 || HoldPosition || Destroyed || Health <= 0 || KillAt >= 0 || !CanMove || IsFortDefender || KnockedDown(time)) return;
+            {   // 1.4 speed-up 2 (perf_garbage): the flee search lives in this block, so its closure is made only for a robot that gets this far (it was made for every object on every tick)
             bool Wet(int px, int py) => World.Map.ClassAt(px >> 4, py >> 4) == ZClass.Water;
             // the one of the squad that stands in the water: the leader, else the first of its robots (a squad that stopped at the bank
             // with its tail still wading steps back from the water with it)
@@ -854,6 +855,7 @@ namespace OpenZ.Sim
             CrocWaryUntil = time + ZWorld.CrocWaryMax; CrocWaryPool = c.Pool;
             foreach (var m in Minions) if (m != null) { m.CrocWaryUntil = CrocWaryUntil; m.CrocWaryPool = c.Pool; }
             World.CrocNoteFlee(c, this);
+            }   // 1.4 speed-up 2 (perf_garbage): the end of the flee search's block
         }
 
         /// <summary>DV94 (CheckPassiveEngage): on a crocodile level an idle robot starts no walk of its own to a target whose straight

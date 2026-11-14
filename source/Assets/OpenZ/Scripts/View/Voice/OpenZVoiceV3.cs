@@ -69,12 +69,18 @@ namespace OpenZ
         /// The first tip waits TipFirstSlow s after the hand-over, every later tip (the steal warning too)
         /// at least TipGapSlow s after the previous one, and each only after TipQuiet s with no other voice (Rachel, Zod, robots).</summary>
         public static float TipFirstSlow = 18f, TipGapSlow = 45f, TipQuiet = 4f;
+        /// <summary>
+        /// vehicle of both forts is parked empty too, so the enemy boarding its OWN start vehicles at its fort set the warning off.
+        /// true = "stealing vehicles from the car park" counts only the car park itself: the vehicles the map places empty
+        /// (<see cref="InCarParkLot"/>, L17: the 20 in the bottom rows). false = the 1.2 rule (every vehicle empty at the start).</summary>
+        public static bool StealLotOnly = true;
         float voiceBusyAt = -100f;
 
         ZGame game; bool tipsOn, tipsReady; float handAt = -1f, lastTip = -100f;
         readonly HashSet<string> tipsDone = new HashSet<string>();
         readonly HashSet<int> carPark = new HashSet<int>();
-        int playerTook; bool enemyStole; float enemyStoleAt = -1f;
+        readonly HashSet<int> carParkLot = new HashSet<int>();                                      // 1.3 item 20: the car park itself (StealLotOnly)
+        int playerTook; bool enemyStole; float enemyStoleAt = -1f, enemyLotAt = -1f;
         readonly List<string> log = new List<string>();
 
         // ================================================================================================ boot
@@ -132,10 +138,10 @@ namespace OpenZ
             if (ours || !Enabled || Nuke == NukeMode.Off || !I || !OpenZNukeStrike.Enabled) return 0f;
             if (GateBattery.Running) return 0f;                                                    // the gate's fort_falls stage times the strike (8 s)
             planRachel = Nuke != NukeMode.ZodOnly && AudioDirector.Has("ann_nuke_explain");
-            planZod = Nuke != NukeMode.RachelOnly && ZodBriefing.CanPlayNuke;
+            planZod = Nuke != NukeMode.RachelOnly && (ZodBriefing.CanPlayNuke || OzBlueCameo.CanPlayNuke);   // version 1.2: the blue side's nuke scene takes his slot (View/Blue/OzBlueCameo.Nuke.cs)
             if (!planRachel && !planZod) return 0f;
             float r = planRachel ? MaxClip("ann_nuke_explain") + 0.45f + NukeGap : 0f;           // the queue starts her next frame
-            float z = planZod ? ZodBriefing.NukeLeadSeconds + 0.3f : 0f;                          // window preroll + line up to the slam
+            float z = planZod ? (OzBlueCameo.CanPlayNuke ? OzBlueCameo.NukeLeadSeconds : ZodBriefing.NukeLeadSeconds) + 0.3f : 0f;   // window preroll + line up to the slam (blue: up to the press)
             planHold = r + z + NukeWatchdogSlack;                                                 // watchdog margin: LaunchNow comes first
             launched = false;
             I.StartCoroutine(I.NukeIntro(planRachel, planZod));
@@ -160,7 +166,7 @@ namespace OpenZ
                 while (AudioDirector.VoiceBusy && Time.time - s < NukeWaitRachel) yield return null;
                 yield return new WaitForSeconds(NukeGap);
             }
-            if (zod && !launched && planHold - (Time.time - planAt) < ZodBriefing.NukeLeadSeconds + 0.2f)
+            if (zod && !launched && planHold - (Time.time - planAt) < (OzBlueCameo.CanPlayNuke ? OzBlueCameo.NukeLeadSeconds : ZodBriefing.NukeLeadSeconds) + 0.2f)
             {   // REVIEW: Rachel ran late: his slam could no longer come before the watchdog launch (bomber first, button after)
                 zod = false;
                 Debug.Log("[VoiceV3] no time left for Zod's slam before the watchdog: launching after Rachel");
@@ -170,10 +176,10 @@ namespace OpenZ
                 bool slammed = false;
                 // REVIEW: Rachel "... Launching the nuke ..." + Zod "Sector clear! Launching the nuke!" = the same words twice in a row
                 string avoid = said != null && said.IndexOf("launching", StringComparison.OrdinalIgnoreCase) >= 0 ? "launching" : null;
-                if (ZodBriefing.PlayNuke(() => slammed = true, avoid))
+                if (OzBlueCameo.PlayNuke(() => slammed = true) || ZodBriefing.PlayNuke(() => slammed = true, avoid))   // version 1.2: blue first (it answers false on the red side)
                 {
                     float s = Time.time;
-                    while (!slammed && Time.time - s < NukeZodMax && (Time.time - s < 0.8f || ZodBriefing.Speaking)) yield return null;
+                    while (!slammed && Time.time - s < (OzBlueCameo.NukeShowing ? OzBlueCameo.NukeMaxSeconds : NukeZodMax) && (Time.time - s < 0.8f || ZodBriefing.Speaking || OzBlueCameo.Speaking)) yield return null;
                     if (!slammed) Debug.Log("[VoiceV3] Zod's nuke line ended without a slam beat: launching");
                 }
                 else Debug.Log("[VoiceV3] Zod busy / unavailable: launching after Rachel");
@@ -249,7 +255,7 @@ namespace OpenZ
             var d = AudioDirector.I ? AudioDirector.I.Def("vo_victory_cheer") : null;
             if (d?.lines == null || d.loaded == null || d.loaded.Count == 0) return res;
             var all = new List<string>();
-            foreach (var l in d.lines) if (!string.IsNullOrEmpty(l) && !all.Contains(l) && (blueLost && !TeamColors.Swap || l.IndexOf("blue", StringComparison.OrdinalIgnoreCase) < 0 && !(TeamColors.Swap && TeamColors.NamesColour(l)))) all.Add(l);
+            foreach (var l in d.lines) if (!string.IsNullOrEmpty(l) && !all.Contains(l) && (blueLost && !TeamColors.WordsFlip || l.IndexOf("blue", StringComparison.OrdinalIgnoreCase) < 0 && !(TeamColors.WordsFlip && TeamColors.NamesColour(l)))) all.Add(l);   // 1.2 item 11: no colour takes while the human is blue
             var last = new HashSet<string>(PlayerPrefs.GetString(VictoryPref, "").Split('|'));
             var whoops = all.FindAll(l => Array.IndexOf(VictoryWhoops, l) >= 0);
             var rest = all.FindAll(l => Array.IndexOf(VictoryWhoops, l) < 0);
@@ -333,6 +339,7 @@ namespace OpenZ
             if (!tipsReady)
             {   // the car park = every vehicle that is empty (neutral) when the level starts (L17: the 20 in the bottom rows)
                 foreach (var o in W.Objects) if (o.Kind == ZKind.Vehicle && o.Owner == Team.Neutral && !o.Destroyed) carPark.Add(o.Id);
+                foreach (var id in carPark) if (InCarParkLot(W.Get(id))) carParkLot.Add(id);              // 1.3 item 20: the car park itself
                 tipsReady = true;
                 if (carPark.Count < 3) { tipsOn = false; return; }
             }
@@ -348,7 +355,7 @@ namespace OpenZ
             float gap = Mathf.Max(TipGap, TipGapSlow), first = Mathf.Max(TipFirst, TipFirstSlow);
             if (enemyStole && !tipsDone.Contains("steal") && tipsDone.Contains("car_park") && Time.time - enemyStoleAt > 1.5f && Time.time - lastTip > Mathf.Max(TipStealGap, gap) && t > first + 4f)
             {
-                if (NeutralLeft(W) >= 2) Tip("steal", "Warning! The enemy is stealing vehicles from the car park!");
+                if ((StealLotOnly ? LotLeft(W) : NeutralLeft(W)) >= 2) Tip("steal", "Warning! The enemy is stealing vehicles from the car park!");
                 else tipsDone.Add("steal");
                 return;
             }
@@ -374,13 +381,35 @@ namespace OpenZ
         {
             if (!tipsOn || !carPark.Contains(v.Id)) return;
             if (r.Owner == game.player) { if (before != game.player) playerTook++; }
-            else if (r.Owner != Team.Neutral && before == Team.Neutral && !enemyStole) { enemyStole = true; enemyStoleAt = Time.time; }
+            else if (r.Owner != Team.Neutral && before == Team.Neutral && !enemyStole && (!StealLotOnly || carParkLot.Contains(v.Id)))
+            {   // 1.3 item 20: only an enemy robot that really climbs into a car-park vehicle (the sim's Entered = it reached it)
+                enemyStole = true; enemyStoleAt = Time.time;
+                if (enemyLotAt < 0f) enemyLotAt = Time.time - handAt;
+                Debug.Log($"[VoiceV3] L17 enemy took car-park vehicle {v.Id} ({v.Type}) at {Time.time - handAt:F0} s");
+            }
+        }
+
+        /// <summary>
+        /// blue in the map entry; L17: the 20 in the bottom rows, y 91-111). Not the forts' start vehicles that DV32 parks empty,
+        /// not the head-start extras (no map entry), not a shuttle. Public for the editor check (OzL17StealWarningCount).</summary>
+        public static bool InCarParkLot(ZObject o)
+        {
+            if (o == null || o.Kind != ZKind.Vehicle || o.IsShuttle || o.Source == null) return false;
+            var mapOwner = o.Source.owner;
+            return mapOwner != "red" && mapOwner != "blue";
         }
 
         int NeutralLeft(ZWorld W)
         {
             int n = 0;
             foreach (var id in carPark) { var o = W.Get(id); if (o != null && !o.Destroyed && o.Owner == Team.Neutral) n++; }
+            return n;
+        }
+
+        int LotLeft(ZWorld W)
+        {
+            int n = 0;
+            foreach (var id in carParkLot) { var o = W.Get(id); if (o != null && !o.Destroyed && o.Owner == Team.Neutral) n++; }
             return n;
         }
 
@@ -410,6 +439,7 @@ namespace OpenZ
             var W = I.game ? I.game.World : null;
             return $"OpenZVoiceV3: nuke {Nuke} (planned {(Time.time - planAt < 60f ? $"{Time.time - planAt:F0} s ago, hold {planHold:F1} s, Rachel {planRachel}, Zod {planZod}, launched {launched}" : "no")}), "
                  + $"tips {(I.tipsOn ? "on" : "off")} car park {I.carPark.Count} (neutral left {(W != null ? I.NeutralLeft(W) : 0)}, player took {I.playerTook}, enemy stole {I.enemyStole}), "
+                 + $"car-park lot {I.carParkLot.Count} (empty left {(W != null ? I.LotLeft(W) : 0)}, lot only {StealLotOnly}, first enemy lot entry {(I.enemyLotAt >= 0f ? I.enemyLotAt.ToString("F0") + " s" : "none")}), "
                  + $"done [{string.Join(", ", I.log)}], burning units {burningUnits.Count}";
         }
 

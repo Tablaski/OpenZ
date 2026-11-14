@@ -13,6 +13,13 @@ namespace OpenZ.EditorTools
     /// same spot until the shooter has landed the wanted number of hits (no CPU player, two far-away keep-alive grunts so the match never ends).</summary>
     public static partial class OpenZParity
     {
+        /// <summary>1.2: three standard deviations round ZWorld.HeadshotPct for n sniper hits on robots.</summary>
+        static void SnhBounds(int n, out double lo, out double hi)
+        {
+            double p = ZWorld.HeadshotPct / 100.0, sd = Math.Sqrt(n * p * (1 - p));
+            lo = n * p - 3.0 * sd; hi = n * p + 3.0 * sd;
+        }
+
         static void AddSniperHeadshotDeviation(List<Deviation> list)
         {
             try { list.Add(DevSniperHeadshot()); }
@@ -133,8 +140,8 @@ namespace OpenZ.EditorTools
             sb.AppendLine($"sniper on a light tank    : {tank.Text()}");
             sb.AppendLine($"sniper on laser robots    : {laser.Text()}");
             sb.AppendLine($"grunt on grunts, rule on  : {grunt.Text()}");
-            double lo = hits * 0.15 - 3.0 * Math.Sqrt(hits * 0.15 * 0.85), hi = hits * 0.15 + 3.0 * Math.Sqrt(hits * 0.15 * 0.85);
-            V(on.placed && on.hits == hits && on.heads >= lo && on.heads <= hi, $"H1 {hits} sniper hits on robots give about 15 % headshots: {on.heads} ({on.Pct:0.0} %; three standard deviations: {lo:0} .. {hi:0})");
+            SnhBounds(hits, out double lo, out double hi);                                            // 1.2: from ZWorld.HeadshotPct (was 15 % fixed)
+            V(on.placed && on.hits == hits && on.heads >= lo && on.heads <= hi, $"H1 {hits} sniper hits on robots give about {ZWorld.HeadshotPct} % headshots: {on.heads} ({on.Pct:0.0} %; three standard deviations: {lo:0} .. {hi:0})");
             V(on.heads > 0 && on.instant == on.heads && on.notInstant == 0, $"H2 every headshot destroys its robot at that hit ({on.instant} of {on.heads})");
             V(again.hits == on.hits && again.heads == on.heads && again.trace == on.trace, "H3 the same match twice: the same headshots on the same hits (deterministic)");
             V(off.placed && off.heads == 0 && off.normalKills > 0, $"H4 rule off: no headshot, robots die by normal hits only ({off.normalKills} in {off.hits} hits)");
@@ -155,13 +162,14 @@ namespace OpenZ.EditorTools
                 var on = SnhCase(true, "sniper", "robot", "grunt", 400, 7);
                 var off = SnhCase(false, "sniper", "robot", "grunt", 400, 7);
                 var tank = SnhCase(true, "sniper", "vehicle", "light", 80, 7);
-                pass = on.placed && on.hits == 400 && on.heads >= 40 && on.heads <= 82 && on.instant == on.heads && off.heads == 0 && tank.heads == 0 && tank.hits + tank.snipes > 0;
+                SnhBounds(400, out double lo, out double hi);
+                pass = on.placed && on.hits == 400 && on.heads > 0 && on.heads >= lo && on.heads <= hi && on.instant == on.heads && off.heads == 0 && tank.heads == 0 && tank.hits + tank.snipes > 0;
                 measured = $"rule on: {on.Text()} | rule off: {off.Text()} | on a light tank: {tank.Text()}";
             }
             catch (Exception ex) { measured = "the probe threw " + ex.GetType().Name + ": " + ex.Message; pass = false; }
             return new Deviation
             {
-                id = "DV116", change = "Sniper headshot: 15 % of a sniper's hits on a robot destroy it at once",
+                id = "DV116", change = "Sniper headshot: 8 % (1.2; 1.1: 15 %) of a sniper's hits on a robot destroy it at once",
                 zod = "a sniper's bullet that hits a robot removes the sniper's normal damage (zobject.cpp:2192); no headshots",
                 openz = $"Sim/ZObject.Headshot.cs: a sniper's hit on a robot on foot (every robot type, the hero squads too; never a vehicle, gun, building or map item) is a headshot with {ZWorld.HeadshotPct} % chance: " +
                         "that hit takes all the health the robot has left. Only hits roll; driver snipes are unchanged. The roll is its own stream (a hash of shooter, target, clock and roll count): the world's random numbers are untouched, " +

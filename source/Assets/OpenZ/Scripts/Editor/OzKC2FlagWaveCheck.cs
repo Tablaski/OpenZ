@@ -55,7 +55,7 @@ namespace OpenZ.EditorTools
             V(wrong == 0, $"W2 in 40 s: {started} wave(s) started, {wrong} of them on a flag that was not neutral or not on camera (wanted 0); neutral flags on camera at the start: {onCam}");
             if (beacon) sb.AppendLine("NOTE  W3 not judged: the older capture beacon draws in this level (start the level from the main menu, as the game does, to judge the wave)");
             else V(onCam == 0 || started > 0, $"W3 a neutral flag on camera gets a wave now and then: {started} in 40 s with {onCam} on camera (wanted at least 1 when one is on camera; at most {Mathf.CeilToInt(onCam * 40f / OzNeutralFlagWaves.GapMin) + onCam})");
-            V(OzNeutralFlagWaves.LastPeak <= OzNeutralFlagWaves.PeakDay + 1e-4f, $"W4 very subtle: the strongest drawn opacity {OzNeutralFlagWaves.LastPeak:0.000} (at most {OzNeutralFlagWaves.PeakDay:0.00} by day, {OzNeutralFlagWaves.PeakNight:0.00} at night); a wave lasts {OzNeutralFlagWaves.WaveSeconds} s, then {OzNeutralFlagWaves.GapMin} to {OzNeutralFlagWaves.GapMax} s of nothing");
+            V(OzNeutralFlagWaves.LastPeak <= OzNeutralFlagWaves.PeakDay * (fw.Steady ? OzNeutralFlagWaves.SteadyPeakScale : 1f) + 1e-4f, $"W4 very subtle: the strongest drawn opacity {OzNeutralFlagWaves.LastPeak:0.000} (at most {OzNeutralFlagWaves.PeakDay:0.00} by day, {OzNeutralFlagWaves.PeakNight:0.00} at night); a wave lasts {OzNeutralFlagWaves.WaveSeconds} s, then {OzNeutralFlagWaves.GapMin} to {OzNeutralFlagWaves.GapMax} s of nothing");
             // W5: every built ring lies on the ground (sampled against the ground now)
             float worstUnder = float.NegativeInfinity, worstOver = 0f; int rings = 0, samples = 0;
             ZObject nearest = null; float best = float.MaxValue;

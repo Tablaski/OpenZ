@@ -9,6 +9,7 @@ namespace OpenZ.EditorTools
 {
     /// <summary>
     /// Counted check of the grenade rule of kit KC2 (rule DV104, the final form of b31: a thrown grenade's blast radius x 1.2;
+    /// since 1.3 (item 32, DV160) DV104's direct and area hit are taken x ZWorld.GrenadeStrongerPct more: the 'rule on' rows want the live numbers;
     /// a DIRECT hit (the grenade lands on the target's own body) takes Zod's damage x 1.15 with Zod's fall-off, an AREA hit Zod's
     /// damage less one tenth with the same fall-off; Sim/ZWorld.GrenadeBoost.cs). The blast rule below (Splash) is an independent
     /// copy of the rule, and every row checks that the health really lost is the rule's.
@@ -512,8 +513,8 @@ namespace OpenZ.EditorTools
             bool had = Rule(true);
             var z = ZSettings.Parse(settings);
             int zodDamage = (int)(z.grenade_damage * ZConst.MAX_UNIT_HEALTH), zodRadius = z.grenade_damage_radius;
-            int wantDamage = (zodDamage * 115 + 50) / 100, wantRadius = (zodRadius * 120 + 50) / 100;
-            areaDamage = (zodDamage * 90 + 50) / 100; zodDamageNow = zodDamage; zodRadiusNow = zodRadius;
+            int wantDamage = ZWorld.GrenadeStronger((zodDamage * ZWorld.GrenadeBoostDamagePct + 50) / 100), wantRadius = (zodRadius * ZWorld.GrenadeBoostRadiusPct + 50) / 100;   // 1.3 item 32: DV104's numbers x DV160 (ZWorld.GrenadeStrongerPct; 100 = the 1.1 / 1.2 grenade)
+            areaDamage = ZWorld.GrenadeStronger((zodDamage * ZWorld.GrenadeAreaDamagePct + 50) / 100); zodDamageNow = zodDamage; zodRadiusNow = zodRadius;
             int seedsA = Math.Max(2, runs * 8 / 100), firsts = Math.Max(20, runs * 3);
             var modes = had ? new[] { false, true } : new[] { false };
             sb.AppendLine($"Thrown grenades, counted with the game's switches on an empty plain map; {runs} fights per row{(SeedSet != 0 ? ", set of worlds " + SeedSet : "")}. 16 px = 2 m.");

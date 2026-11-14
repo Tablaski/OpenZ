@@ -48,14 +48,17 @@ namespace OpenZ
         }
 
         /// <summary>Takes the camera: records the RtsCamera home pose, resolves the level's shots, cuts to `first`.</summary>
-        public bool Begin(string first = "overview")
+        // duel starts at the fort without solo flyover
+            public bool Begin(string first = "overview")
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return false;
             if (!rts || !camT || game == null || game.World == null) return false;
-            if (game.level == "L16")
+            if (game.level == "L16" || OzVolcanic.Is(game.level))
             {   // the level sets its start hour when it wakes, the sun turns to it only in the day clock's own Update: the jungle's
                 // sunrise shot takes its heading from the sun, so the sun is put where the start hour has it before the shots are built
                 var dn = UnityEngine.Object.FindFirstObjectByType<DayNight>(); if (dn) dn.Apply(dn.timeOfDay);
             }
+            BlueBeforeBegin();                                                                        // a blue level not yet placed over its fort: placed now (ZodFlyover.Blue.cs)
             rts.Place();                                                                              // the pose the level starts with
             homeFocus = rts.focus; homeHeight = rts.height; homePos = camT.position; homeRot = camT.rotation;
             rts.enabled = false;

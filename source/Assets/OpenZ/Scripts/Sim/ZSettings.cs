@@ -35,7 +35,7 @@ namespace OpenZ.Sim
     public sealed class ZSettings
     {
         public static readonly string[] Robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };   // electrobot_v1 DV45: OpenZ's seventh robot (not in Z)
-        public static readonly string[] Vehicles = { "jeep", "light", "medium", "heavy", "apc", "missile_launcher", "crane" };
+        public static readonly string[] Vehicles = { "jeep", "light", "medium", ZMTank.Type, "heavy", "apc", "missile_launcher", "crane" };   // DV145 the medium tank (Sim/ZMTank.cs)
         public static readonly string[] Cannons = { "gatling", "gun", "howitzer", "missile_cannon" };
 
         public readonly Dictionary<string, ZUnitSettings> Units = new Dictionary<string, ZUnitSettings>();
@@ -71,6 +71,10 @@ namespace OpenZ.Sim
                 if (parts.Length != 3) continue;
                 if (parts[0] == "unit" && s.Units.TryGetValue(parts[1], out var u)) SetUnitField(u, parts[2], d);
             }
+            ZEvilZod.Fill(s);                                                        // DV161: EvilZod's row, made from the rows of the text (Sim/ZEvilZod.cs)
+            ZMTank.FillIfMissing(s);                                                 // DV145: a settings text without the medium tank's row gets the derived one (Sim/ZMTank.cs)
+            ZMechHp.Apply(s);                                                        // DV147: the mech's health x 0.95 while its switch is on (Sim/ZMechHp.cs)
+            ZGatlingBuff.Apply(s);                                                   // DV170: the gatling's range x 1.10 (120 -> 132 px), damage per shot x 1.15 while its switch is on (Sim/ZGatlingBuff.cs)
             s.Globals();
             s.CensorSettings();
             return s;
@@ -127,7 +131,7 @@ namespace OpenZ.Sim
         void CensorSettings()
         {
             foreach (var n in new[] { "grunt", "psycho", "sniper", "pyro", "laser", "jeep", "gatling", "electrobot" }) Units[n].CensorNonMissileUnit();   // electrobot_v1: a direct hit
-            foreach (var n in new[] { "tough", "light", "medium", "heavy", "missile_launcher", "gun", "howitzer", "missile_cannon" }) Units[n].CensorMissileUnit();
+            foreach (var n in new[] { "tough", "light", "medium", ZMTank.Type, "heavy", "missile_launcher", "gun", "howitzer", "missile_cannon" }) Units[n].CensorMissileUnit();   // DV145 the medium tank (Sim/ZMTank.cs)
             Units["apc"].CensorMissileUnit(); Units["crane"].CensorMissileUnit();          // "non weapon" block calls CensorMissileUnit in Zod
             foreach (var n in Cannons) Units[n].move_speed = 0;
             foreach (var u in Units.Values) u.CensorNegatives();

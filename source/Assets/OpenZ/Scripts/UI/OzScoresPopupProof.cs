@@ -301,9 +301,14 @@ namespace OpenZ
             OzHighScores.UseFile(tablePath); staged = true;
             var ids = OzLevelDef.All;
             for (int i = 0; i < 10; i++) OzHighScores.Submit(ids[0].Id, GameDifficulty.Medium, Entry(i));
-            for (int i = 0; i < 3; i++) OzHighScores.Submit(ids[ids.Length - 1].Id, GameDifficulty.Medium, Entry(i));
+            for (int i = 0; i < 3; i++) OzHighScores.Submit(ids[L17Index].Id, GameDifficulty.Medium, Entry(i));   // 1.3 item 30: the Car Park by its id (level 7 stands before it, after L02)
             foreach (var d in ids) for (int i = 0; i < 10; i++) OzHighScores.Submit(d.Id, GameDifficulty.Hard, Entry(i));
         }
+
+        /// <summary>1.3 item 30: the Car Park's and the Jungle's index in the menu, by id (level 7 stands after L02: the jungle is card
+        /// 2 of 3, or card 3 of 4).</summary>
+        static int L17Index => Array.FindIndex(OzLevelDef.All, d => d.Id == "L17");
+        static int L16Index => Array.FindIndex(OzLevelDef.All, d => d.Id == "L16");
 
         IEnumerator MenuPart()
         {
@@ -466,7 +471,7 @@ namespace OpenZ
                 if (t.rectTransform.IsChildOf(view) && !Inside(r, vr, 1f)) wrong.Append("\n    leaves the view: ").Append(name);
                 boxes.Add((name, r));
             }
-            for (int i = 0; i < 3; i++) { var tr = menu.ProofHighScoresTabRt(i); if (tr) boxes.Add(("tab " + i, Px(tr))); else wrong.Append("\n    tab " + i + " missing"); }
+            for (int i = 0; i < 4; i++) { var tr = menu.ProofHighScoresTabRt(i); if (tr) boxes.Add(("tab " + i, Px(tr))); else wrong.Append("\n    tab " + i + " missing"); }
             var cl = menu.ProofHighScoresClose; if (cl) boxes.Add(("the close button", Px(cl))); else wrong.Append("\n    the close button is missing");
             for (int i = 0; i < boxes.Count; i++)
             {
@@ -474,7 +479,7 @@ namespace OpenZ
                 for (int j = i + 1; j < boxes.Count; j++)
                     if (Meet(boxes[i].r, boxes[j].r)) wrong.Append("\n    meet: ").Append(boxes[i].name).Append(" and ").Append(boxes[j].name);
             }
-            Check(measured >= 100 && wrong.Length == 0, at + " P3 the popup's " + measured + " texts, 3 tabs and close button: inside the plate (the table's inside the view), at their full size, none meets another" + wrong);
+            Check(measured >= 100 && wrong.Length == 0, at + " P3 the popup's " + measured + " texts, 4 tabs and close button: inside the plate (the table's inside the view), at their full size, none meets another" + wrong);
 
             // P4 order and contents (MEDIUM: Desert 10, Jungle none, Car Park 3)
             string diffM = Compare(GameDifficulty.Medium);
@@ -490,15 +495,16 @@ namespace OpenZ
             var longest = LongestRanks(); var shownRanks = new List<string>(); string longMissing = "";      // the widest texts of the RANK column: the full table of the first level must show them
             for (int r = 0; r < menu.ProofHighScoresRows(0); r++) shownRanks.Add(Plain(menu.ProofHighScoresCell(0, r, 1)));
             foreach (var n in longest) if (!shownRanks.Contains(n)) longMissing += " " + n;
-            Check(diffM == "" && order && widest && longMissing == "" && menu.ProofHighScoresRows(0) == 10 && menu.ProofHighScoresRows(1) == 0 && menu.ProofHighScoresRows(ids.Length - 1) == 3 && ids[0].Id == "L02" && ids[ids.Length - 1].Id == "L17" && menu.ProofHighScoresOverflow < 0.5f,
-                  at + " P4 blocks in the order " + ids[0].Name + ", " + ids[1].Name + ", " + ids[ids.Length - 1].Name + " (" + order + "); MEDIUM rows " + menu.ProofHighScoresRows(0) + " / " + menu.ProofHighScoresRows(1) + " / " + menu.ProofHighScoresRows(ids.Length - 1)
+            Check(diffM == "" && order && widest && longMissing == "" && menu.ProofHighScoresRows(0) == 10 && L16Index >= 0 && menu.ProofHighScoresRows(L16Index) == 0 && menu.ProofHighScoresRows(L17Index) == 3 && ids[0].Id == "L02" && L17Index >= 0 && menu.ProofHighScoresOverflow < 0.5f,   // 1.3 item 30: the Jungle and the Car Park by their ids
+                  at + " P4 blocks in the order " + string.Join(", ", Array.ConvertAll(ids, d => d.Name)) + " (" + order + "); MEDIUM rows " + menu.ProofHighScoresRows(0) + " / " + menu.ProofHighScoresRows(L16Index) + " / " + menu.ProofHighScoresRows(L17Index)
                   + ", the first row marked, every cell of the " + menu.ProofHighScoresColumns + " columns equal to the table, the widest numbers in row 1 (" + widest + "), the longest rank names in the table (" + string.Join(", ", longest)
                   + (longMissing.Length > 0 ? "; MISSING:" + longMissing : "") + "), \"" + Plain(menu.ProofHighScoresEmpty(1)) + "\"" + (diffM.Length > 0 ? "; DIFFERENT:" + diffM : ""));
 
             // P5 no click falls through
             var pts = new List<(string name, Vector2 p)>();
-            for (int i = 0; i < menu.ProofCardCount; i++) { var c = menu.ProofCard(i); if (c) pts.Add(("card " + (i + 1), Px(c).center)); }
-            foreach (var n in new[] { "Back", "Deploy", "CpuEasy", "CpuMedium", "CpuHard", "HeadRow" }) { var t = sel.Find(n) as RectTransform; if (t) pts.Add((n, Px(t).center)); }
+            int cardsShown = 0;                                                                              // 1.3 item 30: in the carousel only the cards in view are on the screen and take the pointer
+            for (int i = 0; i < menu.ProofCardCount; i++) { var c = menu.ProofCard(i); if (c && menu.ProofCardShown(i)) { pts.Add(("card " + (i + 1), Px(c).center)); cardsShown++; } }
+            foreach (var n in new[] { "Back", "Deploy", "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem", "HeadRow" }) { var t = sel.Find(n) as RectTransform; if (t) pts.Add((n, Px(t).center)); }
             pts.Add(("HighScores", bp));
             var leak = new StringBuilder();
             foreach (var q in pts)
@@ -509,7 +515,7 @@ namespace OpenZ
             int focus0 = menu.ProofFocusCard; string onPlate = menu.ProofHighScoresHot(pr.center);
             menu.ProofClickAt(pr.center);
             yield return null; yield return null;
-            Check(leak.Length == 0 && pts.Count == menu.ProofCardCount + 7 && onPlate == "plate" && menu.ProofHighScoresOpen && menu.ProofFocusCard == focus0 && OpenZDifficulty.Level == GameDifficulty.Medium && menu.ProofView == "Select",
+            Check(leak.Length == 0 && pts.Count == cardsShown + 8 && cardsShown == Mathf.Min(menu.ProofCardCount, menu.ProofCarouselOn ? OzLevelCarousel.Shown : menu.ProofCardCount) && onPlate == "plate" && menu.ProofHighScoresOpen && menu.ProofFocusCard == focus0 && OpenZDifficulty.Level == GameDifficulty.Medium && menu.ProofView == "Select",
                   at + " P5 no click falls through: " + pts.Count + " places of the screen under the popup" + (leak.Length > 0 ? "; REACHABLE:" + leak : "") + "; a click on the plate (\"" + onPlate + "\") changes nothing (open " + menu.ProofHighScoresOpen + ", card " + menu.ProofFocusCard + ")");
             yield return Shot(at + "_2_popup_medium");
 

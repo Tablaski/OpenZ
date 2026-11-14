@@ -9,7 +9,7 @@ static class SimulationChecks
 {
     public static void Run(Action<bool, string> check, Action<Action, string> reject)
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../OpenZ_1.4_source/Assets/OpenZ/Resources/OpenZ"));
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Assets/OpenZ/Resources/OpenZ"));
         string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
         foreach (string map in new[] { "L02", "L07", "L16", "L17" })
         {

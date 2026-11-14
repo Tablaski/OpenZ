@@ -15,20 +15,30 @@ namespace OpenZ
     //    own songs (one guest of the other level per cycle) with the added songs of the same mood ("zopen" clips); a song
     //    crossfades into the next at its measured tail; never the same song twice in a row; a mood switch crossfades 2 s and a
     //    song left within resumeWindow comes back where it was.
-    //  - Drama (DramaDetector): a BIG attack on either fort (>= 2 engaged units worth >= 6, held 3 s on a leaky hold) fades the
-    //    regular song out (3 s, equal power) and PAUSES it (its exact sample is kept), the drama fades in (2 s, 0.75 s later).
-    //    It ends when no engaged attacker worth >= 3 is left for 12 s (24 / 36 / 48 s for the 2nd / 3rd / 4th drama of a siege)
-    //    with no fort hit for 10 s, or when no big attack was seen for 60 s (a lone unit left shelling), and never before 30 s
-    //    (45 / 60 / 75 / 90 s in a siege);
+    //  - Drama (DramaDetector): an attack on either fort, held 3 s on a leaky hold, fades the regular song out (3 s, equal power)
+    //      BIG attack:        >= 2 engaged units worth >= 6 (>= 4 while the fort takes hits);
+    //      fort UNDER FIRE:   the fort building took a hit from the other side within 4 s (the same record as the "fort under
+    //                         attack" line) and the engaged strength is >= 3 from any number of units, or >= 2 engaged units:
+    //                         one tank or missile launcher, a Tough squad (2 robots, rockets), a squad with grenades; a lone
+    //                         robot or a lone jeep never (a jeep, and a robot without grenades, cannot hurt a fort at all).
+    //    Engaged = MusicFortReader, measured to the fort's WALLS (where shots at a building land, DV26), so a unit shelling the fort
+    //    from its full range counts; fights anywhere else never do.
+    //    It ends when the attack stops: no engaged attacker worth >= 3 left for 12 s and no fort hit for 10 s, or 60 s without a hot
+    //    reading (big or under fire: a lone robot or jeep left at the fort, one tank fighting the fort's guns without hitting the
+    //    fort), and never before 30 s. A fort that stays UNDER FIRE holds the drama (one tank, missile launcher or Tough squad still
     //    then the drama fades out (4 s) and pauses and the SAME regular song unpauses 1 s later from the same sample (3 s in).
-    //    Anti-flap: after a fade back the regular song plays at least 45 s before a new drama (25 / 35 / 45 s for a heavy attack
-    //    in a siege: >= 3 units worth >= 12 hitting the fort); an attack that keeps coming back in waves makes each drama of the siege hold
-    //    longer, so the waves end up in one drama. A drama track that ends mid-attack crossfades into a different one; a drama
-    //    that comes back within 3 min continues its paused track.
+    //    play, with no exception during play (a heavy attack waits too). While the limit is 5 min the siege rules (longer holds
+    //    for a drama within 180 s of the last) never happen (their code stays for a shorter limit), and the drama resume (a drama
+    //    back within 180 s continues its paused track if 30 s of it are left) only after music off / on mid-drama or at a fort's
+    //    fall (the game-over latch below can start the drama 20 s or more after a fade back). A drama track that ends mid-attack
+    //    crossfades into a different one. The tracks play strongest first (openz_music_meta.json intensity, never the same one
+    //    twice in a row), each at least +4 LU over the level's battle songs in its first 60 s and to its end (MusicDramaGain).
     //  - Game over: the detector freezes. A drama that is playing (or was fading out less than half-way) plays on through the
-    //    fort's fall, the nuke and the celebration; a big attack under way at the fall starts it. The end screen fades everything
-    //    out (2.5 s) under the sting; the end music (victory lap then the menu songs / the menu songs) fades in 1 s before the
-    //    sting ends.
+    //    fort's fall, the nuke and the celebration; an attack under way at the fall (hot >= 1 s, big or under fire) starts it
+    //    unless a drama faded back less than 20 s before (the end of the match: only this 20 s grace, not the 5-minute limit,
+    //    applies to the fall; unchanged code). The end screen fades everything out (2.5 s) under the sting; a drama's own lift
+    //    first comes off to the old +1.5 dB in 0.1 s (endLiftOff; it starts one frame after the sting, with it on Enter / Space and on the safety release),
+    //    so the sting stands over it as before music_drama. The end music (victory lap + menu songs / menu songs) fades in 1 s before the sting ends.
     //  - oz_music off: every voice fades out 0.6 s; the regular, drama and end voices are PAUSED (kept); on again they resume
     //    where they were (nothing restarts).
     //  - Voices: 4 slots; a slot is Idle, Pending (a start / unpause waiting for its delay), Playing or Paused (a silent
@@ -53,13 +63,16 @@ namespace OpenZ
         public string eventId;
         /// <summary>zopen = one of the added zopenmusic / zopendramatic tracks (sound table line "zopen"); guest = music_v2 guest.</summary>
         public bool zopen, guest;
+        /// <summary>music_drama (5 Nov): a drama track's own lift over the regular songs, dB (MusicDramaGain, measured per track and
+        /// level); null = MusicCoreConfig.dramaDb (a drama clip without a measured row).</summary>
+        public float? dramaDb;
         public override string ToString() => name;
     }
 
     /// <summary>A view-side reading of one fort (never written back): alive, the weighted strength and count of hostile mobile
     /// units ENGAGED at it (within rIn and attacking something of that side near the fort, or heading into the fort area; any
-    /// within rCore while the fort takes hits), the strength of every hostile mobile unit within rOut (overlay only: no rule
-    /// reads it), and the game seconds since the fort last took an enemy hit.</summary>
+    /// within rCore while the fort takes hits; every distance measured to the fort's walls, music_drama), the strength of every
+    /// hostile mobile unit within rOut (overlay only: no rule reads it), and the game seconds since the fort last took an enemy hit.</summary>
     public struct FortReading
     {
         public bool alive; public float score, outerScore, sinceHit; public int units;
@@ -71,7 +84,7 @@ namespace OpenZ
     {
         /// <summary>dt: real (unscaled) seconds of this frame: fades and playback. gameDt: SIM seconds of this frame (0 while
         /// paused): the attack holds (enter / exit / hits). playDt: real seconds while the game runs (0 while paused): the musical
-        /// minimums (drama length, the interlude after a fade back); 0 = use gameDt.</summary>
+        /// minimums (drama length, the 5-minute limit after a fade back); 0 = use gameDt.</summary>
         public float dt, gameDt, playDt;
         public bool enabled, paused, battle, gameOver, endScreen, zodSpeaking;
         /// <summary>+1 win, -1 loss, 0 draw (read at the end screen).</summary>
@@ -101,14 +114,28 @@ namespace OpenZ
     public sealed class MusicCoreConfig
     {
         // ---- drama detector (Zod px, 1 tile = 16 px; weights of hostile mobile units; cannons, cranes and the fort defender never count)
-        /// <summary>rIn: attackers counted within 16 tiles; rCore: the fort area (11 tiles) their target / waypoint must be in;
+        /// <summary>
+        /// the point DV26 building reach measures shots at a building to), no longer to its centre (the walls stand 64-89 px out
+        /// from it, the corners 108-113 px). rIn: attackers counted within 16 tiles of the walls (a missile launcher shelling the
+        /// walls from its full 160 px range: 231-274 px from the centre, past the old 256 px line in 30-32 of 72 directions);
+        /// rCore: the fort area their target / waypoint must be in, 6 tiles from the walls (the same line as the old 11 tiles from
+        /// the centre beside fort_front's N / S walls, 80-81 px out; beside the W / E walls, 64-65 px out, the old area reached
+        /// 111-112 px off the walls and now 96; at the corners, 108-113 px out, it grows from 63-68 px to 96. proof/fort_geometry.txt:
+        /// nothing in the old fort area on L02 / L07 / L16 / L17 drops out; on L17 the blue light and medium tanks parked north of the
+        /// blue fort, 96 px off its walls (177 / 193 px from its centre), are now inside it. 11 tiles from the walls would take in
+        /// L17's Z6 flag, 138 px off the red fort's west wall, and its robot factory, 145 px: fights there are not fort attacks);
         /// rOut: the overlay's "out" figure only.</summary>
-        public float rIn = 256f, rCore = 176f, rOut = 320f;
+        public float rIn = 256f, rCore = 96f, rOut = 320f;
         public float wRobot = 1f, wJeep = 2f, wApc = 2f, wLight = 3f, wMedium = 4f, wMissile = 4f, wHeavy = 5f, wOther = 2f;
         public int minUnits = 2;
-        /// <summary>HOT: >= minUnits engaged worth >= hotScore (>= hotScoreUnderFire while the fort took a hit within hitWindow s).
-        /// WARM (the drama holds): engaged strength >= warmScore. HEAVY (may cut the interlude short): >= heavyUnits worth >= heavyScore hitting the fort.</summary>
+        /// <summary>HOT, either of: BIG = >= minUnits engaged worth >= hotScore (>= hotScoreUnderFire while the fort took a hit within
+        /// engaged strength is >= fireScore from any number of units (3: one light tank, a grunt squad of 3 with grenades) or >=
+        /// fireUnits engaged units (2: a Tough squad, default_settings unit.tough.group_amount=2, robots 1 point each, the one squad
+        /// that hurts a fort without grenades; two robots with grenades); a lone robot (1) or a lone jeep (2, 1 unit) never.
+        /// WARM (the drama holds): engaged strength >= warmScore. HEAVY: >= heavyUnits worth >= heavyScore hitting the fort (the
+        /// overlay / Force check only: with no exception to the 5-minute limit it shortens nothing).</summary>
         public float hotScore = 6f, hotScoreUnderFire = 4f, hitWindow = 4f, warmScore = 3f, calmAfterHit = 10f;
+        public float fireScore = 3f; public int fireUnits = 2;
         public float heavyScore = 12f; public int heavyUnits = 3;
         /// <summary>enterHold: hot game seconds to start (leaky: a cold reading drains the hold as fast as a hot one fills it, hotDecay 1:
         /// an attack hot more than half of the time builds up, one below half never does).</summary>
@@ -116,28 +143,37 @@ namespace OpenZ
         /// <summary>The fade back: exitHold seconds without a warm fort (counted on BOTH clocks: never sooner in sim nor in real
         /// time; + exitHoldChain per earlier drama of the same siege, i.e. one that ended within siegeMemory s, up to exitHoldMax),
         /// no hit for calmAfterHit s, and at least minDrama s of drama (+ minDramaChain per earlier drama of the siege, up to
-        /// minDramaMax); or hotLapse game seconds without a hot reading (a lone unit left shelling never holds the drama).</summary>
+        /// minDramaMax); or hotLapse game seconds without a hot reading (big or under fire). A fort still under fire holds the drama
+        /// (music_drama: one light tank, launcher or Tough squad left hitting it is hot); a lone robot or jeep left at the fort, or one
+        /// tank fighting the fort's guns without hitting the fort, is not, so 60 s after the last hot reading the drama fades back.
+        /// The siege terms (Chain) stay 0 while cooldown (300 s) is longer than siegeMemory (180 s): every drama is a first one.</summary>
         public float exitHold = 12f, exitHoldChain = 12f, exitHoldMax = 48f, minDrama = 30f, minDramaChain = 15f, minDramaMax = 90f, hotLapse = 60f, siegeMemory = 180f;
-        /// <summary>Anti-flap (play seconds after a fade back began): a new drama waits for cooldown s; a heavy attack may come
-        /// back after heavyInterlude s (+ heavyInterludeChain per earlier drama of the siege, up to cooldown), so the resumed song is
-        /// really heard before the next switch and a siege of heavy waves switches less and less.</summary>
+        /// <summary>
+        /// cooldown s, with no exception during play, a heavy attack and a fort under fire too. heavyInterlude /
+        /// heavyInterludeChain are not read by any rule (only the old status line used them).</summary>
         public float cooldown = 300f, heavyInterlude = 25f, heavyInterludeChain = 10f;   // cooldown: at most one drama per 5 minutes
         // ---- transitions (real seconds)
         public float toDramaOut = 3f, toDramaIn = 2f, toDramaDelay = 0.75f;
         public float toRegularOut = 4f, toRegularIn = 3f, toRegularDelay = 1f;
         public float moodXfade = 2f, moodGrace = 20f, resumeWindow = 180f, resumeMinLeft = 10f;
+        /// <summary>A drama back within dramaResumeWindow s continues its paused track: in play only after music off / on mid-drama (a new drama
+        /// comes 300 s after a fade back at the earliest, the paused one is dropped after 180 s) and at a fort's fall (the game-over latch).</summary>
         public float dramaResumeWindow = 180f, dramaResumeMinLeft = 30f;
         public float minXfade = 2.5f, maxXfade = 8f, quickOut = 0.6f, startFade = 2f, endedFade = 1f, offFade = 0.6f;
-        public float endFade = 2.5f, endLead = 0.3f, endFadeIn = 1f, endNoSting = 3f;
-        /// <summary>dramaDb: the drama sits this much above the regular songs (the attack must never sound weaker than what it replaces).</summary>
+        public float endFade = 2.5f, endLead = 0.3f, endFadeIn = 1f, endNoSting = 3f, endLiftOff = 0.1f;
+        /// <summary>dramaDb: the drama's lift over the regular songs for a drama clip WITHOUT a row in MusicDramaGain (never weaker than what it replaces;
+        /// every shipped drama track has its own measured lift, MusicTrack.dramaDb, about +4 LU over the battle songs). endLiftOff: at the end screen that
+        /// lift comes off to dramaDb in 0.1 s (linear in dB, endFade as before), so the sting stands over the drama as before music_drama (proof/endsting_margins.txt).</summary>
         public float dramaDb = 1.5f, victoryDb = -3f, menuDb = -6f;
-        /// <summary>Not read by the drama pick any more (the drama pool is a shuffle bag: MusicCore.PickDrama); the scenario report
-        /// still counts with it how many dramas are weaker than the song they replace.</summary>
+        /// <summary>Not read by the drama pick (MusicCore.PickDrama: strongest first by intensity, music_drama 5 Nov); the scenario
+        /// report still counts with it how many dramas are weaker than the song they replace.</summary>
         public float dramaIntensityTol = 0.15f;
         // ---- game over
         /// <summary>At the game over the drama plays on when it is on, when its fade back is less than half-way
-        /// (gameOverReverseLevel), or when a big attack has been hot for gameOverHotHold s at the fall; never within gameOverGrace
-        /// s of a fade back (no drama -> regular -> drama). dramaOnGameOver (off by default): a drama for every game
+        /// (gameOverReverseLevel), or when an attack (big or under fire) has been hot for gameOverHotHold s at the fall; never within gameOverGrace
+        /// s of a fade back (no drama -> regular -> drama). The fall is the end of the match: only this grace applies to it, not the
+        /// 5-minute limit (unchanged code; since music_drama a fort under fire is hot too, so most forts destroyed by an attack end
+        /// with the drama). dramaOnGameOver (off by default): a drama for every game
         /// over, gameOverDramaDelay s after the fall.</summary>
         public float gameOverReverseLevel = 0.5f, gameOverHotHold = 1f, gameOverGrace = 20f, gameOverDramaDelay = 2.5f;
         public bool dramaOnGameOver = false;
@@ -160,8 +196,8 @@ namespace OpenZ
         public float Db(float depth) => depth * amount * amount * (3f - 2f * amount);
     }
 
-    /// <summary>Big-attack hysteresis on both forts (frozen while paused and after game over). Attack holds run on sim seconds,
-    /// the musical minimums (drama length, interlude, siege memory) on play seconds.</summary>
+    /// <summary>Fort-attack hysteresis on both forts (frozen while paused and after game over). Attack holds run on sim seconds,
+    /// the musical minimums (drama length, the 5-minute limit, siege memory) on play seconds.</summary>
     public sealed class DramaDetector
     {
         public bool Wanted { get; private set; }
@@ -179,11 +215,19 @@ namespace OpenZ
         /// <summary>Why the last flip happened (log / overlay).</summary>
         public string Why { get; private set; } = "";
 
-        /// <summary>HOT: >= minUnits engaged hostile units with a weighted strength >= hotScore (>= hotScoreUnderFire while the fort
-        /// took an enemy hit within hitWindow s). One lone unit, however strong, is never hot.</summary>
-        public static bool Hot(in FortReading f, MusicCoreConfig c) =>
+        /// <summary></summary>
+        public static bool Hot(in FortReading f, MusicCoreConfig c) => Big(f, c) || UnderFire(f, c);
+        /// <summary>BIG: >= minUnits engaged hostile units with a weighted strength >= hotScore (>= hotScoreUnderFire while the fort
+        /// took an enemy hit within hitWindow s).</summary>
+        public static bool Big(in FortReading f, MusicCoreConfig c) =>
             f.alive && f.units >= c.minUnits && (f.score >= c.hotScore || (f.sinceHit <= c.hitWindow && f.score >= c.hotScoreUnderFire));
-        /// <summary>HEAVY: >= heavyUnits engaged worth >= heavyScore while the fort takes hits (may shorten the interlude).</summary>
+        /// <summary>UNDER FIRE: the fort building took a hit from the other side within hitWindow s (the same record and window as the
+        /// "fort under attack" line) and the engaged strength is >= fireScore from any number of units, or >= fireUnits units are
+        /// engaged: one light tank (3), a missile launcher (4), a grunt squad with grenades (3 x 1), a Tough squad (2 robots); a lone
+        /// robot (1) or a lone jeep (2, one unit) never.</summary>
+        public static bool UnderFire(in FortReading f, MusicCoreConfig c) => f.alive && f.sinceHit <= c.hitWindow && (f.score >= c.fireScore || f.units >= c.fireUnits);
+        /// <summary>HEAVY: >= heavyUnits engaged worth >= heavyScore while the fort takes hits (the Force check and the overlay only:
+        /// the 5-minute limit has no exception).</summary>
         public static bool Heavy(in FortReading f, MusicCoreConfig c) => f.alive && f.units >= c.heavyUnits && f.score >= c.heavyScore && f.sinceHit <= c.hitWindow;
         /// <summary>WARM: engaged strength >= warmScore (the drama holds; idle units nearby never count, they are not engaged).</summary>
         public static bool Warm(in FortReading f, MusicCoreConfig c) => f.alive && f.score >= c.warmScore;
@@ -194,9 +238,9 @@ namespace OpenZ
 
         public float ExitHoldNow(MusicCoreConfig c) => Math.Min(c.exitHoldMax, c.exitHold + c.exitHoldChain * Chain);
         public float MinDramaNow(MusicCoreConfig c) => Math.Min(c.minDramaMax, c.minDrama + c.minDramaChain * Chain);
-        /// <summary>The interlude a heavy attack must wait now (the siege so far: Chain of the drama that just ended).</summary>
+        /// <summary>Not read by any rule (the 5-minute limit has no heavy exception); kept for callers.</summary>
         public float HeavyInterludeNow(MusicCoreConfig c) => Math.Min(c.cooldown, c.heavyInterlude + c.heavyInterludeChain * Chain);
-        /// <summary>True while a new drama must wait (the regular interlude after a fade back).</summary>
+        /// <summary>True while a new drama must wait (the 5-minute limit after a fade back).</summary>
         public bool Waiting(MusicCoreConfig c) => !Wanted && Ends > 0 && SinceReturn < c.cooldown;
 
         /// <summary>One clock for both (the calibration tools).</summary>
@@ -214,10 +258,12 @@ namespace OpenZ
             {
                 if (HotFor < c.enterHold) return false;
                 bool free = Ends == 0 || SinceReturn >= c.cooldown;
-                if (!free) return false;                                                            // the interlude between two dramas: no exception, a heavy attack waits too
+                if (!free) return false;                                                            // the 5-minute limit between two dramas: no exception, a heavy attack and a fort under fire wait too
                 Wanted = true; Fort = hotO ? 1 : 2; ColdFor = 0f; Starts++; DramaFor = 0f;
-                Chain = Ends > 0 && SinceReturn <= c.siegeMemory ? Chain + 1 : 0;
-                Why = !free ? $"heavy attack ({SinceReturn:0} s after the last fade back)" : Chain > 0 ? $"big attack (drama {Chain + 1} of this siege)" : "big attack";
+                Chain = Ends > 0 && SinceReturn <= c.siegeMemory ? Chain + 1 : 0;                  // stays 0 while cooldown > siegeMemory
+                var hf = hotO ? ours : theirs;                                                      // music_drama: which way in (log / overlay)
+                string kind = Big(hf, c) ? "big attack" : $"fort under fire ({hf.score.ToString("0.#", CultureInfo.InvariantCulture)} pts / {hf.units} unit{(hf.units == 1 ? "" : "s")} engaged, hit {hf.sinceHit.ToString("0.0", CultureInfo.InvariantCulture)} s ago)";
+                Why = !free ? $"heavy attack ({SinceReturn:0} s after the last fade back)" : Chain > 0 ? $"{kind} (drama {Chain + 1} of this siege)" : kind;   // (!free cannot reach here)
                 return true;
             }
             DramaFor += playDt;
@@ -228,7 +274,7 @@ namespace OpenZ
             bool over = ColdFor >= ExitHoldNow(c) && Calm(ours, c) && Calm(theirs, c);
             bool lapse = SinceHot >= c.hotLapse;
             if (!over && !lapse) return false;
-            Why = over ? $"calm {ColdFor:0} s (hold {ExitHoldNow(c):0} s), drama {DramaFor:0} s (min {MinDramaNow(c):0} s)" : $"no big attack for {SinceHot:0} s, drama {DramaFor:0} s";
+            Why = over ? $"calm {ColdFor:0} s (hold {ExitHoldNow(c):0} s), drama {DramaFor:0} s (min {MinDramaNow(c):0} s)" : $"no big attack or fort under fire for {SinceHot:0} s, drama {DramaFor:0} s";
             Wanted = false; SinceReturn = 0f; HotFor = 0f; Ends++;
             return true;
         }
@@ -241,7 +287,7 @@ namespace OpenZ
         sealed class Slot
         {
             public int idx; public MusicTrack track; public SlotState state; public AtSilence atSilence;
-            public float level, target, rate, extraDb;
+            public float level, target, rate, extraDb, liftTo, liftRate;                       // liftTo / liftRate: the end-sting lift-off (dB, dB per s; 0 = none)
             public double startAt, startPos, parkedAt, parkedPos; public bool pendingResume;
         }
         sealed class Bag
@@ -370,7 +416,7 @@ namespace OpenZ
             else if (Layer == MusicLayer.ToRegular && drama != null && drama.state == SlotState.Playing && drama.level >= C.gameOverReverseLevel)
             { endDrama = true; why = $"the drama was fading out ({drama.level:0.00}): it comes back and plays on to the end screen"; }
             else if (Detector.SinceReturn < C.gameOverGrace) { endDrama = false; why = $"the drama faded back {Detector.SinceReturn:0} s ago: the regular song plays on to the end screen"; }
-            else if (Detector.HotFor >= C.gameOverHotHold) { endDrama = true; why = "a big attack is under way: the drama starts at the fall"; }
+            else if (Detector.HotFor >= C.gameOverHotHold) { endDrama = true; why = "an attack (big or fort under fire) is under way: the drama starts at the fall"; }
             else if (C.dramaOnGameOver) { endDrama = true; endDramaAt = now + C.gameOverDramaDelay; why = $"dramaOnGameOver: the drama starts {C.gameOverDramaDelay:0.0} s after the fall"; }
             else { endDrama = false; why = "the regular song plays on to the end screen"; }
             Note($"game over ({Layer}): detector frozen, {why}");
@@ -456,7 +502,7 @@ namespace OpenZ
         {
             if (PoolCount(MusicPool.Drama) == 0) { StartRegularFromSilence(); return; }
             var t = PickDrama(null, false);
-            drama = Start(t, t.dramaIn, 0.0, C.toDramaIn, C.dramaDb, "drama");
+            drama = Start(t, t.dramaIn, 0.0, C.toDramaIn, DramaDbOf(t, C), "drama");
             DramaStarts++;
             SetLayer(MusicLayer.ToDrama);
         }
@@ -486,18 +532,18 @@ namespace OpenZ
             }
             if (drama != null) { Release(drama); drama = null; }
             var t = PickDrama(replacing, false);
-            drama = Start(t, t.dramaIn, delay, C.toDramaIn, C.dramaDb, "drama");
+            drama = Start(t, t.dramaIn, delay, C.toDramaIn, DramaDbOf(t, C), "drama");
             Note($"{from} -> ToDrama: regular out {C.toDramaOut:0.#} s, {t.name} in {C.toDramaIn:0.#} s from +{delay:0.00} s");
         }
 
         void DramaTick()
         {
-            if (drama == null) { var t0 = PickDrama(null, true); drama = Start(t0, t0.dramaIn, 0.0, C.endedFade, C.dramaDb, "drama"); return; }
+            if (drama == null) { var t0 = PickDrama(null, true); drama = Start(t0, t0.dramaIn, 0.0, C.endedFade, DramaDbOf(t0, C), "drama"); return; }
             if (drama.state != SlotState.Playing) return;
             if (O.Ended(drama.idx))
             {
                 Release(drama); drama = null;
-                var t1 = PickDrama(null, true); drama = Start(t1, t1.dramaIn, 0.0, C.endedFade, C.dramaDb, "drama (next)");
+                var t1 = PickDrama(null, true); drama = Start(t1, t1.dramaIn, 0.0, C.endedFade, DramaDbOf(t1, C), "drama (next)");
                 return;
             }
             if (drama.target < 1f || OthersAudible(drama)) return;
@@ -506,7 +552,7 @@ namespace OpenZ
             {   // a drama track ends while the attack goes on: crossfade into a DIFFERENT drama track
                 var old = drama; FadeTo(old, 0f, x, AtSilence.Stop);
                 var t = PickDrama(null, true);
-                drama = Start(t, t.dramaIn, 0.0, x, C.dramaDb, "drama (next)");
+                drama = Start(t, t.dramaIn, 0.0, x, DramaDbOf(t, C), "drama (next)");
             }
         }
 
@@ -619,12 +665,20 @@ namespace OpenZ
         void EnterEnd(in MusicInput i)
         {
             endEntered = true;
-            bool sounding = AudibleCount() > 0;
+            bool sounding = AudibleCount() > 0; string lift = "";
             SetLayer(MusicLayer.End);
             foreach (var s in slots)
             {
                 if (s.state == SlotState.Paused || s.state == SlotState.Pending) Release(s);
-                else if (s.state == SlotState.Playing) FadeTo(s, 0f, C.endFade, AtSilence.Stop);
+                else if (s.state == SlotState.Playing)
+                {
+                    FadeTo(s, 0f, C.endFade, AtSilence.Stop);
+                    if (s.track.pool == MusicPool.Drama && s.extraDb > C.dramaDb)
+                    {   // end-sting fix (5 Nov, the lead's call): the drama's measured lift comes off to the old dramaDb in endLiftOff s, linear in dB, while the same fade runs; this tick is one frame after the sting (OpenZVictory.Release plays it from its coroutine, after AudioDirector.Update), the sting's own frame after Enter / Space and after the safety release (OpenZVictory.Update, execution order -44, before AudioDirector)
+                        lift += $", {s.track.name}'s lift {s.extraDb:+0.0;-0.0} -> {C.dramaDb:+0.0;-0.0} dB in {C.endLiftOff:0.0#} s";
+                        s.liftTo = C.dramaDb; s.liftRate = (s.extraDb - C.dramaDb) / Math.Max(0.01f, C.endLiftOff);
+                    }
+                }
             }
             reg = drama = null; endS = null;
             double lead = i.stingSeconds > 0f ? Math.Max(0.5, i.stingSeconds - C.endLead) : C.endNoSting;
@@ -635,7 +689,7 @@ namespace OpenZ
             if (PoolCount(MusicPool.Menu) > 0) endSeq.Add(MusicPool.Menu);
             endIdx = 0;
             Note($"END SCREEN ({(i.result > 0 ? "win" : i.result < 0 ? "loss" : "draw")}): music out {C.endFade:0.#} s under the sting, end music in {endMusicAt - now:0.0} s" +
-                 (gameOverAt >= 0 ? $" ({now - gameOverAt:0.0} s after the game over)" : ""));
+                 (gameOverAt >= 0 ? $" ({now - gameOverAt:0.0} s after the game over)" : "") + lift);
         }
 
         void EndTick()
@@ -662,6 +716,9 @@ namespace OpenZ
 
         MusicPool NextEndPool() { if (endIdx + 1 < endSeq.Count) endIdx++; return endSeq[endIdx]; }
         float PoolDb(MusicPool p) => p == MusicPool.Victory ? C.victoryDb : p == MusicPool.Menu ? C.menuDb : p == MusicPool.Drama ? C.dramaDb : 0f;
+        /// <summary>music_drama (5 Nov): a drama track's lift over the regular songs: its measured one (MusicTrack.dramaDb, MusicDramaGain)
+        /// or, for a drama clip without a measured row, MusicCoreConfig.dramaDb. The scenario backend uses the same function.</summary>
+        public static float DramaDbOf(MusicTrack t, MusicCoreConfig c) => t != null && t.dramaDb.HasValue ? t.dramaDb.Value : c.dramaDb;
 
         /// <summary>Listening check: crossfade the regular playlist to its next song now (Regular only).</summary>
         public void Skip()
@@ -675,7 +732,7 @@ namespace OpenZ
         Slot Start(MusicTrack t, double pos, double delay, float fade, float extraDb, string why, bool resumed = false)
         {
             var s = Alloc();
-            s.track = t; s.extraDb = extraDb; s.level = 0f; s.target = 1f; s.rate = 1f / Math.Max(0.05f, fade); s.atSilence = AtSilence.Park;
+            s.track = t; s.extraDb = extraDb; s.liftRate = 0f; s.level = 0f; s.target = 1f; s.rate = 1f / Math.Max(0.05f, fade); s.atSilence = AtSilence.Park;
             s.pendingResume = false; s.startPos = Math.Max(0.0, Math.Min(pos, Math.Max(0.0, t.length - 1.0)));
             s.startAt = now + delay; s.state = SlotState.Pending;
             if (!resumed)
@@ -722,7 +779,7 @@ namespace OpenZ
         {
             if (s.state != SlotState.Idle && s.state != SlotState.Pending) O.Stop(s.idx);
             else if (s.state == SlotState.Pending && s.pendingResume) O.Stop(s.idx);                // a paused bookmark waiting to unpause
-            s.state = SlotState.Idle; s.track = null; s.level = s.target = 0f; s.pendingResume = false;
+            s.state = SlotState.Idle; s.track = null; s.level = s.target = 0f; s.pendingResume = false; s.liftRate = 0f;
         }
 
         void FadeTo(Slot s, float target, float seconds, AtSilence at)
@@ -741,6 +798,7 @@ namespace OpenZ
                 if (s.state != SlotState.Playing) continue;
                 if (s.level < s.target) s.level = Math.Min(s.target, s.level + s.rate * dt);
                 else if (s.level > s.target) s.level = Math.Max(s.target, s.level - s.rate * dt);
+                if (s.liftRate > 0f) { s.extraDb = Math.Max(s.liftTo, s.extraDb - s.liftRate * dt); if (s.extraDb <= s.liftTo) s.liftRate = 0f; }   // the end-sting lift-off (EnterEnd)
                 if (s.target <= 0f && s.level <= 0f)
                 {
                     O.Gain(s.idx, 0f);
@@ -828,10 +886,11 @@ namespace OpenZ
         public string DramaLast = "", DramaBag = "";
         public int DramaPicks { get; private set; }
 
-        /// <summary>The drama pool: a shuffle bag that outlives the match. Every pick is random among the tracks not played yet in
-        /// this round, never the drama track that played last (also across the end of a round, a match restart and a new start of
-        /// the game: DramaLast) and, where the round allows, not the one before it either (no A B A). When every track has played, a
-        /// new round starts. A pool of one track simply plays that track.</summary>
+        /// <summary>
+        /// Every pick is the most intense track (openz_music_meta.json "intensity") not played yet in this round, never the
+        /// drama track that played last (also across the end of a round, a match restart and a new start of the game: DramaLast)
+        /// and, where the round allows, not the one before it either (no A B A). When every track has played, a new round starts
+        /// from the strongest again. A pool of one track simply plays that track.</summary>
         MusicTrack PickDrama(MusicTrack replacing, bool next)
         {
             var b = bags[(int)MusicPool.Drama];
@@ -845,12 +904,13 @@ namespace OpenZ
             if (elig.Count == 0) elig = left;                                                       // a pool of one track: it simply plays again
             var cand = elig.FindAll(t => t != b.prev);
             if (cand.Count == 0) cand = elig;
-            var pick = cand[rnd.Next(cand.Count)];
+            MusicTrack pick = null;                                                                 // music_drama: the strongest first (a tie keeps the pool order)
+            foreach (var t in cand) if (pick == null || t.intensity > pick.intensity) pick = t;
             left.Remove(pick);
             var names = new List<string>(); foreach (var t in left) names.Add(t.name);
             DramaBag = string.Join(",", names.ToArray()); DramaLast = pick.name; DramaPicks++;
             b.prev = b.last; b.last = pick;
-            Note($"drama pick: {pick.name} (random of {cand.Count}; {left.Count} of {all.Count} still to play in this round)");
+            Note($"drama pick: {pick.name} (intensity {pick.intensity.ToString("+0.00;-0.00", CultureInfo.InvariantCulture)}, the strongest of {cand.Count}; {left.Count} of {all.Count} still to play in this round)");
             return pick;
         }
 
@@ -909,7 +969,7 @@ namespace OpenZ
             var sb = new StringBuilder();
             var d = Detector;
             sb.Append($"music_v3 {Layer} ({now - layerSince:0} s), drama wanted {d.Wanted}{(d.Wanted ? " fort " + (d.Fort == 1 ? "ours" : "theirs") : "")}, ")
-              .Append($"hot {d.HotFor:0.0} s, calm {d.ColdFor:0.0}/{d.ExitHoldNow(C):0} s, drama {d.DramaFor:0}/{d.MinDramaNow(C):0} s, since return {Math.Min(999f, d.SinceReturn):0} s{(d.Waiting(C) ? $" (interlude: next drama in {C.cooldown - d.SinceReturn:0} s, heavy in {Math.Max(0f, d.HeavyInterludeNow(C) - d.SinceReturn):0} s)" : "")}, siege chain {d.Chain}\n");
+              .Append($"hot {d.HotFor:0.0} s, calm {d.ColdFor:0.0}/{d.ExitHoldNow(C):0} s, drama {d.DramaFor:0}/{d.MinDramaNow(C):0} s, since return {Math.Min(999f, d.SinceReturn):0} s{(d.Waiting(C) ? $" (5-minute limit: next drama in {C.cooldown - d.SinceReturn:0} s, no exception)" : "")}, siege chain {d.Chain}\n");
             sb.Append($"  duck {duckDbNow:0.0} dB (zod {ZodDuck.Db(C.zodDuckDb):0.0}), starts {Starts}, resumes {Resumes}, pauses {Parks}, dramas {DramaStarts}/{DramaEnds}, back-to-back {BackToBack}, steals {Steals}{(gameOverSeen ? $", game over: drama to the end {endDrama}" : "")}\n");
             foreach (var s in slots)
             {
@@ -919,6 +979,41 @@ namespace OpenZ
                 sb.Append($"  v{s.idx}: {s.state} {role} {s.track?.name} @ {t:0.0}/{s.track?.length:0} s, gain {Gain01(s):0.00} -> {s.target:0}\n");
             }
             return sb.ToString();
+        }
+    }
+
+    /// <summary>
+    /// regular songs (dB, on top of its sound-table gain), so it sits at least +4 LU over the mean of the battle songs it replaces,
+    /// both in its first 60 s from the cue (a drama usually plays 30-60 s: the moment it comes in) and from the cue to its end.
+    /// Measured 5 Nov with ffmpeg (EBU R128: loudnorm analysis, ebur128 true peak) on the shipped clips: the drama tracks from their
+    /// dramaIn cue (to the end, first 60 s), the battle songs of each pool (mus_l02_attacking: L02 and L16; mus_l07_attacking;
+    /// mus_l17_attacking) whole, all with their sound-table gains: battle means -14.92 / -14.95 / -14.92 LUFS; the drama tracks'
+    /// first 60 s -14.78 .. -15.59 LUFS in game (so the old flat +1.5 dB put them only +0.8 .. +1.7 LU over when they come in).
+    /// Lift = the larger of the two readings, rounded to 0.1 dB: +3.9 .. +4.7 dB, +3.95 .. +4.07 LU over in the first 60 s and
+    /// +4.0 .. +4.75 LU to the end. Capped so the true peak at the music voice (file + table gain + this lift + the Music bus -12 dB at
+    /// the MUSIC slider's top) stays at most -1 dBTP and the voice volume at most 1: no clipping, no limiter; the loudest drama voice
+    /// (tools/measure_loudness.py).</summary>
+    public static class MusicDramaGain
+    {
+        static readonly Dictionary<string, Dictionary<string, float>> byLevel = new Dictionary<string, Dictionary<string, float>>
+        {
+            ["l02"] = new Dictionary<string, float> { ["M4_assault_Breach_Vector"] = 4.1f, ["M4_assault_Stone_Teeth"] = 4.5f, ["M8_fort_Hardpoint"] = 4.7f, ["M8_fort_Siren_Battery"] = 4.6f, ["zopendramatic1"] = 4.5f, ["zopendramatic2"] = 3.9f, ["zopendramatic3"] = 3.9f },
+            ["l07"] = new Dictionary<string, float> { ["M4_assault_Breach_Vector"] = 4.0f, ["M4_assault_Stone_Teeth"] = 4.5f, ["M8_fort_Hardpoint"] = 4.6f, ["M8_fort_Siren_Battery"] = 4.5f, ["zopendramatic1"] = 4.5f, ["zopendramatic2"] = 3.9f, ["zopendramatic3"] = 3.9f },
+            ["l17"] = new Dictionary<string, float> { ["M4_assault_Breach_Vector"] = 4.1f, ["M4_assault_Stone_Teeth"] = 4.5f, ["M8_fort_Hardpoint"] = 4.7f, ["M8_fort_Siren_Battery"] = 4.6f, ["zopendramatic1"] = 4.5f, ["zopendramatic2"] = 3.9f, ["zopendramatic3"] = 3.9f },
+        };
+
+        /// <summary>The measured lift of drama track <paramref name="track"/> in level music <paramref name="lv"/> (AudioDirector.MusicLv:
+        /// l02 for L02 and L16, l07, l17), null when it has no row (MusicCoreConfig.dramaDb is used).</summary>
+        public static float? For(string lv, string track)
+        {
+            if (lv == null || track == null || !byLevel.TryGetValue(lv, out var t) || !t.TryGetValue(track, out var db)) return null;
+            return db;
+        }
+
+        /// <summary>Every row, for the checks (level, track, dB).</summary>
+        public static IEnumerable<(string lv, string track, float db)> Rows()
+        {
+            foreach (var l in byLevel) foreach (var r in l.Value) yield return (l.Key, r.Key, r.Value);
         }
     }
 }

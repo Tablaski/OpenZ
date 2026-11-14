@@ -9,7 +9,7 @@
 //        3 = pre-expanded quad (object = world, NightProjectileGlow streaks): x across -1..1, y along 0 tail .. 1 head
 // Per renderer (MaterialPropertyBlock): _ChA = (head, tail, brake, beacon A), _ChB = (beacon B, engine, eye, work), the
 // channel intensities VehicleLights computes every frame (night level, braking, blink, throttle, power, damage), _Team
-// (the owner's glow colour) and _Gain. Channel 8 = constant 1 (projectiles). All HDR: blooms (NightGrade lowers the
+// (the owner's glow colour) and _Gain. Channel 8 = constant 1 (projectiles), 9 = the same over a wall, near-plane depth. All HDR: blooms (NightGrade lowers the
 // bloom threshold at night). A zero channel collapses its quads in the vertex shader (no fill cost for lamps that are off).
 Shader "OpenZ/VehicleGlow"
 {
@@ -109,6 +109,7 @@ Shader "OpenZ/VehicleGlow"
                     o.positionCS = TransformWViewToHClip(cVS);
                     if (hasN) facing = smoothstep(-0.3, 0.45, dot(nWS, V));
                 }
+                if (chRaw > 8.5 && chRaw < 9.5) o.positionCS.z = o.positionCS.w * UNITY_NEAR_CLIP_VALUE * 0.999;
                 float w = k * facing * _Gain;
                 o.col = (half3)(rgb * w);
                 o.q = float4(corner, mode, 0);

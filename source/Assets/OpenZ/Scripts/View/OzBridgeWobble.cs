@@ -62,9 +62,8 @@ namespace OpenZ
 
         void Scan()
         {
-            var root = GameObject.Find("ZodObjects");
             var found = new List<Transform>();
-            if (root) foreach (var mc in root.GetComponentsInChildren<MeshCollider>(false)) if (mc.name == "WalkDeck") found.Add(mc.transform);
+            OzViewScans.WalkDecks(found);                                                   // 1.4 speed-up 4: the walk decks under ZodObjects in the tree's order, from a registry (was a walk of the whole tree)
             bool same = found.Count == decks.Count;
             if (same) for (int i = 0; i < found.Count; i++) if (decks[i].walk != found[i]) { same = false; break; }
             if (same) return;

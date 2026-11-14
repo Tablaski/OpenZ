@@ -52,7 +52,11 @@ namespace OpenZ
         }
 
         /// <summary></summary>
+#if OZ_RELEASE
+        public static string Milestones(string sub) => DevRoot + "/checks/" + sub;
+#else
         public static string Milestones(string sub) => DevRoot + "/work/records/milestones/" + sub;
+#endif
     }
 
     /// <summary>
@@ -62,7 +66,7 @@ namespace OpenZ
     public static class OzVersion
     {
         public const string Product = "OpenZ";
-        public const string Number = "1.1";
+        public const string Number = "1.4";
 
         /// <summary>"1.0_20261006": folder / file safe (release\OpenZ_1.0_20261006).</summary>
         public static string Tag(DateTime d) => Number + "_" + d.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);

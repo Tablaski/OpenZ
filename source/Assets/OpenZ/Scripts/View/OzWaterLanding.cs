@@ -130,9 +130,9 @@ namespace OpenZ
         sealed class Rec
         {
             public Transform t; public Rigidbody rb; public Renderer[] rs; public string kind; public int id;
-            public byte state;                                           // 0 in the air, 1 bobbing, 2 at rest, 3 going under
-            public bool drop, keepPose, floats, seen, falling, pooled;
-            public float born, still, dryUntil, reach = -1f, vy, downT = -10f;
+            public byte state;                                           // 0 in the air, 1 bobbing, 2 at rest, 3 going under, 4 melting (level 7: OzLavaMelt moves it)
+            public bool drop, keepPose, floats, seen, falling, pooled, inLava;
+            public float born, still, dryUntil, reach = -1f, vy, downT = -10f, sinkT;
             public Vector3 prev, vel, last, downV, shift;
             public int entry = -1; public OzWaterSize size;
             public float waterY, restY, floorY, y, w, damp, clock, turn, lapAt;
@@ -178,6 +178,7 @@ namespace OpenZ
         /// is) the height comes from the water table or the one flat height.</summary>
         static bool Surface(Vector3 p, out float waterY)
         {
+            if (OzLava.SurfaceAt(p, out waterY)) return true;                                               // 1.3 level 7: drawn lava
             waterY = 0f;
             var fxp = OpenZFxPlayer.I; var g = ZGame.I;
             if (!g || !fxp || !fxp.isActiveAndEnabled || float.IsNegativeInfinity(fxp.WaterY)) return false;
@@ -188,6 +189,7 @@ namespace OpenZ
 
         /// <summary>Open water at q by the cached ground grid (no ray): for looking along a line of points round a landing.</summary>
         static bool OpenFast(OpenZFxPlayer fxp, Vector3 q) =>
+            (OzLava.SurfaceAt(q, out float lavaY) && fxp.GroundAt(q) <= lavaY - MinDepth) ||
             AnticSpot.WaterMeshAt(fxp, q, out float y) && fxp.GroundAt(q) <= (float.IsNaN(y) ? fxp.WaterYAt(q) : y) - MinDepth;
 
         /// <summary>Fallback only (no readable water mesh): one flat height on a level without a table; on a level with one the
@@ -333,6 +335,7 @@ namespace OpenZ
         /// own fall, View/OzTreeFall.cs).</summary>
         public static void Watch(Transform piece, string kind, Rigidbody rb = null, bool drop = false, bool keepPose = false, bool floats = false)
         {
+            OzDebrisBodies.Add(rb);                                                                       // v1.3: DebrisAudit's settle guard reads this registry (View/OzLiveSet.cs), whatever this rule does
             if (!Enabled || !piece) return;
             var m = I; if (!m) return;
             int id = piece.GetInstanceID();
@@ -455,10 +458,11 @@ namespace OpenZ
         {
             float now = Time.unscaledTime;
             var e = new Entry { serial = ++serial, piece = emitter, time = Time.time, utime = now, kind = kind, size = size, at = at, speed = speed, quiet = quiet, relay = relay, held = held, sound = "none", tiltDeg = -1f, flat = -1f };
-            var fxp = OpenZFxPlayer.I; bool live = fxp && fxp.isActiveAndEnabled, on = WreckFx.OnScreen(at, 0.2f);
+            var fxp = OpenZFxPlayer.I; bool live = fxp && fxp.isActiveAndEnabled, on = WreckFx.OnScreen(at, 0.2f), lava = OzLava.SurfaceAt(at, out _);
             float k = Mathf.Clamp(0.7f + speed * 0.05f, 0.7f, 1.15f);
             // ---- droplets and rings
-            if (live && on)
+            if (live && on && lava) LavaPuff(fxp, at, size, quiet, now, ref e);
+            else if (live && on)
             {
                 if (quiet) e.rings += Ring(fxp, at, size == OzWaterSize.Large ? 0.5f : 0.3f, 1.4f, 0.6f);     // it lay there already: one soft ring, no spray
                 else if (size == OzWaterSize.Small)
@@ -484,7 +488,8 @@ namespace OpenZ
             // ---- the sound: the event of its size, on camera only (the events' own rule), spaced and capped
             if (!quiet)
             {
-                string id = soundEvent ?? (size == OzWaterSize.Small ? "wtr_debris_plop" : size == OzWaterSize.Medium ? "dst_debris_splash" : "wtr_vehicle_plunge");
+                string id = lava ? (size == OzWaterSize.Small ? OzLava.SndPopSmall : size == OzWaterSize.Medium ? OzLava.SndPopBig : "lava_hit_shell")
+                    : soundEvent ?? (size == OzWaterSize.Small ? "wtr_debris_plop" : size == OzWaterSize.Medium ? "dst_debris_splash" : "wtr_vehicle_plunge");
                 float vol = size == OzWaterSize.Small ? 0.7f : size == OzWaterSize.Medium ? Mathf.Lerp(0.75f, 0.95f, Mathf.InverseLerp(2f, 9f, speed)) : 0.9f;
                 while (soundTimes.Count > 0 && now - soundTimes[0] > SoundWindow) soundTimes.RemoveAt(0);
                 for (int i = heard.Count - 1; i >= 0; i--) if (now - heard[i].z > MergeSeconds) heard.RemoveAt(i);
@@ -525,6 +530,20 @@ namespace OpenZ
             return Entries.Count - 1;
         }
 
+        /// <summary>1.3 level 7: a piece into lava: a puff of its size in the lava look, under the same cap as the small splashes.</summary>
+        static void LavaPuff(OpenZFxPlayer fxp, Vector3 at, OzWaterSize size, bool quiet, float now, ref Entry e)
+        {
+            if (quiet) { fxp.LavaRing(at, size == OzWaterSize.Large ? 1.4f : 0.8f, 1.2f); e.rings++; return; }
+            if (size == OzWaterSize.Small)
+            {
+                while (smallFx.Count > 0 && now - smallFx[0] > 0.5f) smallFx.RemoveAt(0);
+                if (smallFx.Count >= SmallFxPerHalfSecond) return;
+                smallFx.Add(now);
+            }
+            fxp.LavaSpray(at, size == OzWaterSize.Small ? 0.22f : size == OzWaterSize.Medium ? 0.5f : 1.1f, size == OzWaterSize.Large);
+            e.fx = true; e.rings++;
+        }
+
         static bool PlaySound(string id, OzWaterSize size, Vector3 at, int emitter, float vol)
         {
             if (AudioDirector.I && AudioDirector.Has(id)) return AudioDirector.I.Play(id, at, emitter, vol, 1f);
@@ -549,24 +568,29 @@ namespace OpenZ
         void EnterWater(Rec r, Bounds b, float wy, float bed, Vector3 v, bool quiet, bool burning)
         {
             float sp = v.magnitude;
+            bool midOnLava = OzLava.SurfaceAt(b.center, out _);
+            r.inLava = midOnLava || OzLava.SurfaceAt(r.t.position, out _);                                  // its pivot when its middle is off the sheet, as Enter chose it: lava, never the water rule
             Box(r.t, r.rs, b, out var oc, out var os);
             r.size = SizeOf(Mathf.Max(os.x, Mathf.Max(os.y, os.z)));
             // a piece that would lie flat on the water (a slab, a plate, a plank, a door: its thinnest side under ThinMax) does not
             // rest there: it makes the splash and the sound of its size and goes under like a Small one
             float thinSide = Mathf.Min(os.x, Mathf.Min(os.y, os.z));
             bool thin = r.size != OzWaterSize.Small && !r.keepPose && !r.floats && thinSide < ThinMax - 0.005f;
-            bool holds = r.size != OzWaterSize.Small && !thin;
-            if (!holds || (!quiet && sp >= DouseSpeed)) burning |= Douse(r.t); else burning = false;
-            var at = new Vector3(b.center.x, wy, b.center.z);
+            bool holds = r.size != OzWaterSize.Small && !thin && !r.inLava;                                 // lava holds nothing up: every size goes under
+            if (r.inLava) burning = false;                                                                  // and nothing goes out in it
+            else if (!holds || (!quiet && sp >= DouseSpeed)) burning |= Douse(r.t); else burning = false;
+            var at = midOnLava || !r.inLava ? new Vector3(b.center.x, wy, b.center.z) : new Vector3(r.t.position.x, wy, r.t.position.z);
             r.entry = Fire(at, r.size, r.kind, sp, burning, r.id, null, quiet, false, holds || !r.pooled);
             if (!r.pooled) wetOnce.Add(r.id);
             var ent = Entries[r.entry]; ent.waterY = wy; ent.bedY = bed; ent.flat = r.keepPose ? -1f : thinSide; ent.sinks = !holds; Entries[r.entry] = ent;
-            if (!holds && r.pooled) return;                                                                 // a Small or thin piece its own code sinks
+            bool melts = r.inLava && OzLavaMelt.Live;                                                       // level 7, kit LV5: every size goes to the melt, a Small pooled piece too
+            if (!holds && r.pooled && !melts && (!r.inLava || r.size == OzWaterSize.Small)) return;                                                                 // a Small or thin piece its own code sinks
             if (r.rb)
             {
                 if (!r.rb.isKinematic) { r.rb.linearVelocity = Vector3.zero; r.rb.angularVelocity = Vector3.zero; }
                 r.rb.isKinematic = true; r.rb.interpolation = RigidbodyInterpolation.None;
             }
+            if (melts && OzLavaMelt.Take(r.t, r.rs, b, wy, sp, r.pooled ? OzMeltEnd.Keep : OzMeltEnd.Hide, r.kind)) { r.state = 4; r.last = r.t.position; return; }   // no slot: the quick sink below
             r.waterY = wy; r.clock = 0f; r.xz = r.t.position; r.y = r.t.position.y; r.baseScale = r.t.localScale;
             r.rot0 = r.rot1 = r.t.rotation; r.turn = 0f;
             uint s = RobotDeathRule.Hash(r.id, 27, 51u) | 1u; float u1 = WreckFx.Rnd(ref s), u2 = WreckFx.Rnd(ref s);
@@ -597,6 +621,7 @@ namespace OpenZ
                 foreach (var c in r.t.GetComponentsInChildren<Collider>()) c.enabled = false;
                 if (thin) { r.turn = 0.5f; r.restY = Mathf.Min(r.y, Mathf.Max(wy - 0.2f - h - off, bed - MudSink - off)); }
                 else r.restY = r.y - (Mathf.Max(0.25f, b.size.y) + 0.2f);
+                r.sinkT = r.inLava ? (r.size == OzWaterSize.Large ? 3.2f : r.size == OzWaterSize.Medium ? 2f : SinkSeconds) : SinkSeconds;
                 r.state = 3; r.last = r.t.position;
                 return;
             }
@@ -641,7 +666,7 @@ namespace OpenZ
         void LateUpdate()
         {
             var g = ZGame.I; var fxp = OpenZFxPlayer.I;
-            if (!g || !fxp || !fxp.isActiveAndEnabled || float.IsNegativeInfinity(fxp.WaterY)) return;
+            if (!g || !fxp || !fxp.isActiveAndEnabled || (float.IsNegativeInfinity(fxp.WaterY) && !OzLava.I)) return;
             if (!warmed) { warmed = true; AnticSpot.WaterMeshAt(fxp, transform.position, out _); }       // the grid of the drawn water is laid out in the level's first frames, not at the first blast
             float dt = g.paused ? 0f : Mathf.Min(Time.deltaTime, 0.05f), now = Time.time;
             int lapping = 0;
@@ -650,12 +675,13 @@ namespace OpenZ
                 var r = recs[i];
                 if (!r.t || !r.t.gameObject.activeInHierarchy) { Forget(r, 3); continue; }
                 var p = r.t.position;
-                if (r.state != 0 && (p - r.last).sqrMagnitude > 1e-6f) { Forget(r, 3); continue; }           // its own code moves it again (it sinks, pops or fades): let go
+                if (r.state != 0 && r.state != 4 && (p - r.last).sqrMagnitude > 1e-6f) { Forget(r, 3); continue; }           // its own code moves it again (it sinks, pops or fades): let go
                 switch (r.state)
                 {
                     case 0: if (!Air(r, p, dt, now, g, fxp)) Forget(r, 0); break;
                     case 1: Bob(r, dt, now, fxp); break;
                     case 2: if (lapping < MaxLapping) { lapping++; Lap(r, now, fxp); } break;
+                    case 4: if (!OzLavaMelt.Busy(r.t)) Forget(r, 2); break;
                     default: if (!Sink(r, dt)) Forget(r, 2); break;
                 }
             }
@@ -682,7 +708,7 @@ namespace OpenZ
                 return true;
             }
             float bed = g.GroundY(b.center.x, b.center.z);
-            if (bed > wy - MinDepth) { r.dryUntil = now + 0.25f; r.falling = false; return true; }           // a deck, a bank, a wet film: the dry rules
+            if (bed > wy - (OzLavaMelt.Live ? 0.02f : MinDepth)) { r.dryUntil = now + 0.25f; r.falling = false; return true; }           // a deck, a bank, a wet film: the dry rules
             bool down = now - r.downT < 0.3f;                                                               // it fell just now (a shallow bed may have stopped it between two frames)
             if (!down)
             {   // thrown up through the surface or lying in it: wait until it comes down or has lain still a moment
@@ -748,12 +774,13 @@ namespace OpenZ
         bool Sink(Rec r, float dt)
         {
             r.clock += dt;
-            float k = Mathf.Clamp01(r.clock / SinkSeconds);
+            float k = Mathf.Clamp01(r.clock / (r.sinkT > 0f ? r.sinkT : SinkSeconds));
             var q = r.turn > 0f ? Quaternion.Slerp(r.rot0, r.rot1, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(r.clock / r.turn))) : r.t.rotation;
             Place(r, new Vector3(r.xz.x, Mathf.Lerp(r.y, r.restY, Mathf.SmoothStep(0f, 1f, k)), r.xz.z), q);
-            if (k > 0.65f) r.t.localScale = r.baseScale * Mathf.Max(0.001f, 1f - (k - 0.65f) / 0.35f);
+            bool ownCode = r.inLava && r.pooled;                                                            // a piece its caller keeps (a turret, a pooled part) lies under the sheet as it is: its own code ends it
+            if (k > 0.65f && !ownCode) r.t.localScale = r.baseScale * Mathf.Max(0.001f, 1f - (k - 0.65f) / 0.35f);
             if (k < 1f) return true;
-            foreach (var x in r.rs) if (x && x.transform.IsChildOf(r.t)) x.enabled = false;                  // its own code removes the object when its time is up
+            if (!ownCode) foreach (var x in r.rs) if (x && x.transform.IsChildOf(r.t)) x.enabled = false;                  // its own code removes the object when its time is up
             return false;
         }
     }

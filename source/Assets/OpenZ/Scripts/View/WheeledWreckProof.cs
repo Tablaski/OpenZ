@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -383,3 +384,4 @@ namespace OpenZ
         void OnDestroy() { Time.captureFramerate = 0; if (rts && minH0 > 0f) rts.minHeight = minH0; }
     }
 }
+#endif

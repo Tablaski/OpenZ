@@ -283,14 +283,28 @@ namespace OpenZ
             return true;
         }
 
+        /// <summary>v1.3 ENDING DEBRIS: LIGHT, during the end-of-level sequence only: of a building's small (S / XS) library chunks every
+        /// second one is not thrown (true = skip it); the thrown small ones cast no shadow and are not smoothed between physics steps.</summary>
+        static bool LightSkip(Rigidbody rb, ref int smallSeen)
+        {
+            var bp = rb.GetComponent<BigPart>();
+            if (!bp || bp.lib == null || (bp.lib.cls != "S" && bp.lib.cls != "XS")) return false;
+            if ((smallSeen++ & 1) == 1) return true;
+            rb.interpolation = RigidbodyInterpolation.None;
+            foreach (var r in rb.GetComponentsInChildren<MeshRenderer>(true)) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return false;
+        }
+
         void LaunchBigParts(Vector3 center, float power, bool fort)
         {
             if (bigParts.Count == 0) return;
             RocksBigParts(center, fort);                                                                           // items 331 + 332: the big ones meet the rocks (BuildingBreaker.Rocks.cs)
             float k = Mathf.Clamp(power, 0.8f, fort ? 1.1f : 1.8f);
+            bool lightDebris = OzEndingDebris.Light && OpenZEnding.Running; int smallSeen = 0;               // v1.3 ENDING DEBRIS: LIGHT (Options, default FULL = this is false and nothing below changes)
             foreach (var rb in bigParts)
             {
                 if (!rb) continue;
+                if (lightDebris && LightSkip(rb, ref smallSeen)) continue;                                   // v1.3: every second small chunk stays in its holder, unthrown
                 var go = rb.gameObject; go.SetActive(true);
                 var bp = go.GetComponent<BigPart>(); if (bp) bp.Arm(Random.Range(BigPartLifeMin, BigPartLifeMax), fort);
                 if (bp && bp.lib != null) { LaunchLibChunk(rb, bp, center, k); continue; }
@@ -459,7 +473,7 @@ namespace OpenZ
                 if (done) return;
                 age += Time.deltaTime;
                 if (age > 5f && rb && !rb.isKinematic && rb.IsSleeping()) rb.isKinematic = true;          // settled: no more physics cost
-                if (age < life) return;
+                if (age < life || OzLavaMelt.Busy(transform)) return;                               // level 7, kit LV5: a late landing melts first
                 if (keep) { if (rb) rb.isKinematic = true; done = true; return; }                     // the fort's ruin keeps its parts
                 if (rb) rb.isKinematic = true;
                 if (!done && RockPop()) return;                                                                      // items 331 + 332: on a rock it pops away, never sinks through it

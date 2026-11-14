@@ -53,6 +53,7 @@ namespace OpenZ
         /// on the robot of `tag` that stands deepest in attack water, tried for window_s seconds; the crocodile rules do the rest),
         /// destroy (the lead of `tag` dies now: the game's own death and blast; when `tag` has no living unit left, the lead of `alt`),
         /// shake (camera shake: shake_s, shake_m, shake_deg), sfx (a world sound file of the level, 2D, `gain`), log_units.
+        /// volcano (level 7: the eruptor nearest x z erupts now: kind spit, or big when empty).
         /// Only a light / medium / heavy tank, a gun or a map object leaves the game's turret debris blast (the one that throws robots).</summary>
         [Serializable] public class Cue
         {
@@ -151,6 +152,14 @@ namespace OpenZ
         }
 
         static Vector3 V(float[] a) => a != null && a.Length >= 3 ? new Vector3(a[0], a[1], a[2]) : Vector3.zero;
+
+        /// <summary>The flyby's volcano beat: OzVolcano.Trigger on the eruptor nearest the cue's x z.</summary>
+        string VolcanoCue(Cue q)
+        {
+            var v = OzVolcano.I; if (!v) return "no volcano on this map";
+            bool big = q.kind != "spit"; int i = v.NearestTo(q.x, q.z, big);
+            return v.Trigger(i, big ? 1 : 0) ? (big ? "big" : "spit") + " eruption at " + v.CraterOf(i) : "volcano refused: busy";
+        }
     }
 }
 #endif

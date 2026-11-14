@@ -31,7 +31,7 @@ namespace OpenZ
     {
         public static bool On = true;
         /// <summary>The vehicle types that break this way.</summary>
-        public static readonly HashSet<string> Types = new HashSet<string> { "light", "heavy" };
+        public static readonly HashSet<string> Types = new HashSet<string> { "light", OzMediumTank.Type, "heavy" };   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>Break-ups prepared per tank model (each tank takes one by its id).</summary>
         public static int Variants = 3;
         /// <summary>The pieces' paint burn (TeamPaint Charred scale: 0.82 = the old near-black wreck, 0 = clean paint).</summary>

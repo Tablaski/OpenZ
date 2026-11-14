@@ -20,7 +20,7 @@ namespace OpenZ.EditorTools
     public static class OzK331cCheck
     {
         const string M = "OpenZ/V1.1/K331c ";
-        const int WantPieces = 17, MaxTris = 20000;
+        const int WantPieces = 23, MaxTris = 20000;                                                  // 17 of the gun + 6 of its hydraulic neck (trunk in two, four ram sections)
         const float StepMs = 10f;
         static int breaks0; static float until; static bool shots;
         static string Out { get { var p = Path.Combine(OpenZPaths.Records, "milestones", "k331c_pieces_check"); Directory.CreateDirectory(p); return p; } }

@@ -229,6 +229,7 @@ namespace OpenZ
                     }
                     else if (a == "shake") { shakes.Add(new Shake { t0 = q.t, dur = q.shake_s > 0f ? q.shake_s : 1.2f, posM = q.shake_m > 0f ? q.shake_m : 0.35f, rotDeg = q.shake_deg > 0f ? q.shake_deg : 0.8f }); res = "camera shake"; }
                     else if (a == "sfx") res = PlaySfx(q.file, q.gain > 0f ? q.gain : 0.2f);
+                    else if (a == "volcano") res = VolcanoCue(q);                                          // a flyby beat (OzEpicFlyby.Data.cs)
                     else if (a == "croc_catch") res = CrocCatchCue(q, t);                                  // OzEpicFlyby.Island.cs
                     else if (a == "croc_show") { res = CrocShowCue(q, t); if (res == null) continue; }   // round 4: the stream's crocodile drawn swimming (OzEpicFlyby.Kf4.cs)
                     else if (a == "wake") res = WakeCue(q.tag);

@@ -92,6 +92,10 @@ namespace OpenZ
         float lastClink = -10f;
 
         // ------------------------------------------------------------------------------------------------ API
+        /// <summary>open_fixes_3nov row 84: set by OzEvilZodBurst on the frame EvilZod's own mesh gave pieces: that frame's pop throws no made-up chunks (plates,
+        /// boots, domes, gauges, rods, bolts); his own rigid parts, sparks, chips, smoke and sound stay. -1 = none.</summary>
+        public static int NoChunksFrame = -1;
+
         /// <summary>Draws the pop for `view` (a robot, alive this frame) and hides nothing itself: the caller hides the view
         /// right after. blastFrom = the killer / impact position (bits fly away from it). False = could not play (no game).</summary>
         public static bool Play(UnitView view, int variant, Vector3 blastFrom, uint seed)
@@ -106,6 +110,7 @@ namespace OpenZ
         bool DoPlay(UnitView view, int variant, Vector3 blastFrom, uint seed)
         {
             rs = seed | 1u; R();
+            BoardingView.HatchPopCarryFor(view);                                                     // vehicle_exit_jump fix round 3: a driver killed in the air off his hatch jump: his pieces carry on at his flight's velocity (View/BoardingView.VehicleExit.cs)
             if (frame != Time.frameCount) { frame = Time.frameCount; thisFrame = 0; }
             bool full = thisFrame++ < FullPerFrame;
             Pops++;
@@ -208,6 +213,7 @@ namespace OpenZ
                 Launch(p, c, away, sq, 1f);
                 p.heavy = ext.magnitude > 0.35f; if (real > 0 && full) p.smoke = R(0.3f, 0.6f); p.dead = 0;   // PD1: the gun clangs down; item 228: the dead colour fades in
             }
+            if (NoChunksFrame == Time.frameCount) { NoChunksFrame = -1; return true; }                     // open_fixes_3nov row 84: EvilZod's own pieces fly instead (OzEvilZodBurst)
             if (!EnsureKit(view)) return true;
             var teamC = OzDeadTint.PopPieceLive(Color.Lerp(TeamColors.Of(team), new Color(0.5f, 0.5f, 0.5f), 0.15f));   // item 228: the shoulder domes and team plates start live and drain to the dead colour with every other piece (OzDeadTint.cs)
             Color gun = new Color(0.42f, 0.44f, 0.47f), dark = new Color(0.2f, 0.21f, 0.23f), bone = new Color(0.86f, 0.82f, 0.7f), brass = new Color(0.8f, 0.62f, 0.3f), steel = new Color(0.66f, 0.68f, 0.7f);
@@ -246,6 +252,7 @@ namespace OpenZ
             var radial = p.t.position - c; radial.y = 0f;
             var dir = radial.sqrMagnitude > 0.01f ? (radial.normalized * 0.6f + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 0.4f).normalized : new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
             p.v = dir * sp + Vector3.up * R(4f, 8.5f) * sq * k + away * R(0.8f, 2.4f) * sq;
+            p.v += BoardingView.HatchPopCarry;                                                      // vehicle_exit_jump fix round 3: + his flight's velocity (zero for every other pop)
             p.w = Random.onUnitSphere * R(300f, 900f);
             p.age = 0f; p.life = R(PieceLifeMin, PieceLifeMax); p.rest = p.popping = p.wet = p.landed = false; p.bounces = 0; p.active = true;
             p.smoke = 0f; p.smokeT = 0f; p.heavy = p.concrete = false; p.dead = -1;
@@ -355,6 +362,7 @@ namespace OpenZ
             for (int m = 0; m < src.sharedMaterials.Length; m++) { src.GetPropertyBlock(copy, m); p.mr.SetPropertyBlock(copy, m); } p.glow = OzGlowFade.HasGlow(p.mr) ? OzGlowFade.Steps + 2 : 0;
             p.mr.shadowCastingMode = ShadowCastingMode.On;
             p.t.SetPositionAndRotation(src.transform.position, src.transform.rotation); p.t.localScale = src.transform.lossyScale;
+            OzFireHeat.ColdCopy(p.mr, src.sharedMaterials.Length);
             var bc = src.bounds.center; var ext = src.bounds.extents;
             p.rad = Mathf.Clamp(Mathf.Min(ext.x, Mathf.Min(ext.y, ext.z)) + 0.05f, 0.08f, 0.6f);
             var away = bc - from; away.y = 0f; if (away.sqrMagnitude < 1e-3f) away = new Vector3(R(-1f, 1f), 0f, R(-1f, 1f)); away.Normalize();
@@ -415,7 +423,7 @@ namespace OpenZ
                 pieces.Add(p); return p;
             }
             Piece best = null;                                                                          // full pool: the oldest resting piece
-            foreach (var p in pieces) if (p.rest && !p.popping && (best == null || p.age > best.age)) best = p;
+            foreach (var p in pieces) if (p.rest && !p.popping && !OzLavaMelt.Busy(p.t) && (best == null || p.age > best.age)) best = p;   // level 7, kit LV5: never a melting part
             if (best == null) return null;
             Retire(best); return best;
         }
@@ -463,7 +471,7 @@ namespace OpenZ
                 {   // b27, the shared water landing rule: the splash, the rings and the sound of its size (its smoke trail goes out). A big part
                     // then rests partly under the surface until its time is up; a small bit sinks slowly and pops out on the bed as before
                     p.wet = true; bool smoking = p.smoke > 0f && p.age < p.smoke; p.smoke = 0f;
-                    if (OzWaterLanding.Enter(p.t, "robot part", p.v, smoking)) { p.v = Vector3.zero; p.w = Vector3.zero; p.rest = true; continue; }
+                    if (OzWaterLanding.Enter(p.t, "robot part", p.v, smoking)) { p.v = Vector3.zero; p.w = Vector3.zero; p.rest = true; if (OzLavaMelt.Busy(p.t)) p.life = Mathf.Max(p.life, p.age + 7f); continue; }
                     p.v *= 0.15f; p.w *= 0.3f; p.life = Mathf.Min(p.life, p.age + 1.4f);
                 }
                 if (p.wet) { p.v.y = Mathf.Max(p.v.y, -0.8f); p.v.x *= 0.9f; p.v.z *= 0.9f; }

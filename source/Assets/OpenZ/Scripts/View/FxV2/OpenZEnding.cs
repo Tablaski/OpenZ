@@ -121,14 +121,17 @@ namespace OpenZ
         void OnDisable() { OpenZNukeStrike.Impacted -= OnImpact; ReleaseCamera(); }
         void OnDestroy() { if (I == this) I = null; if (camTarget) Destroy(camTarget.gameObject); }
 
-        void Start() { if (PrewarmOnLoad) StartCoroutine(Prewarm()); }
+        void Start() { if (PrewarmOnLoad) OzStartAhead.Run(this, Prewarm(), "the ending's prewarm"); }   // a blue start of level 16: before the first picture, its warm render's frames as before (OzStartAhead.cs, owner items 86 / 142)
 
         // ================================================================================================ frame
         void Update()
         {
             if (!game) game = ZGame.I;
             if (!Enabled || game == null || game.World == null) return;
-            if (running && Time.timeScale > 0f) realSinceFall += Time.unscaledDeltaTime;
+            // fixed step (Time.captureFramerate) the unscaled time is the PC's wall clock, 2-4x the take's own time (every frame is written),
+            // so HoldFortToss's limit (12 s + the intro's hold) ran out before the bomb landed and the fort gun flew in the recording; the
+            // take's step is the viewer's time
+            if (running && Time.timeScale > 0f) realSinceFall += Time.captureFramerate > 0 ? 1f / Time.captureFramerate : Time.unscaledDeltaTime;
             if (running && realSinceFall > 0f && realSinceFall < 20f && Time.unscaledDeltaTime * 1000f > worstMs) { worstMs = Time.unscaledDeltaTime * 1000f; worstAt = realSinceFall; }
             if (running && !worstLogged && realSinceFall >= 12f) { worstLogged = true; LogWorst(); }
             if (running) StepProfile();
@@ -275,7 +278,7 @@ namespace OpenZ
                 var blast = origin + Random.insideUnitSphere * 0.8f; blast.y = p.y - 2.5f;       // thrown out and up, away from the bomb
                 d.v.Die(false, true, blast);
             }
-            else if ((d.o.Kind == ZKind.Vehicle || d.o.Kind == ZKind.Cannon) && d.v && d.v.isActiveAndEnabled && !d.v.Dying)
+            else if ((d.o.Kind == ZKind.Vehicle || d.o.Kind == ZKind.Cannon) && !d.o.IsShuttle && d.v && d.v.isActiveAndEnabled && !d.v.Dying)
                 d.v.Die(false, true, d.v.transform.position);                                    // = CombatView's own call (idempotent), even if the event were lost
             var e = d.e; e.flag = false; e.flag2 = true;                                          // a blast death (CombatView / LegacyMatch / sounds)
             game.World.Events.Add(e);

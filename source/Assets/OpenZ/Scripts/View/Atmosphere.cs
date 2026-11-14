@@ -14,7 +14,7 @@ namespace OpenZ
     [ExecuteAlways]
     public class Atmosphere : MonoBehaviour
     {
-        public enum Preset { Desert, City, Jungle }
+        public enum Preset { Desert, City, Jungle, Volcanic }
         public Preset preset = Preset.Desert;
         public DayNight dayNight;
         [Tooltip("Parent of DEC_*lamp* objects (the environment root)")] public Transform lampRoot;
@@ -72,6 +72,7 @@ namespace OpenZ
                 foreach (Transform t in lampRoot)
                     if (t.gameObject.activeInHierarchy && t.name.ToLowerInvariant().Contains("lamp")) lamps.Add(t.position + Vector3.up * 3.6f);
             if (Application.isPlaying && particles && preset == Preset.Desert) BuildDesertParticles();
+            if (Application.isPlaying && particles && preset == Preset.Volcanic) OzVolcanicAir.BuildParticles(transform, ParticleMat());   // level 7: ash motes and embers
         }
 
         void OnDisable() { Shader.SetGlobalFloat(IdEnabled, 0); }
@@ -152,6 +153,7 @@ namespace OpenZ
                 lampK = night * 0.6f;
                 UpdateDesertParticles(1 - night * 0.7f);
             }
+            else if (preset == Preset.Volcanic) lampK = OzVolcanicAir.Apply(t, night, golden, blue);   // level 7: its own air (OzVolcanicAir.cs)
             else if (preset == Preset.Jungle) lampK = OzJungleAir.Apply(this, t, night, golden, blue);   // level 16: its own air (OzJungleAir.cs)
             else
             {

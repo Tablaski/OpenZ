@@ -8,6 +8,10 @@ namespace OpenZ
     /// Every flag the player does not own gets a soft glowing
     /// ring on the ground (the selection ring's OpenZ/Overlay look, warm amber, HDR for a light bloom) that breathes and sends a thin
     /// wave outward every few seconds; it fades out when the player takes the flag. L17 by default (L02 flags stand out on the sand).
+    /// Version 1.2, owner item 5b (FlagView.Looks.cs): the enemy's flags carry their own team-colour day ring now,
+    /// so this beacon keeps to the neutral flags while those rings run; by night the
+    /// neutral flags' pool of light takes over ("neutra on night pull of light ... transiton day nigth smoohtly"): the beacon fades
+    /// with the flags' night (FlagView.NightLook), smoothly, and is back in full by day.
     /// View only: reads the sim's flags and owners.
     /// </summary>
     public class FlagBeacons : MonoBehaviour
@@ -36,11 +40,13 @@ namespace OpenZ
         {
             var g = ZGame.I; if (!g || g.World == null || !mat) return;
             bool on = g.level == "L17" ? OnL17 : OnL02; if (!on) return;
-            float t = Time.time, dt = Time.deltaTime;
+            float t = Time.time, dt = Time.deltaTime, day = 1f - FlagView.NightLook;                 // v1.2: 1 by day .. 0 at night
+            bool teamRings = FlagView.TeamRingsOn;
             foreach (var f in g.World.Flags)
             {
-                bool want = f.Owner != g.player;
+                bool want = f.Owner != g.player && (f.Owner == Team.Neutral || !teamRings);         // v1.2: the enemy's flags have their team ring
                 fade.TryGetValue(f.Id, out float k); k = Mathf.MoveTowards(k, want ? 1f : 0f, dt / 0.8f); fade[f.Id] = k;
+                k *= day;
                 if (k <= 0.001f) continue;
                 var p = g.CenterWorld(f); p.y = g.GroundY(p.x, p.z) + 0.06f;
                 float ph = (t + f.Id * 0.37f) / pulsePeriod;

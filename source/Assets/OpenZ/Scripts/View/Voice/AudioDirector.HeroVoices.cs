@@ -25,7 +25,7 @@ namespace OpenZ
     {
         /// <summary>Play checks: hero lines started (select, move, attack, board, answers).</summary>
         public static int HeroLinesSaid;
-        public static readonly int[] HeroLinesBy = new int[5];
+        public static readonly int[] HeroLinesBy = new int[8];   // DV161: 5 dash, 6 kill, 7 low health (Voice/AudioDirector.EvilZod.cs)
         /// <summary>The chance that Brad answers Alan's boarding line.</summary>
         public static float HeroAnswerChance = 0.8f;
         /// <summary>Seconds between the end of Alan's boarding line and Brad's answer.</summary>
@@ -67,12 +67,13 @@ namespace OpenZ
         }
 
         /// <summary>Says the event's next line through SayImpl (never over a speaking line). True = it started.</summary>
-        bool HvSay(string id, int cat)
+        bool HvSay(string id, int cat, System.Action started = null)                               // 1.4 radar_voice_fix: `started` runs when the line really starts (now, or after it waited for the voice floor)
         {
             var line = HvNext(id); if (line == null) return false;
             float t0 = Time.unscaledTime;
             SayImpl(id, "=" + line);
-            if (lastLine.TryGetValue(id, out var lt) && lt >= t0 && alanMainId == id) { HvStarted(id, line, cat); return true; }
+            if (lastLine.TryGetValue(id, out var lt) && lt >= t0 && alanMainId == id) { HvStarted(id, line, cat); started?.Invoke(); return true; }
+            HvWatchWaiting(id, line, cat, t0, started);                                            // 1.4 radar_voice_fix: it waits for the voice floor: counted (and `started` run) when it starts (View/AudioDirector.VoiceFloor.cs)
             return false;
         }
 
@@ -83,8 +84,13 @@ namespace OpenZ
             var d = Def(id); var line = HvNext(id);
             if (d == null || line == null || !voices || alanMain == null) return;
             if (OpenZVictory.MutesVoice(id) || (ExternalVoiceBusy != null && ExternalVoiceBusy()) || !RobotChatter.Allows(id)) return;
-            if (AlanBusy || ShuttleRachelLanding) { OzSoundLog.Add("dir", id, null, "dropped (a line speaks)"); return; }   // DV118: never over the shuttle landing line
-            if (!PlayVoice(d, alanMain, "=" + line)) return;
+            if (AlanBusy || ShuttleRachelLanding || HvAnswerMustWait())                            // DV118: never over the shuttle landing line; 1.4 radar_voice_fix: nor over any voice line (the floor)
+            {
+                if (HvAnswerWaits(id)) return;                                                     // 1.4 radar_voice_fix: the second half of one exchange waits (at most UnitReplyWait s), then said (was: dropped at once)
+                HvExchangeDone(id, false); OzSoundLog.Add("dir", id, null, "dropped (a line speaks)"); return;
+            }
+            bool hvPlayed = PlayVoice(d, alanMain, "=" + line); HvExchangeDone(id, hvPlayed);      // 1.4 radar_voice_fix: the exchange no longer keeps the floor
+            if (!hvPlayed) return;
             alanMainLast = Time.unscaledTime; alanMainId = id; alanMainUntil = Time.unscaledTime + Mathf.Max(0f, alanMainClipLeft());
             lastLine[id] = Time.unscaledTime;
             AddDuck(d.duckMusic != 0 ? d.duckMusic : -4f, 0f, 0f, 0f, VoiceLen(), 0.1f, 0.6f);
@@ -160,14 +166,8 @@ namespace OpenZ
             string alanId = HvEvent("alan", "board"), bradId = HvEvent("brad", "board"), answerId = HvEvent("brad", "answer");
             if (alanNear && HvHas(alanId))
             {
-                if (!HvSay(alanId, 3)) return true;                                                // something speaks: silent, never a generic line over the heroes
-                hvBoardSaid = true; hvExchangeLeft = Mathf.Max(0f, alanMainClipLeft());
-                if ((bradIn || driver == "brad") && HvHas(answerId) && Random.value < HeroAnswerChance)
-                {
-                    float wait = (alanMainClipLeft() + HeroAnswerGap) * Mathf.Max(0.01f, Time.timeScale);   // Schedule runs on game time
-                    Schedule(wait, () => HvAnswer(answerId));
-                    hvExchangeLeft += HeroAnswerGap + HeroAnswerLen;
-                }
+                bool bradAnswers = (bradIn || driver == "brad") && HvHas(answerId);                // 1.4 radar_voice_fix: Brad's answer is scheduled from the moment Alan's line really starts:
+                HvSay(alanId, 3, () => HvBoardAnswer(bradAnswers, answerId));                      // now, or after it waited for the voice floor (never over another voice); skipped = no answer (View/AudioDirector.VoiceFloor.cs)
                 return true;
             }
             if (bradIn && HvHas(bradId)) { hvBoardSaid = HvSay(bradId, 3); hvExchangeLeft = hvBoardSaid ? Mathf.Max(0f, alanMainClipLeft()) : 0f; return true; }

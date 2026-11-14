@@ -96,7 +96,31 @@ namespace OpenZ
             else img = t.GetComponent<Image>();
             if (!img) return;
             if (img.enabled != vet) img.enabled = vet;
-            if (vet) img.rectTransform.localScale = Vector3.one * PopScale(u);
+            if (vet) PortraitScale(img, PopScale(u));                                      // u2_followups: the star's mesh is built again at every new bounce scale and on every show of the HUD (PortraitScale below)
+        }
+
+        /// <summary>
+        /// fps_exit_stuck_light_star.webp; it is THIS star: UnitPanel/Portrait/VetStar). An Image builds its mesh from GetPixelAdjustedRect():
+        /// on the pixel-perfect HUD (OpenZHud.cs Canvas.pixelPerfect; the unit panel's nested canvas inherits it) that is the rect snapped to
+        /// whole screen pixels THROUGH THE TRANSFORM OF THAT MOMENT. The star is switched on (OnEnable: SetAllDirty) on the promotion tick, when
+        /// PopScale is 0: the snap at a scale near 0 makes a mesh hundreds of units wide and off centre. Changing localScale never marks a
+        /// Graphic dirty, so that mesh was kept and drawn at scale 1 once the bounce ended (13x, the owner's star). With the HUD on, the canvas
+        /// re-snapped the moving star every frame; with it off (Alt+F and the F10 hide key: OpenZHud.SetVisible) nothing did. Now every new scale
+        /// and the first frame the HUD shows again rebuild the mesh (SetVerticesDirty + SetLayoutDirty); the last bounce frame builds it at 1.
+        /// Off (<see cref="PortraitMeshFix"/> false) = as before. Nothing changes while the scale stays 1 (no rebuild then).</summary>
+        public static bool PortraitMeshFix = true;
+        /// <summary>Proof: the star's meshes rebuilt by a new scale or a show; of them on a show of the HUD.</summary>
+        public static int PortraitRebuilds, PortraitShowRebuilds;
+        static bool portraitHidden;
+        static void PortraitScale(Image img, float s)
+        {
+            var rt = img.rectTransform;
+            if (!PortraitMeshFix) { rt.localScale = Vector3.one * s; return; }
+            var h = OpenZHud.I; bool drawn = h && h.Canvas && h.Canvas.enabled && !h.LowerPanelsHidden;
+            bool show = drawn && portraitHidden; portraitHidden = !drawn;
+            if (rt.localScale.x == s && rt.localScale.y == s && !show) return;
+            rt.localScale = Vector3.one * s;
+            img.SetVerticesDirty(); img.SetLayoutDirty(); PortraitRebuilds++; if (show) PortraitShowRebuilds++;
         }
 
         /// <summary>1 normally; a bounce (0 -> 1.35 -> 1) over 1.2 s after the promotion (sim time).</summary>
@@ -210,7 +234,7 @@ namespace OpenZ
             Debug.Log($"[OpenZ] DV12 promoted: {o} after {o.Kills} kills at {game.World.Time:0.0} s{(onScreen ? "" : " (off screen)")}");
             if (o.Owner == game.player)
             {
-                if (voice) AudioDirector.Say("vo_promoted");
+                if (voice && !AudioDirector.EzIs(o)) AudioDirector.Say("vo_promoted");           // DV161: the robot voice's line is not his; the announcer's stays
                 if (announce && !onScreen) AudioDirector.Announce("ann_unit_promoted");
             }
             if (popup && root && onScreen) pops.Add(NewPop(o.Id));
@@ -241,7 +265,7 @@ namespace OpenZ
             UpdateChevrons(); UpdateSweeps();
             if (pops.Count == 0) return;
             var cam = Cam();
-            bool hide = !cam || (hud && hud.Modal);
+            bool hide = !cam || (hud && hud.Modal) || OzFpsView.On;                                     // fps_view_sky (2b): no pop placed through the first-person camera (its point 3.2 m over the unit is by the eye)
             float sf = canvas && canvas.scaleFactor > 0 ? canvas.scaleFactor : 1f;
             for (int i = pops.Count - 1; i >= 0; i--)
             {
@@ -283,7 +307,7 @@ namespace OpenZ
             if ((chevScan -= Time.deltaTime) <= 0f)
             {
                 chevScan = 0.3f;
-                foreach (var kv in game.Views)
+                foreach (var kv in game.LiveViews)
                 {
                     var v = kv.Value; if (!v || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.Dying || !v.gameObject.activeInHierarchy) continue;
                     if (v.Obj.VeteranActive && !chevs.ContainsKey(kv.Key)) Attach(v);

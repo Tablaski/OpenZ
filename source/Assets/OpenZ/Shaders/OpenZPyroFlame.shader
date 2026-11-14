@@ -55,7 +55,7 @@ Shader "OpenZ/PyroFlame"
                 float3 center : POSITION;     // sprite centre (world)
                 float4 d0 : TEXCOORD0;        // corner.xy (-.5 .. .5), scale, rotation
                 float4 d1 : TEXCOORD1;        // frame, alpha, floorY, life t
-                float4 d2 : TEXCOORD2;        // seed, boost, soft, 0
+                float4 d2 : TEXCOORD2;        // seed, boost, soft, over (1 = this sprite draws over a wall)
             };
             struct Varyings
             {
@@ -87,8 +87,10 @@ Shader "OpenZ/PyroFlame"
                 o.uv = float4((buv.x + fx) * 0.25, 1.0 - (1.0 - buv.y + fy) * 0.5, buv);
                 float h = i.center.y - i.d1.z;
                 o.a = float4(i.d1.y, i.d1.w, i.d2.x, smoothstep(-0.1, 0.6 * max(i.d0.z, 0.4), h));
-                o.b = float4(i.d2.y, i.d2.z, ComputeFogFactor(o.positionCS.z), -vp.z);
+                bool over = i.d2.w > 0.5;                                     // a stream over a wall: near-plane depth, no soft fade; the fog keeps its true depth
+                o.b = float4(i.d2.y, i.d2.z, ComputeFogFactor(o.positionCS.z), over ? 0 : -vp.z);
                 o.screenPos = ComputeScreenPos(o.positionCS);
+                if (over) o.positionCS.z = o.positionCS.w * UNITY_NEAR_CLIP_VALUE * 0.999;
                 return o;
             }
 

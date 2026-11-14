@@ -45,16 +45,34 @@ namespace OpenZ.EditorTools
             bool fomDev = ZWorld.FireOnMoveDeviation; ZWorld.FireOnMoveDeviation = false;
             bool brLock = ZWorld.EjectLockDeviation, brFall = ZWorld.EnterFallbackDeviation; ZWorld.EjectLockDeviation = ZWorld.EnterFallbackDeviation = false;
             bool caeQueue = ZWorld.CtrlAttackEmptyDeviation; ZWorld.CtrlAttackEmptyDeviation = false;   // DV81: the Zod rows keep Zod's clean-up after a shot-out crew (the first waypoint only)
+            bool emptiedDrop = ZWorld.EmptiedTargetsDeviation; ZWorld.EmptiedTargetsDeviation = false;   // 1.4 DV176: the Zod rows keep Zod's clean-up of an emptied vehicle's attackers
             bool rpPad = ZWorld.RepairInPlaceDeviation; ZWorld.RepairInPlaceDeviation = false;
             bool runOver = ZWorld.RunOverDeviation; ZWorld.RunOverDeviation = false;
             bool unmannedStop = ZWorld.UnmannedStopDeviation; ZWorld.UnmannedStopDeviation = false;   // DV79: the Zod rows measure Zod's server-level stop alone (a Play session leaves the switch on)
             bool driverFire = ZWorld.DriverFireDeviation; ZWorld.DriverFireDeviation = false;         // DV87: no hatch driver fires in the Zod rows (a Play session leaves the switch on); put back after the Deviations block
             using var strikeGroupsHold = ZWorld.StrikeGroupsOff();                                    // DV107: no strike groups in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var cpuShuttleHold = ZWorld.CpuShuttleOff();                                        // DV138: the computer flies no shuttle in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var cpuRepairHold = ZWorld.CpuRepairOff();                                          // DV137: no repair trips of the computer in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var cpuGunManHold = ZWorld.CpuGunManOff();                                         // DV157: the computer mans no gun by the new rule in the Zod rows and in every other row's probe (a Play session leaves the switch on)
+            using var cpuDefendHold = ZWorld.CpuDefendOff();                                          // DV136: no defend orders of the computer in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var sideShuttlesHold = ZWorld.SideShuttlesOff();                                    // DV144: no start ship for a blue player, no second car-park ship in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var bigCrashHold = ZWorld.ShuttleBigCrashOff();                                     // 1.3 item 7 DV154: the 1.2 rough landing (no big crash, no hit points lost) in the Zod rows and the probes (a Play session leaves the switch on)
+            using var mtankAimHold = ZWorld.MTankAimOff();                                            // DV151: Zod's scatter for the medium tank (a Play session leaves the switch on)
+            using var mtankHurryHold = ZWorld.MTankHurryOff();                                        // DV150: no medium tank hurry (a Play session leaves the switch on)
+            using var mtankHold = ZWorld.MTankOff();                                                  // DV145: Zod's build lists, no medium tank (a Play session leaves the switch on)
+            using var handGunHold = ZWorld.HandGunOff();                                              // DV146: no mech hand gun in the Zod rows (a Play session leaves the switch on)
+            using var mechHpHold = ZWorld.MechHpOff(); using var mechMixHold = ZWorld.MechMixOff();   // DV147 / DV148: Zod's mech (6756 HP) and DV145's own computer rule in the Zod rows (a Play session leaves the switches on)
+            using var gatlingBuffHold = ZWorld.GatlingBuffOff();                                     // DV170: Zod's gatling (120 px, 39 HP a hit) in the Zod rows and the probes (a Play session leaves the switch on)
+            using var gunLossHold = ZWorld.GunLossOff();                                              // DV149: no lost hand gun in the Zod rows (a Play session leaves the switch on)
+            using var highGroundHold = ZWorld.HighGroundOff();                                        // DV162: Zod's flat range in the Zod rows (a Play session leaves the switch on)
+            using var heavyRockHold = ZWorld.HeavyRockOff();                                          // DV164: no rock cleared by an idle heavy tank in the Zod rows (a Play session leaves the switch on)
+            using var towerAnswerHold = ZWorld.TowerAnswerOff();                                      // DV153: Zod's auto-target rules for fort tower guns in the Zod rows (a Play session leaves the switch on)
             using var toughSteadyHold = ZWorld.ToughSteadyOff();                                      // DV123: Toughs as Zod has them in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
             using var noAutoFlagHold = ZWorld.NoAutoFlagOff();                                        // DV130: Zod's flag runs in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
             using var heavyFallHold = ZWorld.HeavyFallOff();                                          // DV124: no tree felled by a big faller in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
             using var grenadeBoostHold = ZWorld.GrenadeBoostOff();                                    // DV104: Zod's grenade in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
             bool riflePair = ZWorld.RiflePairDeviation; ZWorld.RiflePairDeviation = false;       // DV78: Zod's rifle damage in the Zod rows
+            using var sniperBalHold = ZWorld.SniperBalanceOff();                                   // 1.2: Zod's sniper (0.80 hit, 0.40 s) in the Zod rows and the probes (a Play session leaves the switch on)
             bool overtake = ZWorld.OvertakeDeviation; ZWorld.OvertakeDeviation = false;         // DV105: the rows measure without faster units passing (a Play session may leave the switch on)
             bool calmMove = ZWorld.CalmMoveDeviation; ZWorld.CalmMoveDeviation = false;         // b49: the rows measure without calm movement (a Play session leaves the switch on)
             using var heroSquadHold = ZWorld.HeroSquadsOff();                                         // DV108: the maps as Zod has them, no extra hero squads (a Play session leaves the switch on); put back when this method ends
@@ -99,6 +117,7 @@ namespace OpenZ.EditorTools
             ZWorld.FireOnMoveDeviation = fomDev;                                                        // DV57
             ZWorld.EjectLockDeviation = brLock; ZWorld.EnterFallbackDeviation = brFall;                 // DV58 / DV59
             ZWorld.CtrlAttackEmptyDeviation = caeQueue;                                                 // DV81
+            ZWorld.EmptiedTargetsDeviation = emptiedDrop;                                               // DV176
             ZWorld.RepairInPlaceDeviation = rpPad;                                                      // DV62
             ZWorld.RunOverDeviation = runOver;                                                          // DV65
             ZWorld.UnmannedStopDeviation = unmannedStop;                                                // DV79

@@ -227,9 +227,9 @@ namespace OpenZ.Sim
                 bool oppAhead = false;
                 if (TestLookAhead && u.Waypoints.Count > 0 && !HelperMove(u.Waypoints[0]))
                 {                                                                        // its way ahead goes into a zone: switch now
-                    if (!inner && AheadHits(u, LookAhead, k => (zm[k] & ZInner) != 0)) inner = innerAhead = true;
-                    if (!pin && AheadHits(u, LookAhead, k => nComp[k] >= 0 && nActive[nComp[k]] >= now)) pin = pinAhead = oppAhead = true;
-                    if (!pin && squad && AheadHits(u, SqueezeLook, k => nComp[k] >= 0 && nSqueeze[nComp[k]])) pin = pinAhead = true;   // (a squeeze: SqueezeLook ahead)
+                    if (!inner && AheadHits(u, LookAhead, HitInner(zm))) inner = innerAhead = true;   // 1.4 speed-up 2 (perf_garbage): kept delegate (Sim/ZPathing.NoGarbage.cs)
+                    if (!pin && AheadHits(u, LookAhead, HitActive(now))) pin = pinAhead = oppAhead = true;   // 1.4 speed-up 2 (perf_garbage): kept delegate
+                    if (!pin && squad && AheadHits(u, SqueezeLook, HitSqueeze())) pin = pinAhead = true;   // (a squeeze: SqueezeLook ahead)   // 1.4 speed-up 2 (perf_garbage): kept delegate
                 }
                 c.oppNow = oppAhead || (nc >= 0 && nActive[nc] >= now && nDist[t] <= NarrowReach + ZoneExitGrow);   // review round 3: opposing traffic in a passage near it / on its way
                 c.oppSquad = false;
@@ -295,7 +295,7 @@ namespace OpenZ.Sim
                 {                                                                        // review round 3 (A/B): a squad goes onto a bridge / water / gate zone as one - every
                     if (u.IsMinion || u.Minions.Count == 0 || !u.IsRobot) continue;      // member live from the moment its leader's way enters it within StaticSquadLook px
                     bool z = (u.PC.zwhy & 1) != 0 && u.PC.zonedNext;                     // or the leader is in it, until the squad is out
-                    if (!z && u.Waypoints.Count > 0 && !HelperMove(u.Waypoints[0]) && AheadHits(u, StaticSquadLook, k => (zR[k] & ZInner) != 0)) z = true;
+                    if (!z && u.Waypoints.Count > 0 && !HelperMove(u.Waypoints[0]) && AheadHits(u, StaticSquadLook, HitStaticInner())) z = true;   // 1.4 speed-up 2 (perf_garbage): kept delegate
                     if (!z) foreach (var m in u.Minions) if (m != null && m.PC.zonedNext && (m.PC.zwhy & 1) != 0) z = true;
                     if (!z) continue;
                     if (!u.PC.zonedNext) { u.PC.zwhy |= 1 | 16; u.PC.zonedNext = true; }
@@ -421,7 +421,7 @@ namespace OpenZ.Sim
             bool ordered = ow.mode == WpMode.Move || ow.mode == WpMode.Attack || ow.mode == WpMode.ForceMove;
             if (R4(131072) && ordered && ow.Equals(c.dvSpotWp) && !c.passLive) return;   // (a group order with DV44's spots stays DV44's: one rule set per group order)
             if (!on && ordered && nc >= 0 && u.Waypoints.Count > 0 && !HelperMove(u.Waypoints[0]) && !(u.IsMinion && c.noPath))   // (within NarrowSense steps of a passage only)
-                ahead = AheadHits(u, PassLook, k => PassTileFor(u, k));
+                ahead = AheadHits(u, PassLook, HitPassTile(u));   // 1.4 speed-up 2 (perf_garbage): kept delegate
             if (!on && !ordered && R4(16384) && nc >= 0 && nDist[t] <= IdleLiveSteps && !c.passLive && ow.mode == WpMode.None) on = true;   // (A/B: an idle unit next to a passage stands the live way)
             bool goalNear = ordered && R4(1048576) && !ow.Equals(c.dvSpotWp) && PassageNear(ow.x, ow.y, IdleLiveSteps) && nc >= 0 && nDist[t] <= IdleLiveSteps;
             if (!on && goalNear && !c.passLive) on = true;                              // (A/B: an order from next to a passage to a point next to it: live)
@@ -719,7 +719,7 @@ namespace OpenZ.Sim
         }
 
         /// <summary>The unit's own way ahead (its current target, then its path points) enters its grid's zone mask within `look` px.</summary>
-        bool RouteEntersZone(ZObject u, byte[] zm, double look, double now) => !HelperMove(u.Waypoints[0]) && RouteHits(u, look, t => (zm[t] & ZInner) != 0 || (nComp[t] >= 0 && nActive[nComp[t]] >= now));   // (a helper move - step aside, back off - never switches by its way ahead)
+        bool RouteEntersZone(ZObject u, byte[] zm, double look, double now) => !HelperMove(u.Waypoints[0]) && RouteHits(u, look, HitRouteZone(zm, now));   // (a helper move - step aside, back off - never switches by its way ahead)   // 1.4 speed-up 2 (perf_garbage): kept delegate
 
         /// <summary>Review round 2: the unit's way ahead for the look-ahead switch - its path once that is planned for its current waypoint; while
         /// it is not (a new order, its path request still on the way) nothing: its own tile decides (the old order's path is not its way).</summary>
@@ -1207,7 +1207,7 @@ namespace OpenZ.Sim
                 if (R3(8192) && u.PC.zoned)
                     for (int q = 0; q < NearK; q++) { int pc = nNearK[t * NearK + q]; if (pc >= 0 && nDistK[t * NearK + q] <= NarrowReach + ZoneExitGrow && nActive[pc] >= now - 0.0101) nKeep[pc] = true; }
                 if (nDist[t] > NarrowSense) continue;
-                if (nComp[t] != c && !RouteHits(u, 160, k => nComp[k] == c)) continue;    // (passing by its mouth: not traffic through it)
+                if (nComp[t] != c && !RouteHits(u, 160, HitComp(c))) continue;    // (passing by its mouth: not traffic through it)   // 1.4 speed-up 2 (perf_garbage): kept delegate
                 var (gx, gy) = u.PathFinalPoint;
                 double dx = gx - u.CenterX, dy = gy - u.CenterY, l = Math.Sqrt(dx * dx + dy * dy);
                 if (l < 8) continue;
@@ -2031,7 +2031,7 @@ namespace OpenZ.Sim
         {
             if (b.Waypoints.Count == 0) return false;
             double al = Math.Sqrt((double)a.Dx * a.Dx + (double)a.Dy * a.Dy), bl = Math.Sqrt((double)b.Dx * b.Dx + (double)b.Dy * b.Dy);
-            return al > 1e-6 && bl > 1e-6 && (a.Dx * b.Dx + a.Dy * b.Dy) > 0.5 * al * bl;
+            return al > 1e-6 && bl > 1e-6 && (float)((float)(a.Dx * b.Dx) + (float)(a.Dy * b.Dy)) > 0.5 * al * bl;
         }
         static double ResumeGap(ZObject a) => Math.Min(2 * Radius(a), ResumeGapMax);
         /// <summary>Resume hysteresis: the gap must open by a body length (at most ResumeGapMax px); held at most ResumeHoldMax s.</summary>

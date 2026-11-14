@@ -6,7 +6,8 @@ namespace OpenZ
 {
     /// <summary>
     /// The playable shuttle's CRASH landing (rule DV118: the rules decide it and own its clock, ZObject.ShuttleRoughLanding /
-    /// ShuttleRoughSide / ShuttleTouchdownAt / ShuttleLevelStartAt / ShuttleLevelledAt; no hit points are lost). View only.
+    /// ShuttleRoughSide / ShuttleTouchdownAt / ShuttleLevelStartAt / ShuttleLevelledAt; no hit points are lost, but the 1.3 BIG crash's, DV154:
+    /// ZObject.ShuttleBigCrash, its show on top of this one in View/OzPlayableShuttle.BigCrash.cs). View only.
     /// A SCRIPTED pose on the rules' clock (the same picture at any frame rate and game speed; the twin tools/e_flight_twin.py of the
     /// kit holds every number of it, line for line):
     /// <list type="bullet">
@@ -203,6 +204,7 @@ namespace OpenZ
             CrashHighPrevT = -1f; crashRestFrom = -1f; crashPrevT = 0f;
             if (!hotSaid) CrashHotLead = -1f;
             CrashesDrawn++;
+            crashBig = Obj != null && Obj.ShuttleBigCrash; if (crashBig) BigCrashBegin();          // 1.3 item 7 DV154: the BIG crash: more sparks, a harder sound, a stronger shake, the banter (View/OzPlayableShuttle.BigCrash.cs)
             // the touchdown stays the state holder: its Active (the landed ring waits, the older proof), its numbers and its log
             OzShuttleTouchdown.LeanDeg = CrashLeanDeg; OzShuttleTouchdown.PitchDeg = CrashPitchDeg; OzShuttleTouchdown.TouchSpeed = CrashSlamMps;
             OzShuttleTouchdown.StrutDrop = CrashStrutM; OzShuttleTouchdown.Skid = CrashSkidM; OzShuttleTouchdown.SkidSec = CrashSkidSec; OzShuttleTouchdown.SlewDeg = CrashSlewDeg;
@@ -242,7 +244,8 @@ namespace OpenZ
             if ((crashEv & 1) == 0) { crashEv |= 1; CrashSlam(); }
             if ((crashEv & 2) == 0 && t >= CrashHighAt) { crashEv |= 2; CrashHighSide(t); }
             if ((crashEv & 4) == 0 && t >= tL2) { crashEv |= 4; CrashSlump(t); }
-            if (t > tL2 && t < CrashSkidSec - 0.05f && (crashPuffT -= dt) <= 0f) { crashPuffT = 0.09f; CrashSkidDust(); }
+            if (t > tL2 && t < CrashSkidSec - 0.05f && (crashPuffT -= dt) <= 0f) { crashPuffT = 0.09f; CrashSkidDust(); if (crashBig) BigCrashScrapeSparks(); }   // 1.3 item 7: the big crash's pads throw sparks while they scrape
+            if (crashBig && (crashEv & 16) == 0 && t >= BigBanterAtSec) { crashEv |= 16; BigCrashBanterBegin(); }                                  // 1.3 item 7: the banter line after the big crash
             if (t > tL2 + 0.1f && t < crashLs + 0.5f && (crashSmokeT -= dt) <= 0f) { crashSmokeT = 0.28f; CrashWisp(); }
             if ((crashEv & 8) == 0 && t >= crashLs) { crashEv |= 8; CrashLevelStart(t); }
             if (!crashLevelled && t >= crashLe)
@@ -276,6 +279,7 @@ namespace OpenZ
             OzShuttleTouchdown.Log.AppendLine($"  pad contact {i} ({side} side) at {crashClock:F3} s, {speed:F2} m/s");
             var at = PadWorld(i);
             OpenZHitSparks.Burst(at + Vector3.up * 0.2f, Vector3.down, FxWeapon.MachineGun, FxSurface.Metal, 1.4f + 0.2f * speed, false);
+            if (crashBig) BigCrashContactSparks(at, 1.4f + 0.2f * speed);                            // 1.3 item 7: the big crash's extra sprays at each pad
             wash?.Ring(at, 0.6f, 10, Mathf.Clamp(0.25f * speed, 0.6f, 1.4f));
         }
 
@@ -293,11 +297,12 @@ namespace OpenZ
                 au.PlayPitched("wreck_crash", at, 1f, 0f, Obj.Id, 0.85f, LegacyMatch.BankTankImpact);
                 au.Play("turret", at, 0.8f, 0f, Obj.Id, OzSoundV3.BankMetalHeavy);
             }
+            if (crashBig) BigCrashSlamSound(at);                                                     // 1.3 item 7: the big crash's harder hit (a deeper second take, a heavy metal crunch, tearing metal)
             var outward = transform.right * crashSide; outward.y = 0f;
             ScorchDecals.Add(PadWorld(a, 0f), 0.6f, ScorchKind.Contact); ScorchDecals.Add(PadWorld(b, 0f), 0.55f, ScorchKind.Contact);   // the two gouges where they hit
             RobotPopDeath.Chips(at + Vector3.up * 0.4f, outward, Color.Lerp(TeamColors.Of(Obj.Owner), new Color(0.42f, 0.44f, 0.47f), 0.5f), 4, 0.8f,
                                 RobotDeathRule.Hash(Obj.Id, Obj.ShuttleLandings, 91u), false);                                                // bits of plating torn off (they clatter where they land)
-            OzCrashLandingShake.Slam(transform.position + Vector3.up * 2f, at);                       // K402: on screen, the game's explosion shake (by the camera's distance and the crash's distance from the screen centre; the shake option and calm mode), the camera's own kick as its second part (View/OzCrashLandingShake.cs)
+            OzCrashLandingShake.Slam(transform.position + Vector3.up * 2f, at, crashBig);             // 1.3 item 7: the big crash kicks harder, through the same gate; K402: on screen, the game's explosion shake (by the camera's distance and the crash's distance from the screen centre; the shake option and calm mode), the camera's own kick as its second part (View/OzCrashLandingShake.cs)
             CrashFlinch(at);
             OzShuttleTouchdown.Log.AppendLine($"  wreck_crash + metal crash, sparks and dust at the two low pads, two gouges, 4 bits of plating, the camera kick; robots flinched {CrashFlinched}");
         }
@@ -329,7 +334,7 @@ namespace OpenZ
             AudioDirector.Fire("dst_debris_metal", at, Obj.Id, 0.9f);
             var au = CombatAudio.I; if (au) au.Play("turret", at, 0.55f, 0f, Obj.Id + 7, OzSoundV3.BankMetalHeavy);
             wash?.Burst(0.8f);
-            OzCrashLandingShake.Bounce(transform.position + Vector3.up * 2f);                         // K402: the bounce, a smaller kick (View/OzCrashLandingShake.cs)
+            OzCrashLandingShake.Bounce(transform.position + Vector3.up * 2f, crashBig);               // 1.3 item 7: a bigger bounce on the big crash; K402: the bounce, a smaller kick (View/OzCrashLandingShake.cs)
             OzShuttleTouchdown.Log.AppendLine("  dst_debris_metal + metal crash at the second side, sparks, a second puff");
         }
 

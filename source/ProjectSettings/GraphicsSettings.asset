@@ -84,6 +84,23 @@ GraphicsSettings:
   - {fileID: 4800000, guid: 41ffdc5315cf48868c273904ca51b60d, type: 3}
   - {fileID: 4800000, guid: 87beadf794a0496289c6bae70dbb907a, type: 3}
   - {fileID: 4800000, guid: 1ef2b36e53b04cd0af63201c018f08b1, type: 3}
+  - {fileID: 4800000, guid: e1b38591511f407bba85a3a55330be64, type: 3}
+  - {fileID: 4800000, guid: 464689ce40b4443d85a8a94cfe60f6fe, type: 3}
+  - {fileID: 4800000, guid: f551799601da31c3bd7c4f135c741b52, type: 3}
+  - {fileID: 4800000, guid: 8874a8f99eab9f6dec8c3638fc3fd0b8, type: 3}
+  - {fileID: 4800000, guid: 66f164355a614122be2bab4908327476, type: 3}
+  - {fileID: 4800000, guid: 3f8cb36ee79c43089f38cc43c596330e, type: 3}
+  - {fileID: 4800000, guid: dddcbe54c61e66a4389c0cf86603b37c, type: 3}
+  - {fileID: 4800000, guid: 931784d712264e008c9a2fbc8d792618, type: 3}
+  - {fileID: 4800000, guid: 47ad02813c8246718063c86e7ed23133, type: 3}
+  - {fileID: 4800000, guid: 87cfd87f9bc847a7918091425072bba9, type: 3}
+  - {fileID: 4800000, guid: b1683107985848c98264e43b8457879e, type: 3}
+  - {fileID: 4800000, guid: cdb90f2dddd54afba3809e67455194b4, type: 3}
+  - {fileID: 4800000, guid: 94a5db244fdf4c22878a1efc94e1fbf7, type: 3}
+  - {fileID: 4800000, guid: 9b319aaa4fef4caa97c0b76309e12bb2, type: 3}
+  - {fileID: 4800000, guid: ae3f3e75f08c4edaae0d921ce9e373da, type: 3}
+  - {fileID: 4800000, guid: 0d49edc807d74a8eac8a13f52c13f8a9, type: 3}
+  - {fileID: 4800000, guid: 684fe2586a3447a4a82224298f9813b0, type: 3}
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: -1
   m_SpritesDefaultMaterial: {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
@@ -96,7 +113,7 @@ GraphicsSettings:
   m_LightmapStripping: 0
   m_FogStripping: 0
   m_InstancingStripping: 0
-  m_BrgStripping: 0
+  m_BrgStripping: 2
   m_LightmapKeepPlain: 1
   m_LightmapKeepDirCombined: 1
   m_LightmapKeepDynamicPlain: 1

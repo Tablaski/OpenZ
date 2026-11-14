@@ -22,7 +22,7 @@ namespace OpenZ
     /// never over Alan's), S7 a forced rough landing, S8 EXIT down the ramp, S9 a take-off beside trees (crowns leaning, the rustle), S10
     /// through the parrots' circuit, S11 R to the repair station (the crane rolls away, a level hover turn, down ON the deck on the
     /// rules' deck point and heading, no part in the station, no landing voices, the crane back after it left), S12 at night (the
-    /// searchlights), S15 the testing overlay (P): a shuttle of each side dragged in, drawn in full, the player's one flown and landed,
+    /// searchlights), S15 the testing overlay (ALT+P): a shuttle of each side dragged in, drawn in full, the player's one flown and landed,
     /// S14 shot down in the air over a blue group with a squad aboard (the break-up, everyone lost). Every take also counts that no robot
     /// line ever plays over Rachel's landing line. (P, any level, also level 2): S15 alone.
     /// (B, a fresh level start; also at clip pace): S13 destroyed on the ground with a squad aboard. (G) the weapons gallery: the ship flies back and forth
@@ -691,7 +691,7 @@ namespace OpenZ
             yield return Wait(1f);
         }
 
-        // ------------------------------------------------------------------ S15: the testing overlay (P): more shuttles, each a full one
+        // ------------------------------------------------------------------ S15: the testing overlay (ALT+P): more shuttles, each a full one
         static RectTransform FindUi(string panel, string cell)
         {
             var hud = OpenZHud.I; if (!hud || !hud.Root) return null;
@@ -724,15 +724,15 @@ namespace OpenZ
 
         IEnumerator S15()
         {
-            Log("S15 the testing overlay (P): a shuttle of each side dragged onto the map, each drawn in full; the player's one flown and landed");
+            Log("S15 the testing overlay (ALT+P): a shuttle of each side dragged onto the map, each drawn in full; the player's one flown and landed");
             if (!OzCheatSpawner.I) { Check("S15 the testing overlay is there (the dev flag on)", false); yield break; }
             int n0 = OzCheatShuttle.Spawned, v0 = OzPlayableShuttle.Spawned;
             var keepS = s; var keepShip = ship; Team mine = s != null ? s.Owner : ZWorld.ShuttleTeam, theirs = mine == Team.Red ? Team.Blue : Team.Red;
             var cam = Camera.main; var mid = rts ? rts.focus : (ship ? ship.transform.position : Vector3.zero);
             follow = false;
-            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.P)); yield return null; yield return null;
+            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.LeftAlt, Key.P)); yield return null; yield return null;   // 1.3 item 28: Alt+P
             InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState()); yield return null; yield return null;
-            Check("S15 P opens the testing overlay", OzCheatSpawner.Visible);
+            Check("S15 ALT+P opens the testing overlay", OzCheatSpawner.Visible);
             var made = new List<ZObject>();
             foreach (var (col, team) in new[] { ("Cheat" + (mine == Team.Red ? "Red" : "Blue"), mine), ("Cheat" + (theirs == Team.Red ? "Red" : "Blue"), theirs) })
             {
@@ -754,7 +754,7 @@ namespace OpenZ
                       o != null && o.IsShuttle && o.Owner == team && sv && !sv.SceneShip && sv.Door && sv.Jets != null && sv.FootParts > 0 && bound);
                 if (o != null) made.Add(o);
             }
-            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.P)); yield return null; yield return null;
+            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.LeftAlt, Key.P)); yield return null; yield return null;   // 1.3 item 28: Alt+P
             InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState()); yield return null; yield return null;
             Shot("15a_panel_shuttles_dropped_h70");
             // the player's one flies and lands like level 16's own ship

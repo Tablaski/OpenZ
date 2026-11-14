@@ -13,11 +13,18 @@ namespace OpenZ
     ///    (never longer than the longest crossfade + 1 s), no Play over an audible voice, no pause while audible, no silence gap
     ///    inside Regular / Drama;
     ///  - no gain jump: with the duck divided out, a voice's fade never moves faster than the fastest fade the core may use
-    ///    (0.6 s end to end on the equal-power curve, 2.7 / s), and Zod's duck never moves faster than 5 dB/s;
+    ///    (0.6 s end to end on the equal-power curve, 2.7 / s), and Zod's duck never moves faster than 5 dB/s; ONE stated exception, the
+    ///    end lift-off (FakeOut.EndLiftOffException: at the end screen a drama voice's lift may come off to dramaDb in endLiftOff s, no faster);
     ///  - never the same track twice in a row, never a restart of a paused (kept) track, every unpause at the exact sample.
     /// Each scenario then asserts its own story (below), including the anti-flap rules (attack waves, switches per 10 min, the
     /// shortest regular interlude), idle units near a fort (never a stuck drama), single cold readings (never a missed drama),
     /// the music toggle (resume, never restart) and the game-over edges. RunAll -> PASS / FAIL lines + the timelines.
+    /// a jeep + a grenadier hitting a fort -> drama after 3 s; a lone robot / a lone jeep -> none; both forts), the hold (a fort still
+    /// under fire holds the drama; a unit that is not hitting the fort, or cannot, lets it fade back 60 s on), the 5-minute limit with
+    /// no exception during play (and the fall, which only the 20 s grace holds back), the drama picks strongest first and the measured
+    /// drama gain table (at least +4 LU over each pool's battle songs in the first 60 s and to the end, true peak at the music voice at
+    /// most -1 dBTP); the scenarios written for the old 45 s interlude / heavy exception / drama resume / mid-song mood switch now check
+    /// is MusicFortReaderScenarios (real headless worlds).
     /// </summary>
     public static class MusicCoreScenarios
     {
@@ -35,9 +42,33 @@ namespace OpenZ
             public bool keepEvents = true;
             /// <summary>Set by Sim: the core's duck this frame (linear). With it the jump check runs on the pure fade (strict).</summary>
             public Func<float> duckLin; public float fadeLimit = 2.7f; public float maxFadeSlope;
+            /// <summary>Set by Sim: the core's layer (the end lift-off exception below reads it; the first End frame starts its window).</summary>
+            public Func<MusicLayer> layerNow; public double endScreenAt = -1;
+            /// <summary>The fastest end lift-off the exception accepts (the lead's call 5 Nov: endLiftOff 0.1 s). A faster endLiftOff fails the jump check.</summary>
+            public const float EndLiftOffFastest = 0.1f;
+            /// <summary>Frames the exception carried (a drama voice's fall over fadeLimit inside its window) and their steepest move (/ s).</summary>
+            public int endLiftFrames; public float maxEndLiftSlope;
+            /// <summary>false: no exception at all (EndLiftExceptionCheck shows that the end lift-off then fails the jump check).</summary>
+            public bool allowEndLiftOff = true;
             public FakeOut(MusicCoreConfig c) { cfg = c; }
 
-            public float G(MusicTrack t) => (float)Math.Pow(10.0, (t.gainDb + PoolDb(t.pool)) / 20.0);
+            /// <summary>EndLiftOffException, the ONE stated exception to the gain-jump limit (music_drama end-sting fix, the lead's call 5 Nov). The end
+            /// screen is the one place a fast change is wanted: the victory / defeat sting must stand over the drama at once, so MusicCore.EnterEnd takes a
+            /// drama voice's measured lift off to dramaDb in endLiftOff s (linear in dB) while the 2.5 s end fade runs. Allowed: a DRAMA voice, layer End,
+            /// within endLiftOff s (+1 frame) of the first End frame, gain FALLING, by at most fadeLimit plus that lift-off's own step per frame
+            /// ((the track's lift - dramaDb) / max(endLiftOff, EndLiftOffFastest) dB/s). Anything else (a rise, a faster fall, another pool, another
+            /// layer, later in the end fade, any other moment of the match) keeps fadeLimit.</summary>
+            public bool EndLiftOffException(V x, float f, float step)
+            {
+                if (!allowEndLiftOff || layerNow == null || x.t == null || x.t.pool != MusicPool.Drama || f >= x.fade || layerNow() != MusicLayer.End) return false;
+                if (endScreenAt < 0 || now - endScreenAt > cfg.endLiftOff + dt + 1e-6) return false;
+                double rateDb = (MusicCore.DramaDbOf(x.t, cfg) - cfg.dramaDb) / Math.Max(EndLiftOffFastest, cfg.endLiftOff);
+                if (rateDb <= 0) return false;
+                double liftStep = x.fade * (1.0 - Math.Pow(10.0, -rateDb * Math.Max(dt, 1e-3f) / 20.0));
+                return step <= fadeLimit * Math.Max(dt, 1e-3f) + liftStep + 2e-4f;
+            }
+
+            public float G(MusicTrack t) => (float)Math.Pow(10.0, (t.gainDb + (t.pool == MusicPool.Drama ? MusicCore.DramaDbOf(t, cfg) : PoolDb(t.pool))) / 20.0);   // music_drama: the per-track drama lift
             float PoolDb(MusicPool p) => p == MusicPool.Victory ? cfg.victoryDb : p == MusicPool.Menu ? cfg.menuDb : p == MusicPool.Drama ? cfg.dramaDb : 0f;
             public void Fail(string s) { if (violations.Count < 60) violations.Add($"{now,8:0.00}  {s}"); }
             readonly Queue<string> ring = new Queue<string>();
@@ -83,7 +114,13 @@ namespace OpenZ
                     float dl = Math.Max(1e-4f, duckLin());
                     float f = n / dl;
                     float step = Math.Abs(f - x.fade);
-                    if (!x.paused) { maxFadeSlope = Math.Max(maxFadeSlope, step / Math.Max(dt, 1e-3f)); if (step > fadeLimit * Math.Max(dt, 1e-3f) + 2e-4f) Fail($"gain jump v{i} {x.t.name}: fade {x.fade:0.000} -> {f:0.000} in one frame ({step / dt:0.00} / s, limit {fadeLimit:0.00} / s)"); }
+                    if (endScreenAt < 0 && layerNow != null && layerNow() == MusicLayer.End) endScreenAt = now;   // the end lift-off's window starts on the first End frame
+                    if (!x.paused)
+                    {
+                        if (step <= fadeLimit * Math.Max(dt, 1e-3f) + 2e-4f) maxFadeSlope = Math.Max(maxFadeSlope, step / Math.Max(dt, 1e-3f));
+                        else if (EndLiftOffException(x, f, step)) { endLiftFrames++; maxEndLiftSlope = Math.Max(maxEndLiftSlope, step / Math.Max(dt, 1e-3f)); }   // the stated exception (above)
+                        else { maxFadeSlope = Math.Max(maxFadeSlope, step / Math.Max(dt, 1e-3f)); Fail($"gain jump v{i} {x.t.name}: fade {x.fade:0.000} -> {f:0.000} in one frame ({step / dt:0.00} / s, limit {fadeLimit:0.00} / s)"); }
+                    }
                     x.fade = f;
                 }
                 else if (!x.paused && Math.Abs(n - x.norm) > 5.3f * Math.Max(dt, 1e-3f) + 2e-4f) Fail($"gain jump v{i} {x.t.name}: {x.norm:0.000} -> {n:0.000} in one frame");
@@ -129,7 +166,7 @@ namespace OpenZ
                 cfg = c; this.dt = dt;
                 o = new FakeOut(c) { dt = dt, fadeLimit = (float)(Math.PI * 0.5 / Math.Max(0.05, Math.Min(c.quickOut, c.offFade))) * 1.03f };
                 core = new MusicCore(c, o, cat, seed);
-                o.duckLin = () => (float)Math.Pow(10.0, core.DuckDb / 20.0);
+                o.duckLin = () => (float)Math.Pow(10.0, core.DuckDb / 20.0); o.layerNow = () => core.Layer;
                 inp = new MusicInput { enabled = true, ours = FortReading.Quiet, theirs = FortReading.Quiet };
             }
 
@@ -263,7 +300,8 @@ namespace OpenZ
         static void Expect(Result r, bool ok, string what) { r.notes.Add((ok ? "  ok   " : "  FAIL ") + what); if (!ok) r.pass = false; }
         static void Finish(Result r, Sim s, bool withEvents)
         {
-            Expect(r, s.o.violations.Count == 0, $"frame checks: {s.o.violations.Count} violations (max audible {s.maxAudible}, longest overlap {s.maxDual:0.0} s, max voices held incl. paused {s.maxHeld}, steals {s.core.Steals}, steepest fade {s.o.maxFadeSlope:0.00} / s, steepest Zod duck {s.maxZodSlope:0.0} dB/s)");
+            Expect(r, s.o.violations.Count == 0, $"frame checks: {s.o.violations.Count} violations (max audible {s.maxAudible}, longest overlap {s.maxDual:0.0} s, max voices held incl. paused {s.maxHeld}, steals {s.core.Steals}, steepest fade {s.o.maxFadeSlope:0.00} / s, steepest Zod duck {s.maxZodSlope:0.0} dB/s" +
+                       (s.o.endLiftFrames > 0 ? $"; the end lift-off exception carried {s.o.endLiftFrames} frames, steepest {s.o.maxEndLiftSlope:0.00} / s" : "") + ")");
             foreach (var v in s.o.violations.Take(12)) r.notes.Add("         " + v);
             Expect(r, s.core.Steals == 0, "no voice stolen");
             Expect(r, s.core.BackToBack == 0, "no track twice in a row");
@@ -287,12 +325,13 @@ namespace OpenZ
 
         static Result OneUnit(IList<MusicTrack> cat)
         {
-            var r = R("1 unit near a fort", "a lone heavy tank (5 pts, 1 unit) shoots our fort for 60 s, then one grunt squad (3 pts, 3 units) for 60 s, then a jeep + a robot (3 pts, 2 units) at their gate for 60 s: never the drama");
+            var r = R("1 unit near a fort", "music_drama: a lone robot (1 pt) hits our fort for 60 s, then a lone jeep (2 pts) for 60 s, then a lone heavy tank (5 pts) heads at our fort without a hit for 60 s, then a jeep + a robot (3 pts, 2 units) at their gate without a hit for 60 s: never the drama (a fort only counts as under fire with a hit, and from 3 points or 2 units)");
             var s = new Sim(cat, Cfg(), 11);
             s.Run(20);
-            s.Ours(5f, 1, true); s.Run(60);
-            s.Ours(3f, 3, true); s.Run(60);
-            s.Ours(0, 0, false); s.Theirs(3f, 2, true); s.Run(60);
+            s.Ours(1f, 1, true); s.Run(60); s.Ours(0, 0, false); s.Run(10);                           // 10 s apart: a hit within 4 s plus 3 points engaged would be a fort under fire
+            s.Ours(2f, 1, true); s.Run(60); s.Ours(0, 0, false); s.Run(10);
+            s.Ours(5f, 1, false); s.Run(60);
+            s.Ours(0, 0, false); s.Theirs(3f, 2, false); s.Run(60);
             Expect(r, s.core.DramaStarts == 0 && s.o.plays.All(p => p.track.pool != MusicPool.Drama), $"no drama (drama starts {s.core.DramaStarts})");
             Expect(r, s.core.Layer == MusicLayer.Regular, "regular music all along");
             Finish(r, s, false);
@@ -329,7 +368,7 @@ namespace OpenZ
 
         static Result Flapping(IList<MusicTrack> cat)
         {
-            var r = R("attack flapping and the regular interlude", "hot 2 s / quiet 2 s x 20: no drama; hot 4 s / quiet 4 s x 20: ONE drama that never flaps out; quiet: one fade back; inside the 45 s interlude a 6 s and a 10 s big attack do NOT bring the drama back; a HEAVY attack (14 pts, 6 units, hitting) after 25 s does; after its fade back a big attack only after the 45 s");
+            var r = R("attack flapping and the regular interlude", "hot 2 s / quiet 2 s x 20: no drama; hot 4 s / quiet 4 s x 20: ONE drama that never flaps out; quiet: one fade back; inside the 5-minute limit a 6 s and an 8 s big attack and a HEAVY attack (14 pts, 6 units, hitting) do NOT bring the drama back (no exception, owner 8 Oct); a big attack still on when the 300 s are up does; after its fade back the next one again only after 300 s");
             var s = new Sim(cat, Cfg(), 31);
             s.Run(15);
             for (int k = 0; k < 20; k++) { s.Ours(BigScore, BigUnits, true); s.Run(2); s.Ours(0, 0, false); s.Run(2); }
@@ -344,13 +383,16 @@ namespace OpenZ
             Expect(r, s.core.DramaStarts == 1, $"a 6 s big attack {5:0} s after the fade back: no drama (interlude)");
             s.Ours(BigScore, BigUnits, true); s.Run(8); s.Ours(0, 0, false); s.Run(2);
             Expect(r, s.core.DramaStarts == 1, $"an 8 s big attack {s.t - back - 10:0} s after the fade back: no drama (interlude)");
-            s.Ours(14f, 6, true); s.Run(6);
+            s.Ours(14f, 6, true); s.Run(30); s.Ours(0, 0, false);
+            Expect(r, s.core.DramaStarts == 1, $"a 30 s HEAVY attack (14 pts, 6 units, hitting) {s.t - back - 30:0} s after the fade back: no drama (the 5-minute limit has no exception)");
+            s.stopWhen = x => x.t - back >= x.cfg.cooldown - 20; s.Run(400);
+            s.Ours(BigScore, BigUnits, true); s.Run(30);
             double heavyAt = s.layers.LastOrDefault(l => l.l == MusicLayer.ToDrama).t - back;
-            Expect(r, s.core.DramaStarts == 2 && heavyAt >= s.cfg.heavyInterlude - 0.05, $"a heavy attack (14 pts, 6 units, hitting) re-enters {heavyAt:0.0} s after the fade back (>= {s.cfg.heavyInterlude} s)");
+            Expect(r, s.core.DramaStarts == 2 && heavyAt >= s.cfg.cooldown - 0.05 && heavyAt <= s.cfg.cooldown + 1.0, $"a big attack on since {s.cfg.cooldown - 20:0} s after the fade back: the drama {heavyAt:0.0} s after it (the {s.cfg.cooldown:0} s are up)");
             s.Ours(0, 0, false);
             s.stopWhen = x => x.core.Layer == MusicLayer.ToRegular; s.Run(90);
             double back2 = s.t;
-            s.Run(20); s.Ours(BigScore, BigUnits, true); s.Run(30);
+            s.Run(20); s.Ours(BigScore, BigUnits, true); s.Run(s.cfg.cooldown + 10);
             double third = s.layers.LastOrDefault(l => l.l == MusicLayer.ToDrama).t - back2;
             Expect(r, s.core.DramaStarts == 3 && third >= s.cfg.cooldown - 0.05, $"a big attack 20 s after the second fade back waits for the interlude: drama {third:0.0} s after it (>= {s.cfg.cooldown} s)");
             s.Ours(0, 0, false); s.Run(90);
@@ -399,13 +441,34 @@ namespace OpenZ
 
         static Result LoneShelling(IList<MusicTrack> cat)
         {
-            var r = R("a lone unit left shelling never holds the drama", "a big attack on our fort 60 s, then ONE light tank (3 pts, 1 unit) keeps hitting the fort for 10 min: the drama fades back 60 s after the last big-attack reading (hotLapse), never returns, the regular song resumes at its sample");
-            var s = new Sim(cat, Cfg(), 811); s.Run(30); string reg = s.Regular?.t.name;
-            s.Ours(BigScore, BigUnits, true); s.Run(60); s.Ours(3f, 1, true); double stop = s.t; s.Run(600);
-            var back = s.layers.FirstOrDefault(l => l.l == MusicLayer.ToRegular).t - stop;
-            Expect(r, s.core.DramaEnds == 1 && s.core.DramaStarts == 1 && Math.Abs(back - s.cfg.hotLapse) <= 0.5, $"fade back {back:0.0} s after the attack became one unit (hotLapse {s.cfg.hotLapse} s); dramas {s.core.DramaStarts}");
-            Expect(r, s.o.resumes.Any(x => x.track.name == reg && x.err == 0), $"{reg} resumed at its sample");
-            Finish(r, s, false);
+            var r = R("the drama holds while the fort stays under fire, and only then", "music_drama (5 Nov: a fort really being hit is an attack): a big attack on our fort 60 s, then " +
+                      "(a) ONE light tank (3 pts, 1 unit) keeps hitting the fort for 10 min: the drama holds all 10 min, track after track, and fades back exitHold 12 s after the shelling stops; " +
+                      "(b) a Tough squad (2 robots, 2 pts) keeps rocketing it for 10 min: it holds, and fades back calmAfterHit 10 s after the last hit; " +
+                      "(c) ONE heavy tank (5 pts, 1 unit) fighting the fort's guns, the fort itself never hit: the drama fades back hitWindow 4 s + hotLapse 60 s after the big attack (its last hit still counts 4 s); " +
+                      "(d) ONE jeep at the gate (2 pts, 1 unit) while an uncounted howitzer keeps hitting the fort: fades back hotLapse 60 s after the big attack. " +
+                      "Before music_drama (a) and (b) faded back 60 s after the big attack too (only a big attack was hot). Never a second drama; the regular song resumes at its sample every time");
+            var runs = new List<Sim>();
+            foreach (var (tag, sc, u, hit, holds, want, why) in new[] {
+                         ("(a) ONE light tank hitting our fort", 3f, 1, true, true, 12.0, "exitHold, no hit for calmAfterHit"),
+                         ("(b) a Tough squad rocketing our fort", 2f, 2, true, true, 10.0, "calmAfterHit: not warm, so the exit hold had run out already"),
+                         ("(c) ONE heavy tank fighting the fort's guns, the fort never hit", 5f, 1, false, false, 64.0, "hitWindow + hotLapse: warm, never hot after the big attack's last hit"),
+                         ("(d) ONE jeep at the gate while an uncounted howitzer hits the fort", 2f, 1, true, false, 60.0, "hotLapse: neither warm nor hot") })
+            {
+                var s = new Sim(cat, Cfg(), 811 + runs.Count); runs.Add(s); s.Run(30); string reg = s.Regular?.t.name;
+                s.Ours(BigScore, BigUnits, true); s.Run(60); s.Ours(sc, u, hit); double from = s.t; s.Run(600);
+                if (holds)
+                {
+                    int tracks = s.o.plays.Count(p => p.t >= from - 60 && p.track.pool == MusicPool.Drama);
+                    bool held = s.core.DramaEnds == 0 && !s.layers.Any(l => l.t >= from && l.l == MusicLayer.ToRegular);
+                    Expect(r, held && tracks >= 2, $"{tag} ({sc:0} pts, {u} unit{(u > 1 ? "s" : "")}) for 10 min: the drama {(held ? "held the whole time" : "FADED BACK")}, {tracks} drama tracks (track after track), layer {s.core.Layer}");
+                    s.Ours(0, 0, false); from = s.t; s.Run(120);
+                }
+                double back = s.layers.FirstOrDefault(l => l.t >= from && l.l == MusicLayer.ToRegular).t - from;
+                Expect(r, s.core.DramaEnds == 1 && s.core.DramaStarts == 1 && Math.Abs(back - want) <= 0.5,
+                       $"{tag}: the drama fades back {back:0.0} s after {(holds ? "the shelling stops" : "the big attack")} (want {want:0} s: {why}); dramas {s.core.DramaStarts}, fade backs {s.core.DramaEnds}");
+                Expect(r, s.o.resumes.Any(x => x.track.name == reg && x.err == 0), $"{tag}: {reg} resumed at its sample");
+            }
+            Finish(r, runs[0], false); Also(r, runs.Skip(1).ToArray());
             return r;
         }
 
@@ -450,7 +513,7 @@ namespace OpenZ
 
         static Result DramaPick(IList<MusicTrack> cat, string lv)
         {
-            var r = R($"drama picks {lv}", "the drama pool is a shuffle bag that outlives the match: 60 matches in a row, each a new MusicCore that gets the bag of the match before (as the host does); a drama is never the dramatic track played last, also across matches, and every track plays once before one repeats");
+            var r = R($"drama picks {lv}", "the drama pool is a bag of rounds that outlives the match: 60 matches in a row, each a new MusicCore that gets the bag of the match before (as the host does); a drama is never the dramatic track played last, also across matches, every track plays once before one repeats, and each round goes strongest first (music_drama, openz_music_meta.json intensity)");
             var drama = cat.Where(t => t.pool == MusicPool.Drama).ToList();
             int runs = 0, weaker = 0, picks = 0; var firsts = new Dictionary<string, int>();
             string last = "", bag = ""; var seq = new List<string>();
@@ -482,13 +545,84 @@ namespace OpenZ
             Expect(r, repeats == 0, $"the same drama track twice in a row: {repeats} times (within a match and from one match to the next)");
             Expect(r, badRounds == 0, $"every round of {n} picks holds each of the {n} drama tracks once ({seq.Count / Math.Max(1, n)} full rounds, {badRounds} with a repeat)");
             Expect(r, n < 2 || firsts.Count >= 2, $"the first drama of a match changes from match to match: {string.Join(", ", firsts.OrderByDescending(kv => kv.Value).Select(kv => kv.Key + " x" + kv.Value))}");
-            r.notes.Add($"         dramas weaker than the song they replace: {weaker} (the pick is random; the intensity no longer steers it)");
+            var order = drama.OrderByDescending(t => t.intensity).Select(t => t.name).ToList(); int offOrder = 0;
+            for (int k = 0; k + n <= seq.Count; k += n) if (!seq.Skip(k).Take(n).SequenceEqual(order)) offOrder++;
+            Expect(r, offOrder == 0, $"music_drama: every full round goes strongest first ({string.Join(" > ", order)}): {offOrder} rounds out of order");
+            r.notes.Add($"         dramas weaker than the song they replace: {weaker} (the pick goes by intensity, strongest first; the battle songs are not compared)");
             return r;
+        }
+
+        /// <summary>music_drama end-sting fix (5 Nov, the lead's call): shows the end screen and runs <paramref name="seconds"/> frame by frame, reading
+        /// every drama voice's real gain against the gain before music_drama (the table gain + dramaDb 1.5 dB) on the same endFade curve (level
+        /// from its value at the end screen down at 1 / endFade per second, equal power). Its lift over the table gain must fall from the track's
+        /// own measured lift to dramaDb, linear in dB over endLiftOff s, never rise, and stay at dramaDb to the end of the fade.</summary>
+        static void EndLift(Result r, Sim s, float sting, double seconds)
+        {
+            var c = s.cfg; double dt = s.dt;
+            var dv = s.o.v.Where(x => s.o.Audible(x) && x.t.pool == MusicPool.Drama)
+                          .Select(x => (v: x, t: x.t, lift: MusicCore.DramaDbOf(x.t, c), l0: x.fade >= 0.99999f ? 1.0 : Math.Asin(Math.Min(1f, x.fade)) * 2.0 / Math.PI)).ToList();
+            s.inp.endScreen = true; s.inp.stingSeconds = sting;
+            var dev = new double[dv.Count]; var at = new double[dv.Count]; var after = new double[dv.Count]; var rise = new bool[dv.Count]; var prev = new double[dv.Count];
+            for (int i = 0; i < dv.Count; i++) { at[i] = -1; prev[i] = dv[i].lift; }
+            int n = (int)Math.Round(seconds / dt);
+            for (int k = 1; k <= n; k++)
+            {
+                s.Run(dt);
+                for (int i = 0; i < dv.Count; i++)
+                {
+                    var d = dv[i]; double lv = d.l0 - k * dt / c.endFade;
+                    if (lv < 0.2 || d.v.t != d.t || !d.v.on) continue;                                            // the low end of the fade: the level read is too coarse
+                    double g = Math.Sin(lv * Math.PI * 0.5) * Math.Pow(10.0, d.t.gainDb / 20.0) * Math.Max(1e-6, s.o.duckLin());
+                    double lift = 20.0 * Math.Log10(Math.Max(1e-9, d.v.gain) / g);
+                    double want = Math.Max(c.dramaDb, d.lift - (d.lift - c.dramaDb) * k * dt / Math.Max(0.01, c.endLiftOff));
+                    dev[i] = Math.Max(dev[i], Math.Abs(lift - want));
+                    if (lift > prev[i] + 0.005) rise[i] = true; prev[i] = lift;
+                    if (at[i] < 0 && Math.Abs(lift - c.dramaDb) <= 0.02) at[i] = k * dt;
+                    if (k * dt >= c.endLiftOff) after[i] = Math.Max(after[i], Math.Abs(lift - c.dramaDb));
+                }
+            }
+            Expect(r, dv.Count > 0, $"end-sting fix: {dv.Count} drama voice(s) audible when the end screen shows");
+            for (int i = 0; i < dv.Count; i++)
+                Expect(r, at[i] > 0 && at[i] <= c.endLiftOff + dt + 1e-6 && after[i] <= 0.02 && dev[i] <= 0.03 && !rise[i],
+                       $"end-sting fix: {dv[i].t.name} (level {dv[i].l0:0.00} at the end screen): its lift {dv[i].lift:+0.0;-0.0} dB comes off to the old {c.dramaDb:+0.0} dB in {at[i]:0.00} s (endLiftOff {c.endLiftOff:0.0#} s, linear in dB, never up; largest step off the line {dev[i]:0.000} dB), " +
+                       $"then the pre-kit gain on the same {c.endFade:0.0} s fade (largest difference {after[i]:0.000} dB)");
+            r.notes.Add($"         the gain-jump check's one stated exception, the end lift-off (FakeOut.EndLiftOffException: a drama voice falling, only in the first {c.endLiftOff:0.0#} s of the end screen, " +
+                        $"no faster than its lift in {Math.Max(FakeOut.EndLiftOffFastest, c.endLiftOff):0.0#} s): {s.o.endLiftFrames} frames over the {s.o.fadeLimit:0.00} / s limit, steepest {s.o.maxEndLiftSlope:0.00} / s");
+        }
+
+        /// <summary>The end lift-off exception pinned on the largest lift (final round, the lead's call: endLiftOff 0.1 s): only M8_fort_Hardpoint in the
+        /// drama pool (+4.7 dB in l02: 3.2 dB off in 0.1 s), a win in a drama at 60 fps. With the exception the end screen passes the jump check and the
+        /// exception carries frames only inside its window; with no exception (allowEndLiftOff false) the same end screen fails it, and so does a lift-off
+        /// faster than FakeOut.EndLiftOffFastest (0.05 s): the limit holds everywhere else.</summary>
+        static void EndLiftExceptionCheck(Result r, IList<MusicTrack> cat)
+        {
+            const string big = "M8_fort_Hardpoint";
+            var only = cat.Where(t => t.pool != MusicPool.Drama || t.name == big).ToList();
+            if (!only.Any(t => t.pool == MusicPool.Drama)) { Expect(r, false, $"end lift-off exception: {big} is in the catalog"); return; }
+            (int frames, float steep, double last, int viol, string first, float lift, float lim) Once(float liftOff, bool allow)
+            {
+                var c = Cfg(); c.endLiftOff = liftOff;
+                var s = new Sim(only, c, 52); s.o.allowEndLiftOff = allow;
+                s.Run(20); s.Theirs(BigScore, BigUnits, true); s.Run(40);
+                s.inp.gameOver = true; s.inp.result = 1; s.theirFortAlive = false; s.Theirs(0, 0, false); s.Run(15);
+                var d = s.AudibleOf(MusicPool.Drama); float lift = d != null ? MusicCore.DramaDbOf(d.t, c) : 0f;
+                s.inp.endScreen = true; s.inp.stingSeconds = 7.3f;
+                int f0 = s.o.endLiftFrames; double last = -1;
+                for (int k = 0; k < 180; k++) { s.Run(s.dt); if (s.o.endLiftFrames > f0) { last = s.o.now - s.o.endScreenAt; f0 = s.o.endLiftFrames; } }
+                return (s.o.endLiftFrames, s.o.maxEndLiftSlope, last, s.o.violations.Count, s.o.violations.FirstOrDefault() ?? "-", lift, s.o.fadeLimit);
+            }
+            var cfg0 = Cfg(); var ok = Once(cfg0.endLiftOff, true); var none = Once(cfg0.endLiftOff, false); var fast = Once(0.05f, true);
+            Expect(r, ok.lift > cfg0.dramaDb + 3f && ok.viol == 0 && ok.frames > 0 && ok.last >= 0 && ok.last <= cfg0.endLiftOff + 1e-6,
+                   $"end lift-off exception, {big} (lift {ok.lift:+0.0} dB, the largest): with it 0 jump violations ({ok.viol}); it carried {ok.frames} frames over the {ok.lim:0.00} / s limit, steepest {ok.steep:0.00} / s, the last {ok.last:0.000} s after the end screen (window {cfg0.endLiftOff:0.0#} s)");
+            Expect(r, none.viol > 0 && none.first.Contains("gain jump") && none.first.Contains(big),
+                   $"without the exception the same end screen fails the jump check ({none.viol} violations: {none.first.Trim()})");
+            Expect(r, fast.viol > 0 && fast.first.Contains("gain jump"),
+                   $"a lift-off faster than {FakeOut.EndLiftOffFastest:0.0#} s (0.05 s) is not covered: {fast.viol} violations ({fast.first.Trim()})");
         }
 
         static Result WinDuringDrama(IList<MusicTrack> cat)
         {
-            var r = R("win during drama", "a big attack on their fort; the fort falls (game over, win) 60 s in; the drama plays on through the nuke and the celebration; the end screen shows 18 s later: the drama fades out 2.5 s under the 7.3 s victory sting, the victory lap fades in 1 s before the sting ends, then the menu songs");
+            var r = R("win during drama", "a big attack on their fort; the fort falls (game over, win) 60 s in; the drama plays on through the nuke and the celebration; the end screen shows 18 s later: the drama fades out 2.5 s under the 7.3 s victory sting (end-sting fix: its own lift first comes off to the old +1.5 dB in 0.1 s, so the sting stands over it as before music_drama), the victory lap fades in 1 s before the sting ends, then the menu songs");
             var s = new Sim(cat, Cfg(), 51) { printEvery = 1.0 };
             s.Run(20);
             s.Theirs(BigScore, BigUnits, true); s.Run(60);
@@ -498,21 +632,21 @@ namespace OpenZ
             float minNorm = 9f;
             for (int k = 0; k < 18 * 60; k++) { s.Run(1f / 60f); var d = s.AudibleOf(MusicPool.Drama); minNorm = Math.Min(minNorm, d != null ? d.norm : 0f); }
             Expect(r, minNorm > 0.9f || s.o.plays.Count(p => p.track.pool == MusicPool.Drama && p.t > over) > 0, $"the drama plays on from the fall to the end screen (lowest drama level {minNorm:0.00}; {d0} ...)");
-            s.inp.endScreen = true; s.inp.stingSeconds = 7.3f;
             double shown = s.t;
-            s.Run(200);
+            EndLift(r, s, 7.3f, 2.6); s.Run(200 - 2.6);                                                  // the end screen (EndLift sets it) and 200 s on, as before
             var end = s.o.plays.Where(p => p.t > shown).ToList();
             Expect(r, end.Count > 0 && end[0].track.pool == MusicPool.Victory, $"end music = victory lap: {end.FirstOrDefault().track?.name}");
             Expect(r, end.Count > 0 && Math.Abs(end[0].t - shown - (7.3 - s.cfg.endLead)) < 0.05, $"it starts {end.FirstOrDefault().t - shown:0.00} s after the end screen (sting 7.3 s - {s.cfg.endLead} s)");
             Expect(r, end.Count > 1 && end[1].track.pool == MusicPool.Menu, $"then the menu songs: {end.Skip(1).FirstOrDefault().track?.name}");
             Expect(r, !s.o.plays.Any(p => p.t > over && p.t < shown && p.track.pool != MusicPool.Drama), "no regular / end music between the fall and the end screen");
+            EndLiftExceptionCheck(r, cat);                                                                // final round: the jump check's one stated exception, pinned
             Finish(r, s, true);
             return r;
         }
 
         static Result LossDuringDrama(IList<MusicTrack> cat)
         {
-            var r = R("loss during drama", "a big attack on our fort, it falls (loss) 50 s in; the drama plays on 15 s to the end screen; the drama fades 2.5 s under the 4.4 s defeat sting; the menu songs (-6 dB) come in 1 s before the sting ends");
+            var r = R("loss during drama", "a big attack on our fort, it falls (loss) 50 s in; the drama plays on 15 s to the end screen; the drama fades 2.5 s under the 4.4 s defeat sting (end-sting fix: its own lift first comes off to the old +1.5 dB in 0.1 s, so the sting's opening hit stands over it as before music_drama); the menu songs (-6 dB) come in as the sting ends (0.3 s before, endings rest)");
             var s = new Sim(cat, Cfg(), 61);
             s.Run(20);
             s.Ours(BigScore, BigUnits, true); s.Run(50);
@@ -520,12 +654,12 @@ namespace OpenZ
             double over = s.t;
             s.Run(15);
             Expect(r, s.AudibleOf(MusicPool.Drama) != null && s.AudibleOf(MusicPool.Drama).norm > 0.9f, "drama at full level 15 s after the fall");
-            s.inp.endScreen = true; s.inp.stingSeconds = 4.4f; double shown = s.t;
-            s.Run(2.6);
+            double shown = s.t;
+            EndLift(r, s, 4.4f, 2.6);                                                                     // the end screen (EndLift sets it), 2.6 s frame by frame
             Expect(r, s.AudibleOf(MusicPool.Drama) == null, "the drama is gone 2.6 s after the end screen");
             s.Run(60);
             var end = s.o.plays.Where(p => p.t > shown).ToList();
-            Expect(r, end.Count > 0 && end[0].track.pool == MusicPool.Menu && Math.Abs(end[0].t - shown - 3.4) < 0.05, $"menu music {end.FirstOrDefault().track?.name} at +{end.FirstOrDefault().t - shown:0.00} s (4.4 - 1)");
+            Expect(r, end.Count > 0 && end[0].track.pool == MusicPool.Menu && Math.Abs(end[0].t - shown - (4.4 - s.cfg.endLead)) < 0.05, $"menu music {end.FirstOrDefault().track?.name} at +{end.FirstOrDefault().t - shown:0.00} s (4.4 - {s.cfg.endLead}: endings rest, as the sting ends)");
             Expect(r, !s.o.plays.Any(p => p.t > over && p.t < shown && p.track.pool != MusicPool.Drama), "only the drama between the fall and the end screen");
             Finish(r, s, false);
             return r;
@@ -678,7 +812,7 @@ namespace OpenZ
 
         static Result GameSpeed(IList<MusicTrack> cat)
         {
-            var r = R("game speed 2x", "the sim runs at 2x: the enter hold and the hit windows count SIM seconds (enter 3 sim s = 1.5 s, like the fort's hit record), the calm hold counts on both clocks (never sooner than 12 s in either: 12 s real at 2x), the musical minimums count real seconds (drama >= 30 s, interlude >= 45 s)");
+            var r = R("game speed 2x", "the sim runs at 2x: the enter hold and the hit windows count SIM seconds (enter 3 sim s = 1.5 s, like the fort's hit record), the calm hold counts on both clocks (never sooner than 12 s in either: 12 s real at 2x), the musical minimums count real seconds (drama >= 30 s, the 5-minute limit 300 s real)");
             var s = new Sim(cat, Cfg(), 131) { speed = 2f };
             s.Run(30); double a = s.t;
             s.Ours(BigScore, BigUnits, true); s.Run(40); s.Ours(0, 0, false); double stop = s.t; s.Run(40);
@@ -686,7 +820,7 @@ namespace OpenZ
             var back = s.layers.FirstOrDefault(l => l.l == MusicLayer.ToRegular).t - stop;
             Expect(r, Math.Abs(into - 1.5) < 0.1, $"drama {into:0.00} s (real) after the attack began (3 sim s)");
             Expect(r, Math.Abs(back - 12.0) < 0.2, $"fade back {back:0.00} s (real) after the attack stopped (12 s on both clocks)");
-            s.Ours(BigScore, BigUnits, true); s.Run(30); double second = s.layers.LastOrDefault(l => l.l == MusicLayer.ToDrama).t - (stop + back);
+            s.Ours(BigScore, BigUnits, true); s.Run(s.cfg.cooldown + 10); double second = s.layers.LastOrDefault(l => l.l == MusicLayer.ToDrama).t - (stop + back);
             Expect(r, s.core.DramaStarts == 2 && second >= s.cfg.cooldown - 0.05, $"the next drama {second:0.0} s (real) after the fade back (interlude {s.cfg.cooldown} s real)");
             Finish(r, s, false);
             return r;
@@ -722,7 +856,7 @@ namespace OpenZ
 
         static Result RegularPlaylist(IList<MusicTrack> cat)
         {
-            var r = R("regular playlist 40 min + mood switches", "40 min of play with Zod's calm / battle mood flipping every 1-3 min: songs crossfade at their tails, own and added songs alternate, never one twice in a row, a mood left within 3 min comes back where it was, no drama");
+            var r = R("regular playlist 40 min + mood switches", "40 min of play with Zod's calm / battle mood flipping every 1-3 min: songs crossfade at their tails, own and added songs alternate, never one twice in a row, a mood switch never cuts a song (owner 8 Oct: the next song follows the mood), no drama");
             var s = new Sim(cat, Cfg(), 121);
             var rnd = new Random(5);
             double end = 40 * 60;
@@ -735,7 +869,7 @@ namespace OpenZ
             double zShare = seq.Sum(p => p.track.zopen ? 1.0 : 0.0) / Math.Max(1, seq.Count);
             Expect(r, seq.Count >= 15, $"{seq.Count} songs started, {calmHeard}/{calmAll} calm songs heard");
             Expect(r, same <= alt / 4 + 2, $"sources alternate within a mood: {alt} alternations, {same} same-source neighbours (mood resumes / guests)");
-            Expect(r, s.o.events.Count(e => e.Contains("back where it was") || e.Contains("continues at")) > 0, "a mood switch back continued a song where it was left");
+            Expect(r, s.o.events.Count(e => e.Contains("core") && e.Contains(" mood ") && e.Contains(" -> ")) == 0, "no mid-song mood switch: every song change is at a tail (MoodSwitch is not called, owner 8 Oct)");
             Expect(r, s.core.DramaStarts == 0, "no drama");
             r.notes.Add($"         added songs = {zShare * 100:0} % of the starts");
             Finish(r, s, false);
@@ -744,7 +878,7 @@ namespace OpenZ
 
         static Result MoodFrozenDuringDrama(IList<MusicTrack> cat)
         {
-            var r = R("mood frozen during drama, 20 s grace after", "calm song; a big attack; Zod's mood turns to battle during the drama; after the attack the CALM song resumes (what was playing), and the switch to battle waits 20 s");
+            var r = R("mood frozen during drama, 20 s grace after", "calm song; a big attack; Zod's mood turns to battle during the drama; after the attack the CALM song resumes (what was playing) and plays to its end (at least the 20 s grace); the next song is a battle song");
             var s = new Sim(cat, Cfg(), 131);
             s.Run(30); string calm = s.Regular?.t.name;
             s.Ours(BigScore, BigUnits, true); s.Run(10); s.inp.battle = true; s.Run(30);
@@ -752,8 +886,9 @@ namespace OpenZ
             s.stopWhen = x => x.core.Layer == MusicLayer.Regular; s.Run(60);
             double back = s.t;
             Expect(r, s.o.resumes.Any(x => x.track.name == calm), $"{calm} resumed although the mood is battle");
-            s.stopWhen = x => x.Voice(v => v.t.pool == MusicPool.Battle) != null; s.Run(60);
-            Expect(r, s.t - back >= s.cfg.moodGrace - 0.1 && s.t - back <= s.cfg.moodGrace + 0.5, $"battle music {s.t - back:0.0} s after the return (grace {s.cfg.moodGrace} s)");
+            var resumed = s.Regular?.t; double left = resumed != null ? resumed.length - s.Regular.pos : 0;
+            s.stopWhen = x => x.Voice(v => v.t.pool == MusicPool.Battle) != null; s.Run(left + 30);
+            Expect(r, s.Voice(v => v.t.pool == MusicPool.Battle) != null && s.t - back >= s.cfg.moodGrace - 0.1 && s.t - back <= left + 0.5, $"battle music {s.t - back:0.0} s after the return, at the resumed song's tail ({left:0} s were left; grace {s.cfg.moodGrace} s)");
             Finish(r, s, false);
             return r;
         }
@@ -781,12 +916,12 @@ namespace OpenZ
 
         static Result DramaResume(IList<MusicTrack> cat)
         {
-            var r = R("a second attack within 3 min", "attack 20 s, 60 s of peace, attack again: the paused drama track continues where it was (drama resume window 180 s); after 4 min of peace a new drama track starts instead");
+            var r = R("a second attack within 5 min", "attack 20 s, 60 s of peace, attack again: no drama (the 5-minute limit, owner 8 Oct; the paused drama is dropped after 180 s); after the limit a fresh drama track (not a resume, not the one before)");
             var s = new Sim(cat, Cfg(), 151);
             s.Run(20); s.Ours(BigScore, BigUnits, true); s.Run(20);
             string d1 = s.AudibleOf(MusicPool.Drama)?.t.name; s.Ours(0, 0, false); s.Run(60);
-            s.Ours(BigScore, BigUnits, true); s.Run(20);
-            Expect(r, s.o.resumes.Any(x => x.track.name == d1 && x.err == 0), $"{d1} continued at its sample");
+            int st1 = s.core.DramaStarts; s.Ours(BigScore, BigUnits, true); s.Run(20);
+            Expect(r, s.core.DramaStarts == st1 && !s.o.resumes.Any(x => x.track.name == d1), $"a big attack about 48 s after the fade back: no drama ({d1} not resumed)");
             s.Ours(0, 0, false); s.Run(240);
             string last = s.o.plays.LastOrDefault(p => p.track.pool == MusicPool.Drama).track?.name; int before = s.o.plays.Count, res0 = s.o.resumes.Count;
             s.Ours(BigScore, BigUnits, true); s.Run(20);
@@ -803,7 +938,7 @@ namespace OpenZ
         {
             var r = R($"random matches {level}", $"{matches} matches x {minutes:0} min at 30 fps: random moods, raids of every size on both forts (lone units, squads, sieges, attack WAVES at 20-70 s cadence, dropouts of single readings, idle units parked near a fort), Zod lines, Rachel / Alan ducks, pauses, music toggles, game speed 1x / 2x, then a win / loss / draw and the end screen 15-24 s later: every frame check holds, every interlude >= 25 s, at most 12 switches in any 10 min");
             var rnd = new Random(level == "L02" ? 2 : 17);
-            int viol = 0, starts = 0, b2b = 0, steals = 0, maxSw = 0; double resumeErr = 0; var dramasPer = new List<int>(); double dramaSecs = 0; int maxAud = 0, maxHeld = 0; double maxDual = 0, maxFade = 0;
+            int viol = 0, starts = 0, b2b = 0, steals = 0, maxSw = 0; double resumeErr = 0; var dramasPer = new List<int>(); double dramaSecs = 0; int maxAud = 0, maxHeld = 0; double maxDual = 0, maxFade = 0; int liftFrames = 0; double maxLift = 0;
             var inter = new List<double>(); var firstViol = new List<string>();
             var cfg = Cfg();
             for (int m = 0; m < matches; m++)
@@ -867,10 +1002,11 @@ namespace OpenZ
                 viol += s.o.violations.Count; foreach (var v in s.o.violations) if (firstViol.Count < 10) firstViol.Add($"match {m}: {v}");
                 starts += s.core.Starts; b2b += s.core.BackToBack; steals += s.core.Steals; resumeErr = Math.Max(resumeErr, s.o.maxResumeErr);
                 dramasPer.Add(s.core.DramaStarts); maxAud = Math.Max(maxAud, s.maxAudible); maxHeld = Math.Max(maxHeld, s.maxHeld); maxDual = Math.Max(maxDual, s.maxDual); maxFade = Math.Max(maxFade, s.o.maxFadeSlope);
+                liftFrames += s.o.endLiftFrames; maxLift = Math.Max(maxLift, s.o.maxEndLiftSlope);                       // the end lift-off exception (FakeOut.EndLiftOffException)
                 dramaSecs += s.Dramas().Sum();
                 if (m == DebugMatch && DebugLog != null) { DebugLog($"== {level} match {m}: layers " + string.Join(" ", s.layers.Select(l => $"{l.l}@{l.t:0.0}"))); foreach (var e in s.o.events) DebugLog(e); }
             }
-            Expect(r, viol == 0, $"{viol} violations over {matches * minutes / 60:0} h of play (max audible {maxAud}, longest overlap {maxDual:0.0} s, max voices held incl. paused {maxHeld}, steepest fade {maxFade:0.00} / s)");
+            Expect(r, viol == 0, $"{viol} violations over {matches * minutes / 60:0} h of play (max audible {maxAud}, longest overlap {maxDual:0.0} s, max voices held incl. paused {maxHeld}, steepest fade {maxFade:0.00} / s; the end lift-off exception carried {liftFrames} frames, steepest {maxLift:0.00} / s)");
             foreach (var v in firstViol) r.notes.Add("         " + v);
             Expect(r, b2b == 0, $"{starts} track starts, {b2b} back-to-back repeats");
             Expect(r, steals == 0, $"{steals} voice steals");
@@ -894,8 +1030,128 @@ namespace OpenZ
             return r;
         }
 
+
+        /// <summary>The first drama of a run: when it was asked for (ToDrama), the fort and why (the core's "BIG ATTACK" note).</summary>
+        static (double at, string why) FirstDrama(Sim s, double from)
+        {
+            var l = s.layers.FirstOrDefault(x => x.t >= from && x.l == MusicLayer.ToDrama);
+            string why = s.core.History.LastOrDefault(h => h.Contains("BIG ATTACK")) ?? "";
+            return (l.l == MusicLayer.ToDrama ? l.t - from : -1, why.Trim());
+        }
+
+        static Result FortUnderFire(IList<MusicTrack> cat)
+        {
+            var r = R("music_drama: the fort under fire", "owner 5 Nov, 'start the drama when a fort is really being hit': a fort building hit by the other side (within 4 s) with an engaged strength >= 3 from ANY number of units or >= 2 engaged units, held 3 s: a lone light tank (3), a grunt squad with grenades (3 robots), a Tough squad (2 robots, 2 pts), a jeep at the gate + a grenadier robot (3 pts, 2 units: not a big attack, < 4 while hit) on our fort, a lone light tank and a Tough squad of ours on THEIR fort -> the drama 3 s after the first hit, 'fort under fire'; a lone robot (1) or one 2-point unit (a lone jeep at the gate while the fort is hit) or a lone heavy tank (5) engaged without a hit -> none in 60 s");
+            var runs = new List<Sim>();
+            foreach (var (name, sc, u, ours, hit, want, kind) in new[] { ("a lone light tank hitting our fort", 3f, 1, true, true, true, "fort under fire"), ("a grunt squad with grenades (3 robots) hitting our fort", 3f, 3, true, true, true, "fort under fire"),
+                                                                           ("a Tough squad (2 robots) rocketing our fort", 2f, 2, true, true, true, "fort under fire"), ("a jeep at the gate + a grenadier robot hitting our fort", 3f, 2, true, true, true, "fort under fire"),
+                                                                           ("our light tank hitting THEIR fort", 3f, 1, false, true, true, "fort under fire"), ("our Tough squad rocketing THEIR fort", 2f, 2, false, true, true, "fort under fire"),
+                                                                           ("one 2-point unit (a jeep at the gate) while our fort is hit", 2f, 1, true, true, false, ""), ("a lone robot hitting our fort", 1f, 1, true, true, false, ""),
+                                                                           ("a lone heavy tank at our fort, no hit", 5f, 1, true, false, false, "") })
+            {
+                var s = new Sim(cat, Cfg(), 901 + runs.Count); runs.Add(s);
+                s.Run(30); double t0 = s.t;
+                if (ours) s.Ours(sc, u, hit); else s.Theirs(sc, u, hit);
+                s.Run(60);
+                var (at, why) = FirstDrama(s, t0);
+                if (want) Expect(r, at >= s.cfg.enterHold - 0.05 && at <= s.cfg.enterHold + 0.1 && s.core.Detector.Fort == (ours ? 1 : 2) && why.Contains(kind),
+                                 $"{name} ({sc:0} pts, {u} unit{(u > 1 ? "s" : "")}): the drama {at:0.00} s after the first hit (hold {s.cfg.enterHold} s), {(ours ? "our" : "their")} fort: '{why}'");
+                else Expect(r, s.core.DramaStarts == 0 && s.o.plays.All(p => p.track.pool != MusicPool.Drama), $"{name} ({sc:0} pts, {u} unit): no drama in 60 s (drama starts {s.core.DramaStarts})");
+            }
+            var big = new Sim(cat, Cfg(), 920); runs.Add(big); big.Run(30); double b0 = big.t; big.Ours(6f, 2, false); big.Run(30);
+            var (bat, bwhy) = FirstDrama(big, b0);
+            Expect(r, bat >= big.cfg.enterHold - 0.05 && bat <= big.cfg.enterHold + 0.1 && bwhy.Contains("big attack"), $"unchanged: a big attack without a hit (2 units, 6 pts) -> the drama {bat:0.00} s in: '{bwhy}'");
+            Finish(r, runs[0], false); Also(r, runs.Skip(1).ToArray());
+            return r;
+        }
+
+        static Result FiveMinuteLimit(IList<MusicTrack> cat)
+        {
+            var r = R("music_drama: the 5-minute limit stays (no exception)", "a big attack on our fort 40 s -> drama, nobody -> fade back; then the fort is under fire (a lone light tank hitting, 3 pts) 60 s, 150 s and 240 s after the fade back, and a heavy attack (14 pts, 6 units) at 280 s: no drama; under fire again from 290 s: the drama once the 300 s are up. The fall (unchanged code): a fort that falls under fire 60 s after a fade back ends with the drama (only the 20 s grace applies at the end of the match)");
+            var s = new Sim(cat, Cfg(), 931);
+            s.Run(30); s.Ours(BigScore, BigUnits, true); s.Run(40); s.Ours(0, 0, false);
+            s.stopWhen = x => x.core.Layer == MusicLayer.ToRegular; s.Run(120);
+            double back = s.t;
+            Expect(r, s.core.DramaStarts == 1 && s.core.DramaEnds == 1, $"one drama, one fade back ({s.core.DramaStarts} / {s.core.DramaEnds})");
+            foreach (var at in new[] { 60.0, 150.0, 240.0 })
+            {
+                s.stopWhen = x => x.t - back >= at; s.Run(400);
+                s.Ours(3f, 1, true); s.Run(15); s.Ours(0, 0, false);
+                Expect(r, s.core.DramaStarts == 1, $"the fort under fire 15 s from {at:0} s after the fade back: no drama (limit {s.cfg.cooldown:0} s)");
+            }
+            s.stopWhen = x => x.t - back >= 280; s.Run(400);
+            s.Ours(14f, 6, true); s.Run(6); s.Ours(0, 0, false);
+            Expect(r, s.core.DramaStarts == 1, "a heavy attack 280 s after the fade back: no drama (no heavy exception)");
+            s.stopWhen = x => x.t - back >= 290; s.Run(400);
+            s.Ours(3f, 1, true); s.Run(20);
+            var l = s.layers.LastOrDefault(x => x.l == MusicLayer.ToDrama).t - back;
+            Expect(r, s.core.DramaStarts == 2 && l >= s.cfg.cooldown - 0.05 && l <= s.cfg.cooldown + 0.5, $"under fire from 290 s: the drama {l:0.0} s after the fade back (the {s.cfg.cooldown:0} s are up)");
+            // the fall (unchanged code, LatchGameOver): the end of the match is not held back by the 5-minute limit, only by the 20 s grace
+            var f = new Sim(cat, Cfg(), 932);
+            f.Run(30); f.Ours(BigScore, BigUnits, true); f.Run(40); f.Ours(0, 0, false);
+            f.stopWhen = x => x.core.Layer == MusicLayer.ToRegular; f.Run(120); double fb = f.t;
+            f.stopWhen = x => x.t - fb >= 60; f.Run(400);
+            f.Theirs(3f, 1, true); f.Run(2); f.inp.gameOver = true; f.inp.result = 1; f.theirFortAlive = false; double fall = f.t; f.Run(12);
+            var fd = f.o.plays.FirstOrDefault(p => p.t >= fall - 0.01 && p.track.pool == MusicPool.Drama);
+            Expect(r, f.core.EndDrama && fd.track != null, $"the fall: our light tank under fire on THEIR fort 2 s, their fort falls 60 s after the last fade back -> the drama from the fall ({(fd.track != null ? fd.track.name + " " + (fd.t - fall).ToString("0.00", CultureInfo.InvariantCulture) + " s after" : "none")}): the end of the match, only the {f.cfg.gameOverGrace:0} s grace applies (unchanged code)");
+            Finish(r, s, false); Also(r, f);
+            return r;
+        }
+
+        /// <summary>
+        /// integrated loudness LUFS and true peak dBTP; drama tracks from their dramaIn cue to the end, battle songs whole.</summary>
+        static readonly Dictionary<string, (float lufs, float tp)> Measured5Nov = new Dictionary<string, (float, float)>
+        {
+            ["M4_assault_Breach_Vector"] = (-14.96f, -3.54f), ["M4_assault_Stone_Teeth"] = (-15.12f, -2.47f), ["M8_fort_Hardpoint"] = (-14.91f, -2.54f), ["M8_fort_Siren_Battery"] = (-14.77f, -3.01f),
+            ["zopendramatic1"] = (-16.22f, -2.10f), ["zopendramatic2"] = (-14.82f, -3.13f), ["zopendramatic3"] = (-14.76f, -2.08f),
+            ["M2_desert_Coyote_Circuit"] = (-15.28f, -3.43f), ["M7_battle_desert_Dust_Marshal"] = (-15.09f, -2.78f), ["M7_battle_desert_Outpost_Jukebox"] = (-15.08f, -2.47f),
+            ["M3_city_Chrome_Uppercut"] = (-14.40f, -2.25f), ["M7_battle_city_Jackknife_Protocol"] = (-15.07f, -4.35f), ["M7_battle_city_Static_Knuckle"] = (-15.06f, -3.41f),
+            ["zopenmusic5"] = (-15.06f, -2.18f), ["zopenmusic14"] = (-14.61f, -1.97f), ["zopenmusic15"] = (-16.91f, -1.78f), ["zopenmusic16"] = (-15.03f, -2.07f),
+            ["zopenmusic18"] = (-15.03f, -2.91f), ["zopenmusic20"] = (-15.04f, -3.56f), ["M7_battle_volcano_Caldera_Charge"] = (-15.12f, -3.33f), ["M7_battle_volcano_Obsidian_Stampede"] = (-15.14f, -4.05f),
+        };
+        /// <summary>The drama tracks' first 60 s from their dramaIn cue (the same measurement): LUFS, true peak dBTP.</summary>
+        static readonly Dictionary<string, (float lufs, float tp)> Measured5Nov60 = new Dictionary<string, (float, float)>
+        {
+            ["M4_assault_Breach_Vector"] = (-15.10f, -4.66f), ["M4_assault_Stone_Teeth"] = (-15.83f, -4.49f), ["M8_fort_Hardpoint"] = (-15.59f, -4.09f), ["M8_fort_Siren_Battery"] = (-15.50f, -4.19f),
+            ["zopendramatic1"] = (-16.83f, -2.13f), ["zopendramatic2"] = (-14.78f, -3.41f), ["zopendramatic3"] = (-14.85f, -2.08f),
+        };
+        /// <summary>openz_sound_events.json buses: Music -12 dB (the MUSIC slider at 100 % adds 0, lower positions only take away).</summary>
+        const float MusicBusDb = -12f, TargetLu = 4f, CapDbtp = -1f;
+
+        static Result DramaGainTable(IList<MusicTrack> l02, IList<MusicTrack> l17, IList<MusicTrack> l07)
+        {
+            var r = R("music_drama: the drama gain table", "every drama track of each level's catalog has its measured lift (MusicDramaGain, l02 = L02 and L16, l07, l17): it sits at least +4 LU (>= 3.9 after the 0.1 dB rounding) over the mean of that level's battle songs (file loudness + sound-table gain) in its first 60 s from the cue AND from the cue to its end (at most +5 LU), its true peak at the music voice (file + table gain + lift + the Music bus -12 dB, MUSIC slider at the top) stays at most -1 dBTP, the voice volume at most 1 (no hidden clamp, no limiter), the lift equals the larger measured target rounded to 0.1 dB, and in a match the drama voice really plays with it");
+            foreach (var (lv, cat) in new[] { ("l02", l02), ("l17", l17), ("l07", l07) })
+            {
+                if (cat == null || cat.Count == 0) { r.notes.Add($"         {lv}: no catalog given (skipped)"); continue; }
+                var battle = cat.Where(t => t.pool == MusicPool.Battle).ToList(); var drama = cat.Where(t => t.pool == MusicPool.Drama).ToList();
+                var miss = battle.Concat(drama).Where(t => !Measured5Nov.ContainsKey(t.name)).Concat(drama.Where(t => !Measured5Nov60.ContainsKey(t.name))).Select(t => t.name).ToList();
+                Expect(r, miss.Count == 0, $"{lv}: every battle and drama clip has a 5 Nov measurement{(miss.Count > 0 ? ": missing " + string.Join(", ", miss) : "")}");
+                if (miss.Count > 0 || battle.Count == 0) continue;
+                double mean = battle.Average(t => Measured5Nov[t.name].lufs + t.gainDb);
+                r.notes.Add($"         {lv}: {battle.Count} battle songs, in-game mean {mean:0.00} LUFS");
+                foreach (var t in drama)
+                {
+                    var m = Measured5Nov[t.name]; var m60 = Measured5Nov60[t.name]; float? lift = MusicDramaGain.For(lv, t.name);
+                    double game = m.lufs + t.gainDb, game60 = m60.lufs + t.gainDb, want = Math.Max(mean + TargetLu - game, mean + TargetLu - game60);
+                    double cap = Math.Min(CapDbtp - (Math.Max(m.tp, m60.tp) + t.gainDb + MusicBusDb), -MusicBusDb - t.gainDb);
+                    double set = lift ?? double.NaN, above = game + set - mean, above60 = game60 + set - mean, tpVoice = Math.Max(m.tp, m60.tp) + t.gainDb + set + MusicBusDb, vol = Math.Pow(10.0, (t.gainDb + set + MusicBusDb) / 20.0);
+                    bool ok = lift.HasValue && t.dramaDb == lift && above60 >= TargetLu - 0.1 && above >= TargetLu - 0.1 && above <= TargetLu + 1.0 && tpVoice <= CapDbtp + 1e-6 && vol <= 1.0 && Math.Abs(set - Math.Round(Math.Min(want, cap), 1)) < 0.051;
+                    Expect(r, ok, $"{lv} {t.name,-26} table {t.gainDb:+0.0;-0.0} dB, lift {set:+0.0;-0.0} dB -> {above60:+0.00;-0.00} LU over the battle mean in the first 60 s, {above:+0.00;-0.00} to the end (old +1.5: {game60 + 1.5 - mean:+0.00;-0.00} / {game + 1.5 - mean:+0.00;-0.00}), true peak at the voice {tpVoice:0.00} dBTP, volume {vol:0.000}");
+                }
+            }
+            // the lift is really applied: a drama at full level plays at clip gain + its lift (no duck)
+            var s = new Sim(l02, Cfg(), 951); s.Run(20); s.Ours(BigScore, BigUnits, true); s.Run(20);
+            var d = s.AudibleOf(MusicPool.Drama);
+            float wantG = d != null ? (float)Math.Pow(10.0, (d.t.gainDb + (d.t.dramaDb ?? s.cfg.dramaDb)) / 20.0) : 0f;
+            Expect(r, d != null && d.t.dramaDb.HasValue && Math.Abs(d.gain - wantG) < 1e-4f, $"in a match: {d?.t.name} plays at gain {d?.gain:0.0000} = clip {d?.t.gainDb:+0.0;-0.0} dB + lift {d?.t.dramaDb:+0.0;-0.0} dB ({wantG:0.0000}), not the old flat +{s.cfg.dramaDb} dB");
+            Finish(r, s, false);
+            return r;
+        }
+
         // ============================================================================================================ run
-        public static bool RunAll(IList<MusicTrack> l02, IList<MusicTrack> l17, Action<string> log, int randomMatches = 200, double minutes = 40)
+        /// <summary>l07 (music_drama): the L07 catalog for the drama gain table (optional; the older callers pass none).</summary>
+        public static bool RunAll(IList<MusicTrack> l02, IList<MusicTrack> l17, Action<string> log, int randomMatches = 200, double minutes = 40, IList<MusicTrack> l07 = null)
         {
             var results = new List<Result>();
             void Do(Func<Result> f)
@@ -931,6 +1187,9 @@ namespace OpenZ
             Do(() => TailThenDrama(l02));
             Do(() => DramaResume(l17));
             Do(() => NoDramaClips(l02));
+            Do(() => FortUnderFire(l02));
+            Do(() => FiveMinuteLimit(l17));
+            Do(() => DramaGainTable(l02, l17, l07));
             if (randomMatches > 0) { Do(() => RandomMatches(l02, "L02", randomMatches, minutes)); Do(() => RandomMatches(l17, "L17", randomMatches, minutes)); }
             var sb = new StringBuilder();
             sb.AppendLine("music_v3 MusicCore scenarios");

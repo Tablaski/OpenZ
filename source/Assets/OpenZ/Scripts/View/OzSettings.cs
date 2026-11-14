@@ -58,7 +58,7 @@ namespace OpenZ
         {
             float sc = OzText.SavedScale;
             return $"music {(AudioDirector.MusicEnabled ? "ON" : "OFF")} (oz_music {PlayerPrefs.GetInt(AudioDirector.MusicPref, 1)}), volumes music {Pct("oz_vol_music")} effects {Pct("oz_vol_effects")} voice {Pct("oz_vol_voice")}, " +
-                   $"difficulty {OpenZDifficulty.Label(OpenZDifficulty.Level)}, head start {(OpenZDifficulty.HeadStartToggle ? "ON" : "OFF")}, " +
+                   $"difficulty {OpenZDifficulty.Label(OpenZDifficulty.Choice)}, head start {(OpenZDifficulty.HeadStartToggle ? "ON" : "OFF")}, " +
                    $"HUD scale {Mathf.RoundToInt(sc * 100)} %{(PlayerPrefs.HasKey("oz_ui_scale") ? "" : " (default)")}, edge scroll {On("oz_edge_scroll", 1)}, health bars {On("oz_hp_always", 0)}, " +
                    $"shake {On("oz_shake", 1)}, calm screen {On("oz_reduced_motion", 0)}, weather {On("oz_weather", 1)}, team colour {(PlayerPrefs.GetInt("oz_team_blue", 0) == 1 ? "BLUE" : "RED")}, " +
                    $"fullscreen {(Fullscreen ? "ON" : "OFF")}, resolution {ResolutionWord}, keys changed {OzBindings.ChangedCount}, deformable ground {On(CraterField.Pref, 1)}, mech foot IK {On(MechWalk.Pref, 1)}, {NightShadows.Describe()}, {OzQuality.Describe()}";
@@ -129,7 +129,7 @@ namespace OpenZ
             if (p.Length == 2 && int.TryParse(p[0], out d) && int.TryParse(p[1], out h))
             {
                 PlayerPrefs.SetInt(OpenZDifficulty.Key, d); PlayerPrefs.SetInt(OpenZDifficulty.HeadStartPref, h);
-                Debug.Log($"[OpenZ Settings] -take preselection undone ({when}): difficulty {OpenZDifficulty.Label(OpenZDifficulty.Level)}, head start {(h == 1 ? "ON" : "OFF")}");
+                Debug.Log($"[OpenZ Settings] -take preselection undone ({when}): difficulty {OpenZDifficulty.Label(OpenZDifficulty.Choice)}, head start {(h == 1 ? "ON" : "OFF")}");
             }
             PlayerPrefs.DeleteKey(TakeSavedPref);
             PlayerPrefs.Save();
@@ -196,6 +196,7 @@ namespace OpenZ
         /// display's own. Nothing above the display, nothing below 720.</summary>
         public static int[] ResolutionSteps(int nativeH)
         {
+            if (LinuxRule && linuxSteps != null && nativeH == linuxNative.y) return (int[])linuxSteps.Clone();   // item 37: Linux, the row built once this session (LinuxRow)
             var l = new System.Collections.Generic.List<int> { 0 };
             foreach (int h in ResHeights) if (h < nativeH) l.Add(h);
             return l.ToArray();
@@ -206,6 +207,7 @@ namespace OpenZ
         /// stretched.</summary>
         public static Vector2Int ResolutionSize(Vector2Int native, int h)
         {
+            if (LinuxRule && linuxSizes != null && native == linuxNative) return LinuxSize(h);                   // item 37: Linux, a real mode of this display (LinuxRow)
             if (h <= 0 || h >= native.y || Array.IndexOf(ResHeights, h) < 0) return native;
             return new Vector2Int((int)(((long)native.x * h + native.y) / (2L * native.y)) * 2, h);
         }
@@ -215,6 +217,7 @@ namespace OpenZ
         public static int ResolutionHeight(int nativeH)
         {
             int h = PlayerPrefs.GetInt(ResPref, 0);
+            if (LinuxRule && linuxSteps != null && nativeH == linuxNative.y) return h > 0 && Array.IndexOf(linuxSteps, h) > 0 ? h : 0;   // item 37: Linux, a step of the row
             return h > 0 && h < nativeH && Array.IndexOf(ResHeights, h) >= 0 ? h : 0;
         }
 
@@ -249,6 +252,7 @@ namespace OpenZ
         public static void StepResolution(int dir)
         {
             if (CommandLineOwnsWindow) { Debug.Log($"[OpenZ Display] resolution: the command line sets the window (-screen-* / -window-mode): left at {Screen.width}x{Screen.height}"); return; }
+            if (LinuxRule && OzDisplayHost.I && OzDisplayHost.I.Switching) { Debug.Log($"[OpenZ Display] resolution: click left out, the screen is still switching to {ResolutionWord} (Linux: one step per click)"); return; }   // item 37
             var n = NativeResolution(); var steps = ResolutionSteps(n.y);
             int cur = Mathf.Max(0, Array.IndexOf(steps, ResolutionHeight(n.y))), to = Mathf.Clamp(cur + (dir < 0 ? -1 : 1), 0, steps.Length - 1);
             if (to == cur) return;
@@ -278,11 +282,113 @@ namespace OpenZ
 
         public static Vector2Int NativeResolution()
         {
+            if (LinuxRule) { LinuxRow(); return linuxNative; }                                              // item 37: Linux, the display's own size seen at the start, fixed for the session
+            return ReadNative();
+        }
+
+        /// <summary>The display's size as the engine reports it now. Windows and Mac: always the display's own size (a lower step
+        /// is drawn inside the desktop's mode), so the row reads it at every use, as before item 37 (it follows another monitor).</summary>
+        static Vector2Int ReadNative()
+        {
             try { var di = Screen.mainWindowDisplayInfo; if (di.width > 0 && di.height > 0) return new Vector2Int(di.width, di.height); } catch (Exception) { }
             var d = Display.main;
             if (d != null && d.systemWidth > 0) return new Vector2Int(d.systemWidth, d.systemHeight);
             var r = Screen.currentResolution; return new Vector2Int(Mathf.Max(640, r.width), Mathf.Max(480, r.height));
         }
+
+        // ------------------------------------------------------------------ item 37: the RESOLUTION row on Linux (GitHub issue 2)
+        /// <summary>
+        /// item 37 (GitHub issue 2, Fedora 44 / X11, one 3840x2160 screen at 120 Hz): "The resolution option does not allow me to
+        /// actually select the resolution but instead scrolls in to some arbitrary direction when I click on it, I can't even get it
+        /// back to the 4k resolution anymore and it sometimes gets stuck on the lower end".
+        /// CAUSE: for a fullscreen size below the desktop the Linux player switches the SCREEN to a real video mode (its windowing
+        /// asks X for the smallest mode at least as large as the picture: "requesting fullscreen W x H", XRRSetCrtcConfig, "No video
+        /// mode large enough" in UnityPlayer.so). From then on the display reports that lower mode as its own size, and up to 1.2 the
+        /// row read the display's size again at every click (ReadNative): the step became the new NATIVE, the left arrow had nothing
+        /// above it, the next right click stepped down from there, and a size the screen has no mode for landed on the next larger
+        /// mode. The engine also starts the next session on the last size, so NATIVE stayed low. Windows and Mac draw a lower step
+        /// inside the desktop's own mode: their display size never moves, and nothing changes there.
+        /// FIX (Linux player only, LinuxRule): the row is built ONCE a session (LinuxRow):
+        ///  - NATIVE = the display's size at the first look. When the last session ended on a lower step (the engine may have
+        ///    started this one on that lower mode again): the size saved at an earlier start (oz_native_w / oz_native_h) while this
+        ///    display still offers it; with none saved but the row used in 1.2 (oz_res_h exists, also at 0: 1.2 could leave the
+        ///    screen on any lower mode, even one of another shape such as 3840x1600), the display's tallest mode (TallestMode).
+        ///  - the steps = this display's real modes of NATIVE's shape: unique width x height (one per refresh rate), 720 lines or
+        ///    more, below NATIVE, tallest first; the screen is switched to exactly the size the row shows. No mode list: the
+        ///    standard steps (ResHeights), as on Windows.
+        ///  - the saved value is still the height (oz_res_h); with NATIVE and the shape fixed, a height is one size.
+        ///  - one step per click: a click while the screen still switches is left out (OzDisplayHost.Switching).
+        ///  - at a lower step the pointer keeps the size of the step's pixels (the screen really has that mode): DisplayHeight 0.
+        /// </summary>
+        public static bool LinuxRule => LinuxTest != null || Application.platform == RuntimePlatform.LinuxPlayer;
+        public const string NativeWPref = "oz_native_w", NativeHPref = "oz_native_h";
+        /// <summary>The editor check's stand-in for a Linux display (Editor/OzV13LinuxResolutionCheck.cs); always null in the game.</summary>
+        public static LinuxDisplay LinuxTest;
+        public sealed class LinuxDisplay { public Vector2Int now; public Vector2Int[] modes = new Vector2Int[0]; }
+        static Vector2Int linuxNative; static int[] linuxSteps; static Vector2Int[] linuxSizes;
+        /// <summary>The row as built, for the log and the check: "NATIVE 3840x2160 (...), 2560x1440, 1920x1080, ...".</summary>
+        public static string LinuxRowText { get; private set; } = "";
+        /// <summary>Forget the row: the editor check's "next start". The game never calls it.</summary>
+        public static void LinuxRowForget() { linuxNative = default; linuxSteps = null; linuxSizes = null; LinuxRowText = ""; }
+
+        static void LinuxRow()
+        {
+            if (linuxSteps != null) return;
+            var test = LinuxTest; var now = test != null ? test.now : ReadNative();
+            var modes = new System.Collections.Generic.List<Vector2Int>();
+            if (test != null) modes.AddRange(test.modes);
+            else try { foreach (var r in Screen.resolutions) modes.Add(new Vector2Int(r.width, r.height)); } catch (Exception) { }
+            var uniq = new System.Collections.Generic.List<Vector2Int>();
+            foreach (var m in modes) if (m.x > 0 && m.y > 0 && !uniq.Contains(m)) uniq.Add(m);                // one size per refresh rate
+            var n = now; string from = "the display at the start";
+            if (PlayerPrefs.HasKey(ResPref))
+            {   // the row was used before: the engine starts on its last size again, and on Linux the screen with it
+                var saved = new Vector2Int(PlayerPrefs.GetInt(NativeWPref, 0), PlayerPrefs.GetInt(NativeHPref, 0));
+                if (saved.x > 0 && saved.y > 0) { if (PlayerPrefs.GetInt(ResPref, 0) > 0 && uniq.Contains(saved) && Taller(saved, n)) { n = saved; from = "saved at an earlier start"; } }
+                else { var top = TallestMode(uniq, now); if (top != now) { n = top; from = "the display's tallest mode (the row was used in 1.2, which can leave the screen on a lower mode)"; } }
+            }
+            var sizes = new System.Collections.Generic.List<Vector2Int>();
+            foreach (var m in uniq) if (m.y >= 720 && m.y < n.y && m.x <= n.x && SameShape(m, n)) sizes.Add(m);
+            sizes.Sort((a, b) => a.y != b.y ? b.y.CompareTo(a.y) : b.x.CompareTo(a.x));
+            for (int i = sizes.Count - 1; i > 0; i--) if (sizes[i].y == sizes[i - 1].y) sizes.RemoveAt(i);      // one size per height (the widest)
+            string kind = "the display's own modes";
+            if (sizes.Count == 0) { kind = "the standard steps (no mode list)"; foreach (int h in ResHeights) if (h < n.y) sizes.Add(ResolutionSize(n, h)); }   // linuxSizes is still null here: the standard formula
+            linuxNative = n; linuxSizes = sizes.ToArray();
+            var steps = new int[linuxSizes.Length + 1]; for (int i = 0; i < linuxSizes.Length; i++) steps[i + 1] = linuxSizes[i].y;
+            linuxSteps = steps;
+            PlayerPrefs.SetInt(NativeWPref, n.x); PlayerPrefs.SetInt(NativeHPref, n.y); PlayerPrefs.Save();
+            var sb = new System.Text.StringBuilder(); foreach (var s in linuxSizes) sb.Append(", ").Append(s.x).Append('x').Append(s.y);
+            LinuxRowText = $"NATIVE {n.x}x{n.y} ({from}){sb}; {kind}; the display listed {uniq.Count} sizes in {modes.Count} modes and reported {now.x}x{now.y}";
+            Debug.Log("[OpenZ Display] Linux RESOLUTION row, built once for this session: " + LinuxRowText);
+        }
+
+        static Vector2Int LinuxSize(int h)
+        {
+            if (h > 0) foreach (var s in linuxSizes) if (s.y == h) return s;
+            return linuxNative;
+        }
+
+        /// <summary>item 37 review: NATIVE at the first 1.3 start after the row was used in 1.2 (no size saved yet). 1.2 could leave the
+        /// engine (and on Linux the screen) on any lower mode, with oz_res_h 0 or not, also one of another shape (3840x1600 or
+        /// 2560x1080 on a 4K TV). Already at the display's tallest listed height: as now. Below it: the mode of that height with the
+        /// same shape as now, else the one nearest 16:9 (3840x2160, not 4096x2160).</summary>
+        static Vector2Int TallestMode(System.Collections.Generic.List<Vector2Int> uniq, Vector2Int now)
+        {
+            int top = 0; foreach (var m in uniq) if (m.y > top) top = m.y;
+            if (now.y >= top) return now;
+            Vector2Int best = now; long bestD = long.MaxValue;
+            foreach (var m in uniq)
+            {
+                if (m.y != top) continue;
+                long d = SameShape(m, now) ? -1L : Math.Abs(m.x * 9L - m.y * 16L);
+                if (d < bestD || (d == bestD && m.x > best.x)) { best = m; bestD = d; }
+            }
+            return best;
+        }
+
+        static bool Taller(Vector2Int a, Vector2Int b) => a.y > b.y || (a.y == b.y && a.x > b.x);
+        /// <summary>The same shape within 1 % (1366x768 and 1280x720 are 16:9; 4096x2160 and 1280x1024 are not).</summary>
+        static bool SameShape(Vector2Int a, Vector2Int b) => a.y > 0 && b.y > 0 && Math.Abs((long)a.x * b.y - (long)b.x * a.y) * 100L <= (long)b.x * a.y;
     }
 
     /// <summary>menu_exe_v1: applies the saved display mode one frame after the start (and on the Options switch), and keeps
@@ -291,6 +397,10 @@ namespace OpenZ
     {
         public static OzDisplayHost I { get; private set; }
         bool lastFull; float ignoreUntil, nextCheck;
+        float switchFrom = -1f; int switchW, switchH;
+        /// <summary>item 37 (Linux): a fullscreen RESOLUTION switch is still under way (the screen changes its video mode; a TV can
+        /// take a few seconds): until the screen has the new size (and 0.3 s more), at most 4 s. Never set on Windows / Mac.</summary>
+        public bool Switching => switchFrom >= 0f && Time.unscaledTime < switchFrom + 4f && (Time.unscaledTime < switchFrom + 0.3f || Screen.width != switchW || Screen.height != switchH);
 
         void Awake() { I = this; lastFull = Screen.fullScreen; Apply("start"); }                     // before the first scene: no windowed flash
 
@@ -312,8 +422,11 @@ namespace OpenZ
             if (OzSettings.Fullscreen)
             {
                 if (Screen.fullScreenMode != FullScreenMode.FullScreenWindow || Screen.width != want.x || Screen.height != want.y)
+                {
                     Screen.SetResolution(want.x, want.y, FullScreenMode.FullScreenWindow);                 // borderless as before: a lower step is drawn at its own size and fills the screen
-                OzSettings.DisplayHeight = want.y < n.y ? n.y : 0;
+                    if (OzSettings.LinuxRule) { switchFrom = Time.unscaledTime; switchW = want.x; switchH = want.y; }   // item 37: one step per click while the screen switches
+                }
+                OzSettings.DisplayHeight = want.y < n.y && !OzSettings.LinuxRule ? n.y : 0;                // item 37: on Linux the screen itself takes the lower mode, so its pointer is drawn in the step's pixels
             }
             else
             {

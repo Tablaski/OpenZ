@@ -95,7 +95,7 @@ namespace OpenZ.Sim
         public double PosX => LocX + XOver;    // continuous top-left, for rendering
         public double PosY => LocY + YOver;
         public (int x, int y) CurrentTarget => (cur.x, cur.y);
-        public IReadOnlyList<(int x, int y)> PathPoints => cur.pfPoints;
+        public List<(int x, int y)> PathPoints => cur.pfPoints;   // 1.4 speed-up 2 (perf_garbage): the list itself, so a foreach over it takes no boxed enumerator
         public bool LastAttackPlayerGiven { get; private set; }
 
         static bool IsZ(double n) => n < 0.00001 && n > -0.00001;
@@ -104,6 +104,7 @@ namespace OpenZ.Sim
         {
             LocX = x; LocY = y;
             CenterX = x + (WidthPix >> 1); CenterY = y + (HeightPix >> 1);
+            World?.NbMoved(this);                                                      // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): the neighbour grid follows the move
         }
 
         public void InitRealMoveSpeed(ZMapData map) => RealMoveSpeed = MoveSpeed * map.TileWalkSpeed(CenterX, CenterY);   // :234-241
@@ -120,16 +121,18 @@ namespace OpenZ.Sim
         public bool CanAttackObject(ZObject o)                                                          // :4767-4777
         {
             if (o == null || !CanAttack() || o.Destroyed || Owner == o.Owner) return false;
-            if (o.ExitOutAt >= 0 && o.World != null && o.ExitWalking(o.World.Time)) return false;           // DV132: still getting out of the shuttle / an APC: nobody's target yet (Sim/ZObject.ExitWalk.cs)
+            if (o.ExitOutAt >= 0 && o.World != null && o.ExitWalking(o.World.Time) && !o.DriverOutTarget) return false;   // DV132: still getting out of the shuttle / an APC: nobody's target yet (Sim/ZObject.ExitWalk.cs); 1.4 DV171 fix round 4: a driver climbing out of a tank or the mech is a target all the same (Sim/ZObject.VehicleExit.cs)
             if (!HasExplosives() && o.AttackedByExplosives && !PyroBurnsNow(o)) return false;   // DV113: a Pyro on the player's Ctrl order burns a building or bridge (ZObject.PyroForceBurn.cs)
             return true;
         }
         public bool CanBeEntered() => Owner == Team.Neutral && !Destroyed && (Kind == ZKind.Vehicle || Kind == ZKind.Cannon) && !IsShuttle;   // :4723-4730; DV118 (K256f): never a shuttle: nobody walks into an empty one by himself, only an order puts a squad in (CanTakePassengers, Sim/ZWorld.ShuttleEmpty.cs)
-        public bool CanPickupGrenades() => Kind == ZKind.Robot && Type != "tough" && Type != ZElectro.Type && Grenades <= 0;   // zrobot.h:16, rtough.h:20; electrobot_v1 DV45: his zap, never grenades
+        public bool CanPickupGrenades() => Kind == ZKind.Robot && Type != "tough" && Type != ZElectro.Type && !IsEvilZod && Grenades <= 0;   // zrobot.h:16, rtough.h:20; electrobot_v1 DV45: his zap, never grenades
         public bool CanEjectDrivers() => (Kind == ZKind.Vehicle && Type == "apc") || (Kind == ZKind.Cannon && Ejectable);   // vapc.cpp:261, zcannon.cpp:51
         public bool CanBeSniped()
         {
             if (Kind == ZKind.Cannon) return CanBeSnipedFlag && Drivers.Count > 0 && Ejectable;           // zcannon.cpp:46-49
+            if (CraneDriverExposed) return true;                                                           // DV141: the crane's driver up in the cab hatch (DV31) can be sniped, never while the crane works (Sim/ZObject.CraneSnipe.cs; Zod: never)
+            if (ApcDriverExposed) return true;                                                             // DV143: the APC's lone driver up in the roof hatch (DV87 part C) can be sniped (Sim/ZObject.ApcSnipe.cs; Zod: never)
             if (Kind == ZKind.Vehicle) return HasLid ? CanBeSnipedFlag && (LidOpen || Resting) && Drivers.Count > 0 : CanBeSnipedFlag && Drivers.Count > 0;   // DV75 idle rest (DC2): + the crew resting in the open hatch (Zod: the lid only, zvehicle.cpp:178-186)
             return false;                                                                                  // robots never
         }
@@ -151,7 +154,7 @@ namespace OpenZ.Sim
             if (Drivers.Count == 0) return;
             string crew = CrewWeaponType;                                                  // apc_v1 DV15: the passengers' weapon when aboard (ZApcCrew.cs), else the driver's
             var u = World.S.Unit(crew);
-            AttackRadius = u.attack_radius; Damage = u.Damage; DamageChance = u.attack_damage_chance; AttackSpeed = u.attack_speed;
+            AttackRadius = u.attack_radius; Damage = u.Damage; DamageChance = ZWorld.HitChanceOf(crew, u); AttackSpeed = ZWorld.ReloadOf(crew, u);   // 1.2: a sniper crew gets the sniper balance (Sim/ZWorld.SniperBalance.cs)
             DamageRadius = u.attack_damage_radius; MissileSpeed = ZWorld.RocketSpeed(crew, u.attack_missile_speed);   // DV52: a Tough crew's rockets like the Tough's
             if (crew == "tough") { HasExplosivesFlag = true; DamageIsMissile = true; }
             Damage *= CrewFirepower;                                                       // Zod: x driver_info.size() (vapc.cpp:341); DV15: x robots aboard with that weapon
@@ -173,6 +176,8 @@ namespace OpenZ.Sim
             RestStep(time);                                                                                    // DV75 idle rest (DC2): a long-idle crew rests in the open hatch (ZObject.IdleRest.cs)
             ElectroTick();                                                                                     // electrobot_v1 DV45: tesla recharge end / dropped windup
             if (ExitWalkHold(time)) return;                                                                    // DV132: still getting out of the shuttle / an APC: no step, no shot, no engage (Sim/ZObject.ExitWalk.cs)
+            if (IsEvilZod && EvilStep(time, dt)) return;                                                       // DV161: his clocks and heal; the power dash holds him (Sim/ZEvilZod.cs)
+            if (EvilGuarding) EvilGuardStep();                                                                 // DV165: blue's last defense holds his spot, steps a little, walks home (Sim/ZEvilZod.Appear.cs)
             if (StunHold(time)) return;                                                                        // electrobot_v1 DV45: stunned: no move, still fires (ZObject.Electro.cs)
             ProcessServerLid(time);
             int rpPath = ZRuleProf.Enter(ZRuleProf.Path); World.Pathing?.PreProcess(this); ZRuleProf.Exit(rpPath);                                                                   // OpenZ pathing: deferred re-path / give-up / arrival
@@ -182,6 +187,7 @@ namespace OpenZ.Sim
             if (UnmannedHold(time)) return;                                                                    // DV79 unmanned stop: nobody inside: no order, no step, no shot (ZObject.Unmanned.cs)
             int rpOrders = ZRuleProf.Enter(ZRuleProf.Orders); PatrolStep();                                                                                      // DV68 (CTL1): a patrol turns round at the end of a leg
             CrocFleeStep(time);                                                                                // level 16: no order, in the water, a crocodile hunts near: to the bank (ZWorld.Crocodiles.cs)
+            if (pdBoosted) PremiumDodgeSettle();                                                               // 1.4 DV173: its step aside is over: the plain speed back before the next waypoint (Sim/ZObject.PremiumDodge.cs)
             if (Waypoints.Count > 0 && !ElectroStand() && !SniperStand())                                      // DV83: the Electrobot stands and fires before any walking step (ZObject.ElectroSteady.cs); DV120: a sniper before an agro / attack walking step (ZObject.SniperSteady.cs)
             {
                 var wp = Waypoints[0];
@@ -214,9 +220,10 @@ namespace OpenZ.Sim
             ChargeAfterOrders();                                                                       // DV121: a jeep's own run-over charge, the next robot, the drive back to its spot (Sim/ZObject.JeepCharge.cs)
             CheckWalkOverCrate();
             CheckPassiveEngage(time);
+            HeavyRockStep(time);                                                                       // DV164: a heavy tank standing idle clears the rock it clips (Sim/ZObject.HeavyRock.cs)
             int rpCombat = ZRuleProf.Enter(ZRuleProf.Combat); ProcessAttackDamage(time, LastAttackPlayerGiven);
             CraneGunStep(time);                                                                       // vehicles_nb_v1 DV31: the crane's driver shoots back (ZObject.VehiclesNb.cs)
-            DriverFireStep(time); ZRuleProf.Exit(rpCombat);                                                                     // DV87: the hatch driver of a tank fires his own weapon; the APC's lone driver drops back in (ZObject.DriverFire.cs)
+            DriverFireStep(time); MechHandGunStep(time); ZRuleProf.Exit(rpCombat);                                                                     // DV87: the hatch driver of a tank fires his own weapon; the APC's lone driver drops back in (ZObject.DriverFire.cs); DV146: the mech's hand gun between two rocket shots (ZObject.MechHandGun.cs)
         }
 
         public void SetLastProcessTime(double t) => lastProcessTime = t;
@@ -227,7 +234,8 @@ namespace OpenZ.Sim
             var wp = Waypoints[0];
             if (isNew)
             {
-                SetTarget(wp.x, wp.y);
+                int wtx = wp.x, wty = wp.y; World.LavaOwnSpot(this, wp, ref wtx, ref wty);
+                SetTarget(wtx, wty);
                 if (stoppable) StartPath(); else SetVelocity();
                 foreach (var f in World.Flags)                                             // run for flags (:2729-2747)
                     if (Dist(f.LocX, f.LocY, wp.x, wp.y) <= 32) { CaptureRun(wp.x, wp.y); break; }   // DV54: a capture runs (ZObject.AiCombat.cs)   // parity P9: Zod DistanceFromCoords measures from the flag's loc (top-left), zobject.cpp:908-916
@@ -312,10 +320,12 @@ namespace OpenZ.Sim
             if (stoppable && World.Path.WithinImpassable(inx + 1, iny + 1, WidthPix - 2, HeightPix - 2, out stopX, out stopY, IsRobot)
                 && !(pathing != null && (pathing.EmbeddedEscape(this, inx, iny) || pathing.SoftStep(this, inx, iny))))   // pathing v3 DV47: over soft blockers (ZPathV3.cs)
                 return ReachedTarget();
+            if (!stoppable && LavaWalkHalt(inx, iny)) return true;                     // DV152: a walk into / out of lava never enters a rock, building or cliff tile; it ends there (ZWorld.Lava.cs)
             if (IsRobot) WalkDisengage();                                              // robots don't attack while moving (DV57: grunt / psycho / laser keep firing, ZObject.FireOnMove.cs)
             XOver = nx - inx; YOver = ny - iny;
             LocX = inx; LocY = iny;
             CenterX = LocX + (WidthPix >> 1); CenterY = LocY + (HeightPix >> 1);
+            World.NbMoved(this);                                                       // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): the neighbour grid follows the step
             NoteFacing();                                                              // combat_nb_v1 DV27: last heading (hits from behind)
             if (!IsZ(Dx) || !IsZ(Dy))
             {
@@ -324,6 +334,7 @@ namespace OpenZ.Sim
                 if (pathing != null) tile = pathing.SafeTileSpeed(this, tile);                                  // never speed 0 (research 11.9)
                 RealMoveSpeed = MoveSpeed * tile * DamagedSpeed() * RunSpeed();
                 if (strikePace < 1.0) RealMoveSpeed *= StrikePaceNow;                                              // DV107: a strike group marches at the pace of its slowest member (ZBot.StrikeGroup.cs); every other unit: untouched
+                PremiumDodgePace();                                                                                // 1.4 DV173: a tank / the mech with a non-grunt driver steps aside x 1.08 faster (Sim/ZObject.PremiumDodge.cs); every other unit: untouched
                 if (RealMoveSpeed != prev)
                 {
                     if (prev > 0) { Dx = (float)(Dx / prev); Dy = (float)(Dy / prev); }
@@ -360,14 +371,14 @@ namespace OpenZ.Sim
                 Dx = cur.x - CenterX; Dy = cur.y - CenterY;
                 if (!IsZ(Dx) || !IsZ(Dy))
                 {
-                    float mag = (float)Math.Sqrt(Dx * Dx + Dy * Dy);
+                    float mag = (float)Math.Sqrt((float)((float)(Dx * Dx) + (float)(Dy * Dy)));
                     Dx /= mag; Dy /= mag;
                     Dx = (float)(Dx * RealMoveSpeed); Dy = (float)(Dy * RealMoveSpeed);
                 }
             }
             else StopMove();
-            if (Math.Abs(Dx - oldDx) < 0.1) Dx = oldDx;
-            if (Math.Abs(Dy - oldDy) < 0.1) Dy = oldDy;
+            if (Math.Abs((float)(Dx - oldDx)) < 0.1) Dx = oldDx;
+            if (Math.Abs((float)(Dy - oldDy)) < 0.1) Dy = oldDy;
             if (Dx != oldDx || Dy != oldDy) UpdatedVelocity = true;
         }
 
@@ -406,10 +417,10 @@ namespace OpenZ.Sim
         {
             if (!wp.attackTo || !CanOverwriteWP()) return false;
             List<ZObject> choices = null;
-            foreach (var o in World.Objects)
+            foreach (var o in World.NearUnits(CenterX, CenterY, NbAgroReach(), ZWorld.PerfFastRules ? World.UnitObjects : World.Objects))   // 1.3 item 25 (units, same order); 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in agro reach, same order: the same choices and the same draw
             {
                 if (!o.IsUnit || o.Owner == Team.Neutral || o.Owner == Owner || o.Destroyed) continue;
-                if (WithinAgroRadius(o) && !PathUnreachable(o) && CalmMayFight(o)) (choices ??= new List<ZObject>()).Add(o);   // b49: on the player's order only an enemy it can hit from its way (ZObject.Calm.cs)
+                if (WithinAgroRadius(o) && !SkipUnreachable(o) && CalmMayFight(o)) (choices ??= new List<ZObject>()).Add(o);   // DV153: a fort tower gun in reach is never dropped as 'unreachable' (Sim/ZObject.TowerAnswer.cs); b49: on the player's order only an enemy it can hit from its way (ZObject.Calm.cs)
             }
             if (choices == null) return false;
             var c = choices[World.Rng.Next(choices.Count)];                           // quirk 11.11: random, not closest
@@ -424,7 +435,7 @@ namespace OpenZ.Sim
             if (isNew) { cur.agroX = CenterX; cur.agroY = CenterY; cur.stage = Stage.Attack; }
             var t = World.Get(wp.refId);
             if (!CanAttackObject(t)) { KillWP(); return; }
-            if (!Within(t.CenterX, t.CenterY, cur.agroX, cur.agroY, AttackRadius + World.S.agro_distance + wp.leash))   // DV53: a help call's leash reaches the attacker
+            if (!Within(t.CenterX, t.CenterY, cur.agroX, cur.agroY, AgroReachTo(t) + wp.leash))   // DV53: a help call's leash reaches the attacker
             {
                 if (ElectroSteady || SniperNoWalkBack()) { KillWP(); return; }          // DV83: the Electrobot stays where the chase ended, no walk back; DV120: a sniper too
                 if (cur.stage != Stage.Return) { DuelLeftRange(false); cur.stage = Stage.Return; SetTarget(cur.agroX, cur.agroY); SetVelocity(); }
@@ -452,6 +463,7 @@ namespace OpenZ.Sim
             var t = World.Get(wp.refId);
             if (!CanAttackObject(t)) { KillWP(); return; }
             if (CalmNoChase(t)) { KillWP(); return; }                                   // b49: an attack on the way of the player's order ends when its target is out of range (ZObject.Calm.cs)
+            if (IsEvilZod && EvilDashOrder(wp, t, isNew)) return;                       // DV161: on a given attack order the power dash before any walking step (Sim/ZEvilZod.cs)
             if (WithinAttackRadius(t))
             {                                                                           // DV9 (ZObject.Duel.cs): a vehicle duel manoeuvres and fires; at the
                 int dm = DuelStep(t, dt, false);                                        // very edge of range it keeps driving its approach, engaged
@@ -466,7 +478,7 @@ namespace OpenZ.Sim
                 if (!zodGoal) { ex = t.LocX + 8; ey = t.LocY + 8; }
                 int gx = ex, gy = ey;
                 if (!ApproachPlan(t, ref ex, ref ey) &&                                 // combat_nb_v1 DV28: the nearest reachable spot in range, not the target itself
-                    !LosPlanAttack(t, zodGoal && ex == t.CenterX && ey == t.CenterY, ref ex, ref ey)) { KillWP(); return; }   // DV23: no spot with a clear shot anywhere
+                    !LosPlanAttack(t, zodGoal && ex == t.CenterX && ey == t.CenterY, ref ex, ref ey)) { TowerPlanFailed(t); if (!OrderPlanFallback(wp, t)) KillWP(); return; }   // DV23: no spot with a clear shot anywhere; DV153: a fort tower gun is then remembered as unreachable (Sim/ZObject.TowerAnswer.cs)
                 SetTarget(ex, ey);
                 bool losSpot = ex != gx || ey != gy;                                    // DV23: re-plan when the TARGET moves (not the shot spot)
                 cur.initAttackX = losSpot ? t.CenterX : cur.x; cur.initAttackY = losSpot ? t.CenterY : cur.y;
@@ -543,7 +555,7 @@ namespace OpenZ.Sim
             var wp = Waypoints[0];
             if (isNew) { directRetries = 0; var (ex, ey) = ShuttleEnterSpot(wp); SetTarget(ex, ey); StartPath(); CaptureRun(ex, ey); }   // DV54: running to the empty vehicle; DV118: into the shuttle = to its own back slot (Sim/ZWorld.ShuttleRamp.cs)
             var t = World.Get(wp.refId);
-            if (t == null || !(t.CanBeEntered() || t.CanTakePassengers(this))) { if (!EnterFallback(t, wp)) KillWP(); return; }   // apc_v1 DV15: or an own APC taking passengers; DV59: a player's order walks on to the spot (ZObject.BoardingRules.cs)
+            if (t == null || !EvilMayEnter(t) || !(t.CanBeEntered() || t.CanTakePassengers(this))) { if (!EnterFallback(t, wp)) KillWP(); return; }   // apc_v1 DV15: or an own APC taking passengers; DV59: a player's order walks on to the spot (ZObject.BoardingRules.cs)
             if (!wp.playerGiven && t.AutoEnterLocked) { KillWP(); return; }                    // DV58: a cannon the player just ejected: no auto entry
             if (t.IsShuttle) { if (ShuttleEnterStep(t, dt)) return; }                       // DV118: the shuttle is boarded at its ramp foot, the ramp down (Sim/ZWorld.ShuttleRamp.cs)
             else if (t.UnderCursor(CenterX, CenterY)) { bool mb = MinionBoards(t); KillWP(); if (!IsMinion || mb) EnteredTargetId = t.Id; return; }   // boarding_nb_v1 DV35: the first on it gets in
@@ -609,6 +621,7 @@ namespace OpenZ.Sim
         {
             if (Stunned) return false;                                                 // electrobot_v1 DV45: stunned, before any rand() draw
             if (ElectroSteady) return false;                                           // DV83: the Electrobot never steps aside for a shell (before any rand() draw; ZObject.ElectroSteady.cs)
+            if (IsEvilZod) return false;                                               // DV161: nor does EvilZod (Sim/ZEvilZod.cs)
             if (!CanOverwriteWP() || MoveSpeed <= 0 || RealMoveSpeed <= 0) return false;
             if (HumanDirectOrder) return false;                                        // DV16: a direct order is not interrupted by a sidestep
             if (ChargeNoDodgeNow()) return false;                                      // DV121: a jeep driving at a robot to run him over does not step aside (Sim/ZObject.JeepCharge.cs)
@@ -616,7 +629,8 @@ namespace OpenZ.Sim
             if (IsRobot && AttackObject != null) return false;
             if (Owner == Team.Neutral) return false;
             if (CalmHoldsDodge(timeTillExplode)) return false;                                      // b49: Toughs and Snipers stand and fire, the other robots do not step aside for every shell or grenade (ZObject.Calm.cs)
-            double dist = timeTillExplode > Stamina ? timeTillExplode * RealMoveSpeed : timeTillExplode * RealMoveSpeed * World.S.run_unit_speed;
+            double dps = DodgePlanSpeed;                                                // 1.4 DV173: RealMoveSpeed; a tank / the mech with a non-grunt driver: its dodge speed (Sim/ZObject.PremiumDodge.cs)
+            double dist = timeTillExplode > Stamina ? timeTillExplode * dps : timeTillExplode * dps * World.S.run_unit_speed;
             int mDist = (int)(dist * 2.0 / 4.0), fDist = (int)(dist * 4.0 / 4.0);
             if (mDist <= 0) mDist = 1;
             int moveDist = fDist + World.Rng.Next(mDist);
@@ -630,10 +644,10 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ engagement
         public bool WithinAttackRadius(ZObject o) =>
-            o != null && InReach(o, CenterX, CenterY, AttackRadius) &&                // combat_nb_v1 DV26: a building's walls (else Zod's centre)
+            o != null && InReach(o, CenterX, CenterY, RangeTo(o)) &&                // combat_nb_v1 DV26: a building's walls (else Zod's centre)
             (o.IsDestroyableImpass || o.ShuttleAirborne || !World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) && HasLineOfSight(o);   // DV23: direct fire needs a line; DV118: no ground tile stops a shot at the flying shuttle
         public bool WithinAgroRadius(ZObject o) =>
-            o != null && Within(CenterX, CenterY, o.CenterX, o.CenterY, AttackRadius + World.S.agro_distance) &&
+            o != null && Within(CenterX, CenterY, o.CenterX, o.CenterY, AgroReachTo(o)) &&
             (o.IsDestroyableImpass || o.ShuttleAirborne || !World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) && CanSee(o);
 
         public void Engage(ZObject t)
@@ -668,7 +682,7 @@ namespace OpenZ.Sim
             if (World.GameOver && ZWorld.EndFreezeDeviation) return;                           // endgame_ui_v1 (DV10): no enemy left; idle robots no longer walk off to vehicles, flags, crates
             if (!CanAttack() || Owner == Team.Neutral || !IsUnit) return;
             if (IsRobot && IsMoving && !LayerShuffle) { if (!FiresOnMove) return; engageOnly = true; }
-            if (AttackObject != null) { if (!WithinAttackRadius(AttackObject)) Disengage(); else if (PrefersExposed) SwitchToExposed(); return; }   // combat_nb_v1 DV27
+            if (AttackObject != null && !HeavyRockYields()) { if (!WithinAttackRadius(AttackObject)) Disengage(); else if (PrefersExposed) SwitchToExposed(); return; }   // combat_nb_v1 DV27
             List<ZObject> agro = null, enter = null, flags = null, crates = null;
             ZObject inRange = null;                                                     // combat_nb_v1 DV27: first enemy in range (an exposed driver goes first)
             bool idle = Waypoints.Count == 0 && Kind != ZKind.Cannon && !engageOnly && !HoldPosition && !CrocWary;   // electrobot_v1 DV45: a stunned unit adds no agro / enter waypoint; DV68: hold position
@@ -677,7 +691,7 @@ namespace OpenZ.Sim
             bool human = ZWorld.GrabPolicyDeviation && World.IsHumanTeam(Owner);
             bool grabOne = human, grabHold = human && PlayerHold;
             bool startHold = World.CalmStart(Owner);                                           // DV69 calm start: nothing self-started in the first 20 s (human teams)
-            foreach (var o in World.Objects)
+            foreach (var o in World.NearUnits(CenterX, CenterY, NbPassiveReach(idle && !startHold), World.Objects))   // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in range, agro or grab reach, same order
             {
                 if (!o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;
                 if (o.Owner != Team.Neutral && o.Owner != Owner && CanAttackObject(o))
@@ -704,7 +718,7 @@ namespace OpenZ.Sim
             if (agro != null)
             {
                 var c = Closest(agro);
-                Waypoints.Add(new ZWaypoint { mode = WpMode.Agro, refId = c.Id, x = c.CenterX, y = c.CenterY });
+                Waypoints.Add(new ZWaypoint { mode = ChaseMode(c), refId = c.Id, x = c.CenterX, y = c.CenterY });   // DV153: a fort tower gun out of reach: an ATTACK to a spot with a clear shot (Sim/ZObject.TowerAnswer.cs); else Zod's AGRO
                 return;
             }
             if (flags != null && AutoFlagHeld()) flags = null;                                 // DV130: a player's robot under fire takes no flag by itself (Sim/ZObject.NoAutoFlag.cs)
@@ -730,7 +744,7 @@ namespace OpenZ.Sim
         {
             if (!World.WalkOverGrenadePickup || !IsRobot || IsMinion || !IsMoving || !CanPickupGrenades() || DeleteGrenadeBoxId >= 0) return;
             if (Owner == Team.Neutral) return;
-            foreach (var t in World.Objects)
+            foreach (var t in World.GrenadeCratesOr(World.Objects))   // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the crates, same order
             {
                 if (t.Type != "grenades" || t.Destroyed || t.KillAt >= 0 || t.Grenades <= 0) continue;
                 if (!t.UnderCursor(CenterX, CenterY)) continue;
@@ -759,6 +773,7 @@ namespace OpenZ.Sim
             if (ToughPrepareHold(time)) return;                                                      // weapons_v2 DV11: Tough prepare (0.1 + 0.7 s, ZObject.ToughPrepare.cs)
             if (ApcDriverPopHold(time)) return;                                                      // DV87: the APC's lone driver comes up through the roof hatch first (ZObject.DriverFire.cs)
             if (IsElectroWeapon) { ElectroFire(time, playerGiven); return; }                          // electrobot_v1 DV45: windup, bolt, stun, recharge (ZObject.Electro.cs)
+            if (IsEvilZod) { EvilFire(time); return; }                                                // DV161: his shot: no roll, the damage by range (Sim/ZEvilZod.cs)
             if (time < nextDamageTime) return;
             if (WalkShotOutOfRange(t)) { Disengage(); return; }                        // DV57: a walker's target left its range (no cooldown used)
             nextDamageTime = time + AttackSpeed;
@@ -773,7 +788,7 @@ namespace OpenZ.Sim
             {
                 if (!EstimateMissileTarget(t, MissileSpeed, out int tx, out int ty)) { tx = t.CenterX; ty = t.CenterY; }
                 if (t.ReachToWalls) WallAim(t, out tx, out ty);                          // combat_nb_v1 DV26: the nearest wall section
-                var m = new ZMissile { team = Owner, attackerId = Id, targetId = t.Id, playerGiven = playerGiven };
+                var m = new ZMissile { team = Owner, attackerId = Id, targetId = t.Id, playerGiven = playerGiven, onlyId = HeavyRockShell(t) };
                 if (nades)
                 {
                     tx += World.Rng.Next(48) - 24; ty += World.Rng.Next(48) - 24;
@@ -786,14 +801,16 @@ namespace OpenZ.Sim
                 }
                 else
                 {
-                    tx += Scatter(World.Rng.Next(32) - 16); ty += Scatter(World.Rng.Next(32) - 16);   // veterancy_v1 DV12: veterans 3/4 of Zod's scatter
+                    tx += AimScatter(World.Rng.Next(32) - 16); ty += AimScatter(World.Rng.Next(32) - 16);   // veterancy_v1 DV12: veterans 3/4 of Zod's scatter; DV151: a medium tank that is not a veteran wider (Sim/ZObject.MTankAim.cs)
                     ChargeRocketAim(t, ref tx, ref ty);                                                  // DV121: a Tough's rocket at a vehicle that drives at him aims true (Sim/ZObject.JeepCharge.cs)
+                    HeavyRockAim(t, ref tx, ref ty);                                                     // DV164: at the rock's drawn foot (Sim/ZObject.HeavyRock.cs)
                     ShellOverCover(t, ref tx, ref ty); ShuttleKickAimPast(t, m, ref tx, ref ty);   // DV129: at a flipping shuttle some are aimed past its hull (Sim/ZWorld.ShuttleKick.cs)                                  // DV122: a flat shell at a kneeling / lying sniper may skim over him (Sim/ZObject.ProneTarget.cs)
                     m.damage = HeavyPairFirst(time, t, playerGiven, tx, ty); m.radius = DamageRadius;   // vehicles_nb_v1 DV30: Zod = Damage; the heavy's first barrel = half
                     m.x = tx; m.y = ty; m.CalcExplodeTime(CenterX, CenterY, MissileSpeed, time);
                 }
                 World.AddMissile(m);
                 World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, m.grenade);
+                if (!m.grenade) HandGunRocketFired(time, tx, ty);                                       // DV146: a rocket left: the mech's hand gun may fire while they reload (ZObject.MechHandGun.cs)
                 t.DodgeMissile(tx, ty, m.explodeTime - time);
             }
             else
@@ -870,10 +887,12 @@ namespace OpenZ.Sim
 
         double RunSpeed()
         {
+            if (IsEvilZod) return ZEvilZod.WalkFactor;                                                 // DV161: he never runs, door, step aside and crocodile included: his walk is his walk (Sim/ZEvilZod.cs)
             if (fortRush) return World.S.run_unit_speed;                              // boarding_nb_v1 DV34: running speed through the fort door
             if (ZPathing.Yielding(this)) return World.S.run_unit_speed;               // vehicles first: stepping aside for a vehicle of its team at Zod's running speed, stamina untouched (ZYield.cs)
             if (CrocHurry(out double crocSpeed)) return crocSpeed;                    // level 16: wading near a hunting crocodile, 1.3 times as fast, stamina untouched (ZWorld.Crocodiles.cs)
             if (ChargeHurry(out double chargeSpeed)) return chargeSpeed;              // DV121: a jeep driving at a robot to run him over, x1.15 (Sim/ZObject.JeepCharge.cs)
+            if (MTankHurry(out double mh)) return Math.Max(mh, IsRunning && !ShowDamaged ? World.S.run_unit_speed : 1.0);   // DV150: a medium tank fighting under fire x1.10, x1.15 against a longer range (Sim/ZObject.MTankHurry.cs); Zod's run still wins
             if (Leader != null) return Leader.IsRunning && !ShowDamaged ? World.S.run_unit_speed : 1.0;
             return IsRunning && !ShowDamaged ? World.S.run_unit_speed : 1.0;
         }
@@ -930,6 +949,8 @@ namespace OpenZ.Sim
         public bool driver;                         // DV87: the rocket of a Tough who drives a tank, fired from its hatch (ZObject.DriverFire.cs); the view draws its blast as a bazooka's
         public sbyte kick;                          // DV129: fired at a flipping shuttle: 1 = keeps its aim, -1 = aimed past it (never hurts it), 0 = not decided (Sim/ZWorld.ShuttleKick.cs)
         public int areaDamage;                      // DV112 (item 257): a hero's thrown grenade: its area hit's HP at the centre of the blast (0 = the game's, ZWorld.ThrownGrenadeAreaDamage; Sim/ZHeroSquad.Kh4.cs)
+        public int onlyId = -1;                     // DV164: the one object this blast hurts, -1 = all it reaches (Sim/ZObject.HeavyRock.cs)
+        public bool nuke;                           // 1.3 item 2: the Unit editor's NUKE (Sim/ZWorld.Playground.cs PlaygroundNuke): all the HP of everything inside its radius; never made in a level
         public double explodeTime;
         public void CalcExplodeTime(int fx, int fy, int speed, double now) =>
             explodeTime = now + Math.Sqrt((double)(x - fx) * (x - fx) + (double)(y - fy) * (y - fy)) / Math.Max(1, speed);
@@ -949,12 +970,22 @@ namespace OpenZ.Sim
         ElectroCharge, ElectroBolt, ElectroFizzle, ElectroReady, StunStart, StunRefresh, StunPulse, StunEnd,
         Promoted,                                                               // veterancy_v1 DV12: objId = the promoted crew (squad leader / vehicle / cannon), value = kills
         RunOverHit,                                                             // DV65 (ZWorld.RunOver.cs): objId = the robot, otherId = the vehicle; value = HP removed; flag = glancing
-        DriverShot                                                              // DV87 (ZObject.DriverFire.cs): objId = the tank whose hatch driver fired, otherId = his target; x, y = the aim point; flag = hit;
+        DriverShot,                                                             // DV87 (ZObject.DriverFire.cs): objId = the tank whose hatch driver fired, otherId = his target; x, y = the aim point; flag = hit;
                                                                                 // the Tough's rocket: value = flight s, radius = splash px; the Electrobot's bolt: value = HP removed, flag = stunned, flag2 = killed
+        MechHandGun,                                                            // DV146 (ZObject.MechHandGun.cs): objId = the mech, otherId = the robot; x, y = its centre; value = HP removed; flag = hit; flag2 = killed
+        LavaStep,                                                               // DV152 (ZWorld.Lava.cs): objId = the robot; x, y = its centre; value = its heat 0..1; radius = 1 stepped in, 0 stepped out, 2 critical (heat 0.75)
+        // DV161 (Sim/ZEvilZod.cs). objId he, otherId the target. EvilDashStart: x, y landing spot, value s to the stop, radius burst ticks. EvilDashGo: x, y landing spot, radius burst
+        // ticks. EvilDashEnd: x, y where he stopped, flag reached the spot. EvilDashCancel, EvilDashReady: nothing more. EvilShot: x, y target centre, value HP removed, radius d px,
+        // flag dash shot, flag2 killed. EvilReload: value s left, radius ticks left. EvilHealStep: value HP given since the last one.
+        EvilDashStart, EvilDashGo, EvilDashEnd, EvilDashCancel, EvilDashReady, EvilShot, EvilReload, EvilHealStep,
+        DragonEvent,                                                            // DV163 (ZWorld.Dragons.cs): level 7, one moment of a dragon pass; radius = ZDragonKind + 256 x dragon
+        EvilGuardOut,                                                           // DV165 (Sim/ZEvilZod.Appear.cs): objId EvilZod, otherId his fort; x, y his guard spot: he comes out as its last defense (his line)
+        EvilConeHit                                                             // DV167 (Sim/ZEvilZod.Cone.cs): objId EvilZod, otherId a robot his shot hit in its cone (not its target); x, y its centre; value HP removed; radius d px; flag dash shot; flag2 killed
     }
 
     /// <summary>Sim -> view events (sounds, FX, animation), consumed by the view once per frame.</summary>
-    public struct ZEvent
+    // duel event wire serialization
+            [System.Serializable] public struct ZEvent
     {
         public ZEventType type;
         public int objId, otherId, x, y, radius;

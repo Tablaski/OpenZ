@@ -8,7 +8,7 @@ namespace OpenZ
     /// after UnitAim (which poses the rack), so aiming is untouched. Pure view.
     /// </summary>
     [DefaultExecutionOrder(66)]
-    public class MlrsSideKick : MonoBehaviour
+    public partial class MlrsSideKick : MonoBehaviour                                                    // 1.2 v2 units: + View/MlrsSideKick.Model.cs (the MLRS v2 launcher's kick, its rest before the aim)
     {
         public const float BackM = 0.22f, UpDeg = 5f, RollDeg = 6f, Freq = 9f, Damp = 5.5f;
         Transform rack; Vector3 lastPos; Quaternion lastRot; bool wrote;
@@ -25,6 +25,7 @@ namespace OpenZ
         void Fire(Vector3 from, Vector3 to)
         {
             if (!rack) foreach (var t in GetComponentsInChildren<Transform>(true)) if (t.name == "MLRS_rack") { rack = t; break; }
+            ModelSizes();                                                                             // 1.2 v2 units: v1's kick, or the MLRS v2 launcher's (View/MlrsSideKick.Model.cs)
             if (!motion) motion = GetComponentInChildren<VehicleMotion>();
             float side = 0f;
             if (rack) side = Mathf.Sign(Vector3.Dot(from - rack.position, rack.right)); if (side == 0f) side = 1f;
@@ -47,8 +48,8 @@ namespace OpenZ
             if (wrote && basePos == lastPos && baseRot == lastRot) { basePos = restPos; baseRot = restRot; }
             restPos = basePos; restRot = baseRot;
             float k = Mathf.Clamp(kx, -0.3f, 1.2f), r = Mathf.Clamp(rx, -1.2f, 1.2f);
-            rack.localPosition = basePos + baseRot * (Vector3.forward * BackM * k);
-            rack.localRotation = baseRot * Quaternion.Euler(UpDeg * k, 0f, -RollDeg * r);
+            rack.localPosition = basePos + baseRot * (Vector3.forward * backM * k);                // 1.2 v2 units: the model's own slide back (v1 BackM, v2 none)
+            rack.localRotation = baseRot * Quaternion.Euler(UpDeg * k, 0f, -rollDeg * r);          // 1.2 v2 units: the model's own roll (v1 RollDeg, v2 2.5 deg)
             lastPos = rack.localPosition; lastRot = rack.localRotation; wrote = true;
         }
         Vector3 restPos; Quaternion restRot;

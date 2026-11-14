@@ -212,7 +212,7 @@ namespace OpenZ
             Log($"after the boarding: pilot {s.Drivers.Count} ({s.DriverType}), passengers {s.Passengers.Count} of {n}, the ship {s.Owner}, lights mode {(look && look.Lights ? look.Lights.Mode : -1)}, neon team {(look && look.Lights ? look.Lights.NeonTeam.ToString() : "-")}; line '{line}'");
             Check("P3 the squad of 3 boards up the ramp: the leader the pilot, 2 passengers, the ship the squad's team", s.Drivers.Count == 1 && s.Passengers.Count == n - 1 && s.Owner == me);
             Check("P3 the ship is lit in the team's colours once they sit", look && !look.IsDark && look.Lights && look.Lights.Mode == 0 && look.Lights.NeonTeam == TeamColors.Shown(me));
-            Check("P3 the unit panel's line: the pilot and the passengers", line.StartsWith("PILOT") && line.Contains("PASSENGERS"));
+            Check("P3 the unit panel's line: the pilot stays in, the passengers aboard (1.2 item 2)", line.StartsWith("PILOT STAYS IN") && line.Contains(" ABOARD"));
         }
 
         // ------------------------------------------------------------------ P4: landed: the EXIT button and cursor

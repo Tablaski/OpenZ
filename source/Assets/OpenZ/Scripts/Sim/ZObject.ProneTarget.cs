@@ -138,7 +138,7 @@ namespace OpenZ.Sim
                 s = (uint)(seed * 747796405 + 2891336453u) | 1u;
             }
             float u = 0f;
-            for (int i = 0; i < 3; i++) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; u = (s & 0xFFFFFF) / 16777216f; }
+            for (int i = 0; i < 3; i++) { s ^= s << 13; s ^= s >> 17; s ^= s << 5; u = (float)((s & 0xFFFFFF) / 16777216f); }
             if (range01 >= ZWorld.StanceLongRange) return u < 0.35f ? ZStance.Prone : u < 0.78f ? ZStance.Kneel : ZStance.Stand;
             return u < 0.40f ? ZStance.Kneel : ZStance.Stand;
         }
@@ -148,7 +148,7 @@ namespace OpenZ.Sim
         bool IsFlameGun => (IsRobot && Type == "pyro") || (Kind == ZKind.Vehicle && Type == "apc" && CrewWeaponType == "pyro");
 
         /// <summary>A flat-firing shell gun (aimed straight at its target): the light, medium and heavy tank, the gun.</summary>
-        bool FlatShellGun => (Kind == ZKind.Vehicle && (Type == "light" || Type == "medium" || Type == "heavy")) || (Kind == ZKind.Cannon && Type == "gun");
+        bool FlatShellGun => (Kind == ZKind.Vehicle && (Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy")) || (Kind == ZKind.Cannon && Type == "gun");   // DV145 the medium tank (Sim/ZMTank.cs)
 
         static bool CoveredSniper(ZObject t) => t != null && t.Kind == ZKind.Robot && t.Type == "sniper";
 

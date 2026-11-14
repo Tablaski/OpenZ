@@ -57,6 +57,8 @@ namespace OpenZ
             public Vector3 sideW, pbl, rbl;
             public readonly List<(Transform t, Vector3 lp)> rams = new List<(Transform, Vector3)>();
             public readonly List<string> ramOn = new List<string>();
+            public NeckRead neck; public OzMeshSlice.Part neckPart;                                     // the hydraulic neck (OzFortGunBreakup.Neck.cs)
+            public float lidSplitY = float.NaN;                                                         // the lid plate on the ring mesh (FortGunView.RingLid), read on the main thread
             public readonly List<(Def d, OzMeshSlice.Part p, string mesh, Vector3[] pts)> cuts = new List<(Def, OzMeshSlice.Part, string, Vector3[])>();
             public readonly List<Def> wholes = new List<Def>();
             public readonly ManualResetEventSlim done = new ManualResetEventSlim(false), baked = new ManualResetEventSlim(false);
@@ -92,6 +94,7 @@ namespace OpenZ
             if (c.hasPitch) { c.next = Phase.Read; yield return true; c.cur = Phase.Read; c.pitchPart = OzMeshSlice.FromMesh(c.pitchMesh); }
             if (c.hasBarrel && c.fracture && c.splitBarrel) { c.next = Phase.Read; yield return true; c.cur = Phase.Read; c.barrelPart = OzMeshSlice.FromMesh(c.barrelMesh); }
             if (c.hasRing) { c.next = Phase.Read; yield return true; c.cur = Phase.Read; c.ringPart = OzMeshSlice.FromMesh(c.ringMesh); }
+            if (c.neck != null) { c.next = Phase.Read; yield return true; c.cur = Phase.Read; c.neckPart = OzMeshSlice.FromMesh(c.neck.baseMesh); }
             c.next = Phase.Wait; yield return true;
             c.cur = Phase.Wait;
             ThreadPool.QueueUserWorkItem(_ => Work(c));
@@ -117,7 +120,8 @@ namespace OpenZ
                 d.tris = tris;
             }
             for (int i = 0; i < c.rams.Count && i < c.ramOn.Count; i++) plan.extras[c.rams[i].t] = c.ramOn[i];
-            c.headPart = c.pitchPart = c.barrelPart = c.ringPart = null; c.cuts.Clear();                // the cut parts are not needed any more
+            if (c.neck != null && c.neck.collarT) plan.extras[c.neck.collarT] = "head";
+            c.headPart = c.pitchPart = c.barrelPart = c.ringPart = c.neckPart = null; c.cuts.Clear();   // the cut parts are not needed any more
             // (Physics.BakeMesh may run on any thread; nothing changes these meshes meanwhile), else one per step on the main thread
             if (BakeOnWorker)
             {
@@ -204,6 +208,8 @@ namespace OpenZ
                 c.ringMesh = ringMf.sharedMesh; c.ringName = c.ringMesh.name;
                 foreach (Transform ch in yaw) if (ch.name.StartsWith("FortGunRam_")) c.rams.Add((ch, ch.localPosition));
             }
+            c.neck = ReadNeck(yaw);
+            if (c.hasRing && FortGunView.RingLid(c.ringMesh, out float lidAt)) c.lidSplitY = lidAt;
         }
 
         static void Work(Cutter c)
@@ -382,6 +388,7 @@ namespace OpenZ
                 if (rp == null) WholeW(c, "ring", "ring", c.yaw, c.ringMesh, Vector3.zero);
                 else
                 {
+                    if (!float.IsNaN(c.lidSplitY)) rp = TakeLid(rp, c.lidSplitY, toRing);                          // the lid plate joins after the closing, as PrepareSteps
                     var isl = OzMeshSlice.Islands(rp); var ring = isl[0];
                     for (int i = 1; i < isl.Count; i++) OzMeshSlice.Merge(ring, isl[i]);
                     var rbx = ring.Box(); float th = R(0f, Mathf.PI * 2f);
@@ -410,6 +417,20 @@ namespace OpenZ
                     }
                     sb.Append($"ring: broken edge {(cb != null ? "2 chunks" : ca != null ? "1 chunk" : "none")}; ");
                 }
+            }
+            // --- the hydraulic neck, as PrepareSteps
+            if (c.neck != null)
+            {
+                var nk = c.neck; var np = c.neckPart;
+                if (np == null) WholeW(c, "neck", "part", nk.baseT, nk.baseMesh, Vector3.zero);
+                else
+                {
+                    NeckCuts(np, seed, nk.sc, out var na, out var nb, out var nn);
+                    if (na != null) CutW(c, "neck_a", "part", nk.baseT, nk.baseName, na, nn);
+                    CutW(c, "neck_b", "part", nk.baseT, nk.baseName, nb, Vector3.zero);
+                    sb.Append(NeckText(nk, na != null));
+                }
+                foreach (var (wn, wt, wm) in nk.wholes) WholeW(c, wn, "part", wt, wm, Vector3.zero);
             }
             plan.text = sb.ToString() + (rnd3 != null ? "fracture look: " + OzFractureCut.State + "; " : "");
         }

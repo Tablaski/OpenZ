@@ -122,7 +122,7 @@ namespace OpenZ
             else
             {
                 var o = r.units[0];
-                gx = o.CenterX; gy = o.CenterY; range = o.AttackRadius; direct = o.LosActive; ex = w.Sight.ExemptOf(o); guns = r.units.Count;
+                gx = o.CenterX; gy = o.CenterY; range = o.RingRadius; direct = o.LosActive; ex = w.Sight.ExemptOf(o); guns = r.units.Count;
             }
             double ringX = r.center.x * 8.0, ringY = -r.center.z * 8.0;                                         // the drawn ring's centre (a tower gun's pad)
             bool changed = b.world != w || gx != b.gx || gy != b.gy || range != b.range || direct != b.direct || ex != b.ex || guns != b.guns
@@ -144,7 +144,7 @@ namespace OpenZ
                     var o = r.units[i]; if (o == null || o.Destroyed || o.Kind != ZKind.Cannon) continue;
                     OzBlindSectorsCore oc;
                     if (spareCores.Count > 0) { oc = spareCores[spareCores.Count - 1]; spareCores.RemoveAt(spareCores.Count - 1); } else oc = new OzBlindSectorsCore();
-                    oc.Compute(w, o.CenterX, o.CenterY, o.AttackRadius, o.LosActive, w.Sight.ExemptOf(o), ringX, ringY);
+                    oc.Compute(w, o.CenterX, o.CenterY, o.RingRadius, o.LosActive, w.Sight.ExemptOf(o), ringX, ringY);
                     b.others.Add(oc);
                 }
                 sig = b.core.Signature(w);
@@ -359,7 +359,7 @@ namespace OpenZ
             foreach (var o in w.Objects)
             {
                 if (o.Kind != ZKind.Cannon || o.Destroyed) continue;
-                int range = o.AttackRadius > 0 ? o.AttackRadius : OzGunRange.RadiusPx(w, o.Type);
+                int range = o.AttackRadius > 0 ? o.RingRadius : OzGunRange.RadiusPx(w, o.Type);
                 if (range <= 0) continue;
                 guns++;
                 bool direct = o.AttackRadius > 0 ? o.LosActive : OzBlindSectorsCore.DirectFireType(o.Type);

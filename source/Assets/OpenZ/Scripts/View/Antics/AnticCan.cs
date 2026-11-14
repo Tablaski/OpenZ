@@ -15,7 +15,7 @@ namespace OpenZ
         /// <summary>Release velocity in the robot frame (m/s at authored scale): x = to the robot's LEFT, y = up, z = forward.</summary>
         public static Vector3 TossVel = new Vector3(1.6f, 2.4f, 2.2f);
         public static float DisposeAfter = 15f, Radius = 0.072f, HalfHeight = 0.013f, ClatterMin = 0.55f, ClatterGap = 0.08f;
-        public const int MaxLive = 8;
+        public static int MaxLive = 8;                                                             // k75c3: raised while a flyover's hold has many robots drinking (AnticDirector.FlyoverCanCap), 8 in play
         public static int Thrown, Clatters, Disposed, Sunk;
         public float clatterGain = 1f;                                                             // K248b: this piece's clatter gain (1 = a can; a headshot's head louder, UnitView.HeadPop.cs)
         public static readonly List<string> Log = new List<string>();
@@ -65,7 +65,7 @@ namespace OpenZ
                 cap.direction = 1; cap.radius = Radius / Mathf.Max(1e-3f, s) * k; cap.height = Mathf.Max(cap.radius * 2.05f, (HalfHeight * 2f + Radius * 2f) / Mathf.Max(1e-3f, s) * k);
                 cap.center = Vector3.zero; cap.sharedMaterial = Tin;
             }
-            var body = go.AddComponent<Rigidbody>();
+            var body = go.AddComponent<Rigidbody>(); OzDebrisBodies.Add(body);
             body.mass = 0.25f; body.linearDamping = 0.05f; body.angularDamping = 0.25f; body.maxAngularVelocity = 30f;
             body.interpolation = RigidbodyInterpolation.Interpolate; body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             body.linearVelocity = v;
@@ -96,9 +96,10 @@ namespace OpenZ
                 {   // into the water: splash, then it sinks away (a can never floats or rests in water)
                     wet = true; wetAt = age;
                     if (WreckFx.OnScreen(p)) { fxp.Splash(new Vector3(p.x, wy, p.z), 0.3f); fxp.Ripple(new Vector3(p.x, wy, p.z), 0.4f); }
-                    AnticFx.Sound("dst_debris_splash", p, id, 0.45f);
+                    AnticFx.Sound(OzLavaMelt.Live && OzLava.SurfaceAt(p, out _) ? OzLava.SndPopSmall : "dst_debris_splash", p, id, 0.45f);   // level 7, kit LV5: the small piece's sound of OzWaterLanding.Fire on lava
                     if (rb) { rb.linearDamping = 5f; rb.angularDamping = 5f; }
                     Note("splash");
+                    if (OzLavaMelt.Take(transform, rb ? rb.linearVelocity.magnitude : 0f, OzMeltEnd.Destroy, "can")) { popping = true; live.Remove(this); return; }   // level 7, kit LV5
                 }
             }
             if (wet)

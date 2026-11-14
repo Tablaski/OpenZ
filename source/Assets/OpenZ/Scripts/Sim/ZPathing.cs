@@ -78,8 +78,8 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ classification
         public static bool Separable(ZObject o) => o != null && o.IsUnit && !o.ShuttleAirborne && !o.Destroyed && o.KillAt < 0 && !o.IsFortDefender;   // fort_defender_v1 DV41: on the roof, never in the ground traffic
         /// <summary>Never moves: cannons, empty (neutral) vehicles, units without speed.</summary>
-        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || o.IsShuttle || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
-        public static int Radius(ZObject o) => o.Kind == ZKind.Robot ? (o.Type == "tough" || o.Type == ZElectro.Type ? ToughRadius : RobotRadius) : o.Kind == ZKind.Vehicle ? VehicleRadiusOf(o.Type) : CannonRadius;   // electrobot_v1: Tough radius
+        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || o.IsShuttle || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned || o.EvilDashing;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
+        public static int Radius(ZObject o) => o.IsEvilZod ? ZEvilZod.BodyRadius : o.Kind == ZKind.Robot ? (o.Type == "tough" || o.Type == ZElectro.Type ? ToughRadius : RobotRadius) : o.Kind == ZKind.Vehicle ? VehicleRadiusOf(o.Type) : CannonRadius;   // electrobot_v1: Tough radius
 
         /// <summary>
         /// (crane and APC trucks ~7 m, heavy tank ~6 m), so bigger chassis keep more room. OpenZ spacing only (Zod has no unit
@@ -87,7 +87,7 @@ namespace OpenZ.Sim
         public static bool ChassisRadii = true;   // false = one 16 px radius for every vehicle (A/B for the stress test)
         public static int VehicleRadiusOf(string type) => !ChassisRadii ? VehicleRadius : type switch
         {
-            "crane" => 22, "apc" => 21, ZWorld.ShuttleType => ZWorld.ShuttleRadiusPx, "heavy" => 20, "missile_launcher" => 19, "medium" => 18, "light" => 17, _ => VehicleRadius,
+            "crane" => 22, "apc" => 21, ZWorld.ShuttleType => ZWorld.ShuttleRadiusPx, "heavy" => 20, "missile_launcher" => 19, "medium" => 18, ZMTank.Type => 18, "light" => 17, _ => VehicleRadius,   // DV145: the medium tank keeps the mech's room (its tracks 4.3 m, between the light tank's and the heavy's)
         };
         /// <summary>Minimum centre distance of two units (robots 12 px = 1.5 m, robot-vehicle 22 px, vehicles 32 px).</summary>
         public static int MinSpacing(ZObject a, ZObject b) => Radius(a) + Radius(b);
@@ -102,6 +102,7 @@ namespace OpenZ.Sim
         /// <summary>Pairs allowed to overlap: a robot boarding its vehicle / cannon, Zod's scripted building moves, and the members
         /// of a squad just built, while they all still walk out of the factory door (Zod creates them on one pixel).</summary>
         public static bool PairExempt(ZObject a, ZObject b) =>
+            (a.EvilDashing || b.EvilDashing) ? true :                                                        // DV161: the power dash is out of the traffic: nobody pushes him, he pushes nobody (Sim/ZEvilZod.cs)
             (a.IsShuttle || b.IsShuttle) ? ZWorld.ShuttlePairExempt(a, b) :                                  // K256e (DV118): the landed shuttle is a hard obstacle: only a unit in a building's door stage passes (Sim/ZWorld.ShuttleGround.cs)
             a.PathInBuildingStage || b.PathInBuildingStage || a.FortRushOn || b.FortRushOn || Boards(a, b) || Boards(b, a) ||   // boarding_nb_v1 DV34: through the fort door
             (SameSquad(a, b) && a.PathMode == WpMode.ForceMove && b.PathMode == WpMode.ForceMove) ||   // a fresh squad walking out of its factory door
@@ -271,6 +272,7 @@ namespace OpenZ.Sim
             {
                 s.Remember(refId, W.Time + UnreachableMemory);
                 s.giveUp = true; o.PathHoldForGiveUp();
+                s.lastReason = $"goal ({tx},{ty}) unreachable ({mode})";                     // 1.3 item 29: the give-up names its reason (LastOrderEnd, the order watch)
                 Log(o, $"goal ({tx},{ty}) unreachable ({mode}): give up");
                 return false;
             }

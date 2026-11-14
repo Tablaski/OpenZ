@@ -29,10 +29,10 @@ namespace OpenZ
         public int Dropped { get; private set; }
 
         [StructLayout(LayoutKind.Sequential)]
-        struct Vert { public Vector3 pos; public Vector4 d0, d1, d2; }   // d0 corner.xy scale rot, d1 frame alpha floorY lifeT, d2 seed boost soft 0
+        struct Vert { public Vector3 pos; public Vector4 d0, d1, d2; }   // d0 corner.xy scale rot, d1 frame alpha floorY lifeT, d2 seed boost soft over
 
         readonly Vector3[] pos, vel, anchorLocal, anchorAt, origin;
-        readonly float[] age, life, rot, rotV, baseScale, floor0, floor1, seed, boost, soft, splash;
+        readonly float[] age, life, rot, rotV, baseScale, floor0, floor1, seed, boost, soft, splash, over;   // over: shots_over_walls, 1 = this sprite draws over a wall
         /// <summary>
         /// Per jet sprite the arc height
         /// h (m) over its straight stream (ShotClearance.ArcHeight), its horizontal share of the speed and the lift already applied: the sprite
@@ -49,7 +49,7 @@ namespace OpenZ
         {
             Capacity = capacity;
             pos = new Vector3[capacity]; vel = new Vector3[capacity]; anchorLocal = new Vector3[capacity]; anchorAt = new Vector3[capacity]; origin = new Vector3[capacity];
-            splash = new float[capacity];
+            splash = new float[capacity]; over = new float[capacity];
             arcH = new float[capacity]; arcHf = new float[capacity]; arcNow = new float[capacity];
             age = new float[capacity]; life = new float[capacity]; rot = new float[capacity]; rotV = new float[capacity]; baseScale = new float[capacity];
             floor0 = new float[capacity]; floor1 = new float[capacity]; seed = new float[capacity]; boost = new float[capacity]; soft = new float[capacity];
@@ -83,7 +83,7 @@ namespace OpenZ
         /// jet's own churn (+-1.6 rad/s).</summary>
         public bool Spawn(Vector3 p, Vector3 v, float lifeS, float scale, float floorStart, float floorEnd, float hdrBoost = 0f,
                           float spin = -1f, float softness = 0f, Transform anchorT = null, float rnd0 = -1f, float rnd1 = -1f, float rnd2 = -1f,
-                          float splashDist = 0f, float arc = 0f)
+                          float splashDist = 0f, float arc = 0f, bool overWall = false)
         {
             if (Count >= Capacity) { Dropped++; return false; }
             int i = Count++;
@@ -94,7 +94,7 @@ namespace OpenZ
             rotV[i] = ((rnd1 >= 0f ? rnd1 : Random.value) - 0.5f) * (spin < 0f ? 3.2f : spin);
             baseScale[i] = scale; floor0[i] = floorStart; floor1[i] = floorEnd;
             seed[i] = rnd2 >= 0f ? rnd2 : Random.value; boost[i] = hdrBoost; soft[i] = softness;
-            origin[i] = p; splash[i] = splashDist;
+            origin[i] = p; splash[i] = splashDist; over[i] = overWall ? 1f : 0f;
             arcH[i] = splashDist > 0f ? Mathf.Max(0f, arc) : 0f; arcNow[i] = 0f;
             float vm = v.magnitude; arcHf[i] = vm > 1e-4f ? Mathf.Sqrt(v.x * v.x + v.z * v.z) / vm : 1f;
             return true;
@@ -154,7 +154,7 @@ namespace OpenZ
                 pos[write] = p; vel[write] = v; age[write] = a; life[write] = life[i];
                 rot[write] = rot[i] + rotV[i] * dt; rotV[write] = rotV[i]; baseScale[write] = baseScale[i];
                 floor0[write] = f0; floor1[write] = f1; seed[write] = seed[i]; boost[write] = boost[i]; soft[write] = soft[i];
-                origin[write] = origin[i]; splash[write] = sp;
+                origin[write] = origin[i]; splash[write] = sp; over[write] = over[i];
                 arcH[write] = ah; arcHf[write] = arcHf[i]; arcNow[write] = arcN;
                 // vertex data
                 float scale = baseScale[write] * (0.55f + t * 2.9f);                  // GROWS like the demo
@@ -162,7 +162,7 @@ namespace OpenZ
                 float alpha = (t < 0.07f ? t / 0.07f : 1f) * (sticky ? 1f - t * t : 1f - SmoothStep(0.82f, 1f, t)) * 0.95f;
                 var d0z = new Vector4(0f, 0f, scale, rot[write]);
                 var d1 = new Vector4(frame, alpha, fl, t);
-                var d2 = new Vector4(seed[write], boost[write], soft[write], 0f);
+                var d2 = new Vector4(seed[write], boost[write], soft[write], over[write]);
                 int vb = write * 4;
                 for (int c = 0; c < 4; c++)
                 {

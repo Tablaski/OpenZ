@@ -432,6 +432,7 @@ namespace OpenZ
             if (cam && !wide)
             {
                 var vp = cam.WorldToViewportPoint(pos);
+                if (OzFpsView.Own(pos)) vp = new Vector3(0.5f, 0.5f, 1f);   // 1.4 fps_view: the viewed unit's own sound is in view (View/OzFpsView.cs); false while the view is off
                 if (vp.z < 0 || vp.x < -0.35f || vp.x > 1.35f || vp.y < -0.35f || vp.y > 1.35f)            // Zod: only sounds in view ...
                 {   // ... audio_v2: off-screen combat is quieter and muffled, not gone (the distant-battle rule)
                     var kb = Info(key).bus;
@@ -457,8 +458,8 @@ namespace OpenZ
             }
             last[(key, emitter)] = Time.time;
             var ki = Info(key);
-            float g = vol * volume * BusGain(ki.bus) * LevelTrim(clip.name) * (KeyGain.TryGetValue(key, out var kg) ? kg : 1f) * OzMixTrim.CaLin(key);
-            if (TakeGain.TryGetValue(clip.name, out var tg)) g *= tg;
+            float g = vol * volume * BusGain(ki.bus) * LevelTrim(OzGcCache.NameOf(clip)) * (KeyGain.TryGetValue(key, out var kg) ? kg : 1f) * OzMixTrim.CaLin(key);
+            if (TakeGain.TryGetValue(OzGcCache.NameOf(clip), out var tg)) g *= tg;
             if (distant) g *= Mathf.Pow(10f, distantDb / 20f);
             if (ki.bus == Bus.Explosions)
             {   // many blasts at once: 1/sqrt(n) (the M12 busy-shake rule), on top of the master compressor
@@ -476,7 +477,8 @@ namespace OpenZ
             src.baseVol = g; src.key = key; src.start = Time.time; src.prio = distant ? 0 : ki.prio; src.bus = ki.bus; src.prof = ki.prof;
             src.s.volume = g * ZoomGain * DuckOf(ki.bus);
             src.s.Play();
-            OzSoundLog.Add("CA", key, clip.name, (distant ? "PLAY distant " : "PLAY ") + ki.bus, src.s.volume, at);
+            if (ki.bus == Bus.Weapons || key == "tankshot" || key == "heavyshot") OzVehicleQuiet.Heard(emitter);                                   // vehicle_exit_jump fix round 1, proof only: a weapon voice (fix round 2: or a tank gun's launch) heard for this unit (View/OzVehicleQuiet.cs)
+            OzSoundLog.Add("CA", key, OzGcCache.NameOf(clip), OzGcCache.PlayNote(distant, ki.bus), src.s.volume, at);   // 1.4 speed-up 2 (perf_garbage): the same log text, made once
             lastSrc = src;
             Played++; PlayCounts[key] = PlayCounts.TryGetValue(key, out var c) ? c + 1 : 1;
         }
@@ -493,6 +495,25 @@ namespace OpenZ
             if (src == null || src.distant || !src.s.clip) return;
             if (startAt > 0f && startAt < src.s.clip.length - 0.1f) src.s.time = startAt;
             StartCoroutine(Along(src, src.start, key, from, to, Mathf.Max(0.05f, seconds), gravity));
+        }
+        /// <summary>The sound just played fades by its own clip time: full up to `from` s, smooth to silent at `to` s, then that source stops.
+        /// It works on the source's base volume, which the next Play of that pooled source sets anew.</summary>
+        public void FadeLastByClipTime(float from, float to)
+        {
+            var src = lastSrc; lastSrc = null;
+            if (src == null || !src.s.clip) return;
+            StartCoroutine(FadeByClip(src, src.s.clip, src.start, src.key, from, to));
+        }
+        System.Collections.IEnumerator FadeByClip(Src src, AudioClip clip, float start0, string key, float from, float to)
+        {
+            float vol0 = src.baseVol;
+            while (src.s.isPlaying && src.s.clip == clip && src.key == key && Mathf.Approximately(src.start, start0))   // stolen / restarted: let go
+            {
+                float f = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(from, to, src.s.time));
+                if (f <= 0f) { src.s.Stop(); src.baseVol = vol0; yield break; }
+                src.baseVol = vol0 * f;
+                yield return null;
+            }
         }
         System.Collections.IEnumerator Along(Src src, float start0, string key, Vector3 from, Vector3 to, float seconds, float gravity)
         {

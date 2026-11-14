@@ -23,6 +23,7 @@ namespace OpenZ.EditorTools
             ("M_CliffV3_Dunes_L02", "cliffv3_dunes_L02_albedo", false), ("M_CliffV3_Rock_L17", "cliffv3_rock_L17_albedo", true),
             ("M_CliffV3_Top_L17", "cliffv3_top_L17_albedo", true), ("M_CliffV3_Concrete_L17", "cliffv3_concrete_L17_albedo", true),
             ("M_CliffV3_Facade_L17", "cliffv3_facade_L17_albedo", true), ("M_CliffV3_Ground_L17", "cliffv3_concrete_L17_albedo", false),
+            ("M_CliffV3_Rock_L07", "cliffv3_rock_L07_albedo", true), ("M_CliffV3_Top_L07", "cliffv3_top_L07_albedo", true), ("M_CliffV3_Ash_L07", "cliffv3_ash_L07_albedo", false),
         };
 
         [MenuItem("OpenZ/Cliffs v3/1 Import (importers + materials)")]
@@ -40,7 +41,7 @@ namespace OpenZ.EditorTools
             }
             var mats = new Dictionary<string, Material>();
             foreach (var (name, tex, flat) in Mats) mats[name] = Mat(name, tex, flat);
-            foreach (var extra in new[] { "M_L02_Ground", "M_L17_Ground", "M_Water_Harbour" })
+            foreach (var extra in new[] { "M_L02_Ground", "M_L07_Ground", "M_L17_Ground", "M_Water_Harbour" })
             {
                 var m = AssetDatabase.LoadAssetAtPath<Material>($"{MatDir}/{extra}.mat"); if (m) mats[extra] = m;
             }
@@ -89,7 +90,7 @@ namespace OpenZ.EditorTools
         public static string Place()
         {
             var scene = EditorSceneManager.GetActiveScene();
-            string lv = scene.name.StartsWith("L17") ? "L17" : "L02";
+            string lv = scene.name.StartsWith("L17") ? "L17" : scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
             var env = GameObject.Find("Environment"); if (!env) return "no Environment";
             if (env.transform.Find("CliffsV3")) return lv + ": already placed";
             var log = new List<string>();

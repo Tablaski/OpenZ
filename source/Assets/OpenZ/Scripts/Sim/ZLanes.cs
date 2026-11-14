@@ -174,15 +174,7 @@ namespace OpenZ.Sim
             double hw = a.WidthPix * 0.5 - 1, hh = a.HeightPix * 0.5 - 1;
             // Liang-Barsky against the corridor grown by the unit's half size
             double rx0 = L.X0 - hw, rx1 = L.X1 + hw, ry0 = L.Y0 - hh, ry1 = L.Y1 + hh, t0 = 0, t1 = 1, dx = x1 - x0, dy = y1 - y0;
-            double[] p = { -dx, dx, -dy, dy }, q = { x0 - rx0, rx1 - x0, y0 - ry0, ry1 - y0 };
-            for (int i = 0; i < 4; i++)
-            {
-                if (Math.Abs(p[i]) < 1e-12) { if (q[i] < 0) return false; continue; }
-                double t = q[i] / p[i];
-                if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
-                else { if (t < t0) return false; if (t < t1) t1 = t; }
-            }
-            return true;
+            return ClipEdge(-dx, x0 - rx0, ref t0, ref t1) && ClipEdge(dx, rx1 - x0, ref t0, ref t1) && ClipEdge(-dy, y0 - ry0, ref t0, ref t1) && ClipEdge(dy, ry1 - y0, ref t0, ref t1);   // 1.4 speed-up 2 (perf_garbage): the same clip, edge by edge, no arrays (Sim/ZPathing.NoGarbage.cs)
         }
 
         /// <summary>Direction a unit in or near a lane travels along it, read from its path (the first path point beyond the zone

@@ -17,16 +17,22 @@ namespace OpenZ.EditorTools
     ///   OpenZ/Mac experimental/1 Switch the editor to macOS       (the first switch imports the project again for the Mac target)
     ///   OpenZ/Mac experimental/2 Build the Mac test app            (once per editor session, behind a SessionState guard)
     ///   OpenZ/Mac experimental/3 Switch the editor back to Windows
-    ///  * target macOS, Intel 64-bit only, Mono, non-development; the same scenes, scripting define, company name, version tag and
-    ///    player settings as the Windows release build, for this build only (restored afterwards). The Intel build also runs on
-    ///    Macs with an Apple chip through the system's own translation; an unsigned Apple-chip binary would not start there;
+    ///    target macOS UNIVERSAL (Intel 64-bit + Apple chip in one app, Unity's x64ARM64 player), Mono, non-development, so both kinds
+    ///    of Mac run it natively; the same scenes, scripting define, company name, version tag and player settings as the Windows
+    ///    release build, for this build only (restored afterwards). Unity's own Mac build step gives every program file an ad-hoc
+    ///    signature on Windows too (MacOSCodeSigning; the 1.2 files carry one: CodeDirectory flags 0x2), one per processor slice,
+    ///    which is all an Apple-chip program needs to start; after the post-build edits the chain seals them again (mac_reseal_1_3.py).
+    ///    The fallback items build Apple chip only (beside an Intel set, never instead of a working one) or Intel only (the 1.2 build).
+    ///    1.2 and older: Intel 64-bit only (AskForIntel64); the Apple-chip Macs ran it through Rosetta 2;
     ///  * the Mac build module is used without a compile-time reference (its architecture setting is found by name), so this file
     ///    also compiles in an editor that has no Mac module installed;
-    ///  * output: release\OpenZ_&lt;tag&gt;_mac_EXPERIMENTAL\OpenZ.app, and NEXT to that folder the build record
-    ///    OpenZ_&lt;tag&gt;_mac_EXPERIMENTAL_BUILD_INFO.txt. The header of the built executable is read back: the record names its
-    ///    processor type, and the build counts as not usable when that is not Intel 64-bit only;
+    ///  * output: release\OpenZ_&lt;tag&gt;_mac_EXPERIMENTAL\OpenZ.app (Apple chip only: _mac_applechip_EXPERIMENTAL), and NEXT to that
+    ///    folder the build record OpenZ_&lt;tag&gt;_mac_EXPERIMENTAL_BUILD_INFO.txt. The header of EVERY program file in the app (the
+    ///    executable, Frameworks, PlugIns) is read back: the record names each one's processor types and whether each slice carries a
+    ///    signature, and the build counts as not usable when one of them lacks a processor type the build asked for or a signature;
     ///    that keeps the Unix run permission) is done by the post-build scripts outside the editor.
-    /// The result is unsigned and has never been run on a real Mac: it is handed out as it is, labelled experimental.
+    /// The result is ad-hoc signed only (no Apple certificate) and has never been run on a real Mac: it is handed out as it is,
+    /// labelled experimental, until a player has started it on an Apple-chip Mac.
     /// A heavy job: run it alone (no Play, no render).
     /// </summary>
     public static class OpenZMacExperimentalBuild
@@ -35,7 +41,16 @@ namespace OpenZ.EditorTools
         const string ResultKey = "oz_mac_experimental_build_result";
         const string MacBundleId = "com.OpenZ.OpenZ";
         const string FolderSuffix = "_mac_EXPERIMENTAL";
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L16_Jungle", "L17_CarPark" };
+        /// <summary>1.3 item 13: the processor choice of a build. Universal = the default menu item; AppleChip = the fallback beside an
+        /// Intel set (its own folder); Intel = the 1.2 build.</summary>
+        public enum MacArch { Universal, AppleChip, Intel }
+        /// <summary>The module's own names (UnityEditor.Build.OSArchitecture in this editor's Mac module: x64, ARM64, x64ARM64) and the
+        /// processor types every program file must then carry.</summary>
+        static string ArchName(MacArch a) => a == MacArch.Universal ? "x64ARM64" : a == MacArch.AppleChip ? "ARM64" : "x64";
+        static string ArchWant(MacArch a) => a == MacArch.Universal ? "arm64+x86_64" : a == MacArch.AppleChip ? "arm64" : "x86_64";
+        static string ArchWords(MacArch a) => a == MacArch.Universal ? "Universal (Intel 64-bit + Apple chip)" : a == MacArch.AppleChip ? "Apple chip only (arm64)" : "Intel 64-bit only";
+        static string Suffix(MacArch a) => a == MacArch.AppleChip ? "_mac_applechip_EXPERIMENTAL" : FolderSuffix;
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" };
 
         static string JobRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "../../../.."));
         static bool ModuleSeen => BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneOSX);
@@ -53,8 +68,16 @@ namespace OpenZ.EditorTools
             return Note((ok ? "switched to macOS" : "the switch to macOS was REFUSED") + $" after {(DateTime.Now - t0).TotalMinutes:F1} min; active target now {EditorUserBuildSettings.activeBuildTarget}");
         }
 
-        [MenuItem("OpenZ/Mac experimental/2 Build the Mac test app", false, 61)]
-        public static string BuildMac()
+        [MenuItem("OpenZ/Mac experimental/2 Build the Mac test app (Universal: Intel + Apple chip)", false, 61)]
+        public static string BuildMac() => BuildMac(MacArch.Universal);
+
+        [MenuItem("OpenZ/Mac experimental/2b Fallback: build Apple chip only (beside an Intel set)", false, 63)]
+        public static string BuildMacAppleChip() => BuildMac(MacArch.AppleChip);
+
+        [MenuItem("OpenZ/Mac experimental/2c Fallback: build Intel only (the 1.2 build)", false, 64)]
+        public static string BuildMacIntel() => BuildMac(MacArch.Intel);
+
+        public static string BuildMac(MacArch arch)
         {
             if (SessionState.GetBool(GuardKey, false))
                 return Note("the Mac build was already started in this editor session and is not started twice. Its result: "
@@ -77,7 +100,7 @@ namespace OpenZ.EditorTools
 
             SessionState.SetBool(GuardKey, true);          // from here on a repeated call builds nothing
             string result;
-            try { result = Run(scenes); }
+            try { result = Run(scenes, arch); }
             catch (Exception e) { result = Fail("the Mac build method threw " + e.GetType().Name + ": " + e.Message); }
             SessionState.SetString(ResultKey, result.Length > 1500 ? result.Substring(0, 1500) : result);
             return result;
@@ -109,13 +132,13 @@ namespace OpenZ.EditorTools
             return Note("the guard is cleared: '2 Build the Mac test app' will build once more");
         }
 
-        static string Run(string[] scenes)
+        static string Run(string[] scenes, MacArch want)
         {
             UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes(); AssetDatabase.SaveAssets();
             DateTime now = DateTime.Now;
             string tag = OzVersion.Tag(now);
             string relRoot = Path.Combine(JobRoot, "release");
-            string dir = Path.Combine(relRoot, "OpenZ_" + tag + FolderSuffix);
+            string dir = Path.Combine(relRoot, "OpenZ_" + tag + Suffix(want));
             string record = dir + "_BUILD_INFO.txt";
             Directory.CreateDirectory(relRoot);
             string kept = null;
@@ -137,7 +160,7 @@ namespace OpenZ.EditorTools
             // ---- release settings, for this build only (restored in finally)
             string oldCompany = PlayerSettings.companyName, oldVersion = PlayerSettings.bundleVersion;
             string oldId = PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Standalone);
-            string archNote = AskForIntel64();
+            string archNote = AskForArch(ArchName(want));
 
             var opts = new BuildPlayerOptions
             {
@@ -171,9 +194,22 @@ namespace OpenZ.EditorTools
 
             var s = rep.summary;
             string exe = Path.Combine(dir, "OpenZ.app", "Contents", "MacOS", "OpenZ");
-            string arch = File.Exists(exe) ? MachoProcessor(exe) : "no executable (" + exe + ")";
+            string arch = File.Exists(exe) ? MachoSlices(exe) : "no executable (" + exe + ")";
             bool built = s.result == BuildResult.Succeeded && (s.options & BuildOptions.Development) == 0;
-            bool usable = built && arch == "x86_64";
+            // 1.3 item 13: every program file of the app, its processor types and a signature on every slice
+            var natives = new List<string>(); int bad = 0, files = 0;
+            string app = Path.Combine(dir, "OpenZ.app");
+            if (Directory.Exists(app))
+                foreach (var f in Directory.GetFiles(app, "*", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.Ordinal))
+                {
+                    string slices = MachoSlices(f, out bool signedAll);
+                    if (slices == null) continue;
+                    files++;
+                    bool fine = slices == ArchWant(want) && signedAll;
+                    if (!fine) bad++;
+                    natives.Add($"   {(fine ? "ok  " : "BAD ")} {f.Substring(dir.Length + 1).Replace(Path.DirectorySeparatorChar, '/')}: {slices}, {(signedAll ? "signed (every slice)" : "a slice WITHOUT a signature")}");
+                }
+            bool usable = built && arch == ArchWant(want) && files > 0 && bad == 0;
 
             var info = new StringBuilder();
             info.AppendLine($"OpenZ EXPERIMENTAL Mac build {OzVersion.Display(now)}  (tag {tag})");
@@ -183,8 +219,10 @@ namespace OpenZ.EditorTools
             info.AppendLine($"errors: {s.totalErrors}, warnings: {s.totalWarnings}");
             info.AppendLine($"options: {s.options} (non-development), define {OpenZReleaseBuild.Define}, company {OpenZReleaseBuild.ReleaseCompany}, bundle id {MacBundleId}, bundleVersion {tag} (restored to '{oldCompany}' / '{oldId}' / '{oldVersion}')");
             info.AppendLine("scenes: " + string.Join(", ", scenes.Select(Path.GetFileNameWithoutExtension)));
-            info.AppendLine($"target: {s.platform}, asked for Intel 64-bit ({archNote})");
+            info.AppendLine($"target: {s.platform}, asked for {ArchWords(want)} ({archNote})");
             info.AppendLine("executable header: " + arch);
+            info.AppendLine($"program files: {files}, every one {ArchWant(want)} and signed: {(files > 0 && bad == 0 ? "yes" : "NO (" + bad + " not)")}");
+            foreach (var n in natives) info.AppendLine(n);
             info.AppendLine("output: " + dir);
             if (kept != null) info.AppendLine("older same-day Mac folder kept: " + kept);
             info.AppendLine(BuildMessages(rep));
@@ -193,15 +231,16 @@ namespace OpenZ.EditorTools
             catch (Exception e) { Debug.LogError("[OpenZ Mac] could not write the build record " + record + ": " + e.Message); }
 
             if (!built) return Fail($"build {s.result} ({s.totalErrors} errors), see the console; record {record}");
-            if (!usable) return Fail("the built executable is not Intel 64-bit only (" + arch + "); record " + record);
+            if (!usable) return Fail($"not every program file is {ArchWords(want)} with a signature on every slice (the executable: {arch}; {bad} of {files} files not); record " + record);
             Debug.Log("[OpenZ Mac] " + info);
             return info.ToString();
         }
 
-        /// <summary>Asks the Mac build module for an Intel 64-bit player. The module is not referenced at compile time: its
-        /// setting is looked up by name, and the plain platform setting of the same meaning is written as well. Whether it took
-        /// effect is proven after the build by reading the executable's header.</summary>
-        static string AskForIntel64()
+        /// <summary>Asks the Mac build module for the player of these processors (its own names: x64, ARM64, x64ARM64). The module is
+        /// not referenced at compile time: its setting is looked up by name, and the plain platform setting of the same meaning is
+        /// written as well. Whether it took effect is proven after the build by reading every program file's header. (1.2: Intel only,
+        /// AskForIntel64.)</summary>
+        static string AskForArch(string want)
         {
             var notes = new List<string>();
             try
@@ -213,7 +252,7 @@ namespace OpenZ.EditorTools
                     PropertyInfo p = t.GetProperty("architecture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                     if (p == null || !p.CanWrite || !p.PropertyType.IsEnum) continue;
                     object before = p.GetValue(null, null);
-                    p.SetValue(null, Enum.Parse(p.PropertyType, "x64", true), null);
+                    p.SetValue(null, Enum.Parse(p.PropertyType, want, true), null);
                     notes.Add("module setting " + before + " -> " + p.GetValue(null, null));
                     break;
                 }
@@ -222,12 +261,12 @@ namespace OpenZ.EditorTools
             try
             {
                 string before = EditorUserBuildSettings.GetPlatformSettings("OSXUniversal", "Architecture");
-                if (!string.Equals(before, "x64", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(before, want, StringComparison.OrdinalIgnoreCase))
                 {
-                    EditorUserBuildSettings.SetPlatformSettings("OSXUniversal", "Architecture", "x64");
-                    notes.Add("platform setting '" + before + "' -> 'x64'");
+                    EditorUserBuildSettings.SetPlatformSettings("OSXUniversal", "Architecture", want);
+                    notes.Add("platform setting '" + before + "' -> '" + want + "'");
                 }
-                else notes.Add("platform setting x64");
+                else notes.Add("platform setting " + want);
             }
             catch (Exception e) { notes.Add("platform setting not set: " + e.GetType().Name); }
             return string.Join("; ", notes);
@@ -246,6 +285,68 @@ namespace OpenZ.EditorTools
                 return "not a 64-bit Mach-O file (first bytes 0x" + magic.ToString("X8") + ")";
             }
             catch (Exception e) { return "unreadable: " + e.Message; }
+        }
+
+        /// <summary>1.3 item 13: the processor types of a Mach-O file, sorted and joined with "+" ("x86_64", "arm64", "arm64+x86_64"),
+        /// or null when the file is no 64-bit Mach-O program; signedAll = every slice has a code signature (LC_CODE_SIGNATURE pointing
+        /// at a signature superblob). The one-argument form returns a text for the record.</summary>
+        public static string MachoSlices(string path) => MachoSlices(path, out _) ?? "not a 64-bit Mach-O program";
+        public static string MachoSlices(string path, out bool signedAll)
+        {
+            signedAll = false;
+            try
+            {
+                byte[] b;
+                using (var fs = File.OpenRead(path))
+                {
+                    if (fs.Length < 32) return null;
+                    var h = new byte[4]; if (fs.Read(h, 0, 4) < 4) return null;
+                    uint m = BitConverter.ToUInt32(h, 0);
+                    if (m != 0xFEEDFACF && m != 0xBEBAFECA && m != 0xBFBAFECA) return null;                   // thin 64-bit (little endian) or fat (big endian on disk)
+                    fs.Position = 0; b = new byte[fs.Length]; int got = 0;
+                    while (got < b.Length) { int r = fs.Read(b, got, b.Length - got); if (r <= 0) break; got += r; }
+                }
+                uint magic = BitConverter.ToUInt32(b, 0);
+                var cpus = new List<string>(); bool all = true;
+                if (magic == 0xFEEDFACF) { cpus.Add(Cpu(BitConverter.ToUInt32(b, 4))); all = HasSignature(b, 0); }
+                else
+                {
+                    bool fat64 = magic == 0xBFBAFECA; uint n = BE32(b, 4);
+                    if (n == 0 || n > 8) return null;                                                          // a Java class file starts the same: never 1..8 slices of 64-bit Mach-O
+                    for (int i = 0; i < n; i++)
+                    {
+                        int at = 8 + i * (fat64 ? 32 : 20);
+                        uint cpu = BE32(b, at);
+                        long off = fat64 ? (long)BE64(b, at + 8) : BE32(b, at + 8);
+                        if (off < 0 || off + 32 > b.Length || BitConverter.ToUInt32(b, (int)off) != 0xFEEDFACF) return null;
+                        cpus.Add(Cpu(cpu)); all &= HasSignature(b, (int)off);
+                    }
+                }
+                cpus.Sort(StringComparer.Ordinal);
+                signedAll = all;
+                return string.Join("+", cpus);
+            }
+            catch (Exception) { return null; }
+        }
+        static string Cpu(uint c) => c == 0x01000007 ? "x86_64" : c == 0x0100000C ? "arm64" : "cpu 0x" + c.ToString("X8");
+        static uint BE32(byte[] b, int at) => (uint)(b[at] << 24 | b[at + 1] << 16 | b[at + 2] << 8 | b[at + 3]);
+        static ulong BE64(byte[] b, int at) => (ulong)BE32(b, at) << 32 | BE32(b, at + 4);
+        /// <summary>A thin 64-bit Mach-O image at `at` has an LC_CODE_SIGNATURE load command pointing at a signature superblob.</summary>
+        static bool HasSignature(byte[] b, int at)
+        {
+            uint ncmds = BitConverter.ToUInt32(b, at + 16); int off = at + 32;
+            for (int i = 0; i < ncmds && off + 16 <= b.Length; i++)
+            {
+                uint cmd = BitConverter.ToUInt32(b, off), size = BitConverter.ToUInt32(b, off + 4);
+                if (cmd == 0x1D)
+                {
+                    long so = at + (long)BitConverter.ToUInt32(b, off + 8);
+                    return so + 12 <= b.Length && BE32(b, (int)so) == 0xFADE0CC0;
+                }
+                if (size < 8) return false;
+                off += (int)size;
+            }
+            return false;
         }
 
         /// <summary>The error lines of the build report, and every line that names a shader, for the build record (at most 30).</summary>

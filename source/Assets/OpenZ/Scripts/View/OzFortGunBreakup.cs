@@ -238,6 +238,7 @@ namespace OpenZ
                 if (rp == null) Whole(plan, "ring", "ring", yaw, ringMf.sharedMesh, Vector3.zero);
                 else
                 {
+                    if (FortGunView.RingLid(ringMf.sharedMesh, out float lidSplitY)) rp = TakeLid(rp, lidSplitY, toRing);   // the lid plate (on the ring mesh since the neck kit; welded to it) joins after the closing, as before
                     var isl = OzMeshSlice.Islands(rp); var ring = isl[0];
                     for (int i = 1; i < isl.Count; i++) OzMeshSlice.Merge(ring, isl[i]);
                     var rbx = ring.Box(); float th = R(0f, Mathf.PI * 2f);
@@ -272,6 +273,24 @@ namespace OpenZ
                     }
                     sb.Append($"ring: broken edge {(cb != null ? "2 chunks" : ca != null ? "1 chunk" : "none")}; ");
                 }
+            }
+            // --- the hydraulic neck (FortGunNeck.cs, OzFortGunBreakup.Neck.cs): the trunk breaks at a bend, its four ram sections come loose, the head's collar rides on the head
+            var nk = ReadNeck(yaw);
+            if (nk != null)
+            {
+                var np = OzMeshSlice.FromMesh(nk.baseMesh);
+                yield return true;
+                if (np == null) Whole(plan, "neck", "part", nk.baseT, nk.baseMesh, Vector3.zero);
+                else
+                {
+                    NeckCuts(np, seed, nk.sc, out var na, out var nb, out var nn);
+                    if (na != null) Cut(plan, "neck_a", "part", nk.baseT, nk.baseMesh, na, nn);
+                    Cut(plan, "neck_b", "part", nk.baseT, nk.baseMesh, nb, Vector3.zero);
+                    sb.Append(NeckText(nk, na != null));
+                }
+                foreach (var (wn, wt, wm) in nk.wholes) Whole(plan, wn, "part", wt, wm, Vector3.zero);
+                if (nk.collarT) plan.extras[nk.collarT] = "head";
+                yield return true;
             }
             plan.text = sb.ToString() + (rnd3 != null ? "fracture look: " + OzFractureCut.State + "; " : "");   // item 375
             // the convex colliders, cooked one per step (MeshCollider reuses them on the landing frame)
@@ -606,6 +625,7 @@ namespace OpenZ
             pc.Outward = d.outward.sqrMagnitude > 0f ? d.src.TransformDirection(d.outward).normalized : Vector3.zero;
             pc.StartOutwardY = pc.Outward.y;
             pc.cols.Add(col); pc.vis = vis.transform;
+            pc.SpeedCapBegin();                                                                       // open_fixes_2nov update 1: at most 9 m/s for its first 2 s (OzFortGunBreakup.SpeedCap.cs)
             if (d.kind == "barrel")
             {
                 var mb = d.mesh.bounds; int ax = 0; for (int i = 1; i < 3; i++) if (mb.size[i] > mb.size[ax]) ax = i;
@@ -626,7 +646,10 @@ namespace OpenZ
             var mpb = new MaterialPropertyBlock();
             for (int i = 0; i < mr.sharedMaterials.Length; i++) { mr.GetPropertyBlock(mpb, i); r.SetPropertyBlock(mpb, i); }
             r.shadowCastingMode = ShadowCastingMode.On; r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
-            var cc = go.AddComponent<CapsuleCollider>(); cc.direction = 1; cc.radius = 0.5f; cc.height = 2f; cc.sharedMaterial = Metal();   // the ram's own cylinder
+            Collider cc;
+            if (src.name.StartsWith(FortGunNeck.Prefix)) { var bc = go.AddComponent<BoxCollider>(); var mb = mf.sharedMesh.bounds; bc.center = mb.center; bc.size = mb.size; cc = bc; }   // the neck's head collar: its own box
+            else { var cap = go.AddComponent<CapsuleCollider>(); cap.direction = 1; cap.radius = 0.5f; cap.height = 2f; cc = cap; }   // the ram's own cylinder
+            cc.sharedMaterial = Metal();
             go.transform.SetParent(host.vis ? host.vis : host.transform, true);
             host.cols.Add(cc); RockLayerOn(cc);
         }
@@ -761,9 +784,10 @@ namespace OpenZ
             float dt = g && g.paused ? 0f : Time.deltaTime;
             if (dt <= 0f) return;
             age += dt;
+            if (speedCapOn && age >= PieceSpeedCapSeconds) SpeedCapEnd();                            // open_fixes_2nov update 1
             if (grp != null && grp.pieces.Count > 0 && grp.pieces[0] == this) GroupUpdate();
             if (retiring) { Sinking(dt); return; }
-            if (grp != null && age >= grp.wreckAt) { Retire(); return; }
+            if (grp != null && age >= grp.wreckAt && !SinkWaits()) { Retire(); return; }   // k93, item 154: on camera they wait (View/OzFortGunBreakup.K93.cs)
             if (retryAt >= 0f && age >= retryAt)
             {   // a clank the sound table dropped (two pieces landing together): once more, a moment later
                 retryAt = -1f;

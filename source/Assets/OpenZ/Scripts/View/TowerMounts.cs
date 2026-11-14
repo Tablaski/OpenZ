@@ -330,7 +330,7 @@ namespace OpenZ
             int shown = 0, hidden = 0;
             foreach (var (fort, view, mounts) in forts)
             {
-                bool on = view && view.activeInHierarchy && !fort.Destroyed;
+                bool on = view && view.activeInHierarchy && !FortFallAtGameOver.Fallen(fort);                 // open_fixes_3nov row 77: also a fort the game-over rule drops
                 for (int i = 0; i < mounts.Length; i++)
                 {
                     var m = mounts[i]; if (!m) continue;

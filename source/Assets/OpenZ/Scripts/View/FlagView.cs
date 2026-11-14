@@ -12,7 +12,8 @@ namespace OpenZ
     /// <list type="bullet">
     /// <item>Every zone flag and both fort flags are waving cloth (OpenZ/FlagCloth: GPU vertex wave from the pole to the fly
     /// end, wind from the Atmosphere's global _FogWind, per-flag phase, two-sided soft light) in the owner's colour (Z's brick
-    /// red / royal blue / warm grey-white), on a pole with a brass finial. The cloth flies downwind (all flags agree).</item>
+    /// red / royal blue / warm grey-white), on a pole with a brass finial. The cloth flies across the view, to the side of the pole nearer the wind (all flags
+    /// agree; 1.3, FlagView.Face.cs; it flew downwind before).</item>
     /// <item>
     /// out from the flag in ~1 s, and each linked building flashes in the team colour when the sweep reaches it.</item>
     /// <item>Fort flags wave too (the static flag baked into the imported fort mesh is cut out at run time, the cloth flag
@@ -104,6 +105,7 @@ namespace OpenZ
             public Vector3 blockDir; public float blockCos = 2f;          // fort: never fly into the central turret
             public GameObject fortView; public int lastHealth; public float nextCheck, hitUntil, calmSince = -1, dip;
             public bool nearEnemy; public float nearSince = -1, nextAnnounce, deadT = -1; public Vector2Int fortCentre;
+            public OzFlagFace.State face;                                                       // 1.3: the cloth faces the camera (FlagView.Face.cs)
         }
 
         sealed class ZoneFx
@@ -205,6 +207,7 @@ namespace OpenZ
             foreach (var o in owned) if (o) Destroy(o);
             if (root) Destroy(root.gameObject);
             Shader.SetGlobalVector(FlagWindId, Vector4.zero);
+            Shader.SetGlobalVector(FlagLookId, Vector4.zero);                                    // v1.2 looks off (FlagView.Looks.cs)
         }
 
         static FxManager Fxm() => FxManager.I ? FxManager.I : null;   // Unity-null safe (?. skips the destroyed check)
@@ -245,9 +248,10 @@ namespace OpenZ
                 foreach (var f in flags) if (!f.fort) { f.ring = NewRing(f); EnqueueDrape(f.ring); }
                 foreach (var z in game.World.Zones) if (z.Flag != null) { var zf = GetZone(z); if (zf != null) EnqueueDrape(zf.wash); }
             }
+            LooksStart();                                                                        // v1.2 owner item 5b (FlagView.Looks.cs)
             UpdateWind(0f, Time.time);
             foreach (var f in flags) PoseCloth(f, Time.time);
-            Debug.Log($"[OpenZ] FlagView: {nZone} zone flags, {nFort} fort flags (fort flag cut: {fortCutLog}), fx {(fx ? "on" : "off")}");
+            Debug.Log($"[OpenZ] FlagView: {nZone} zone flags, {nFort} fort flags (fort flag cut: {fortCutLog}), fx {(fx ? "on" : "off")}; {LooksDiagnostics()}");
         }
 
         // ================================================================== flag construction
@@ -259,6 +263,7 @@ namespace OpenZ
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             var f = NewFlag(o, basePos - Vector3.up * 0.05f, zonePole, poleHeight, poleRadius, clothSize, false);
             f.zone = game.World.ZoneOf(o);
+            if (OzVolcanic.Here) OzL07FlagBase.Add(f.root, o.Id);                                // 1.3 level 7: a low stone and soot under the flag (View/OzL07FlagBase.cs)
             return true;
         }
 
@@ -363,7 +368,8 @@ namespace OpenZ
                               Brass = new Color(0.72f, 0.46f, 0.12f, 0f);
 
         /// <summary>Pole (tapering shaft, sunk 15 cm), hoist collar, brass ball finial, optional base collar (fort roof socket).
-        /// uv.x = -1 marks rigid vertices for OpenZ/FlagCloth, uv.y = 1 marks brass; colours are linear.</summary>
+        /// uv.x = -1 marks rigid vertices for OpenZ/FlagCloth, uv.y = 1 marks brass (2 = the finial ball: the v1.2 night lamp,
+        /// FlagView.Looks.cs); uv1 = 0 (a zone flag's own copy carries its lamp there); colours are linear.</summary>
         static Mesh BuildPoleMesh(float height, float radius, float baseR, float baseH)
         {
             var v = new List<Vector3>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var c = new List<Color>(); var t = new List<int>();
@@ -394,7 +400,7 @@ namespace OpenZ
                     for (int i = 0; i <= S; i++)
                     {
                         float a = i * Mathf.PI * 2f / S; var d = new Vector3(Mathf.Cos(a) * s, y, Mathf.Sin(a) * s);
-                        v.Add(ctr + d * r); n.Add(d); uv.Add(new Vector2(-1, 1)); c.Add(col);
+                        v.Add(ctr + d * r); n.Add(d); uv.Add(new Vector2(-1, 2)); c.Add(col);
                     }
                 }
                 for (int j = 0; j < LA; j++)
@@ -411,6 +417,7 @@ namespace OpenZ
             if (baseR > 0) Ring(-0.1f, baseH, baseR, baseR * 0.85f, PoleDark, 0, true);                // roof collar
             var m = new Mesh { name = "FlagPole" };
             m.SetVertices(v); m.SetNormals(n); m.SetUVs(0, uv); m.SetColors(c); m.SetTriangles(t, 0); m.RecalculateBounds();
+            m.SetUVs(1, new Vector4[v.Count]);                                                    // no lamp (FlagView.Looks.cs)
             return m;
         }
 
@@ -629,6 +636,7 @@ namespace OpenZ
                 PoseCloth(f, now);
                 if (f.ring != null && f.ringT0 >= 0) UpdateRing(f, now);
             }
+            LooksFrame(now, dt);                                                                 // v1.2 owner item 5b (FlagView.Looks.cs)
             for (int i = 0; i < zones.Count; i++) if (zones[i].t0 >= 0) UpdateZoneFx(zones[i], now);
             for (int i = 0; i < pending.Count; i++)
             {
@@ -659,7 +667,7 @@ namespace OpenZ
 
         void PoseCloth(Flag f, float now)
         {
-            float yaw = windYaw + swayDegrees * (0.7f * Mathf.Sin(now * 0.31f + f.seed) + 0.3f * Mathf.Sin(now * 0.83f + f.seed * 2.1f));
+            float yaw = FaceYaw(f) + swayDegrees * (0.7f * Mathf.Sin(now * 0.31f + f.seed) + 0.3f * Mathf.Sin(now * 0.83f + f.seed * 2.1f));   // 1.3: across the view (FlagView.Face.cs); was windYaw
             if (f.blockCos < 1f)
             {   // fort: keep the fly end away from the central turret (62 deg cone)
                 float r = yaw * Mathf.Deg2Rad; var dir = new Vector3(Mathf.Cos(r), 0, -Mathf.Sin(r));
@@ -942,7 +950,7 @@ namespace OpenZ
             // repeats every 10 s (UpdateFort)
             if (id == SndCaptured) au.Voice(id, ClipCaptured, 1f, 6f, false);
             else if (id == SndLost) au.Voice(id, ClipLost, 1f, 3f, false);
-            else if (id == SndRadar) au.Voice(id, ClipRadar, 1f, 0f, false);
+            else if (id == SndRadar) { var line = OzRadarLine.EventFor(game.World, team, objId); if (line != null) au.Voice(line, ClipRadar, 1f, 0f, false); }   // 1.2 item 16: the first radar / back online / another radar line; a ruin: none (View/OzRadarLine.cs)
             else if (id == SndFortAttack) au.Voice(id, ClipFort, 1f, 0f, false);
         }
 

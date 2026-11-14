@@ -13,8 +13,8 @@ using UnityEngine.SceneManagement;
 namespace OpenZ
 {
     /// <summary>
-    /// events, like OzCheatSpawner.TestRoutine): P opens the cheat overlay, the RED and the BLUE "ELECTRO x1" tiles are dragged onto the
-    /// L02 map middle, P closes it; the pair (made unkillable so the fight lasts) is ordered at each other for 25 s. Verdicts: overlay +
+    /// events, like OzCheatSpawner.TestRoutine): Alt+P (1.3 item 28) opens the cheat overlay, the RED and the BLUE "ELECTRO x1" tiles are dragged onto the
+    /// L02 map middle, Alt+P closes it; the pair (made unkillable so the fight lasts) is ordered at each other for 25 s. Verdicts: overlay +
     /// both tiles, both spawns through the cheat, the pair zaps each other with no stun (D4: Electrobots are immune), then a red and a blue
     /// Tough squad dragged in the same way get stunned by the enemy Electrobot (StunCount > 0), wpn_electro_fire in OzSoundLog, 0 console errors.
     /// Frames at the Game view size (2560x1600): overlay with the ghost mid-drag, overlay + the spawned pair, the pair fighting at the RTS
@@ -86,7 +86,7 @@ namespace OpenZ
         }
         static IEnumerator KeyP()
         {
-            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.P)); yield return F(2);
+            InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState(Key.LeftAlt, Key.P)); yield return F(2);   // 1.3 item 28: Alt+P
             InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState()); yield return F(2);
         }
         void Shot(string name)
@@ -149,7 +149,7 @@ namespace OpenZ
             yield return F(3);
             var red = Tile("CheatRed"); var blue = Tile("CheatBlue");
             string rl = LabelOf(red), bl = LabelOf(blue);
-            Verdict("C1 P overlay + tiles", OzCheatSpawner.Visible && red && blue && rl.StartsWith("ELECTRO") && bl.StartsWith("ELECTRO"),
+            Verdict("C1 ALT+P overlay + tiles", OzCheatSpawner.Visible && red && blue && rl.StartsWith("ELECTRO") && bl.StartsWith("ELECTRO"),
                 $"visible {OzCheatSpawner.Visible}, red tile '{rl}', blue tile '{bl}', robot tiles per column {(red ? red.parent.childCount : 0)} nodes");
             if (!red || !blue) { Finish("tiles missing"); yield break; }
             yield return Wait(0.5f);
@@ -171,7 +171,7 @@ namespace OpenZ
             Shot($"{job}_3_overlay_with_pair");
             yield return Wait(0.4f);
             yield return KeyP();
-            Mark($"P again: overlay visible {OzCheatSpawner.Visible}");
+            Mark($"ALT+P again: overlay visible {OzCheatSpawner.Visible}");
             if (re == null || be == null) { Finish("spawn failed"); yield break; }
 
             // 3. the fight

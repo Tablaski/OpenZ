@@ -170,7 +170,7 @@ namespace OpenZ
         float NearestUnit(Vector3 c, int kind, out Vector3 at)
         {
             float best = float.MaxValue; at = c;
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value; if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Dying) continue;
                 var o = v.Obj;

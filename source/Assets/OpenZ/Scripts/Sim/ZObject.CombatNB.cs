@@ -163,7 +163,7 @@ namespace OpenZ.Sim
         void SwitchToExposed()
         {
             if (Waypoints.Count > 0 || AttackObject == null || AttackObject.CanBeSniped()) return;
-            foreach (var o in World.Objects)
+            foreach (var o in World.NearUnits(CenterX, CenterY, NbRangeReach(), ZWorld.PerfFastRules ? World.UnitObjects : World.Objects))   // 1.3 item 25; 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in range, same order
             {
                 if (o == AttackObject || !o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) continue;
                 if (!o.CanBeSniped() || !CanAttackObject(o) || !WithinAttackRadius(o)) continue;
@@ -184,7 +184,7 @@ namespace OpenZ.Sim
         bool ApproachPlan(ZObject t, ref int ex, ref int ey)
         {
             if (!ZWorld.ApproachDeviation || World.Pathing == null || !World.Pathing.Enabled || !CanMove) return false;
-            if (InReach(t, CenterX, CenterY, AttackRadius) && HasLineOfSight(t)) return false;
+            if (InReach(t, CenterX, CenterY, RangeTo(t)) && HasLineOfSight(t)) return false;
             if (PS.level > 0) return false;                                                 // stuck on the way there once: Zod's goal and the layer's detours take over
             // (d > R - EntryBand) for good, so a vehicle that had to approach never manoeuvred; duel pairs stop inside the band
             int reach = DuelPair(t) ? AttackRadius - ZDuel.EntryBand - 4 : HeroPlanRadius() - LosSpotSlack;   // KH2: a hero member plans no farther out than his leader (Sim/ZHeroSquad.Kh2.cs)
@@ -242,7 +242,7 @@ namespace OpenZ.Sim
         /// </summary>
         public static bool NoTankDuelVsJeep = true;
 
-        int[] apSeen, apQueue, apParent; int apStamp;
+        int[] apSeen, apQueue, apParent, apBlock; int apStamp;                               // apBlock: 1.3 item 25, the parked tiles of this walk (= apStamp)
 
         /// <summary>DV28: breadth-first walk of the unit's own A* graph (ZReach component, Zod's StepOk moves, fixed neighbour order:
         /// deterministic) from where it stands to the nearest footprint whose centre is within `range` of the target (DV26: of its
@@ -256,8 +256,8 @@ namespace OpenZ.Sim
             int c = reach.UnitComp(u, nr);
             if (c < 0) return false;
             int w = Map.width, h = Map.height, n = w * h;
-            if (apSeen == null || apSeen.Length != n) { apSeen = new int[n]; apQueue = new int[n]; apParent = new int[n]; apStamp = 0; }
-            if (++apStamp == int.MaxValue) { Array.Clear(apSeen, 0, n); apStamp = 1; }
+            if (apSeen == null || apSeen.Length != n) { apSeen = new int[n]; apQueue = new int[n]; apParent = new int[n]; apBlock = new int[n]; apStamp = 0; }
+            if (++apStamp == int.MaxValue) { Array.Clear(apSeen, 0, n); Array.Clear(apBlock, 0, n); apStamp = 1; }
             int head = 0, tail = 0;
             var (ftx, fty) = ZReach.FootTile(u.LocX, u.LocY);
             for (int r = 0; r <= 2 && tail == 0; r++)
@@ -273,19 +273,21 @@ namespace OpenZ.Sim
             // units that will not make room (parked neutral vehicles, cannons, anything standing without an order) never make a goal:
             // a unit sent onto one waits behind it forever (NB13 harness, L17: 72 s held behind a parked neutral light tank)
             apParked.Clear();
-            foreach (var o in Objects)
+            foreach (var o in PerfFastRules ? UnitObjects : Objects)                        // 1.3 item 25: the units of Objects, same order (Sim/ZWorld.PerfRules.cs)
                 if (o != u && o != t && o.IsUnit && !o.Destroyed && o.KillAt < 0 && !o.IsMinion && o.Leader != u && (o.Kind == ZKind.Cannon || o.Owner == Team.Neutral || (o.Waypoints.Count == 0 && !o.IsMoving)))
                     apParked.Add(o);
             apDecks.Clear();
             foreach (var o in Objects) if (o.IsBridge && !o.Destroyed) apDecks.Add(o);           // never a goal on a bridge deck (the unit would queue for it)
             int half = robot ? 8 : 16, pad = ZPathing.Radius(u);
+            bool fast = PerfFastRules;                                                        // 1.3 item 25: ParkedAt read from a tile map stamped once per walk, the same answers (Sim/ZWorld.PerfRules.cs)
+            if (fast) StampParked(w, h, half, pad, robot);
             while (head < tail)
             {
                 int cur = apQueue[head++], cx = cur % w, cy = cur / w;
                 var (px, py) = ZReach.FootCentre(cx, cy, robot);
                 if (u.InReach(t, px, py, range) && (t.IsDestroyableImpass || t.ShuttleAirborne || !EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&   // DV118: the flying shuttle over any ground tile
-                    (!line || Sight.Clear(px, py, 0, t.CenterX, t.CenterY, exT)) && !ParkedAt(px, py, half, pad) && !OnDeck(px, py, half))
-                { sx = px; sy = py; path = ApproachPath(cur, w, robot); return true; }
+                    (!line || Sight.Clear(px, py, 0, t.CenterX, t.CenterY, exT)) && !(fast ? apBlock[cur] == apStamp : ParkedAt(px, py, half, pad)) && !OnDeck(px, py, half))
+                { sx = px; sy = py; path = ApproachPath(cur, w, robot); NoteApproachWalk(tail); return true; }
                 for (int k = 0; k < 8; k++)
                 {
                     int nx = cx + ApNX[k], ny = cy + ApNY[k];
@@ -293,10 +295,11 @@ namespace OpenZ.Sim
                     int ni = ny * w + nx;
                     if (apSeen[ni] == apStamp || !pf.StepOk(cx, cy, nx, ny, robot, nr)) continue;
                     var (qx, qy) = ZReach.FootCentre(nx, ny, robot);
-                    if (ParkedAt(qx, qy, half, pad)) { apSeen[ni] = apStamp; continue; }         // never through a parked unit either
+                    if (fast ? apBlock[ni] == apStamp : ParkedAt(qx, qy, half, pad)) { apSeen[ni] = apStamp; continue; }   // never through a parked unit either
                     apSeen[ni] = apStamp; apParent[ni] = cur; apQueue[tail++] = ni;
                 }
             }
+            NoteApproachWalk(tail);
             return false;
         }
 

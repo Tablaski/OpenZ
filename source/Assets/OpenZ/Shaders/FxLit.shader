@@ -12,6 +12,7 @@ Shader "OpenZ/FxLit"
         [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend ("Dst Blend", Float) = 0
         [Enum(Off, 0, On, 1)] _ZWrite ("ZWrite", Float) = 1
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth test (8 = Always: a shot over a wall)", Float) = 4
         _Unlit ("Unlit amount", Range(0,1)) = 0
         [HDR] _RimColor ("Rim emission (fire edges)", Color) = (0,0,0,1)
         _RimPower ("Rim power (0 = no rim)", Float) = 0
@@ -25,6 +26,7 @@ Shader "OpenZ/FxLit"
             Tags { "LightMode"="UniversalForward" }
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
+            ZTest [_ZTest]
             Cull [_Cull]
             HLSLPROGRAM
             #pragma vertex vert

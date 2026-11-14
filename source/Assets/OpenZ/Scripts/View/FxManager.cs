@@ -17,13 +17,13 @@ namespace OpenZ
         class Slot
         {
             public bool active; public Vector3 pos, vel; public float age, life, scale, gravity, hitDistance, speed, dustOpacity = -1, contactAge = -1, trail;
-            public int serial; public bool grounded, rocketTrail;
+            public int serial; public bool grounded, rocketTrail; public float melt;                  // melt: 1.3 level 7, its share of the way down into lava (OzLavaMelt)
             public float speed2 => vel.sqrMagnitude;
         }
 
         class Pool
         {
-            public string kind; public Mesh mesh; public Material mat; public Slot[] slots; public bool fading, aligned, flat, rubble, streak;
+            public string kind; public Mesh mesh; public Material mat; public Slot[] slots; public bool fading, aligned, flat, rubble, streak; public float rad;
             public Vector3 axis = Vector3.up; public Matrix4x4[] mats = new Matrix4x4[1023]; public float[] alpha = new float[1023];
             public MaterialPropertyBlock mpb = new MaterialPropertyBlock();
         }
@@ -77,7 +77,7 @@ namespace OpenZ
                 if (!meshes.TryGetValue(meshName, out var mc)) { Debug.LogWarning("FX mesh missing " + meshName); continue; }
                 var p = new Pool { kind = kind, mesh = mc.Item1, slots = new Slot[cap] };
                 for (int i = 0; i < cap; i++) p.slots[i] = new Slot();
-                var b = p.mesh.bounds.size; p.axis = b.x >= b.y && b.x >= b.z ? Vector3.right : b.z >= b.y ? Vector3.forward : Vector3.up;
+                var b = p.mesh.bounds.size; p.axis = b.x >= b.y && b.x >= b.z ? Vector3.right : b.z >= b.y ? Vector3.forward : Vector3.up; p.rad = 0.5f * Mathf.Max(b.x, Mathf.Max(b.y, b.z));
                 p.fading = kind == "smoke" || kind == "dark" || kind == "dust" || kind == "pop" || kind == "ring" || kind == "glow" || kind == "fire" || kind == "flamepuff";
                 p.aligned = kind == "spark" || kind == "rocket" || kind == "shell" || kind == "flame" || kind == "bullet" || kind == "bolt" || kind == "bomb";
                 p.flat = kind == "ring"; p.rubble = kind == "stone" || kind == "metal" || kind == "wood";
@@ -98,11 +98,11 @@ namespace OpenZ
                     case "pop": emis = Lin("#83c4ff", 1.4f); baseC = Hex("#abd9ff"); break;
                     case "smoke": baseC = Hex("#5c524a"); soft = 0.8f; break;
                     case "dark": baseC = Hex("#231d1a"); soft = 0.8f; break;
-                    case "dust": baseC = Hex("#c89a66"); soft = 1f; break;
+                    case "dust": baseC = OzVolcanic.Dust(Hex("#c89a66")); soft = 1f; break;   // ZGame.Awake makes this object: the level is known
                     case "ring": emis = Lin("#ff7026", 0.75f); baseC = Color.black; unlit = 1; break;
                     case "glow": emis = Lin("#ff8a30", 3.2f); baseC = Color.black; unlit = 1; soft = 1f; break;   // ground flash (additive)
                     case "shell": case "bomb": emis = Lin("#ffb13b", 1.2f); break;
-                    case "stone": baseC = Hex("#9a7650"); break;                                     // glb cream read as white confetti on sand
+                    case "stone": baseC = OzVolcanic.Stone(Hex("#9a7650")); break;                                     // glb cream read as white confetti on sand
                 }
                 baseC.a = 1;
                 mat.SetColor("_BaseColor", baseC); mat.SetColor("_EmissionColor", emis); mat.SetFloat("_Unlit", unlit);
@@ -190,7 +190,7 @@ namespace OpenZ
             foreach (var c in p.slots) if (!c.active) { s = c; break; }
             if (s == null) { s = p.slots[0]; foreach (var c in p.slots) if (c.serial < s.serial) s = c; }   // recycle the oldest
             s.active = true; s.pos = pos; s.vel = vel; s.age = 0; s.life = life; s.scale = scale; s.serial = ++serial;
-            s.gravity = 0; s.hitDistance = 0; s.speed = 0; s.dustOpacity = -1; s.contactAge = -1; s.grounded = false; s.rocketTrail = false; s.trail = 0;
+            s.gravity = 0; s.hitDistance = 0; s.speed = 0; s.dustOpacity = -1; s.contactAge = -1; s.grounded = false; s.rocketTrail = false; s.trail = 0; s.melt = 0f;
             Emitted++;
             return s;
         }
@@ -295,6 +295,35 @@ namespace OpenZ
             }
         }
 
+        /// <summary>
+        /// with gravity) ends at once, everywhere; shots, smoke, fire and flashes are left to end by themselves. Returns the chunks ended.</summary>
+        public int ClearChunks()
+        {
+            int n = 0;
+            foreach (var kv in pools)
+            {
+                var p = kv.Value; if (p.kind == "bolt" || p.kind == "bullet") continue;
+                foreach (var sl in p.slots)
+                {
+                    if (!sl.active || !(p.rubble || sl.gravity > 0f)) continue;
+                    sl.life = Mathf.Min(sl.life, sl.age); n++;
+                }
+            }
+            return n;
+        }
+
+        /// <summary>Run 11 check: chunk slots still alive (rubble, or with gravity), the shots' kinds left out.</summary>
+        public int LiveChunks()
+        {
+            int n = 0;
+            foreach (var kv in pools)
+            {
+                var p = kv.Value; if (p.kind == "bolt" || p.kind == "bullet") continue;
+                foreach (var sl in p.slots) if (sl.active && sl.age < sl.life && (p.rubble || sl.gravity > 0f)) n++;
+            }
+            return n;
+        }
+
         public void Breakup(Vector3 at, string material, float width, int count = 12, float chunk = 1f)
         {
             OzSoundV3.Debris(at, material, width, count);                                               // sound_v3: the chunks land
@@ -339,9 +368,11 @@ namespace OpenZ
         /// an instant HDR green core line, a wider glow that lingers a little longer, a green muzzle and impact flash.</summary>
         public void Laser(Vector3 from, Vector3 to)
         {
+            if (ShotLine.Stop(from, to, null, out var wall)) to = wall;                                // bullets_straight: it ends on what its line meets (View/ShotLine.cs)
+            bool over = ShotLine.LastOver;                                                             // shots_over_walls: the line's own material draws over a wall
             var d = to - from; float dist = d.magnitude; if (dist < 0.01f) return;
-            Beam(from, to, 0.09f, 0.16f, new Color(0.35f, 5f, 0.7f));                                // core
-            Beam(from, to, 0.42f, 0.38f, new Color(0.06f, 0.9f, 0.16f));                             // glow trail
+            Beam(from, to, 0.09f, 0.16f, new Color(0.35f, 5f, 0.7f), over);                          // core
+            Beam(from, to, 0.42f, 0.38f, new Color(0.06f, 0.9f, 0.16f), over);                       // glow trail
             Emit("pop", from, Vector3.zero, 0.1f, 0.25f);
             Impact(to, true);
             GreenPulse(to);
@@ -351,6 +382,7 @@ namespace OpenZ
         /// burning ground where it lands.</summary>
         public void Flame(Vector3 from, Vector3 to)
         {
+            if (ShotLine.StopPlain(from, to, null, out var wall)) to = wall;                           // bullets_straight: it ends on what its line meets (View/ShotLine.cs)
             var d = to - from; float dist = Mathf.Max(0.1f, d.magnitude); var dir = d / dist;
             // critic L02 #7 ("pyro flame = yellow pills"): the fireballs flew at stream speed and the streak stretched them into
             // capsules. Now: puffs spread along the whole stream, drifting slowly forward and up, growing with distance, plus
@@ -381,7 +413,7 @@ namespace OpenZ
         // ------------------------------------------------------------------ beams (pooled LineRenderers, additive HDR)
         readonly List<(LineRenderer lr, Material m, float life, float age, Color c)> beams = new List<(LineRenderer, Material, float, float, Color)>();
         Shader beamShader;
-        void Beam(Vector3 a, Vector3 b, float width, float life, Color hdr)
+        void Beam(Vector3 a, Vector3 b, float width, float life, Color hdr, bool over = false)
         {
             beamShader ??= Shader.Find("OpenZ/Beam"); if (!beamShader) return;
             int k = beams.FindIndex(x => x.age >= x.life);
@@ -400,6 +432,7 @@ namespace OpenZ
             var e = beams[k];
             e.lr.SetPosition(0, a); e.lr.SetPosition(1, b); e.lr.widthMultiplier = width; e.lr.enabled = true;
             e.m.SetColor("_Color", hdr);
+            e.m.SetFloat("_ZTest", over ? 8f : 4f);
             beams[k] = (e.lr, e.m, life, 0, hdr);
         }
         void StepBeams(float dt)
@@ -507,7 +540,11 @@ namespace OpenZ
                 if (s.gravity > 0 && !(p.rubble && s.grounded)) s.vel.y -= s.gravity * dt;
                 s.pos += s.vel * dt;
                 if (s.hitDistance > 0 && s.age * s.speed >= s.hitDistance) { s.active = false; Impact(s.pos, p.kind == "bolt"); continue; }
-                if (p.rubble)
+                if (p.rubble && OzLavaMelt.Live && OzLavaMelt.RubbleStep(ref s.melt, ref s.pos, ref s.vel, ref s.life, s.age, s.scale * p.rad, dt))
+                {   // 1.3 level 7, kit LV5: it touched the lava: it stops tumbling, reddens and goes under (a plain bool read on every other level)
+                    s.grounded = true; if (s.contactAge < 0) s.contactAge = s.age;
+                }
+                else if (p.rubble)
                 {
                     float floor = Ground(s.pos.x, s.pos.z) + 0.15f;
                     if (s.pos.y < floor && (OpenZFxPlayer.IsWaterTile(s.pos) || OzWaterLanding.OpenWaterAt(s.pos, floor - 0.15f, out _)))   // b27: also the drawn water over a land tile (the widened river, the water under a destroyed bridge, a ravine stream)
@@ -556,6 +593,7 @@ namespace OpenZ
                     sc = Vector3.Scale(sc, Vector3.one + axis * (stretch - 1f));
                 }
                 p.mats[count] = Matrix4x4.TRS(s.pos, rot, sc); p.alpha[count] = a;
+                if (s.melt > 0f) OzLavaMelt.RubbleDraw(p.mesh, ref p.mats[count], s.melt, s.scale * p.rad);
                 if (++count == 1023) { Flush(p, count); count = 0; }
             }
             if (count > 0) Flush(p, count);

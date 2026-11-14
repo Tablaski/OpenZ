@@ -127,6 +127,15 @@ namespace OpenZ
                 if (!released) Release("ending scene done");
                 yield break;
             }
+            // screen (View/Blue/OzBlueCameo.Endings.cs); false on the red side, in a bot match, a test, or with no fort down
+            if (!draw && OzBlueCameo.EndingSceneWanted(won))
+            {
+                speaking = true;
+                extraHold += OzBlueCameo.EndingSeconds(won);                                // the safety release (MaxHold) waits for the whole scene
+                yield return OzBlueCameo.EndingScene(won, () => released);
+                if (!released) Release("blue ending scene done");
+                yield break;
+            }
             // endings_v1: the lines wait until the nuke's death wave is over (OpenZEnding: the eliminated team dies outward from the bomb)
             float w0 = Time.time;
             while (OpenZEnding.WaveRunning && Time.time - w0 < 7f) yield return null;

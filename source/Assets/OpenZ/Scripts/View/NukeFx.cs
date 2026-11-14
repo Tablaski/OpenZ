@@ -234,6 +234,8 @@ namespace OpenZ
             return Mathf.Clamp(0.2f + amb * 0.8f + s * 0.35f, 0.12f, 1f);
         }
 
+        /// <summary>Unit editor only: the long nuke clip's own time where it starts to fade and where it is silent (s).</summary>
+        public const float UeNukeFadeFrom = 7f, UeNukeFadeTo = 10.5f;
         IEnumerator Sequence(Vector3 at)
         {
             var fx = FxManager.I; var au = CombatAudio.I;
@@ -242,6 +244,7 @@ namespace OpenZ
             StrikeDelivered = false;
             Flash(1f);
             au?.PlayWide("nuke", at, 1.4f, "legacy-nuke-long");
+            if (OzUeHooks.Active) au?.FadeLastByClipTime(UeNukeFadeFrom, UeNukeFadeTo);         // the Unit editor has no fort to carry the long tail: it ends sooner there, levels are unchanged
             // nuke_fx_v3 (fort-fall hitch: the impact frame was 102 ms, NukeFx.Sequence 27 ms + Mono JIT 21 ms, qc/fort_fall_profile_sim.txt):
             // the heavy first-frame work is spread over the next frames (the fireball is on screen from Build; OpenZNukePrewarm JITs it all at load)
             yield return null;
@@ -452,9 +455,11 @@ namespace OpenZ
                 var cgo = new GameObject("NukeFlash"); var c = cgo.AddComponent<Canvas>(); c.renderMode = RenderMode.ScreenSpaceOverlay; c.sortingOrder = 500;
                 var ig = new GameObject("White"); ig.transform.SetParent(cgo.transform, false);
                 flash = ig.AddComponent<Image>(); flash.raycastTarget = false;
+                flash.color = new Color(1f, 0.9f, 0.72f, 0f);                                                   // run 9 (player): born invisible (a new Image starts opaque white)
                 var rt = flash.rectTransform; rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
                 cgo.AddComponent<FlashFader>();
             }
+            if (strength <= 0f) return;                                                                         // run 9: the level-load prewarm only builds the overlay: it never draws, nor notes a calm white-out
             if (OzMotion.Reduced) { calmTarget = Mathf.Max(calmTarget, 0.14f * strength); OzCalm.Note("nuke white-out"); return; }
             flash.color = new Color(1f, 0.9f, 0.72f, 0.38f * strength);  // fx_v2: warmer, lighter (OpenZBloomDirector's exposure flash carries the blinding part)
         }
@@ -466,7 +471,7 @@ namespace OpenZ
             {
                 if (!flash) return; var c = flash.color;
                 if (calmTarget > 0f) { c = new Color(1f, 0.9f, 0.72f, Mathf.MoveTowards(c.a, calmTarget, Time.unscaledDeltaTime * 0.25f)); if (c.a >= calmTarget - 0.001f) calmTarget = 0f; flash.color = c; return; }   // calm: ~0.6 s rise
-                c.a = Mathf.Max(0, c.a - (OzMotion.Reduced ? Time.deltaTime * 0.12f : Time.unscaledDeltaTime * 1.9f)); flash.color = c;
+                c.a = Mathf.Max(0, c.a - (OzMotion.Reduced ? Time.unscaledDeltaTime * 0.12f : Time.unscaledDeltaTime * 1.9f)); flash.color = c;
             }
         }
     }

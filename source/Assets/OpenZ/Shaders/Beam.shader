@@ -5,6 +5,7 @@ Shader "OpenZ/Beam"
     Properties
     {
         [HDR] _Color ("Color", Color) = (0.3, 4, 0.6, 1)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth test (8 = Always: a shot over a wall)", Float) = 4
     }
     SubShader
     {
@@ -13,6 +14,7 @@ Shader "OpenZ/Beam"
         {
             Blend One One
             ZWrite Off
+            ZTest [_ZTest]
             Cull Off
             HLSLPROGRAM
             #pragma vertex vert

@@ -14,6 +14,8 @@ namespace OpenZ
     // ============================================================================================================================
     public partial class OpenZMainMenu
     {
+        /// <summary>v1.3: the most rows a tab shows at the roomy spacing (OzLayout.OptToggleStep); a longer tab is spaced closer.</summary>
+        const int RoomyRows = 9;
         const float OptW = 600f;                                                                              // panel units; x optionsScale on the canvas
         int optTab; RectTransform optMainPage;
         readonly List<HudButton> optTabBtns = new List<HudButton>();
@@ -46,8 +48,10 @@ namespace OpenZ
                 var rows = toggles.FindAll(t => t.tab == tab);
                 rows.Sort((r1, r2) => { int o = OzSettingTips.TabOrder(r1.label).CompareTo(OzSettingTips.TabOrder(r2.label)); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
                 float top = tab == OzSettingTips.TabMain ? OzLayout.OptToggleY0 + OzLayout.OptTabShift : OzLayout.OptTabRowY0;
-                for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + OzLayout.OptToggleStep * k, w, OzLayout.OptToggleH));
-                tallest = Mathf.Max(tallest, top + OzLayout.OptToggleStep * rows.Count + 22f);
+                float step = OzLayout.OptToggleStep, rowH = OzLayout.OptToggleH;
+                if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit: the tab keeps a 9-row tab's height
+                for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + step * k, w, rowH));
+                tallest = Mathf.Max(tallest, top + step * rows.Count + 22f);
             }
             ShowOptTab(Mathf.Clamp(optTab, 0, n - 1));                                                       // a rebuild (resolution change) keeps the open tab
             return tallest;

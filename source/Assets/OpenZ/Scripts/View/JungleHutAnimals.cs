@@ -372,7 +372,7 @@ namespace OpenZ
         void RefreshUnits()
         {
             unitPos.Clear(); unitVeh.Clear(); obs.Clear();
-            foreach (var kv in game.Views)
+            foreach (var kv in game.LiveViews)
             {
                 var v = kv.Value; if (!v || v.Dying || !v.gameObject.activeInHierarchy || v.Obj == null) continue;
                 var o = v.Obj; if (o.Kind != ZKind.Robot && o.Kind != ZKind.Vehicle && o.Kind != ZKind.Cannon) continue;

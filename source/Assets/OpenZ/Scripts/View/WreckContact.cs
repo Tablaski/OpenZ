@@ -6,6 +6,8 @@ namespace OpenZ
     /// impact + metal land, sparks, a dust cloud, a scorch where it lands, a small camera kick; dust and kick only when on screen),
     /// later bounces clank lighter (dst_debris_metal, at most 4, 0.3 s apart). The body freezes (kinematic, collider off) once it
     /// sleeps or after 6 s, so the burning wreck stays put until UnitView pops it away.
+    /// 1.3 item 9: at that freeze a hull that came to rest in the ground (pushed into it by the landing, or through a thin ground
+    /// collider) is lifted to lie on it first (WreckGroundRest: its hull box's lowest corner on the ground under it); nothing else changes.
     /// </summary>
     public class WreckContact : MonoBehaviour
     {
@@ -18,8 +20,12 @@ namespace OpenZ
             age += Time.deltaTime;
             if (!frozen && rb && age > 0.5f && (rb.IsSleeping() || age > 6f))
             {
-                frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
-                var hull = transform.Find("OZ_WreckHull"); if (hull) { var c = hull.GetComponent<Collider>(); if (c) c.enabled = false; }
+                frozen = true;
+                var hull = transform.Find("OZ_WreckHull");
+                bool moving = !rb.isKinematic;                                                                                                                 // not already held (fading)
+                rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;                                                                         // held first, so no interpolation step writes the old pose back over the lift
+                if (moving) WreckGroundRest.Lift(transform, hull ? hull.GetComponent<BoxCollider>() : null);                                                   // 1.3 item 9: never frozen in the ground (View/WreckGroundRest.cs)
+                if (hull) { var c = hull.GetComponent<Collider>(); if (c) c.enabled = false; }
             }
         }
 

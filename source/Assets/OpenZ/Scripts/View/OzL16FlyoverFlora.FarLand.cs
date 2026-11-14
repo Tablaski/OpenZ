@@ -4,7 +4,7 @@
 // is on, a wide sheet of swamp water lies round the plateau out to the haze and three ridges of far jungle hills close the horizon,
 // each farther one paler in the level's own distance haze. The ridges stay low under the sun's bearing, so the rising sun is never
 // behind a hill. Lit by the level's own light (the material of the ground skirt, recoloured), drawn only: no rule reads it, nothing
-// of it exists in normal play.
+// of it exists in normal play. The landmarks beyond the rim stand on islands of land in that water (OzL16FlyoverFlora.Isles.cs).
 // Play check: return OpenZ.OzL16FlyoverFlora.FarStatus();
 using System.Collections.Generic;
 using UnityEngine;
@@ -35,10 +35,11 @@ namespace OpenZ
 
         void ShowFar(bool show)
         {
-            if (!show) { if (farGo) farGo.SetActive(false); return; }
+            if (!show) { if (farGo) farGo.SetActive(false); IslesShow(false); return; }
             if (!FarLand) return;
             BuildFar();
             if (farGo) farGo.SetActive(true);
+            IslesShow(true);                                                                              // the ground under the landmarks beyond the rim (OzL16FlyoverFlora.Isles.cs)
         }
 
         void TickFar() { if (FarRebuild) { FarRebuild = false; ShowFar(FarLand); if (!FarLand && farGo) farGo.SetActive(false); } }
@@ -144,9 +145,9 @@ namespace OpenZ
             t.Add(i); t.Add(i + 1); t.Add(i + 2); t.Add(i); t.Add(i + 2); t.Add(i + 3);
         }
 
-        void DestroyFar() { foreach (var m in farMats) if (m) Destroy(m); farMats.Clear(); if (farMesh) Destroy(farMesh); }
+        void DestroyFar() { foreach (var m in farMats) if (m) Destroy(m); farMats.Clear(); if (farMesh) Destroy(farMesh); IslesDestroy(); }
 
         /// <summary>One-line state for the Play check.</summary>
-        public static string FarStatus() => !I ? "far land: not in this scene" : $"far land: {(I.farGo ? (I.farGo.activeSelf ? "drawn" : "built, not drawn") : "not built")}, {FarTriangles} triangles, water at {FarWaterY:F1} m out to {FarWaterOut:F0} m, {FarRidgeAt.Length} ridges";
+        public static string FarStatus() => !I ? "far land: not in this scene" : $"far land: {(I.farGo ? (I.farGo.activeSelf ? "drawn" : "built, not drawn") : "not built")}, {FarTriangles} triangles, water at {FarWaterY:F1} m out to {FarWaterOut:F0} m, {FarRidgeAt.Length} ridges" + IslesStatus();
     }
 }

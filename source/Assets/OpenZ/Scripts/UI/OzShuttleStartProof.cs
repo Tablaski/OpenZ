@@ -59,7 +59,7 @@ namespace OpenZ
         /// <summary>The header parts that never move (names under the select root).</summary>
         static readonly string[] Header = { "Eyebrow", "Title", "Back", "HighScores" };
         /// <summary>The bar's parts that stand in DIFFICULTY's and HEAD START's columns (they slide between levels).</summary>
-        static readonly string[] Slides = { "Line0", "CpuLabel", "CpuKey", "CpuEasy", "CpuMedium", "CpuHard", "CpuHint", "HeadLabel", "HeadKey", "HeadRow", "HeadHint" };
+        static readonly string[] Slides = { "Line0", "CpuLabel", "CpuKey", "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem", "CpuHint", "HeadLabel", "HeadKey", "HeadRow", "HeadHint" };
 
         [MenuItem("OpenZ/V1.1/Shuttle: K347 Start Box Proof (MainMenu or a level, Play)")]
         public static void Run()
@@ -355,7 +355,7 @@ namespace OpenZ
                 for (int i = 0; i < parts.Count; i++) for (int j = i + 1; j < parts.Count; j++) if (Meet(parts[i].r, parts[j].r)) meets.Append(' ').Append(parts[i].n).Append('/').Append(parts[j].n);
             }
             // each block's parts inside its column and apart, at full size
-            var cols = new List<(string label, string key, string[] rows, string hint)> { ("CpuLabel", "CpuKey", new[] { "CpuEasy", "CpuMedium", "CpuHard" }, "CpuHint"), ("HeadLabel", "HeadKey", new[] { "HeadRow" }, "HeadHint") };
+            var cols = new List<(string label, string key, string[] rows, string hint)> { ("CpuLabel", "CpuKey", new[] { "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem" }, "CpuHint"), ("HeadLabel", "HeadKey", new[] { "HeadRow" }, "HeadHint") };
             if (slots == 3) cols.Add(("ShuttleBlock/Label", "ShuttleBlock/Key", new[] { "ShuttleBlock/ShuttleRow" }, c.d == GameDifficulty.Hard ? "ShuttleBlock/HintLocked" : "ShuttleBlock/Hint"));
             var labelY = new List<float>(); var keyY = new List<float>(); var rowY = new List<(float a, float b)>(); var hintY = new List<float>();
             for (int i = 0; i < cols.Count; i++)

@@ -26,6 +26,9 @@ Shader "OpenZ/BlastFog"
         _Wrap ("Light wrap", Range(0, 1)) = 0.6
         _Spin ("Spin over life (rad)", Float) = 0.35
         _Boil ("Detail drift over life", Float) = 0.6
+        _NoiseBoost ("Extra billow noise (1.4 Unit editor; 0 = off)", Range(0, 1)) = 0
+        _GroundY ("Ground height for the ground fade (1.4 Unit editor)", Float) = 0
+        _GroundFade ("Ground fade height in m (1.4 Unit editor; 0 = off)", Float) = 0
     }
 
     SubShader
@@ -65,6 +68,9 @@ Shader "OpenZ/BlastFog"
                 float _Wrap;
                 float _Spin;
                 float _Boil;
+                float _NoiseBoost;
+                float _GroundY;
+                float _GroundFade;
             CBUFFER_END
             TEXTURE2D(_SmokeAtlas); SAMPLER(sampler_SmokeAtlas);
             TEXTURE2D(_SmokeDetail); SAMPLER(sampler_SmokeDetail);
@@ -84,6 +90,7 @@ Shader "OpenZ/BlastFog"
                 float4 color      : COLOR;
                 float4 uv         : TEXCOORD0;
                 float4 ctrSize    : TEXCOORD1;     // xyz centre (world), w size (m)
+                float3 posWS      : TEXCOORD2;     // 1.4: for the ground fade
             };
 
             FogVaryings FogVert(FogAttributes v)
@@ -94,6 +101,7 @@ Shader "OpenZ/BlastFog"
                 o.color = v.color;
                 o.uv = v.uv;
                 o.ctrSize = float4(v.pctr.xyz, max(v.pvel.w, 1e-3));
+                o.posWS = positionWS;
                 return o;
             }
 
@@ -124,6 +132,11 @@ Shader "OpenZ/BlastFog"
                           + SAMPLE_TEXTURE2D(_SmokeDetail, sampler_SmokeDetail, duv * 2.37 + 0.31).g * 0.38;
                 float erode = _DetailAmt * (1.0 + _Dissolve * 2.0 * smoothstep(0.35, 1.0, age));
                 dens = saturate(dens * 1.15 - erode * (1.0 - det));
+                if (_NoiseBoost > 0.0)   // 1.4 Unit editor: a second, finer billow layer (off in the levels)
+                {
+                    float det2 = SAMPLE_TEXTURE2D(_SmokeDetail, sampler_SmokeDetail, duv * 4.1 + float2(0.57, age * _Boil * 0.3)).r;
+                    dens = saturate(dens * lerp(1.0, 0.45 + det2 * 1.1, _NoiseBoost));
+                }
                 // wide soft radial falloff: no outline at any size
                 float rr = sqrt(r2);
                 float radial = 1.0 - smoothstep(1.0 - _EdgeSoft, 1.0, rr);
@@ -139,6 +152,7 @@ Shader "OpenZ/BlastFog"
                 float front = ctrEye - half_;
                 float inFront = saturate((sceneEye - front) / max(2.0 * half_, 0.05));
                 cover *= inFront * (2.0 - inFront);                            // eased: thins smoothly to nothing where the scene cuts the ball
+                if (_GroundFade > 0.0) { float gk = saturate((i.posWS.y - _GroundY) / _GroundFade); cover *= gk * gk * (3.0 - 2.0 * gk); }   // 1.4 Unit editor: thins out into the ground, never a cut edge
                 if (cover <= 0.002) discard;
 
                 // light: sun (wrapped) + sky

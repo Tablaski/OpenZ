@@ -277,7 +277,7 @@ namespace OpenZ
         /// <summary></summary>
         public static int GearRestored, GearLost;
 
-        static bool TrackedHull(string t) => t == "light" || t == "medium" || t == "heavy" || t == "missile_launcher";
+        static bool TrackedHull(string t) => t == "light" || t == "medium" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher";   // DV145 the medium tank (Sim/ZMTank.cs)
 
         void SetUnitStage(int id, UnitView v, ZObject o, U u, int want, Vector3 pos)
         {

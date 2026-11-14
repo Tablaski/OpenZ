@@ -31,7 +31,7 @@ namespace OpenZ
     /// </summary>
     [DefaultExecutionOrder(79)]
                                   // TrackMarks (80) reads the ankles for the OFF prints, every frame, as the pre-IK MechWalk (order 0) always was
-    public class MechWalk : MonoBehaviour
+    public partial class MechWalk : MonoBehaviour                                                // 1.2 v2 units: + View/MechWalk.Turn.cs (turning in place: the feet keep up and stay on the ground)
     {
         /// <summary>
         /// LateUpdate switches). OFF = the previous mech walk without the foot lock (Legacy), statement for statement.</summary>
@@ -49,7 +49,7 @@ namespace OpenZ
             }
         }
         /// <summary>Step tuning (world metres at model scale 1 are multiplied by the model scale).</summary>
-        public static float StepHeight = 0.30f, SwingMin = 0.28f, SwingMax = 0.55f, YawStep = 24f, MaxTilt = 20f, MaxRoll = 18f,
+        public static float StepHeight = 0.30f, SwingMin = 0.28f, SwingMax = 0.55f, YawStep = 24f, MaxTilt = 20f, MaxRoll = 30f,   // k92, item 146: MaxRoll 18 -> 30 (a foot standing through a fast walking turn stays on its spot: View/MechWalk.K92.cs)
                             SettleAfter = 0.35f, SettleDist = 0.12f, MaxStepShare = 0.8f, BobAmp = 0.06f, PlantDip = 0.05f, PelvisSmooth = 0.08f;
 
         class Leg
@@ -98,7 +98,8 @@ namespace OpenZ
             foreach (var g in legs)
             {   // rest pose (Start runs before the first LateUpdate): home spot under the hip and the ankle's height over the soles' plane
                 g.homeLocal = body.InverseTransformPoint(g.ankle.position); g.homeLocal.y = 0f;
-                g.ankleH = Mathf.Max(0.02f, g.ankle.position.y - body.position.y);
+                g.ankleH = Mathf.Max(0.02f, K92AnkleH(g));   // k92, item 146: in the unit's own frame (a mech spawned tilted kept one sole in the ground for life)
+                K92Sole(g);                                                                      // k92, item 146: the sole's outline: a planted sole rests on the ground under it (View/MechWalk.K92.cs)
                 g.len = Vector3.Distance(g.hip.position, g.knee.position) + Vector3.Distance(g.knee.position, g.ankle.position);
                 var par = g.hip.parent;
                 if (par)
@@ -173,6 +174,7 @@ namespace OpenZ
             }
             float reachH = 0.75f * legs[0].len, maxStep = MaxStepShare * reachH;
             float swing = Mathf.Clamp(maxStep / Mathf.Max(0.01f, 2f * speed), SwingMin, SwingMax);
+            TurnMode(bodyYaw, dt, ref swing);                                                      // 1.2 v2 units: turning in place fast: quicker alternating steps, each foot landing ahead of the turn (View/MechWalk.Turn.cs)
             // ---- which leg steps (one at a time; the one farthest off its spot first)
             int pick = -1; float best = 0f;
             for (int i = 0; i < 2; i++)
@@ -189,8 +191,10 @@ namespace OpenZ
                 bool need = (moving > 0.5f && err > Mathf.Max(0.1f * sc, speed * swing * 0.95f))
                             || yawErr > YawStep || hipDist > reachH || rollOut
                             || (stillFor > SettleAfter && (err > SettleDist * sc || yawErr > 6f));
-                bool otherOk = o.planted && o.plantedFor > 0.06f;
+                bool otherOk = (o.planted && o.plantedFor > 0.06f && !JustLanded(l)) || LiftBeforeDrag(l, o, hipDist, reachH);                // 1.2 v2 units: a foot that just landed waits until the other foot had its turn (View/MechWalk.Turn.cs)   // k92: a foot about to be dragged lifts as soon as the other foot stands (View/MechWalk.K92.cs)
                 float score = err / Mathf.Max(0.01f, maxStep) + yawErr / 90f + (hipDist > reachH ? 2f : 0f) + (rollOut ? 1f : 0f);
+                TurnNeed(l, bodyYaw, hipDist, reachH, rollOut, ref need, ref score);                // 1.2 v2 units: turning in place fast, the foot that lags most behind the turn steps
+                K102Order(l, o, rawVel, dt, swing, reachH, ref need, ref otherOk, ref score);   // k102: a standing foot that would run out of reach or roll before the other foot's step steps first (View/MechWalk.K102.cs)
                 if (need && otherOk && score > best) { best = score; pick = i; }
             }
             if (pick >= 0)
@@ -198,15 +202,18 @@ namespace OpenZ
                 var l = legs[pick];
                 LiftOff(l);
                 l.planted = false; l.from = l.plant; l.fromYaw = l.plantYaw; l.swingT = 0f; l.swingDur = swing; l.stepH = -1f;
+                TurnPicked();                                                                         // 1.2 v2 units: one more step of this turn
             }
             // HurryLeft s left, same arc, only faster) instead of letting the over-stretch guard below drag the locked foot (that drag IS slide)
             for (int i = 0; i < 2; i++)
             {
                 var l = legs[i]; var o = legs[1 - i];
                 if (!l.planted || o.planted) continue;
+                K102Hurry(l, o, rawVel, dt, reachH);                                                  // k102: the swing lands within the standing foot's budget (View/MechWalk.K102.cs)
                 if (new Vector2(l.hip.position.x - l.plant.x, l.hip.position.z - l.plant.z).magnitude <= 0.95f * reachH) continue;
                 float rest = 1f - Mathf.Clamp01(o.swingT), left = rest * o.swingDur;
                 if (left > HurryLeft) { o.swingDur = HurryLeft / Mathf.Max(0.05f, rest); Hurries++; }
+                K86cLandNow(l, o, reachH);                                                            // a standing foot at the end of its reach: the other foot lands now, this one pivots on its spot and steps next (View/MechWalk.K86c.cs)
             }
             // ---- feet
             float bob = 0f;
@@ -216,20 +223,22 @@ namespace OpenZ
                 if (l.planted)
                 {
                     l.plant.y = g.GroundY(l.plant.x, l.plant.z);                                   // a crater forming under a planted foot
-                    l.foot = l.plant + Vector3.up * l.ankleH; l.footYaw = l.plantYaw; l.groundNow = l.plant.y;
+                    float lf = SoleLift(g, l, l.plant, l.normal, l.plantYaw); l.foot = l.plant + Vector3.up * (l.ankleH + lf); l.footYaw = l.plantYaw; l.groundNow = l.plant.y + lf;   // k92: the sole on the ground under it
                     // over-stretch guard while the other foot is in the air: the foot is dragged (never the leg snapping); counted as slide
                     var hp = l.hip.position; var fl = new Vector2(l.plant.x - hp.x, l.plant.z - hp.z);
                     float lim = 1.05f * reachH;
                     if (fl.magnitude > lim)
                     {
-                        var was = l.plant; fl = fl.normalized * lim; l.plant.x = hp.x + fl.x; l.plant.z = hp.z + fl.y; l.plant = Ground(g, l.plant); l.foot = l.plant + Vector3.up * l.ankleH;
+                        var was = l.plant; fl = fl.normalized * lim; l.plant.x = hp.x + fl.x; l.plant.z = hp.z + fl.y; l.plant = Ground(g, l.plant); l.foot = l.plant + Vector3.up * (l.ankleH + SoleLift(g, l, l.plant, l.normal, l.plantYaw));   // k92: a dragged foot on its sole too
                         l.dragCm += new Vector2(l.plant.x - was.x, l.plant.z - was.z).magnitude * 100f; Drags++;
                     }
                     continue;
                 }
+                TurnQuicken(l, swing);                                                                // 1.2 v2 units: a swing that started slower is quickened to the turn's pace (View/MechWalk.Turn.cs)
                 l.swingT += dt / Mathf.Max(0.05f, l.swingDur);
                 float s = Mathf.Clamp01(l.swingT), e = Smooth(s);
                 var home = body.TransformPoint(l.homeLocal);
+                float ahead = TurnAhead(l, s, ref home);                                              // 1.2 v2 units: turning, the spot the turned body will want at landing, plus the lead (0 deg otherwise)
                 l.aim = Ground(g, home + vel * ((1f - s) * l.swingDur + swing * 0.5f));           // re-aimed every frame: speed / heading / turn
                 float len = new Vector2(l.aim.x - l.from.x, l.aim.z - l.from.z).magnitude;
                 if (l.stepH < 0f) l.stepH = Mathf.Clamp(StepHeight * sc * (0.55f + 0.45f * len / Mathf.Max(0.01f, maxStep)), 0.12f * sc, StepHeight * sc * 1.2f);
@@ -237,14 +246,14 @@ namespace OpenZ
                 float baseY = Mathf.Lerp(l.from.y, l.aim.y, e);
                 baseY = Mathf.Max(baseY, g.GroundY(xz.x, xz.z));                                     // never through a bump on the way
                 float u = 4f * s * (1f - s);
-                l.foot = new Vector3(xz.x, baseY + l.ankleH + l.stepH * u * u, xz.z);
-                l.footYaw = Mathf.LerpAngle(l.fromYaw, bodyYaw, e);
-                l.groundNow = baseY;
+                float sl = K102SwingSole(g, l, SwingLift(g, l, e, bodyYaw + ahead), xz, baseY, e, bodyYaw + ahead); l.foot = new Vector3(xz.x, baseY + sl + l.ankleH + l.stepH * u * u, xz.z);   // k92: from the height it stood at to the one it lands at   // k102: the swinging sole never under the ground where it is drawn
+                l.footYaw = Mathf.LerpAngle(l.fromYaw, bodyYaw + ahead, e);                            // 1.2 v2 units: + the turn's lead (0 when not turning)
+                l.groundNow = baseY + sl;
                 bob += Mathf.Sin(Mathf.PI * s) * 0.5f;
                 if (s >= 1f)
                 {   // touch-down: lock the foot, one plant event drives sound, footprints and dust
-                    l.plant = l.aim; l.normal = Normal(g, l.plant, 0.35f * sc); l.planted = true; l.plantedFor = 0f; l.plantYaw = bodyYaw;
-                    l.foot = l.plant + Vector3.up * l.ankleH; l.footYaw = bodyYaw;
+                    l.plant = l.aim; l.normal = Normal(g, l.plant, 0.35f * sc); l.planted = true; l.plantedFor = 0f; l.plantYaw = bodyYaw + ahead;   // 1.2 v2 units: + the turn's lead
+                    l.foot = l.plant + Vector3.up * (l.ankleH + SoleLift(g, l, l.plant, l.normal, l.plantYaw)); l.footYaw = l.plantYaw;   // k92: it lands on its sole
                     l.stanceStart = l.plant; l.stanceMax = 0f; l.stanceOk = true;
                     l.stanceT = 0f; l.stanceYaw = bodyYaw; l.dragCm = 0f; l.residCm = 0f; l.softFrames = 0;
                     dip = 1f;
@@ -280,6 +289,7 @@ namespace OpenZ
                 pelvis.localPosition = pelvisRest + up;
             }
             foreach (var l in legs) Solve(l, bodyYaw);
+            K86cMonitor(bodyYaw, dt, tele);                                                          // the drawn standing feet against their landing (statistics, View/MechWalk.K86c.cs)
             foreach (var l in legs) if (l.planted) TrackStance(l, dt);
         }
 
@@ -303,7 +313,7 @@ namespace OpenZ
             l.rollNeed = rollNeed;
             // world: undo the hip roll on the plate, turn it to the ground normal (swing: eased from / to it), keep its locked yaw
             var rollW = par.rotation * R * Quaternion.Inverse(par.rotation);
-            var n = l.planted ? l.normal : Vector3.Slerp(l.normal, Vector3.up, Mathf.Sin(Mathf.PI * Mathf.Clamp01(l.swingT)));
+            var n = l.planted ? l.normal : Vector3.Slerp(l.normal, Vector3.up, SwingPlate(l.swingT));   // 1.2 v2 units: the sole turns level with the swing's height curve, along the slope near lift-off and touch-down (View/MechWalk.Turn.cs)
             var tilt = Quaternion.FromToRotation(par.up, n);
             var yaw = Quaternion.AngleAxis(Mathf.DeltaAngle(bodyYaw, l.footYaw), n);
             l.ankle.rotation = yaw * tilt * Quaternion.Inverse(rollW) * l.ankle.rotation;

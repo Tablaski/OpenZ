@@ -219,6 +219,7 @@ namespace OpenZ
         {
             if (layer != 0 || !anim) return;
             if (OzHeroLegs.Drives(view)) { Release(); return; }   // hero legs (item 209): Hips + legs written by OzHeroLegs after the Animator, no IK on them
+            if (OzMassLod.SkipLegIk(view)) { Release(); return; }   // 1.3 mass battles: the option on, more than 70 units AND slow frames, this robot small on the screen: the feet follow the clip (View/OzMassLod.cs)
             if (On && view && !view.Dying && anim.isHuman && view.AnticPosesLegs && !BS01Stance.LegsPosed(view) && AnticLegs) { PosedLegs(); return; }
             // boarding crews are clones without a UnitView (BoardingView.CloneView): they keep the plain clip pose, as before
             if (!On || !view || view.Dying || !anim.isHuman || BS01Stance.LegsPosed(view) || view.AnticPosesLegs) { Release(); return; }   // robot_models_v2 review: kneel / prone legs = the clip's own foot IK
@@ -245,7 +246,7 @@ namespace OpenZ
                     idleFoot[anim.avatar] = new[] { new Quaternion(rq.x, -rq.y, -rq.z, rq.w), rq };
                 }
             }
-            var P = new Vector3[2]; var Q = new Quaternion[2];
+            var P = ikP; var Q = ikQ;   // 1.4 speed-up 2 (perf_garbage): kept per robot; every slot is written below before it is read (View/RobotLegIK.NoGarbage.cs)
             for (int i = 0; i < 2; i++)
             {
                 var goal = Goals[i];
@@ -420,7 +421,7 @@ namespace OpenZ
                 legLen = new float[2];
                 for (int k = 0; k < 2; k++) { var h = k == 0 ? hipL : hipR; if (h && kneeB[k] && footBB[k]) legLen[k] = Vector3.Distance(h.position, kneeB[k].position) + Vector3.Distance(kneeB[k].position, footBB[k].position); }
             }
-            var need = 0f; var gy = new float[2];
+            var need = 0f; var gy = ikGy;   // 1.4 speed-up 2 (perf_garbage): kept per robot; both slots written in the first loop before any read
             // (locking in idle popped 10-17 cm on every idle <-> walk cross-fade)
             var cs = anim.GetCurrentAnimatorStateInfo(0);
             bool gaitNow = !anim.IsInTransition(0) && (cs.IsName("walking") || cs.IsName("run_forward") || cs.IsName("run_backward") || cs.IsName("strafe_left") || cs.IsName("strafe_right"));

@@ -14,7 +14,7 @@ namespace OpenZ
     ///    own Cursor.visible (CaptureKit cinematics, ZodBriefing) keep working: this cursor simply follows Cursor.visible.
     ///  - Window unfocused / mouse outside the window: the kit's hardware cursor comes back (a visible pointer over a background
     ///    window), the software one hides.
-    ///  - Every cursor state OpenZCursors decides (arrow, move, attack, enter, exit, grab, nono, repair, cannon, place) with the
+    ///  - Every cursor state OpenZCursors decides (arrow, move, attack, enter, exit, grab, pickup, nono, repair, cannon, place) with the
     ///    kit's 4 frames x 0.2 s; "move" is baked in the GO green (OzKit.GreenCursors) like the hardware path recolours it.
     ///  - PlayerPrefs oz_soft_cursor = 0 keeps the old hardware path (OzKit.SetHardwareCursor); oz_kit_cursor = 0 (OpenZCursors)
     ///    still means the plain OS cursor.
@@ -37,7 +37,7 @@ namespace OpenZ
         public static string ForceName;
         /// <summary>Close-up captures: draw every cursor state in a row, left edge at this screen point (bottom-left origin).</summary>
         public static bool Gallery; public static Vector2 GalleryAt = new Vector2(200f, 200f);
-        public static readonly string[] Names = { "arrow", "move", "attack", "enter", "exit", "grab", "nono", "repair", "cannon", "place" };
+        public static readonly string[] Names = { "arrow", "move", "attack", "enter", "exit", "grab", "pickup", "nono", "repair", "cannon", "place" };   // 1.2 item 17: pickup = the grenade hand
 
         static OzSoftCursor inst;
         static int prefsFrame = -1; static bool prefsOn = true, prefsHw = true; static float prefsScale = 1f;
@@ -80,16 +80,24 @@ namespace OpenZ
         public static void Hide() { if (inst && inst.active) inst.Deactivate(true); }
 
         static readonly System.Collections.Generic.Dictionary<string, Texture2D[]> frames = new System.Collections.Generic.Dictionary<string, Texture2D[]>();
-        /// <summary>HD frame texture (cached per state: no per-frame string building / allocation).</summary>
+        /// <summary>HD frame texture (cached per state: no per-frame string building / allocation). 1.3 item 34: on the blue side the
+        /// state's blue twin (OzKit.CursorArt); red side: the same file as before. A blue picture that is missing falls back to the red one.</summary>
         static Texture2D Tex(string name, int frame)
         {
-            if (!frames.TryGetValue(name, out var f))
+            string art = OzKit.CursorArt(name);
+            var t = Frames(art)[frame & 3];
+            return t != null || art == name ? t : Frames(name)[frame & 3];
+        }
+
+        static Texture2D[] Frames(string art)
+        {
+            if (!frames.TryGetValue(art, out var f))
             {
                 f = new Texture2D[4];
-                for (int i = 0; i < 4; i++) f[i] = OzKit.GetTexture(HdPrefix + name + "_" + HdSize + "_" + i);
-                frames[name] = f;
+                for (int i = 0; i < 4; i++) f[i] = OzKit.GetTexture(HdPrefix + art + "_" + HdSize + "_" + i);
+                frames[art] = f;
             }
-            return f[frame & 3];
+            return f;
         }
 
         static readonly System.Collections.Generic.Dictionary<string, Texture2D> hwCache = new System.Collections.Generic.Dictionary<string, Texture2D>();
@@ -99,7 +107,7 @@ namespace OpenZ
         {
             if (string.IsNullOrEmpty(name)) return null;
             n = Mathf.Clamp(n, 8, HdSize);
-            string key = name + "_" + (frame & 3) + "_" + n;
+            string key = OzKit.CursorArt(name) + "_" + (frame & 3) + "_" + n;                                 // 1.3 item 34: the blue twin bakes under its own key (red: as before)
             if (hwCache.TryGetValue(key, out var t) && t) return t;
             var src = Tex(name, frame);
             if (src == null) return null;
@@ -124,12 +132,13 @@ namespace OpenZ
         bool HardwareTick(string name, int frame)
         {
             int n = OzKit.HardwareCursorSize;
-            if (hwName != null && name == hwName && frame == hwFrame && n == hwN) return true;
+            string art = OzKit.CursorArt(name);                                                        // 1.3 item 34: the side's set (red side: art == name)
+            if (hwName != null && art == hwName && frame == hwFrame && n == hwN) return true;
             var t = HardwareTexture(name, frame, n);
             if (t == null) return false;
             float hx = name == "arrow" ? 4f / 32f : 0.5f, hy = name == "arrow" ? 3f / 32f : 0.5f;         // hotspot from the top-left (kit: arrow (4,3) of 32)
             Cursor.SetCursor(t, new Vector2(Mathf.Round(hx * n), Mathf.Round(hy * n)), CursorMode.Auto);
-            hwName = name; hwFrame = frame; hwN = n; hwBlank = true; hwKit = false;
+            hwName = art; hwFrame = frame; hwN = n; hwBlank = true; hwKit = false;
             if (!hwLogged)
             {
                 hwLogged = true;

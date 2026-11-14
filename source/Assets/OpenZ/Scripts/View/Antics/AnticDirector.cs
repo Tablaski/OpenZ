@@ -22,7 +22,7 @@ namespace OpenZ
     /// View only: UnityEngine.Random, no sim writes, so replays and the sim hash are untouched.
     /// </summary>
     [DefaultExecutionOrder(58)]
-    public sealed class AnticDirector : MonoBehaviour
+    public sealed partial class AnticDirector : MonoBehaviour                                        // + AnticDirector.Flyover.cs: antics under the blue flyover's hold
     {
         public static bool Enabled = true, Verbose = true;
         public static float IdleMin = 12f, IdleJitter = 8f, MeanWait = 22f, ScanEvery = 0.5f, MinStartGap = 5f;
@@ -143,12 +143,12 @@ namespace OpenZ
         // ------------------------------------------------------------------ runs
         internal void Started(AnticRun r)
         {
-            runs.Add(r); Starts++; StartsBy[(int)r.Kind]++; lastStart = Time.time;
+            runs.Add(r); Starts++; StartsBy[(int)r.Kind]++; lastStart = Time.time; NoteFlyoverStart();
             int team = 0, screen = 0;
             foreach (var x in runs) { if (x.View && x.View.Obj != null && r.View.Obj != null && x.View.Obj.Owner == r.View.Obj.Owner) team++; if (x.View && WreckFx.OnScreen(x.View.transform.position)) screen++; }
             MaxTeamSeen = Mathf.Max(MaxTeamSeen, team); MaxScreenSeen = Mathf.Max(MaxScreenSeen, screen);
             var o = r.View.Obj;
-            Say($"start {r.Kind} on {o.Type} #{o.Id} ({o.Owner}) idle {r.View.AnticIdleFor:F1} s; active team {team}/{MaxPerTeam}, on screen {screen}/{MaxOnScreen}");
+            if (!FlyoverStarted(r)) Say($"start {r.Kind} on {o.Type} #{o.Id} ({o.Owner}) idle {r.View.AnticIdleFor:F1} s; active team {team}/{MaxPerTeam}, on screen {screen}/{MaxOnScreen}");   // k75c3: the drive keeps its own log (a line a start would be a hitch for 150 robots)
         }
 
         internal void Stopped(AnticRun r, bool cancelled, string reason)
@@ -156,7 +156,7 @@ namespace OpenZ
             runs.Remove(r);
             if (cancelled) { Cancels++; CancelsBy[(int)r.Kind]++; } else Ends++;
             var o = r.View ? r.View.Obj : null;
-            Say($"{(cancelled ? "cancel" : "end")} {r.Kind} on {(o != null ? o.Type + " #" + o.Id : "?")} at {r.Age:F2} s in {r.Step}: {reason}" + (cancelled ? " (props popped off, weapon back, same frame)" : ""));
+            if (!FlyoverStopped(r, cancelled, reason)) Say($"{(cancelled ? "cancel" : "end")} {r.Kind} on {(o != null ? o.Type + " #" + o.Id : "?")} at {r.Age:F2} s in {r.Step}: {reason}" + (cancelled ? " (props popped off, weapon back, same frame)" : ""));   // k75c3: the drive notes its own
         }
 
         void Update()
@@ -178,22 +178,23 @@ namespace OpenZ
                 r.View.AnticCancel("team lead lost: " + block, false);
             }
             if (game.isActiveAndEnabled && !game.paused) playT += Time.deltaTime;                  // level PLAY time: a briefing (game disabled) or a pause does not count
+            if (FlyoverDrive(Time.deltaTime)) return;                                                   // k75c3: under a level-start flyover's hold the drive gives every robot its antics (AnticDirector.FlyoverAll.cs); no scan there
             if ((scanT += Time.deltaTime) < ScanEvery) return;
             float dt = scanT; scanT = 0f;
-            if (game.paused || !game.isActiveAndEnabled || game.World.GameOver || playT < MinLevelTime || Time.time - lastStart < MinStartGap) return;
+            if (ScanBlocked()) return;                                                                  // the normal rules, or the flyover's own under its hold (AnticDirector.Flyover.cs)
             var kit = Kit;
             RefreshThreats();
-            float p = 1f - Mathf.Exp(-dt / Mathf.Max(1f, MeanWait));
+            float p = 1f - Mathf.Exp(-dt / Mathf.Max(1f, MeanWaitNow));
             int screen = 0; foreach (var r in runs) if (r.View && !r.Hold && WreckFx.OnScreen(r.View.transform.position)) screen++;   // DV108: nor of those on screen
-            if (screen >= MaxOnScreen) return;
+            if (screen >= MaxOnScreenNow) return;
             cands.Clear(); candScore.Clear(); int rolled = 0;
             var cam = Camera.main;
-            foreach (var v in game.Views.Values)
+            foreach (var v in game.LiveViewValues)
             {
                 if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.AnticActive || OzHeroAntics.OwnRule(v.Obj)) continue;   // KC4b: the hero squad's antics are their own rule (the drink only, View/OzHeroAntics.cs)
-                if (v.AnticIdleFor < IdleMin + IdleJitter * Hash01(v.Obj.Id) || Time.time < v.AnticCooldownUntil) continue;
+                if (v.AnticIdleFor < IdleNeed(v.Obj.Id) || Time.time < v.AnticCooldownUntil) continue;
                 if (!v.CanAntic || !WreckFx.OnScreen(v.transform.position, -0.05f)) continue;
-                if (TeamActive(v.Obj.Owner) >= MaxPerTeam) continue;
+                if (TeamActive(v.Obj.Owner) >= MaxPerTeamNow) continue;
                 if (Threatened(v, StartThreatM)) { v.AnticResetIdle(); continue; }
                 bool roll = Random.value <= p;
                 if (!PreferSeen)
@@ -235,8 +236,10 @@ namespace OpenZ
 
         void LateUpdate()
         {
+            FlyoverLateBegin();                                                                         // k75c3: the runs' late step is timed under the drive (the cost line)
             for (int i = runs.Count - 1; i >= 0; i--) { var r = runs[i]; if (r != null && !r.Finished) r.Late(Time.deltaTime); }
             AnticFx.Step();
+            FlyoverLateEnd();
         }
 
         int TeamActive(Team t) { int n = 0; foreach (var r in runs) if (r.View && r.View.Obj != null && r.View.Obj.Owner == t && !r.Hold) n++; return n; }   // DV108: a held level-start lie is not one of the team's antics
@@ -717,7 +720,7 @@ namespace OpenZ
 
         static bool Crowded(ZGame g, UnitView self, Vector3 c, float r)
         {
-            foreach (var u in g.Views.Values)
+            foreach (var u in g.LiveViewValues)
             {
                 if (!u || u == self || !u.isActiveAndEnabled) continue;
                 var d = u.transform.position - c; d.y = 0f;

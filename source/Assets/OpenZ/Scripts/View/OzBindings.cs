@@ -23,7 +23,7 @@ namespace OpenZ
     /// saved at once on every change. "Ctrl" actions (ALL ROBOTS ...) keep Ctrl as their modifier: only the key changes.
     /// A conflict = two actions of the same context (plain or Ctrl) on one key: allowed (both fire), shown in red in CONTROLS.
     /// HIDE THE HUD and GO TO THE LAST MESSAGE are read without a modifier test (OpenZHud F10 / Space), so they conflict with a
-    /// Ctrl action on the same key too. PLACE A STORED CANNON (C) is not read while Ctrl is held: Ctrl+C is ALL CANNONS. F6-F9, F11, F12 are
+    /// Ctrl action on the same key too. PLACE A STORED CANNON (C) is not read while Ctrl or Alt is held: Ctrl+C is ALL CANNONS, Alt+P the testing overlay (1.3 item 28). F6-F9, F11, F12 are
     /// reserved: LegacyMatchCheck (F6-F8, every level), NightLights (F9), CaptureKit (F7-F12) read them in the exe as well.
     /// View / input side only: the sim never reads a key.
     /// </summary>
@@ -53,7 +53,7 @@ namespace OpenZ
             D(OzAction.ScrollRight, "Scroll right", CameraSection, Key.D, false, true),
             D(OzAction.FactoryList, "Factory list", UiSection, Key.B),
             D(OzAction.PlaceCannon, "Place a stored cannon", UiSection, Key.C),
-            D(OzAction.ExitCrew, "Exit crew (gun / APC)", UiSection, Key.E),
+            D(OzAction.ExitCrew, "Exit gun / APC crew, tank / mech driver", UiSection, Key.E),   // 1.4 DV171: the key also lets the driver of a tank or the mech out (UI/OpenZHud.VehicleExit.cs); 39 characters, no longer than the longest label (40)
             D(OzAction.LastMessage, "Go to the last 5 messages", UiSection, Key.Space),
             D(OzAction.HideHud, "Hide the HUD", UiSection, Key.F10),
             D(OzAction.MinimalUi, "Minimal UI (hide / show the panels)", UiSection, Key.U),   // the OPTIONS switch MINIMAL UI from the keyboard (OpenZHud.MinimalKey.cs); U is on no other action, fixed key or debug key
@@ -89,7 +89,7 @@ namespace OpenZ
                 cur[i] = v > 0 && Reserved((Key)v) == null ? (Key)v : Defs[i].key;                            // review fix: a saved debug / reserved key falls back
             }
             // a key map saved before the cannon key became C may hold a plain action the player moved onto C: for exactly that player
-            // the cannon key stays on P (saved once, so it shows in CONTROLS and RESET TO DEFAULTS still gives C)
+            // the cannon key stays on P (saved once, so it shows in CONTROLS and RESET TO DEFAULTS still gives C); 1.3 item 28: that P now places with the dev flag on too (the testing overlay is Alt+P)
             int pc = (int)OzAction.PlaceCannon;
             if (!PlayerPrefs.HasKey(Defs[pc].pref))
                 for (int i = 0; i < Defs.Length; i++)
@@ -136,7 +136,8 @@ namespace OpenZ
 
         static UnityEngine.InputSystem.Controls.KeyControl Control(OzAction a)
         {
-            var kb = Keyboard.current; if (kb == null) return null;
+            var kb = Keyboard.current; if (kb == null || OzUeHooks.SilenceAction(a)) return null;   // 1.2 item 6: the playground's silent actions, every key while typing or a dialog is open (View/OzUeHooks.cs)
+            if (OzFpsView.On) return null;                                                   // 1.4 fps_view: no bound action while the first-person view is on (it reads its own W A S D; View/OzFpsView.cs)
             try { return kb[KeyOf(a)]; } catch (ArgumentOutOfRangeException) { return null; }
         }
 

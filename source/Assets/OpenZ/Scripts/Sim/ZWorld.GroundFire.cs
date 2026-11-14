@@ -44,7 +44,12 @@ namespace OpenZ.Sim
         /// <summary>Lights the ground at (x, y) for team's Pyro <paramref name="by"/> (or keeps the live patch there burning).</summary>
         public void GroundFireAt(int x, int y, Team team, int by = -1)
         {
-            if (!GroundFireDeviation || team == Team.Neutral) return;
+            if (team != Team.Neutral) GroundFireLight(x, y, team, by);                              // DV163: only a dragon's flame lights a Neutral patch (ZWorld.Dragons.cs)
+        }
+
+        internal void GroundFireLight(int x, int y, Team team, int by)
+        {
+            if (!GroundFireDeviation) return;
             if (Map.ClassAt(x >> 4, y >> 4) == ZClass.Water || x < 0 || y < 0) return;          // fire over water: steam only (the view's rule)
             GroundFire best = null; long bestD = long.MaxValue, reach = (long)GroundFireMergePx * GroundFireMergePx;
             foreach (var f in GroundFires)
@@ -70,7 +75,7 @@ namespace OpenZ.Sim
             long r2 = (long)GroundFireRadiusPx * GroundFireRadiusPx;
             foreach (var f in GroundFires)
             {
-                if (f.team == o.Owner) continue;
+                if (f.team == o.Owner || (f.team == Team.Neutral && !o.IsRobot)) continue;           // DV163: a dragon's fire burns robots of both teams, never a vehicle
                 long dx = f.x - o.CenterX, dy = f.y - o.CenterY;
                 if (dx * dx + dy * dy <= r2) return f;
             }

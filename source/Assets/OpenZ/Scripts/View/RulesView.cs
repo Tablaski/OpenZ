@@ -212,6 +212,7 @@ namespace OpenZ
             if (st != 2) OzRuinFires.End(o.Id);                                                 // standing again: its ruin fire goes at once
             for (int i = 0; i < 3; i++) if (v[i]) v[i].SetActive(i == st || (v[st] == null && i == 0));
             if (st < 2 && v[st]) game.MakeWalkable(v[st]);                                     // intact / damaged decks carry units
+            ZGame.GroundGridChanged(v);                                                        // 1.4 perf_ground_grid: a deck shown or hidden, its cells baked again
             var cur = Static(o.Id);
             var under = cur && cur.transform.parent ? cur.transform.parent.Find("underlay_" + cur.name) : null;
             if (under) under.gameObject.SetActive(st == 0);

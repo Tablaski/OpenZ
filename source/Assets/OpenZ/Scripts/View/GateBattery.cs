@@ -151,7 +151,7 @@ namespace OpenZ
 
         void Setup()
         {
-            outDir = Path.GetFullPath(Path.Combine(Application.dataPath, "../../../../work/records/gate", level));
+            outDir = OzProofWords.Records(Path.Combine("gate", level));
             Directory.CreateDirectory(outDir);
             var onlyPref = PlayerPrefs.GetString("oz_gate_only", "");
             if (onlyPref.Length > 0) { outDir = Path.Combine(outDir, "recheck_" + DateTime.Now.ToString("HHmm")); Directory.CreateDirectory(outDir); }   // time-stamped: cited evidence is never overwritten
@@ -460,7 +460,7 @@ namespace OpenZ
             Clear();
         }
 
-        static readonly string[] VehicleList = { "jeep", "light", "medium", "heavy", "apc", "missile_launcher", "crane" };
+        static readonly string[] VehicleList = { "jeep", "light", "medium", "heavy", "apc", "missile_launcher", "crane", ZMTank.Type };   // DV145: + the medium tank, last (index 3 stays the heavy tank)
 
         IEnumerator Vehicles(Vector2Int home)
         {

@@ -46,7 +46,7 @@ namespace OpenZ.Sim
                 if (!RepairingUnit || RepairOccupantId < 0 || World == null) return -1f;
                 var u = World.Get(RepairOccupantId); if (u == null || u.MaxHealth <= 0) return -1f;
                 int need = u.MaxHealth - RepairFromHealth; if (need <= 0) return 1f;
-                return Math.Max(0f, Math.Min(1f, (u.Health - RepairFromHealth) / (float)need));
+                return Math.Max(0f, Math.Min(1f, (float)((u.Health - RepairFromHealth) / (float)need)));
             }
         }
 
@@ -57,10 +57,13 @@ namespace OpenZ.Sim
             t.GetRepairEntrance(out x, out y);
             int qy = y + 40;
             if (!u.World.Path.WithinImpassable(x - (u.WidthPix >> 1) + 1, qy - (u.HeightPix >> 1) + 1, u.WidthPix - 2, u.HeightPix - 2, out _, out _, false)) y = qy;
+            RepairSpotClear(u, ref x, ref y);                                                          // 1.2 item 67: a cannon keeps the vehicle off that spot: the nearest free one (ZObject.RepairSpot.cs)
         }
 
         void RepairTripStart()
         {
+            if (repairTripLive && Waypoints.Count > 0 && Waypoints[0].Equals(repairTripWp)) return;   // 1.2 item 67: the same trip taken up again (a re-path, a dodge): its way back stays (ZObject.RepairSpot.cs)
+            repairTripLive = Waypoints.Count > 0; if (repairTripLive) repairTripWp = Waypoints[0];
             repairRetX = CenterX; repairRetY = CenterY; repairNoReturn = false;
             repairReturn = ZWorld.RepairInPlaceDeviation && World != null && World.IsHumanTeam(Owner);
         }
@@ -114,6 +117,7 @@ namespace OpenZ.Sim
         /// queue behind the repair (Zod: the vehicle is gone while it is repaired).</summary>
         internal void RepairBayOnOrder(bool human)
         {
+            repairTripLive = false;                                                                      // 1.2 item 67: a new order: the next repair waypoint starts a new trip (ZObject.RepairSpot.cs)
             if (Waypoints.Count == 0 || Waypoints[0].mode != WpMode.UnitRepair) return;
             if (cur.stage == Stage.RepairLeave) { repairNoReturn = true; return; }
             if (cur.stage != Stage.Repairing || !human) return;

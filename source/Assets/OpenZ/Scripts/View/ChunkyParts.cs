@@ -118,7 +118,7 @@ namespace OpenZ
 
         public static bool Apply(GameObject unit, string type)
         {
-            if (!unit || type != "gun" || PlayerPrefs.GetInt("oz_gun_nose", 1) == 0) return false;
+            if (!unit || type != "gun" || PlayerPrefs.GetInt("oz_gun_nose", 1) == 0 || OzGun.NoNose(unit)) return false;   // 1.2 v2 units: v1 only (the gun v2 has its own octagonal muzzle: View/OzGun.cs)
             Transform recoil = null, surf = null, muzzle = null, pitch = null;
             foreach (var t in unit.GetComponentsInChildren<Transform>(true))
             {

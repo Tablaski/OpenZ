@@ -144,7 +144,7 @@ namespace OpenZ
             var o = v.Obj;
             if (o == null || o.Destroyed || o.Owner == Team.Neutral) return;                          // killed / driver sniped mid-ripple
             var from = v.MuzzlePos();                                                                 // this tube (UnitAim advances after LateUpdate)
-            v.OnFire();                                                                               // tube empties, rack kick, hull jolt, next tube
+            RippleFiring = true; try { v.OnFire(); } finally { RippleFiring = false; }               // tube empties, rack kick, hull jolt, next tube; 1.2 v2 units: a ripple rocket (View/MlrsSalvo.Model.cs)
             MlrsSideKick.Kick(v, from, l.to);
             float flight = Mathf.Max(0.2f, l.flight * Mathf.Clamp(Vector3.Distance(from, l.to) / l.d0, FlightMin, FlightMax));
             LegacyMatch.Launch(o, "missile_launcher", from, l.to, flight, FxManager.I);

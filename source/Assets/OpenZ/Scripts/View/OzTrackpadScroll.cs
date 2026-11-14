@@ -106,7 +106,7 @@ namespace OpenZ
         /// setting. flying: the camera is on a fly-to (a minimap click, a message, Space).</summary>
         public static float Wheel(RtsCamera cam, Mouse mouse, Keyboard kb, bool flying)
         {
-            Vector2 s = mouse != null ? mouse.scroll.ReadValue() : Vector2.zero;
+            Vector2 s = mouse != null && !OzUeHooks.WheelBlocked() ? mouse.scroll.ReadValue() : Vector2.zero;   // 1.2 item 6: the wheel belongs to an editor panel under the pointer, or to the number being typed (View/OzUeHooks.cs)
             bool ctrl = kb != null && kb.ctrlKey.isPressed, cmd = CmdHeld(kb);
             float dt = Time.unscaledDeltaTime;
             int dir = 0; bool pressed = false;
@@ -122,7 +122,7 @@ namespace OpenZ
             if (cam != lastCam) { lastCam = cam; pendX = pendY = 0f; gFrames = 0; }
             int set = Setting;
             if (set != OzTrackpadMath.MoveMap) { pendX = pendY = 0f; return s.y; }                    // ZOOM (default): the wheel as before
-            var r = OzTrackpadMath.Decide(set, s.x, s.y, ctrl, cmd, IsMac, MenuInFront(), PerNotch());
+            var r = OzTrackpadMath.Decide(set, s.x, s.y, ctrl, cmd, IsMac, MenuInFront(), PerNotch(), OzTrackpadMath.MaxNotchesFor(dt));   // v1.3 item 35: the Ctrl / Cmd + scroll limit per second, not per frame
             float H = Mathf.Max(1, Screen.height);
             switch (r.act)
             {

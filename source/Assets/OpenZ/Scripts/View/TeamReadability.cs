@@ -225,6 +225,7 @@ namespace OpenZ
                 float r = Radius(v);
                 var pos = v.transform.position;
                 if (groundY.TryGetValue(o.Id, out var gy) && gy > pos.y && gy - pos.y < 1.5f) pos.y = gy;
+                OzLavaWade.Lift(ref pos, 0f);                                                                 // 1.3 level 7
                 pos.y += lift;
                 Graphics.DrawMesh(mesh, Matrix4x4.TRS(pos, Quaternion.identity, new Vector3(r, 1f, r)), m, 0, null, 0, null,
                                   ShadowCastingMode.Off, false, null, LightProbeUsage.Off);

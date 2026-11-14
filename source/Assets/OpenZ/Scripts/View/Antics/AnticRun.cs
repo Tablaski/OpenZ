@@ -106,7 +106,7 @@ namespace OpenZ
         public bool Tick(Animator anim, float dt)
         {
             if (Finished) return false;
-            if (step < 0) { if (!HeroStart(anim)) Enter(anim, 0, FirstFade(0.12f)); }                  // KH2: a hero's slower fade into a standing antic (AnticRun.Hero2.cs)                     // DV108: the level-start lounger begins lying (AnticRun.Hero.cs)
+            if (step < 0) { if (!HeroStart(anim) && !PrerollStart(anim)) Enter(anim, 0, FirstFade(0.12f)); }   // k75c3: a flyover antic may begin part-way (AnticRun.Flyover.cs)   // KH2: a hero's slower fade into a standing antic (AnticRun.Hero2.cs)   // DV108: the level-start lounger begins lying (AnticRun.Hero.cs)
             else
             {
                 stepT += dt;
@@ -296,7 +296,7 @@ namespace OpenZ
                 case "stow": Stow(); break;
                 case "phone_in": phone = HandProp(AnticDirector.Kit ? AnticDirector.Kit.phone : null, "AnticPhone", true, AnticSockets.PhoneScale, true); if (phone) AnticFx.PopIn(phone, phone.localScale, true, "phone_pop_in", id); break;
                 case "phone_sound": AnticFx.Sound("rob_antic_phone", phone ? phone.position : p, id); break;
-                case "phone_out": if (phone) { AnticFx.PopOut(phone, true, true, "phone_pop_out", id); phone = null; } break;
+                case "phone_out": if (phone) { AnticProps.PopAway(phone, true, "phone_pop_out", id); phone = null; } break;   // k75c3: popped out as always, then back to the prop pool (AnticProps)
                 case "can_in":
                     can = HandProp(AnticDirector.Kit ? AnticDirector.Kit.can : null, "AnticFuelCan", true, AnticSockets.CanScale, false);
                     if (can) AnticFx.PopIn(can, can.localScale, true, "can_pop", id);
@@ -374,7 +374,7 @@ namespace OpenZ
             var socket = left ? AnticSockets.LeftProp(View, kit) : AnticSockets.RightWeapon(View);
             if (!socket) { Note("no socket for " + name); return null; }
             bool ownMats = phoneFit && kit.phoneOwnMats;
-            var h = AnticFx.Make(model, name, model == kit.can || model == kit.canCrushed ? kit.canMat : ownMats ? null : kit.propMat);
+            var h = AnticProps.Take(model, name, model == kit.can || model == kit.canCrushed ? kit.canMat : ownMats ? null : kit.propMat);   // k75c3: from the prop pool when it has one
             AnticFx.OnSocket(h, socket, ownMats ? AnticSockets.PhoneV2Scale * AnticSockets.PhoneBodyFor(View) : scale);
             if (model == kit.can || model == kit.canCrushed) h.localRotation = AnticSockets.CanRot;
             if (phoneFit && !ownMats)
@@ -392,7 +392,7 @@ namespace OpenZ
             var h = AnticFx.Make(kit.canCrushed, "AnticFuelCanCrushed", kit.canMat);
             h.SetParent(full.parent, false); h.localPosition = full.localPosition; h.localRotation = full.localRotation; h.localScale = full.localScale;
             h.gameObject.layer = full.gameObject.layer;
-            Object.Destroy(full.gameObject);
+            AnticProps.Release(full);                                                                   // k75c3: the full can back to the pool (the crushed one is thrown and disposed of by AnticCan)
             return h;
         }
 
@@ -570,11 +570,11 @@ namespace OpenZ
             if (Finished) return;
             Finished = true;
             FireLeftoversQuietly();
-            void Off(ref Transform t, string what) { if (t) { if (instant) Object.Destroy(t.gameObject); else AnticFx.PopOut(t, true, true, what, id); } t = null; }
+            void Off(ref Transform t, string what) { if (t) { if (instant) AnticProps.Release(t); else AnticProps.PopAway(t, true, what, id); } t = null; }   // k75c3: a pooled prop goes back to the pool, any other is destroyed as before
             Off(ref phone, "phone_pop_out"); Off(ref can, "can_pop_out"); Off(ref rod, "rod_pop_out"); Off(ref bobber, "bobber_pop_out");
             Off(ref fish, "fish_pop_out"); Off(ref bed, "sunbed_pop_out"); Off(ref parasol, "parasol_pop_out");
             if (line) { Object.Destroy(line.gameObject); line = null; }
-            Unstow(instant);
+            if (!FlyoverKeep()) Unstow(instant);                                                        // k75c3: a flyover antic leaves the weapon stowed for the next of its chain (AnticRun.Flyover.cs)
             Note((cancelled ? "cancel: " : "end: ") + reason);
         }
 

@@ -5,9 +5,10 @@ using UnityEngine.Rendering;
 namespace OpenZ
 {
     /// <summary>
-    /// K440 (item 441): the game camera never sees into a shuttle. At the closest zoom (25 m) the flying ship's hull top reaches the camera
-    /// over raised ground, over a kapok, as another ship giving way upward, and in every kickflip (the hull turns over 12.2 m above its
-    /// root); in the free camera (its floor 14 m inside the map) the ship flies through the lens at plain cruise height. The near plane
+    /// K440 (item 441): the game camera never sees into a shuttle. At the closest zoom (35 m since version 1.2, 25 m when this was built)
+    /// the flying ship's hull top reaches the camera over the highest cliff tops (levels 2 and 17) and in a kickflip over a cliff top or
+    /// a kapok on a hill (the hull turns over 12.2 m above its root); in the free camera tilted low (about 24 m up at the closest zoom
+    /// since version 1.2, its floor 14 m when this was built) the ship's kickflip at plain cruise height reaches the lens. The near plane
     /// (0.5 m) then cut the hull open, or the camera stood inside it, and the bay showed.
     /// Now, as a drawn shuttle (and each piece of a shot-down one) comes near the game camera, the whole of it is dithered away with the
     /// rocks' own 4 x 4 screen-door pattern (OpenZ/TeamLit, _OZCamFade): drawn as always while each of its parts' boxes is at least

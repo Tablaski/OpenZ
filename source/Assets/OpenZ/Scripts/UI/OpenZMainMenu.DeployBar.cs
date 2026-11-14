@@ -50,16 +50,27 @@ namespace OpenZ
         /// <summary>Every level's objective today is "CAPTURE THE FLAGS TO TAKE TERRITORY. BREAK INTO THE BLUE FORT TO WIN."
         /// (OzLevelDef.Objective): the headline keeps the goal, the small line the flags-for-territory rule with the level's own count.</summary>
         public const string CardHeadline = "BREAK INTO THE BLUE FORT", CardRule = "CAPTURE FOR TERRITORY", CardRulePlain = "CAPTURE FLAGS FOR TERRITORY";
-        public const string CpuEasy = "ALL UNITS · GENTLE CPU", CpuMedium = "+2 TECH LEVELS · ZOD CPU", CpuHard = "Z BUILD LISTS · MISSILES";
-        public const string HeadL02 = "2 TANKS · 2 JEEPS · 1 MECH", HeadL16 = "2 JEEPS · 1 LIGHT TANK", HeadL17 = "1 MLRS · 1 HEAVY TANK", HeadOff = "STANDARD MAP START";
+        public const string CpuEasy = "ALL UNITS · GENTLE CPU", CpuMedium = "+2 TECH LEVELS · ZOD CPU", CpuHard = "Z BUILD LISTS · MISSILES", CpuMayhem = "HARD + FOG OF WAR";
+        /// <summary>1.4 MAYHEM: the DIFFICULTY row EASY | MEDIUM | HARD | MAYHEM in the same block width (the bar keeps its layout). At the
+        /// HUD's smallest text (11, OzText.MinSize) MEDIUM and MAYHEM do not fit four equal cells (46 u on the compact bar, MAYHEM is 51.3 u
+        /// even at tracking 0.02), so each cell is its word (Inter Tight ExtraBold at CpuText, tracking CpuTrack: CpuWordW, measured, rounded
+        /// up) plus an equal share of the rest, CpuGap apart: 3.9 u or more of room each side of a word on every bar (the count checks it
+        /// with the game's own text, Editor/OzV14MayhemCheck.cs).</summary>
+        public const float CpuGap = 2f, CpuTrack = 0.02f, CpuText = 11f;
+        public static readonly string[] CpuWords = { "EASY", "MEDIUM", "HARD", "MAYHEM" };
+        public static readonly float[] CpuWordW = { 30.2f, 45.5f, 31.5f, 51.3f };
+        /// <summary>Difficulty button i (0 EASY .. 3 MAYHEM) in a DIFFICULTY block bw wide: its left edge from the block's, and its width.</summary>
+        public static float CpuCellX(float bw, int i) { float x = 0f; for (int k = 0; k < i; k++) x += CpuCellW(bw, k) + CpuGap; return x; }
+        public static float CpuCellW(float bw, int i) { float sum = 0f; foreach (var w in CpuWordW) sum += w; return CpuWordW[i] + (bw - 3f * CpuGap - sum) / CpuWordW.Length; }
+        public const string HeadL02 = "2 TANKS · 2 JEEPS · 1 MECH", HeadL07 = "2 JEEPS · 1 LIGHT TANK", HeadL16 = "2 JEEPS · 1 LIGHT TANK", HeadL17 = "1 MLRS · 1 HEAVY TANK", HeadOff = "STANDARD MAP START";
 
         public static string Headline(string level) => CardHeadline;
         /// <summary>The card's small line: "13 FLAGS · CAPTURE FOR TERRITORY" (no count known, or no room: "CAPTURE FLAGS FOR TERRITORY").</summary>
         public static string Sub(int flags, bool withCount) => withCount && flags > 0 ? flags + " FLAGS · " + CardRule : CardRulePlain;
         /// <summary>The DIFFICULTY block's hint (the bar's own short words; OpenZDifficulty.Hint stays the OPTIONS row's).</summary>
-        public static string CpuHint(GameDifficulty d) => d == GameDifficulty.Easy ? CpuEasy : d == GameDifficulty.Medium ? CpuMedium : CpuHard;
+        public static string CpuHint(GameDifficulty d) => d == GameDifficulty.Easy ? CpuEasy : d == GameDifficulty.Medium ? CpuMedium : d == GameDifficulty.Mayhem ? CpuMayhem : CpuHard;
         /// <summary>The HEAD START block's hint while it is on (OpenZDifficulty.HeadStartHint stays the long one, for the log).</summary>
-        public static string HeadHint(string level) => level == "L02" ? HeadL02 : level == "L16" ? HeadL16 : level == "L17" ? HeadL17 : "";
+        public static string HeadHint(string level) => level == "L02" ? HeadL02 : OzVolcanic.Is(level) ? HeadL07 : level == "L16" ? HeadL16 : level == "L17" ? HeadL17 : "";
 
         static readonly Regex TeamWord = new Regex(@"\b(BLUE|RED)\b");
         /// <summary>The team words of a headline in their team text colour (guide 2.1: team text from 14 u up). Give it the line as
@@ -100,7 +111,7 @@ namespace OpenZ
     // ============================================================================================================================
     // K347: the battlefield screen's deploy bar, built and refreshed (OzDeployBar has the numbers and the words). The project's
     // BuildDeployBar calls BuildDeployConsole; RefreshDeployBar calls RefreshDeployConsole after RefreshHeadStart. The parts keep the
-    // names (and fields) they had (DeployBar, CpuLabel, CpuKey, CpuEasy, CpuMedium, CpuHard, CpuHint, HeadLabel, HeadKey, HeadRow,
+    // names (and fields) they had (DeployBar, CpuLabel, CpuKey, CpuEasy, CpuMedium, CpuHard, CpuMayhem (1.4), CpuHint, HeadLabel, HeadKey, HeadRow,
     // HeadHint, Deploy, DeployFocus, Error), so the rest of the menu and its proofs find them as before; new: ObjectiveCard, Line0,
     // ShuttleBlock (UI/OpenZMainMenu.ShuttleStart.cs), ShuttleStartTip.
     // ============================================================================================================================
@@ -135,13 +146,14 @@ namespace OpenZ
             float bw = L.blockW, ry = OzDeployBar.RowY, rh = OzDeployBar.RowH, mid = rh * 0.5f;
             SlidePart(Hairline(p, "Line0", L.X(0, 3) + bw + L.gap * 0.5f, OzDeployBar.LineTop));                                 // between DIFFICULTY and HEAD START (the one left of SHUTTLE comes and goes with it)
 
-            // DIFFICULTY [EASY | MEDIUM | HARD]
-            float cx = L.X(0, 3), sw = (bw - 8f) / 3f;
+            // DIFFICULTY [EASY | MEDIUM | HARD | MAYHEM] (1.4 MAYHEM: four cells fitted to their words, OzDeployBar.CpuCellX / CpuCellW)
+            float cx = L.X(0, 3);
             SlidePart(Hud.Label(p, "CpuLabel", "DIFFICULTY", 10, OzUi.Ink2, 0.24f, OzStyle.Plain).At(cx, OzDeployBar.LabelY, OzH.L, false, bw - 22f).rectTransform);
             SlidePart(Hud.Keycap(p, "CpuKey", "C", cx + bw, OzDeployBar.LabelY - 2f));
-            cpuEasy = SmallButton(p, "CpuEasy", "EASY", new OzRect(cx, ry, sw, rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Easy), 11); SlidePart(cpuEasy.Rt);
-            cpuMedium = SmallButton(p, "CpuMedium", "MEDIUM", new OzRect(cx + sw + 4f, ry, sw, rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Medium), 11); SlidePart(cpuMedium.Rt);
-            cpuNormal = SmallButton(p, "CpuHard", "HARD", new OzRect(cx + 2f * (sw + 4f), ry, sw, rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Hard), 11); SlidePart(cpuNormal.Rt);
+            cpuEasy = SmallButton(p, "CpuEasy", "EASY", new OzRect(cx + OzDeployBar.CpuCellX(bw, 0), ry, OzDeployBar.CpuCellW(bw, 0), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Easy), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuEasy.Rt);
+            cpuMedium = SmallButton(p, "CpuMedium", "MEDIUM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 1), ry, OzDeployBar.CpuCellW(bw, 1), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Medium), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMedium.Rt);
+            cpuNormal = SmallButton(p, "CpuHard", "HARD", new OzRect(cx + OzDeployBar.CpuCellX(bw, 2), ry, OzDeployBar.CpuCellW(bw, 2), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Hard), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuNormal.Rt);
+            cpuMayhem = SmallButton(p, "CpuMayhem", "MAYHEM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 3), ry, OzDeployBar.CpuCellW(bw, 3), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Mayhem), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMayhem.Rt);
             cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(cx, OzDeployBar.HintY, OzH.L, false, bw); SlidePart(cpuHint.rectTransform);
 
             // HEAD START: the switch row (menu_exe_v1's, in the shared row)
@@ -165,11 +177,12 @@ namespace OpenZ
             if (OzKit.GetSprite("Buttons/btn_l_focus") == null) deployFocus.enabled = false;
             deployBtn = HudButton.Make(p, "Deploy", "DEPLOY", new Vector2(dw, dh), HudButtonKind.Large, L.deployLabel, 0.14f, HudButtonStyle.Primary, true);
             deployBtn.Rt.Place(new OzRect(dx, dy, dw, dh));
-            AddHot(deployBtn.Rt, View.Select, Deploy, null, deployBtn, null);
+            AddHot(deployBtn.Rt, View.Select, DeployByPlayer, null, deployBtn, null);                      // 1.2 item 11: the player's own DEPLOY (only it can arm PLAY AS BLUE; UI/OpenZMainMenu.PlayBlue.cs)
             // the editor's "not in the build settings" line: right-aligned over DEPLOY, above the bar, clear of the commander's strip
             float ew = Mathf.Max(200f, dx + dw - (stripRight + OzDeployBar.TipStripGap));
             errorLine = Hud.Label(p, "Error", "", 11, OzUi.AlertText, 0.14f, OzStyle.Plain).At(dx + dw, OzDeployBar.ErrorY, OzH.R, false, ew);
 
+            BuildUnitStats(p, L);                                                                          // 1.2 item 60: the UNIT STATS selector over DEPLOY while a Custom profile exists (UI/OpenZMainMenu.UnitStats.cs)
             ApplySlide(slideNow); PlaceDeployTips(); RefreshObjectiveCard(true);
             Debug.Log($"[OpenZ Menu] deploy bar ({(L.wide ? "wide" : L.compact ? "compact" : "narrow")}, {CW:0} u): card {L.m:0}..{L.m + cardRt.sizeDelta.x:0} u ({(cardIcon ? "fort glyph" : "no glyph")}, headline {cardHead.FontSize:0} u, "
                       + $"{(cardCount ? "flag count" : "plain rule")}), blocks {bw:0} u at {L.X(0, 3):0} / {L.X(1, 3):0} / {L.X(2, 3):0} (two-block row {L.X(0, 2):0} / {L.X(1, 2):0}), DEPLOY {dx:0}..{dx + dw:0} u; {slotsWant} block(s) now");
@@ -221,6 +234,7 @@ namespace OpenZ
                     cardHead.Set(OzDeployBar.TeamWords(TeamColors.Words(h))); m = Mathf.Max(m, cardHead.preferredWidth);
                     cardSub.Set(OzDeployBar.Sub(FlagsOf(i), count)); m = Mathf.Max(m, cardSub.preferredWidth);
                 }
+                m = Mathf.Max(m, PlayBlueNeed());                                                           // 1.2 item 11: the PLAY AS BLUE line on the tag line and the box-on small line (UI/OpenZMainMenu.PlayBlue.cs)
                 return (icon ? OzDeployBar.IconX + OzDeployBar.IconSize + OzDeployBar.IconGap : OzDeployBar.TextX) + m + OzDeployBar.CardPadR;
             }
             float room = L.CardRoom, need = Need();
@@ -239,6 +253,7 @@ namespace OpenZ
             cardHead.FontSize = hs; cardHead.Set(""); cardHead.At(tx, rowMid, OzH.L, true, box);
             cardSub.Set(""); cardSub.At(tx, OzDeployBar.HintY - OzDeployBar.CardY, OzH.L, false, box);
             objLine = Hud.Label(cardRt, "ObjectiveFull", "", 11, OzUi.Ink, 0f, OzStyle.Plain); objLine.SetActive(false);   // the long sentence (OzLevelDef.Objective) is not drawn any more; the menu's old writes land here
+            BuildPlayBlue(p, L, tx, w);                                                                   // 1.2 item 11: the PLAY AS BLUE line on the card's tag line and its tooltip (UI/OpenZMainMenu.PlayBlue.cs)
         }
 
         /// <summary>The level's flag count: its map's (OzLevelInfo), else its card's fallback chip ("13 FLAGS"), else 0.</summary>
@@ -252,13 +267,13 @@ namespace OpenZ
 
         void RefreshObjectiveCard(bool force)
         {
-            int swap = TeamColors.Swap ? 1 : 0;
+            int swap = (TeamColors.Swap ? 1 : 0) + (PlayBlueCard ? 2 : 0);                                // 1.2 item 11: the PLAY AS BLUE box changes the card too
             if (!force && cardFor == focusCard && cardSwap == swap) return;
             cardFor = focusCard; cardSwap = swap;
             var d = levels[focusCard];
-            cardHead.Set(OzDeployBar.TeamWords(TeamColors.Words(OzDeployBar.Headline(d.Id))));
-            cardSub.Set(OzDeployBar.Sub(FlagsOf(focusCard), cardCount));
-            if (cardIcon) cardIcon.color = OzUi.Mark(Team.Blue);
+            cardHead.Set(OzDeployBar.TeamWords(PlayBlueCardWords(OzDeployBar.Headline(d.Id))));           // box on: blue's goal, "BREAK INTO THE RED FORT" (View/OzPlayBlue.cs)
+            cardSub.Set(OzDeployBar.Sub(FlagsOf(focusCard), cardCount));                                        // k75a: both sides the same small line (the side's name stands on the tag line; the box's "EXPERIMENTAL" went with the box)
+            if (cardIcon) cardIcon.color = OzPlayBlue.CardEnemyMark;                                     // the enemy's fort in its colour (red while the box is on)
         }
 
         // ---------------------------------------------------------------- every frame on the battlefield screen (RefreshDeployBar)
@@ -277,6 +292,8 @@ namespace OpenZ
             RefreshShuttleStart(d, slots == 3);
             PlaceDeployTips();
             RefreshObjectiveCard(false);
+            RefreshPlayBlue();                                                                             // 1.2 item 11: the PLAY AS BLUE switch and its tooltip (UI/OpenZMainMenu.PlayBlue.cs)
+            RefreshUnitStats();                                                                            // 1.2 item 60: the UNIT STATS selector and its tooltip (UI/OpenZMainMenu.UnitStats.cs)
         }
 
         void PlaceDeployTips()
@@ -284,12 +301,12 @@ namespace OpenZ
             float ty = -(OzDeployBar.TipBottom - OzDeployBar.TipH);
             if (headTip)
             {
-                var at = new Vector2(OzDeployBar.TipX(deployLay, deployLay.X(1, 3) + slideNow, stripRight), ty);
+                var at = new Vector2(UnitStatsTipX(OzDeployBar.TipX(deployLay, deployLay.X(1, 3) + slideNow, stripRight)), ty);   // 1.2 item 60: off the UNIT STATS selector
                 if (headTip.anchoredPosition != at) headTip.anchoredPosition = at;
             }
             if (shuttleTip)
             {
-                var at = new Vector2(OzDeployBar.TipX(deployLay, deployLay.X(2, 3), stripRight), ty);
+                var at = new Vector2(UnitStatsTipX(OzDeployBar.TipX(deployLay, deployLay.X(2, 3), stripRight)), ty);              // 1.2 item 60: off the UNIT STATS selector
                 if (shuttleTip.anchoredPosition != at) shuttleTip.anchoredPosition = at;
             }
         }

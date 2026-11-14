@@ -20,6 +20,9 @@ namespace OpenZ
     /// the loaded level (a live, enabled beacon and its level switch on), this wave is not added on top of it (one cue per flag,
     /// never two). The beacon boots once, after the first scene of a session, and is not kept across scene loads: in a level
     /// loaded from the main menu it is not there, and there the wave is the flags' cue (the Car Park included).
+    /// Version 1.2, owner item 5b:
+    /// by day the waves are as they were; with the flags' night (FlagView.NightLook, the clock) they
+    /// fade out smoothly while the neutral flag's pool of light (FlagView.Looks.cs) fades in, and come back at dawn.
     /// View only: reads the rules' flags and owners, writes nothing back; its own random numbers (never the rules').
     /// </summary>
     public sealed class OzNeutralFlagWaves : MonoBehaviour
@@ -30,6 +33,16 @@ namespace OpenZ
         // the look (all subtle by intent: peak opacity about a fifth, a soft band, no glow)
         public const float R0 = 0.55f, R1 = 3.2f, Band = 0.3f, Lift = 0.04f, WaveSeconds = 2.6f, GapMin = 6f, GapMax = 11f, FirstMin = 1f, FirstMax = 4f;
         public const float PeakDay = 0.2f, PeakNight = 0.14f, OwnedFade = 0.4f, StepMax = 1.2f;
+        /// <summary>
+        /// There a neutral flag on camera is never without its wave. The first starts as the flag
+        /// comes on camera, the next SteadyGap s after the last ends (with the 2.6 s wave, the capture beacon's 3.2 s beat), by day and by night, all match long; a
+        /// captured flag stops as before. The wave itself is the same. Every other level: as it was.</summary>
+        public static bool SteadyOnL07 = true;
+        public const float SteadyGap = 0.6f;
+        /// <summary>1.3 U5: level 7's steady rings are drawn this much stronger (the owner could not see the grey flags on the dark ground); other levels 1.</summary>
+        public static float SteadyPeakScale = 1.6f;
+        /// <summary>The level-7 steady waves run on this level.</summary>
+        public bool Steady => game && SteadyOnL07 && game.level == OzVolcanic.Level;
         public static readonly Color Tint = new Color(1f, 0.95f, 0.82f, 1f);
         const int Seg = 48; const float Cell = 0.2f;
 
@@ -70,7 +83,7 @@ namespace OpenZ
             if (!sh || !game) { enabled = false; Debug.Log("[OpenZ] neutral flag waves: off (no overlay shader or no game)"); return; }
             mat = new Material(sh) { name = "OZ_NeutralFlagWave" };
             mat.SetColor("_Color", Tint); mat.SetFloat("_ZTest", 4);
-            Debug.Log($"[OpenZ] neutral flag waves: on ({game.level}; {(BeaconHere ? "the capture beacon marks the flags here: no wave on top of it" : "waves on neutral flags while on camera")})");
+            Debug.Log($"[OpenZ] neutral flag waves: on ({game.level}; {(BeaconHere ? "the capture beacon marks the flags here: no wave on top of it" : Steady ? "level 7: a wave all the time on every neutral flag on camera, by day and by night" : "waves on neutral flags while on camera")})");
         }
 
         void OnDestroy()
@@ -91,6 +104,8 @@ namespace OpenZ
             if (!cam || !cam.isActiveAndEnabled) cam = Camera.main;
             if (!cam) return;
             float now = Time.time, dt = Time.deltaTime, night = Mathf.Clamp01(NightGrade.NightK);
+            bool steady = Steady;                                                               // 1.3 level 7: always a wave, by day and by night
+            float day = steady ? 1f : 1f - FlagView.NightLook;                                  // v1.2: the pool of light takes over at night
             bool beaconHere = BeaconHere;
             foreach (var f in game.World.Flags)
             {
@@ -106,15 +121,16 @@ namespace OpenZ
                 if (w.t0 < 0f)
                 {   // between waves: wait for the next one; only a neutral flag on camera starts one
                     if (!neutral || beaconHere || !onCam) { if (!onCam) w.seen = false; continue; }
-                    if (!w.seen) { w.seen = true; if (w.next < now) w.next = now + Lerp(w.rng, FirstMin, FirstMax); }
+                    if (!w.seen) { w.seen = true; if (w.next < now) w.next = steady ? now : now + Lerp(w.rng, FirstMin, FirstMax); }
                     if (now < w.next) continue;
                     StartWave(w, f, now, onCam, neutral);
                 }
                 float t = (now - w.t0) / WaveSeconds;
                 if (!neutral || beaconHere) w.kill = Mathf.MoveTowards(w.kill, 0f, dt / OwnedFade);
-                if (t >= 1f || w.kill <= 0f) { w.t0 = -1f; w.next = now + Lerp(w.rng, GapMin, GapMax); continue; }
+                if (t >= 1f || w.kill <= 0f) { w.t0 = -1f; w.next = now + (steady ? SteadyGap : Lerp(w.rng, GapMin, GapMax)); continue; }
                 if (!onCam) continue;
-                float peak = Mathf.Lerp(PeakDay, PeakNight, night) * w.kill;
+                float peak = Mathf.Lerp(PeakDay, PeakNight, night) * w.kill * day * (steady ? SteadyPeakScale : 1f);
+                if (peak <= 1e-4f) continue;                                                    // full night: nothing drawn (the timing runs on)
                 Paint(w, t, peak);
                 Graphics.DrawMesh(w.mesh, Matrix4x4.identity, mat, 0, null, 0, null, ShadowCastingMode.Off, false);
             }

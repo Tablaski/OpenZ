@@ -24,7 +24,7 @@ namespace OpenZ
         /// <summary>Sim seconds a capture may be held at most (BoardingView's longest enter: 1.3 s + 1 s round the hull + APC stagger).</summary>
         public static float MaxWait = 4f;
 
-        sealed class Hold { public ZObject v; public Team shown; public double since; public int frame; public bool ghost; public readonly List<Action> actions = new List<Action>(); }
+        sealed class Hold { public ZObject v; public Team shown; public double since; public int frame; public bool ghost; public double keep = -1; public readonly List<Action> actions = new List<Action>(); }   // 1.4 DV171 fix round 4: keep (Keep)
         static readonly Dictionary<int, Hold> holds = new Dictionary<int, Hold>();
         static readonly Dictionary<int, Team> lastShown = new Dictionary<int, Team>();
         static int pumpFrame = -1;
@@ -52,6 +52,11 @@ namespace OpenZ
 
         /// <summary>BoardingView: the last enter animation of this vehicle ended (the crew sits inside, or it was aborted).</summary>
         public static void Boarded(int vehicleId) => Release(vehicleId, 0);
+
+        /// <summary>1.4 DV171 fix round 4 (View/BoardingView.VehicleExit.cs HatchEnterHold): the boarding figure of this vehicle waits outside its hull while its
+        /// old driver still climbs down: no timeout (MaxWait) before `seconds` of sim time from now (asked every frame while it waits, and once more as
+        /// it starts to climb in). Before, the 4 s cap released the capture (cue, repaint, engine, 'vehicle captured') about 2 s before he climbed in.</summary>
+        public static void Keep(int vehicleId, double seconds) { var w = World; if (w != null && holds.TryGetValue(vehicleId, out var h)) h.keep = Math.Max(h.keep, w.Time + seconds); }
 
         /// <summary>The vehicle's capture is still being animated.</summary>
         public static bool IsHeld(int vehicleId) { Pump(); return holds.ContainsKey(vehicleId); }
@@ -113,7 +118,7 @@ namespace OpenZ
                 int why = -1;
                 if (h.v.Destroyed || h.v.KillAt >= 0 || (w != null && w.Get(h.v.Id) != h.v)) why = 3;
                 else if (!h.ghost && Time.frameCount > h.frame + 1) why = 1;
-                else if (now - h.since > MaxWait) why = 2;
+                else if (now - h.since > MaxWait && now >= h.keep) why = 2;                                 // 1.4 DV171 fix round 4: not while it is kept (Keep)
                 if (why >= 0) (done ??= new List<(int, int)>()).Add((kv.Key, why));
             }
             if (done != null) foreach (var (id, why) in done) Release(id, why);

@@ -47,7 +47,7 @@ namespace OpenZ
     /// any importer axis convention works. Installs itself on every fort view that has these nodes (AfterSceneLoad).
     /// </summary>
     [DefaultExecutionOrder(45)]   // LateUpdate reads ZWorld.Events BEFORE CombatView (order 50) clears them (like AudioDirector, 40)
-    public class FortGunView : MonoBehaviour
+    public partial class FortGunView : MonoBehaviour
     {
         [Header("Nodes (found by name under the fort view)")]
         public string yawNode = "FortGunYaw";
@@ -155,6 +155,68 @@ namespace OpenZ
             }
             return best;
         }
+        /// <summary>bullets_straight (View/ShotLine.cs): the top of a live fort's real mesh under p, float.MinValue off a fort. Left out: the fort a
+        /// shot is aimed at, and the fort its target stands on (a tower gun, a roof defender; `end` on the fort when the caller has no target): it
+        /// flies straight to him, owner item 3. And the fort a shooter stands on, at any distance: the sight rule's own exemption (ZSight.ExemptOf).</summary>
+        public static float MeshTopAt(Vector3 p, Vector3 muzzle, Vector3 end, ZObject target)
+        {
+            float best = float.MinValue;
+            for (int k = 0; k < all.Count; k++)
+            {
+                var v = all[k];
+                if (!v || !v.Bound || v.Fort == null || v.Fort.Destroyed || v.tossed || v.Fort == target) continue;
+                var l = v.transform.InverseTransformPoint(p);
+                if (Mathf.Abs(l.x) > FortHalfX + 0.3f || Mathf.Abs(l.z) > FortHalfZ + 0.3f) continue;
+                if (v.Carries(target) || v.Holds(end)) continue;
+                if (v.Holds(muzzle)) continue;
+                if (TowerMounts.FortSurface(v.transform, p, p.y + 40f, out float y) && y > best) best = y;
+            }
+            return best;
+        }
+        const float OnFortY = 5f, OnFortEdge = 1.5f;
+        bool Holds(Vector3 muzzle)
+        {
+            var m = transform.InverseTransformPoint(muzzle);
+            return m.y >= OnFortY && Mathf.Abs(m.x) <= FortHalfX + OnFortEdge && Mathf.Abs(m.z) <= FortHalfZ + OnFortEdge;
+        }
+        /// <summary>This target stands on this fort, by the sight rule's own test (ZSight.ExemptOf): a roof defender, a cannon inside its rectangle.</summary>
+        bool Carries(ZObject t) =>
+            t != null && (t.IsFortDefender ? t.DefenderFortId == Fort.Id
+                : t.Kind == ZKind.Cannon && t.CenterX >= Fort.LocX && t.CenterX < Fort.LocX + Fort.WidthPix && t.CenterY >= Fort.LocY && t.CenterY < Fort.LocY + Fort.HeightPix);
+        /// <summary>This muzzle stands on a live fort (tower gun, roof man).</summary>
+        public static bool StandsOnFort(Vector3 muzzle)
+        {
+            for (int k = 0; k < all.Count; k++)
+            {
+                var v = all[k];
+                if (v && v.Bound && v.Fort != null && !v.Fort.Destroyed && !v.tossed && v.Holds(muzzle)) return true;
+            }
+            return false;
+        }
+        static FortGunView crossing;
+        static readonly Func<Vector3, bool> UnderMesh = p =>
+        {
+            var l = crossing.transform.InverseTransformPoint(p);
+            return Mathf.Abs(l.x) <= FortHalfX + 0.3f && Mathf.Abs(l.z) <= FortHalfZ + 0.3f && TowerMounts.FortSurface(crossing.transform, p, p.y + 40f, out float y) && p.y < y - ShotLine.Tol;
+        };
+        /// <summary>shots_over_walls: a shot runs under the real mesh of a live fort that one of its ends stands on: its target (a tower gun, a roof defender), `to` when it has
+        /// no target, or its muzzle. A shot at the fort itself never counts. No such fort: nothing is sampled. A fort whose top cannon was shot off still counts: its
+        /// FortBase mesh stands until the fort is destroyed, and its tower guns and roof men fight on.</summary>
+        public static bool CrossesOwn(Vector3 from, Vector3 to, float lift, ZObject target)
+        {
+            for (int k = 0; k < all.Count; k++)
+            {
+                var v = all[k];
+                if (!v || !v.Bound || v.Fort == null || v.Fort.Destroyed || v.Fort == target) continue;
+                if (!(target != null ? v.Carries(target) : v.Holds(to) && v.Bears(to)) && !v.Holds(from)) continue;
+                crossing = v;
+                if (ShotLine.Crosses(from, to, lift, ShotLine.FortStepM, UnderMesh)) return true;
+            }
+            return false;
+        }
+        /// <summary>shots_over_walls: an end with no target stands on this fort's mesh, at most TallM over its top: not a dragon or the flying ship in the air over it.
+        /// Off the mesh, where it cannot be sampled, Holds alone decides.</summary>
+        bool Bears(Vector3 p) => !TowerMounts.FortSurface(transform, p, p.y + 0.5f, out float y) || p.y <= y + OzUePlatformViews.TallM;
         Renderer[] turretRs; Bounds turretB; float turretAt = -1f;
         float TopAt(Vector3 p, Vector3 muzzle)
         {
@@ -211,11 +273,21 @@ namespace OpenZ
         ZGame game;
         Transform yaw, pitch, recoil, muzzle, head;
         float tilt01, tiltVel; bool tiltUp;
-        sealed class Ram { public Transform sleeve, rod; public Vector3 a, b; }
-        readonly List<Ram> rams = new List<Ram>();
         static readonly Dictionary<Mesh, (Mesh head, Mesh ring)> splitCache = new Dictionary<Mesh, (Mesh, Mesh)>();
+        static readonly Dictionary<Mesh, float> lidOnRing = new Dictionary<Mesh, float>();
+        /// <summary>True when `ring` is a ring mesh made by SplitHead that carries the head's lid plate (its triangles with a centre above splitY, mesh y):
+        /// the breakup closes the ring under its own top and adds the lid after the closing, as when the lid came with the head. Main thread only.</summary>
+        public static bool RingLid(Mesh ring, out float splitY) { splitY = 0f; return ring && lidOnRing.TryGetValue(ring, out splitY); }
         static Material sRamDark, sRamSteel;
-        FortGunNeck neck; bool neckShown;                                                    // K255: the hydraulic neck (FortGunNeck.cs); the old two rams while it is not shown
+        FortGunNeck neck;                                                                    // the hydraulic neck (FortGunNeck.cs)
+        /// <summary>The hydraulic neck (null without its model), the head, the rest elevation (deg), and the barrel's angle in the head now (deg): Play checks.</summary>
+        public FortGunNeck Neck => neck;
+        public Transform HeadT => head;
+        public float RestElevation => restElev;
+        public float BarrelInHeadNow { get; private set; }
+        /// <summary>Harness A/B: false = the head on its own timing, the barrel on its own (the look before the nose fix).</summary>
+        public static bool NoseWithBody = true;
+        bool MortarCycle => ZWorld.FortGunDeviation && ZWorld.FortMortarDeviation && reloadDrop;
         Quaternion yawRest, pitchRest; Vector3 yawRestPos, pitchRestPos, recoilRestPos;
         Vector3 yawAxisP, pitchAxisP, boreP; float yawSign = 1, pitchSign = 1, restHeading, restElev;
         float heading, headingVel, elev, elevVel, wantHeading, wantElev, aimHeading;
@@ -571,7 +643,7 @@ namespace OpenZ
             {
                 if (!IsEnemy(o, Fort.Owner)) continue;
                 bool inRange = false;
-                foreach (var c in cannons) { double dx = o.CenterX - c.CenterX, dy = o.CenterY - c.CenterY; if (dx * dx + dy * dy <= (double)c.AttackRadius * c.AttackRadius) { inRange = true; break; } }
+                foreach (var c in cannons) { double dx = o.CenterX - c.CenterX, dy = o.CenterY - c.CenterY; double cr = c.RangeTo(o); if (dx * dx + dy * dy <= cr * cr) { inRange = true; break; } }   // DV162: the drawn gun tracks what the rules can reach
                 double fx = o.CenterX - Fort.CenterX, fy = o.CenterY - Fort.CenterY, fd = fx * fx + fy * fy;
                 if (!inRange && cannons.Count == 0 && trackWithoutCannons && fd <= (double)dangerRadiusPx * dangerRadiusPx) inRange = true;
                 if (inRange && fd < bd) { bd = fd; best = o; }
@@ -715,7 +787,13 @@ namespace OpenZ
             }
             // head shrinks by the same amount, so the bore's world elevation (the lob) is exactly elev (same axis: the rotations add)
             float tgt = TiltTarget();
-            tilt01 = Mathf.SmoothDamp(tilt01, tgt, ref tiltVel, tgt > tilt01 ? tiltRiseSmooth : tiltFallSmooth, Mathf.Infinity, dt);
+            if (NoseWithBody && MortarCycle && head && HeadTiltEnabled && headTilt > 0f)
+            {
+                // head follows the barrel's own climb and drop (reload lay = flat, the lob = full tilt), so head and nose start and finish together, up and down,
+                // and the barrel's share in the head moves evenly; the bore (elev), the sim's shot time and the lob are as before
+                tilt01 = Mathf.Clamp01((elev - restElev - reloadElev) / Mathf.Max(1f, mortarElevation - restElev - reloadElev)); tiltVel = 0f;
+            }
+            else tilt01 = Mathf.SmoothDamp(tilt01, tgt, ref tiltVel, tgt > tilt01 ? tiltRiseSmooth : tiltFallSmooth, Mathf.Infinity, dt);
             float tiltDeg = head ? headTilt * Mathf.Clamp01(tilt01) : 0f;
             // block, the barrel never droops into the housing); the mortar lob (60 deg) = head 30 + barrel 30 in the head
             if (head) tiltDeg = Mathf.Min(tiltDeg, Mathf.Max(0f, elev + nod - restElev));
@@ -727,6 +805,7 @@ namespace OpenZ
                 HeadTiltMax = Mathf.Max(HeadTiltMax, tiltDeg);
                 if (!tiltUp && tilt01 > 0.5f) { tiltUp = true; HeadTiltCycles++; } else if (tiltUp && tilt01 < 0.1f) tiltUp = false;
             }
+            BarrelInHeadNow = elev + nod - restElev - tiltDeg;
             pitch.localRotation = Quaternion.AngleAxis(pitchSign * (elev + nod - restElev - tiltDeg), pitchAxisP) * pitchRest;
             var bore = BoreW();
             // cradle shove: the mantlet slides back into the housing (its sleeve hides the joint), then the barrel runs back inside it
@@ -741,6 +820,7 @@ namespace OpenZ
             if (!headR || !yawR) return;
             if (headR.sharedMaterial != yawR.sharedMaterial) headR.sharedMaterials = yawR.sharedMaterials;
             for (int i = 0; i < headMatCount; i++) { yawR.GetPropertyBlock(mpb, i); headR.SetPropertyBlock(mpb, i); }
+            neck?.SyncPaint(yawR, mpb);
         }
         MeshRenderer headR, yawR; int headMatCount;
 
@@ -762,9 +842,9 @@ namespace OpenZ
 
         /// <summary>Splits the FortGunYaw mesh (one imported piece: the ring band + the head box) at tiltSplitY into the ring (stays on
         /// the yaw node: turns only) and the head (new child FortGunHead at the identity pose: tilts about tiltPivot). Both keep the
-        /// full vertex data (only the index lists differ, cached per source mesh), the same materials and the same accent band. Two
-        /// hydraulic rams join the ring top to the head's underside in front of the hinge (hidden under the head at rest, they
-        /// extend when it lifts). Without a readable mesh the head does not tilt (old look).</summary>
+        /// full vertex data (only the index lists differ, cached per source mesh), the same materials and the same accent band. The
+        /// head's separate lid plate (an island apart from its shell) stays on the ring: the ring's pit under it never opens and no plate
+        /// hangs under the raised head. The hydraulic neck (FortGunNeck) joins them. Without a readable mesh the head does not tilt (old look).</summary>
         void SplitHead()
         {
             if (head) return;
@@ -776,6 +856,8 @@ namespace OpenZ
                 var v = src.vertices;
                 var hm = Instantiate(src); hm.name = src.name + "_Head";
                 var rm = Instantiate(src); rm.name = src.name + "_Ring";
+                var lid = LidTriangles(src, v, tiltSplitY);                                    // the lid plate over the ring's pit stays on the ring
+                if (lid.Count > 0) lidOnRing[rm] = tiltSplitY;                                 // the breakup takes it off again before the ring's closing (RingLid)
                 var ht = new List<int>(); var rt = new List<int>();
                 for (int s = 0; s < src.subMeshCount; s++)
                 {
@@ -783,7 +865,7 @@ namespace OpenZ
                     for (int i = 0; i + 2 < tr.Length; i += 3)
                     {
                         float cy = (v[tr[i]].y + v[tr[i + 1]].y + v[tr[i + 2]].y) / 3f;
-                        var dst = cy > tiltSplitY ? ht : rt; dst.Add(tr[i]); dst.Add(tr[i + 1]); dst.Add(tr[i + 2]);
+                        var dst = cy > tiltSplitY && !lid.Contains((s, i)) ? ht : rt; dst.Add(tr[i]); dst.Add(tr[i + 1]); dst.Add(tr[i + 2]);
                     }
                     hm.SetTriangles(ht, s, true); rm.SetTriangles(rt, s, true);
                 }
@@ -813,44 +895,45 @@ namespace OpenZ
                 sRamSteel = new Material(sh) { name = "FortGunRam_Steel" };
                 sRamSteel.SetColor("_BaseColor", new Color(0.70f, 0.71f, 0.72f)); sRamSteel.SetFloat("_Metallic", 0.9f); sRamSteel.SetFloat("_Smoothness", 0.78f);
             }
-            // mesh space (FBX units, x 10.53 in game): ring top y 0.042 at (+-0.10, 0.10), head underside there ~0.066 at rest
-            foreach (float x in new[] { -0.10f, 0.10f })
-            {
-                var r = new Ram { a = new Vector3(x, 0.041f, 0.10f), b = new Vector3(x, 0.078f, 0.10f) };
-                r.sleeve = RamPart($"FortGunRam_{(x < 0 ? "L" : "R")}_Sleeve", sRamDark);
-                r.rod = RamPart($"FortGunRam_{(x < 0 ? "L" : "R")}_Rod", sRamSteel);
-                rams.Add(r);
-            }
-            neck = FortGunNeck.Build(yaw, head, sRamDark, sRamSteel);                         // K255: heavy telescopic rams, clevis, gland, lines
-            PoseRams();
+            neck = FortGunNeck.Build(yaw, head, yawR, sRamSteel, sRamDark);                    // the hydraulic neck: trunk, two telescopic rams, collars, frame (FortGunNeck.cs)
         }
 
-        Transform RamPart(string n, Material m)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            var col = go.GetComponent<Collider>(); if (col) DestroyImmediate(col);
-            go.name = n; go.layer = yaw.gameObject.layer;
-            go.transform.SetParent(yaw, false);
-            var r = go.GetComponent<MeshRenderer>(); r.sharedMaterial = m; r.shadowCastingMode = ShadowCastingMode.On;
-            return go.transform;
-        }
+        /// <summary>The neck's rams follow the head (called right after the head is posed).</summary>
+        void PoseRams() => neck?.Pose();
 
-        /// <summary>Each ram: a dark sleeve standing on the ring top, a steel rod up to the head's underside (anchor b moves with the head).</summary>
-        void PoseRams()
+        /// <summary>The head part's triangles that form islands of 8 or more apart from the head's own shell: Fort_Split's lid plate over the ring's pit (one
+        /// island of 50). They stay on the ring (the breakup already treated it as the ring's).</summary>
+        static HashSet<(int, int)> LidTriangles(Mesh src, Vector3[] v, float split)
         {
-            const float sleeveLen = 0.021f, sleeveR = 0.0105f, rodR = 0.0058f;
-            bool nn = neck != null && neck.Pose();                                               // K255: the new neck from a low camera, the old rams from the RTS camera
-            if (nn != neckShown) { neckShown = nn; foreach (var q in rams) { if (q.sleeve) q.sleeve.gameObject.SetActive(!nn); if (q.rod) q.rod.gameObject.SetActive(!nn); } }
-            foreach (var r in rams)
+            var b = src.bounds; float q = Mathf.Max(1e-6f, Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z)) * 2e-5f);
+            var weld = new Dictionary<Vector3Int, int>(); var root = new int[v.Length];
+            for (int i = 0; i < v.Length; i++)
             {
-                if (!r.sleeve || !r.rod) continue;
-                Vector3 b = head.localPosition + head.localRotation * r.b, d = b - r.a;
-                float len = Mathf.Max(1e-4f, d.magnitude); var dir = d / len; var rot = Quaternion.FromToRotation(Vector3.up, dir);
-                float sl = Mathf.Min(sleeveLen, len);
-                r.sleeve.localRotation = rot; r.sleeve.localPosition = r.a + dir * (sl * 0.5f); r.sleeve.localScale = new Vector3(sleeveR * 2f, sl * 0.5f, sleeveR * 2f);
-                float r0 = sl * 0.6f, rl = Mathf.Max(1e-4f, len - r0);
-                r.rod.localRotation = rot; r.rod.localPosition = r.a + dir * (r0 + rl * 0.5f); r.rod.localScale = new Vector3(rodR * 2f, rl * 0.5f, rodR * 2f);
+                var k = new Vector3Int(Mathf.RoundToInt(v[i].x / q), Mathf.RoundToInt(v[i].y / q), Mathf.RoundToInt(v[i].z / q));
+                if (!weld.TryGetValue(k, out int w)) { w = i; weld[k] = i; }
+                root[i] = w;
             }
+            var parent = new int[v.Length]; for (int i = 0; i < parent.Length; i++) parent[i] = i;
+            int Find(int a) { while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; }
+            var tris = new List<(int s, int i, int r)>();
+            for (int s = 0; s < src.subMeshCount; s++)
+            {
+                var tr = src.GetTriangles(s);
+                for (int i = 0; i + 2 < tr.Length; i += 3)
+                {
+                    if ((v[tr[i]].y + v[tr[i + 1]].y + v[tr[i + 2]].y) / 3f <= split) continue;
+                    int a = Find(root[tr[i]]), c1 = Find(root[tr[i + 1]]);
+                    parent[c1] = a; parent[Find(root[tr[i + 2]])] = a;
+                    tris.Add((s, i, root[tr[i]]));
+                }
+            }
+            var count = new Dictionary<int, int>();
+            foreach (var t in tris) { int r = Find(t.r); count[r] = count.TryGetValue(r, out int c) ? c + 1 : 1; }
+            int main = -1, most = -1;
+            foreach (var kv in count) if (kv.Value > most) { most = kv.Value; main = kv.Key; }
+            var lid = new HashSet<(int, int)>();
+            foreach (var t in tris) { int r = Find(t.r); if (r != main && count[r] >= 8) lid.Add((t.s, t.i)); }
+            return lid;
         }
 
         // ================================================================== fire
@@ -1108,6 +1191,7 @@ namespace OpenZ
             var w = new Vector3(fw.x, 0f, fw.z);
             if (w.sqrMagnitude < 0.01f) w = game.level == "L17" ? new Vector3(1.2f, 0f, 0.6f) : new Vector3(3f, 0f, 1.5f);
             w.Normalize();
+            if (FlagView.FortClothDir(Fort.Id, out var faced)) w = faced;                             // 1.3: the cloth faces the camera, so it flies where FlagView turned it
             var toTurret = yaw.position - flagPoleW; toTurret.y = 0f;
             bool block = toTurret.sqrMagnitude > 0.01f; if (block) toTurret.Normalize();
             float cos62 = Mathf.Cos(62f * Mathf.Deg2Rad);
@@ -1456,7 +1540,7 @@ namespace OpenZ
             if (tossed || !Bound) return;
             tossed = true; pending = false; target = null;
             StopLoop("fortgun_" + Fort.Id);
-            if (!Fort.Destroyed) FortGunMount.Build(Fort, transform);   // shot off while the fort stands: the modelled wreck takes the pedestal's place (FortGunMount.cs)
+            if (!FortFallAtGameOver.Fallen(Fort)) FortGunMount.Build(Fort, transform);   // shot off while the fort stands (open_fixes_3nov row 77: not one the game-over rule drops): the modelled wreck takes the pedestal's place (FortGunMount.cs)
             // detach BEFORE CombatView (order 50) lets BuildingBreaker hide the fort's renderers and collapse it
             yaw.SetParent(FxRoot(), true);
             var tp = yaw.GetComponent<TeamPaint>(); if (!tp) tp = yaw.gameObject.AddComponent<TeamPaint>();
@@ -1482,15 +1566,22 @@ namespace OpenZ
             tossT = 0f; landed = false;
             foreach (var r in yaw.GetComponentsInChildren<Renderer>(true)) if (r is MeshRenderer && !r.enabled && !r.name.StartsWith("OZ_")) { r.enabled = true; TossReshown++; }
             if (!yaw.gameObject.activeSelf) yaw.gameObject.SetActive(true);
+            TossPathPlan();                                                                            // open_fixes_2nov wreck_toss_landing: it lands where its arc ends, in tossEndRot, with no flip on the way (FortGunView.TossPath.cs)
             Tosses++; LastTossAt = Time.time; LastTossFortDestroyed = Fort.Destroyed;
             FxManager.I?.Explosion(tossFrom + Vector3.up * 0.5f, Fort.Destroyed ? 2.4f : 1.6f);
             if (!Sfx(sndToss, tossFrom, 1f)) Legacy("fortgun_toss", tossFrom, 0.9f, "explosion-v3-20260909");
+            MegaBlast(tossFrom);
         }
 
         static Bounds WorldBounds(Transform t)
         {
-            var rs = t.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) return new Bounds(t.position, Vector3.zero);
-            var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds); return b;
+            var b = new Bounds(t.position, Vector3.zero); bool any = false;
+            foreach (var r in t.GetComponentsInChildren<Renderer>())
+            {
+                if (r.name.StartsWith(FortGunNeck.Prefix)) continue;                                  // the neck hangs under the ring: the landing keeps the gun's own numbers
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            }
+            return b;
         }
 
         void UpdateToss(float dt)
@@ -1501,7 +1592,7 @@ namespace OpenZ
                 tossT += dt; float k = Mathf.Clamp01(tossT / tossDuration);
                 var p = Vector3.Lerp(tossFrom, tossTo, k); p.y += 4f * tossApex * k * (1f - k);
                 var spin = Quaternion.AngleAxis(tossSpin * tossT, tossAxis) * tossStartRot;
-                yaw.SetPositionAndRotation(p, Quaternion.Slerp(spin, tossEndRot, OzHeavyLanding.FallBlend(k)));
+                yaw.SetPositionAndRotation(p, TossPathUse ? TossPathRot(spin, k) : Quaternion.Slerp(spin, tossEndRot, OzHeavyLanding.FallBlend(k)));   // open_fixes_2nov: one fixed turn carries the spin into tossEndRot, never a flip
                 if (k >= 1f)
                 {
                     landed = true; landedAt = Time.time;

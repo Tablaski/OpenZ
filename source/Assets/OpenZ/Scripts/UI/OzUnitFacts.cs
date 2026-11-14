@@ -41,7 +41,8 @@ namespace OpenZ
             { "electrobot", new Words("Lone robot with a lightning gun.", "Never misses. Stuns robots and vehicles", "Slow to recharge between shots") },
             { "jeep", new Words("Fast scout car with a machine gun.", "Fastest unit in the game", "The driver can be shot out of it") },
             { "light", new Words("Light tank with a cannon.", "Fastest tank, quick to reload", "Weakest armour of the tanks") },
-            { "medium", new Words("Armoured mech with a cannon.", "Much tougher than the Light Tank", "Slower than the Light Tank") },
+            { "medium", new Words("Mech with rockets and a machine gun.", "Much tougher than the Light Tank", "Slower than the Light Tank") },
+            { ZMTank.Type, new Words("Medium tank with a cannon.", "Tougher than the Mech, good all around", "Slower than the Mech") },   // DV145
             { "heavy", new Words("Heavy tank with twin cannons.", "Best armour and range of the tanks", "Slowest tank, slow to reload") },
             { "apc", new Words("Armoured carrier for one robot squad.", "The squad rides and fires from inside", "Fires only the weapons of its crew") },
             { "missile_launcher", new Words("Mobile missile launcher.", "Biggest blast of any unit", "Slowest vehicle, longest to build") },
@@ -49,6 +50,7 @@ namespace OpenZ
             { "gatling", new Words("Fixed machine-gun post.", "Rapid fire, quickest fixed gun to build", "Its crew can be shot out") },
             { "gun", new Words("Fixed cannon.", "Explosive shells with splash damage", "Its crew can be shot out") },
             { "howitzer", new Words("Fixed long-range artillery.", "Longest range of any unit", "Slowest reload of any unit") },
+            { ZEvilZod.Type, new Words("Hero with a huge shotgun. One of a kind.", "One close shot ends any robot. Dashes in on his target", "Slow walk, and the dash needs time to come back") },
             { "missile_cannon", new Words("Fixed missile battery.", "Huge damage with a quick reload", "Slowest fixed gun to build") },
         };
         // @facts end
@@ -89,7 +91,7 @@ namespace OpenZ
 
         /// <summary>Seconds from one hit to the next: attack_speed; the Electrobot fires on its own tick cycle (ZElectro).</summary>
         public static double Cycle(ZUnitSettings u, string type) =>
-            u == null ? 0 : type == ZElectro.Type ? ZElectro.Seconds(ZElectro.CycleTicks) : u.attack_speed;
+            u == null ? 0 : type == ZElectro.Type ? ZElectro.Seconds(ZElectro.CycleTicks) : ZWorld.ReloadOf(type, u);   // 1.2: a sniper's balanced reload in a game
 
         /// <summary>Damage per second of fire, for the damage bar only.</summary>
         public static double PerSecond(ZUnitSettings u, string type)

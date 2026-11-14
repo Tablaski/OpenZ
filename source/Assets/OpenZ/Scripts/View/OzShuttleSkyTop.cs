@@ -185,6 +185,7 @@ namespace OpenZ
                         var p = new Vector3(px, 0f, pz);
                         hardTop = Mathf.Max(hardTop, game.GroundY(px, pz));
                         float ft = FortGunView.FortTopAt(p, new Vector3(1e6f, 0f, 1e6f));
+                        ft = Mathf.Max(ft, OzUePlatformViews.TopAt(px, pz));                         // 1.3 the Unit editor: a ramp platform's deck + the room for the tallest unit on it (View/OzUePlatformView.cs); nothing in a level
                         if (ft > hardTop) hardTop = ft;
                     }
             }

@@ -163,6 +163,25 @@ namespace OpenZ
         }
         bool driverBolt; Vector3 driverFrom;
 
+        /// <summary>DV163 (View/OzDragonShots.cs): an Electrobot's bolt at a dragon, from his emitter to a point in the air. The same bolt, flash, sparks, recoil and sounds; the target id SkyTarget
+        /// keeps all that belongs on the ground away (OzShuttleAim.AirId, as under the flying shuttle). dragon: the end rides it; null: a fixed point.</summary>
+        public const int SkyTarget = -2;
+        public static bool SkyBolt(ZObject a, Vector3 to, Transform dragon)
+        {
+            if (!Enabled) return false;
+            if (!I)
+            {
+                if (!AutoCreate || !ZGame.I) return false;
+                new GameObject("OpenZElectroFx").AddComponent<OpenZElectroFx>();
+            }
+            if (!I || !I.ready || !I.isActiveAndEnabled) return false;
+            I.skyBolt = true; I.skyTo = to; I.skyDragon = dragon;
+            try { I.Bolt(new ZEvent { type = ZEventType.ElectroBolt, objId = a.Id, otherId = SkyTarget }, a, null); }
+            finally { I.skyBolt = false; }
+            return true;
+        }
+        bool skyBolt; Vector3 skyTo; Transform skyDragon;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot() { SceneManager.sceneLoaded -= OnSceneLoaded; SceneManager.sceneLoaded += OnSceneLoaded; }
 
@@ -340,7 +359,7 @@ namespace OpenZ
         sealed class BoltFx
         {
             public int attacker, target; public UnitView av; public ElectrobotView ev; public Transform follow; public Vector3 local, endWorld, startWorld, dir;
-            public float born, nextShape, restrike; public int step; public uint seed; public bool impacted, stunned, killed, deploy;
+            public float born, nextShape, restrike; public int step; public uint seed; public bool impacted, stunned, killed, deploy, over;
             public readonly List<Strand> strands = new List<Strand>(24);
             public float lightSeed;
         }
@@ -355,12 +374,14 @@ namespace OpenZ
             var av = View(a.Id); var tv = t != null ? View(t.Id) : null;
             var from = Emitter(av, a, out var dir, out var ev);
             if (driverBolt) { from = driverFrom; av = null; ev = null; }                             // DV87: from the hatch driver's hands: no gun and no hull to kick
-            var end = HitPoint(t, tv, from, out var follow, out var local); if (t == null) SniperCoverView.ZapMissAt(e, ref end);   // DV122: a zap that missed a kneeling / lying sniper strikes the ground beside him (View/SniperCoverView.cs)
+            var end = HitPoint(t, tv, from, out var follow, out var local); if (skyBolt) { end = skyTo; follow = skyDragon; local = skyDragon ? skyDragon.InverseTransformPoint(end) : default; } else if (t == null) SniperCoverView.ZapMissAt(e, ref end);   // DV122: a zap that missed a kneeling / lying sniper strikes the ground beside him (View/SniperCoverView.cs)
+            if (ShotLine.Stop(from, end, t, out var wall)) { end = wall; follow = null; }              // bullets_straight: it strikes what its line meets (View/ShotLine.cs)
             var d = end - from; if (d.sqrMagnitude > 1e-4f) dir = d.normalized;
             OzShuttleAim.NoteBolt(a, t, from, end);                                                  // DV118: the gallery's counts, the last hit on the ship
             if (bolts.Count >= 6) bolts.RemoveAt(0);                                               // budget: the oldest goes first
-            var b = new BoltFx { attacker = a.Id, target = t != null ? t.Id : -1, av = av, ev = ev && ev.Bound ? ev : null, follow = follow, local = local, endWorld = end, startWorld = from,
+            var b = new BoltFx { attacker = a.Id, target = t != null ? t.Id : skyBolt ? SkyTarget : -1, av = av, ev = ev && ev.Bound ? ev : null, follow = follow, local = local, endWorld = end, startWorld = from,
                                  dir = dir, born = Time.time, seed = Seed(), stunned = e.flag, killed = e.flag2, lightSeed = R(0f, 10f), restrike = R(0.11f, 0.16f) };
+            b.over = ShotLine.LastOver;                                                              // shots_over_walls: the line went on through a wall
             Shape(b, true);
             bolts.Add(b);
             // the Electrobot: recoil (gun climb + body rock; UnitView's jolt and gun kick), cells emptied, gauge to 0, barrels spin down
@@ -518,6 +539,7 @@ namespace OpenZ
             {
                 var s = b.strands[si];
                 int n = s.n; if (n < 2) continue;
+                Arcs.Over = b.over && (s.kind == 0 || s.kind == 1 || s.kind == 5);                     // shots_over_walls: the bolt, its forks and crackle; ground strikes stay behind a tower
                 switch (s.kind)
                 {
                     case 0:
@@ -585,6 +607,7 @@ namespace OpenZ
                     }
                 }
             }
+            Arcs.Over = false;
             // glows: the emitter's white flash + its blue energy sphere; the impact's white flash, the blue flash disc on the target
             if (age < 0.12f) Arcs.Glow(A, 1.3f * (1f - age / 0.12f) + 0.4f, 0.3f, 12f, 2.5f, Glow, 1f);
             if (!b.deploy && emitterSphere > 0f && slow > 0.002f) Arcs.Glow(A, emitterSphere * (0.8f + 0.2f * slow), 0.18f, 2.5f, sphereGain, Aura, slow);

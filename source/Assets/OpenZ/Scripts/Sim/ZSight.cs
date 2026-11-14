@@ -48,9 +48,10 @@ namespace OpenZ.Sim
             tileObj = new int[w * h];
             for (int ty = 0; ty < h; ty++)
                 for (int tx = 0; tx < w; tx++)
-                    if (world.Map.ClassAt(tx, ty) == ZClass.Impassable) tileObj[ty * w + tx] = -1;
+                    if (world.Map.ClassAt(tx, ty) == ZClass.Impassable && !world.Map.LavaAt(tx, ty)) tileObj[ty * w + tx] = -1;   // level 7 (DV152 data): a lava pit is flat ground, never a wall for sight
             foreach (var o in world.Objects) Add(o);
             world.L16ShuttleSightTiles(tileObj, blockers);                                      // level 16 DV95 (ZWorld.L16Shuttle.cs): the standing shuttle's square under its own id, as the hut it replaces blocked on its tile
+            world.PlatformSightTiles(tileObj, blockers);                                        // 1.3 the Unit editor's ramp platforms (Sim/ZWorld.Platforms.cs): nothing in a level
             world.L16SightTiles(tileObj, blockers);                                             // level 16 DV89 (ZWorld.L16Pyramids.cs): a pyramid's square under its own id (it blocks direct fire while it stands and can be fired at); the tiles under the level's low pieces never block
         }
 
@@ -118,6 +119,7 @@ namespace OpenZ.Sim
         {
             if (o == null) return 0;
             if (o.Kind == ZKind.Building || o.Kind == ZKind.MapItem) return o.Id;
+            { int pl = W.PlatformSeatId(o); if (pl != 0) return pl; }                         // 1.3 the Unit editor: a unit on a ramp platform sees over it and can be seen, as a tower gun (Sim/ZWorld.Platforms.cs); 0 in every level
             if (o.Kind == ZKind.Vehicle && ZWorld.RepairInPlaceDeviation && o.OnAnyRepairPad) return o.Waypoints[0].refId;   // DV62: fires out of its repair bay
             if (o.Kind == ZKind.Vehicle && ZWorld.RepairInPlaceDeviation && ZWorld.RepairBayFireDeviation && o.Waypoints.Count > 0 && o.Waypoints[0].mode == WpMode.UnitRepair
                 && o.InRepairBay(o.Waypoints[0].refId)) return o.Waypoints[0].refId;       // DV77: on its way in and out of the bay too

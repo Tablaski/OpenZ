@@ -30,7 +30,7 @@ namespace OpenZ
     /// camera (its B values are not used). Point: an orbit around `point` (x, z) with absolute yaw.</summary>
     /// (world metres; the film-frame shots: foreground parallax, the car park glide, the low sunrise), floor = its own lowest height over
     /// the ground (m; below 0 = the default CineFloor).
-    public enum ZodCineSubject { WholeMap, Sunrise, EnemyFort, OwnBaseHome, Point, Free }
+    public enum ZodCineSubject { WholeMap, Sunrise, EnemyFort, OwnBaseHome, Point, Free, OwnFortDawn }    // OwnFortDawn: the blue flyovers' first shot (ZodFlyover.Blue.cs)
 
     /// <summary>Soft = half linear, half smoothstep (moving at the cut, slower at the ends); InOut = smoothstep (starts and lands at
     /// rest: the hand-back shot); Linear.</summary>
@@ -142,7 +142,7 @@ namespace OpenZ
             }
         };
 
-        public static ZodShotList For(string level) { EnsureFile(); return level == "L17" ? L17 : level == "L16" ? L16 : L02; }
+        public static ZodShotList For(string level) { EnsureFile(); if (BlueSide) return ForBlue(level); return level == "L17" ? L17 : level == "L16" ? L16 : OzVolcanic.Is(level) ? L07 : L02; }   // a level played as blue: its blue list (ZodFlyover.Blue.cs)
 
         // ---------------------------------------------------------------------------------------- the tuned data file
         public const string JsonPath = "OpenZ/Zod/briefing_shots";
@@ -165,7 +165,9 @@ namespace OpenZ
                 File = f;
                 if (f.L02 != null && f.L02.Length > 0) L02.shots = f.L02;
                 if (f.L17 != null && f.L17.Length > 0) L17.shots = f.L17;
+                LoadL07(f);                                                                   // ZodFlyover.L07.cs
                 LoadL16(f);                                                                   // ZodFlyover.L16.cs: the jungle list and its numbers
+                LoadBlue(f);                                                                  // ZodFlyover.Blue.cs: the blue lists and their numbers
                 if (f.startTod >= 0f) DayNight.SunriseStart = f.startTod;
                 if (f.morningWarmth >= 0f) DayNight.MorningWarmth = f.morningWarmth;
                 ZodFlyover.BriefExposure = f.briefExposure; ZodFlyover.BriefTemperature = f.briefTemperature;
@@ -182,7 +184,9 @@ namespace OpenZ
             var f = new ZodBriefingLookFile { startTod = DayNight.SunriseStart, morningWarmth = DayNight.MorningWarmth,
                 briefExposure = ZodFlyover.BriefExposure, briefTemperature = ZodFlyover.BriefTemperature,
                 morningSunLift = DayNight.MorningSunLift, morningAmbientLift = DayNight.MorningAmbientLift, L02 = L02.shots, L17 = L17.shots };
+            SaveL07(f);                                                                       // ZodFlyover.L07.cs
             SaveL16(f);                                                                       // ZodFlyover.L16.cs
+            SaveBlue(f);                                                                      // ZodFlyover.Blue.cs
             return JsonUtility.ToJson(f, true);
         }
 
@@ -349,6 +353,9 @@ namespace OpenZ
                         s.a = new CinePose { pos = d.camA, look = d.lookA, focus = new Vector3(d.lookA.x, 0f, d.lookA.z), fov = d.fovA };
                         s.b = new CinePose { pos = d.camB, look = d.lookB, focus = new Vector3(d.lookB.x, 0f, d.lookB.z), fov = d.fovB };
                         break;
+                    case ZodCineSubject.OwnFortDawn:                                                        // the blue flyovers' first shot: from our fort into the sun (ZodFlyover.Blue.cs)
+                        s.a = FortDawn(d, false, myFort, sunYaw, size); s.b = FortDawn(d, true, myFort, sunYaw, size);
+                        break;
                     case ZodCineSubject.OwnBaseHome:
                         {
                             Vector3 aim = new Vector3(myFort.x, GroundAt(myFort) + d.aimUp, myFort.z);
@@ -440,7 +447,7 @@ namespace OpenZ
             int i = 0;
             while (i < cine.Count - 1 && t >= cine[i + 1].start) i++;
             if (hold) { i = HoldShot; t = cine[i].start + Mathf.Clamp01(HoldU) * cine[i].dur; }
-            if (i != cineIdx) { cineIdx = i; Debug.Log($"[ZodFlyover] shot {i + 1}/{cine.Count} {cine[i].name} at {t:F2} s ({cine[i].dur:F1} s{(hold ? ", held" : "")})"); }
+            if (i != cineIdx) { cineIdx = i; OzVolcano.FlyoverBeat(cine[i].name); Debug.Log($"[ZodFlyover] shot {i + 1}/{cine.Count} {cine[i].name} at {t:F2} s ({cine[i].dur:F1} s{(hold ? ", held" : "")})"); }
             if (!hold)
                 while (whooshIdx < cine.Count && t >= cine[whooshIdx].start - cine[whooshIdx].dip * 0.5f - 0.1f)
                 {   // the wind swell rises into the cut (dip) into a shot that asks for it

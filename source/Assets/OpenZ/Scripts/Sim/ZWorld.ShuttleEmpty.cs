@@ -34,7 +34,7 @@ namespace OpenZ.Sim
         /// <summary>DV118 (ZObject.CanTakePassengers): this empty shuttle takes a squad of `team` now: a human team, the ship standing level
         /// on the ground. The squad's leader will be its pilot.</summary>
         internal bool ShuttleEmptyTakes(Team team) =>
-            ShuttleIsEmpty && !Destroyed && KillAt < 0 && World != null && World.IsHumanTeam(team) && ShuttleState == ZShuttleState.Landed && ShuttleLift <= 0
+            ShuttleIsEmpty && !Destroyed && KillAt < 0 && World != null && World.ShuttleTeamCanUse(team) && ShuttleState == ZShuttleState.Landed && ShuttleLift <= 0   // DV138: or with the rule on a computer's ordered squad (Sim/ZBot.CpuShuttle.cs)
             && World.Time >= ShuttleLevelledAt;
 
         /// <summary>ZObject.ShuttleRampStep: an empty ship's ramp is called by a human team's robot ordered into it within

@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections.Generic;
 using System.IO;
 using OpenZ.Sim;
@@ -51,3 +52,4 @@ namespace OpenZ
         }
     }
 }
+#endif

@@ -342,7 +342,7 @@ namespace OpenZ
             }
             Mark(keeper != null ? $"keeper: a harmless unkillable blue grunt squad at ({keeper.CenterX >> 4},{keeper.CenterY >> 4}) tiles, {D(keeper, fort.CenterX, fort.CenterY) / 16:0} tiles from their fort (keeps blue in the match)" : "NO keeper placed");
             var targets = new List<ZObject>();
-            foreach (var o in W.Objects) if (o.Kind == ZKind.Cannon && o.Owner == them && !o.Destroyed && D(o, fort.CenterX, fort.CenterY) <= ad.musicV3Config.rCore) targets.Add(o);
+            foreach (var o in W.Objects) if (o.Kind == ZKind.Cannon && o.Owner == them && !o.Destroyed && Math.Sqrt(fort.WallPoint(o.CenterX, o.CenterY, out _, out _)) <= ad.musicV3Config.rCore) targets.Add(o);   // music_drama: rCore is measured to the fort's walls (MusicFortReader), no longer to its centre
             targets.Sort((p, q) => D(p, ax, ay).CompareTo(D(q, ax, ay)));
             var atk = new List<ZObject>();
             var s1 = Squad("grunt", g.player, ax + (int)(dy * 40), ay - (int)(dx * 40)); var s2 = Squad("grunt", g.player, ax - (int)(dy * 40), ay + (int)(dx * 40));
@@ -464,7 +464,8 @@ namespace OpenZ
             Verdict("L17 resume check (forced cycle, 50 ms tolerance)", big > 0 && rcl != null && rcl.Contains("-> OK"), $"BIG ATTACK {(big > 0 ? (big - a0).ToString("0.0") + " s after the force" : "none")}; {LineSince("ToRegular", a0)}; {rcl}");
             float back = FirstSince("ToRegular", a0);
 
-            // step 6 on L17: a real attack once the 45 s cooldown after that fade back has passed
+            // MusicCoreConfig.cooldown, 300 s of play after a fade back, no exception), so no drama can start until 300 s after it; this step's wait
+            // stays 40 s (text only), so its "real attack" verdict needs the limit waited out first (Status: "5-minute limit: next drama in N s").
             double dx = ourFort.CenterX - theirFort.CenterX, dy = ourFort.CenterY - theirFort.CenterY, dl = Math.Sqrt(dx * dx + dy * dy); dx /= dl; dy /= dl;
             int ax = theirFort.CenterX + (int)(dx * 13 * 16), ay = theirFort.CenterY + (int)(dy * 13 * 16);
             if (back > 0) yield return Wait(Mathf.Max(0f, back + 40f - T));

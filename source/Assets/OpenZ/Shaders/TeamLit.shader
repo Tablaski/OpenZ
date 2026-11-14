@@ -80,9 +80,16 @@ Shader "OpenZ/TeamLit"
         _OZTeamVivid ("Vivid team albedo (linear) + w: 0 unset, 1 neutral, 2 owned", Vector) = (0, 0, 0, 0)
         _OZTeamGlow ("Team rim / night glow (linear)", Vector) = (0, 0, 0, 0)
         _OZDead ("Dead robot: 0 alive .. 1 dead (per renderer from TeamPaint / OzDeadTint)", Range(0, 1)) = 0
+        [HideInInspector] _OZHeat ("Robot in lava: 0 cold .. 1 melting (per renderer from TeamPaint.Heat)", Range(0, 1)) = 0
+        [HideInInspector] _OZLegHeat ("Legs in lava: 0 .. 1 (per renderer from OzLavaWade)", Range(0, 1)) = 0
+        [HideInInspector] _OZLegLine ("Legs in lava: world y of the hot line", Float) = 0
+        [HideInInspector] _OZLegTop ("Legs in lava: height of the glow band (m); negative: in fire, the band stands on the unit's own ground (OzFireHeat)", Float) = 0
+        [HideInInspector] _OZHeatInBand ("Robot in lava: 1 = its own heat (_OZHeat) glows only inside the lava band (per renderer from OzLavaWade)", Range(0, 1)) = 0
         _OZPanel ("Team panel rect, mesh space (cx, cz, half x, half z)", Vector) = (0, 0, 0, 0)
         _OZPanelY ("Team panel: from mesh y, edge soft, corner, strength", Vector) = (0, 0, 0, 0)
         _OZFortPaint ("TG2 fort palette on tower guns: cream (linear) + w: reference luminance, 0 = off", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _OZEmptyV1 ("k98b empty v2 like v1: x 0 off / 1 vehicle / 2 gun (per renderer, TeamPaint)", Vector) = (0, 0, 0, 0)
+        [HideInInspector] _OZEmptyDisc ("item 198: a round lighter part of the empty v2 look: mesh x, z, radius, step (per renderer)", Vector) = (0, 0, 0, 0)
         [Header(Misc)]
         [Toggle] _FlatShade ("Flat low-poly facets (face normals)", Float) = 0
         _NightClass ("Night class (night_v2): -1 auto, 0 environment, 1 unit, 2 building, 3 map item", Float) = -1
@@ -154,6 +161,9 @@ Shader "OpenZ/TeamLit"
             float4 _OZTeamVivid;   // teamcolor_v2
             float4 _OZTeamGlow;
             half _OZDead;   // item 228: a dead robot's figure greyer, luminance kept (OzDeadTint)
+            half _OZHeat;   // DV152 level 7: a robot in lava glows red-orange from the feet up (TeamPaint.Heat.cs)
+            half _OZLegHeat; float _OZLegLine; half _OZLegTop;   // 1.3 level 7: the legs in lava, view side (OzLavaWade.cs)
+            half _OZHeatInBand;   // 1.3 row 17 tail: 1 on a robot OzLavaWade writes: its own heat glows only inside the lava band
             float4 _OZPanel;
             float4 _OZPanelY;
             float4 _OZFortPaint;   // TG2 (TeamPaint.FortPalette)
@@ -166,7 +176,10 @@ Shader "OpenZ/TeamLit"
             half _UseNormalMap; half _BumpScale; half _UseMaskMap; half4 _EmissionMapColor; half _EmissionNight;   // fort_v2 optional maps
             half _Rust; float _RustWaterY; float _RustScale;
             float4 _OzWindPalm; float4 _OzWindPalm2;   // palm_wind (PalmWind.cs run-time palm copies only; w 0 = still)
+            float4 _OZEmptyV1;   // k98b, items 170 / 170b / 170c: the empty v2 look (per renderer, View/OzV2EmptyLook.cs)
+            float4 _OZEmptyDisc;   // item 198: a hatch drawn in the turret mesh: mesh x, z, radius (m), its step over the body grey
         CBUFFER_END
+        float _OZLavaY;   // DV152 level 7: the lava surface height (global, View/OzLava.cs); the heat glow is strongest there
         // night package (NightGrade): 0 by day .. 1 at night, and the cool moonlit rim colour (linear), globals
         half _OZNight;
         half4 _OZNightRim;
@@ -184,6 +197,9 @@ Shader "OpenZ/TeamLit"
         // x = highlight cap gain, y = paint smoothness add, z = bare-metal smoothness add, w = soft environment reflection (by day)
         half4 _OZSheen;
         half4 _OZTeamRim;
+        // k98b (View/OzV2EmptyLook.cs): _OZEmptyLook = (body, team, metal grey (linear), contrast), _OZEmptyLook2 = (detail low, high, mask cells,
+        // detail mip bias), _OZEmptyGun = (the gun's body, team, metal grey, the metal parts' reference share)
+        half4 _OZEmptyLook; half4 _OZEmptyLook2; half4 _OZEmptyGun;
         float4 _OZSeeThruParams;   // x = rock coverage kept in the hole, y = soft rim (fraction of the radius), z = front margin (m), w = rim darken
         half OZSeeThruCut(float3 positionWS)
         {
@@ -309,6 +325,7 @@ Shader "OpenZ/TeamLit"
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"   // v1.3 item 25 (f): the GPU Resident Drawer variant (DOTS_INSTANCING_ON), as URP Lit has it
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "OpenZNightV2.hlsl"                                            // night_v2: night classes, day-sky reflection fix
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
@@ -353,6 +370,14 @@ Shader "OpenZ/TeamLit"
             }
 
             #include "OzShuttleSelfShadow.hlsl"                                     // K256g2: the flying shuttle's own self-shadow (_OzSelfShadowOn 0 = unchanged)
+            #include "OzLavaRamp.hlsl"                                               // 1.3 level 7: the one colour ramp of everything hot, read only inside the leg branch
+            half OZLegCell(float2 c) { return (half)frac(sin(dot(c, float2(12.9898, 78.233))) * 43758.5453); }
+            /// Value noise round and up the leg: the broken edge of the glow. Only a hot robot pays for it.
+            half OZLegNoise(float3 p)
+            {
+                float2 q = float2(p.x + p.z, p.y) * float2(5.0, 9.0), c = floor(q), f = q - c; f = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(OZLegCell(c), OZLegCell(c + float2(1, 0)), (half)f.x), lerp(OZLegCell(c + float2(0, 1)), OZLegCell(c + float2(1, 1)), (half)f.x), (half)f.y);
+            }
             #include "OpenZUnitLook.hlsl"                                           // unitlook_v2: clean unit shading
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
@@ -643,6 +668,36 @@ Shader "OpenZ/TeamLit"
                     half3 hTc = (half3)_OZTeamVivid.rgb / hK;                        // the readable team colour of the siblings' toy panels (linear, SetVector; _TeamColor goes through SetColor's sRGB step)
                     half3 hOwn = lerp(hRaw, hTc * hR * _HeavyLook.w + hRaw * (1 - _HeavyLook.w), hTeam * hOwned);
                     half3 hGrey = lerp(hL * _HeavyLook.z, _HeavyLook.y * hR, hPanel) * half3(1.0, 0.985, 0.955);   // warm grey like TeamColors.Neutral
+                    // k98b (items 170 / 170b / 170c:
+                    // an empty v2 model (TeamPaint: _OZEmptyV1.x 1 = a vehicle, 2 = the gun; 0 = every other
+                    // model, unchanged) reads like the empty light / MLRS / mech v1: a light grey body, its team parts a little whiter, its tracks and
+                    // dark metal a little darker (View/OzV2EmptyLook.cs has the numbers). Per texel: (1) the mask from the alpha on a blurred mip
+                    // (_OZEmptyLook2.z cells, never finer than the screen's mip: whole panels, soft edges, no speckle at any zoom); (2) the texel's own
+                    // detail, grey: its luminance on a mip _OZEmptyLook2.w softer than the screen's (or the material's de-grimed albedo) over the
+                    // paint reference _HeavyLook.x (metal parts: x _OZEmptyGun.w), to the power _OZEmptyLook.w, within _OZEmptyLook2.xy;
+                    // (3) value-mapped to v1's empty greys (_OZEmptyLook / _OZEmptyGun.xyz: body, team, metal), in v1's empty warm grey.
+                    if (_OZEmptyV1.x > 0.5)
+                    {
+                        half4 eG = lerp(_OZEmptyLook, half4(_OZEmptyGun.xyz, _OZEmptyLook.w), step(1.5, _OZEmptyV1.x));   // body, team, metal, contrast
+                        eG.x = _OZEmptyV1.z > 0.001 ? (half)_OZEmptyV1.z : eG.x; eG.y = _OZEmptyV1.w > 0.001 ? (half)_OZEmptyV1.w : eG.y;   // item 198: this model's own body / team grey (0 = shared)
+                        float2 eTx = i.uv * _BaseMap_TexelSize.zw;
+                        float2 eDx = ddx(eTx), eDy = ddy(eTx);
+                        float eHw = max(0.0, 0.5 * log2(max(max(dot(eDx, eDx), dot(eDy, eDy)), 1e-8)));                   // the screen's own mip
+                        float eMl = max(log2(max(_BaseMap_TexelSize.z, 1.0) / max((float)_OZEmptyLook2.z, 1.0)), eHw);   // the mask's mip
+                        half eA = SAMPLE_TEXTURE2D_LOD(_BaseMap, sampler_BaseMap, i.uv, eMl).a;
+                        half eP = smoothstep(0.18, 0.42, eA), eTm = smoothstep(0.66, 0.86, eA);                            // paint (+ team), team
+                        half eLid = step(0.5, _OZEmptyV1.y); eP = max(eP, eLid); eTm *= 1 - eLid;                          // item 198: a hatch lid = paint, x its step (below)
+                        half eDisc = _OZEmptyDisc.z > 0.001 ? (half)(1 - smoothstep(_OZEmptyDisc.z * 0.8, _OZEmptyDisc.z, length(i.objXZ - _OZEmptyDisc.xy))) : (half)0; eP = max(eP, eDisc); eTm *= 1 - eDisc;   // item 198: the heavy v2's second hatch
+                        half eD = dot(SAMPLE_TEXTURE2D_LOD(_BaseMap, sampler_BaseMap, i.uv, eHw + _OZEmptyLook2.w).rgb, hLumW);
+                        eD = lerp(eD, hL, saturate(_Degrime));                                                              // a de-grimed belt keeps its softening
+                        half eRef = max(_HeavyLook.x, (half)1e-3) * lerp(_OZEmptyGun.w, (half)1.0, eP);
+                        half eR = clamp(exp2(eG.w * log2(max(eD, (half)1e-4) / eRef)), _OZEmptyLook2.x, _OZEmptyLook2.y);   // (d / ref) ^ contrast
+                        half eV = lerp(lerp(eG.z, eG.x, eP), eG.y, eTm) * eR;
+                        eV *= lerp((half)1, (half)_OZEmptyV1.y, eLid);                                                   // item 198: the lid slightly whiter than its body, as on its v1
+                        eV *= lerp((half)1, (half)_OZEmptyDisc.w, eDisc);                                                // item 198: that hatch as light as the lid
+                        eV = max(eV, hL * smoothstep(0.25, 0.40, hL) * (1 - eP));                                            // light metal parts (rocket noses, light stripes) keep their own light grey, as on v1
+                        hGrey = eV * half3(1.038, 0.995, 0.941);                                                            // v1's empty grey (0.48, 0.46, 0.435), luminance 1
+                    }
                     // + the game-wide owned-tank cue (teamcolor_v2 "whose tank is where"): the team panel on the turret roof
                     // (TeamPaint.PanelRules HeavyTankTurret), so the team reads at the default zoom next to the light / medium tanks
                     half hTop = 0;
@@ -794,6 +849,28 @@ Shader "OpenZ/TeamLit"
                 c.rgb *= 1.0 - seeCut * _OZSeeThruParams.w;                         // rocks_v2: darker rim frames the unit
                 if (_OzWetness > 0.001 && nClass < 0.5) c.rgb *= OZWetEnvDarken((half)d.normalWS.y);   // weather_l17_v1: wet stone (environment class only)
                 c.rgb = lerp(c.rgb, dot(c.rgb, half3(0.2126, 0.7152, 0.0722)).xxx * 1.15, saturate(_OZDead) * 0.55);   // item 228: a dead robot (OzDeadTint): greyer, luminance kept (+15 %), hue kept; 0 on everything alive
+                if (max(_OZHeat, _OZLegHeat) > 0.001)
+                {   // DV152 level 7 (TeamPaint.Heat.cs): a robot in lava turns redder and glows from the feet up; the glow climbs the body as the heat rises
+                    half hh = saturate(_OZHeat);
+                    half up = saturate((i.positionWS.y - _OZLavaY) / 2.4);                       // 0 at the lava, 1 at the top of a 2.4 m robot
+                    half reach = saturate((hh * 1.25 - up) * 3.0);                                // the glowing part rises with the heat
+                    if (_OZHeatInBand > 0.5 && _OZLegHeat > 0.001 && _OZLegTop > 0.0)
+                        reach *= 1.0 - saturate(_OZLegHeat * 1.6) * smoothstep(0.70, 1.0, (half)((i.positionWS.y - _OZLegLine) / max(_OZLegTop, 0.05)));   // 1.3 row 17 tail: a robot's own heat glows only inside its lava band and climbs with it, never ahead of it up to the head; weighed as the soot below, so it eases out with the band and never snaps off
+                    c.rgb = lerp(c.rgb, c.rgb * half3(1.30, 0.50, 0.32), hh * 0.70);            // the paint redder all over
+                    c.rgb += half3(1.0, 0.27, 0.05) * (reach * (0.6 + 2.4 * hh * hh));        // HDR red-orange glow: the bloom catches it near the melt
+                    if (_OZLegHeat > 0.001)
+                    {   // 1.3 level 7, the legs in lava (OzLavaWade.cs): the same ramp as the lava, yellow-orange at the line, dull red above, a broken edge, soot over it, warm light from below
+                        half lg = saturate(_OZLegHeat), ln = OZLegNoise(i.positionWS);
+                        half lTop = abs(_OZLegTop); float lSurf = _OZLegTop < 0.0 ? _OZLegLine : _OZLavaY;   // a negative band stands on the ground under the unit (OzFireHeat), a positive one on the lava
+                        half lu = (half)((i.positionWS.y - _OZLegLine) / max(lTop, 0.05)) + (ln - 0.5) * 0.30;
+                        half lGlow = 1.0 - smoothstep(0.70, 1.0, lu), lSoot = 1.0 - smoothstep(1.0, 1.7, lu);
+                        c.rgb *= 1.0 - 0.72 * saturate(lg * 1.6) * max(lGlow, lSoot);              // hot steel darkens first, soot over the glow
+                        c.rgb += OzLavaEmit(lerp(0.62, 0.42, saturate(lu / 0.8)) * lg * (0.92 + 0.16 * ln), _OZNight) * lGlow * 2.0;
+                        half lOver = 1.0 - saturate((half)(_OZLegLine - lSurf) / 0.7);             // only standing over the lava: the line has left it once the robot is out
+                        half lUp = saturate(1.0 - (half)(i.positionWS.y - lSurf) / max(lTop * 3.2, 0.5));
+                        c.rgb += albedo * OzLavaRamp(0.75) * ((0.35 + 0.65 * saturate(0.4 - d.normalWS.y)) * lUp * lUp * lg * lOver * (0.55 + 0.35 * saturate(_OZNight)));
+                    }
+                }
                 c.rgb = MixFog(c.rgb, i.fogFactor);
                 return half4(c.rgb, 1);
             }
@@ -809,6 +886,7 @@ Shader "OpenZ/TeamLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"   // v1.3 item 25 (f): the GPU Resident Drawer variant (DOTS_INSTANCING_ON), as URP Lit has it
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             float3 _LightDirection;
@@ -851,6 +929,7 @@ Shader "OpenZ/TeamLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"   // v1.3 item 25 (f): the GPU Resident Drawer variant (DOTS_INSTANCING_ON), as URP Lit has it
             struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; };
             Varyings vert(Attributes i) { Varyings o; UNITY_SETUP_INSTANCE_ID(i); o.positionWS = OZPalmWind(TransformObjectToWorld(i.positionOS.xyz)); o.positionCS = TransformWorldToHClip(o.positionWS); return o; }   // palm_wind
@@ -867,6 +946,7 @@ Shader "OpenZ/TeamLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"   // v1.3 item 25 (f): the GPU Resident Drawer variant (DOTS_INSTANCING_ON), as URP Lit has it
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 normalWS : TEXCOORD0; float3 positionWS : TEXCOORD1; };
             Varyings vert(Attributes i) { Varyings o; UNITY_SETUP_INSTANCE_ID(i); o.positionWS = OZPalmWind(TransformObjectToWorld(i.positionOS.xyz)); o.positionCS = TransformWorldToHClip(o.positionWS); o.normalWS = TransformObjectToWorldNormal(i.normalOS); return o; }   // palm_wind

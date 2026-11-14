@@ -42,7 +42,7 @@ namespace OpenZ
         void Refresh()
         {
             if (text == null || !rt) return;
-            var d = OpenZDifficulty.Level;
+            var d = OpenZDifficulty.Choice;                                                                  // 1.4 MAYHEM: MAYHEM has its own table ("BEST · MAYHEM · ...")
             if ((int)d == shownDiff && OzHighScores.Version == shownVersion) return;
             shownDiff = (int)d; shownVersion = OzHighScores.Version;
             var e = OzHighScores.Best(level, d);

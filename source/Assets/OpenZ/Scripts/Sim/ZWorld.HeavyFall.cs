@@ -117,7 +117,7 @@ namespace OpenZ.Sim
             switch (type)
             {
                 case "light": return 1.0;
-                case "medium": return 1.2;
+                case "medium": case ZMTank.Type: return 1.2;   // DV145: the medium tank's dome turret
                 case "heavy": return 1.4;
                 case "gun": return 1.2;
                 case "howitzer": return 1.4;
@@ -126,7 +126,7 @@ namespace OpenZ.Sim
                 default: return 0.0;
             }
         }
-        public static bool IsTurretFaller(ZObject a) => a != null && ((a.Kind == ZKind.Vehicle && (a.Type == "light" || a.Type == "medium" || a.Type == "heavy")) || a.Kind == ZKind.Cannon) && TurretCoverM(a.Type) > 0;
+        public static bool IsTurretFaller(ZObject a) => a != null && ((a.Kind == ZKind.Vehicle && (a.Type == "light" || a.Type == "medium" || a.Type == ZMTank.Type || a.Type == "heavy")) || a.Kind == ZKind.Cannon) && TurretCoverM(a.Type) > 0;   // DV145 the medium tank (Sim/ZMTank.cs)
 
         // ------------------------------------------------------------------ the trees the rules know, with their drawn trunks
         void HeavyBuild()
@@ -358,10 +358,10 @@ namespace OpenZ.Sim
             // the view: c = CenterWorld(Fort, false); half = max side / 16; hdg = heading + offset; land = c + (sin, cos)(hdg) x (half + 3 + 3 r);
             // tossEndRot = Euler(x, y, z) from the same seeded generator, in that order
             double cx = (fort.PosX + fort.WidthPix * 0.5) / 8.0, cz = -(fort.PosY + fort.HeightPix * 0.5) / 8.0;
-            float half = Math.Max(fort.WidthPix, fort.HeightPix) / 16f;
+            float half = (float)(Math.Max(fort.WidthPix, fort.HeightPix) / 16f);
             var rnd = new Random(fort.Id * 7919 + 17);
-            float hdg = (float)heading + (float)(rnd.NextDouble() * 140.0 - 70.0);
-            float dist = half + 3f + (float)rnd.NextDouble() * 3f;
+            float hdg = (float)((float)heading + (float)(rnd.NextDouble() * 140.0 - 70.0));
+            float dist = (float)((float)(half + 3f) + (float)((float)rnd.NextDouble() * 3f));
             double ex = rnd.NextDouble() * 50.0 - 25.0, ey = rnd.NextDouble() * 360.0, sg = rnd.Next(2) == 0 ? -1.0 : 1.0, ez = sg * (80.0 + rnd.NextDouble() * 25.0);
             var R = EulerMatrix(ex, ey, ez);
             // the landed cannon's pieces round its pivot (m, turned as it lands), and their box

@@ -15,7 +15,7 @@ namespace OpenZ
     /// full-screen pictures from the normal RTS camera at 70 m (uncropped). Set-up: the CPU teams removed, morning (day clock 0.10, held).
     /// The game's pointer is moved by queued input events inside the game only (as the testing panel's own self-test does): no desktop input.
     ///  Q1 the testing panel's drop of an empty ship beside ALAN &amp; BRAD; the hero squad ordered in: up the ramp, Brad the pilot, Alan the
-    ///     passenger, the ship red and lit; the unit panel's line names the pilot ("PILOT BRAD");
+    ///     passenger, the ship red and lit; the unit panel's line names the pilot ("PILOT BRAD CAN EXIT");
     ///  Q2 flown and landed: the EXIT button and the EXIT cursor; EXIT (the button's own call): both walk down the ramp as the hero squad,
     ///     the ship EMPTY again: dark (by day and at night), grey, the line "EMPTY ...", no EXIT button; its engine dies (the sound log);
     ///  Q3 every vehicle and gun of the testing panel and another shuttle, each selected on its own with the pointer on the empty ship and on
@@ -145,7 +145,7 @@ namespace OpenZ
             Shot("k256f2_q1_taken_lit_red_h70");
             Log($"after the boarding: pilot {s.Drivers.Count} (hero {s.ShuttleHeroPilot}), passengers {s.Passengers.Count}, the ship {s.Owner}, lights mode {(look && look.Lights ? look.Lights.Mode : -1)}; line '{line}'");
             Check("Q1 Brad the pilot (a hero), Alan the passenger, the ship red", s.ShuttleHeroPilot && s.Drivers.Count == 1 && s.Passengers.Count == 1 && s.Owner == me);
-            Check("Q1 lit once they sit; the unit panel's line names the pilot", look && !look.IsDark && line.StartsWith("PILOT BRAD"));
+            Check("Q1 lit once they sit; the unit panel's line names the pilot, who can get out (1.2 item 2: \"PILOT BRAD CAN EXIT\")", look && !look.IsDark && line.StartsWith("PILOT BRAD CAN EXIT"));
         }
 
         // ------------------------------------------------------------------ Q2: flown, landed, EXIT: both out, the ship empty again

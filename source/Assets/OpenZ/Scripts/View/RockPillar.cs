@@ -9,7 +9,7 @@ namespace OpenZ
     /// removes the rock) the biome's 8-chunk set flies (no rubble heap: only a scorch and a few loose stones that fade) with real physics, bounces,
     /// settles, freezes and sinks away. Rocks take explosive damage only (orock.cpp), so every stage change is a blast.
     /// </summary>
-    public class RockPillar : MonoBehaviour
+    public partial class RockPillar : MonoBehaviour                                      // 1.4 speed-up 4: + View/RockPillar.ViewScans.cs (its registry)
     {
         public GameObject pillar, damaged, rubble;
         public Mesh[] chunks;
@@ -143,6 +143,8 @@ namespace OpenZ
         public float lifeMin;                                                  // > 0: loose stones on the spot linger longer
         public bool floats;                                                    // wood (the Jungle bridge's planks): it rests half under the surface instead of going under
         float age, life; Rigidbody rb; bool frozen, popping;
+        void Awake() { OzLiveSet<RockChunkLife>.Add(this); }                                       // v1.3: AudioDirector.ScanPhysics reads the registry (View/OzLiveSet.cs)
+        void OnDestroy() { OzLiveSet<RockChunkLife>.Remove(this); }
         void Start()
         {
             rb = GetComponent<Rigidbody>(); life = lifeMin > 0f ? Random.Range(lifeMin, lifeMin + 8f) : Random.Range(6f, 10f);

@@ -204,17 +204,39 @@ namespace OpenZ
         {
             int size = HardwareCursorSize;
             frame &= 3;
-            if (name == curName && frame == curFrame && size == curSize) return;
+            string art = CursorArt(name);                                                            // 1.3 item 34: the blue twin on the blue side (red side: art == name)
+            if (art == curName && frame == curFrame && size == curSize) return;
             var tex = OzSoftCursor.HardwareTexture(name, frame, size);
             if (tex == null)
             {
-                tex = GetTexture("Cursors/cur_" + name + "_" + size + "_" + frame);
+                tex = GetTexture("Cursors/cur_" + art + "_" + size + "_" + frame);
+                if (tex == null && art != name) tex = GetTexture("Cursors/cur_" + name + "_" + size + "_" + frame);   // 1.3 item 34: blue picture missing = the red one, never no cursor
                 if (tex == null) return;
                 if (GreenCursors.Contains(name)) tex = Green(tex);                               // endgame_ui_v1: move = green, red only to attack
             }
             var hot = name == "arrow" ? new Vector2(4f, 3f) * (size / 32f) : new Vector2(size * 0.5f, size * 0.5f);
             Cursor.SetCursor(tex, new Vector2(Mathf.Floor(hot.x + 0.5f), Mathf.Floor(hot.y + 0.5f)), CursorMode.Auto);   // arrow (4,3) (6,5) (8,6)
-            curName = name; curFrame = frame; curSize = size;
+            curName = art; curFrame = frame; curSize = size;
+        }
+
+        /// <summary>
+        /// cursor in red; while the player plays the BLUE side (PLAY AS BLUE armed for this level, View/OzPlayBlue.cs, and the match's HUD
+        /// has the human on blue) the same states come from their blue twins (Kit/Cursors/cur_blue_*, Kit/Cursors/HD/cur_blue_*: the red
+        /// the hotspots, the frame timing and the bake are unchanged: only the file each state is read from. Red everywhere else: the red
+        /// side, the main menu and its loading screen (no match HUD), the Unit editor's playground, bot matches; the view-only option
+        /// YOUR TEAM COLOUR does not change the cursor. "move" stays the GO green on both sides (GreenCursors: no blue twin).</summary>
+        public const string BlueCursorArt = "blue_";
+        public static bool BlueCursorFor(bool playBlue, bool matchHud, Team player) => playBlue && matchHud && player == Team.Blue;
+        public static bool CursorBlue { get { if (!OzPlayBlue.Active) return false; var h = OpenZHud.I; return BlueCursorFor(true, h != null, h != null ? h.Player : Team.Red); } }   // red side: one static bool read
+        static readonly Dictionary<string, string> blueArt = new Dictionary<string, string>();
+        /// <summary>The file name part of a cursor state on the side now played: name itself (the red set, the same string) or
+        /// "blue_" + name (cached: no string built per frame).</summary>
+        public static string CursorArt(string name) => CursorArt(name, CursorBlue);
+        public static string CursorArt(string name, bool blue)
+        {
+            if (!blue || string.IsNullOrEmpty(name) || GreenCursors.Contains(name)) return name;
+            if (!blueArt.TryGetValue(name, out var a)) { a = BlueCursorArt + name; blueArt[name] = a; }
+            return a;
         }
 
         /// <summary>

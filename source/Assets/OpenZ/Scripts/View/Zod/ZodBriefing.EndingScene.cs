@@ -61,6 +61,12 @@ namespace OpenZ
     public sealed partial class ZodBriefing
     {
         public const string EndingLevel = "L16", EndingCuesPath = "OpenZ/Zod/ending_L16_cues";
+        /// <summary>Level 7, the red win only: the hot tub (OzL07HotTubSet.Ending.cs) runs on this same routine with its own cue sheet.</summary>
+        public const string EndingTubLevel = "L07", EndingTubCuesPath = "OpenZ/Zod/ending_L07_cues";
+        /// <summary>How long past its time the beat being handed to the set came (s): beats are read on frames.</summary>
+        public static float EndingBeatLate;
+        /// <summary>The scene's clock (s from the cut): the voice's own samples while it plays.</summary>
+        public static float EndingClock;
         public static bool EndingSceneEnabled = true;
         /// <summary>The commander over the end screen AFTER the scene, one switch per outcome (the game's usual endDelay, 1.3 s, after
         /// the end screen shows). Win: on, he follows the toast with EndingWinCommanderLine. Loss: off, he stays silent (his defeat
@@ -116,6 +122,10 @@ namespace OpenZ
         /// (before its first frame) and on every frame of the scene; the throw itself in the game view is untouched; drawn again when
         /// the level is left.</summary>
         public static float EndingFlyShare = 0.8f, EndingFlyClosing = 2f;
+        /// <summary>
+        /// cannon's break-up pieces (OzFortGunBreakup) lie beside the fort, part of the far blast, and are never left out of the shot here.
+        /// They land 15-30 m from the fort's middle and scatter a few metres; nothing of them comes near the lens. Off = as before.</summary>
+        public static bool EndingKeepCannonPieces = true;
         /// <summary>Checks: thrown robot bodies and other thrown parts not drawn in this ending's shot.</summary>
         public static int EndingFlyBodies, EndingFlyParts;
         static readonly List<Renderer> endingFlyOff = new List<Renderer>();
@@ -130,6 +140,7 @@ namespace OpenZ
             {
                 if (!rb || rb.isKinematic) continue;
                 var t = rb.transform; if (set && t.IsChildOf(set)) continue;
+                if (EndingKeepCannonPieces && rb.GetComponent<OzFortGunBreakup>()) continue;                 // open_fixes_2nov: the cannon's pieces stay in the shot
                 Vector3 p = rb.position, to = cam - p; to.y = 0f; float d = to.magnitude;
                 if (d > reach) continue;
                 Vector3 v = rb.linearVelocity; v.y = 0f;
@@ -155,15 +166,16 @@ namespace OpenZ
         public static string EndingBar => I && I.comms != null ? I.comms.LetterboxSpeakerText + ": " + I.comms.LetterboxCueText : "";
 
         bool endingScenePlayed; AudioSource endingSfx; readonly float[] endingJawBuf = new float[256];
-        static OzEndCueFile endingCues; static bool endingCuesTried, endingNoSetLogged; static float endingLifeBefore = -1f;
+        static OzEndCueFile endingCues; static bool endingCuesTried, endingNoSetLogged; static float endingLifeBefore = -1f; static string endingCuesFrom;
         static bool endingRestoreHooked, endingSkyForced, endingSkyBefore;
 
         static OzEndScene EndingCue(bool won)
         {
-            if (!endingCuesTried)
+            string cuesPath = I && I.game && I.game.level == EndingTubLevel ? EndingTubCuesPath : EndingCuesPath;      // one session can play both levels: the cache holds one sheet, by its path
+            if (!endingCuesTried || endingCuesFrom != cuesPath)
             {
-                endingCuesTried = true;
-                try { var ta = Resources.Load<TextAsset>(EndingCuesPath); if (ta) endingCues = JsonUtility.FromJson<OzEndCueFile>(ta.text); }
+                endingCuesTried = true; endingCuesFrom = cuesPath; endingCues = null;
+                try { var ta = Resources.Load<TextAsset>(cuesPath); if (ta) endingCues = JsonUtility.FromJson<OzEndCueFile>(ta.text); }
                 catch (Exception e) { Debug.LogWarning("[ZodCameo] ending cue sheet not readable: " + e.Message); }
             }
             var sc = endingCues == null ? null : won ? endingCues.win : endingCues.lose;
@@ -182,9 +194,12 @@ namespace OpenZ
         public static bool EndingSceneWanted(bool won)
         {
             var z = I;
-            if (!EndingSceneEnabled || !z || z.mode != Mode.Level || !z.game || z.game.level != EndingLevel) return false;
+            if (!EndingSceneEnabled || !z || z.mode != Mode.Level || !z.game) return false;
+            if (z.game.level != EndingLevel && !(z.game.level == EndingTubLevel && won && z.game.player == Team.Red && !OzPlayBlue.Active)) return false;
             if (z.Bots || GameBoot.TestMode || z.Automated) return false;
-            if (!OpenZEnding.Running)
+            // open_fixes_3nov row 76: a fort the game-over rule dropped (FortFallAtGameOver, combat_nb_v1 NB30: the last unit lost without dying, the fort
+            // standing in the sim) has its strike, mushroom and collapse too, but no TeamEliminated event, so OpenZEnding does not run: the scene plays all the same
+            if (!OpenZEnding.Running && !FortFallAtGameOver.AnyFell)
             {   // the sim also ends a match when one side has no robot, vehicle or gun left (ZWorld.CheckEndGame): no fort falls, no strike,
                 // no mushroom, so there is nothing to point at. OpenZEnding runs only from a TeamEliminated event = a fort went down.
                 Debug.Log("[ZodCameo] ending scene: no fort fell (one side lost all its units): the level ends like the others");
@@ -209,7 +224,7 @@ namespace OpenZ
         /// the team colours are swapped: the rule of his other picks).</summary>
         string EndingCommanderLine(bool won)
         {
-            if (!endingScenePlayed || !won || string.IsNullOrEmpty(EndingWinCommanderLine)) return null;
+            if (!endingScenePlayed || !won || game.level != EndingLevel || string.IsNullOrEmpty(EndingWinCommanderLine)) return null;   // level 7 keeps his usual pick
             var l = lib.Line(EndingWinCommanderLine);
             if (l == null || !lib.Clip(EndingWinCommanderLine))
             {
@@ -296,7 +311,7 @@ namespace OpenZ
             OzFortInferno.DuckAll(-24f, 2.5f, "ending scene");
             voice.Stop(); voice.clip = clip; voice.volume = VoiceGain();
             float dist = Vector3.Distance(new Vector3(root.position.x, 0f, root.position.z), new Vector3(fort.x, 0f, fort.z));
-            EndingStatus = $"ending scene {EndingLevel} {(won ? "win" : "lose")}: cut {Time.time - OpenZNukeStrike.LastImpactTime:F2} s after the impact, set at {root.position}, fort {dist:F0} m away, "
+            EndingStatus = $"ending scene {game.level} {(won ? "win" : "lose")}: cut {Time.time - OpenZNukeStrike.LastImpactTime:F2} s after the impact, set at {root.position}, fort {dist:F0} m away, "
                          + $"mushroom age {ageAtCut:F2} s, life {OpenZNukeMushroom.Life:F0} s, {hidden} unit pictures hidden, clip {clip.name} {clip.length:F2} s, scene {sc.length:F2} s";
             Debug.Log("[ZodCameo] " + EndingStatus);
 
@@ -307,7 +322,7 @@ namespace OpenZ
                 if (frames++ == 1)
                 {   // what the cut's own picture was drawn with (FlybySky and CombatAudio ran their LateUpdate after the cut)
                     var ca = CombatAudio.I; var rig = ca ? ca.ListenerRig : null;
-                    Debug.Log($"[ZodCameo] ending first frame: sky weight {(FlybySky.I ? FlybySky.I.Weight : 0f):F2} (level sky entry {(FlybySky.Entry(EndingLevel) != null ? "yes" : "NO")}), "
+                    Debug.Log($"[ZodCameo] ending first frame: sky weight {(FlybySky.I ? FlybySky.I.Weight : 0f):F2} (level sky entry {(FlybySky.Entry(game.level) != null ? "yes" : "NO")}), "
                             + $"listener {(rig ? Vector3.Distance(rig.position, root.position) : -1f):F1} m from the set");
                 }
                 bool paused = Paused;
@@ -315,10 +330,11 @@ namespace OpenZ
                 // the clock: the voice's own sample position while it plays (never drifts), real time otherwise
                 if (voiceOn && voice.isPlaying) t = sc.voice_at + voice.timeSamples / (float)Mathf.Max(1, clip.frequency);
                 else t += dt;
+                EndingClock = t;
                 if (!voiceOn && t >= sc.voice_at && !paused) { voice.volume = VoiceGain(); voice.Play(); voiceOn = true; }
                 while (bi < sc.beats.Length && sc.beats[bi].t <= t)
                 {
-                    var b = sc.beats[bi++];
+                    var b = sc.beats[bi++]; EndingBeatLate = t - b.t;
                     try { EndingSet.Beat(b.who, b.beat); } catch (Exception e) { Debug.LogException(e); }
                     Debug.Log($"[ZodCameo] ending beat {t:F2} s: {b.who} {b.beat}");
                 }

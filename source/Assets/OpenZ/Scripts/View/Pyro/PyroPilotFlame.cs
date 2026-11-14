@@ -64,7 +64,7 @@ namespace OpenZ
             var g = ZGame.I; var cam = Camera.main;
             if (!On || !mat || g == null || !cam) return;
             float t = Time.time, fovK = 2f * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-            foreach (var kv in g.Views)
+            foreach (var kv in g.LiveViews)
             {
                 var v = kv.Value; var o = v ? v.Obj : null;
                 if (!v || o == null || o.Type != "pyro" || !v.isActiveAndEnabled || ZodBriefing.EndingHides(v)) continue;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs)

@@ -86,7 +86,10 @@ namespace OpenZ.Sim
         {
             if (o.IsBridge) return;
             if (o.Owner != t && o.IsProducer) o.RepeatProduction = true;                        // DV21: a captured factory starts with REPEAT on
+            if (o.Owner != t && o.IsProducer) o.RepeatQueue = false;                           // DV169: a captured factory starts with REPEAT QUEUE off (Sim/ZObject.RepeatQueue.cs)
+            bool rescale = o.IsProducer && CpuBuildFaster(o.Owner) != CpuBuildFaster(t);         // 1.4 DV175: between a faster and a plain side (never when no side is faster)
             o.Owner = t;
+            if (rescale && o.CurUnit != null) { o.RecalcBuildTime(); CpuBuildFasterRecalcs++; }   // 1.4 DV175: its running item takes the new owner's time at once, from its start (Sim/ZWorld.CpuBuild.cs)
             if (emit) Emit(ZEventType.OwnerChanged, o, null, 0, 0, (float)t);
         }
 
@@ -114,7 +117,7 @@ namespace OpenZ.Sim
                     if (o.Owner == Team.Neutral || f.Owner == o.Owner) continue;
                     if (o.IsShuttle) continue;                                                                 // DV118: the shuttle never takes a flag (Sim/ZWorld.Shuttle.cs)
                     if (!(o.Kind == ZKind.Vehicle || o.Kind == ZKind.Robot) || o.IsFortDefender) continue;   // fort_defender_v1 DV41
-                    if (!f.IntersectsObject(o)) continue;
+                    if (!f.IntersectsObject(o) || !FlagCaptureAllowed(f)) continue;                     // 1.2 item 6: the playground's 1 s hold after a change (Sim/ZWorld.Playground.cs; 0 = the game's rule)
                     AwardZone(f, o.Owner, o);
                     break;
                 }
@@ -191,6 +194,7 @@ namespace OpenZ.Sim
             Emit(ZEventType.Created, u, b); foreach (var m in u.Minions) Emit(ZEventType.Created, m, b);
             if (type != ZElectro.Type) b.BuiltCount++;                                   // DV71: the CPU's Laser mix counts a producer's built units (ZBot.LaserPick); the Electrobot is outside that rhythm
             BotMixNoteBuilt(b, type);                                                    // DV115: the CPU's mix counts a producer's vehicles from 8:00 and its robot squads (ZBot.HeavyMix.cs)
+            MechMixNoteBuilt(b, type);                                                   // DV148: a mech or a medium tank tells the computer of its team (ZBot.MechMix.cs)
             Emit(ZEventType.UnitBuilt, u, b, 0, 0, (float)(Time - b.BInit));              // value = elapsed build time
             return u;
         }
@@ -204,6 +208,7 @@ namespace OpenZ.Sim
             if (st.RepairDrivers.Count > 0) u.SetCrew(st.RepairCrew);                                    // veterancy_v1 DV12
             st.RestoreRepairPassengers(u);                                                               // apc_v1 DV15
             st.HeroSeatsRestore(u);                                                                      // DV108: who of a hero squad sits where (Sim/ZHeroSquad.cs)
+            st.GunLossRestore(u);                                                                        // DV149: the fresh vehicle has no hand gun if the one that drove in had lost it (Sim/ZObject.MechGunLoss.cs)
             u.SetCords(x - (u.WidthPix >> 1), y - (u.HeightPix >> 1));
             st.GetRepairEntrance(out int ex, out int ey);
             u.Waypoints.Add(new ZWaypoint { mode = WpMode.ForceMove, refId = -1, x = ex, y = ey });
@@ -254,6 +259,7 @@ namespace OpenZ.Sim
         /// <summary>Every 1 s: the game ends when at most one team still owns a robot, vehicle or cannon.</summary>
         void CheckEndGame()
         {
+            if (NoGameEnd) return;                                                                   // 1.2 item 6: the Unit editor's playground never ends (Sim/ZWorld.Playground.cs; off in every other world)
             if (GameOver) { if (EndFreezeDeviation) HoldAfterGameOver(); return; }
             if (Time < nextEndCheck) return;
             nextEndCheck = Time + 1.0;
@@ -310,16 +316,22 @@ namespace OpenZ.Sim
 
         public bool StartBuilding(Team team, ZObject b, string unit)
         {
+            // OpenZ duel command: Build
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Build, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = b.SetBuildingProduction(unit); if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
         }
         public bool StopBuilding(Team team, ZObject b)
         {
+            // OpenZ duel command: StopBuild
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.StopBuild });
             if (!Owns(team, b)) return false;
             b.StopBuildingProduction(); Emit(ZEventType.ProductionChanged, b); return true;
         }
         public bool AddBuildingQueue(Team team, ZObject b, string unit)
         {
+            // OpenZ duel command: Queue
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Queue, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = !b.Building ? b.SetBuildingProduction(unit) : b.AddBuildingQueue(unit);
             if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
@@ -327,16 +339,22 @@ namespace OpenZ.Sim
         /// <summary>DV21 command: the REPEAT toggle of a factory / fort the team owns.</summary>
         public bool SetBuildingRepeat(Team team, ZObject b, bool repeat)
         {
+            // OpenZ duel command: Repeat
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Repeat, Enabled = repeat });
             if (!Owns(team, b) || !b.IsProducer) return false;
             b.RepeatProduction = repeat; Emit(ZEventType.ProductionChanged, b); return true;
         }
         public bool CancelBuildingQueue(Team team, ZObject b, int i, string unit)
         {
+            // OpenZ duel command: CancelQueue
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.CancelQueue, Index = i, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = b.CancelBuildingQueue(i, unit); if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
         }
         public bool SetRallyPoints(Team team, ZObject b, IList<ZWaypoint> pts)
         {
+            // OpenZ duel command: Rally
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Rally, Points = new List<ZWaypoint>(pts).ToArray() });
             if (!Owns(team, b) || !b.IsProducer) return false;
             b.RallyPoints.Clear();
             foreach (var p in pts) b.RallyPoints.Add(new ZWaypoint { mode = WpMode.Move, refId = -1, x = p.x, y = p.y, attackTo = p.attackTo });   // MOVE only (zcore.cpp:189-194)
@@ -381,6 +399,8 @@ namespace OpenZ.Sim
         /// cap does not apply; on a fort turret spot it becomes non-ejectable.</summary>
         public ZObject PlaceCannon(Team team, ZObject b, int tx, int ty, int index = 0)
         {
+            // OpenZ duel command: PlaceCannon
+            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.PlaceCannon, X = tx, Y = ty, Index = index }) ? b : null;
             if (!Owns(team, b) || index < 0 || index >= b.StoredCannons.Count) return null;
             if (!CannonPlacable(b, tx, ty)) return null;
             var type = b.StoredCannons[index]; b.StoredCannons.RemoveAt(index);

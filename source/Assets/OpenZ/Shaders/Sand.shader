@@ -87,6 +87,7 @@ Shader "OpenZ/Sand"
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fog
             #pragma shader_feature_local_fragment _ _OZ_NO_REFL_SPEC   // textures_v2: the L17 ground keeps URP Lit's old switches
+            #pragma shader_feature_local_fragment _ _OZ_L07_GROUND     // 1.3: level 7's ground only, set by menu T1 on M_L07_Ground
             #if defined(_OZ_NO_REFL_SPEC)
                 #define _ENVIRONMENTREFLECTIONS_OFF
                 #define _SPECULARHIGHLIGHTS_OFF
@@ -213,6 +214,49 @@ Shader "OpenZ/Sand"
                 return normalize(n + t * o.x + b * o.y);
             }
 
+#if defined(_OZ_L07_GROUND)
+            // 1.3, level 7 only (M_L07_Ground, keyword set by menu T1). One read of the field: road and cracks. Cracks are a distance field, so their edges stay smooth at the closest camera and thin out instead of shimmering far away;
+            // they sit in the ground: a dark slit with a burnt rim, a soft dim glow, hot only in a few spots. Shore heat comes in the paint's alpha. Everything hot uses OzLavaRamp and breathes with _OZLavaMood.
+            #include "OzLavaRamp.hlsl"
+            half _OZNight; float _OZLavaMood;
+            half2 OZL07Ground(float2 uv, float3 positionWS, float pxm, half shoreT, inout half3 albedo, out half3 heat, out half roadK)
+            {
+                float4 f = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, uv, 0);
+                roadK = (half)smoothstep(-0.15, 0.25, (f.r - 0.5) * (2.0 * _SdfRange));
+                float dist = distance(positionWS, _WorldSpaceCameraPos);
+                half fade = (half)(lerp(1.0, _DetailFade.z, smoothstep(_DetailFade.x, _DetailFade.y, dist)) * _DetailOn);
+                const float ca = 0.79864, sa = 0.60181;
+                float2 w = positionWS.xz;
+                float2 uv1 = w / _DetailTiles.x;
+                float2 uv2 = float2(ca * w.x - sa * w.y, sa * w.x + ca * w.y) / _DetailTiles.y;
+                half4 d1 = SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, uv1);
+                half4 d2 = SAMPLE_TEXTURE2D(_DetailTex, sampler_DetailTex, uv2);
+                half4 n1 = SAMPLE_TEXTURE2D(_DetailNrm, sampler_DetailNrm, uv1) * 2 - 1;
+                half4 n2 = SAMPLE_TEXTURE2D(_DetailNrm, sampler_DetailNrm, uv2) * 2 - 1;
+                half4 m = (d1 - 0.5) * 1.5 + (d2 - 0.5) * 0.9;
+                half mod = 1 + fade * (roadK * _DetailStr.x * m.r + (1 - roadK) * _DetailStr.y * m.g);
+                half gap = max(d1.a, (half)0.6 * d2.a) * roadK * _DetailStr.w * fade;
+                albedo *= max(mod, (half)0) * (1 - gap);
+                float hw = f.b * 0.4;                                                        // half width, m
+                float e = f.g + ((d1.g - 0.5) + 0.7 * (d2.g - 0.5)) * 0.09 - hw;             // m outside the crack's edge; the grit breaks the edge up close
+                float aa = max(pxm * 0.75, 0.004);
+                half cov = (half)(saturate(0.5 - e / aa) * saturate(2.0 * hw / aa + 0.15));  // a crack thinner than a pixel dims, it does not shimmer
+                half on = hw > 0.004 ? (half)1 : (half)0;
+                float x = saturate(f.g / max(hw, 0.001));
+                half Tcore = (half)(_PlateBevel.x + _PlateBevel.y * pow(f.a, 1.25));
+                half Tc = lerp(Tcore, (half)0.44, (half)(x * x)) + (half)0.34 * ((d1.g - 0.5) + 0.7 * (d2.g - 0.5));   // never an even stripe: crust grain inside the slit
+                float eo = max(e, 0.0);
+                half tail = (half)(exp(-eo / 0.13) * (_PlateBevel.z + _PlateBevel.w * f.a)) * on;
+                half burn = (half)exp(-eo * eo / 0.0676) * on;
+                albedo *= (1 - (half)0.20 * burn) * (1 - (half)0.86 * cov) * half3(1, 1 - (half)0.09 * burn, 1 - (half)0.17 * burn);
+                float mood = _OZLavaMood > 0.01 ? _OZLavaMood : 1.0;
+                heat = (OzLavaEmit(shoreT, _OZNight) + OzLavaEmit(Tc, _OZNight) * cov + OzLavaEmit(tail, _OZNight) * (1 - cov)) * (half)(pow(mood, _MarkIO.x) * (1.0 + _MarkIO.y * _OZNight));
+                half2 a = n1.rg + (half)0.6 * half2(ca * n2.r + sa * n2.g, -sa * n2.r + ca * n2.g);
+                half2 b = n1.ba + (half)0.6 * half2(ca * n2.b + sa * n2.a, -sa * n2.b + ca * n2.a);
+                return lerp(b * (half)0.6, a, roadK) * (half)(_DetailNormalStr * fade);
+            }
+#endif
+
             struct A { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; float2 uv1 : TEXCOORD1; };
             struct V { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; float3 positionWS : TEXCOORD1; float3 normalWS : TEXCOORD2; half fog : TEXCOORD3; float2 uv1 : TEXCOORD4; };
 
@@ -265,7 +309,12 @@ Shader "OpenZ/Sand"
                 float crest = smoothstep(0.35, 0.95, big) - 0.7 * smoothstep(0.2, 0.9, -big) * smoothstep(0.1, 0.6, vnoise(w / 9.0));
                 float small = sin(dot(w, dir2) * 6.2832 / _RippleScale + warp * 3.0 + vnoise(w * 0.7) * 2.0);
                 albedo *= 1 + sand * (crest * _RippleLarge + small * _RippleSmall);
+#if defined(_OZ_L07_GROUND)
+                half3 ozHeat; half ozRoadK;
+                half2 ozNrm = OZL07Ground(i.uv, i.positionWS, ozPxm, tex.a * (half)1.1, albedo, ozHeat, ozRoadK);
+#else
                 half2 ozNrm = OZDetail(i.positionWS, tex.rgb, albedo);                       // textures_v2 detail
+#endif
                 if (_OzCraterRole > 1.5)
                 {
                     half4 dc = SAMPLE_TEXTURE2D(_OzCraterDecal, sampler_OzCraterDecal, i.uv1);
@@ -294,6 +343,9 @@ Shader "OpenZ/Sand"
                 // fog factor per pixel (the interpolated vertex factor darkened the whole floor on this 40k-triangle ground mesh)
                 if (_OzWetness > 0.001)                                                      // weather_l17_v1: wet sheen, puddle reflections, drop ripples
                     c.rgb += OZWetSheen(i.positionWS, (half3)inputData.normalWS, (half3)inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, inputData.shadowCoord, ozWetP, ozPxm);
+#if defined(_OZ_L07_GROUND)
+                c.rgb += ozHeat + albedo * lerp((half)_MarkIO.z, (half)_MarkIO.w, ozRoadK) * _OZNight;   // night floor: roads keep reading in the dark
+#endif
                 c.rgb = MixFog(c.rgb, ComputeFogFactor(TransformWorldToHClip(i.positionWS).z));
                 return half4(c.rgb, 1);
             }

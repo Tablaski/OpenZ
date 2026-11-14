@@ -119,7 +119,7 @@ namespace OpenZ.EditorTools
                 {
                     var c = (v[idx[i]] + v[idx[i + 1]] + v[idx[i + 2]]) / 3f - b.min;
                     c = new Vector3(c.x / size.x, c.y / size.y, c.z / size.z);
-                    int key = (c.x > 0.5f ? 1 : 0) + (c.z > 0.5f ? 2 : 0) + Mathf.Min(2, Mathf.FloorToInt(c.y * 3f)) * 4;
+                    int key = (c.x > 0.5f ? 1 : 0) + (c.z > 0.5f ? 2 : 0) + Mathf.Clamp(Mathf.FloorToInt(c.y * 3f), 0, 2) * 4;   // k92: a flat bottom on the mesh's lowest point rounded under it into its own bins (the mech v2's shin: 16 pieces, 1 holder not baked); clamped as the game's WreckPieces.BinKey
                     if (!bins.TryGetValue(key, out var per)) { per = new List<int>[src.subMeshCount]; bins[key] = per; }
                     (per[s] ??= new List<int>()).AddRange(new[] { idx[i], idx[i + 1], idx[i + 2] });
                 }

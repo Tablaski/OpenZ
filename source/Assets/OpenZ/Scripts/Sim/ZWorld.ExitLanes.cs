@@ -335,7 +335,7 @@ namespace OpenZ.Sim
                 case "jeep": return 23;
                 case "heavy": return 21;
                 case "apc": case "missile_launcher": case "crane": return 20;
-                case "medium": return 19;
+                case "medium": case ZMTank.Type: return 19;   // DV145: the medium tank's hull 2.3 m behind its centre
                 case "light": return 18;
             }
             return u.HeightPix >> 1;

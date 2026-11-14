@@ -177,7 +177,7 @@ namespace OpenZ
             var u = mouse && prev != null && (sel.Count == 1 || sameType) ? prev : sel[UnityEngine.Random.Range(0, sel.Count)];
             if (sel.Count == 1) u = sel[0];
             uvSpeaker = u.Id;
-            if (HvSelect(u)) return null;                                                       // KC4b: ALAN & BRAD's own lines (AudioDirector.HeroVoices.cs)
+            if (HvSelect(u) || EzSelect(u)) return null;                                        // DV161: EvilZod's too; KC4b: ALAN & BRAD's own lines (AudioDirector.HeroVoices.cs)
             if (!unitVoices || !UnitVoices.Known(u.Type)) return u;
             var uv = Uv();
             double now = Time.unscaledTimeAsDouble;
@@ -204,12 +204,14 @@ namespace OpenZ
         {
             uvOrderUnit = null;
             if (!unitVoices || input.Selection.Count == 0) return false;
+            if (RvOrder()) return true;                                                         // 1.2 item 25: a repair order: one of the sent vehicles says a repair line (Voice/AudioDirector.RepairLines.cs)
             var uv = Uv(); Rnd rnd = () => UnityEngine.Random.value;
             var took = new List<ZObject>();
             foreach (var o in input.Selection)
                 if (o != null && !o.Destroyed && o.Waypoints.Count > 0 && (attack || o.Kind != ZKind.Cannon)) took.Add(o);   // a cannon never answers a move order
             var u = UvPickSpeaker(took);
             uvOrderUnit = u;
+            if (EzOrder(u, attack, noWay)) return true;                                        // DV161: EvilZod's own lines (Voice/AudioDirector.EvilZod.cs)
             if (u != null && u.IsHero && HvOrder(u, attack, noWay)) return true;               // KC4b: ALAN & BRAD's own lines (AudioDirector.HeroVoices.cs)
             if (u == null || !UnitVoices.Known(u.Type))                                          // no type voice: the channel rules still hold for the classic line
                 return uv.DecideOrder(noWay, false, false, UvChannel(), () => rnd(), Time.unscaledTimeAsDouble) == UnitVoices.OrderAct.Nothing;

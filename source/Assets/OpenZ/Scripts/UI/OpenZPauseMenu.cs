@@ -19,7 +19,7 @@ namespace OpenZ
     /// it (those close first), and never over the end screen. Fixes Zod quirk 1: Esc no longer quits.
     /// </summary>
     [DefaultExecutionOrder(-44)]
-    public class OpenZPauseMenu : MonoBehaviour
+    public partial class OpenZPauseMenu : MonoBehaviour                                     // 1.4: partial, the camera rows (UI/OpenZPauseMenu.CamControls.cs)
     {
         public bool IsOpen { get; private set; }
         OpenZHud hud; ZGame game; Canvas canvas; RectTransform root, pausePanel, sidePanel, optionsRoot, controlsRoot, optMainPage;
@@ -132,15 +132,26 @@ namespace OpenZ
             AddToggle(p, 10, OzSettingTips.PathV3Label, () => OzSettingTips.PathV3, v => OzSettingTips.PathV3 = v);
             AddToggle(p, toggles.Count, OzOvertake.Label, () => OzOvertake.On, v => OzOvertake.On = v);     // DV105 FAST UNITS PASS SLOW ONES: oz_overtake, default OFF, from the next match (OzOvertake.cs)
             AddToggle(p, 11, OzSettingTips.MinimalLabel, () => OzSettingTips.MinimalUi, v => OzSettingTips.MinimalUi = v);
-            AddToggle(p, toggles.Count, OzFreeCam.Label, () => OzFreeCam.On, v => OzFreeCam.On = v);     // FREE CAMERA: oz_free_camera, default OFF, live (OzFreeCam.cs)
+            CamControlRows(p);                                                                           // 1.4: MIDDLE MOUSE (was FREE CAMERA, its saved switch carries over), SCROLL SPEED, RIGHT-DRAG SCROLL (UI/OpenZPauseMenu.CamControls.cs)
             AddToggle(p, toggles.Count, NightShadows.Label, null, null, true);
             { var ns = toggles[toggles.Count - 1]; ns.row.OnClick = c => { NightShadows.Step(c.right || c.shift ? -1 : Arrow(ns)); OzSfx.Ui("ui_tab_switch"); }; ns.row.OnRightClick = c => NightShadows.Step(-1); }
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddToggle(p, toggles.Count, OzQuality.Label, null, null, true);
             { var gq = toggles[toggles.Count - 1]; gq.row.OnClick = c => { OzQuality.Step(c.right || c.shift ? -1 : Arrow(gq)); OzSfx.Ui("ui_tab_switch"); }; gq.row.OnRightClick = c => OzQuality.Step(-1); }
-            AddToggle(p, toggles.Count, OzFpsCap.Label, null, null, true);                                  // FRAME RATE LIMIT: 30 / 60 (oz_fps_cap, default 60, saved and applied at once)
-            { var fc = toggles[toggles.Count - 1]; fc.row.OnClick = c => { OzFpsCap.Step(c.right || c.shift ? -1 : Arrow(fc)); OzSfx.Ui("ui_tab_switch"); }; fc.row.OnRightClick = c => OzFpsCap.Step(-1); }
-            AddToggle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsOn, v => OzQuality.FpsOn = v);
+            AddToggle(p, toggles.Count, OzFpsCap.Label, null, null, true);                                  // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
+            { var fc = toggles[toggles.Count - 1]; fc.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); fc.row.OnClick = c => { OzFpsCap.Step(c.right || c.shift ? -1 : Arrow(fc)); OzSfx.Ui("ui_tab_switch"); }; fc.row.OnRightClick = c => OzFpsCap.Step(-1); }   // 1.3 item 5: the wide value box, as RESOLUTION
+            AddToggle(p, toggles.Count, OzQuality.FpsLabel, null, null, true);
+            { var fp = toggles[toggles.Count - 1]; fp.row.OnClick = c => { OzQuality.FpsStep(c.right || c.shift ? -1 : Arrow(fp)); OzSfx.Ui("ui_tab_switch"); }; fp.row.OnRightClick = c => OzQuality.FpsStep(-1); }
+            AddToggle(p, toggles.Count, OzSmoothFrames.Label, () => OzSmoothFrames.On, v => OzSmoothFrames.On = v);   // v1.3 item 25: oz_smooth_frames, default OFF, live (View/OzWeakPcOptions.cs)
+            AddToggle(p, toggles.Count, OzSunSteps.Label, null, null, true);                               // v1.3 item 25: SUN SHADOW STEPS 4 (default) / 2 (oz_sun_steps, live)
+            { var ss = toggles[toggles.Count - 1]; ss.row.OnClick = c => { OzSunSteps.Step(c.right || c.shift ? -1 : Arrow(ss)); OzSfx.Ui("ui_tab_switch"); }; ss.row.OnRightClick = c => OzSunSteps.Step(-1); }
+            AddToggle(p, toggles.Count, OzEndingDebris.Label, null, null, true);                           // v1.3 item 25: ENDING DEBRIS FULL (default) / LIGHT (oz_ending_debris, live)
+            { var ed = toggles[toggles.Count - 1]; ed.row.OnClick = c => { OzEndingDebris.Step(c.right || c.shift ? -1 : Arrow(ed)); OzSfx.Ui("ui_tab_switch"); }; ed.row.OnRightClick = c => OzEndingDebris.Step(-1); }
+            if (OzGfxApi.Available)
+            {   // v1.3 item 25: GRAPHICS API DX12 (default) / DX11 (oz_gfx_api, from the next start, Windows only)
+                AddToggle(p, toggles.Count, OzGfxApi.Label, null, null, true);
+                var ga = toggles[toggles.Count - 1]; ga.row.OnClick = c => { OzGfxApi.Step(c.right || c.shift ? -1 : Arrow(ga)); OzSfx.Ui("ui_tab_switch"); }; ga.row.OnRightClick = c => OzGfxApi.Step(-1);
+            }
             AddToggle(p, toggles.Count, OzTouch.Label, null, null, true);                                   // touch and gamepad: AUTO / TOUCH ON / OFF (oz_touch, live; OzTouch.cs)
             { var tg = toggles[toggles.Count - 1]; tg.row.OnClick = c => { OzTouch.StepMode(c.right || c.shift ? -1 : Arrow(tg)); OzSfx.Ui("ui_tab_switch"); }; tg.row.OnRightClick = c => OzTouch.StepMode(-1); }
             AddToggle(p, toggles.Count, OzTrackpadScroll.Label, null, null, true);                          // TRACKPAD SCROLL: ZOOM (default) / MOVE MAP, oz_trackpad_scroll, live (OzTrackpadScroll.cs)
@@ -148,18 +159,41 @@ namespace OpenZ
             AddToggle(p, toggles.Count, MechWalk.Label, () => MechWalk.On, v => MechWalk.On = v);
             AddToggle(p, toggles.Count, OzOverlapOption.Label, null, null, true);                          // FRIENDLY UNITS OVERLAP: NO (default) / YES, oz_overlap, live (OzOverlapOption.cs); the cycle form of this menu
             { var ov = toggles[toggles.Count - 1]; ov.row.OnClick = c => { OzOverlapOption.Step(c.right || c.shift ? -1 : Arrow(ov)); OzSfx.Ui("ui_tab_switch"); }; ov.row.OnRightClick = c => OzOverlapOption.Step(-1); }
+            AddToggle(p, toggles.Count, OzVehicleSizeOption.Label, null, null, true);                      // VEHICLE SIZE: 60 to 100 %, oz_vehicle_size, default 90 %, live (OzVehicleSizeOption.cs)
+            { var vs = toggles[toggles.Count - 1]; vs.row.OnClick = c => { OzVehicleSizeOption.Step(c.right || c.shift ? -1 : Arrow(vs)); OzSfx.Ui("ui_tab_switch"); }; vs.row.OnRightClick = c => OzVehicleSizeOption.Step(-1); }
+            AddToggle(p, toggles.Count, OzRangeRingsOption.Label, null, null, true);                       // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS, oz_range_rings, live (UI/OzRangeRingsOption.cs); GAME, under HEALTH BARS (OzSettingTips)
+            { var rg = toggles[toggles.Count - 1]; rg.row.OnClick = c => { OzRangeRingsOption.Step(c.right || c.shift ? -1 : Arrow(rg)); OzSfx.Ui("ui_tab_switch"); }; rg.row.OnRightClick = c => OzRangeRingsOption.Step(-1); }
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
             { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
             AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
             AddToggle(p, toggles.Count, OzSettings.ResLabel, null, null, true);                             // RESOLUTION: NATIVE (default) and the lower steps of this display (oz_res_h, OzSettings), saved and applied at once
             { var rs = toggles[toggles.Count - 1]; rs.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); rs.row.OnClick = c => { OzSettings.StepResolution(c.right || c.shift ? -1 : Arrow(rs)); OzSfx.Ui("ui_tab_switch"); }; rs.row.OnRightClick = c => OzSettings.StepResolution(-1); }
             AddToggle(p, toggles.Count, OzStrikeGroups.Label, () => OzStrikeGroups.On, v => OzStrikeGroups.On = v);   // DV107 enemy strike groups: oz_strike_groups, default ON, live (ADVANCED tab, first row; OzStrikeGroups.cs)
+            AddToggle(p, toggles.Count, OzLavaOption.Label, () => OzLavaOption.On, v => OzLavaOption.On = v);   // DV152 level 7 lava: oz_lava_burns, default ON, read at the next level start (OzLavaOption.cs)
+            AddToggle(p, toggles.Count, OzHighGroundOption.Label, () => OzHighGroundOption.On, v => OzHighGroundOption.On = v);   // DV162 high ground shoots farther: oz_high_ground, default ON, read at the next level start (OzHighGroundOption.cs)
+            if (OzFogOfWarOption.InOptions)
+            {
+            AddToggle(p, toggles.Count, OzFogOfWarOption.Label, () => OzFogOfWarOption.On, v => OzFogOfWarOption.On = v);   // 1.4 FOG OF WAR: oz_fog_of_war, default OFF, read at the next level start, view only (UI/OzFogOfWarOption.cs, View/OzFogOfWar.cs)
+            AddToggle(p, toggles.Count, OzFogLookOption.Label, null, null, true);                          // 1.4 FOG LOOK: oz_fog_look CLOUD SEA (default) / CLOUD BANKS / MIST LAYERS, live (UI/OzFogLookOption.cs)
+            { var fl = toggles[toggles.Count - 1]; fl.row.OnClick = c => { OzFogLookOption.Step(c.right || c.shift ? -1 : Arrow(fl)); OzSfx.Ui("ui_tab_switch"); }; fl.row.OnRightClick = c => OzFogLookOption.Step(-1); }
+            }
             if (OzShuttleStart.InOptions)                                                                      // K347: the SHUTTLE switch is the battlefield screen's box now (UI/OpenZMainMenu.ShuttleStart.cs): the old OPTIONS row below is not built
             AddToggle(p, toggles.Count, OzShuttleOption.Label, () => OzShuttleOption.On, v => OzShuttleOption.On = v);   // DV118 the level 16 shuttle: oz_shuttle, default ON, read at the next level start (OzShuttleOption.cs)
             AddToggle(p, toggles.Count, OzShuttleOrdersOption.Label, null, null, true);                    // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY (default) / ANYWHERE, oz_shuttle_orders, live (OzShuttleOrdersOption.cs); ADVANCED, under SHUTTLE
             { var so = toggles[toggles.Count - 1]; so.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); so.row.OnClick = c => { OzShuttleOrdersOption.Step(c.right || c.shift ? -1 : Arrow(so)); OzSfx.Ui("ui_tab_switch"); }; so.row.OnRightClick = c => OzShuttleOrdersOption.Step(-1); }
+            AddToggle(p, toggles.Count, OzLensEdges.Label, () => OzLensEdges.On, v => OzLensEdges.On = v);   // CHROMATIC ABERRATION · LENS EDGES: oz_chroma, default OFF, live (View/OzLensEdges.cs); its tab and place (GRAPHICS, under MOTION BLUR) come from OzSettingTips
+            AddToggle(p, toggles.Count, OzMassLod.Label, () => OzMassLod.On, v => OzMassLod.On = v);         // 1.3 MASS BATTLES · LIGHTER WHEN SLOW: oz_mass_lod, default OFF, live (View/OzMassLod.cs); GRAPHICS, last row (OzSettingTips)
+            // 1.3 item 40: lighter rows for a slower processor (View/OzLightRows.cs; every default = today's look, live, saved; GRAPHICS, after MASS BATTLES)
+            AddToggle(p, toggles.Count, OzLightRows.LightestLabel, () => OzLightRows.Lightest, v => OzLightRows.Lightest = v);   // a helper: no saved value of its own
+            AddToggle(p, toggles.Count, OzLightRows.ShadowsLabel, () => OzLightRows.ShadowsOn, v => OzLightRows.ShadowsOn = v);   // oz_lite_shadows, default ON
+            AddToggle(p, toggles.Count, OzLightRows.AoLabel, () => OzLightRows.AoOn, v => OzLightRows.AoOn = v);             // oz_lite_ao, default ON
+            AddToggle(p, toggles.Count, OzLightRows.TreesLabel, null, null, true);                                          // oz_lite_trees FULL (default) / LIGHT / LIGHTEST
+            { var l40t = toggles[toggles.Count - 1]; l40t.row.OnClick = c => { OzLightRows.TreesStep(c.right || c.shift ? -1 : Arrow(l40t)); OzSfx.Ui("ui_tab_switch"); }; l40t.row.OnRightClick = c => OzLightRows.TreesStep(-1); }
+            AddToggle(p, toggles.Count, OzLightRows.WrecksLabel, null, null, true);                                         // oz_lite_wrecks FULL (default) / LIGHT
+            { var l40w = toggles[toggles.Count - 1]; l40w.row.OnClick = c => { OzLightRows.WrecksStep(c.right || c.shift ? -1 : Arrow(l40w)); OzSfx.Ui("ui_tab_switch"); }; l40w.row.OnRightClick = c => OzLightRows.WrecksStep(-1); }
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)
+            foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
             foreach (var b in speedBtns) b.Tooltip = OzSettingTips.Speed;
         }
 
@@ -235,6 +269,8 @@ namespace OpenZ
         /// <summary>The tab strip under the title. Every row carries the tab of its label (OzSettingTips.TabOf, the main menu's table);
         /// each tab's rows are placed from the top in the table's order and only the open tab's rows are active. MAIN also holds
         /// the game speed row and the four volume sliders (the TabMain page).</summary>
+        /// <summary>v1.3: the most rows a tab shows at the roomy spacing (9 end at 580 of the 600 panel); a longer tab is spaced closer.</summary>
+        const int RoomyRows = 9;
         void BuildOptTabs(RectTransform p)
         {
             float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * OzLayout.OptX; int n = OzSettingTips.TabNames.Length;
@@ -254,7 +290,9 @@ namespace OpenZ
                 var rows = toggles.FindAll(t => t.tab == tab);
                 rows.Sort((r1, r2) => { int o = OzSettingTips.TabOrder(r1.label).CompareTo(OzSettingTips.TabOrder(r2.label)); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
                 float top = tab == OzSettingTips.TabMain ? OzLayout.OptToggleY0 + OzLayout.OptTabShift : OzLayout.OptTabRowY0;
-                for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + OzLayout.OptToggleStep * k, w, OzLayout.OptToggleH));
+                float step = OzLayout.OptToggleStep, rowH = OzLayout.OptToggleH;
+                if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit the 600 panel: the tab keeps a 9-row tab's height
+                for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + step * k, w, rowH));
             }
             ShowOptTab(Mathf.Clamp(optTab, 0, n - 1));
         }
@@ -310,8 +348,10 @@ namespace OpenZ
         }
 
         // ------------------------------------------------------------------ open / close
-        public void Open()
+        // duel in-game menu
+            public void Open()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) { OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowInGameMenu(); return; }
             if (IsOpen || hud == null || (hud.EndScreen && hud.EndScreen.IsShown)) return;
             IsOpen = true; closing = false; openAt = OzMotion.Now;
             wasPaused = game.paused; game.paused = true;
@@ -324,7 +364,7 @@ namespace OpenZ
             post ??= new OzPost("OZ_Pause", -55f, -1.2f, 0.4f, 55);
             canvas.gameObject.SetActive(true);
             optionsRoot.gameObject.SetActiveFast(!showControls); controlsRoot.gameObject.SetActiveFast(showControls);
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             sub.Set(OzText.Tab($"OPERATION {lvl} · {UnitInfo.Clock(game.World.Time)}"));
             RefreshValues();                                                                             // ui_pause / ui_resume: the audio track follows game.paused
         }
@@ -338,11 +378,14 @@ namespace OpenZ
             Time.timeScale = prevScale > 0f ? prevScale : 1f;
         }
 
-        void Update()
+        // duel menu keyboard ownership
+            void Update()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
             if (hud == null || game == null || game.World == null) return;
             var kb = Keyboard.current; var m = Mouse.current;
-            bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks;
+            bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
+            if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
             if (esc)
             {
                 if (IsOpen) Close();
@@ -410,8 +453,18 @@ namespace OpenZ
                 if (t.label == OzTrackpadScroll.Label) { t.value.Set(OzText.Tab($"◀  {OzTrackpadScroll.Name}  ▶")); continue; }   // TRACKPAD SCROLL: ZOOM / MOVE MAP
                 if (t.label == OzShuttleOrdersOption.Label) { t.value.Set(OzText.Tab($"◀  {OzShuttleOrdersOption.Name}  ▶")); continue; }   // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY / ANYWHERE
                 if (t.label == OzQuality.Label) { t.value.Set(OzText.Tab($"◀  {OzQuality.Name}  ▶")); continue; }
+                if (t.label == OzFogLookOption.Label) { t.value.Set(OzText.Tab($"◀  {OzFogLookOption.Name}  ▶")); continue; }   // 1.4 FOG LOOK
                 if (t.label == OzFpsCap.Label) { t.value.Set(OzText.Tab($"◀  {OzFpsCap.Name}  ▶")); continue; }
+                if (t.label == OzQuality.FpsLabel) { t.value.Set(OzText.Tab($"◀  {OzQuality.FpsName}  ▶")); continue; }   // 1.3 item 25: OFF / ON / DETAILED
+                if (t.label == OzSunSteps.Label) { t.value.Set(OzText.Tab($"◀  {OzSunSteps.Name}  ▶")); continue; }   // v1.3 item 25
+                if (t.label == OzEndingDebris.Label) { t.value.Set(OzText.Tab($"◀  {OzEndingDebris.Name}  ▶")); continue; }
+                if (t.label == OzGfxApi.Label) { t.value.Set(OzText.Tab($"◀  {OzGfxApi.Name}  ▶")); continue; }
+                if (t.label == OzLightRows.TreesLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.TreesName}  ▶")); continue; }   // 1.3 item 40
+                if (t.label == OzLightRows.WrecksLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.WrecksName}  ▶")); continue; }
                 if (t.label == OzOverlapOption.Label) { t.value.Set(OzText.Tab($"◀  {OzOverlapOption.Name}  ▶")); continue; }   // FRIENDLY UNITS OVERLAP: NO / YES
+                if (t.label == OzVehicleSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzVehicleSizeOption.Name}  ▶")); continue; }   // VEHICLE SIZE: 60 to 100 %
+                if (t.label == OzRangeRingsOption.Label) { t.value.Set(OzText.Tab($"◀  {OzRangeRingsOption.Name}  ▶")); continue; }   // 1.4 RANGE RINGS: FADE / ALWAYS
+                if (CamRowValue(t)) continue;                                                              // 1.4: MIDDLE MOUSE and SCROLL SPEED (UI/OpenZPauseMenu.CamControls.cs)
                 if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab($"◀  {OzSettings.ResolutionName}  ▶")); continue; }
                 if (t.chatter && t.robots) { t.value.Set(OzText.Tab($"◀  {AudioDirector.RobotChatter.Names[AudioDirector.RobotChatter.Level]}  ▶")); continue; }
                 if (t.chatter) { t.value.Set(OzText.Tab($"◀  {AudioDirector.Chatter.Names[AudioDirector.Chatter.Level]}  ▶")); continue; }

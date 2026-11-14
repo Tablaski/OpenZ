@@ -1,4 +1,4 @@
-param([string]$ProjectPath=(Join-Path $PSScriptRoot '..\OpenZ_1.4_source'), [string]$UnityEditor='D:\Unity\6000.3.27f2\Editor')
+param([string]$ProjectPath=(Join-Path $PSScriptRoot '..\source'), [string]$UnityEditor='D:\Unity\6000.3.27f2\Editor')
 $ErrorActionPreference='Stop'
 $duelProject=(Resolve-Path -LiteralPath $ProjectPath).Path
 $response=Join-Path $duelProject 'Library\Bee\artifacts\1900b0aPDevDbg.dag\Assembly-CSharp.rsp'

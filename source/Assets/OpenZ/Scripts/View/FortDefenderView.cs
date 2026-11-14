@@ -275,7 +275,7 @@ namespace OpenZ
             float dt = Time.deltaTime * Mathf.Max(0.05f, game.gameSpeed);
             foreach (var r in rigs)
             {
-                bool alive = !r.fort.Destroyed && r.view && r.view.gameObject.activeInHierarchy;
+                bool alive = !FortFallAtGameOver.Fallen(r.fort) && r.view && r.view.gameObject.activeInHierarchy;   // open_fixes_3nov row 77: also a fort the game-over rule drops
                 if (r.root.activeSelf != alive) r.root.SetActive(alive);
                 if (r.roof && r.roof.enabled != alive) r.roof.enabled = alive;                              // off before CombatView breaks the fort
                 if (!alive) continue;

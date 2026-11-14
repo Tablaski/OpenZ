@@ -57,6 +57,12 @@ namespace OpenZ
 
         public ZodClientFire(Kind kind, int seed) { this.kind = kind; rng = new System.Random(seed); }
 
+        /// <summary>1.4 laser_beam_speed: true while a laser's clock is in Zod's charge step (fire sprite n01, 0.05-0.08 s), the step just
+        /// before the fire frame (rlaser.cpp:151-166). Read only: the clock's steps and shots are as before.</summary>
+        public bool Charging => kind == Kind.Laser && action == 1;
+        /// <summary>1.4 laser_beam_speed: the sim time of the clock's next step (in the charge step: the release).</summary>
+        public double NextStep => next;
+
         /// <summary>A new attack: the fire sprite starts over (Zod resets action_i to 0, zrobot.cpp:96,161).</summary>
         public void Reset(double now) { action = 0; next = now; }
 

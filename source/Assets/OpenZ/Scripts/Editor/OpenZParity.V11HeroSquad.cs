@@ -49,9 +49,11 @@ namespace OpenZ.EditorTools
                         "vehicles, guns and troop carriers as grunts do, but ONLY on the player's order (never by themselves: the idle grab, the grab on the way and the CPU's car park skip them), and come out again as Alan and Brad with their own hit points. " +
                         $"Alan reaches {ZHeroRange.MulOf(k, 1):0.00} x a grunt's range (his rifle and his grenades; KH2, switch ZWorld.HeroRangeDeviation), Brad a grunt's; a member plans his attack approach (DV28) with his leader's range when it is shorter, and fires once in his own range. Alan starts with {ZHeroGrenades.StartOf(k, 1)} grenades of his own (Brad none), thrown by the sniper's grenade rule (DV40: at vehicles, guns and buildings, never at robots; with DV40 off at anything); they ride with him through a crew list. Their loss is a normal loss. " +
                         "Level 16: an extra red start squad (the psycho squad and every unit of the map stay), on two sun loungers east of the shuttle with a burning campfire beside them. " +
+                        "Part 2 (1.3 row 80): ALAN & BRAD are the red side's heroes: a level started as BLUE (PLAY AS BLUE) places no hero squad and no start camp; the Unit editor offers them under RED only (and EvilZod under BLUE only, row 79). " +
                         "View: View/OzHeroSquadView.cs, View/OzHeroCampfire.cs (the real Alan and Brad on the grunt's animations, their own gun sounds, picture and name everywhere a unit's name shows; KH2: their torso and face turn to the target, their own lying legs on the start loungers, their feet held still through the drink and the other antics whose clips keep the feet still)",
                 measured = measured,
-                toggle = "ZWorld.HeroSquadDeviation: set at every game start (off in 'Zod exact': no heroes, no campfire, the map alone); headless default off, this probe turns it on",
+                toggle = "ZWorld.HeroSquadDeviation: set at every game start (off in 'Zod exact': no heroes, no campfire, the map alone); headless default off, this probe turns it on. " +
+                         "Part 2: ZWorld.HeroSquadsOffAsBlue, set at every game start, on only in a PLAY AS BLUE match; headless default off, this probe counts both",
                 status = pass ? DevActive : DevCheck,
             });
         }

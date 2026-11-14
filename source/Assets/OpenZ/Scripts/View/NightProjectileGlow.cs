@@ -38,8 +38,8 @@ namespace OpenZ
         public int LastCount { get; private set; }
         public int Peak { get; private set; }
 
-        struct Streak { public Vector3 head, dir; public float len, width, core, coreBack; public Color col; }
-        struct Shot { public Vector3 from, to; public float t0, life; public FxWeapon w; }
+        struct Streak { public Vector3 head, dir; public float len, width, core, coreBack; public Color col; public bool over; }
+        struct Shot { public Vector3 from, to; public float t0, life; public FxWeapon w; public bool over; }
 
         readonly List<Streak> frame = new List<Streak>(256);
         readonly List<Shot> shots = new List<Shot>(256);
@@ -84,10 +84,10 @@ namespace OpenZ
         static readonly Color ShellCol = new Color(1f, 0.42f, 0.1f), RocketCol = new Color(1f, 0.55f, 0.16f), GrenadeCol = new Color(1f, 0.3f, 0.06f),
             BoltCol = new Color(1f, 0.25f, 0.015f), TracerCol = new Color(1f, 0.42f, 0.06f);
 
-        void Push(Vector3 head, Vector3 dir, float len, float width, float core, float coreBack, Color col)
+        void Push(Vector3 head, Vector3 dir, float len, float width, float core, float coreBack, Color col, bool over = false)
         {
             if (frame.Count >= maxStreaks) return;
-            frame.Add(new Streak { head = head, dir = dir, len = len, width = width, core = core, coreBack = coreBack, col = col });
+            frame.Add(new Streak { head = head, dir = dir, len = len, width = width, core = core, coreBack = coreBack, col = col, over = over });
         }
 
         void OnProjectile(FxWeapon w, Vector3 pos, Vector3 vel, float age)
@@ -100,10 +100,10 @@ namespace OpenZ
             switch (w)
             {
                 case FxWeapon.TankShell: case FxWeapon.HeavyShell: case FxWeapon.Cannon:
-                    if (shells) Push(pos, dir, 3.2f * ramp, w == FxWeapon.HeavyShell ? 0.255f : 0.24f, w == FxWeapon.HeavyShell ? 0.36f : 0.34f, 0.35f, ShellCol * (2.2f * k));
+                    if (shells) Push(pos, dir, 3.2f * ramp, w == FxWeapon.HeavyShell ? 0.255f : 0.24f, w == FxWeapon.HeavyShell ? 0.36f : 0.34f, 0.35f, ShellCol * (2.2f * k), OpenZFxPlayer.DrawingOver);
                     break;
                 case FxWeapon.Bazooka: case FxWeapon.Rocket: case FxWeapon.Mlrs:
-                    if (rockets) Push(pos, dir, 5f * ramp, 0.42f, 0.6f, 0.55f, RocketCol * (2.8f * k));
+                    if (rockets) Push(pos, dir, 5f * ramp, 0.42f, 0.6f, 0.55f, RocketCol * (2.8f * k), OpenZFxPlayer.DrawingOver);
                     break;
                 case FxWeapon.Grenade:
                     if (grenades) Push(pos, dir, 1.0f * ramp, 0.08f, 0.2f, 0f, GrenadeCol * (1.3f * k));
@@ -115,7 +115,7 @@ namespace OpenZ
         {
             if (K <= 0.001f || shots.Count >= maxStreaks) return;
             if (w == FxWeapon.Bolt ? !bolts : !tracers) return;
-            shots.Add(new Shot { from = from, to = to, t0 = Time.time, life = Mathf.Max(0.02f, life), w = w });
+            shots.Add(new Shot { from = from, to = to, t0 = Time.time, life = Mathf.Max(0.02f, life), w = w, over = ShotLine.LastOver });
         }
 
         void OnFuse(Vector3 tip, Vector3 vel)
@@ -135,8 +135,8 @@ namespace OpenZ
                 var d = s.to - s.from; float dist = d.magnitude; if (dist < 0.05f) { shots.RemoveAt(i); continue; }
                 var dir = d / dist; var head = s.from + d * Mathf.Clamp01(a);
                 float travelled = dist * Mathf.Clamp01(a);
-                if (s.w == FxWeapon.Bolt) Push(head, dir, Mathf.Min(2.4f, travelled), 0.22f, 0.3f, 0f, BoltCol * (3.2f * k));
-                else Push(head, dir, Mathf.Min(2.6f, travelled), s.w == FxWeapon.Sniper ? 0.08f : 0.1f, 0.12f, 0f, TracerCol * (2f * k));
+                if (s.w == FxWeapon.Bolt) Push(head, dir, Mathf.Min(2.4f, travelled), 0.22f, 0.3f, 0f, BoltCol * (3.2f * k), s.over);
+                else Push(head, dir, Mathf.Min(2.6f, travelled), s.w == FxWeapon.Sniper ? 0.08f : 0.1f, 0.12f, 0f, TracerCol * (2f * k), s.over);
             }
             LastCount = frame.Count; Peak = Mathf.Max(Peak, frame.Count);
             if (frame.Count == 0) return;
@@ -146,7 +146,7 @@ namespace OpenZ
             var b = new Bounds(frame[0].head, Vector3.zero);
             foreach (var s in frame)
             {
-                var c = new Vector4(s.col.r, s.col.g, s.col.b, 8f);                                // channel 8 = constant
+                var c = new Vector4(s.col.r, s.col.g, s.col.b, s.over ? 9f : 8f);                  // channel 8 = constant; 9 = constant, over a wall (shots_over_walls)
                 if (s.len > 0.05f)
                 {   // streak: camera-facing quad from the tail (y 0) to the head (y 1)
                     var tail = s.head - s.dir * s.len;
@@ -165,7 +165,7 @@ namespace OpenZ
                     int i0 = v.Count;
                     for (int k2 = 0; k2 < 4; k2++)
                     {
-                        v.Add(p); n.Add(Vector3.zero); u1.Add(new Vector4(c.x * 1.3f, c.y * 1.3f, c.z * 1.3f, 8f));
+                        v.Add(p); n.Add(Vector3.zero); u1.Add(new Vector4(c.x * 1.3f, c.y * 1.3f, c.z * 1.3f, c.w));
                     }
                     u0.Add(new Vector4(-1, -1, s.core, 2)); u0.Add(new Vector4(1, -1, s.core, 2)); u0.Add(new Vector4(1, 1, s.core, 2)); u0.Add(new Vector4(-1, 1, s.core, 2));
                     t.Add(i0); t.Add(i0 + 1); t.Add(i0 + 2); t.Add(i0); t.Add(i0 + 2); t.Add(i0 + 3);

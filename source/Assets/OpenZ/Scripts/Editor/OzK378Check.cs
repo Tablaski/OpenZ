@@ -156,7 +156,18 @@ namespace OpenZ.EditorTools
             sb.AppendLine(OzV11Kit.Verdict(tris <= 26000, $"triangles in all the bodies {tris} (wanted <= 26000)"));
             sb.AppendLine(OzV11Kit.Verdict(OzTankWreck.FrameMsMax <= 6f, $"the main thread's heaviest frame of tank-wreck work this session {OzTankWreck.FrameMsMax:0.0} ms (wanted <= 6; the cuts on a worker thread, the slowest set {OzTankWreck.WorkerMsMax:0} ms there)"));
             sb.AppendLine(OzV11Kit.Verdict(OzTankWreck.HoldTimeouts == timeouts0 && OzTankWreck.NotReady == notReady0, $"the break waited for its set at most {OzTankWreck.LastHoldWait:0.00} s (timed out +{OzTankWreck.HoldTimeouts - timeouts0}, broke before a set was ready +{OzTankWreck.NotReady - notReady0})"));
-            sb.AppendLine(OzV11Kit.Verdict(OzRockBody.Added[(int)OzRockBody.Kind.WreckPiece] - added0 >= bodies.Count, $"every body is made solid against the rocks and statics (items 331 / 332): +{OzRockBody.Added[(int)OzRockBody.Kind.WreckPiece] - added0} for {bodies.Count}"));
+            {   // k81d: the game makes a wreck body solid against the rocks and statics when its longest side is OzRockBody.BigM or more (items 331 /
+                // 332; WreckPieces.Break -> OzRockBody.Add: a smaller one is light debris, Small += 1). The counter also counts bodies of other
+                // breaks (a tossed turret); so each body of this break is asked itself: it carries an OzRockBody, or it is under BigM.
+                int solid = 0, small = 0, missed = 0; var smallSizes = new List<string>();
+                foreach (var b in bodies)
+                {
+                    if (b.GetComponent<OzRockBody>()) { solid++; continue; }
+                    var hb = b.GetComponentInChildren<BoxCollider>(); float big = hb ? Mathf.Max(hb.size.x, Mathf.Max(hb.size.y, hb.size.z)) / 0.92f : 0f;   // WreckPieces: the box is 0.92 x the piece's bounds
+                    if (big < OzRockBody.BigM) { small++; smallSizes.Add(big.ToString("0.00") + " m"); } else missed++;
+                }
+                sb.AppendLine(OzV11Kit.Verdict(missed == 0 && solid > 0, $"every body the game makes solid is solid against the rocks and statics (items 331 / 332: a longest side of {OzRockBody.BigM:0.0} m or more): {solid} of {bodies.Count} solid, {small} small piece(s) left out by that rule ({(smallSizes.Count > 0 ? string.Join(", ", smallSizes) : "none")}), {missed} big one(s) missed (the counter +{OzRockBody.Added[(int)OzRockBody.Kind.WreckPiece] - added0}, other breaks included)"));
+            }
             sb.AppendLine(OzV11Kit.Verdict(OzFractureCut.Cuts == fracCuts0 && OzFractureCut.Fallbacks == fracFall0, $"the cannon's fracture counters untouched by the tank cuts: cuts +{OzFractureCut.Cuts - fracCuts0}, fallbacks +{OzFractureCut.Fallbacks - fracFall0}"));
             foreach (var b in bodies.OrderByDescending(b => b.mass))
             {

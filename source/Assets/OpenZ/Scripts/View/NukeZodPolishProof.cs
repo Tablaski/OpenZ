@@ -1,3 +1,4 @@
+#if !OZ_RELEASE
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -128,3 +129,4 @@ namespace OpenZ
         void Done() { if (close) Destroy(close.gameObject); run = null; Destroy(gameObject); }
     }
 }
+#endif

@@ -18,10 +18,13 @@ namespace OpenZ.Sim
     ///    + <see cref="ZWorld.ApcExitWalkSec"/> (its walk) + ExitHandSec.
     /// While it is getting out it takes no step and fires nothing (no shot, rocket, grenade or zap; it engages nobody); its orders, also an
     /// order the player gives meanwhile, wait and start from its spot at that moment (a fresh start of the same waypoint, as after a stun, so
-    /// the waiting never counts as stuck); and no enemy can pick it as a target (it is still in the bay or on the ramp). A blast landing next
-    /// to it still hurts it (splash goes by area). Zod's own crew exits (EJECT from a tank, a jeep, a gun) are unchanged: those robots act at
-    /// once, as in Zod. Deterministic: sim time and the rules' foot schedule only, no rand() draw. Switch: <see cref="ZWorld.ExitWalkHoldOn"/>
-    /// (on; off = as before, the robots fight at once). Matters only while DV118 makes shuttles or DV15 gives APCs passengers.
+    /// the waiting never counts as stuck); and no enemy can pick it as a target (it is still in the bay or on the ramp; DV171's driver on the
+    /// hull is the one exception, below). A blast landing next to it still hurts it (splash goes by area). Zod's own crew exits (EJECT from a
+    /// gun; from an APC while DV15 is off) are unchanged: those robots act at once, as in Zod. 1.4 DV171 (EXIT DRIVER, Sim/ZObject.VehicleExit.cs):
+    /// the driver let out of a light, medium or heavy tank or the mech is held too, for his vehicle's fixed jump-off time (to the touch of his
+    /// feet, vehicle_exit_jump; ZObject.DriverOutHoldTicks), and free at once when that hull is destroyed; he is a target all the same
+    /// Deterministic: sim time and the rules' foot schedule only, no rand() draw. Switch: <see cref="ZWorld.ExitWalkHoldOn"/> (on; off = as
+    /// before, the robots fight at once). Matters only while DV118 makes shuttles, DV15 gives APCs passengers or DV171 lets a driver out.
     /// </summary>
     public partial class ZObject
     {
@@ -38,6 +41,7 @@ namespace OpenZ.Sim
         bool ExitWalkHold(double time)
         {
             if (ExitOutAt < 0) return false;
+            if (DriverOutFromId >= 0 && DriverOutHullGone()) ExitOutAt = time;                         // 1.4 DV171: a driver held while climbing down a hull that is now destroyed: out now (Sim/ZObject.VehicleExit.cs)
             if (!ZWorld.ExitWalkHoldOn || time >= ExitOutAt - 1e-9 || Kind != ZKind.Robot || Owner == Team.Neutral || KillAt >= 0 || World == null) { ExitWalkEnd(); return false; }
             StopMove(); IsRunning = false; fortRush = false;
             LastAttackPlayerGiven = false;

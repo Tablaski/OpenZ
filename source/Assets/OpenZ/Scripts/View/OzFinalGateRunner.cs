@@ -35,7 +35,7 @@ namespace OpenZ
         public const string ChainKey = "OpenZ.FinalGate.Chain";
         static readonly Dictionary<string, string> ChainScene = new Dictionary<string, string>
         {
-            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
+            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L07"] = "Assets/OpenZ/Scenes/L07_Volcanic.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
         };
         static string pendingJob;
         static void OnChainLoaded(Scene sc, LoadSceneMode mode)
@@ -318,6 +318,12 @@ namespace OpenZ
                 l.Add(new Shot("quay_c", "pos:19,-214", 55f, 55f, "props_on_land quay spot 3"));
                 l.Add(new Shot("bridge_water_2", "go:WAT_BridgeSpan_0;sim:bridge", 45f, 50f));
             }
+            else if (OzVolcanic.Is(lv))
+            {   // level 7: the lakes at the game camera, the red fort's surroundings from higher up
+                l.Add(new Shot("lava_middle", "pos:68,-107", 70f, 55f, "the middle lake at the game camera"));
+                l.Add(new Shot("lava_north", "pos:101,-80", 70f, 55f, "the north lake at the game camera"));
+                l.Add(new Shot("forts_red_wide", "fort:red", 110f, 55f, "the volcanoes round the red fort"));
+            }
             else if (lv == "L16")
             {   // level 16: the plank bridge once more from closer, the red fort's surroundings from higher up
                 l.Add(new Shot("bridge_water_2", "sim:bridge", 45f, 50f));
@@ -337,7 +343,7 @@ namespace OpenZ
                 l.Add(new Shot("fortgun_blue_h22", "fortgun:blue", 22f, 55f, "VX77 blue fort gun, h 22"));
                 l.Add(new Shot("fortgun_blue_h55", "fortgun:blue", 55f, 55f, "VX77 blue fort gun, h 55"));
             }
-            else if (lv != "L16")
+            else if (lv != "L16" && !OzVolcanic.Is(lv))
             {   // waterfall v3: the h 70 game camera (as play_h70.png) and the source basin from above
                 l.Add(new Shot("waterfall_h70", "pos3:72.3,-10.8,6", 70f, 55f, "waterfall v3 at the game camera h 70 (vs play_h70.png)"));
                 l.Add(new Shot("waterfall_top", "pos3:72.4,-7.9,17.8", 40f, 62f, "waterfall v3 source basin from above (vs v2_top.png)"));
@@ -352,6 +358,11 @@ namespace OpenZ
                 l.Add(low("low_bridge", "go:WAT_BridgeSpan_1|WAT_BridgeSpan_0;sim:bridge", 5f, 12f, 25f, "VX15 bridge deck / debris, low"));
                 l.Add(low("low_fort_red", "fort:red", 9f, 16f, 20f, "VX15 fort walls on the concrete, low (texels)"));
                 l.Add(low("low_concrete", "fort:red", 22f, 40f, 0f, "VX15 L17 concrete plates at the closest zoom (texels)"));
+            }
+            else if (OzVolcanic.Is(lv))
+            {
+                l.Add(low("low_lava_bank", "pos:68,-107", 6f, 14f, 20f, "a lake bank, low"));
+                l.Add(low("low_fort_red", "fort:red", 9f, 16f, 20f, "the fort on the ash, low"));
             }
             else if (lv == "L16")
             {
@@ -589,7 +600,7 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ mid-battle with every unit type (both teams)
         public static readonly string[] Robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };
-        public static readonly string[] Vehicles = { "jeep", "light", "medium", "heavy", "apc", "missile_launcher", "crane" };
+        public static readonly string[] Vehicles = { "jeep", "light", "medium", ZMTank.Type, "heavy", "apc", "missile_launcher", "crane" };   // DV145: the gate's battle stages a medium tank too
         public static readonly string[] Cannons = { "gatling", "gun", "howitzer", "missile_cannon" };
 
         IEnumerator Battle()
@@ -880,6 +891,8 @@ namespace OpenZ
             [ZEventType.Promoted] = "promot",
             [ZEventType.RunOverHit] = "run|squash|crush|imp|over",
             [ZEventType.DriverShot] = "bolt|rifle|sniper|laser|flame|rocket|electro|mg|pyro",        // DV87: the hatch driver's own weapon (mg: the psycho's bursts; pyro: the jet's start and loop)
+            [ZEventType.EvilDashStart] = "rob_servo|evilzod", [ZEventType.EvilDashGo] = "evilzod_dash", [ZEventType.EvilDashEnd] = "evilzod_dash",   // DV161
+            [ZEventType.EvilShot] = "evilzod_shot", [ZEventType.EvilReload] = "evilzod_reload",
         };
         const float SoundWindowBefore = 0.1f, SoundWindowAfter = 1.0f;
 

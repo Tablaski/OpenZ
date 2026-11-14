@@ -162,7 +162,7 @@ namespace OpenZ
                 if (!v || v.Obj == null || rigOf.ContainsKey(v)) continue;
                 var k = v.Obj.Kind;
                 if (!((k == ZKind.Vehicle && vehicles) || (k == ZKind.Cannon && cannons))) continue;
-                if (!specs.TryGetValue(v.Obj.Type, out var spec))
+                if (!specs.TryGetValue(OzV2Units.LightsKey(v, specs.ContainsKey), out var spec))   // 1.2 v2 units: a v2 view takes its own entry ("light@v2")
                 {
                     if (unknown.Add(v.Obj.Type)) Debug.LogWarning($"[OpenZ] UnitBlinkers: no blinkers for '{v.Obj.Type}' (unit_blinkers.json)");
                     rigOf[v] = null; continue;

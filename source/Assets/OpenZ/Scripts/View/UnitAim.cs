@@ -52,8 +52,9 @@ namespace OpenZ
             switch (type)
             {
                 case "jeep": return new Slew { yawSpeed = 540, yawSmooth = 0.06f, pitchSpeed = 240, pitchSmooth = 0.06f, pitchMin = -12, pitchMax = 35, tol = 5, kickDeg = 2f, recoilK = 0.24f, spinMax = 1080 };
-                case "gatling": return new Slew { yawSpeed = 420, yawSmooth = 0.07f, pitchSpeed = 200, pitchSmooth = 0.07f, pitchMin = -10, pitchMax = 30, tol = 5, kickDeg = 1f, recoilK = 0.1f, spinMax = 1440 };
+                case "gatling": return new Slew { yawSpeed = 420, yawSmooth = 0.07f, pitchSpeed = 200, pitchSmooth = 0.07f, pitchMin = GatlingPitchMin, pitchMax = GatlingPitchMax, tol = 5, kickDeg = 1f, recoilK = 0.1f, spinMax = 1440 };   // 1.3: its stops are measured on the model (View/UnitAim.Gatling.cs)
                 case "light": return new Slew { yawSpeed = 240, yawSmooth = 0.10f, pitchSpeed = 90, pitchSmooth = 0.08f, pitchMin = -10, pitchMax = 30, tol = 4, kickDeg = 5.2f, recoilK = 0.66f };
+                case ZMTank.Type: return new Slew { yawSpeed = MediumYawSpeed, yawSmooth = MediumYawSmooth, pitchSpeed = 90, pitchSmooth = 0.08f, pitchMin = -10, pitchMax = 30, tol = 4, kickDeg = 5.2f, recoilK = 0.55f };   // DV145: the light tank's gun on the medium tank; the slide's peak 1.13 x 0.55 = 0.62 m keeps the barrel's root inside the dome (<= 0.65 m, OzMediumTank.SlideMaxM); item 181: its turret turns slower than the light tank's (View/UnitAim.K87d.cs)
                 case "medium": return new Slew { yawSpeed = 260, yawSmooth = 0.09f, pitchSpeed = 140, pitchSmooth = 0.08f, pitchMin = -45, pitchMax = 60, tol = 5, kickDeg = 3.4f, recoilK = 0.24f, spinMax = 900 };
                 case "heavy": return new Slew { yawSpeed = 150, yawSmooth = 0.14f, pitchSpeed = 60, pitchSmooth = 0.10f, pitchMin = -10, pitchMax = 25, tol = 4, kickDeg = 7f, recoilK = 0.66f };
                 case "missile_launcher": return new Slew { yawSpeed = 160, yawSmooth = 0.12f, pitchSpeed = 70, pitchSmooth = 0.10f, pitchMin = -20, pitchMax = 57, tol = 6, kickDeg = 8f, recoilK = 0f };
@@ -162,12 +163,13 @@ namespace OpenZ
         void Bind(UnitView v, ZObject o)
         {
             view = v; obj = o; game = ZGame.I; robot = o.Kind == ZKind.Robot;
-            wtype = o.Kind == ZKind.Vehicle && o.Type == "apc" ? o.DriverType : o.Type;
-            slew = SlewFor(o.Type, o.Kind);
+            wtype = o.Kind == ZKind.Vehicle && o.Type == "apc" ? o.DriverType : OzMediumTank.Gun(o.Type);   // DV145: the medium tank's shell flies as the light tank's
+            slew = GunSlew(ModelSlew(SlewFor(o.Type, o.Kind), o, v), o, v);                        // 1.2 v2 units: the MLRS v2 launcher's own elevation limits (View/UnitAim.MlrsV2.cs); the gun v2's elevation stop (View/UnitAim.Gun.cs)
+            slew = LightSlew(slew, o, v);                                                                  // 1.2 v2 units: the light tank v2's shorter barrel slide (View/UnitAim.LightV2.cs)
             nextScan = Random.value * 0.25f;
             muzzles.Clear(); recoils.Clear(); yawJ = pitchJ = null; spin = null; spine = null; rMuzzle = null;
             bodyYawNow = transform.eulerAngles.y - ModelYaw(gameObject, o, 180f);                     // UnitView's yaw space
-            if (robot) BindRobot(); else BindGun();
+            if (robot) BindRobot(); else { BindGun(); GatlingBind(); }                                     // 1.3: the gatling's skirt (View/UnitAim.Gatling.cs)
         }
 
         void BindRobot()
@@ -215,7 +217,7 @@ namespace OpenZ
                 else if (pitchJ == null && (n.EndsWith("BarrelPitch") || n == "MLRSRackPitch" || n == "MechGunShoulder")) pitchJ = new Joint { t = t, rest = t.localRotation };
                 else if (!spin && n.EndsWith("BarrelSpin")) { spin = t; spinRest = t.localRotation; }
                 bool isMuzzle = (n == "Muzzle" || n.StartsWith("Muzzle_") || n.EndsWith("Muzzle") || n.Contains("Muzzle_"))
-                                && !n.Contains("Rocket") && !n.Contains("Dark") && n != "RifleMuzzle" && n != "BazookaMuzzle";
+                                && !n.Contains("Rocket") && !n.Contains("Dark") && !n.StartsWith("HandGun") && n != "RifleMuzzle" && n != "BazookaMuzzle";   // DV146: HandGunMuzzle is the hand gun's (View/MechHandGunView.cs)
                 if (isMuzzle) muzzles.Add(new Muzzle { t = t });
             }
             if (yawJ != null && !yawJ.t.parent) yawJ = null;
@@ -317,6 +319,7 @@ namespace OpenZ
                 foreach (var r in m.rocketR) if (r) r.enabled = false;
                 if (m.slideAt >= 0f && m.rocket) { m.rocket.localPosition = m.rocketRest; m.slideAt = -1f; }   // mlrs_heavy_v1: fired mid slide-in
                 m.reloadAt = Time.time + (wtype == "missile_launcher" ? MlrsSalvo.ReloadAfter / Speed : 3.5f);   // mlrs_heavy_v1: tube by tube, back before Zod's next salvo (4.454 s)
+                MlrsTubeNote(m);                                                                         // k87b, item 148: this tube's rocket leaves this tube's mouth along it (View/OpenZFxPlayer.TubeExit.cs)
             }
         }
 
@@ -417,6 +420,7 @@ namespace OpenZ
             if (!robot && !HasRig && !(obj.Kind == ZKind.Cannon && Time.frameCount - bodyFrame <= 2)) return false;   // APC / crane: nothing to turn
             if (grenade && !robot) return false;
             var p = missile ? OzShuttleAim.AirAim(t, GroundAt(e.x, e.y) + Vector3.up * 0.25f, e.value) : t != null ? AimPointOf(t) : holdPoint;   // DV118: up to the flying shuttle
+            if (missile && BoardingView.HatchExitAimAt(t, out var hatchShellAim)) p = hatchShellAim;           // 1.4 DV171 final fix: a held shell, rocket or grenade at a driver climbing out of a tank: aimed at his figure, as AimPointOf (View/BoardingView.VehicleExit.cs)
             bool ballistic = missile && !grenade;
             float T = missile ? Mathf.Max(0.05f, e.value) : 0f, g = ballistic ? ProjectileGravity(wtype, IsRocket(wtype)) : 0f;
             float flightReal = T / Speed;
@@ -502,7 +506,7 @@ namespace OpenZ
             float waited = Time.time - h.at, Tn = Mathf.Max(0.05f, h.T - waited * Speed), err = ErrorTo(h.point, h.ballistic, Tn, h.g, h.grenade);
             // A shot released by its wait cap while the gun is still off target snaps the gun onto it first
             if (err > slew.tol && !view.Dying && Snap(h.point, h.ballistic, Tn, h.g)) err = ErrorTo(h.point, h.ballistic, Tn, h.g, h.grenade);
-            Count(err, Mathf.Max(0.0001f, waited), err > slew.tol, $"held {waited * 1000f:F0} ms, cap {h.maxWait * 1000f:F0} ms");
+            CountHeld(err, waited, err > slew.tol, h.maxWait);   // 1.4 speed-up 2 (perf_garbage): the same row; its text made only when kept (View/UnitAim.NoGarbage.cs)
             if (e.type == ZEventType.MissileFired) e.value = Mathf.Max(0.05f, e.value - (Time.time - h.at) * Speed);   // same detonation time
             Mark(h.point, h.ballistic, e.value, h.g);
             if (!combat && game) combat = game.GetComponent<CombatView>();                          // ZGame.Awake adds it to the ZGame object
@@ -542,6 +546,7 @@ namespace OpenZ
 
         Vector3 AimPointOf(ZObject t)
         {
+            if (BoardingView.HatchExitAimAt(t, out var hatchAim)) return hatchAim;                     // 1.4 DV171 fix round 5: a driver climbing out of a tank: aimed at his figure (View/BoardingView.VehicleExit.cs)
             if (game.Views.TryGetValue(t.Id, out var v) && v && v.isActiveAndEnabled) return OzShuttleAim.HitAim(t, v.AimPos());   // DV118: the flying ship's hull, not under its belly
             return game.CenterWorld(t) + Vector3.up * (t.Kind == ZKind.Building ? 1.5f : 1.0f);
         }
@@ -559,14 +564,15 @@ namespace OpenZ
                 var h = held[0]; p = h.point; ballistic = h.ballistic; g = h.g; T = Mathf.Max(0.05f, h.T - (Time.time - h.at) * Speed);
                 return true;
             }
-            if (Time.time < holdUntil) { p = holdPoint; ballistic = holdBallistic; T = holdT; g = holdG; return true; }
+            if (DragonTarget(out p)) return true;                                                    // DV163: no target of its own, the dragon over it (View/UnitAim.Dragon.cs)
+            if (Time.time < holdUntil && !CombatSkipMark()) { p = holdPoint; ballistic = holdBallistic; T = holdT; g = holdG; return true; }   // 1.2 item 132 (fight): a vehicle turret stays on its live target (View/UnitAim.Combat.cs)
             var t = obj.AttackObject;
             if (t == null || t.Destroyed) t = predicted;
             if (t == null || t.Destroyed || t.KillAt >= 0) return false;
             bool missile = obj.DamageIsMissile && !HasGrenades(obj);
             if (missile)
             {
-                p = OzShuttleAim.AirAim(t, GroundAt(t.CenterX, t.CenterY) + Vector3.up * 0.25f, 0f);   // DV118: up to the flying shuttle
+                p = OzShuttleAim.AirAim(t, SteadyGround(t) + Vector3.up * 0.25f, 0f);   // DV118: up to the flying shuttle; 1.2 item 132: its smooth place, not its tick steps
                 if (obj.MissileSpeed > 0)
                 {
                     float dx = t.CenterX - obj.CenterX, dy = t.CenterY - obj.CenterY;
@@ -619,6 +625,7 @@ namespace OpenZ
             if (!view || obj == null) { enabled = false; return; }
             if (view.Reacting) return;                                                                 // deaths_mech_v1: knocked down (the torso solve would twist the fall)
             if (view.Dying) { FlushHeld(); return; }                                                   // its last shots still leave the gun
+            if (QuietStep(Time.deltaTime)) return;                                                    // vehicle_exit_jump part B: nobody inside (EXIT, sniped): the gun stands still and quiet from this frame (View/UnitAim.Quiet.cs)
             float dt = Time.deltaTime;
             VeteranMarks.AimSlew(obj, ref slew, ref vetBaseSlew, ref vetSlewOn);                       // veterancy_v1 DV12: veterans x1.35 slew
             if (robot) SolveRobot(dt);
@@ -636,7 +643,7 @@ namespace OpenZ
         static float Elev(Vector3 v, Vector3 up) => 90f - Vector3.Angle(up, v);
 
         /// <summary>Aim error of a gun: the bearing always counts; the elevation only where the gun can pitch and the wanted
-        /// elevation is inside its limits (a fixed-elevation gatling or a barrel at its stop still fires, like Zod).</summary>
+        /// elevation is inside its limits (a barrel at its stop still fires, like Zod).</summary>
         float GunError(Muzzle m, Vector3 desired)
         {
             var f = MuzzleDir(m);
@@ -670,9 +677,10 @@ namespace OpenZ
         {
             if (yawJ != null) yawJ.t.localRotation = Quaternion.AngleAxis(yaw, yawJ.axisL) * yawJ.rest;
             if (pitchJ != null) pitchJ.t.localRotation = Quaternion.AngleAxis(pitch + kick * pitchSign, pitchJ.axisL) * pitchJ.rest;
+            if (gSkirt) GatlingSkirtPose(pitch + kick * pitchSign);                                     // 1.3: the gatling's skirt follows its head (View/UnitAim.Gatling.cs)
         }
 
-        float ClampPitch(float p) => Mathf.Clamp(p * pitchSign, slew.pitchMin, slew.pitchMax) * pitchSign;
+        float ClampPitch(float p) => Mathf.Clamp(p * pitchSign, GunPitchLow, GunPitchHigh) * pitchSign;   // 1.3 the Unit editor: wider while a ramp platform stands (View/OzUePlatformView.cs), the gatling keeps its model's stops (View/UnitAim.Gatling.cs); the unit's own limits in every level
 
         /// <summary>aimVehicle solve for the current barrel (3 iterations, the joints posed while solving): gy / gp in =
         /// the start angles, out = the angles that put the muzzle on P. Returns P after the minimum-range clamp.</summary>
@@ -681,10 +689,11 @@ namespace OpenZ
             var m = muzzles[slot];
             var pivot = (yawJ != null ? yawJ.t : pitchJ.t).position;
             var flat = P - pivot; flat.y = 0;
-            if (flat.magnitude < 4f)
+            float minR = SteadyMinRange(pivot);                                                         // 1.2 item 132: beyond the barrels' own reach (View/UnitAim.Steady.cs)
+            if (flat.magnitude < minR)
             {   // a point inside the mount's swept volume keeps its bearing at a minimum range
                 var dir = flat.sqrMagnitude > 1e-4f ? flat.normalized : Vector3.ProjectOnPlane(MuzzleDir(m), Vector3.up).normalized;
-                P = new Vector3(pivot.x + dir.x * 4f, P.y, pivot.z + dir.z * 4f);
+                P = new Vector3(pivot.x + dir.x * minR, P.y, pivot.z + dir.z * minR);
             }
             for (int i = 0; i < 3; i++)
             {
@@ -706,9 +715,9 @@ namespace OpenZ
                             if (k == 0) first = a; else a = SameSide(a, first);
                             acc += a;
                         }
-                        gy += acc / muzzles.Count;
+                        gy += acc / muzzles.Count * SteadyGain(P, yawAxis);                                 // 1.2 item 132: no overshoot (View/UnitAim.Steady.cs)
                     }
-                    else gy += SignedOnPlane(MuzzleDir(m), Desired(m.t.position, P, ballistic, T, g), yawAxis);
+                    else gy += SignedOnPlane(MuzzleDir(m), Desired(m.t.position, P, ballistic, T, g), yawAxis) * SteadyGain(P, yawAxis);
                 }
                 if (pitchJ != null && m.pitched)
                 {
@@ -735,6 +744,7 @@ namespace OpenZ
             }
             float yaw = yawJ != null ? yawJ.ang : 0f, pitch = pitchJ != null ? pitchJ.ang : 0f;
             bool has = Target(out var P, out bool ballistic, out float T, out float g);
+            has = SteadyHold(has, ref P, ref ballistic, ref T, ref g);                                   // 1.2 item 132: no idling between two targets (View/UnitAim.Steady.cs)
             float gy = yaw, gp = pitch;
             if (has)
             {
@@ -749,10 +759,17 @@ namespace OpenZ
             if (yawJ != null)
             {
                 float goal = yawJ.ang + Mathf.DeltaAngle(yawJ.ang, gy);
-                yawJ.ang = Wrap(Mathf.SmoothDamp(yawJ.ang, goal, ref yawJ.vel, slew.yawSmooth * hm, slew.yawSpeed * hs, dt));
+                float ysm = slew.yawSmooth * hm, ysp = slew.yawSpeed * hs; SteadyDeadline(goal - yawJ.ang, ref ysm, ref ysp);   // 1.2 item 132: on a waiting shot before its cap, eased
+                if (!CombatSlew(gy, gp, ysm, ysp, dt))                                                  // 1.2 item 132 (fight): the barrels' WORLD heading slews (View/UnitAim.Combat.cs)
+                    yawJ.ang = Wrap(Mathf.SmoothDamp(yawJ.ang, goal, ref yawJ.vel, ysm, ysp, dt));
             }
-            if (pitchJ != null) pitchJ.ang = Mathf.SmoothDamp(pitchJ.ang, gp, ref pitchJ.vel, slew.pitchSmooth * hm, slew.pitchSpeed * hs, dt);
+            if (pitchJ != null)
+            {
+                float psm = slew.pitchSmooth * hm, psp = slew.pitchSpeed * hs; SteadyDeadline(gp - pitchJ.ang, ref psm, ref psp);
+                pitchJ.ang = Mathf.SmoothDamp(pitchJ.ang, gp, ref pitchJ.vel, psm, psp, dt);
+            }
             float ya = yawJ != null ? yawJ.ang : 0f, pa = pitchJ != null ? pitchJ.ang : 0f;
+            ya = CombatHeading(ya, pa, Recoil(shotAge) * slew.kickDeg);                                // 1.2 item 132 (fight): whatever the hull does under it (View/UnitAim.Combat.cs)
             Pose(ya, pa, 0f);
             AimError = has ? GunError(m, Desired(m.t.position, P, ballistic, T, g)) : 180f;
             OzSoundV3.Slew(obj, yawJ != null && yawJ.t ? yawJ.t : transform, yawJ != null ? yawJ.vel : 0f, pitchJ != null ? pitchJ.vel : 0f, has, AimError, slew.tol);   // sound_v3
@@ -850,7 +867,7 @@ namespace OpenZ
                 ApplySpine(gy, gp, up);
                 gy = Mathf.Clamp(gy + SignedOnPlane(PointerDir(), Desired(PointerPos(), P, ballistic, T, g), up), -80f, 80f);
                 ApplySpine(gy, gp, up);
-                gp = Mathf.Clamp(gp + SignedOnPlane(PointerDir(), Desired(PointerPos(), P, ballistic, T, g), hinge), -45f, 35f);
+                gp = Mathf.Clamp(gp + SignedOnPlane(PointerDir(), Desired(PointerPos(), P, ballistic, T, g), hinge), -45f, PitchTop);
             }
         }
 

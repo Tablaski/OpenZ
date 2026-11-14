@@ -70,6 +70,10 @@ namespace OpenZ.EditorTools
             bool snipeDeviation = ZWorld.SnipeDeviation; ZWorld.SnipeDeviation = false;   // DC2: the Zod CPU checks run Zod exact
             bool vetDev = ZWorld.VeteranDeviation; ZWorld.VeteranDeviation = false;         // veterancy_v1 DV12: Zod has no ranks
             using var strikeGroupsHold = ZWorld.StrikeGroupsOff();                          // DV107: the computer's own checks measure the engine's computer, no strike groups (a Play session leaves the switch on); put back when this method ends
+            using var cpuShuttleHold = ZWorld.CpuShuttleOff();                              // DV138: nor its shuttle plan (a Play session leaves the switch on); put back when this method ends
+            using var cpuRepairHold = ZWorld.CpuRepairOff();                                // DV137: the computer's own checks measure the engine's computer, no repair trips (a Play session leaves the switch on); put back when this method ends
+            using var cpuDefendHold = ZWorld.CpuDefendOff();                                // DV136: nor its defend orders (a Play session leaves the switch on); put back when this method ends
+            using var sideShuttlesHold = ZWorld.SideShuttlesOff();                          // DV144: nor a second car-park ship on level 17 (a Play session leaves the switch on); put back when this method ends
             var rows = new List<Row>();
             void Guard(string name, Action<List<Row>> a)
             {

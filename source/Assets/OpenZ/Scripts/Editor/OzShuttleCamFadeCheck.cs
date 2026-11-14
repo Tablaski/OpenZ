@@ -176,13 +176,17 @@ namespace OpenZ.EditorTools
                   $"C7 the cut goes into the blocks the parts have (a painted part {(withBlock ? withBlock.name : "-")}: {rA:0.00}, its team paint {(kept ? "kept" : "LOST")}; a part with none {(without ? without.name : "(none: every part painted)")}: {rB:0.00}) and back to 0 ({zA:0.00} / {zB:0.00}); " +
                   $"a break-up piece built with the hull's block while cut: {pc0:0.00} copied, {pc1:0.00} after the clean-up ({clearedN} block(s)), its paint {(pieceKept ? "kept" : "LOST")}");
 
-                // C8 the numbers the off-engine sweep (out/sweep.txt) used
-                bool same = RtsCamera.ZoomClosest == 25f && RtsCamera.FreeFloor == 14f && OzPlayableShuttle.KickPivot == new Vector3(0f, 2.8f, 0f)
+                // C8 the numbers the off-engine sweep (out/sweep.txt) used. Its camera stood at the closest zoom of then, 25 m; the closest
+                // zoom may only be that or higher (version 1.2: 35 m): a higher camera stands farther from the hull, and the free camera's
+                // 14 m floor, the lowest eye the sweep took, is unchanged
+                bool same = RtsCamera.ZoomClosest >= 25f && RtsCamera.FreeFloor == 14f && OzPlayableShuttle.KickPivot == new Vector3(0f, 2.8f, 0f)
                             && OzKickflipCurve.ArcRiseM == 4.8 && OzKickflipCurve.HopPeakM == 0.8 && ZWorld_ShuttleCruiseM() == 12.0;
-                C(same, $"C8 the numbers the sweep used are the game's: closest zoom {RtsCamera.ZoomClosest} m, free camera floor {RtsCamera.FreeFloor} m, pivot {OzPlayableShuttle.KickPivot}, arc rise {OzKickflipCurve.ArcRiseM} m, hop {OzKickflipCurve.HopPeakM} m, cruise {ZWorld_ShuttleCruiseM()} m");
-                // C9 why: the kickflip's top over the root (measured on the prefab), at plain cruise against the closest camera
-                float reach = 12.0f + 0.7f + topMax;
-                C(topMax > 11f && reach > RtsCamera.ZoomClosest - NearReach, $"C9 the kickflip lifts the hull's top {topMax:0.00} m over its root (level: 5.15): at plain cruise (12 m + the 0.7 m bob) it reaches {reach:0.00} m, the closest camera stands at {RtsCamera.ZoomClosest} m: without the fade its near plane cuts the hull");
+                C(same, $"C8 the numbers the sweep used are the game's: closest zoom {RtsCamera.ZoomClosest} m (the sweep's 25 m or higher), free camera floor {RtsCamera.FreeFloor} m, pivot {OzPlayableShuttle.KickPivot}, arc rise {OzKickflipCurve.ArcRiseM} m, hop {OzKickflipCurve.HopPeakM} m, cruise {ZWorld_ShuttleCruiseM()} m");
+                // C9 why: the kickflip's top over the root (measured on the prefab), at cruise over the cliff tops of levels 2 and 17 (15 m
+                // in the sweep) against the closest camera (at 25 m plain cruise over flat ground was enough, at 30 m level 16's raised
+                // ground, 5.8 m; at 35 m, version 1.2's item 54, the cliff tops)
+                float reach = 15.0f + 12.0f + 0.7f + topMax;
+                C(topMax > 11f && reach > RtsCamera.ZoomClosest - NearReach, $"C9 the kickflip lifts the hull's top {topMax:0.00} m over its root (level: 5.15): at cruise (12 m + the 0.7 m bob) over the cliff tops of levels 2 and 17 (15 m) it reaches {reach:0.00} m, the closest camera stands at {RtsCamera.ZoomClosest} m: without the fade its near plane cuts the hull");
             }
             finally
             {

@@ -16,6 +16,8 @@ namespace OpenZ
     /// Left click / drag = fly the camera there; right click = order the selected units to that point with no target
     /// (zplayer.cpp:2752-2780: attack-move unless near hostiles, Ctrl / Alt / Shift / Z like the map), or set rally points
     /// when a production window is open and nothing is selected. With the rally tool armed, a left click sets the rally point.
+    /// 1.4 rally_minimap (UI/OzRallyMinimap.cs): with the rally tool armed (SET RALLY: the menu closes) a left click, or a right click with nothing
+    /// selected, sets the rally point as on the map (Shift = a route); the armed factory's route is drawn in full, with a ghost mark under the pointer.
     /// </summary>
     [DefaultExecutionOrder(-40)]
     public class OpenZMinimap : MonoBehaviour
@@ -51,6 +53,10 @@ namespace OpenZ
         sealed class Ping { public Image img; public float t0, delay, r0, r1, dur; public Color c; public Vector2 at; }
         readonly List<Ping> pings = new List<Ping>();
         bool dragFly, rallyPress; Vector2 lastFly;
+        /// <summary>1.4 rally_minimap, for the checks: the ghost mark under the pointer was drawn this frame (the rally tool armed, the pointer
+        /// over the map picture); the rally marks drawn this frame, the ghost mark not counted.</summary>
+        public bool RallyGhostShown { get; private set; }
+        public int RallyMarksDrawn => markUsed - (RallyGhostShown ? 1 : 0);
 
         // ------------------------------------------------------------------ build
         public void Build(OpenZHud h)
@@ -74,7 +80,7 @@ namespace OpenZ
             }
             else Hud.Plate(panel, "lg", 28f, OzUi.Amber);
             panel.gameObject.AddComponent<Canvas>();                                                   // nested canvas: per-frame frustum updates rebuild only this panel
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             Hud.Label(panel, "Level", lvl, 10, OzUi.Muted, 0.16f, OzStyle.Plain).At(OzLayout.MinimapTitleX, OzLayout.MinimapLevelY, OzH.L, false, 200);
 
             // well: the map fitted keeping its aspect (zmini_map.cpp:24-59), letterbox bands hatched with coordinate ticks
@@ -129,6 +135,9 @@ namespace OpenZ
             if (game.level == "L16")
                 return new Pal { ground = new Color32(104, 122, 54, 255), road = new Color32(124, 122, 116, 255), water = new Color32(110, 96, 50, 255),
                                  deep = new Color32(86, 74, 38, 255), cliff = new Color32(132, 104, 70, 255), cliffDark = new Color32(104, 80, 52, 255), plates = false };
+            if (OzVolcanic.Is(game.level))                                                                    // level 7: ash and grey rock; lava tiles in lava orange (BakeTerrain)
+                return new Pal { ground = OzVolcanic.MiniGround, road = OzVolcanic.MiniRoad, water = new Color32(78, 168, 160, 255),
+                                 deep = new Color32(56, 128, 128, 255), cliff = OzVolcanic.MiniCliff, cliffDark = OzVolcanic.MiniCliffDark, plates = false };
             return new Pal { ground = new Color32(158, 120, 80, 255), road = new Color32(126, 124, 118, 255), water = new Color32(78, 168, 160, 255),   // Z level 2; turquoise water like the 3D river
                              deep = new Color32(56, 128, 128, 255), cliff = new Color32(190, 136, 86, 255), cliffDark = new Color32(158, 106, 64, 255), plates = false };
         }
@@ -144,14 +153,15 @@ namespace OpenZ
                 {
                     var cls = W.Map.ClassAt(tx, ty);
                     bool solid = cls == ZClass.Impassable;
-                    Color32 c = cls == ZClass.Road ? p.road : cls == ZClass.Water ? p.water : cls == ZClass.DeepWater ? p.deep : solid ? p.cliff : p.ground;
+                    bool lava = W.Map.LavaAt(tx, ty);
+                    Color32 c = lava ? OzVolcanic.MiniLava(W.Map.LavaKind(tx, ty)) : cls == ZClass.Road ? p.road : cls == ZClass.Water ? p.water : cls == ZClass.DeepWater ? p.deep : solid ? p.cliff : p.ground;
                     float n = 0.95f + 0.1f * Hash(tx, ty);
                     bool eN = solid && !IsSolid(tx, ty - 1), eS = solid && !IsSolid(tx, ty + 1), eW = solid && !IsSolid(tx - 1, ty), eE = solid && !IsSolid(tx + 1, ty);
                     for (int sy = 0; sy < k; sy++)
                         for (int sx = 0; sx < k; sx++)
                         {
                             Color32 q = c;
-                            if (solid && !p.plates && (((ty * k + sy) * k0 / k) % 3 == 0)) q = p.cliffDark;       // striated sandstone (reference rows)
+                            if (solid && !lava && !p.plates && (((ty * k + sy) * k0 / k) % 3 == 0)) q = p.cliffDark;       // striated sandstone (reference rows)
                             if (p.plates && (sx < ek || sy < ek) && cls == ZClass.Ground) q = Mul(q, 0.9f);        // riveted concrete plates
                             float f = n;
                             if ((eN && sy < ek) || (eS && sy >= k - ek) || (eW && sx < ek) || (eE && sx >= k - ek)) f *= 0.62f;   // crisp cliff outline
@@ -253,6 +263,7 @@ namespace OpenZ
             {
                 if (!o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;
                 if (!radar && o.Owner != hud.Player && o.Owner != Team.Neutral) continue;
+                if (OzFogOfWar.Covers(o)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no dot for a unit the fog hides (the soft cover let it show through)
                 bool selected = o.Owner == hud.Player && sel.Contains(o.Leader ?? o);
                 string rel = o.Kind == ZKind.Robot ? "Minimap/mm_unit" : o.Kind == ZKind.Vehicle ? "Minimap/mm_vehicle" : "Minimap/mm_cannon";
                 float sz = o.Kind == ZKind.Robot ? 5f : o.Kind == ZKind.Vehicle ? 6f : 5f;
@@ -346,20 +357,23 @@ namespace OpenZ
             // left: fly (Zod: press flies, drag follows, zplayer_events.cpp:149-162, 255-257) or the armed rally tool
             if (m.leftButton.wasPressedThisFrame && over && hud.PressCapture == OpenZHud.Capture.Ui && hud.HotButton == null)
             {
-                if (hud.Rally && hud.Rally.Armed) rallyPress = true;
+                if (OzRallyMinimap.LeftPress(hud.Rally && hud.Rally.Armed) == OzRallyMinimap.Press.Rally) rallyPress = true;   // 1.4 rally_minimap: the same rule, counted (Editor/OzV14RallyMinimapCount.cs)
                 else { dragFly = true; FlyTo(mp); }
             }
             if (dragFly) { if (m.leftButton.isPressed && !modal) { if ((mp - lastFly).sqrMagnitude > 1f && over) FlyTo(mp); } else dragFly = false; }
             if (rallyPress && m.leftButton.wasReleasedThisFrame)
             {
                 rallyPress = false;
-                if (!modal && ScreenToPx(mp, out var rp)) { hud.Rally.AddPoint(rp.x, rp.y, shift); PingOrder(rp); }
+                if (OzRallyMinimap.LeftRelease(true, hud.Rally && hud.Rally.Armed, modal) && ScreenToPx(mp, out var rp)) { hud.Rally.AddPoint(rp.x, rp.y, shift); PingOrder(rp); }   // 1.4 rally_minimap: only while the tool is still armed (as the map's tool)
             }
             // right release: orders with no target, or rally points
-            if (m.rightButton.wasReleasedThisFrame && hud.hudVisible && !modal && ScreenToPx(mp, out var px))
+            if (OzRightDrag.Click(m, OzRightDrag.SiteMinimap) && hud.hudVisible && !modal && ScreenToPx(mp, out var px))   // 1.4 RIGHT-DRAG SCROLL: a drag that ends here gives no order
             {
-                if (hud.input.Selection.Count > 0) { Order(px, kb, mp); PingOrder(px); }
-                else if (hud.Production && hud.Production.Building != null) { hud.Rally.AddPoint(px.x, px.y, shift); PingOrder(px); }
+                // 1.4 rally_minimap: selected units take their order first (as on the map); else the rally tool's factory (OpenZRallyPoints.Building:
+                // armed, the one it was armed for, the menu closed; else the open menu's) gets the point, Shift = one more point of a route
+                var act = OzRallyMinimap.RightClick(hud.input.Selection.Count, hud.Rally && hud.Rally.Building != null);
+                if (act == OzRallyMinimap.RightAct.Order) { Order(px, kb, mp); PingOrder(px); }
+                else if (act == OzRallyMinimap.RightAct.Rally) { hud.Rally.AddPoint(px.x, px.y, shift); PingOrder(px); }
             }
 
             if (Time.unscaledTime >= nextRefresh || (OzMotion.Now - zoneBlendAt < 0.35f)) { nextRefresh = Time.unscaledTime + 1f / Mathf.Max(1f, refreshHz); RefreshObjects(); }
@@ -382,6 +396,7 @@ namespace OpenZ
         {
             bool ctrl = kb != null && kb.ctrlKey.isPressed, alt = kb != null && kb.altKey.isPressed, shift = kb != null && kb.shiftKey.isPressed, z = kb != null && OzBindings.Held(OzAction.NearestOnly);   /* menu_exe_v1: bound key (Z) */
             var br = hud.Bridge; var pend = br?.Pending; var sel = hud.input.Selection;
+            if (pend != null) OzShuttleQueueInput.Click(pend.Count == 0, shift);                           // 1.2 item 9 (DV135): a Shift click here is a Shift click of the queue, as on the map (the units' current order, a flying shuttle's route go in front)
             foreach (var u in sel)
             {
                 var wp = ZWaypoint.Move(px.x, px.y, !(br?.NearHostiles(u) ?? false));
@@ -485,7 +500,7 @@ namespace OpenZ
         void DrawRally()
         {
             lineUsed = markUsed = 0;
-            var open = hud.Production ? hud.Production.Building : null;
+            var open = OzRallyMinimap.Factory(hud);                                                        // 1.4 rally_minimap: the armed rally tool's factory too (its menu is closed while it is armed)
             foreach (var b in W.Objects)
             {
                 if (!b.IsProducer || b.Owner != hud.Player) continue;
@@ -510,6 +525,25 @@ namespace OpenZ
                     var mk = NextMark(); mk.color = OzUi.A(OzUi.Amber, alpha);
                     mk.rectTransform.anchoredPosition = pts[i]; float s = i == pts.Count - 1 ? 8f : 6f; mk.rectTransform.sizeDelta = new Vector2(s, s);
                 }
+            }
+            // 1.4 rally_minimap: the rally tool armed and the pointer over the map picture: a ghost mark there and the dotted line to it from the
+            // route's end (or the door), as the map's ghost flag; amber 50 %, the line INK 30 %
+            Vector2Int gp = default;
+            bool ghost = OzRallyMinimap.Ghost(hud.Rally && hud.Rally.Armed, PointerOverMap) && open != null && ScreenToPx(hud.Pointer, out gp);
+            RallyGhostShown = ghost;
+            if (ghost)
+            {
+                var groute = hud.Rally.PendingFor(open) ?? (IReadOnlyList<ZWaypoint>)open.RallyPoints;
+                var gat = PxToLocal(gp.x, gp.y);
+                Vector2 gtail = groute.Count > 0 ? PxToLocal(groute[groute.Count - 1].x, groute[groute.Count - 1].y) : open.GetCreationMovePoint(out int gx, out int gy) ? PxToLocal(gx, gy) : gat;
+                float glen = Vector2.Distance(gtail, gat);
+                for (float s = 2f; s < glen - 2f; s += 4f)
+                {
+                    var d = NextLine(); d.color = OzUi.A(OzUi.Ink, 0.3f);
+                    d.rectTransform.anchoredPosition = Vector2.Lerp(gtail, gat, s / glen); d.rectTransform.sizeDelta = new Vector2(1.2f, 1.2f);
+                }
+                var gm = NextMark(); gm.color = OzUi.A(OzUi.Amber, 0.5f);
+                gm.rectTransform.anchoredPosition = gat; gm.rectTransform.sizeDelta = new Vector2(8f, 8f);
             }
             for (int i = lineUsed; i < linePool.Count; i++) linePool[i].gameObject.SetActiveFast(false);
             for (int i = markUsed; i < markPool.Count; i++) markPool[i].gameObject.SetActiveFast(false);

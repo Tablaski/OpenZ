@@ -12,15 +12,16 @@ using UnityEngine;
 namespace OpenZ.EditorTools
 {
     /// <summary>
-    ///  * non-development player (BuildOptions.None, checked), Windows x64, the Build Settings scenes (Intro, MainMenu, L02_Desert,
+    ///    project itself stays Mono2x, put back after every build), the Build Settings scenes (Intro, MainMenu, L02_Desert,
     ///    L17_CarPark all required; the intro ships but stays OFF by default, checked in OzIntroData.cs);
     ///  * scripting define OZ_RELEASE for this build only (extraScriptingDefines): every -ozdev / take / capture / cheat path is
     ///  * version from ONE source: OzVersion.Number + the build day (OzVersion.Tag) -> PlayerSettings.bundleVersion (build only),
     ///    output release\OpenZ_&lt;tag&gt;\OpenZ.exe (an older same-day folder is kept as OpenZ_&lt;tag&gt;_prev_&lt;yyyyMMdd_HHmm&gt;,
     ///    nothing deleted, the builds\ convention);
-    ///  * company name "OpenZ" for this build only (the project's own company name is a channel name: exe properties, app.info,
-    ///    registry and AppData folders must not carry it); PDB copy off; restored afterwards;
-    ///  * post-build: the Burst debug info (*_DoNotShip) and any *.pdb move to release\_symbols\OpenZ_&lt;tag&gt; (never shipped),
+    ///  * company name "OpenZ" set again for this build, in case the project's own ever differs (exe properties, app.info, registry
+    ///    and AppData folders carry this name only); PDB copy off; restored afterwards;
+    ///  * post-build: the Burst debug info (*_DoNotShip), IL2CPP's *_BackUpThisFolder_ButDontShipItWithYourGame and any *.pdb move to
+    ///    writes into GameAssembly.dll are overwritten with neutral text of the same length BEFORE the checksums and the leak check;
     ///    README.txt (player readme, no personal info) + LICENSES.txt at the top, then SHA256SUMS.txt over every shipped file;
     ///    the dev record goes NEXT to the folder (release\OpenZ_&lt;tag&gt;_BUILD_INFO.txt), not into it.
     /// </summary>
@@ -28,11 +29,17 @@ namespace OpenZ.EditorTools
     {
         public const string Define = "OZ_RELEASE";
         public const string ReleaseCompany = "OpenZ";
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L16_Jungle", "L17_CarPark" };
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" };
         internal static bool Building;
         /// <summary>A letter after the day tag for a second private test build on one day (release\OpenZ_&lt;tag&gt;&lt;suffix&gt;); empty by
         /// default. Only the folder names change: bundleVersion stays the day tag, so the in-game version text still reads the build day.</summary>
         public static string FolderSuffix = "";
+        /// <summary>
+        /// 1.3 settings), the test exe and the final one alike: ONE Windows download, no Mono Windows exe. A constant, so no bridge can
+        /// switch it off. The project keeps Mono2x on disk (the editor's own runs; the Mac and Linux builders require it): BuildFinal sets
+        /// IL2CPP for the build only and puts Mono2x back in its finally, also when the build fails or throws. (1.3 item 25 step b.)</summary>
+        public const bool Il2CppWindows = true;
+        static string Il2CppVariation => Path.Combine(EditorApplication.applicationContentsPath, "PlaybackEngines", "windowsstandalonesupport", "Variations", "win64_player_nondevelopment_il2cpp");
 
         static string JobRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "../../../.."));
 
@@ -46,10 +53,12 @@ namespace OpenZ.EditorTools
             // ---- pre-flight
             var scenes = Array.ConvertAll(Array.FindAll(EditorBuildSettings.scenes, e => e.enabled), e => e.path);
             var missing = RequiredScenes.Where(r => !scenes.Any(s => Path.GetFileNameWithoutExtension(s) == r)).ToArray();
-            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L16_Jungle, L17_CarPark must be enabled)");
+            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L07_Volcanic, L16_Jungle, L17_CarPark must be enabled)");
             string introSrc = Path.Combine(Application.dataPath, "OpenZ/Scripts/Intro/OzIntroData.cs");
             if (File.Exists(introSrc) && !File.ReadAllText(introSrc).Contains("PlayerPrefs.GetInt(Pref, 0) == 1"))
                 return Fail("the intro default is not OFF in OzIntroData.cs (expected PlayerPrefs.GetInt(Pref, 0) == 1)");
+            if (!Directory.Exists(Il2CppVariation))   // 1.4: IL2CPP only
+                return Fail("this editor has no Windows IL2CPP player (" + Il2CppVariation + "): add 'Windows Build Support (IL2CPP)' in the Hub, and the Visual Studio C++ build tools");
 
             DateTime now = DateTime.Now;
             string tag = OzVersion.Tag(now);
@@ -69,6 +78,9 @@ namespace OpenZ.EditorTools
             // ---- release settings (build only, restored in finally)
             string oldCompany = PlayerSettings.companyName, oldVersion = PlayerSettings.bundleVersion;
             string oldPdb = EditorUserBuildSettings.GetPlatformSettings("Standalone", "CopyPDBFiles");
+            var oldBackend = PlayerSettings.GetScriptingBackend(NamedBuildTarget.Standalone);                 // 1.4: recorded; Mono2x is what goes back after the build
+            var oldIlConfig = PlayerSettings.GetIl2CppCompilerConfiguration(NamedBuildTarget.Standalone);
+            var oldStrip = PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.Standalone);
             PlayerPrefs.SetInt("oz_testmode", 0); PlayerPrefs.SetInt("oz_gate", 0); PlayerPrefs.Save();
             Debug.Log("[OpenZ Release] " + OpenZBuild.IncludeRuntimeShaders());
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow; PlayerSettings.defaultIsNativeResolution = true; PlayerSettings.allowFullscreenSwitch = true;
@@ -93,6 +105,10 @@ namespace OpenZ.EditorTools
                 PlayerSettings.companyName = ReleaseCompany;
                 PlayerSettings.bundleVersion = tag;
                 EditorUserBuildSettings.SetPlatformSettings("Standalone", "CopyPDBFiles", "false");
+                // code is stripped: link.xml keeps it whole too). Set inside the try: the finally below puts Mono2x back whatever happens.
+                PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.IL2CPP);
+                PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.Standalone, Il2CppCompilerConfiguration.Release);
+                PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.Minimal);
                 Building = true;
                 rep = BuildPipeline.BuildPlayer(opts);
             }
@@ -103,6 +119,11 @@ namespace OpenZ.EditorTools
                 PlayerSettings.companyName = oldCompany;
                 PlayerSettings.bundleVersion = oldVersion;
                 EditorUserBuildSettings.SetPlatformSettings("Standalone", "CopyPDBFiles", string.IsNullOrEmpty(oldPdb) ? "false" : oldPdb);
+                // 1.4: Mono2x again on disk (the editor's own runs; the Mac / Linux builders refuse anything else), also after a failed or
+                // thrown build. Mono2x, not oldBackend: a project that an interrupted earlier build left on IL2CPP is put right here too.
+                PlayerSettings.SetScriptingBackend(NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+                PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.Standalone, oldIlConfig);
+                PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, oldStrip);
                 AssetDatabase.SaveAssets();
             }
 
@@ -114,9 +135,17 @@ namespace OpenZ.EditorTools
             info.AppendLine($"time: {now:yyyy-MM-dd HH:mm}  duration: {s.totalTime}");
             info.AppendLine($"errors: {s.totalErrors}, warnings: {s.totalWarnings}");
             info.AppendLine($"options: {s.options} (non-development), define {Define}, company {ReleaseCompany}, bundleVersion {tag} (both restored to '{oldCompany}' / '{oldVersion}')");
+            var nowBackend = PlayerSettings.GetScriptingBackend(NamedBuildTarget.Standalone);                 // 1.4: IL2CPP only
+            info.AppendLine("scripting: IL2CPP (Release, Minimal stripping); the project setting after the build: " + nowBackend
+                            + (oldBackend == ScriptingImplementation.Mono2x ? "" : " (it was " + oldBackend + " before this build: put back to Mono2x)"));
             info.AppendLine("scenes: " + string.Join(", ", scenes.Select(Path.GetFileNameWithoutExtension)));
             info.AppendLine("output: " + dir);
             if (kept != null) info.AppendLine("older same-day release kept: " + kept);
+            if (nowBackend != ScriptingImplementation.Mono2x)   // 1.4: the editor and the Mac / Linux builders need Mono2x on disk
+            {
+                File.WriteAllText(dir + "_BUILD_INFO.txt", info.ToString());
+                return Fail("the project's scripting backend is " + nowBackend + " after the build, not Mono2x: set it back in Player Settings before anything else; record " + dir + "_BUILD_INFO.txt");
+            }
             if (s.result != BuildResult.Succeeded || (s.options & BuildOptions.Development) != 0)
             {
                 File.WriteAllText(dir + "_BUILD_INFO.txt", info.ToString());
@@ -147,6 +176,10 @@ namespace OpenZ.EditorTools
             info.AppendLine($"debug files moved out of the release: {moved} -> {sym}");
 
             info.AppendLine(ScrubPdbPaths(dir));
+            string form = Il2CppForm(dir);                                       // 1.4: IL2CPP only, nothing of a Mono player in the folder
+            info.AppendLine("IL2CPP form: " + form);
+            if (form != "ok") throw new InvalidOperationException("the folder is not a clean IL2CPP build: " + form);
+            info.AppendLine(ScrubIl2CppPaths(dir));                              // before SHA256SUMS.txt and the quick leak check
             File.WriteAllText(Path.Combine(dir, "README.txt"), PlayerReadme(now).Replace("\n", "\r\n"), new UTF8Encoding(false));
             string lic = Path.Combine(dir, "OpenZ_Data", "StreamingAssets", "LICENSES.txt");
             if (File.Exists(lic)) File.Copy(lic, Path.Combine(dir, "LICENSES.txt"), true);
@@ -165,7 +198,7 @@ namespace OpenZ.EditorTools
                 File.WriteAllText(dir + "_BUILD_INFO.txt", info.ToString());
                 return Fail("post-build step threw " + e.GetType().Name + ": " + e.Message + "; record " + dir + "_BUILD_INFO.txt");
             }
-            info.AppendLine("next: python tools/scan_build_privacy.py \"" + dir + "\"  and  python tools/check_defaults.py --build \"" + dir + "\", then the 2-minute smoke test");
+            info.AppendLine("next: the release chain's post-build (scrub_authtoken.py, scrub_il2cpp_paths as the check, scan_build_privacy.py with the engine's own hits accepted by name, check_defaults.py --build), then the 2-minute smoke test");
             File.WriteAllText(dir + "_BUILD_INFO.txt", info.ToString());
             Debug.Log("[OpenZ Release] " + info);
             return info.ToString();
@@ -177,11 +210,13 @@ namespace OpenZ.EditorTools
         public static string ScrubPdbPaths(string dir)
         {
             int files = 0, recs = 0;
-            var roots = new[] { Path.Combine(dir, "OpenZ_Data", "Managed"), Path.Combine(dir, "OpenZ_Data", "Plugins") };
+            var roots = new[] { Path.Combine(dir, "OpenZ_Data", "Managed"), Path.Combine(dir, "OpenZ_Data", "Plugins"), dir };
             foreach (var root in roots)
             {
                 if (!Directory.Exists(root)) continue;
-                foreach (var f in Directory.GetFiles(root, "*.dll", SearchOption.AllDirectories))
+                var dlls = root == dir ? Directory.GetFiles(dir, "GameAssembly.dll", SearchOption.TopDirectoryOnly)   // 1.3 item 25 step b: an IL2CPP build's game code (ours; Unity's own signed binaries beside it stay untouched)
+                                       : Directory.GetFiles(root, "*.dll", SearchOption.AllDirectories);
+                foreach (var f in dlls)
                 {
                     byte[] d = File.ReadAllBytes(f); int changed = 0;
                     for (int i = 0; i + 24 < d.Length; i++)
@@ -201,6 +236,72 @@ namespace OpenZ.EditorTools
             }
             return $"PDB paths scrubbed: {recs} record(s) in {files} dll(s)";
         }
+
+        /// <summary>1.4: the folder must be an IL2CPP player: GameAssembly.dll and the metadata there, nothing of a Mono player.</summary>
+        static string Il2CppForm(string dir)
+        {
+            var bad = new List<string>();
+            if (!File.Exists(Path.Combine(dir, "GameAssembly.dll"))) bad.Add("no GameAssembly.dll");
+            if (!File.Exists(Path.Combine(dir, "OpenZ_Data", "il2cpp_data", "Metadata", "global-metadata.dat"))) bad.Add("no OpenZ_Data/il2cpp_data/Metadata/global-metadata.dat");
+            if (Directory.Exists(Path.Combine(dir, "OpenZ_Data", "Managed"))) bad.Add("OpenZ_Data/Managed is there");
+            if (Directory.Exists(Path.Combine(dir, "MonoBleedingEdge"))) bad.Add("MonoBleedingEdge is there");
+            return bad.Count == 0 ? "ok" : string.Join("; ", bad);
+        }
+
+        /// <summary>
+        /// (the error texts of the engine's libil2cpp, ...\Editor\Data\il2cpp\libil2cpp\...) and the project folder (the debug file
+        /// record, if ScrubPdbPaths left one). Each prefix, worked out at run time (this file names no folder), is overwritten in place by
+        /// neutral text of the SAME length: underscores, then its last folder names (the file keeps its size and every offset; the rest of
+        /// each text stays), in UTF-8 and UTF-16. The release chain's scrub_il2cpp_paths_1_4.py writes the same bytes and runs again after
+        /// the build as the check. GameAssembly.dll and il2cpp_data/Metadata/global-metadata.dat only; Unity's own binaries stay.</summary>
+        public static string ScrubIl2CppPaths(string dir)
+        {
+            string editorData = Path.GetFullPath(EditorApplication.applicationContentsPath).TrimEnd('\\', '/');
+            string project = Path.GetFullPath(Path.Combine(Application.dataPath, "..")).TrimEnd('\\', '/');
+            var prefixes = new[]
+            {
+                new[] { editorData + "\\", "\\" + Path.GetFileName(Path.GetDirectoryName(editorData)) + "\\" + Path.GetFileName(editorData) + "\\" },
+                new[] { project + "\\", "\\" + Path.GetFileName(project) + "\\" },
+            };
+            var parts = new List<string>();
+            foreach (var rel in new[] { "GameAssembly.dll", "OpenZ_Data/il2cpp_data/Metadata/global-metadata.dat" })
+            {
+                string p = Path.Combine(dir, rel);
+                if (!File.Exists(p)) { parts.Add(rel + " not there"); continue; }
+                byte[] d = File.ReadAllBytes(p); int n = 0;
+                foreach (var pr in prefixes) n += SameLengthScrub(d, pr[0], pr[1]);
+                if (n > 0) File.WriteAllBytes(p, d);
+                parts.Add(rel + " " + n);
+            }
+            return "IL2CPP paths scrubbed (same length, before the checksums and the leak check): " + string.Join(", ", parts) + " prefix(es)";
+        }
+
+        // >>> same-length scrub (pure: no Unity API; the release kit's proof compiles this block alone)
+        /// <summary>Overwrites every copy of prefix in d (ASCII letters in either case; UTF-8 and UTF-16 LE) with underscores and then
+        /// tail, the same number of bytes. Returns how many copies it overwrote.</summary>
+        public static int SameLengthScrub(byte[] d, string prefix, string tail)
+        {
+            int n = 0;
+            string neutral = new string('_', Math.Max(0, prefix.Length - tail.Length)) + tail;
+            foreach (var enc in new Encoding[] { new UTF8Encoding(false), new UnicodeEncoding(false, false) })
+            {
+                byte[] pat = enc.GetBytes(prefix), rep = enc.GetBytes(neutral);
+                if (pat.Length == 0 || rep.Length != pat.Length) continue;          // a path with other letters: never another length
+                byte first = LowerAscii(pat[0]);
+                for (int i = 0; i + pat.Length <= d.Length; i++)
+                {
+                    if (LowerAscii(d[i]) != first) continue;
+                    int k = 1;
+                    while (k < pat.Length && LowerAscii(d[i + k]) == LowerAscii(pat[k])) k++;
+                    if (k < pat.Length) continue;
+                    Buffer.BlockCopy(rep, 0, d, i, rep.Length); n++; i += pat.Length - 1;
+                }
+            }
+            return n;
+        }
+
+        static byte LowerAscii(byte c) { return c >= (byte)'A' && c <= (byte)'Z' ? (byte)(c + 32) : c; }
+        // <<< same-length scrub
 
         static string Fail(string why) { Debug.LogError("[OpenZ Release] NOT BUILT: " + why); return "FAILED: " + why; }
 
@@ -232,9 +333,10 @@ namespace OpenZ.EditorTools
         static string QuickLeakCheck(string dir, string projectCompany)
         {
             // project's own company name), so this source file carries no dev folder or channel name itself
-            var terms = new List<string> { Path.GetFileName(Path.GetDirectoryName(JobRoot)), Environment.UserName, projectCompany };
+            var terms = new List<string> { Path.GetFileName(Path.GetDirectoryName(JobRoot)), Environment.UserName, projectCompany == ReleaseCompany ? null : projectCompany };   // the game's own name is no leak
             var hits = new List<string>();
-            foreach (var rel in new[] { "OpenZ_Data/Managed/Assembly-CSharp.dll", "OpenZ_Data/app.info", "OpenZ.exe" })
+            foreach (var rel in new[] { "OpenZ_Data/Managed/Assembly-CSharp.dll", "OpenZ_Data/app.info", "OpenZ.exe",
+                                        "GameAssembly.dll", "OpenZ_Data/il2cpp_data/Metadata/global-metadata.dat" })   // (the last two: an IL2CPP build only, 1.3 item 25 step b)
             {
                 string p = Path.Combine(dir, rel);
                 if (!File.Exists(p)) continue;
@@ -254,7 +356,7 @@ namespace OpenZ.EditorTools
 $@"{OzVersion.Display(d)}
 ==============================
 A faithful fan tribute remake of Z by The Bitmap Brothers (1996), made for its 30th anniversary.
-Free and non-commercial. Three maps: Z level 2 (desert), Z level 16 (jungle) and Z level 17 ""Car Park"" (city).
+Free and non-commercial. Four maps: Z level 2 (desert), Z level 7 (volcano), Z level 16 (jungle) and Z level 17 ""Car Park"" (city).
 
 START
 - Run OpenZ.exe. The game opens full screen at your screen's resolution (Alt+Enter or OPTIONS > FULLSCREEN for a window).
@@ -263,39 +365,58 @@ START
 - CONTROLS in the main menu lists every key and lets you change them. OPTIONS holds music, screen and game settings.
 
 SYSTEM
-- Windows 10 / 11, 64-bit, a DirectX 12 graphics card. About 4 GB on disk.
+- Windows 10 / 11, 64-bit, a DirectX 12 graphics card. About 5 GB on disk.
 - Settings are stored per Windows user. A log for bug reports is written to
   %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\Player.log
 - If the game crashes or is closed by force, the log of that session is kept at the next start (the last 10) in
   %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\CrashLogs
   Please attach the newest file from there to a bug report. The game itself sends nothing anywhere.
 
-NEW IN 1.1
-- A third map: Z level 16, the Jungle. Swamps only robots can cross, crocodiles, rain, ruins, rope bridges and trees you can shoot down.
-- The Jungle has its own spoken briefing on the sun loungers and its own win and lose scenes.
-- Alan & Brad join your army on the Jungle as a hero squad of two: tough, self-repairing, with grenades.
-- Sniper headshots: now and then a Sniper's hit kills a robot at once.
-- Grenades: a slightly wider blast and 15% more damage.
-- Pyros set buildings and bridges on fire: hold Ctrl when you order the attack.
-- The shuttle: on the Jungle (Easy and Medium), Alan and Brad's shuttle flies one squad over swamps, cliffs and trees and lands on any clear spot.
-- Jeeps drive at big robots to run them over, then drive back; your orders always come first.
-- No more empty vehicles blocking a bridge or a door: drivers can't be shot out there.
-- FRIENDLY UNITS OVERLAP (OPTIONS, off by default): units pass through each other, as in the original.
-- FAST UNITS PASS SLOW ONES (OPTIONS, off by default): faster units overtake slower ones.
-- The CPU can gather a strike group and attack with it as one body (OPTIONS switches it off), and builds a wider mix of units.
-- HIGH SCORES (key T on the map screen): your ten best victories per map and difficulty, each with a score and an army rank. Kept on your computer only.
-- Finished guns wait as READY icons beside their building: click to place, or drag onto the map.
-- A selected gun's range ring shows where it cannot hit behind rocks, cliffs and buildings.
-- Drag the panels of the in-game interface where you want them; the U key hides and shows the lower panels.
-- FREE CAMERA (OPTIONS, off by default): hold the middle mouse button to turn and tilt the camera.
-- OPTIONS has a RESOLUTION setting for slower computers. The default is still your screen's own resolution.
-- MEDIUM and LOW graphics quality are lighter on slower computers; HIGH, the default, is unchanged.
-- A FRAME RATE LIMIT option (30 or 60), and a one-time tip when the game runs slowly.
-- CHANGES & UPDATES in the main menu lists every change.
+NEW IN 1.4
+New:
+- MAYHEM, a fourth difficulty after HARD: the computer plays as on HARD, and the battlefield starts under the fog of war, a drifting cloud that opens wherever your units, buildings and flags have been. Explored ground stays open for the whole match, and enemies in unexplored ground stay hidden, on the minimap and under the pointer too. The cloud is drawn for each kind of planet, and a captured radar opens a wide circle in it. MAYHEM keeps its own high scores.
+- On MAYHEM the enemy also builds 10 % faster: every unit and gun in its fort and factories is ready 10 % sooner than the same one in yours.
+- EXIT DRIVER (the button above the unit panel, or E): the driver of a tank or the mech springs out of the hatch with one quick flip and lands on his feet beside it. For 30 seconds nobody climbs in by himself, so you can right-click the robot you want onto it as the new driver.
+- A tank or the mech whose driver jumps out or is sniped stops dead at once and its guns fall silent: no driving, turning or firing until someone climbs back in.
+- A tank or the mech with a driver who is not a grunt steps aside from incoming shells a little faster. Grunt drivers and other vehicles dodge as before.
+- Rally points from the minimap: after SET RALLY, click the minimap to set the rally point there; Shift with clicks makes a route.
+- OPTIONS, GAME tab: RANGE RINGS ON SELECTED UNITS. FADE (the default) shows the firing-range rings for about 2 seconds after you select, as before; ALWAYS keeps them on while your units stay selected.
+- REPEAT in every build menu has three answers for when the list runs out: OFF (the factory goes idle), LAST (the last unit keeps being built, the default as before) or ALL (the whole list loops).
+- OPTIONS, GAME tab: SCROLL SPEED (50 to 300 %), RIGHT-DRAG SCROLL (hold the right button and drag to move the map) and MIDDLE MOUSE (turn the view, drag the map, or drag the map and turn it with Alt) in place of FREE CAMERA. The defaults play as before.
+- Robots standing near the enemy fort's door with no orders run inside by themselves and finish it, as soon as no enemy guards the door. Your own orders and HOLD POSITION come first.
+- UNIT EDITOR: X10 and X20 drop counts for setting up big battles fast, and the NUKE grows a new glowing mushroom cloud, with dust that rolls out in soft puffs of many sizes. Its column of fire is gone before the cloud starts to fade.
+Changed:
+- The game runs faster: the same battles take about 10 to 20 % less work from your computer, so busy views keep a higher frame rate.
+- One Windows download for everyone: nothing to choose.
+- The gatling reaches 10 % farther and each shot does 15 % more damage. It fires as fast as before.
+- The laser robot's gun glows green for a moment before each shot, and its beam flies a little quicker and looks crisper. Damage, range and fire rate are as before.
+- General EvilZod turns to face his target before he fires. His power dash recharges twice as fast, and when he is shot at from too far away to fire back, he dashes at the nearest enemy by himself.
+- Enemy health bars show only while you own a standing radar, like the enemy dots on the minimap. Your own units keep theirs.
+- The dramatic music comes in as soon as a fort is really under fire, even from a single tank, and it stands out clearly from the battle songs.
+- A right-click on the enemy fort's door, the ground in front of its gate or its walls and roof sends your selected units in: a much bigger area to click.
+- STOP sits at the end of the build progress bar, beside the unit it stops, and a small X beside SET RALLY clears the rally points (it was the CLEAR button).
+- The map lags behind less when the game slows down for a moment.
+- Level 7's card on the battlefield screen plays its familiar volcano flight, recorded again sharp and smooth, and the loading screen now gets level 7 ready before its first briefing.
+- MAYHEM: HEAD START's extra vehicles are locked off, as MAYHEM was too easy with them.
+- MAYHEM: enemies and empty vehicles come into view smoothly at the edge of the fog instead of popping up.
+- General EvilZod's win lines after a kill come much less often.
+- After jumping out of a vehicle, the driver always brings his gun up quickly once he lands, whatever kind of robot he is.
+- No unit, not even a fort or the computer's units, keeps shooting at a vehicle once its crew is out.
+- A robot killed by a rocket falls by his death only, without the hit wobble fighting it.
+Fixed:
+- Radar voices: no ""RADAR ACTIVATED"" for a ruined radar, ""Radar lost."" only when your last radar is really gone, and voice lines no longer talk over each other.
+- A turret blown off a tank or a gun still spins through the air, then lies still where it lands: no more hops or slides up a slope.
+- Level 7: a lava pterodactyl that swoops down to attack where you can see it always screams, with one of three new screams, never the same one twice in a row.
+- UNIT EDITOR: EvilZod is offered only for the blue side, Alan and Brad only for the red side.
+- The main menu shows the right version number.
+- The blurred background of the level selection is now smooth and soft: no more big flickering blocks.
+- MAYHEM: after the briefing the fog of war eases in smoothly instead of snapping in.
+- The rank star in the unit panel no longer stays huge after the HUD has been hidden.
+- CHANGES & UPDATES in the main menu lists every change, those of 1.3, 1.2, 1.1 and 1.0 included, and opens with the main additions of 1.4.
 
 EXPERIMENTAL (provided as is, not tried on real devices: tell us how it works for you)
 - Touch screen and gamepad input (the TOUCH and GAMEPAD row on the ADVANCED tab of OPTIONS).
-- A Mac build, as a separate download.
+- Mac and Linux versions, as separate downloads.
 
 FILES
 - LICENSES.txt: the licence texts (GPL-3.0, the Zod Engine notices, the SIL Open Font License of the Inter Tight font).
@@ -304,7 +425,6 @@ FILES
 
 NOTES
 - OpenZ is an unofficial, free, non-commercial fan remake, not affiliated with or endorsed by Rebellion.
-  Z (c) Rebellion. Originally created by The Bitmap Brothers (1996).
 - No copyrighted material is used: every asset was made from scratch. The game rules follow the open-source Zod Engine (GPL-3.0).
 - The program code is under the GNU GPL v3; the art, sound and all other assets are under the Creative Commons
   Attribution-NonCommercial-ShareAlike 4.0 International licence (CC BY-NC-SA 4.0). See LICENSES.txt and LICENSE_ASSETS.txt.

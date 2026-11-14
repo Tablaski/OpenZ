@@ -66,7 +66,7 @@ namespace OpenZ
                 v = landingVoice.Quiet("another landing's voice was just heard: one voice for both");   // two ships landing together: ONE voice, never "Touchdown!" then Rachel
             else
             {
-                bool rachelCan = LandingOnScreen() && AudioDirector.AnnounceWouldQueue(RachelLandingId);
+                bool rachelCan = !BigCrashVoiceIsRobots && LandingOnScreen() && AudioDirector.AnnounceWouldQueue(RachelLandingId);   // 1.3 item 7: Rachel keeps her chance on a big crash (its banter follows her line); BigCrashRobotsOnly on = the robots' voice only
                 bool robotCan = AudioDirector.SayWouldPlay(robotId);
                 v = landingVoice.Choose(now, rachelCan, robotCan);
             }

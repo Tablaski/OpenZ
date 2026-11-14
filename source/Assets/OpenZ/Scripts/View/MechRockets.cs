@@ -52,6 +52,7 @@ namespace OpenZ
             var t = Find(av.transform, MuzzlesL[k % 2]);
             if (!t) return fallback;
             if (g) For(g).Kick(Find(av.transform, "MechRocketPod_L"));
+            OpenZFxPlayer.NoteTube(t, Vector3.back, FxWeapon.Rocket);                                 // k92, item 135: rocket 1 leaves this pod tube's mouth along the tube (View/OpenZFxPlayer.K92.cs)
             return t.position;
         }
 
@@ -62,7 +63,7 @@ namespace OpenZ
             int k = shotIndex.TryGetValue(a.Id, out var n) ? n : 0; shotIndex[a.Id] = k + 1;
             float speed = Mathf.Max(0.25f, g.gameSpeed);
             var off = Random.insideUnitCircle * TwinSpread;
-            var p = to + new Vector3(off.x, 0f, off.y); p.y = OzShuttleAim.SalvoEndY(to, p, g.GroundY(p.x, p.z) + 0.25f);   // DV118: beside the flying shuttle
+            var p = to + new Vector3(off.x, 0f, off.y); p.y = ShotLine.TwinY(to, p, g.GroundY(p.x, p.z) + 0.25f);   // DV118: beside the flying shuttle
             For(g).launches.Add(new Pending { at = Time.time + Random.Range(GapMin, GapMax) / speed, flight = Mathf.Max(0.05f, delay), shooter = a.Id,
                                               tube = k % 2, to = p, id = (a.Id * 7919 + k * 131 + 17) & 0x3fffffff });
         }
@@ -85,7 +86,9 @@ namespace OpenZ
             if (o == null || o.Destroyed || o.Owner == Team.Neutral) return;                          // killed / driver sniped between the two
             var m = Find(v.transform, MuzzlesR[l.tube]);
             var from = m ? m.position : v.MuzzlePos();
+            if (m) OpenZFxPlayer.NoteTube(m, Vector3.back, FxWeapon.Rocket);                          // k92, item 135: its twin leaves the right pod tube's mouth along the tube
             Kick(Find(v.transform, "MechRocketPod_R"));
+            ShotLine.Cut(from, ref l.to, ref l.flight, FxWeapon.Rocket, null, o.AttackObject);        // bullets_straight: the twin ends on what it meets too, its landing with it
             float flight = l.flight;
             LegacyMatch.Launch(o, "medium", from, l.to, flight, FxManager.I);
             LegacyMatch.LaunchSound("medium", from, l.shooter, CombatAudio.I);

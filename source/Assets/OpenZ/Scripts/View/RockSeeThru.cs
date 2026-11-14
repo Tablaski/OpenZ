@@ -166,7 +166,7 @@ namespace OpenZ
             if (Time.unscaledTime >= rescanAt)
             {
                 rescanAt = Time.unscaledTime + 3f;
-                int n = FindObjectsByType<RockPillar>(FindObjectsSortMode.None).Length;
+                int n = OzViewScans.RockPillarCount();                                          // 1.4 speed-up 4: the same count from a registry (View/OzViewScans.cs)
                 if (n != pillarCount) Scan();
             }
             if (g == null || g.World == null || !cam || pillars.Count == 0) { if (ActiveCount != 0 || weight.Count != 0) { weight.Clear(); lastPos.Clear(); Clear(); } return; }
@@ -174,7 +174,7 @@ namespace OpenZ
 
             var camPos = cam.transform.position;
             cand.Clear(); wanted.Clear();
-            foreach (var kv in g.Views)
+            foreach (var kv in g.LiveViews)
             {
                 var v = kv.Value;
                 if (!v || !v.isActiveAndEnabled || v.Dying) continue;

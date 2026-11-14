@@ -66,15 +66,15 @@ namespace OpenZ.Sim
             {
                 if (u.Owner != v.Owner || !u.IsMobile || u.Destroyed || u.KillAt >= 0 || u.IsFortDefender || u.Stunned || u.HoldPosition) continue;   // DV68: holding units stay
                 if (CalmStart(u.Owner)) continue;                                                     // DV69 calm start: no walking off to help
-                if (u.Waypoints.Count > 0 || u.AttackObject != null || u.MoveSpeed <= 0 || !u.CanAttack() || !u.CanAttackObject(a)) continue;
+                if (((u.Waypoints.Count > 0 || u.AttackObject != null) && !u.TowerHelpAfterStep(a)) || u.MoveSpeed <= 0 || !u.CanAttack() || !u.CanAttackObject(a)) continue;   // DV153: a unit only stepping aside (a shell's sidestep, a nudge, a rock blasted on the way) answers a fort tower gun after the step (Sim/ZObject.TowerAnswer.cs)
                 bool mate = u == sq || u.Leader == sq;
                 int agro = u.AttackRadius + S.agro_distance;
                 if (!mate && !ZObject.Within(u.CenterX, u.CenterY, v.CenterX, v.CenterY, agro)) continue;
-                if (!u.CanSee(a) || u.PathUnreachable(a)) continue;
+                if (!u.CanSee(a) || u.SkipUnreachable(a)) continue;                                  // DV153: a fort tower gun in reach is never dropped as 'unreachable' (Sim/ZObject.TowerAnswer.cs)
                 double dx = u.CenterX - a.CenterX, dy = u.CenterY - a.CenterY;
                 int leash = Math.Max(0, (int)Math.Ceiling(Math.Sqrt(dx * dx + dy * dy)) - agro) + HelpLeashExtra;
-                u.Waypoints.Add(new ZWaypoint { mode = WpMode.Agro, refId = a.Id, x = a.CenterX, y = a.CenterY, leash = leash });
-                HelpOrders++;
+                u.Waypoints.Add(new ZWaypoint { mode = u.ChaseMode(a), refId = a.Id, x = a.CenterX, y = a.CenterY, leash = leash });   // DV153: a fort tower gun out of reach: an ATTACK to a spot with a clear shot; else Zod's AGRO
+                HelpOrders++; if (u.Waypoints.Count > 1 || u.AttackObject != null) TowerStepHelps++;   // DV153 statistics: the chase went in behind a step aside
             }
         }
     }

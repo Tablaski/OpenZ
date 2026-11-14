@@ -251,6 +251,7 @@ namespace OpenZ
             if (!OzKit.Available) Track.color = OzUi.A(OzUi.GM950, 0.92f);
             if (lost) Lost = MakeFill("Lost", "lost", OzUi.HpLost);
             Fill = MakeFill("Fill", fill, FallbackColor(fill));
+            if (OzKit.Available) Fill.color = fill == "health" ? HealthTint : Color.white;   // 1.2 item 8: a little darker green (a player asked)
             if (edge) { Edge = Hud.Kit(Root, "Edge", "Bars/bar_edge", new OzRect(0, 0, 6, 10), null, Image.Type.Simple); Edge.rectTransform.anchorMin = new Vector2(0, 0); Edge.rectTransform.anchorMax = new Vector2(0, 1); Edge.rectTransform.pivot = new Vector2(0.5f, 0.5f); Edge.rectTransform.offsetMin = new Vector2(-3, 1); Edge.rectTransform.offsetMax = new Vector2(3, -1); Edge.enabled = false; }
             if (ticks != null) { Ticks = Hud.Kit(Root, "Ticks", ticks, new OzRect(0, 0, 10, 10), null, Image.Type.Simple); Ticks.rectTransform.Fill(); }
         }
@@ -268,14 +269,16 @@ namespace OpenZ
             return img;
         }
 
-        static Color FallbackColor(string k) => k == "amber" ? OzUi.Amber : k == "red" ? OzUi.RedHi : k == "blue" ? OzUi.BlueHi : k == "health_low" ? OzUi.Alert
+        /// <summary></summary>
+        public static readonly Color HealthTint = new Color(0.92f, 0.92f, 0.92f, 1f);
+        static Color FallbackColor(string k) => k == "health" ? OzUi.HpBar : k == "amber" ? OzUi.Amber : k == "red" ? OzUi.RedHi : k == "blue" ? OzUi.BlueHi : k == "health_low" ? OzUi.Alert
                                                : k == "signal" ? OzUi.Signal : k == "neutral" ? OzUi.Neutral : k == "lost" ? OzUi.HpLost : OzUi.Go;
 
         /// <summary>Swap the fill sprite (health -> health_low under 30 %).</summary>
         public void SetKind(string k)
         {
             if (k == kind) return; kind = k;
-            if (OzKit.Available) { var s = OzKit.GetSprite("Bars/bar_fill_" + k); if (s != null) Fill.sprite = s; }
+            if (OzKit.Available) { var s = OzKit.GetSprite("Bars/bar_fill_" + k); if (s != null) Fill.sprite = s; Fill.color = k == "health" ? HealthTint : Color.white; }
             else Fill.color = FallbackColor(k);
         }
 
@@ -481,8 +484,8 @@ namespace OpenZ
         public static readonly string[] VehiclePortraitFolders = { "OpenZ/UI/PortraitsVehicles", "OpenZ/UI/portraits_vehicles" };
         static Dictionary<string, Texture2D> vehiclePortraits;
 
-        static readonly string[] Order = { "missile_launcher", "missile_cannon", "gatling", "howitzer", "crane", "apc", "jeep", "heavy", "medium", "light", "gun",
-                                           "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "shuttle" };   // electrobot_v1: portrait_electrobot_* is its own token; DV118: portrait_shuttle_*
+        static readonly string[] Order = { "missile_launcher", "missile_cannon", "gatling", "howitzer", "crane", "apc", "jeep", "heavy", "medium", ZMTank.Type, "light", "gun",   // DV145: icon_mtank_* / portrait_mtank_* ("mtank" never contains "medium")
+                                           "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "shuttle", ZEvilZod.Type };   // electrobot_v1: portrait_electrobot_* is its own token; DV118: portrait_shuttle_*
         static readonly (string alias, string type)[] Aliases =
         {
             ("mobile_missile", "missile_launcher"), ("missilelauncher", "missile_launcher"), ("missile_launch", "missile_launcher"), ("rocket_launcher", "missile_launcher"), ("mlrs", "missile_launcher"),
@@ -511,6 +514,9 @@ namespace OpenZ
             foreach (var f in folders)
                 foreach (var t in Resources.LoadAll<Texture2D>(f))
                 {
+#if UNITY_EDITOR
+                    if (UnityEditor.AssetDatabase.GetAssetPath(t).Contains("/Editor/")) continue;                 // an editor-only picture (a package's Editor/Resources/Icons) is never in the game: the editor reads what the game has
+#endif
                     var (type, team) = Classify(t.name); if (type == null) continue;
                     var key = team == null ? type : type + "|" + team;
                     if (!d.ContainsKey(key)) d[key] = t;
@@ -523,9 +529,14 @@ namespace OpenZ
             string tn = TeamColors.Key(team);
             if (d.TryGetValue(type + "|" + tn, out var t)) return t;
             if (d.TryGetValue(type, out t)) return t;
-            if (d.TryGetValue(type + "|red", out t)) return t;                  // any variant beats the placeholder
-            return d.TryGetValue(type + "|blue", out t) ? t : null;
+            bool blueFirst = team == Team.Neutral && HumanDrawnBlue;          // 1.2 item 66: an empty (neutral) vehicle / gun in the human's paint
+            if (d.TryGetValue(type + (blueFirst ? "|blue" : "|red"), out t)) return t;   // any variant beats the placeholder
+            return d.TryGetValue(type + (blueFirst ? "|red" : "|blue"), out t) ? t : null;
         }
+
+        /// <summary>1.2 item 66: the human's side is drawn blue (PLAY AS BLUE, or YOUR TEAM COLOUR = blue). An empty (neutral) vehicle's or
+        /// gun's picture then takes its blue variant first, as it takes the red one while the human is drawn red.</summary>
+        public static bool HumanDrawnBlue => OzPlayBlue.Active || TeamColors.Swap;
 
         public static Texture2D Portrait(string robotType, Team team)
         {
@@ -535,6 +546,7 @@ namespace OpenZ
 
         public static Texture2D Icon(string type, Team team)
         {
+            var hv = OzHeavyTank.Art("icon", type, team); if (!hv) hv = OzV2Units.Art("icon", type, team); if (hv) return hv;   // 1.2 item 117: the heavy tank v2's own production picture (View/OzHeavyTank.cs); 1.2 v2 units: the light tank v2's (View/OzV2Units.cs)
             portraits ??= Load(PortraitFolders); icons ??= Load(IconFolders);
             if (ZBuildLists.IsRobot(type)) return Portrait(type, team);
             return Find(icons, type, team) ?? Find(portraits, type, team);
@@ -545,6 +557,7 @@ namespace OpenZ
         public static Texture2D VehiclePortrait(string type, Team team)
         {
             if (string.IsNullOrEmpty(type) || ZBuildLists.IsRobot(type) || team == Team.Neutral) return null;
+            var hp = OzHeavyTank.Art("portrait", type, team); if (!hp) hp = OzV2Units.Art("portrait", type, team); if (hp) return hp;   // 1.2 item 117: the heavy tank v2's own unit card picture; 1.2 v2 units: the light tank v2's
             vehiclePortraits ??= Load(VehiclePortraitFolders);
             return vehiclePortraits.TryGetValue(type + "|" + TeamColors.Key(team), out var t) ? t : null;
         }
@@ -566,6 +579,7 @@ namespace OpenZ
             {
                 case "light": n = "LIGHT TANK"; break;
                 case "medium": n = "MECH"; break;
+                case ZMTank.Type: n = "MEDIUM TANK"; break;                           // DV145: the new tank (the mech keeps Zod's medium type)
                 case "heavy": n = "HEAVY TANK"; break;
                 case "missile_launcher": n = "MLRS"; break;
                 case "missile_cannon": n = "MISSILE CANNON"; break;
@@ -586,6 +600,7 @@ namespace OpenZ
             {
                 case "light": return "LIGHT";
                 case "medium": return "MECH";
+                case ZMTank.Type: return "MEDIUM";                                   // DV145
                 case "heavy": return "HEAVY";
                 case "missile_launcher": return "MLRS";
                 case "missile_cannon": return "MISSILE";
@@ -601,7 +616,7 @@ namespace OpenZ
             {
                 case "grunt": return "GRU"; case "psycho": return "PSY"; case "sniper": return "SNP"; case "tough": return "TGH";
                 case "pyro": return "PYR"; case "laser": return "LSR"; case "electrobot": return "ELB"; case "jeep": return "JEP"; case "light": return "LT";
-                case "medium": return "MCH"; case "heavy": return "HT"; case "apc": return "APC"; case "missile_launcher": return "ML";
+                case "medium": return "MCH"; case ZMTank.Type: return "MT"; case "heavy": return "HT"; case "apc": return "APC"; case "missile_launcher": return "ML";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "crane": return "CRN"; case "gatling": return "GTL"; case "gun": return "GUN"; case "howitzer": return "HOW";
                 case "missile_cannon": return "MC";
             }
@@ -616,7 +631,7 @@ namespace OpenZ
             switch (t)
             {
                 case "jeep": return "jeep";
-                case "light": case "medium": return "tank";
+                case "light": case "medium": case ZMTank.Type: return "tank";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "heavy": return "heavy";
                 case "apc": return "apc";
                 case "missile_launcher": case "missile_cannon": return "missile";
@@ -649,12 +664,14 @@ namespace OpenZ
                 case "tough": return "BAZOOKA";
                 case "pyro": return "FLAMER";
                 case "laser": return "LASER";
+                case ZEvilZod.Type: return "SHOTGUN";                                        // DV161
                 case "electrobot": return "TESLA GATLING";                                   // electrobot_v1
                 case "jeep": return "MACHINE GUN";
-                case "light": case "medium": case "heavy": return "CANNON";
+                case "light": case "medium": case ZMTank.Type: case "heavy": return "CANNON";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": return "MISSILES";
                 case "missile_launcher": return "MISSILES";
                 case "crane": return "NONE";
+                case "shuttle": return "NONE";                                                   // DV118: the playable shuttle carries no weapon (1.2 item 2 round 3: its card said nothing)
                 case "gatling": return "GATLING";
                 case "gun": return "CANNON";
                 case "howitzer": return "HOWITZER";
@@ -671,9 +688,10 @@ namespace OpenZ
                 case "tough": return "bazooka";
                 case "pyro": return "flame";
                 case "laser": return "laser";
+                case ZEvilZod.Type: return "shotgun";                                        // DV161: Kit/Icons/ic_shotgun_48 / 96 / 192
                 case "electrobot": return "tesla";                                          // electrobot_v1: Kit/Icons/ic_tesla_48 / 96 / 192
                 case "psycho": case "jeep": case "gatling": return "gatling";
-                case "light": case "medium": case "heavy": case "gun": return "cannon";
+                case "light": case "medium": case ZMTank.Type: case "heavy": case "gun": return "cannon";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": case "missile_launcher": case "missile_cannon": return "missile";
                 case "crane": return "wrench";
                 case "howitzer": return "howitzer";

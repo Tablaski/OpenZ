@@ -1,4 +1,15 @@
-# Local complete Unity distribution; source code changes live in source/ and tools/.
-/OpenZ_1.4_source/
+# Local archives, migration backups, generated tests and compiled players.
+/.local/
 /OpenZ_1.4_source_part*.zip
 /builds/
+
+# Keep the upstream code-only layout in Git. The complete Unity project is local.
+/source/*
+!/source/Assets/
+!/source/Packages/
+!/source/ProjectSettings/
+/source/Assets/*
+!/source/Assets/OpenZ/
+/source/Assets/OpenZ/*
+!/source/Assets/OpenZ/Scripts/
+!/source/Assets/OpenZ/Shaders/

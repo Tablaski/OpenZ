@@ -28,6 +28,16 @@ namespace OpenZ
         public string HeldId { get; private set; }
         public string HeldFilter { get; private set; }
         public float HeldAt { get; private set; }
+        /// <summary>1.4 radar_voice_fix (the voice floor, View/AudioDirector.VoiceFloor.cs): seconds the director adds to
+        /// <see cref="ShuttleHoldMaxSec"/> for the held line: the time the floor's gap (0.3 s after a voice) held each of Rachel's waiting
+        /// lines back while this line was held (they went back to back before), so the hold still ends where it did. 0 = as before (a new
+        /// <see cref="Hold"/> starts at 0).</summary>
+        public float HoldExtraSec { get; private set; }
+        public void ExtendHold(float sec) { if (HeldId != null && sec > 0f) HoldExtraSec += sec; }
+        /// <summary>1.4 radar_voice_fix: set by the director once a frame before <see cref="Poll"/>: Rachel has a line waiting, which the
+        /// voice floor starts before any robot line. The held line then stays held behind it, as it did when her lines went back to back
+        /// (it is never let go into her next line). False = as before.</summary>
+        public bool RachelNextFirst;
         /// <summary>Counts: Rachel's frames held back behind a shuttle line, her lines let go by the cap, shuttle lines held, said after her,
         /// dropped (waited too long).</summary>
         public int RachelHeldFrames, RachelCapped, Held, HeldPlayed, HeldDropped;
@@ -62,7 +72,7 @@ namespace OpenZ
         public void Hold(string id, string filter, float now)
         {
             if (HeldId != null) HeldDropped++;
-            HeldId = id; HeldFilter = filter; HeldAt = now; Held++;
+            HeldId = id; HeldFilter = filter; HeldAt = now; Held++; HoldExtraSec = 0f;                // 1.4 radar_voice_fix: a new hold, no gaps added yet
         }
 
         /// <summary>Once a frame after Tick: 0 = nothing to do, 1 = say the held line now (id, filter handed out, the slot emptied), 2 = it
@@ -71,8 +81,8 @@ namespace OpenZ
         {
             id = HeldId; filter = HeldFilter;
             if (HeldId == null) return 0;
-            if (now - HeldAt > ShuttleHoldMaxSec) { HeldId = null; HeldFilter = null; HeldDropped++; return 2; }
-            if (ShuttleMustWait(now)) return 0;
+            if (now - HeldAt > ShuttleHoldMaxSec + HoldExtraSec) { HeldId = null; HeldFilter = null; HeldDropped++; return 2; }   // 1.4 radar_voice_fix: + the time the floor's gap held Rachel's lines back (HoldExtraSec)
+            if (ShuttleMustWait(now) || RachelNextFirst) return 0;                                       // 1.4 radar_voice_fix: her waiting line goes first
             HeldId = null; HeldFilter = null; HeldPlayed++;
             return 1;
         }

@@ -64,7 +64,7 @@ namespace OpenZ
                 if (b.Kind == ZKind.Building && !b.Destroyed && !b.IsBridge && b.Contains(cx, cy)) { exitFrom = b; break; }
             if (exitFrom == null) return;
             exitLane = true;
-            if (Obj.Kind != ZKind.Vehicle) return;
+            if (Obj.Kind != ZKind.Vehicle) { EvilExitBind(); return; }                         // 1.3 row 78: EvilZod out of a fort's gate grows like a vehicle (View/UnitView.EvilExitGrow.cs); every other robot as before
             exitDepth0 = Mathf.Max(0.5f, Depth(transform.position));
             exitBase = transform.localScale; exitAge = 0f; exitCur = ExitStartScale; exitGrowing = true;
             transform.localScale = exitBase * exitCur;
@@ -77,6 +77,7 @@ namespace OpenZ
         /// below ExitMinScale; a hull that fits keeps its full size) and grows back only when its tail is through the door.</summary>
         void ExitDoorFit()
         {
+            if (ExitFitBind()) return;                                                            // k93, item 150: the modelled gate's profile, width and height (View/UnitView.ExitFit.cs)
             if (!exitStraight || !ExitDoorOf(exitFrom.Type, out float doorW, out float inset)) return;
             exitDir = Quaternion.Euler(0f, exitYaw, 0f) * Vector3.forward; bool alongX = Mathf.Abs(exitDir.x) > Mathf.Abs(exitDir.z);
             transform.localScale = exitBase;                                                     // measured at full size, on the door axis
@@ -124,7 +125,7 @@ namespace OpenZ
             exitStraightAge += dt;
             bool exiting = false;
             if (Obj != null) foreach (var w in Obj.Waypoints) { exiting = w.mode == WpMode.ForceMove; break; }
-            if (!exiting || exitFrom == null || exitFrom.Destroyed || exitStraightAge > ExitMaxSeconds) { exitStraight = false; ExitStraightDone++; return steer; }
+            if ((!exiting && !ExitTailInGate()) || exitFrom == null || exitFrom.Destroyed || exitStraightAge > ExitMaxSeconds) { exitStraight = false; ExitStraightDone++; return steer; }   // k102: held until the drawn tail has left the gate (View/UnitView.ExitFit.K102.cs)
             ExitStraightMaxOffDeg = Mathf.Max(ExitStraightMaxOffDeg, Mathf.Abs(Mathf.DeltaAngle(steer, exitYaw)));
             if (hullSteer != null) hullSteer.Adopt(exitYaw);
             return exitYaw;
@@ -149,6 +150,7 @@ namespace OpenZ
 
         void ExitGrowStep(float dt)
         {
+            if (exitProfiled) { EvilExitFrame(); ExitFitStep(dt); EvilExitDone(); return; }   // k93, item 150: grown up to the gate's ceiling (View/UnitView.ExitFit.cs); 1.3 row 78: EvilZod's drawn place and finish (View/UnitView.EvilExitGrow.cs)
             exitAge += dt;
             float k = exitFrom == null || exitFrom.Destroyed || exitAge > ExitMaxSeconds ? 1f
                 : exitDoor ? Mathf.Clamp01((Vector3.Dot(exitDrawn, exitDir) - exitRear * exitCur - exitDoorAlong) / ExitGrowRunM)   // the drawn tail through the door first

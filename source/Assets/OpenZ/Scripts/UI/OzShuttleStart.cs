@@ -10,13 +10,15 @@ namespace OpenZ
     ///    the level starts without the box's shuttle; level 2 has no slot and no shuttle of its own, as before.
     ///  * ON by default, saved at once in <see cref="Pref"/> and remembered like HEAD START (oz_headstart).
     ///  * Read when a level starts (ZGame -> ZWorld.ShuttleOn = <see cref="RuleAtStart"/>):
-    ///      level 16, EASY / MEDIUM, the box ON   Alan and Brad's shuttle stands by the player's fort (the playable shuttle);
+    ///      level 16, EASY / MEDIUM, the box ON   the player's shuttle stands by his fort (red: Alan and Brad's ship in the red fort's
+    ///                                            pocket; blue, 1.2 item 111 DV144: a ship by the blue fort, Sim/ZWorld.SideShuttles.cs);
     ///      level 16, EASY / MEDIUM, the box OFF  no shuttle on the level (not the playable one, not the parked decoration);
     ///      level 16, HARD                        no shuttle on the level;
     ///      every other level                     the rule switch stays on, as before (nothing of the box is read there).
     ///  * K444 (rule DV134): level 17 "Car Park" reads the same box (the same default and saved setting): on EASY / MEDIUM with the box ON
-    ///    the player's shuttle parks by the red fort (ZWorld.L17StartShuttle = <see cref="L17StartAtStart"/>); the rule switch above stays on
-    ///    there on every difficulty, and level 17's EMPTY car-park shuttle stands there whatever the box says (Sim/ZWorld.L17Shuttles.cs).
+    ///    the player's shuttle parks by his fort (ZWorld.L17StartShuttle = <see cref="L17StartAtStart"/>; red: by the red fort, blue: by the
+    ///    blue fort, DV144); the rule switch above stays on there on every difficulty, and level 17's two EMPTY car-park shuttles (one on
+    ///    each side) stand there whatever the box says (Sim/ZWorld.L17Shuttles.cs, Sim/ZWorld.SideShuttles.cs).
     ///  * The testing panel (P) drops shuttles (crewed and empty) on every level and every difficulty, the box on or off: it never
     ///    reads the box (ZWorld.SpawnShuttle only asks for the shuttle rule).
     ///  * The old OPTIONS key oz_shuttle is not read any more, so a switch turned off there before never turns this box off.
@@ -39,8 +41,11 @@ namespace OpenZ
         public const string HintOffL17 = "NONE BY YOUR FORT";
         public static string HintOffFor(string level) => level == Level17 ? HintOffL17 : HintOff;
         public const string LockedRow = "NOT ON HARD", LockedHint = "EASY · MEDIUM ONLY";
+        /// <summary>1.4 MAYHEM: the locked slot's words when MAYHEM is chosen (MAYHEM plays HARD's rules: no shuttle box).</summary>
+        public const string LockedRowMayhem = "NOT ON MAYHEM";
+        public static string LockedRowFor(GameDifficulty choice) => choice == GameDifficulty.Mayhem ? LockedRowMayhem : LockedRow;
         public const string TipTitle = "SHUTTLE · KEY ";
-        public const string TipBody = "Alan and Brad's shuttle waits by your fort.\nOrder one squad into it, then right-click a place:\nit flies there and lands.\nL16 JUNGLE and L17 CAR PARK on EASY and MEDIUM.\nHARD or OFF: none by your fort.";
+        public const string TipBody = "Your shuttle waits by your fort.\nOrder one squad into it, then right-click a place:\nit flies there and lands.\nL16 JUNGLE and L17 CAR PARK on EASY and MEDIUM.\nHARD, MAYHEM or OFF: none by your fort.";
 
         /// <summary>The box (saved at once; ON when nothing is saved yet).</summary>
         public static bool On
@@ -50,7 +55,7 @@ namespace OpenZ
         }
 
         /// <summary>The box is shown for this level and difficulty (zodExact: the 'Zod exact' rules, no playable shuttle).</summary>
-        public static bool Offered(string level, GameDifficulty d, bool zodExact) => BoxLevel(level) && d != GameDifficulty.Hard && !zodExact;   // K444: levels 16 and 17
+        public static bool Offered(string level, GameDifficulty d, bool zodExact) => BoxLevel(level) && OpenZDifficulty.Rules(d) != GameDifficulty.Hard && !zodExact;   // K444: levels 16 and 17
         public static bool Offered(string level, GameDifficulty d) => Offered(level, d, PlayerPrefs.GetInt("oz_zod_exact", 0) == 1);
 
         /// <summary>The deploy bar has the SHUTTLE slot for this level (levels 16 and 17, not 'Zod exact'): offered on EASY / MEDIUM, locked
@@ -59,35 +64,35 @@ namespace OpenZ
         public static bool HasSlot(string level) => HasSlot(level, PlayerPrefs.GetInt("oz_zod_exact", 0) == 1);
 
         /// <summary>ZWorld.ShuttleOn for a level start, the box given: level 16 = the box on EASY / MEDIUM, off on HARD; any other level: on.</summary>
-        public static bool Rule(string level, GameDifficulty d, bool box) => level != Level || (d != GameDifficulty.Hard && box);
+        public static bool Rule(string level, GameDifficulty d, bool box) => level != Level || (OpenZDifficulty.Rules(d) != GameDifficulty.Hard && box);
 
         /// <summary>ZGame at the level start: <see cref="Rule"/> with the saved box, and one log line on level 16.</summary>
         public static bool RuleAtStart(string level, GameDifficulty d)
         {
-            bool box = On, on = Rule(level, d, box);
+            bool box = On, on = OzPlayBlue.ShuttleRule(level, Rule(level, d, box));                       // 1.2 item 111 DV144: the box's answer for either side (View/OzPlayBlue.cs, View/OzSides.cs)
             if (level == Level)
-                Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (d == GameDifficulty.Hard ? "HARD, no shuttle (the box is not offered)" : box ? "the box is ON: the shuttle stands by your fort" : "the box is OFF: no shuttle")
+                Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (d == GameDifficulty.Hard ? "HARD, no shuttle (the box is not offered)" : box ? (OzPlayBlue.Active ? "PLAY AS BLUE, the box is ON: the shuttle stands by the blue fort (the red fort's pocket stays empty)" : "the box is ON: the shuttle stands by your fort") : "the box is OFF: no shuttle")
                           + $" ({Pref} {(box ? 1 : 0)}; the testing panel drops shuttles as before)");
             return on;
         }
 
         /// <summary>K444 (DV134): ZWorld.L17StartShuttle for a level start, the box given: level 17 on EASY / MEDIUM with the box on (its
         /// shuttle parks by the red fort); else false. Level 17's EMPTY car-park shuttle is not the box's: it stands there on every difficulty.</summary>
-        public static bool L17Start(string level, GameDifficulty d, bool box) => level == Level17 && d != GameDifficulty.Hard && box;
+        public static bool L17Start(string level, GameDifficulty d, bool box) => level == Level17 && OpenZDifficulty.Rules(d) != GameDifficulty.Hard && box;
 
         /// <summary>ZGame at the level start: <see cref="L17Start"/> with the saved box, and one log line on level 17.</summary>
         public static bool L17StartAtStart(string level, GameDifficulty d)
         {
-            bool box = On, on = L17Start(level, d, box);
+            bool box = On, on = OzPlayBlue.FortShuttleRule(L17Start(level, d, box));                     // 1.2 item 111 DV144: the box's answer for either side (a blue player's ship by the blue fort)
             if (level == Level17)
-                Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (d == GameDifficulty.Hard ? "HARD, none by the fort (the box is not offered)" : box ? "the box is ON: the shuttle stands by your fort" : "the box is OFF: none by your fort")
-                          + $"; the empty shuttle waits in the car park on every difficulty ({Pref} {(box ? 1 : 0)})");
+                Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (d == GameDifficulty.Hard ? "HARD, none by the fort (the box is not offered)" : box ? (OzPlayBlue.Active ? "PLAY AS BLUE, the box is ON: the shuttle stands by the blue fort" : "the box is ON: the shuttle stands by your fort") : "the box is OFF: none by your fort")
+                          + $"; the two empty shuttles wait in the car park (red side and blue side) on every difficulty ({Pref} {(box ? 1 : 0)})");
             return on;
         }
 
         /// <summary>K347: the OPTIONS row SHUTTLE is not built any more (main menu and pause menu); the switch is this box.</summary>
         public static bool InOptions => false;
 
-        static string Name(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : "HARD";
+        static string Name(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : d == GameDifficulty.Mayhem ? "MAYHEM" : "HARD";
     }
 }

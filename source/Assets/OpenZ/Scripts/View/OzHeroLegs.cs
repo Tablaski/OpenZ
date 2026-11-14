@@ -103,7 +103,7 @@ namespace OpenZ
         }
 
         /// <summary>RobotLegIK's hook: this view's legs are written by the component (its own foot goals are released).</summary>
-        public static bool Drives(UnitView v) => On && v && v.Obj != null && v.Obj.IsHero && byView.TryGetValue(v.GetInstanceID(), out var c) && c && c.ready && c.isActiveAndEnabled;
+        public static bool Drives(UnitView v) => On && v && v.Obj != null && (v.Obj.IsHero || v.Obj.IsEvilZod) && byView.TryGetValue(v.GetInstanceID(), out var c) && c && c.ready && c.isActiveAndEnabled;
 
         /// <summary>Checks: the component driving this view (null: none).</summary>
         public static OzHeroLegs Of(UnitView v) => v && byView.TryGetValue(v.GetInstanceID(), out var c) && c ? c : null;

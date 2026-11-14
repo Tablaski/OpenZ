@@ -138,7 +138,7 @@ namespace OpenZ
             Vector2 mp = hud.Pointer; bool shift = kb != null && kb.shiftKey.isPressed;
             bool overUi = hud.PointerOverUi;
             // Zod: right release on the map, production window open, nothing selected (tested before PlayerInput sent its orders)
-            if (m.rightButton.wasReleasedThisFrame && !overUi && hud.SelectionCountBeforeInput == 0 && hud.input.Selection.Count == 0
+            if (OzRightDrag.Click(m, OzRightDrag.SiteBuildRally) && !overUi && hud.SelectionCountBeforeInput == 0 && hud.input.Selection.Count == 0   // 1.4: a drag sets no rally point
                 && hud.input.Placing == null && PointerGround(mp, out var rp))
                 AddPoint(rp.x, rp.y, shift);
             // rally tool: this left press was captured by the HUD, PlayerInput never saw it

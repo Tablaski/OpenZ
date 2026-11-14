@@ -20,11 +20,15 @@ namespace OpenZ
         static int swap = -1;
         public static bool Swap
         {
-            get { if (swap < 0) swap = PlayerPrefs.GetInt("oz_team_blue", 0) != 0 ? 1 : 0; return swap == 1; }
+            get { if (OzPlayBlue.Active) return false; if (swap < 0) swap = PlayerPrefs.GetInt("oz_team_blue", 0) != 0 ? 1 : 0; return swap == 1; }   // 1.2 item 11: PLAY AS BLUE draws the sim's own colours (the player is blue; View/OzPlayBlue.cs)
             set { swap = value ? 1 : 0; PlayerPrefs.SetInt("oz_team_blue", swap); PlayerPrefs.Save(); }
         }
         /// <summary>The team whose COLOUR is drawn for sim team t (Red and Blue trade places when Swap is on).</summary>
-        public static Team Shown(Team t) => !Swap || t == Team.Neutral ? t : t == Team.Red ? Team.Blue : Team.Red;
+        // duel stable team colours
+            public static Team Shown(Team t) => OpenZ.Multiplayer.DuelRuntime.Active ? t : !Swap || t == Team.Neutral ? t : t == Team.Red ? Team.Blue : Team.Red;
+        /// <summary>1.2 item 11: a text or a voice line written for the red player names the wrong colours: the colours are swapped, or the
+        /// human is blue (PLAY AS BLUE, View/OzPlayBlue.cs). Then the texts are turned (Words) and voice takes that name a colour are left out.</summary>
+        public static bool WordsFlip => Swap || OzPlayBlue.Active;
         /// <summary>"RED" / "BLUE" as displayed (neutral: "NEUTRAL").</summary>
         public static string Name(Team t) { var s = Shown(t); return s == Team.Red ? "RED" : s == Team.Blue ? "BLUE" : "NEUTRAL"; }
         /// <summary>Kit / portrait key of the displayed colour: "red" / "blue" / "neutral".</summary>
@@ -32,8 +36,9 @@ namespace OpenZ
         static readonly System.Text.RegularExpressions.Regex ColourWord = new System.Text.RegularExpressions.Regex(@"\b(red|blue)(s?)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         /// <summary>True when a voice / text line names a team colour (skipped or swapped while Swap is on).</summary>
         public static bool NamesColour(string line) => !string.IsNullOrEmpty(line) && ColourWord.IsMatch(line);
-        /// <summary>Static UI text naming a colour ("BREAK INTO THE BLUE FORT"): RED and BLUE trade places while Swap is on.</summary>
-        public static string Words(string s) => !Swap || string.IsNullOrEmpty(s) ? s : ColourWord.Replace(s, m =>
+        /// <summary>Static UI text naming a colour ("BREAK INTO THE BLUE FORT"): RED and BLUE trade places while Swap is on, or while the human
+        /// is blue (1.2 item 11, WordsFlip).</summary>
+        public static string Words(string s) => !WordsFlip || string.IsNullOrEmpty(s) ? s : ColourWord.Replace(s, m =>
         {
             string w = m.Groups[1].Value, o = w.ToLowerInvariant() == "red" ? "blue" : "red";
             o = w == w.ToUpperInvariant() ? o.ToUpperInvariant() : char.IsUpper(w[0]) ? char.ToUpperInvariant(o[0]) + o.Substring(1) : o;
@@ -146,7 +151,14 @@ namespace OpenZ
         [SerializeField] bool fortPalette;
         public static readonly Color FortCream = new Color32(214, 204, 184, 255);
         public const float FortCreamRefLum = 0.34f;
+        /// <summary>
+        /// </summary>
+        public static float FortBurnK = 0.4f;
         public bool FortPalette { get => fortPalette; set { if (fortPalette == value) return; fortPalette = value; Apply(); } }
+        /// <summary>1.3 item 16 (UnitView.BeginWreck): the fort palette takes the burn (Charred) like the rest of the paint; false = it keeps its
+        /// cream whatever the burn (as before, the living tower gun).</summary>
+        public bool FortPaletteBurns { get => fortPaletteBurns; set { if (fortPaletteBurns == value) return; fortPaletteBurns = value; Apply(); } }
+        bool fortPaletteBurns;
         MaterialPropertyBlock block;
 
         public Team Team
@@ -183,10 +195,12 @@ namespace OpenZ
                     block.SetVector(VividId, new Vector4(viv.x * k, viv.y * k, viv.z * k, viv.w));
                     block.SetVector(GlowId, EasedGlow(TeamColors.GlowLinear(team)) * (k * glowLevel));
                     block.SetFloat(OzDeadTint.DeadId, robot ? deadLevel : 0f);                           // item 228: a dead robot's whole figure turns greyer, luminance kept, as its glows go out (TeamLit _OZDead, OzDeadTint.cs)
+                    block.SetFloat(HeatId, robot ? heat : 0f);                                           // DV152 level 7: a robot in lava glows redder from the feet up (TeamLit _OZHeat, TeamPaint.Heat.cs); 0 on everything else
                     PanelFor(r, mats[i], out var panelRect, out var panelY);
                     block.SetVector(PanelId, panelRect); block.SetVector(PanelYId, panelY);
                     var fc = FortCream.linear; bool mine = host == this;   /* not the gunner under the gun */
-                    var fp = fortPalette && mine ? new Vector4(fc.r, fc.g, fc.b, FortCreamRefLum) : Vector4.zero;   // TG2
+                    float fk = fortPaletteBurns ? k * FortBurnK : 1f;                                                    // 1.3 item 16: a dead tower gun's cream burns with the rest of its paint (before: the shader's cream ignored the burn: near white)
+                    var fp = fortPalette && mine ? new Vector4(fc.r * fk, fc.g * fk, fc.b * fk, FortCreamRefLum) : Vector4.zero;   // TG2
                     if (!fortPalette && mine && FieldKhaki(mats[i]))
                     {
                         var kc = PaintKhaki.TargetLinear; if (kc.a > 0f) fp = new Vector4(kc.r, kc.g, kc.b, FortCreamRefLum);
@@ -209,6 +223,7 @@ namespace OpenZ
                         block.SetColor(BaseColorId, mats[i].GetColor(BaseColorId) * new Color(kg, kg, kg, 1));
                     }
                     if (glowLevel < 1f && robot && mats[i] && mats[i].HasProperty(EmissionId)) block.SetColor(EmissionId, mats[i].GetColor(EmissionId) * glowLevel);   // robots only: a vehicle's lamps belong to its lights
+                    EmptyV1(r, mats[i], block, host == this);                                              // k98, item 163: an empty v2 model painted by v1's empty method (View/OzV2EmptyLook.cs)
                     r.SetPropertyBlock(block, i);
                 }
             }
@@ -252,7 +267,7 @@ namespace OpenZ
             string rn = r.name, mn = m ? m.name : null;
             foreach (var p in PanelRules)
             {
-                if (p.key != rn && p.key != mn) continue;
+                if ((p.key != rn && p.key != mn) || OzHeavyTank.NoRoofPanel(p.key, m) || OzV2Units.NoRoofPanel(p.key, m)) continue;   // 1.2 item 110: heavy tank v2 takes the team colour on its stripes only; 1.2 v2 units: the light tank v2 on its red block
                 Mesh mesh = r is SkinnedMeshRenderer smr ? smr.sharedMesh : r.TryGetComponent<MeshFilter>(out var mf) ? mf.sharedMesh : null;
                 if (!mesh) return;
                 var b = mesh.bounds; var s = b.size;

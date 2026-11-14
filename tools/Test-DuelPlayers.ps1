@@ -15,7 +15,7 @@ foreach ($role in @('host','guest')) {
             if (-not $invitationReady) { Start-Sleep -Milliseconds 100 }
         }
     }
-    $duelArguments=@('-screen-fullscreen','0','-screen-width','1280','-screen-height','720','-force-d3d11','-oz-duel-proof',$role,$proofFolder,'-oz-duel-proof-map',$Map,'-logFile',(Join-Path $proofFolder ($role+'.log')))
+    $duelArguments=@('-screen-fullscreen','0','-screen-width','1280','-screen-height','720','-force-d3d11','-oz-duel-proof',$role,('"'+$proofFolder+'"'),'-oz-duel-proof-map',$Map,'-logFile',('"'+(Join-Path $proofFolder ($role+'.log'))+'"'))
     $players+=Start-Process -FilePath $duelExecutable -ArgumentList $duelArguments -WindowStyle Hidden -PassThru
 }
 Write-Output $proofFolder

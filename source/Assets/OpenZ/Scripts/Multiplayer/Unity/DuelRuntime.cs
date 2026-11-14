@@ -124,7 +124,7 @@ namespace OpenZ.Multiplayer
             Close(); IsHost = true; TcpPort = port; localName = name; secret = DuelTcpPeer.NewInvitationSecret();
             lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, Defaults("L02")); View = DuelLobbyData.From(lobby);
             cancellation = new CancellationTokenSource();
-            try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token); Status = "En attente du second joueur…"; }
+            try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token); Status = "Waiting for the other player…"; }
             catch (Exception error) { Fail(error.Message); }
             Menus.ShowLobby();
         }
@@ -134,13 +134,13 @@ namespace OpenZ.Multiplayer
             try
             {
                 var uri = new Uri(invitation.Trim());
-                if (uri.Scheme != "openz" || uri.Host != "join") throw new ArgumentException("Invitation OpenZ attendue.");
+                if (uri.Scheme != "openz" || uri.Host != "join") throw new ArgumentException("Expected an OpenZ invitation.");
                 var args = uri.Query.TrimStart('?').Split('&').Select(p => p.Split(new[] { '=' }, 2)).ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1]));
                 secret = args["invite"]; int port = int.Parse(args["port"]);
                 if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
                 TcpPort = port;
                 connectTask = DuelTcpPeer.ConnectAsync(args["address"], port, secret, Fingerprint(), name, cancellation.Token);
-                Status = "Connexion…"; Menus.ShowLobby();
+                Status = "Connecting…"; Menus.ShowLobby();
             }
             catch (Exception error) { Fail(error.Message); }
         }
@@ -159,7 +159,7 @@ namespace OpenZ.Multiplayer
                 var army = rules.EffectiveFor(slot);
                 int count = army.FortTurrets.Count(t => !string.IsNullOrEmpty(t)) + army.StartingUnits.Sum(t =>
                     ZBuildLists.IsRobot(t) ? Math.Max(1, settings.Unit(t)?.group_amount ?? 1) : 1);
-                if (count == 0 || count > ZWorld.MAX_UNITS_PER_TEAM) throw new ArgumentException("Chaque camp doit commencer avec 1 à 70 unités (membres d’escouade et tourelles compris).");
+                if (count == 0 || count > ZWorld.MAX_UNITS_PER_TEAM) throw new ArgumentException("Each team must start with 1 to 70 units, including squad members and turrets.");
             }
         }
         public void Ready()
@@ -192,14 +192,14 @@ namespace OpenZ.Multiplayer
                 if (connectTask != null && connectTask.IsCompleted)
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
-                    lastReceive = Now; Status = "Connecté";
+                    lastReceive = Now; Status = "Connected";
                     if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;
-                if (peer.Closed) { Fail(peer.Failure ?? "Connexion fermée"); return; }
+                if (peer.Closed) { Fail(peer.Failure ?? "Connection closed"); return; }
                 int count = 0;
                 while (count++ < 256 && peer.TryReceive(out var packet)) { lastReceive = Now; Handle(packet); }
-                if (Now - lastReceive > 15) { Fail("Connexion perdue (15 s sans réponse)."); return; }
+                if (Now - lastReceive > 15) { Fail("Connection lost (no response for 15 seconds)."); return; }
                 if (Now - lastPing > 1)
                 {
                     lastPing = pendingPing = Now;
@@ -256,13 +256,13 @@ namespace OpenZ.Multiplayer
                     ReceiveState(packet); break;
                 case DuelMessage.Surrender:
                     if (IsHost && Playing && Game) Game.World.DuelSurrender(1); break;
-                case DuelMessage.Disconnect: Fail("L’adversaire a quitté la partie."); break;
+                case DuelMessage.Disconnect: Fail("Your opponent left the match."); break;
                 default: throw new InvalidDataException("Unexpected duel message.");
             }
         }
         void LoadScene()
         {
-            Status = "Chargement des deux camps…"; Menus.ShowLoading();
+            Status = "Loading both teams…"; Menus.ShowLoading();
             string scene = View.Map == "L02" ? "L02_Desert" : View.Map == "L07" ? "L07_Volcanic" : View.Map == "L16" ? "L16_Jungle" : "L17_CarPark";
             OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(scene);
         }
@@ -324,7 +324,7 @@ namespace OpenZ.Multiplayer
             if (I.IsHost)
             {
                 game.DuelAdvance(Time.unscaledDeltaTime);
-                if (I.pendingEvents.Count > 4096) { I.Fail("Trop d’événements réseau en attente."); return true; }
+                if (I.pendingEvents.Count > 4096) { I.Fail("Too many pending network events."); return true; }
                 if (Now - I.lastSnapshot >= 1d / 15 || (game.World.GameOver && (!I.sentGameOver || I.pendingEvents.Count > 0)))
                 { I.lastSnapshot = Now; I.SendState(DuelMessage.Delta, false); if (game.World.GameOver) I.sentGameOver = true; }
             }
@@ -341,7 +341,7 @@ namespace OpenZ.Multiplayer
             {
                 writer.Write(delta.Length); writer.Write(delta);
                 writer.Write(JsonUtility.ToJson(new DuelEventData { Events = pendingEvents.ToArray() }));
-                if (!peer.Send(new DuelPacket(kind, stream.ToArray()))) throw new IOException("La connexion ne suit plus les mises à jour.");
+                if (!peer.Send(new DuelPacket(kind, stream.ToArray()))) throw new IOException("The connection cannot keep up with updates.");
             }
             pendingEvents.Clear();
         }

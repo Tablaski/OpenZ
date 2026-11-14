@@ -39,14 +39,14 @@ namespace OpenZ.Multiplayer
                     Directory.CreateDirectory(folder);
                     if (role == "host")
                     {
-                        r.Host("HOTE", 27889);
+                        r.Host("HOST", 27889);
                         var args = Environment.GetCommandLineArgs(); int mapOption = Array.IndexOf(args, "-oz-duel-proof-map");
                         if (mapOption >= 0 && mapOption + 1 < args.Length) r.ChangeRules(DuelRuntime.Defaults(args[mapOption + 1]));
                         File.WriteAllText(Path.Combine(folder, "invitation.txt"), r.Invitation("127.0.0.1", 27889));
                         joined = true;
                     }
                     else if (File.Exists(Path.Combine(folder, "invitation.txt")))
-                    { r.Join("INVITE", File.ReadAllText(Path.Combine(folder, "invitation.txt"))); joined = true; }
+                    { r.Join("GUEST", File.ReadAllText(Path.Combine(folder, "invitation.txt"))); joined = true; }
                 }
                 if (r.Connected && r.View != null && r.View.Phase == (int)DuelPhase.Lobby)
                 {

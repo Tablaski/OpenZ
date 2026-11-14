@@ -2,6 +2,9 @@ param([string]$Unity = '')
 $ErrorActionPreference = 'Stop'
 $duelRoot = Split-Path $PSScriptRoot -Parent
 $duelProject = Join-Path $duelRoot 'source'
+if (-not (Test-Path -LiteralPath (Join-Path $duelProject 'Assets\OpenZ\Scenes\MainMenu.unity'))) {
+    throw 'The local Unity resources are missing. Complete the one-time setup in CONTRIBUTING.md before building.'
+}
 $duelVersion = ((Get-Content (Join-Path $duelProject 'ProjectSettings\ProjectVersion.txt') | Select-String '^m_EditorVersion: ').Line -split ': ')[1]
 if (-not $Unity) { $Unity = $env:UNITY_EDITOR_PATH }
 if (-not $Unity) {

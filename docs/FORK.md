@@ -1,85 +1,58 @@
-# Fork Tablaski : sauvegarder et reconstruire OpenZ Duel
+# OpenZ Duel repository guide
 
-Ce fork conserve le prototype 1 contre 1 développé à partir d'OpenZ 1.4.
-`main` est la branche stable ; `dev` contient le travail de développement.
-La première sauvegarde du prototype part du commit officiel
-`e7377432907eb8e3305c979f66d45c36c5ba4b3a`.
+This fork develops a 1vs1 multiplayer prototype on top of OpenZ 1.4.
+It keeps the upstream **code-only Git layout**. The complete Unity project is
+local, in source/, and we edit its tracked code directly.
 
-## Pourquoi le clone ne contient pas le jeu complet
+## What is saved where
 
-Le dépôt officiel contient le code C#, les shaders et la documentation dans
-`source/` et `docs/`. Le projet Unity complet (modèles, textures, sons, scènes et
-réglages) est distribué séparément dans les deux archives sources de la release
-1.4. Un clone ou le bouton GitHub « Download ZIP » ne remplace pas ces archives.
-Voir les [instructions officielles](https://github.com/playopenz/OpenZ/blob/main/docs/BUILDING.md).
+| Path | Purpose | In Git? |
+| --- | --- | --- |
+| source/Assets/OpenZ/Scripts/ | Game code, our multiplayer module and code metadata | Yes |
+| source/Assets/OpenZ/Shaders/ | Shader code and its metadata | Yes |
+| source/Packages/ | Dependencies and package lock file | Yes |
+| source/ProjectSettings/ | Shared project settings and Unity version | Yes |
+| tools/, tests/Multiplayer/, docs/ | Our build tools, test sources and documentation | Yes |
+| Other source/Assets/ folders | Models, textures, sounds, scenes and other resources | No |
+| source/Library/, Logs/, UserSettings/ | Regenerated caches and local settings | No |
+| builds/ | Compiled players | No |
+| .local/ | Local migration backup and audit files | No |
 
-## Contenu sauvegardé dans Git
+A clone contains the code, not the complete playable game or its multimedia.
+This is the same distribution split used by upstream OpenZ. Resource files must
+be supplied separately from the official source release when preparing a new
+machine. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-- `source/Assets/OpenZ/Scripts/Multiplayer/` et ses fichiers `.meta` : module 1vs1,
-  menus, réseau, réplication, voix et outils Unity.
-- `tools/Prepare-DuelProject.ps1` : installation du module et raccordements aux
-  scripts du projet complet. Ces raccordements sont nécessaires au fonctionnement.
-- Les autres scripts de `tools/`, les sources de `tests/Multiplayer/`, la
-  documentation et les captures de `docs/duel-preview/`.
+## One working project
 
-`OpenZ_1.4_source/`, les ZIP, `builds/`, les caches et les résultats temporaires
-des tests sont ignorés. Cette sauvegarde conserve le travail de développement ;
-elle dépend des archives officielles 1.4 pour les ressources du jeu. Les sources
-de la distribution 1.4 peuvent être plus récentes que celles du dossier `source/`
-du dépôt : ne pas remplacer tous les scripts extraits par ce dossier.
+The complete source release was already present locally. Its project now lives
+in source/, with our existing multiplayer integration included. The old second
+working folder and the module copy/patch preparation script are no longer used.
+There is no Git LFS dependency.
 
-## Reconstruire sur une autre machine
+Upstream names and content are preserved. Our English translation applies only
+to our multiplayer additions and documentation. The code snapshot now matches
+the full OpenZ 1.4 project we actually used to build the game, rather than the
+older partial code snapshot originally published in Git.
 
-1. Cloner `https://github.com/Tablaski/OpenZ.git` et sélectionner `dev` :
+## Save work
 
-   ```powershell
-   git clone --branch dev https://github.com/Tablaski/OpenZ.git
-   cd OpenZ
-   ```
+Use dev for development and main for stable versions. A commit records a local
+version; a push sends it to GitHub. Neither happens automatically while editing.
+Each completed code change must be committed, pushed and checked against the
+remote branch. All new contributions must be in English.
 
-2. Télécharger `OpenZ_1.4_source_part1.zip` et `OpenZ_1.4_source_part2.zip` depuis
-   les [releases officielles](https://github.com/playopenz/OpenZ/releases).
-   Choisir la version **1.4**, puis extraire les deux parties au même endroit pour
-   obtenir `OpenZ_1.4_source/` à la racine du clone, contenant `Assets/`,
-   `Packages/` et `ProjectSettings/`.
-3. Installer Unity **6000.3.27f2** avec le support de compilation Windows.
-4. Depuis la racine du clone, appliquer le module :
+Only the paths listed as tracked above are covered by this Git backup. Editing
+an ignored model, sound or scene does not save it on GitHub. Any future resource
+change needs a separate backup/distribution decision before delivery.
 
-   ```powershell
-   ./tools/Prepare-DuelProject.ps1
-   ```
+## Build and share
 
-5. Ajouter `OpenZ_1.4_source/` dans Unity Hub, ouvrir
-   `Assets/OpenZ/Scenes/MainMenu.unity`, puis utiliser le menu de compilation
-   `OpenZ > Multiplayer > Build Windows POC`. Le résultat se trouve dans
-   `builds/OpenZ-Duel/` ; tous les fichiers voisins de l'exécutable sont nécessaires.
+Use tools/Build-Duel.ps1 to build the existing complete local project directly.
+The Windows output is builds/OpenZ-Duel/. Players need that whole folder in a
+release ZIP; they do not need Unity or Git. A playable release should identify
+its source commit and preserve the licenses and credits.
 
-Pour les tests de simulation, installer également le SDK .NET 8 puis lancer :
-
-```powershell
-dotnet run --project tests/Multiplayer/Multiplayer.Checks.csproj -c Release
-```
-
-Les essais complets et leurs limites sont décrits dans
-[MULTIPLAYER_POC.md](MULTIPLAYER_POC.md) et [DUEL_VALIDATION.md](DUEL_VALIDATION.md).
-Les scripts automatisés proposent par défaut le chemin Unity local
-`D:\Unity\6000.3.27f2\Editor\Unity.exe` ; adapter leur paramètre Unity sur une
-autre machine.
-
-## Continuer le développement
-
-Modifier le module dans `source/Assets/OpenZ/Scripts/Multiplayer/`, puis relancer
-`Prepare-DuelProject.ps1` pour le copier vers le projet Unity. Une modification
-faite uniquement dans le projet extrait et ignoré ne sera pas sauvegardée par Git.
-Tout nouveau raccordement aux scripts d'origine doit aussi être conservé dans
-le script de préparation.
-
-Le dépôt officiel peut être conservé comme remote `upstream`, et le fork comme
-remote `origin`. Les commits et les push de développement vont sur
-`origin/dev`.
-
-Pour une sauvegarde autonome complète, conserver aussi les deux ZIP sources 1.4
-sur un stockage de sauvegarde, ou publier une archive dédiée dans les releases
-du fork. Les fichiers exécutables peuvent également être distribués en release.
-Ils ne sont pas inclus dans ce commit de sources. Conserver les licences et les
-crédits du projet dans toute redistribution.
+See [contributor instructions](../CONTRIBUTING.md),
+[multiplayer behavior](MULTIPLAYER_POC.md) and
+[validation results](DUEL_VALIDATION.md).

@@ -1,39 +1,62 @@
-# Validation du prototype — 14 novembre 2026
+# Duel validation — November 14, 2026
 
-## Résultats
+## Repository cleanup and English UI
 
-- Unity 6000.3.27f2 : build Windows réussi, zéro erreur. Dernier journal : tests/Multiplayer/.cli/Unity-delivery-build.log.
-- La sérialisation Unity est contrôlée avant le build : commandes avec waypoints, événements de combat, règles communes et handicap optionnel.
-- 463 contrôles .NET de simulation et de réseau passent sur les quatre missions.
-- Désert, Volcan, Jungle et Car Park : PASS des deux exécutables pour chaque mission. Dégâts observés des deux côtés, ordres invités transmis, voix UDP reçue, abandon de l’invité, fort bleu détruit, vainqueur rouge et zéro exception.
-- Boutons Unity : PASS pour l’entrée dans le mode, la création de salle, les règles communes par défaut, les portraits, l’activation du handicap bleu, l’édition de son armée sans changer la dotation commune et sa désactivation.
-- Les captures des règles et du handicap ont été examinées visuellement. Elles proviennent du rendu Unity, pas de maquettes HTML.
+- The complete local Unity project now lives in source/. Its tracked code and
+  configuration are the same files used to compile the player.
+- All 4,750 code, code metadata and configuration files were checked against
+  Git's tracked paths. Multimedia and scene directories remain excluded, as
+  requested for the upstream code-only layout. Git LFS is not used.
+- 463 .NET core and real-map simulation checks passed after the move.
+- A full Windows player build succeeded with zero errors.
+- Two local players passed on all four missions: guest orders, combat damage,
+  received UDP voice, guest surrender, destroyed blue fort, red winner and zero
+  exceptions.
+- Native English menu checks passed for entering multiplayer, creating a room,
+  shared rules, portraits, the optional blue handicap, independent army edits
+  and disabling the handicap. The final BACK label and generic capture player
+  names were rebuilt and the native menu checks passed again.
 
-## Preuves locales
+## Evidence
 
-| Mission | Résultats hôte et invité |
+Generated evidence is local in tests/Multiplayer/.cli/; selected English
+screenshots are versioned in docs/duel-preview/.
+
+| Mission | Evidence folder under tests/Multiplayer/.cli/ |
 | --- | --- |
-| Désert | tests/Multiplayer/.cli/proof-L02-20261114-195657 |
-| Volcan | tests/Multiplayer/.cli/proof-L07-20261114-194617 |
-| Jungle | tests/Multiplayer/.cli/proof-L16-20261114-194721 |
-| Car Park | tests/Multiplayer/.cli/proof-L17-20261114-194820 |
+| Desert | proof-L02-20261114-230902 |
+| Volcano | proof-L07-20261114-225555 |
+| Jungle | proof-L16-20261114-225707 |
+| Car Park | proof-L17-20261114-225816 |
 
-Chaque dossier contient host-result.txt, guest-result.txt et les journaux complets. Les menus ont leur résultat dans tests/Multiplayer/.cli/menus-20261114-195818/result.txt. Des captures durables sont conservées dans docs/duel-preview.
+Each mission folder contains host-result.txt, guest-result.txt, logs and native
+Unity screenshots. The final native menu run is menus-20261114-230827/result.txt.
+Desert was also rerun successfully on the final player after the last UI-only
+label and capture-name correction.
 
-Le premier scénario Jungle plaçait ses deux chars sans garantir la ligne de tir et échouait sur l’assertion de dégâts ; le placement sur un couloir dégagé corrige le scénario et le nouvel essai passe. Les premières captures de fenêtres masquées étaient noires ; le rendu explicite vers une texture et le calque du canvas permettent désormais d’inspecter les menus.
+The first full player build after moving the project reported missing scene
+scripts and the Desert proof timed out while loading. The build helper now
+validates key scene script bindings and reimports script metadata when needed.
+After an editor reload and a fresh build, all four two-player proofs passed.
+Upstream source and scene files were not edited to address this failure.
 
-Le lanceur attend la publication complète de son invitation avant de démarrer le second processus.
+The launcher waits for the complete invitation before starting the guest.
+The Jungle proof uses a clear firing lane. Captures use explicit rendering
+instead of relying on hidden-window screenshots.
 
-## Reproduire
+## Reproduce
 
-```powershell
+Complete the one-time resource setup in [CONTRIBUTING.md](../CONTRIBUTING.md),
+then run:
+
+~~~powershell
 ./tools/Build-And-Test-Duel.ps1
-```
+~~~
 
-Ce script prépare les sources, reconstruit le joueur Windows, lance les quatre duels et teste les boutons des menus. Il s’arrête en cas d’échec. Simulation seule :
+This runs the core suite, builds the current player, tests all four missions and
+checks the native menus. It stops on failure. Core checks alone do not prove
+Unity rendering or gameplay.
 
-```powershell
-dotnet run --project tests/Multiplayer/Multiplayer.Checks.csproj -c Release
-```
-
-Les tests sont exécutés sur deux processus du même PC. Ils ne prouvent pas une connexion à travers toutes les box ni la qualité réelle du microphone. Une partie sur deux PC distants, la latence variable et l’écoute avec casques restent à tester. Les invitations directes IP sont disponibles ; aucun relais ni page publique HTTPS d’invitation n’est configuré.
+Tests use two processes on the same PC. They do not prove connectivity through
+all routers, variable remote latency or actual microphone/headset quality.
+No managed relay or public HTTPS invitation page is configured.

@@ -12,6 +12,7 @@ namespace OpenZ.Multiplayer.Editor
         [MenuItem("OpenZ/Multiplayer/Build Windows POC")]
         public static void Windows()
         {
+            ValidateScriptBindings();
             ValidateWire();
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
             string output = Path.Combine(root, "builds", "OpenZ-Duel", "OpenZ-Duel.exe");
@@ -25,11 +26,33 @@ namespace OpenZ.Multiplayer.Editor
             {
                 scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" }, s => "Assets/OpenZ/Scenes/" + s + ".unity"),
                 target = BuildTarget.StandaloneWindows64, locationPathName = output,
-                options = BuildOptions.Development | BuildOptions.CompressWithLz4 | (File.Exists(output) ? BuildOptions.BuildScriptsOnly : BuildOptions.None)
+                options = BuildOptions.Development | BuildOptions.CompressWithLz4
             });
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(output), "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors + "\n" + output);
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);
             Debug.Log("[OpenZ Duel] Built " + output);
+        }
+        public static void ValidateScriptBindings()
+        {
+            string[] paths = { "View/ZGame.cs", "UI/OpenZMainMenu.cs", "View/UnitView.cs", "View/RtsCamera.cs" };
+            Type[] expected = { typeof(ZGame), typeof(OpenZMainMenu), typeof(UnitView), typeof(RtsCamera) };
+            bool needsImport = false;
+            for (int i = 0; i < paths.Length; i++)
+            {
+                var script = AssetDatabase.LoadAssetAtPath<MonoScript>("Assets/OpenZ/Scripts/" + paths[i]);
+                if (!script || script.GetClass() != expected[i]) needsImport = true;
+            }
+            // Moving a local project can leave cached MonoScript bindings stale.
+            // Reimport script metadata without changing upstream source or scene files.
+            if (needsImport)
+                AssetDatabase.ImportAsset("Assets/OpenZ/Scripts", ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            for (int i = 0; i < paths.Length; i++)
+            {
+                var script = AssetDatabase.LoadAssetAtPath<MonoScript>("Assets/OpenZ/Scripts/" + paths[i]);
+                if (!script || script.GetClass() != expected[i])
+                    throw new InvalidOperationException("Unity script binding is invalid: " + paths[i] + ". Reimport the Scripts folder before building.");
+            }
+            Debug.Log("[OpenZ Duel] Scene script bindings validated.");
         }
         public static void ValidateWire()
         {

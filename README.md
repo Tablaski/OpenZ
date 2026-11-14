@@ -1,8 +1,8 @@
-> **Fork Tablaski — prototype 1vs1.** Le développement est sur la branche `dev`.
-> Voir [la sauvegarde et la reconstruction du fork](docs/FORK.md),
-> [le fonctionnement du multijoueur](docs/MULTIPLAYER_POC.md) et
-> [les résultats de validation](docs/DUEL_VALIDATION.md).
-> Le projet Unity complet se récupère séparément dans les archives officielles 1.4.
+> **Tablaski fork — 1vs1 multiplayer prototype.** Development is on `dev`.
+> This fork keeps the upstream code-only Git layout; the complete local Unity project lives in `source/`.
+> Start with [the repository guide](docs/FORK.md) and [contributor instructions](CONTRIBUTING.md).
+> See [multiplayer behavior](docs/MULTIPLAYER_POC.md) and [validation](docs/DUEL_VALIDATION.md).
+> The original OpenZ presentation below is preserved; its source ZIP instructions describe upstream.
 
 <p align="center">
   <img src="media/banner.jpg" alt="OpenZ - faithful open-source 3D remake - 30th anniversary" width="100%">

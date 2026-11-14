@@ -1,0 +1,11 @@
+<linker>
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="OpenZ.Sim.ZObject" preserve="all" />
+    <type fullname="OpenZ.Sim.ZWaypoint" preserve="all" />
+    <type fullname="OpenZ.Sim.ZMissile" preserve="all" />
+    <type fullname="OpenZ.Sim.ZCroc" preserve="all" />
+    <type fullname="OpenZ.Sim.ZCrocNote" preserve="all" />
+    <type fullname="OpenZ.Sim.ZDragonPass" preserve="all" />
+    <type fullname="OpenZ.Sim.ZMapData/Obj" preserve="all" />
+  </assembly>
+</linker>

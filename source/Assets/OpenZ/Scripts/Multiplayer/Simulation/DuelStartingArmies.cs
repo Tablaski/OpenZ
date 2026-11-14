@@ -1,0 +1,77 @@
+using System;
+using System.Linq;
+using OpenZ.Multiplayer;
+
+namespace OpenZ.Sim
+{
+    public static class DuelMissionDefaults
+    {
+        public static DuelArmySettings Read(ZMapData map)
+        {
+            var army = new DuelArmySettings();
+            var fort = map.objects.First(o => o.owner == "red" && o.kind.StartsWith("building:fort_", StringComparison.Ordinal));
+            foreach (var o in map.objects.Where(o => o.owner == "red"))
+            {
+                int dx = o.x - fort.x, dy = o.y - fort.y;
+                if (o.Category == "cannon" && (dx == 1 || dx == 7) && (dy == 0 || dy == 3))
+                    army.FortTurrets[(dx == 7 ? 1 : 0) + (dy == 3 ? 2 : 0)] = o.Type;
+                else if (o.Category == "robot" || o.Category == "vehicle" || o.Category == "cannon")
+                    army.StartingUnits.Add(o.Type);
+            }
+            return army;
+        }
+    }
+
+    public sealed partial class ZWorld
+    {
+        public void DuelApplyStartingArmies()
+        {
+            if (duelRules == null || DuelIsReplica || Time != 0) throw new InvalidOperationException("Fresh authoritative duel required.");
+            foreach (var o in Objects.ToArray())
+                if (o.IsUnit && o.Owner != Team.Neutral) DeleteObject(o);
+            for (int seat = 0; seat < 2; seat++)
+            {
+                Team team = seat == 0 ? Team.Red : Team.Blue;
+                var army = duelRules.EffectiveFor(seat);
+                var fort = Objects.First(o => o.IsFort && o.Owner == team);
+                for (int i = 0; i < 4; i++)
+                {
+                    string type = army.FortTurrets[i]; if (string.IsNullOrEmpty(type)) continue;
+                    var gun = CreateObject("cannon", type, fort.LocX + (i % 2 == 0 ? 16 : 112), fort.LocY + (i < 2 ? 0 : 48), team);
+                    gun.Ejectable = false;
+                }
+                int budget = army.StartingUnits.Sum(t => ZBuildLists.IsRobot(t) ? Math.Max(1, S.Unit(t)?.group_amount ?? 1) : 1);
+                if (budget + army.FortTurrets.Count(t => !string.IsNullOrEmpty(t)) > MAX_UNITS_PER_TEAM)
+                    throw new InvalidOperationException("Starting army exceeds the 70 unit limit.");
+                foreach (string type in army.StartingUnits)
+                {
+                    // Reuse the game's placement search, then replace its vehicle placeholder for robots/guns.
+                    var placed = AddHeadStart(team, "jeep");
+                    if (placed.Count != 1) throw new InvalidOperationException("Not enough space in front of the fort.");
+                    var marker = placed[0]; int x = marker.LocX, y = marker.LocY;
+                    DeleteObject(marker);
+                    if (ZBuildLists.IsRobot(type)) CreateRobotGroup(type, x, y, team);
+                    else CreateObject(ZBuildLists.IsCannon(type) ? "cannon" : "vehicle", type, x, y, team);
+                }
+            }
+            Events.Clear();
+        }
+
+        public void DuelResetReplica()
+        {
+            if (!DuelIsReplica) throw new InvalidOperationException("Replica required.");
+            Objects.Clear(); Flags.Clear(); byId.Clear(); graveyard.Clear(); graveOrder.Clear(); Events.Clear();
+        }
+
+        public void DuelSurrender(int seat)
+        {
+            if (DuelIsReplica || duelRules == null || GameOver || (seat != 0 && seat != 1)) return;
+            Team loser = seat == 0 ? Team.Red : Team.Blue;
+            foreach (var fort in Objects.Where(o => o.IsFort && o.Owner == loser).ToArray())
+                if (!fort.Destroyed) { fort.SetHealth(0); UpdateObjectHealth(fort); }
+            GameOver = true; Winner = loser == Team.Red ? Team.Blue : Team.Red;
+            Events.Add(new ZEvent { type = ZEventType.GameOver, value = (float)Winner });
+            if (EndFreezeDeviation) FreezeAfterGameOver();
+        }
+    }
+}

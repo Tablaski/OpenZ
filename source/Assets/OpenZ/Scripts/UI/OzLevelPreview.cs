@@ -69,7 +69,7 @@ namespace OpenZ
         static float Hash(int x, int y) { unchecked { int h = x * 374761393 + y * 668265263; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) & 1023) / 1023f; } }
 
         /// <summary>Same palette and zone tint as the in-game minimap (OpenZMinimap.Palette / RebuildZones), 3 texels per tile.</summary>
-        static Texture2D Bake(ZWorld W, string level)
+        public static Texture2D Bake(ZWorld W, string level, bool includeUnits = false)
         {
             const int k = 3; const float zoneTint = 0.3f;
             int mw = W.Map.width, mh = W.Map.height, tw = mw * k, th = mh * k;
@@ -136,6 +136,16 @@ namespace OpenZ
                     for (int x = cx - 2; x <= cx + 2; x++)
                         if (x >= 0 && y >= 0 && x < tw && y < th) px[Idx(x, y)] = Mathf.Abs(x - cx) == 2 || Mathf.Abs(y - cy) == 2 ? new Color32(11, 13, 12, 255) : fc;
             }
+            if (includeUnits)
+                foreach (var o in W.Objects)
+                {
+                    if (!o.IsUnit || o.Destroyed) continue;
+                    int cx = o.CenterX * k / 16, cy = o.CenterY * k / 16;
+                    Color32 mark = o.Owner == Team.Neutral ? (Color32)OzUi.NeutralText : (Color32)OzUi.Mark(o.Owner);
+                    for (int y = cy - 1; y <= cy + 1; y++)
+                        for (int x = cx - 1; x <= cx + 1; x++)
+                            if (x >= 0 && y >= 0 && x < tw && y < th) px[Idx(x, y)] = mark;
+                }
             var tex = new Texture2D(tw, th, TextureFormat.RGBA32, true) { filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp, name = "OpenZ_MenuMini_" + level };
             tex.SetPixels32(px); tex.Apply(true, false);
             return tex;

@@ -23,7 +23,7 @@ namespace OpenZ.Multiplayer
         public DuelArmySettings Read()
         {
             var a = new DuelArmySettings { BuildDuration = BuildDuration, FortTurrets = Turrets };
-            if (Units == null || Units.Length > 70) throw new InvalidDataException("Invalid starting army.");
+            if (Units == null || Units.Length > 4) throw new InvalidDataException("Invalid starting army.");
             a.StartingUnits.AddRange(Units); return a;
         }
     }
@@ -113,7 +113,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-1.4-duel-2\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-1.4-duel-3\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             foreach (string map in new[] { "L02", "L07", "L16", "L17" }) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");

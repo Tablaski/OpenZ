@@ -83,10 +83,19 @@ static class SimulationChecks
             check(replica.Get(fresh.Id) == null && replica.GetAny(fresh.Id) != null, map + ": deletion lost event graveyard");
             Console.WriteLine(map + ": " + host.Objects.Count + " objects; initial state " + initialPayload.Length + " bytes; schema " + DuelReplica.SchemaHash.Substring(0, 12));
             var duel = ZWorld.Create(settings, json);
-            duel.ConfigureDuel(new DuelRules { Map = map, Common = DuelMissionDefaults.Read(duel.Map) }, false);
+            var startingRules = new DuelRules { Map = map, Common = DuelMissionDefaults.Read(duel.Map) };
+            check(startingRules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" }) && startingRules.Common.StartingUnits.Count <= 4,
+                map + ": duel defaults do not fit the four-slot layout");
+            startingRules.EnableHandicap(1); startingRules.Handicap.StartingUnits.AddRange(new[] { "", "heavy", "", "" });
+            duel.ConfigureDuel(startingRules, false);
             duel.DuelApplyStartingArmies();
             int redCount = duel.Objects.Count(o => o.Owner == Team.Red && o.IsUnit);
-            check(redCount > 0 && redCount == duel.Objects.Count(o => o.Owner == Team.Blue && o.IsUnit), map + ": red mission preset is not symmetric");
+            check(redCount > 0 && redCount + 1 == duel.Objects.Count(o => o.Owner == Team.Blue && o.IsUnit), map + ": additional handicap unit was not added to the shared army");
+            foreach (var team in new[] { Team.Red, Team.Blue })
+            {
+                check(duel.Objects.Count(o => o.Owner == team && o.Kind == ZKind.Cannon && !o.Ejectable &&
+                    (o.Type == "howitzer" || o.Type == "missile_cannon")) == 2, map + ": shared fort cannons missing");
+            }
             duel.DuelSurrender(0);
             check(duel.GameOver && duel.Winner == Team.Blue && duel.Objects.Where(o => o.IsFort && o.Owner == Team.Red).All(o => o.Destroyed), map + ": surrender did not destroy fort and award victory");
         }

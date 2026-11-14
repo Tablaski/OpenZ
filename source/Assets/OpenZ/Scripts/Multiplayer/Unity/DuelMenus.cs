@@ -19,8 +19,12 @@ namespace OpenZ.Multiplayer
         Canvas canvas;
         RectTransform root;
         OpenZMainMenu originalMenu;
-        bool dirty = true, exceptionEditor;
-        int tower = -1;
+        bool dirty = true;
+        int pickerGroup = -1, pickerSlot;
+        string previewKey;
+        Texture2D mapPreview;
+        OzFactionPosters generals;
+        readonly RawImage[] generalImages = new RawImage[2];
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
         OzText ping, loading, voiceStatus;
         InputField chatField;
@@ -40,6 +44,8 @@ namespace OpenZ.Multiplayer
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
         {
+            if (page == Page.Lobby && pickerGroup >= 0 && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            { pickerGroup = -1; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
             {
                 if (endedAt < 0) endedAt = Time.realtimeSinceStartupAsDouble;
@@ -60,13 +66,26 @@ namespace OpenZ.Multiplayer
                 else if (Keyboard.current.escapeKey.wasPressedThisFrame) { page = page == Page.Entry ? Page.Game : Page.Entry; dirty = true; }
             }
             if (dirty) { dirty = false; Build(); }
+            if (generals)
+            {
+                generals.SetSize(120, 140);
+                generals.SetLive(page == Page.Lobby);
+                for (int i = 0; i < 2; i++)
+                    if (generalImages[i] && generals.P[i] != null && generals.P[i].modelReady)
+                    { generalImages[i].texture = generals.P[i].rt; generalImages[i].material = generals.Figure; generalImages[i].enabled = generals.P[i].rt; }
+            }
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
             voiceStatus?.Set(R.Voice.Status);
             if (loading != null) loading.Set(R.Countdown >= 0 ? "STARTING IN " + Math.Ceiling(R.Countdown) : R.Status);
         }
         void Build()
         {
-            if (root) Destroy(root.gameObject);
+            if (page != Page.Lobby)
+            {
+                pickerGroup = -1;
+                if (generals) { generals.Close(false); generals = null; }
+            }
+            if (root) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
             ping = loading = voiceStatus = null; chatField = null;
             if (!canvas)
             {
@@ -86,8 +105,7 @@ namespace OpenZ.Multiplayer
             if (originalMenu) originalMenu.enabled = page == Page.Entry;
             if (page == Page.Entry)
             {
-                if (SceneManager.GetActiveScene().name == "MainMenu") Button(root, "1VS1", 1500, 48, 320, ShowConnect, true);
-                else if (R.InMatch) { Button(root, "DUEL MENU", 1590, 20, 260, ShowInGameMenu); ping = Label(root, "PING", 1370, 34, 180, 17, OzUi.Go); }
+                if (SceneManager.GetActiveScene().name != "MainMenu" && R.InMatch) { Button(root, "DUEL MENU", 1590, 20, 260, ShowInGameMenu); ping = Label(root, "PING", 1370, 34, 180, 17, OzUi.Go); }
                 return;
             }
             if (page == Page.Chat) { BuildChat(); return; }
@@ -135,76 +153,120 @@ namespace OpenZ.Multiplayer
             if (R.View == null) { loading = Label(root, R.Status, 180, 350, 1500, 28, OzUi.Ink); Button(root, "CANCEL", 80, 950, 300, Leave); return; }
             var rules = R.Rules; bool editable = R.IsHost && R.View.Phase == (int)DuelPhase.Lobby;
             if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, int.Parse(port)));
-            var left = Panel("SHARED RULES", 80, 190, 850, 595);
+            var left = Panel("MAP", 80, 190, 700, 595);
             int mx = 24;
-            foreach (string map in new[] { "L02", "L07", "L16", "L17" })
+            foreach (var map in OzLevelDef.All)
             {
-                string chosen = map;
-                Button(left, map, mx, 70, 190, () => { R.ChangeRules(DuelRuntime.Defaults(chosen)); exceptionEditor = false; }, map == rules.Map, editable); mx += 200;
+                string chosen = map.Id;
+                Button(left, map.Name, mx, 65, 157, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable); mx += 165;
             }
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
-            if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 140, 800, 220); raw.raycastTarget = false; }
-            Label(left, "MAX. TERRITORY BONUS: " + (rules.TerritoryBonus * 100).ToString("0") + " %", 24, 390, 620, 20, OzUi.Ink);
-            Button(left, "−", 650, 380, 65, () => { rules.TerritoryBonus = Math.Max(0, rules.TerritoryBonus - .1); R.ChangeRules(rules); }, false, editable);
-            Button(left, "+", 730, 380, 65, () => { rules.TerritoryBonus = Math.Min(.9, rules.TerritoryBonus + .1); R.ChangeRules(rules); }, false, editable);
-            Label(left, "SHARED BUILD SPEED: ×" + (1 / rules.Common.BuildDuration).ToString("0.##"), 24, 468, 620, 20, OzUi.Ink);
-            Button(left, "CHANGE", 650, 455, 145, () => { rules.Common.BuildDuration = NextDuration(rules.Common.BuildDuration); R.ChangeRules(rules); }, false, editable);
-            Label(left, "Default: the mission red starting army for both teams.", 24, 540, 800, 17, OzUi.Muted);
+            if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }
+            BuildMapPreview(left, rules);
             BuildArmy(rules, editable);
-            var handicap = Panel(rules.HandicapEnabled ? "⚠ HANDICAP ACTIVE" : "OPTIONAL HANDICAP · OFF", 980, 800, 850, 150);
-            Button(handicap, rules.HandicapEnabled ? "DISABLE" : "ENABLE", 24, 65, 200, () => { if (rules.HandicapEnabled) { rules.HandicapEnabled = false; exceptionEditor = false; } else rules.EnableHandicap(1); R.ChangeRules(rules); }, false, editable);
-            if (rules.HandicapEnabled)
-            {
-                Label(handicap, rules.HandicapSlot == 0 ? "RED" : "BLUE", 245, 75, 130, 19, OzUi.AlertText);
-                Button(handicap, "PLAYER", 370, 65, 130, () => { rules.EnableHandicap(1 - rules.HandicapSlot); R.ChangeRules(rules); }, false, editable);
-                Button(handicap, "ARMY", 510, 65, 130, () => { exceptionEditor = true; dirty = true; }, false, editable);
-                Button(handicap, "×" + (rules.Common.BuildDuration / rules.Handicap.BuildDuration).ToString("0.##"), 650, 65, 155,
-                    () => { rules.Handicap.BuildDuration = NextDuration(rules.Handicap.BuildDuration); R.ChangeRules(rules); }, false, editable);
-            }
-            BuildChatPanel(80, 800, 850, 180);
-            Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 980, 967, 820, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
-            Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 980, 990, 820, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
+            BuildHandicap(rules, editable);
+            var construction = Panel("CONSTRUCTION · CURRENT RULES", 820, 800, 1010, 150);
+            Label(construction, "MAX. TERRITORY BONUS: " + (rules.TerritoryBonus * 100).ToString("0") + " %", 24, 62, 650, 18, OzUi.Ink);
+            Button(construction, "−", 810, 50, 65, () => { rules.TerritoryBonus = Math.Max(0, rules.TerritoryBonus - .1); R.ChangeRules(rules); }, false, editable);
+            Button(construction, "+", 900, 50, 65, () => { rules.TerritoryBonus = Math.Min(.9, rules.TerritoryBonus + .1); R.ChangeRules(rules); }, false, editable);
+            Label(construction, "SHARED BUILD SPEED: ×" + (1 / rules.Common.BuildDuration).ToString("0.##"), 24, 113, 650, 18, OzUi.Ink);
+            Button(construction, "CHANGE", 810, 102, 155, () => { rules.Common.BuildDuration = NextDuration(rules.Common.BuildDuration); R.ChangeRules(rules); }, false, editable);
+            BuildChatPanel(80, 800, 700, 180);
+            Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
+            Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
             Button(root, "LEAVE", 80, 1000, 250, Leave);
             Label(root, R.Status, 360, 1020, 950, 16, OzUi.AlertText);
             Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 1010, 440, R.Ready, true, R.Connected);
+            if (pickerGroup >= 0) BuildUnitPicker(rules, editable);
         }
         static double NextDuration(double current) => current > .9 ? .8 : current > .7 ? 2d / 3 : current > .55 ? .5 : 1;
         void BuildArmy(DuelRules rules, bool editable)
         {
-            if (!rules.HandicapEnabled) exceptionEditor = false;
-            var army = exceptionEditor ? rules.Handicap : rules.Common;
-            string title = exceptionEditor ? "⚠ OVERRIDE FOR " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") : "SHARED ARMY · BOTH TEAMS";
-            var panel = Panel(title, 980, 190, 850, 595);
-            if (exceptionEditor) Button(panel, "SHARED RULES", 540, 15, 280, () => { exceptionEditor = false; dirty = true; });
+            var panel = Panel("SHARED ARMY · BOTH TEAMS", 820, 190, 1010, 310);
             Label(panel, "ON THE FORT", 24, 68, 800, 17, OzUi.Muted);
+            ArmySlots(panel, rules.Common.FortTurrets, 0, 24, 95, 960, editable);
+            Label(panel, "OUTSIDE THE FORT", 24, 190, 800, 17, OzUi.Muted);
+            ArmySlots(panel, rules.Common.StartingUnits, 1, 24, 217, 960, editable);
+        }
+        void ArmySlots(Transform parent, IList<string> units, int group, float x, float y, float width, bool editable)
+        {
+            float step = width / 4;
             for (int i = 0; i < 4; i++)
             {
-                int slot = i; string type = army.FortTurrets[i];
-                var button = Button(panel, string.IsNullOrEmpty(type) ? "EMPTY" : type.ToUpperInvariant(), 24 + i * 200, 100, 185, () => { tower = tower == slot ? -1 : slot; dirty = true; }, tower == i, editable, 90);
-                Portrait(button, type, 64, 3, 58);
+                int slot = i; string type = i < units.Count ? units[i] : "";
+                var button = Button(parent, UnitName(type), x + i * step, y, step - 10, () => { pickerGroup = group; pickerSlot = slot; dirty = true; }, false, editable, 76);
+                button.name = "ARMY SLOT " + group + ":" + slot;
+                Portrait(button, type, (step - 54) / 2, 2, 44);
             }
-            Label(panel, "OUTSIDE THE FORT", 24, 205, 800, 17, OzUi.Muted);
-            var content = Scroll(panel, 24, 240, 800, 175, false, Math.Max(175, army.StartingUnits.Distinct().Count() * 55));
-            int y = 0;
-            foreach (var group in army.StartingUnits.GroupBy(t => t).ToArray())
+        }
+        static string UnitName(string type) => string.IsNullOrEmpty(type) ? "EMPTY" : type == "light" ? "LIGHT TANK" : type == "medium" ? "MEDIUM MECH" : type == "mtank" ? "MEDIUM TANK" : type == "heavy" ? "HEAVY TANK" : type.Replace('_', ' ').ToUpperInvariant();
+        void BuildHandicap(DuelRules rules, bool editable)
+        {
+            var panel = Panel("HANDICAP", 820, 520, 1010, 265);
+            Button(panel, rules.HandicapEnabled ? "DISABLE" : "DISABLED", 790, 12, 195, () => { if (rules.HandicapEnabled) rules.HandicapEnabled = false; else rules.EnableHandicap(rules.HandicapSlot); R.ChangeRules(rules); }, false, editable);
+            if (!generals) generals = OzFactionPosters.Open(transform);
+            for (int i = 0; i < 2; i++)
             {
-                string type = group.Key; Portrait(content, type, 0, y, 48);
-                Label(content, type.ToUpperInvariant(), 65, y + 12, 430, 18, OzUi.Ink);
-                Label(content, group.Count().ToString(), 630, y + 12, 60, 20, OzUi.Amber);
-                Button(content, "−", 540, y, 65, () => { army.StartingUnits.Remove(type); R.ChangeRules(rules); }, false, editable);
-                Button(content, "+", 700, y, 65, () => { army.StartingUnits.Add(type); R.ChangeRules(rules); }, false, editable); y += 55;
+                int seat = i; float x = 24 + i * 230;
+                var b = Button(panel, i == 0 ? "GENERAL ZOD · RED" : "EVIL ZOD · BLUE", x, 65, 215, () => { rules.EnableHandicap(seat); R.ChangeRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
+                generalImages[i] = Hud.Node("GeneralPortrait", b).gameObject.AddComponent<RawImage>();
+                generalImages[i].rectTransform.TL(47, 0, 120, 118); generalImages[i].raycastTarget = false; generalImages[i].enabled = false;
             }
-            var choices = tower >= 0 ? new[] { "", "gun", "gatling", "howitzer", "missile_cannon" } : DuelRules.AllowedExtras;
-            var catalogue = Scroll(panel, 24, 430, 800, 95, true, choices.Length * 110);
-            for (int i = 0; i < choices.Length; i++)
+            Label(panel, "ADDITIONALLY OUTSIDE THE FORT", 510, 68, 480, 16, OzUi.Muted);
+            ArmySlots(panel, rules.Handicap.StartingUnits, 2, 510, 100, 480, editable && rules.HandicapEnabled);
+            Label(panel, rules.HandicapEnabled ? "Four extra units for " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") + " only." : "Select a general to enable the handicap.", 24, 235, 960, 17, OzUi.Muted);
+        }
+        void BuildMapPreview(Transform parent, DuelRules rules)
+        {
+            string key = JsonUtility.ToJson(DuelArmyData.From(rules.Common)) + JsonUtility.ToJson(DuelArmyData.From(rules.Handicap)) + rules.Map + rules.HandicapEnabled + rules.HandicapSlot;
+            if (!mapPreview || previewKey != key)
             {
-                string type = choices[i];
-                var button = Button(catalogue, type == "" ? "EMPTY" : type.ToUpperInvariant(), i * 110, 0, 102, () =>
-                { if (tower >= 0) { army.FortTurrets[tower] = type; tower = -1; } else army.StartingUnits.Add(type); R.ChangeRules(rules); }, false, editable, 88);
-                Portrait(button, type, 27, 0, 48);
+                var settings = Resources.Load<TextAsset>("OpenZ/default_settings");
+                var map = Resources.Load<TextAsset>("OpenZ/Maps/" + rules.Map + "_grid");
+                var world = ZWorld.Create(settings.text, map.text, 1);
+                world.ConfigureDuel(rules, false); world.DuelApplyStartingArmies();
+                if (mapPreview) Destroy(mapPreview);
+                mapPreview = OzLevelInfo.Bake(world, rules.Map, true); previewKey = key;
             }
-            Button(panel, exceptionEditor ? "RESET TO SHARED ARMY" : "RESET TO MISSION RED ARMY", 24, 540, 800, () =>
-            { if (exceptionEditor) rules.Handicap = rules.Common.Copy(); else rules.Common = DuelRuntime.Defaults(rules.Map).Common; R.ChangeRules(rules); }, false, editable);
+            Label(parent, "TACTICAL MAP", 24, 370, 230, 19, OzUi.Ink);
+            Label(parent, "Full map\nStarting positions\nBoth armies", 24, 415, 230, 17, OzUi.Muted);
+            var raw = Hud.Node("TacticalMap", parent).gameObject.AddComponent<RawImage>(); raw.texture = mapPreview;
+            float scale = Math.Min(380f / mapPreview.width, 240f / mapPreview.height);
+            raw.rectTransform.TL(285 + (380 - mapPreview.width * scale) / 2, 335, mapPreview.width * scale, mapPreview.height * scale); raw.raycastTarget = false;
+        }
+        void BuildUnitPicker(DuelRules rules, bool editable)
+        {
+            if (!editable || (pickerGroup == 2 && !rules.HandicapEnabled)) { pickerGroup = -1; return; }
+            var shade = Hud.Img(root, "UnitPickerShade", new Color(0, 0, 0, .85f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
+            var panel = Panel(pickerGroup == 0 ? "ON THE FORT · SELECT CANNON" : "OUTSIDE THE FORT · SELECT UNIT", 340, 180, 1240, 720);
+            var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950); backing.rectTransform.Fill(); backing.transform.SetAsFirstSibling(); backing.raycastTarget = true;
+            Button(panel, "CLOSE", 1030, 14, 180, () => { pickerGroup = -1; dirty = true; });
+            Label(panel, pickerGroup == 0 ? "Fort mounts accept cannons only." : "One vehicle, cannon or robot squad per slot.", 24, 72, 1150, 18, OzUi.Muted);
+            for (int i = 0; i < DuelRules.AllowedExtras.Length; i++)
+            {
+                string type = DuelRules.AllowedExtras[i];
+                bool allowed = pickerGroup != 0 || type == "gun" || type == "gatling" || type == "howitzer" || type == "missile_cannon";
+                var button = Button(panel, UnitName(type), 24 + i % 6 * 200, 115 + i / 6 * 155, 190, () => SetArmySlot(rules, type), false, allowed, 140);
+                button.name = "SELECT " + type;
+                Portrait(button, type, 55, 12, 80);
+            }
+            Button(panel, "EMPTY SLOT", 24, 625, 360, () => SetArmySlot(rules, ""));
+        }
+        void SetArmySlot(DuelRules rules, string type)
+        {
+            if (pickerGroup == 0) rules.Common.FortTurrets[pickerSlot] = type;
+            else
+            {
+                var units = pickerGroup == 1 ? rules.Common.StartingUnits : rules.Handicap.StartingUnits;
+                while (units.Count <= pickerSlot) units.Add("");
+                units[pickerSlot] = type;
+            }
+            pickerGroup = -1; R.ChangeRules(rules);
+        }
+        void OnDestroy()
+        {
+            if (mapPreview) Destroy(mapPreview);
+            if (generals && generals.isActiveAndEnabled) generals.Close(false);
         }
         void BuildGameMenu()
         {

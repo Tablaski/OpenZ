@@ -2,7 +2,10 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 namespace OpenZ.Multiplayer
@@ -30,10 +33,40 @@ namespace OpenZ.Multiplayer
         }
         void Click(string name)
         {
-            var button = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Single(b => b.gameObject.name == name && b.interactable);
+            var button = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Single(b => b.gameObject.activeInHierarchy && b.gameObject.name == name && b.interactable);
             button.onClick.Invoke();
         }
-        void Capture(string name) => DuelProofCapture.Save(Path.Combine(folder, name + ".png"), true);
+        void Capture(string name)
+        {
+            // Hidden test windows do not drive their offscreen portrait cameras.
+            var generals = OzFactionPosters.I;
+            if (generals && generals.Ready)
+                foreach (var poster in generals.P)
+                    if (poster.cam && poster.rt)
+                    {
+                        RenderPipeline.SubmitRenderRequest(poster.cam, new UniversalRenderPipeline.SingleCameraRequest { destination = poster.rt });
+                        var previous = RenderTexture.active;
+                        var pixels = new Texture2D(poster.rt.width, poster.rt.height, TextureFormat.RGBA32, false);
+                        try
+                        {
+                            RenderTexture.active = poster.rt;
+                            pixels.ReadPixels(new Rect(0, 0, poster.rt.width, poster.rt.height), 0, 0); pixels.Apply();
+                            if (!pixels.GetPixels32().Any(p => p.a > 32 && (p.r > 16 || p.g > 16 || p.b > 16)))
+                                throw new Exception("General portrait is empty: " + poster.id);
+                        }
+                        finally { RenderTexture.active = previous; Destroy(pixels); }
+                    }
+            DuelProofCapture.Save(Path.Combine(folder, name + ".png"), true);
+        }
+        void ClickMainItem(string label)
+        {
+            var menu = FindFirstObjectByType<OpenZMainMenu>();
+            var items = (IEnumerable)typeof(OpenZMainMenu).GetField("items", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(menu);
+            foreach (var item in items)
+                if ((string)item.GetType().GetField("label").GetValue(item) == label)
+                { ((Action)item.GetType().GetField("act").GetValue(item))(); return; }
+            throw new Exception("Missing native main menu item: " + label);
+        }
         void Update()
         {
             if (step < 0 || Time.realtimeSinceStartupAsDouble < next) return;
@@ -43,30 +76,64 @@ namespace OpenZ.Multiplayer
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
                 switch (step++)
                 {
-                    case 0: Click("1VS1"); break;
+                    case 0:
+                        if (!FindObjectsByType<Transform>(FindObjectsSortMode.None).Any(t => t.name == "Item_PLAY SOLO")) throw new Exception("Missing PLAY SOLO entry.");
+                        if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "1VS1")) throw new Exception("Old floating duel button is still present.");
+                        Capture("main-menu"); ClickMainItem("PLAY 1 VS 1"); break;
                     case 1:
+                        Capture("online-connection");
+                        if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "ONLINE SETTINGS")) Click("ONLINE SETTINGS");
+                        else step = 3;
+                        break;
+                    case 2:
+                        Capture("online-settings"); Click("ADVANCED TCP/IP"); break;
+                    case 3:
                         DuelRuntime.I.Menus.GetComponentsInChildren<InputField>().Single(i => i.characterLimit == 32).text = "HOST";
                         Capture("connection"); Click("CREATE MATCH"); break;
-                    case 2:
+                    case 4:
                         if (r.Rules.HandicapEnabled) throw new Exception("Handicap enabled by default.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
-                        Capture("shared-rules"); Click("ENABLE"); break;
-                    case 3:
-                        if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 1) throw new Exception("Handicap target incorrect.");
-                        Capture("handicap-active"); Click("ARMY"); break;
-                    case 4:
-                        Capture("handicap-army");
-                        // Changing the exception must preserve the common army.
-                        int count = r.Rules.Common.StartingUnits.Count;
-                        Click("HEAVY");
-                        if (r.Rules.Common.StartingUnits.Count != count || r.Rules.Handicap.StartingUnits.Last() != "heavy")
-                            throw new Exception("Exception edited the common army.");
-                        break;
-                    case 5: Capture("handicap-unit-added"); Click("DISABLE"); break;
+                        if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
+                        if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
+                        Capture("shared-rules"); Click("ARMY SLOT 0:0"); break;
+                    case 5:
+                        if (r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "SELECT heavy").interactable) throw new Exception("Vehicle can be placed on the fort.");
+                        Capture("fort-unit-picker"); Click("SELECT howitzer"); break;
                     case 6:
+                        Click("ARMY SLOT 1:3"); break;
+                    case 7: Capture("outside-unit-picker"); Click("SELECT heavy"); break;
+                    case 8:
+                        if (r.Rules.Common.StartingUnits[3] != "heavy") throw new Exception("Shared outside slot was not set.");
+                        Click("GENERAL ZOD · RED"); break;
+                    case 9:
+                        if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 0 || r.Rules.Handicap.StartingUnits.Count != 0) throw new Exception("Red handicap did not start with empty slots.");
+                        Capture("handicap-active"); Click("ARMY SLOT 2:0"); break;
+                    case 10: Click("SELECT jeep"); break;
+                    case 11:
+                        if (r.Rules.Handicap.StartingUnits[0] != "jeep" || r.Rules.EffectiveFor(0).StartingUnits.Count != r.Rules.EffectiveFor(1).StartingUnits.Count + 1)
+                            throw new Exception("Handicap units are not additive.");
+                        Capture("handicap-unit-added"); Click("EVIL ZOD · BLUE"); break;
+                    case 12:
+                        if (r.Rules.HandicapSlot != 1 || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Switching the beneficiary lost the extras.");
+                        Click("ARMY SLOT 1:3"); break;
+                    case 13: Click("EMPTY SLOT"); break;
+                    case 14:
+                        if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.EffectiveFor(1).StartingUnits.Count != r.Rules.EffectiveFor(0).StartingUnits.Count + 1)
+                            throw new Exception("Shared slot edit did not propagate to the handicap army.");
+                        Click("JUNGLE"); break;
+                    case 15: Capture("jungle-map"); Click("CAR PARK"); break;
+                    case 16: Capture("car-park-map"); Click("VOLCANO"); break;
+                    case 17: Capture("volcanic-map"); Click("DESERT"); break;
+                    case 18:
+                        if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Map selection reset the custom armies.");
+                        Click("DISABLE"); break;
+                    case 19:
                         if (r.Rules.HandicapEnabled) throw new Exception("Cannot disable handicap.");
+                        if (r.Rules.TerritoryBonus != .5 || r.Rules.Common.BuildDuration != 1 || r.Rules.Handicap.BuildDuration != 1 ||
+                            r.Rules.BuildSeconds(0, 100, .5, 1) != 75 || r.Rules.BuildSeconds(1, 100, .5, 1) != 75)
+                            throw new Exception("Army configuration changed construction times.");
                         Capture("shared-rules-restored");
-                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native buttons, common rules, optional targeted handicap, portraits and rendered menus.");
+                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps with tactical previews, cannon picker, four shared outside slots, additive handicap slots, both generals, empty slots and unchanged construction times.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
             }

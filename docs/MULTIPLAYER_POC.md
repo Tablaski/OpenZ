@@ -8,17 +8,24 @@ A versioned TCP protocol sends the initial state, then property changes,
 creations, removals and events at 15 Hz. Commands are validated by the host.
 Map, settings and schema fingerprints must match.
 
-The native Unity menus use the game's UI kit and portraits. The lobby provides
-all four missions (L02, L07, L16 and L17), chat, ping, two ready confirmations,
+The native Unity menus use the game's UI kit and portraits. PLAY SOLO and
+PLAY 1 VS 1 are consecutive entries in the main menu. The lobby provides
+Desert, Volcano, Jungle and Car Park, chat, ping, two ready confirmations,
 a shared loading barrier and a three-second countdown.
 
-Both players share the same rules and starting army: four fort turret slots,
-units outside the fort, build speed and territory bonus. By default, both teams
-receive the mission's red starting army, with no solo bonuses or bots.
-An optional handicap is disabled by default. When enabled, it copies the common
-settings for one player, whose army and build speed can then be changed
-independently. An alert marks the exception. Any rule change resets both ready
-confirmations.
+The MAP section shows the solo mission thumbnail and a complete tactical preview
+of the configured starting armies. Changing maps preserves the custom armies.
+Both players share four fort turret slots and four slots outside the fort.
+Each slot opens a unit-selection popup; fort mounts accept cannons only.
+The default fort contains a howitzer and a missile cannon. The outside slots
+start with up to four entries from the mission's red army, without solo bonuses
+or bots. A robot slot represents a whole squad.
+An optional handicap is disabled by default. Selecting General Zod (red) or Evil
+Zod (blue) selects its beneficiary. Four initially empty additional outside slots
+add units to that player's shared army. Later edits to the common army still
+apply to both players. Any rule change resets both ready confirmations.
+Construction formulas and their existing defaults are unchanged in this UI
+revision; new territory, comeback and construction-time rules remain deferred.
 
 In-game features include confirmed surrender (destroying the player's fort and
 awarding the opponent victory), a dedicated menu, chat with a configurable key,
@@ -61,7 +68,7 @@ the native menus. See [DUEL_VALIDATION.md](DUEL_VALIDATION.md) for actual result
 
 ## Connect and invite
 
-Main menu > 1VS1. The host enters the public or LAN address to share, creates a
+Main menu > PLAY 1 VS 1. The host enters the public or LAN address to share, creates a
 room and copies the invitation. The guest pastes it into Join. The invitation
 contains an address, port and random token. Both players need the same build
 and must mark themselves ready.

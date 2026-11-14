@@ -35,12 +35,20 @@ namespace OpenZ.Multiplayer
         public void EnableHandicap(int slot)
         {
             if (slot != 0 && slot != 1) throw new ArgumentOutOfRangeException(nameof(slot));
-            Handicap = Common.Copy(); HandicapSlot = slot; HandicapEnabled = true;
+            if (!HandicapEnabled) Handicap = new DuelArmySettings { BuildDuration = Common.BuildDuration };
+            HandicapSlot = slot; HandicapEnabled = true;
         }
         public DuelArmySettings EffectiveFor(int slot)
         {
             if (slot != 0 && slot != 1) throw new ArgumentOutOfRangeException(nameof(slot));
-            return (HandicapEnabled && HandicapSlot == slot ? Handicap : Common).Copy();
+            var army = Common.Copy();
+            army.StartingUnits.RemoveAll(string.IsNullOrEmpty);
+            if (HandicapEnabled && HandicapSlot == slot)
+            {
+                army.StartingUnits.AddRange(Handicap.StartingUnits.FindAll(t => !string.IsNullOrEmpty(t)));
+                army.BuildDuration = Handicap.BuildDuration;
+            }
+            return army;
         }
 
         public DuelRules Copy() => new DuelRules
@@ -62,10 +70,10 @@ namespace OpenZ.Multiplayer
         static bool InRange(double v, double min, double max) => !double.IsNaN(v) && v >= min && v <= max;
         static void CheckArmy(DuelArmySettings h)
         {
-            if (h == null || !InRange(h.BuildDuration, .1, 10) || h.StartingUnits.Count > 70 || h.FortTurrets == null || h.FortTurrets.Length != 4)
+            if (h == null || !InRange(h.BuildDuration, .1, 10) || h.StartingUnits.Count > 4 || h.FortTurrets == null || h.FortTurrets.Length != 4)
                 throw new ArgumentException("Invalid handicap.");
             foreach (var type in h.StartingUnits)
-                if (Array.IndexOf(AllowedExtras, type) < 0) throw new ArgumentException("Unknown starting unit.");
+                if (type != "" && Array.IndexOf(AllowedExtras, type) < 0) throw new ArgumentException("Unknown starting unit.");
             foreach (var type in h.FortTurrets)
                 if (type != "" && type != "gun" && type != "gatling" && type != "howitzer" && type != "missile_cannon")
                     throw new ArgumentException("Unknown fort turret.");

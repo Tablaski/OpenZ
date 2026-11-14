@@ -239,7 +239,8 @@ namespace OpenZ
             // Z turns 30 (1996-2026): the anniversary badge under the logo
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);
 
-            AddItem("PLAY", "SELECT FACTION", () => GoFaction());                                              // k75a: the faction screen first (GENERAL ZOD or GENERAL EVILZOD), then the level selection
+            AddItem("PLAY SOLO", "SELECT FACTION", () => GoFaction());
+            AddItem("PLAY 1 VS 1", "PLAY ONLINE WITH A FRIEND", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowConnect());
             AddItem("UNIT EDITOR", "PLAYGROUND · ALL UNITS · STATS", () => GoUnitEditor());              // 1.2 item 6: the unit editor's playground (UI/OpenZMainMenu.UnitEditor.cs, View/OzUnitEditor.cs)
             AddItem("OPTIONS", "AUDIO · SCROLL · HUD", () => ToggleSide(Side.Options));
             AddItem("CONTROLS", "THE ZOD KEY MAP", () => ToggleSide(Side.Controls));
@@ -305,7 +306,7 @@ namespace OpenZ
             it.sub.At(lx + 12 + it.width32 + OzMenuLayout.HintGap, y + OzMenuLayout.HintDY, OzH.L, false, 360);
             items.Add(it);
             int idx = i;
-            AddHot(it.hit, View.Main, () => { focusItem = idx; it.act(); }, h => { if (h && MouseMoved) { focusItem = idx; kbMode = false; } }, null, label == "PLAY" ? "ui_level_select" : "ui_click");
+            AddHot(it.hit, View.Main, () => { focusItem = idx; it.act(); }, h => { if (h && MouseMoved) { focusItem = idx; kbMode = false; } }, null, label == "PLAY SOLO" ? "ui_level_select" : "ui_click");
         }
 
         // ---------------------------------------------------------------- options (mirrors OpenZPauseMenu.BuildOptions: same plate, rows and PlayerPrefs)

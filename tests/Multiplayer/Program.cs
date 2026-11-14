@@ -75,6 +75,22 @@ static class Program
         Check(handicap.Common.FortTurrets[0] == "gun", "Effective army leaked shared turret slots");
         handicap.HandicapEnabled = false;
         Check(handicap.EffectiveFor(1).StartingUnits.Count == 1, "Disabled handicap retained custom army");
+        handicap.EnableHandicap(1);
+        Check(handicap.Handicap.StartingUnits.Count == 0, "Handicap slots did not start empty");
+        handicap.Common.StartingUnits.Add(""); handicap.Common.StartingUnits.Add("light");
+        handicap.Handicap.StartingUnits.Add(""); handicap.Handicap.StartingUnits.Add("heavy");
+        Check(handicap.EffectiveFor(0).StartingUnits.Count == 2 && handicap.EffectiveFor(1).StartingUnits.Count == 3,
+            "Empty slots spawned units or shared units were not inherited");
+        handicap.Common.FortTurrets[0] = "howitzer";
+        Check(handicap.EffectiveFor(1).FortTurrets[0] == "howitzer", "Handicap replaced the shared fort");
+        handicap.EnableHandicap(0);
+        Check(handicap.Handicap.StartingUnits.Count == 2 && handicap.EffectiveFor(0).StartingUnits.Contains("heavy"),
+            "Changing the beneficiary erased the additional slots");
+        var tooMany = new DuelRules();
+        tooMany.Common.StartingUnits.AddRange(new[] { "jeep", "jeep", "jeep", "jeep", "jeep" });
+        Reject(tooMany.Validate, "More than four shared slots accepted");
+        tooMany.Common.StartingUnits.Clear(); tooMany.Handicap.StartingUnits.AddRange(new[] { "jeep", "jeep", "jeep", "jeep", "jeep" });
+        Reject(tooMany.Validate, "More than four additional slots accepted");
 
         var sender = new DuelDeltaSender(); var receiver = new DuelDeltaReceiver();
         var world = new Dictionary<int, byte[]> { [1] = new byte[] { 100 }, [2] = new byte[] { 50 } };

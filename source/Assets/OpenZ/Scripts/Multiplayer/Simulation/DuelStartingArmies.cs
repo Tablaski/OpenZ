@@ -8,14 +8,14 @@ namespace OpenZ.Sim
     {
         public static DuelArmySettings Read(ZMapData map)
         {
-            var army = new DuelArmySettings();
+            var army = new DuelArmySettings { FortTurrets = new[] { "howitzer", "missile_cannon", "", "" } };
             var fort = map.objects.First(o => o.owner == "red" && o.kind.StartsWith("building:fort_", StringComparison.Ordinal));
             foreach (var o in map.objects.Where(o => o.owner == "red"))
             {
                 int dx = o.x - fort.x, dy = o.y - fort.y;
                 if (o.Category == "cannon" && (dx == 1 || dx == 7) && (dy == 0 || dy == 3))
-                    army.FortTurrets[(dx == 7 ? 1 : 0) + (dy == 3 ? 2 : 0)] = o.Type;
-                else if (o.Category == "robot" || o.Category == "vehicle" || o.Category == "cannon")
+                    continue;
+                if (army.StartingUnits.Count < 4 && (o.Category == "robot" || o.Category == "vehicle" || o.Category == "cannon"))
                     army.StartingUnits.Add(o.Type);
             }
             return army;

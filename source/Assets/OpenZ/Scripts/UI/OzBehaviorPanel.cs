@@ -12,6 +12,15 @@ namespace OpenZ
     {
         public static OzBehaviorPanel I { get; private set; }
         public bool IsOpen { get; private set; }
+        public static bool OwnsPointer
+        {
+            get
+            {
+                if (!I || !I.IsOpen || OzUnitEditor.PanelsHidden || UnityEngine.InputSystem.Mouse.current == null) return false;
+                var p = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+                return I.panelRect.Contains(new Vector2(p.x / I.scale, (Screen.height - p.y) / I.scale));
+            }
+        }
         readonly ZBehaviorProfile[] drafts = new ZBehaviorProfile[2];
         readonly Dictionary<string, string> numbers = new Dictionary<string, string>();
         int family, page, scope;

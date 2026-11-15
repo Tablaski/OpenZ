@@ -76,5 +76,25 @@ static class BehaviorChecks
         native.SetBehavior(new ZBehaviorProfile { family = ZBehaviorFamily.Tanks }); native.SetBehavior(new ZBehaviorProfile { family = ZBehaviorFamily.Robots });
         for (int i = 0; i < 90; i++) { original.Tick(ZConst.TICK); native.Tick(ZConst.TICK); }
         check(original.Objects.Count == native.Objects.Count && original.Objects.Zip(native.Objects, (a, b) => a.LocX == b.LocX && a.LocY == b.LocY && a.Health == b.Health && a.Stamina == b.Stamina).All(v => v), "Native profiles preserve a real-map simulation over 90 ticks");
+        var motion = ZWorld.Create(settings, map, 719);
+        if (motion.Pathing != null) motion.Pathing.Enabled = false;
+        int openX = -1, openY = -1;
+        for (int y = 128; y < motion.Map.height * 16 - 160 && openX < 0; y += 32)
+            for (int x = 128; x < motion.Map.width * 16 - 160; x += 32)
+                if (!motion.Path.WithinImpassable(x, y, 128, 128, out _, out _, false)) { openX = x; openY = y; break; }
+        check(openX >= 0, "Physical movement fixture has a clear lane");
+        var moving = motion.CreateObject("vehicle", "light", openX + 16, openY + 16, Team.Red);
+        var physical = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, master = 1 };
+        physical.Set("", ZBehaviorKey.Physical, 1); physical.Set("", ZBehaviorKey.Acceleration, 2);
+        physical.Set("", ZBehaviorKey.TurnRate, 0); physical.Set("", ZBehaviorKey.Boost, 0);
+        motion.SetBehavior(physical);
+        int initialX = moving.LocX;
+        moving.Waypoints.Add(new ZWaypoint { mode = WpMode.Dodge, x = moving.CenterX + 72, y = moving.CenterY });
+        moving.ProcessServer(.1);
+        check(moving.BehaviorActualSpeed > 0 && moving.BehaviorActualSpeed < moving.RealMoveSpeed / 2,
+            "Acceleration limits the simulation velocity, not just the model");
+        check(moving.LocX - initialX < moving.RealMoveSpeed * .1, "Acceleration limits actual displacement");
+        for (int i = 2; i < 150; i++) moving.ProcessServer(i * .1);
+        check(moving.LocX > initialX + 20 && moving.LocX <= initialX + 73, "Physical controller approaches the real target without overshoot");
     }
 }

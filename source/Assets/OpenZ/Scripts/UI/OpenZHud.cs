@@ -263,6 +263,13 @@ namespace OpenZ
             var m = Mouse.current; var kb = Keyboard.current;
             if (m == null) return;
             Pointer = m.position.ReadValue();
+            if (OzBehaviorOptions.CapturesInput || OzBehaviorPanel.OwnsPointer)
+            {
+                PointerOverUi = true;
+                leftDown = rightDown = null;
+                if (m.leftButton.wasPressedThisFrame) PressCapture = Capture.Ui;
+                return;
+            }
             bool modal = Modal;
             if (kb != null && OzBindings.Pressed(OzAction.HideHud) && !(Pause && Pause.IsOpen)) SetVisible(!hudVisible);   // menu_exe_v1: bound key (F10); not under the pause menu (it hides the HUD itself)
             if (!modal && kb != null && OzBindings.Pressed(OzAction.FactoryList) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) FactoryListKey();   // the list is a lower panel: with the production window up the key closes the window and shows the list

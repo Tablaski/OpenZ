@@ -2,9 +2,13 @@
 
 ## Pending — success ratio, resets, JSON and left-hand combat dynamics
 
-These source changes are newer than `builds/OpenZ-Release` and need a newly
-requested release build before the user's manual validation. No player build or
-post-build game tests were requested or run for this follow-up.
+These changes are now included in `builds/OpenZ-Release`, built by the user's
+batch-file launch on November 15, 2026, completed at 18:51 Paris time with zero
+build errors. Game source commit: `25d216cb220653adbd0b4da34915fa813332602e`.
+An overlapping launch failed while the first Unity build continued. The launcher
+now rejects that case before touching the active log. The source record in the
+player folder was corrected and a patch records existing local tracked changes.
+No game was launched or tested; all checks below remain for the user.
 
 - Success percentage above kill/death counters, including zero score, virtual
   deaths, destroyed units and readability alongside damage numbers.

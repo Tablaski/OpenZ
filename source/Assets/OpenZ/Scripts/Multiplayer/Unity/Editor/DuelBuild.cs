@@ -37,7 +37,7 @@ namespace OpenZ.Multiplayer.Editor
             {
                 scenes = scenes,
                 target = BuildTarget.StandaloneWindows64, locationPathName = output,
-                options = BuildOptions.CompressWithLz4HC
+                options = BuildOptions.CompressWithLz4
             });
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(output), "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors + "\n" + output);
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);

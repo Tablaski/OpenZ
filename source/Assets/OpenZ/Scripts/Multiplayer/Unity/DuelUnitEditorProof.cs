@@ -78,6 +78,9 @@ namespace OpenZ.Multiplayer
                     DuelProofCapture.Save(Path.Combine(folder, "unit-editor.png"));
                     var panel = OzBehaviorPanel.I;
                     if (!panel) throw new Exception("Behavior laboratory was not installed.");
+                    if (!panel.EntryIsClickable) throw new Exception("BEHAVIOR button is visible but the HUD does not capture clicks on it.");
+                    panel.OpenFromButton();
+                    if (!panel.IsOpen) throw new Exception("BEHAVIOR button did not open its panel.");
                     panel.SetMaster(ZBehaviorFamily.Tanks, 100);
                     panel.SetMaster(ZBehaviorFamily.Robots, 100);
                     panel.Edit(ZBehaviorFamily.Robots, ZBehaviorKey.Engaged, 1);

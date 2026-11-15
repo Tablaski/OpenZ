@@ -58,6 +58,7 @@ namespace OpenZ
                 button = HudButton.Make(hud.Root, "UE_Behavior", "BEHAVIOR", new Vector2(150, 34), HudButtonKind.Small, 12);
                 button.Tooltip = "BEHAVIOR LABORATORY|Open separate tank and robot behavior menus. Experiment live with dodging, movement, boost and combat; save named presets for Options > Game. The OpenZ and Zod reference values are shown for every field.|";
                 button.OnClick = c => Toggle();
+                hud.AddBlocker(button.Rt);
                 blocker = Hud.Node("UE_BehaviorBlocker", hud.Root);
                 hud.AddBlocker(blocker);
             }
@@ -83,6 +84,16 @@ namespace OpenZ
             IsOpen = !IsOpen; profiles = imports = false; clearFocus = true;
             OzUeHooks.SetTyping(this, false);
         }
+        public bool EntryIsClickable
+        {
+            get
+            {
+                if (button == null || !button.Rt || !button.Alive || !button.Interactable || button.OnClick == null || !OzUnitEditor.I) return false;
+                Vector2 point = RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center));
+                return OzUnitEditor.I.Hud.IsOverUi(point);
+            }
+        }
+        public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("BEHAVIOR is not registered as clickable HUD."); button.OnClick(new HudClick()); }
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
             drafts[(int)f].Set(type, key, value); Apply((int)f); dirty = true;

@@ -206,7 +206,7 @@ namespace OpenZ
             OzLevelStatics.NewWorld();
             ZWorld.CustomStatsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzLevelStats.Wanted(level, demo); OzLevelStats.AtLevelStart(this, st.text);   // 1.2 item 60 DV142: UNIT STATS CUSTOM (the battlefield screen's choice, armed by the player's own DEPLOY; off in 'Zod exact', a bot match, the Unit editor): every unit of both teams is made from the Unit editor's Custom stats; OPENZ: nothing changes (View/OzLevelStats.cs, Sim/ZWorld.CustomStats.cs)
             // duel game creation
-            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);                 // DV32 L17 start vehicles parked empty
+            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
             Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
             if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });   // same seeding as the headless bot match
             if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });

@@ -130,6 +130,7 @@ namespace OpenZ.Sim
         /// <summary>End of ProcessServer and of the stun hold, every tick, right after the hatch driver's step (DV87).</summary>
         void MechHandGunStep(double time)
         {
+            if (BehaviorHoldFire()) return;
             if (!HasHandGun) return;
             HandGunArmStep(time);                                                                             // the arm turns first (ZObject.MechHandGunAim.cs)
             if (Destroyed || Owner == Team.Neutral || Drivers.Count == 0 || !HandGunWindow(time)) { hgTarget = null; return; }

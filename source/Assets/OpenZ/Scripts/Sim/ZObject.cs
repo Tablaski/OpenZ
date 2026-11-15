@@ -179,6 +179,7 @@ namespace OpenZ.Sim
             if (IsEvilZod && EvilStep(time, dt)) return;                                                       // DV161: his clocks and heal; the power dash holds him (Sim/ZEvilZod.cs)
             if (EvilGuarding) EvilGuardStep();                                                                 // DV165: blue's last defense holds his spot, steps a little, walks home (Sim/ZEvilZod.Appear.cs)
             if (StunHold(time)) return;                                                                        // electrobot_v1 DV45: stunned: no move, still fires (ZObject.Electro.cs)
+            BehaviorTick();
             ProcessServerLid(time);
             int rpPath = ZRuleProf.Enter(ZRuleProf.Path); World.Pathing?.PreProcess(this); ZRuleProf.Exit(rpPath);                                                                   // OpenZ pathing: deferred re-path / give-up / arrival
 
@@ -188,7 +189,7 @@ namespace OpenZ.Sim
             int rpOrders = ZRuleProf.Enter(ZRuleProf.Orders); PatrolStep();                                                                                      // DV68 (CTL1): a patrol turns round at the end of a leg
             CrocFleeStep(time);                                                                                // level 16: no order, in the water, a crocodile hunts near: to the bank (ZWorld.Crocodiles.cs)
             if (pdBoosted) PremiumDodgeSettle();                                                               // 1.4 DV173: its step aside is over: the plain speed back before the next waypoint (Sim/ZObject.PremiumDodge.cs)
-            if (Waypoints.Count > 0 && !ElectroStand() && !SniperStand())                                      // DV83: the Electrobot stands and fires before any walking step (ZObject.ElectroSteady.cs); DV120: a sniper before an agro / attack walking step (ZObject.SniperSteady.cs)
+            if (Waypoints.Count > 0 && !BehaviorHoldRegroup && (BehaviorReleaseStance || !ElectroStand() && !SniperStand()))
             {
                 var wp = Waypoints[0];
                 bool isNew;
@@ -310,7 +311,9 @@ namespace OpenZ.Sim
         {
             stopX = stopY = 0;
             if (IsZ(Dx) && IsZ(Dy)) return true;
-            double nx = LocX + (Dx * dt) + XOver, ny = LocY + (Dy * dt) + YOver;
+            double vx = Dx, vy = Dy;
+            BehaviorVelocity(dt, ref vx, ref vy);
+            double nx = LocX + (vx * dt) + XOver, ny = LocY + (vy * dt) + YOver;
             var pathing = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;                // OpenZ pathing layer
             bool guardMinion = pathing != null && IsMinion && stoppable;
             if (pathing != null && !pathing.Gate(this, ref nx, ref ny)) { if (IsRobot) WalkDisengage(); return true; }   // held by traffic / a lane this tick (still walking: no firing at an old target)
@@ -353,6 +356,7 @@ namespace OpenZ.Sim
 
         bool ReachedTarget()
         {
+            if (BehaviorReached(out bool reached)) return reached;
             if (CenterX == cur.x && CenterY == cur.y) { XOver = YOver = 0; return true; }
             if (Math.Abs(CenterX - cur.sx) >= cur.adx && Math.Abs(CenterY - cur.sy) >= cur.ady)
             {
@@ -384,6 +388,7 @@ namespace OpenZ.Sim
 
         public bool StopMove()
         {
+            BehaviorActualSpeed = 0;
             if (!IsMoving) return false;
             Dx = 0; Dy = 0; UpdatedVelocity = true;
             return true;
@@ -617,8 +622,10 @@ namespace OpenZ.Sim
         }
 
         /// <summary>zobject.cpp:3657-3714 (called on the missile's target)</summary>
-        public bool DodgeMissile(int tx, int ty, double timeTillExplode)
+        public bool DodgeMissile(int tx, int ty, double timeTillExplode, ZThreatKind kind = ZThreatKind.Shell, int damage = 0, int attacker = -1, bool nearby = false)
         {
+            if (Behavior != null) return BehaviorDodge(tx, ty, timeTillExplode, kind, damage, attacker, nearby);
+            if (nearby) return false;
             if (Stunned) return false;                                                 // electrobot_v1 DV45: stunned, before any rand() draw
             if (ElectroSteady) return false;                                           // DV83: the Electrobot never steps aside for a shell (before any rand() draw; ZObject.ElectroSteady.cs)
             if (IsEvilZod) return false;                                               // DV161: nor does EvilZod (Sim/ZEvilZod.cs)
@@ -765,6 +772,7 @@ namespace OpenZ.Sim
         /// <summary>zobject.cpp:2102-2213</summary>
         void ProcessAttackDamage(double time, bool playerGiven)
         {
+            if (BehaviorHoldFire()) return;
             HeavyPairStep(time);                                                                      // vehicles_nb_v1 DV30: the heavy's second barrel (ZObject.VehiclesNb.cs)
             var t = AttackObject;
             if (t == null || Damage == 0) return;
@@ -780,6 +788,7 @@ namespace OpenZ.Sim
             if (!CanAttackObject(t)) { Disengage(); return; }
             if (LosHoldShot(t)) return;                                                 // DV23: never a direct shot into a wall
             CalmShot(time);                                                             // b49: the squad has fired (ZObject.Calm.cs)
+            behaviorShots++;
             bool nades = Grenades > 0 || (Leader != null && Leader.Grenades > 0);
             if (nades && ZWorld.GrenadeRuleDeviation && GrenadeRuleType != "grunt" && t.Kind == ZKind.Robot) nades = false;   // DV40: only grunts throw grenades at robots (KH: Alan throws by the sniper's rule, Sim/ZHeroSquad.Kh.cs)
             bool walking = WalkingShot;                                                 // DV57: fired while walking: the gun only, lower accuracy
@@ -801,7 +810,7 @@ namespace OpenZ.Sim
                 }
                 else
                 {
-                    tx += AimScatter(World.Rng.Next(32) - 16); ty += AimScatter(World.Rng.Next(32) - 16);   // veterancy_v1 DV12: veterans 3/4 of Zod's scatter; DV151: a medium tank that is not a veteran wider (Sim/ZObject.MTankAim.cs)
+                    tx += BehaviorScatter(AimScatter(World.Rng.Next(32) - 16)); ty += BehaviorScatter(AimScatter(World.Rng.Next(32) - 16));
                     ChargeRocketAim(t, ref tx, ref ty);                                                  // DV121: a Tough's rocket at a vehicle that drives at him aims true (Sim/ZObject.JeepCharge.cs)
                     HeavyRockAim(t, ref tx, ref ty);                                                     // DV164: at the rock's drawn foot (Sim/ZObject.HeavyRock.cs)
                     ShellOverCover(t, ref tx, ref ty); ShuttleKickAimPast(t, m, ref tx, ref ty);   // DV129: at a flipping shuttle some are aimed past its hull (Sim/ZWorld.ShuttleKick.cs)                                  // DV122: a flat shell at a kneeling / lying sniper may skim over him (Sim/ZObject.ProneTarget.cs)
@@ -811,11 +820,11 @@ namespace OpenZ.Sim
                 World.AddMissile(m);
                 World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, m.grenade);
                 if (!m.grenade) HandGunRocketFired(time, tx, ty);                                       // DV146: a rocket left: the mech's hand gun may fire while they reload (ZObject.MechHandGun.cs)
-                t.DodgeMissile(tx, ty, m.explodeTime - time);
+                World.AlertBehaviorThreat(t, m, nades ? ZThreatKind.Grenade : BehaviorRocketWeapon ? ZThreatKind.Rocket : ZThreatKind.Shell);
             }
             else
             {
-                bool miss = CoverMiss(t, World.Rng.Roll(), HitChance() * (walking ? ZWorld.WalkHitFactor : 1.0));   // DV57: x0.6 while walking; DV122: a kneeling / lying sniper is a smaller target (Sim/ZObject.ProneTarget.cs)
+                bool miss = CoverMiss(t, World.Rng.Roll(), HitChance() * BehaviorAccuracy * (walking ? ZWorld.WalkHitFactor : 1.0));
                 if (IsRobot && Type == "pyro") GroundFireShot(t);                          // DV117: the shot lights the ground at its target, hit or miss (Sim/ZWorld.GroundFire.cs)
                 if (walking) NoteWalkShot(!miss);
                 if (miss) { World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (veterancy_v1 DV12: HitChance = Zod's damage_chance, veterans x1.10)
@@ -887,6 +896,8 @@ namespace OpenZ.Sim
 
         double RunSpeed()
         {
+            double behaviorRun = BehaviorRunSpeed();
+            if (behaviorRun >= 0) return behaviorRun;
             if (IsEvilZod) return ZEvilZod.WalkFactor;                                                 // DV161: he never runs, door, step aside and crocodile included: his walk is his walk (Sim/ZEvilZod.cs)
             if (fortRush) return World.S.run_unit_speed;                              // boarding_nb_v1 DV34: running speed through the fort door
             if (ZPathing.Yielding(this)) return World.S.run_unit_speed;               // vehicles first: stepping aside for a vehicle of its team at Zod's running speed, stamina untouched (ZYield.cs)
@@ -899,6 +910,7 @@ namespace OpenZ.Sim
 
         void ProcessRunStamina(double dt)
         {
+            if (BehaviorStamina(dt)) return;
             if (IsRunning) { Stamina -= dt; if (Stamina < 0) { Stamina = 0; IsRunning = false; } }
             else { Stamina += dt * World.S.run_recharge_rate; if (Stamina > MaxStamina) Stamina = MaxStamina; }
         }
@@ -910,6 +922,7 @@ namespace OpenZ.Sim
         }
         public void AttemptStartRun()
         {
+            if (BehaviorStartRun()) return;
             if (IsRunning) return;
             if (World.Rng.Next(5) == 0) return;                                   // one in five we don't run
             if (Stamina < 0.3) return;

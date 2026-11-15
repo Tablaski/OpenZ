@@ -38,6 +38,7 @@ namespace OpenZ.Sim
         /// <summary>ProcessMoveCore, right after every other factor of RealMoveSpeed: the dodge factor while a premium step aside runs.</summary>
         void PremiumDodgePace()
         {
+            if (Behavior != null) { pdBoosted = false; return; }
             if (!PremiumDodgeNow) { pdBoosted = false; return; }
             pdBase = RealMoveSpeed;
             RealMoveSpeed *= ZWorld.PremiumDodgeSpeedMul;

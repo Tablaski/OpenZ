@@ -62,6 +62,7 @@ namespace OpenZ
         float hull, goal, cand, candT, commitT = 99f, rate, forceT = 99f;
         float hx, hy; bool hInit;                                                   // filtered path direction (px space, y down)
         bool reverse, engagedTurn;
+        float behaviorDead, behaviorHold, behaviorCommit;
         int wpSig; bool wpInit, wasHeld; ZObject lastTarget;
         int duelSeq; bool duelInit;                                                 // vehicle_combat_v1: the sim's duel manoeuvre (DV9)
 
@@ -84,9 +85,24 @@ namespace OpenZ
         public float Step(ZObject o, bool moving, float aimYaw, float maxRate, bool jeep, float dt)
         {
             if (dt <= 0f) return hull;
+            var behavior = o.Behavior;
+            behaviorDead = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.DeadZone] : DeadZone;
+            behaviorHold = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.HeadingHold] : HoldMin;
+            behaviorCommit = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.HeadingCommit] : Commit;
+            if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.Physical))
+            {
+                hull = (float)(o.BehaviorHeading * Mathf.Rad2Deg) + 90f;
+                goal = cand = hull; rate = 0f;
+                return hull;
+            }
+            if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.DirectView) && moving)
+            {
+                hull = Mathf.Atan2(o.Dx, -o.Dy) * Mathf.Rad2Deg;
+                goal = cand = hull; rate = 0f; return hull;
+            }
             commitT += dt; forceT += dt;
             if (Observe(o)) { forceT = 0f; }
-            bool forced = forceT < ForceWindow;
+            bool forced = forceT < ForceWindow || behavior != null && o.BehaviorDodging && behavior.On(OpenZ.Sim.ZBehaviorKey.ImmediateTurn);
 
             if (moving && PathHeading(o, LookaheadPx, out float px, out float py, out float remain))
             {
@@ -106,7 +122,8 @@ namespace OpenZ
                 if (shortMove)
                 {   // a short move turns the hull only a little toward it (forward or reverse axis, whichever is nearer)
                     float d0 = Mathf.DeltaAngle(goal, want);
-                    want = goal + Mathf.Clamp(d0, -ShortTurnMax, ShortTurnMax);
+                    float limit = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.ShortTurn] : ShortTurnMax;
+                    want = goal + Mathf.Clamp(d0, -limit, limit);
                 }
                 Consider(want, dt, forced, shortMove);
             }
@@ -132,8 +149,9 @@ namespace OpenZ
                 return hull;
             }
             float smooth = jeep ? TurnSmoothJeep : TurnSmooth;
+            if (behavior != null) maxRate = (float)behavior[OpenZ.Sim.ZBehaviorKey.TurnRate];
             if (o.PremiumDodgeNow) { smooth /= PremiumDodgeTurn; maxRate *= PremiumDodgeTurn; }       // 1.4 DV173: a tank / the mech with a non-grunt driver turns its hull quicker while it steps aside (view only)
-            hull = Mathf.SmoothDampAngle(hull, goal, ref rate, smooth, maxRate, dt);
+            hull = behavior != null && maxRate == 0 ? goal : Mathf.SmoothDampAngle(hull, goal, ref rate, smooth, maxRate, dt);
             if (Mathf.Abs(Mathf.DeltaAngle(hull, goal)) < 0.05f && Mathf.Abs(rate) < 0.5f) { hull = goal; rate = 0f; }
             hull = Mathf.Repeat(hull + 180f, 360f) - 180f;
             return hull;
@@ -142,11 +160,11 @@ namespace OpenZ
         void Consider(float want, float dt, bool forced, bool shortMove)
         {
             float d = Mathf.DeltaAngle(goal, want);
-            if (Mathf.Abs(d) <= DeadZone) { cand = goal; candT = 0f; return; }           // dead zone: keep the committed heading
-            if (Mathf.Abs(Mathf.DeltaAngle(cand, want)) > DeadZone) { cand = want; candT = 0f; }   // a different candidate: start over
+            if (Mathf.Abs(d) <= behaviorDead) { cand = goal; candT = 0f; return; }
+            if (Mathf.Abs(Mathf.DeltaAngle(cand, want)) > behaviorDead) { cand = want; candT = 0f; }
             else { cand = want; candT += dt; }                                           // same candidate (tracks slow drift)
-            bool corner = !shortMove && Mathf.Abs(d) >= CornerBreak && candT >= HoldMin;
-            bool ready = forced || (candT >= HoldMin && (commitT >= Commit || corner));
+            bool corner = !shortMove && Mathf.Abs(d) >= CornerBreak && candT >= behaviorHold;
+            bool ready = forced || (candT >= behaviorHold && (commitT >= behaviorCommit || corner));
             if (!ready) return;
             goal = cand; candT = 0f; commitT = 0f; Commits++; if (forced) ForcedCommits++;
         }

@@ -56,7 +56,8 @@ namespace OpenZ
             AddToggle(p, toggles.Count, OzLightRows.AoLabel, () => OzLightRows.AoOn, v => OzLightRows.AoOn = v);             // oz_lite_ao, default ON
             AddCycle(p, toggles.Count, OzLightRows.TreesLabel, () => OzLightRows.TreesName, OzLightRows.TreesStep);          // oz_lite_trees FULL (default) / LIGHT / LIGHTEST
             AddCycle(p, toggles.Count, OzLightRows.WrecksLabel, () => OzLightRows.WrecksName, OzLightRows.WrecksStep);       // oz_lite_wrecks FULL (default) / LIGHT
-            float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
+            AddBehaviorOptions(p);
+            float h = BuildOptTabs(p);
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
             optionsScale = Mathf.Min(OptionsMaxScale, ModalMaxH / h, (CW - OzMenuLayout.CreditsX - 60f) / OptW);   // beside the list: 60 u stay free on the right
             Modal(optionsRt, OptW, h, Side.Options, true);

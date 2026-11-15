@@ -66,7 +66,7 @@ namespace OpenZ.Sim
             m.CalcExplodeTime(CenterX, CenterY, MissileSpeed, time);
             World.AddMissile(m);
             World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, false, true);   // flag2: second barrel
-            t?.DodgeMissile(tx, ty, m.explodeTime - time);
+            World.AlertBehaviorThreat(t, m, ZThreatKind.Shell);
         }
 
         // ------------------------------------------------------------------ DV31 crane driver shoots back

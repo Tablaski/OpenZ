@@ -42,6 +42,12 @@ try {
     if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {
         throw "Unity did not report a successful player build. Read $duelLog"
     }
+    $duelSourceCommit = & git -c "safe.directory=$($duelRoot.Replace('\','/'))" -C $duelRoot rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'The player built, but its source commit could not be identified.' }
+    $duelSourceStatus = & git -c "safe.directory=$($duelRoot.Replace('\','/'))" -C $duelRoot status --porcelain
+    $duelSourceRecord = @('OpenZ Windows Release', ('Source commit: ' + $duelSourceCommit), ('Built UTC: ' + [DateTime]::UtcNow.ToString('o')), 'Development build: false', 'Script debugging: false', 'Profiler connection: false', ('Uncommitted tracked/untracked source changes: ' + [bool]$duelSourceStatus))
+    if ($duelSourceStatus) { $duelSourceRecord += $duelSourceStatus }
+    $duelSourceRecord | Set-Content -LiteralPath (Join-Path (Split-Path $duelResult -Parent) 'SOURCE_VERSION.txt') -Encoding UTF8
     Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'OpenZ-Duel.exe') + '. Keep the complete output folder together.')
 } finally {
     if ($duelOwnsMutex) { $duelMutex.ReleaseMutex() }

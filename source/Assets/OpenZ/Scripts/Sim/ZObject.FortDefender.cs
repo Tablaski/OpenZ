@@ -652,7 +652,7 @@ namespace OpenZ.Sim
             fdHoldUntil = time + ZWorld.FortDefenderThrowHold;
             World.AddMissile(m);
             World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, true);
-            t.DodgeMissile(tx, ty, m.explodeTime - time);
+            World.AlertBehaviorThreat(t, m, ZThreatKind.Rocket);
         }
 
         /// <summary>The fort's last attacker when in range, else the nearest enemy unit in range (ties: object order).</summary>

@@ -15,6 +15,7 @@ namespace OpenZ.Sim
             writer.Write(CrocNoteCount);
             writer.Write(dragonPass != null);
             if (dragonPass != null) DuelAuxiliary.Write(writer, dragonPass);
+            WriteBehavior(writer);
         }
         internal void DuelReadAuxiliary(BinaryReader reader)
         {
@@ -22,6 +23,7 @@ namespace OpenZ.Sim
             DuelAuxiliary.ReadList(reader, crocs); DuelAuxiliary.ReadList(reader, CrocNotes);
             CrocNoteCount = reader.ReadInt32();
             dragonPass = reader.ReadBoolean() ? DuelAuxiliary.Read<ZDragonPass>(reader) : null;
+            ReadBehavior(reader);
             if (reader.BaseStream.Position != reader.BaseStream.Length) throw new InvalidDataException("Trailing auxiliary state.");
         }
     }

@@ -12,6 +12,7 @@ namespace OpenZ
     public partial class UnitView
     {
         VehicleSlip slip;
+        int behaviorSlipRevision = -1;
         /// <summary>vehicles_nb_v1: the no-sideways-glide follower of this vehicle (null for robots / cannons / before the first frame).</summary>
         public VehicleSlip Slip => slip;
 
@@ -28,6 +29,18 @@ namespace OpenZ
         Vector3 NoCrab(Vector3 p, bool moving, float speed01, Vector3 moveDir, float dt)
         {
             if (!VehicleSlip.Enabled || Obj.Kind != ZKind.Vehicle || dt <= 0f) return p;
+            var behavior = Obj.Behavior;
+            if (behavior != null && (behavior.On(OpenZ.Sim.ZBehaviorKey.DirectView) || behavior.On(OpenZ.Sim.ZBehaviorKey.Physical)))
+            { slip = null; return p; }
+            if (behaviorSlipRevision != Obj.World.BehaviorRevision)
+            {
+                behaviorSlipRevision = Obj.World.BehaviorRevision;
+                var c = VehicleSlip.Of(Obj.Type);
+                if (behavior != null) c = new VehicleSlip.Chassis { type = c.type, pivot = c.pivot, rate = (float)behavior[OpenZ.Sim.ZBehaviorKey.TurnRate],
+                    slipMax = (float)behavior[OpenZ.Sim.ZBehaviorKey.SlipAngle], look = c.look, stand = c.stand, lmax = c.lmax, rmin = c.rmin, tau = c.tau,
+                    accel = (float)behavior[OpenZ.Sim.ZBehaviorKey.TurnAcceleration] };
+                slip = new VehicleSlip(c);
+            }
             if (Obj.Type == "jeep" && moving)
             {   // jeeps race: the same light weave across the path as before, now as a point the jeep STEERS after
                 swerve += dt * 2.3f;

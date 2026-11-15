@@ -1,0 +1,305 @@
+using System;
+
+namespace OpenZ.Sim
+{
+    public enum ZThreatKind { Shell, Rocket, Grenade }
+    public partial class ZObject
+    {
+        public ZBehaviorValues Behavior => World?.BehaviorFor(this);
+        public bool BehaviorDodging => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.Dodge;
+        public string BehaviorDodgeReason = "No threat";
+        public int BehaviorAlerts, BehaviorAttempts, BehaviorRefusals, BehaviorReplans;
+        public double BehaviorHeading, BehaviorActualSpeed;
+        public int BehaviorThreatX, BehaviorThreatY;
+        public double BehaviorThreatUntil;
+        internal bool BehaviorRocketWeapon => Type == "tough" || Type == "medium" || Type == "missile_launcher" || Type == "missile_cannon";
+        double behaviorTurnSpeed, behaviorReverseUntil, behaviorDodgeStart = -100, behaviorBlastAt,
+            behaviorLastDodge = -100, behaviorFireUntil, behaviorRegroupUntil;
+        bool behaviorHeadingSet, behaviorReversing, behaviorWasDodging, behaviorPending;
+        double behaviorReactAt, behaviorPendingBlast;
+        int behaviorPendingX, behaviorPendingY, behaviorOriginX, behaviorOriginY, behaviorShots;
+        ZThreatKind behaviorPendingKind;
+        int behaviorPendingDamage, behaviorPendingAttacker;
+        bool behaviorPendingNearby;
+        ZWaypoint behaviorPendingOrder;
+        int behaviorPendingOrderCount;
+        public bool BehaviorRetreating
+        {
+            get
+            {
+                if (AttackObject == null || Waypoints.Count == 0) return false;
+                var w = Waypoints[0];
+                if (w.mode == WpMode.Dodge && Waypoints.Count > 1) w = Waypoints[1];
+                if (w.mode != WpMode.Move && w.mode != WpMode.ForceMove) return false;
+                return (double)(w.x - CenterX) * (AttackObject.CenterX - CenterX) + (double)(w.y - CenterY) * (AttackObject.CenterY - CenterY) < 0;
+            }
+        }
+        internal void BehaviorChanged()
+        {
+            behaviorPending = false;
+            // Changing a profile never gives back endurance or discards the underlying order.
+            if (Behavior == null || !Behavior.On(ZBehaviorKey.Enabled))
+            {
+                if (BehaviorDodging && behaviorWasDodging) KillWP();
+                behaviorWasDodging = false;
+            }
+            behaviorHeadingSet = false; BehaviorActualSpeed = 0; behaviorTurnSpeed = 0;
+        }
+        bool BehaviorRefuse(string reason)
+        { BehaviorDodgeReason = reason; BehaviorRefusals++; return false; }
+
+        bool BehaviorDodge(int tx, int ty, double time, ZThreatKind kind, int damage, int attacker, bool nearby, bool resumed = false)
+        {
+            var p = Behavior; if (p == null) return false;
+            if (!resumed) BehaviorAlerts++;
+            BehaviorThreatX = tx; BehaviorThreatY = ty; BehaviorThreatUntil = World.Time + time;
+            if (!p.On(ZBehaviorKey.Enabled)) return BehaviorRefuse("Dodging disabled");
+            if (Destroyed || Stunned || Owner == Team.Neutral || MoveSpeed <= 0 || RealMoveSpeed <= 0 || IsEvilZod || IsFortDefender)
+                return BehaviorRefuse("Unit cannot move");
+            if (time <= 0) return BehaviorRefuse("Impact already due");
+            if (fortRush || FortRunOn || UnmannedHeld) return BehaviorRefuse("Protected transition");
+            var threatKey = kind == ZThreatKind.Grenade ? ZBehaviorKey.ThreatGrenade : kind == ZThreatKind.Rocket ? ZBehaviorKey.ThreatRocket : ZBehaviorKey.ThreatShell;
+            if (!p.On(threatKey) || (nearby && !p.On(ZBehaviorKey.NearbyThreats))) return BehaviorRefuse("Threat filter");
+            if (damage > 0 && damage < p[ZBehaviorKey.MinDamage]) return BehaviorRefuse("Damage below threshold");
+            var from = World.Get(attacker);
+            if (p.On(ZBehaviorKey.VisibleOnly) && from != null && !CanSee(from)) return BehaviorRefuse("Attacker not visible");
+            if (HoldPosition && !p.On(ZBehaviorKey.Hold)) return BehaviorRefuse("Holding position");
+            bool retreat = BehaviorRetreating;
+            if (p.On(ZBehaviorKey.StandFirm) && IsRobot && (Type == "tough" || Type == "sniper" || Type == "electrobot"))
+                return BehaviorRefuse("Stand-and-fire restriction");
+            if (!CanOverwriteWP() && !(Waypoints.Count > 0 && Waypoints[0].mode == WpMode.ForceMove && p.On(ZBehaviorKey.ForceMove)))
+                return BehaviorRefuse("Protected order stage");
+            if (!BehaviorDodging)
+            {
+                if (retreat)
+                { if (!p.On(ZBehaviorKey.Retreat)) return BehaviorRefuse("Retreat dodge disabled"); }
+                else
+                {
+                    if (AttackObject != null && !p.On(ZBehaviorKey.Engaged)) return BehaviorRefuse("Engaged dodge disabled");
+                    if (Waypoints.Count == 0 && !p.On(ZBehaviorKey.Idle)) return BehaviorRefuse("Idle dodge disabled");
+                    if (Waypoints.Count > 0)
+                    {
+                        var w = Waypoints[0];
+                        var k = w.mode == WpMode.Attack || w.mode == WpMode.Agro ? ZBehaviorKey.AttackOrder :
+                            w.mode == WpMode.ForceMove ? ZBehaviorKey.ForceMove :
+                            w.mode == WpMode.Move ? ZBehaviorKey.Move : ZBehaviorKey.Approach;
+                        if (!p.On(k)) return BehaviorRefuse("Order forbids dodge: " + w.mode);
+                    }
+                }
+                double last = behaviorLastDodge;
+                if (p.On(ZBehaviorKey.SquadCooldown))
+                {
+                    var lead = Leader ?? this;
+                    last = Math.Max(last, lead.behaviorLastDodge);
+                    foreach (var m in lead.Minions) last = Math.Max(last, m.behaviorLastDodge);
+                }
+                if (World.Time - last < p[ZBehaviorKey.Cooldown]) return BehaviorRefuse("Dodge cooldown");
+                if (AttackObject != null && behaviorLastDodge > -99 && behaviorShots < p[ZBehaviorKey.ShootFirst]) return BehaviorRefuse("Must shoot first");
+                if (!resumed && p[ZBehaviorKey.Chance] < 100 && World.Rng.Next(10000) >= p[ZBehaviorKey.Chance] * 100) return BehaviorRefuse("Reaction chance");
+            }
+            else if (!p.On(ZBehaviorKey.Replan) || World.Time - behaviorDodgeStart < p[ZBehaviorKey.Commit])
+                return BehaviorRefuse("Dodge direction committed");
+            double delay = resumed ? 0 : p[ZBehaviorKey.Reaction];
+            if (!resumed && p[ZBehaviorKey.ReactionSpread] > 0) delay += World.Rng.Next(10000) / 10000.0 * p[ZBehaviorKey.ReactionSpread];
+            if (delay >= time) return BehaviorRefuse("Reaction too late");
+            if (delay > 0)
+            {
+                if (!behaviorPending) behaviorReactAt = World.Time + delay;
+                behaviorPending = true; behaviorPendingX = tx; behaviorPendingY = ty; behaviorPendingBlast = World.Time + time;
+                behaviorPendingKind = kind; behaviorPendingDamage = damage; behaviorPendingAttacker = attacker; behaviorPendingNearby = nearby;
+                behaviorPendingOrderCount = Waypoints.Count; behaviorPendingOrder = Waypoints.Count > 0 ? Waypoints[0] : ZWaypoint.Cleared;
+                BehaviorDodgeReason = "Reaction pending"; return true;
+            }
+            return BehaviorStartDodge(tx, ty, time);
+        }
+
+        bool BehaviorStartDodge(int tx, int ty, double time)
+        {
+            var p = Behavior;
+            if (p == null || !p.On(ZBehaviorKey.Enabled) || Stunned || Destroyed || Owner == Team.Neutral || time <= 0) return BehaviorRefuse("Reaction cancelled");
+            BehaviorAttempts++;
+            double speed = RealMoveSpeed;
+            if (p.On(ZBehaviorKey.Boost) && (!p.On(ZBehaviorKey.Endurance) || Stamina >= time)) speed *= p[ZBehaviorKey.BoostSpeed];
+            double dist = time * speed;
+            int spread = Math.Max(1, (int)(dist * .5));
+            double length = ((int)dist + World.Rng.Next(spread)) * p[ZBehaviorKey.Distance];
+            length = Math.Max(p[ZBehaviorKey.MinDistance] / ZConst.PX_TO_M, length);
+            if (p[ZBehaviorKey.MaxDistance] > 0) length = Math.Min(length, p[ZBehaviorKey.MaxDistance] / ZConst.PX_TO_M);
+            int k = World.Rng.Next(1000); if (k == 0) k = 1000;
+            double random = 2 * 3.14159 * (1000.0 / k);
+            double heading = behaviorHeadingSet ? BehaviorHeading : Math.Atan2(Dy, Dx);
+            int bestX = CenterX, bestY = CenterY; double best = double.NegativeInfinity;
+            int strategy = (int)p[ZBehaviorKey.Direction];
+            int samples = strategy == 0 ? 1 : strategy == 1 ? 9 : 24;
+            for (int i = 0; i < samples; i++)
+            {
+                double angle = strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
+                double off = WrapRadians(angle - heading), abs = Math.Abs(off);
+                var allow = abs < Math.PI / 4 ? ZBehaviorKey.Forward : abs > 3 * Math.PI / 4 ? ZBehaviorKey.Backward : ZBehaviorKey.Sideways;
+                if (!p.On(allow)) continue;
+                int x = (int)(CenterX + Math.Cos(angle) * length), y = (int)(CenterY + Math.Sin(angle) * length);
+                int ox = BehaviorDodging ? behaviorOriginX : CenterX, oy = BehaviorDodging ? behaviorOriginY : CenterY;
+                if (p[ZBehaviorKey.MaxDeviation] > 0 && Dist(x, y, ox, oy) * ZConst.PX_TO_M > p[ZBehaviorKey.MaxDeviation]) continue;
+                if (Leader != null && p[ZBehaviorKey.Cohesion] > 0 && Dist(x, y, Leader.CenterX, Leader.CenterY) * ZConst.PX_TO_M > p[ZBehaviorKey.Cohesion]) continue;
+                if (strategy != 0 && !BehaviorClearLine(x, y)) continue;
+                double reachable = Math.Min(length, RealMoveSpeed * time * (p.On(ZBehaviorKey.Boost) ? p[ZBehaviorKey.BoostSpeed] : 1));
+                if (p.On(ZBehaviorKey.Physical))
+                {
+                    double turn = p.On(ZBehaviorKey.Lateral) || p[ZBehaviorKey.TurnRate] == 0 ? 0 : abs / (p[ZBehaviorKey.TurnRate] * Math.PI / 180);
+                    double available = Math.Max(0, time - turn);
+                    reachable = Math.Min(reachable, RealMoveSpeed * available);
+                    if (p[ZBehaviorKey.Acceleration] > 0) reachable *= Math.Min(1, available / p[ZBehaviorKey.Acceleration] * .5 + BehaviorActualSpeed / Math.Max(1, RealMoveSpeed));
+                }
+                double rx = CenterX + Math.Cos(angle) * reachable, ry = CenterY + Math.Sin(angle) * reachable;
+                double score = Dist((int)rx, (int)ry, tx, ty);
+                if (score <= best) continue;
+                best = score; bestX = x; bestY = y;
+            }
+            if (double.IsNegativeInfinity(best)) return BehaviorRefuse("No permitted reachable direction");
+            if (BehaviorDodging)
+            {
+                var w = Waypoints[0]; w.x = bestX; w.y = bestY; Waypoints[0] = w; BehaviorReplans++;
+            }
+            else
+            {
+                behaviorOriginX = CenterX; behaviorOriginY = CenterY; behaviorDodgeStart = World.Time;
+                behaviorLastDodge = World.Time; behaviorShots = 0;
+                Waypoints.Insert(0, new ZWaypoint { mode = WpMode.Dodge, refId = -1, x = bestX, y = bestY });
+            }
+            behaviorBlastAt = World.Time + time; behaviorWasDodging = true;
+            if (!p.On(ZBehaviorKey.KeepTarget)) Disengage();
+            BehaviorDodgeReason = "Dodging"; return true;
+        }
+
+        bool BehaviorClearLine(int x, int y)
+        {
+            double d = Dist(CenterX, CenterY, x, y); int n = Math.Max(1, (int)(d / 4));
+            for (int i = 1; i <= n; i++)
+            {
+                int nx = (int)(CenterX + (x - CenterX) * (double)i / n) - (WidthPix >> 1);
+                int ny = (int)(CenterY + (y - CenterY) * (double)i / n) - (HeightPix >> 1);
+                if (World.Path.WithinImpassable(nx + 1, ny + 1, WidthPix - 2, HeightPix - 2, out _, out _, IsRobot)) return false;
+            }
+            return true;
+        }
+
+        void BehaviorTick()
+        {
+            var p = Behavior; if (p == null) return;
+            if (behaviorWasDodging && !BehaviorDodging)
+            {
+                behaviorWasDodging = false; behaviorFireUntil = World.Time + p[ZBehaviorKey.Settle];
+                behaviorRegroupUntil = World.Time + p[ZBehaviorKey.RegroupDelay];
+            }
+            if (behaviorPending && World.Time >= behaviorReactAt)
+            {
+                behaviorPending = false;
+                // Recheck the current order/state without adding another reaction delay.
+                if (Waypoints.Count != behaviorPendingOrderCount || Waypoints.Count > 0 && !Waypoints[0].Equals(behaviorPendingOrder)) BehaviorRefuse("Order changed during reaction");
+                else BehaviorDodge(behaviorPendingX, behaviorPendingY, behaviorPendingBlast - World.Time, behaviorPendingKind, behaviorPendingDamage, behaviorPendingAttacker, behaviorPendingNearby, true);
+            }
+            if (BehaviorDodging && ((p[ZBehaviorKey.MaxDuration] > 0 && World.Time - behaviorDodgeStart >= p[ZBehaviorKey.MaxDuration]) ||
+                (p.On(ZBehaviorKey.EndAfterBlast) && World.Time > behaviorBlastAt + .1))) KillWP();
+        }
+
+        bool BehaviorHoldFire()
+        {
+            var p = Behavior; if (p == null) return false;
+            if (World.Time < behaviorFireUntil) return true;
+            return BehaviorDodging && (!p.On(ZBehaviorKey.FireDodge) || IsRunning && !p.On(ZBehaviorKey.FireBoost));
+        }
+        double BehaviorAccuracy => BehaviorDodging && Behavior != null ? Behavior[ZBehaviorKey.Accuracy] / 100 : 1;
+        int BehaviorScatter(int offset) => BehaviorAccuracy == 1 ? offset : (int)Math.Round(offset / Math.Max(.05, Math.Sqrt(BehaviorAccuracy)));
+        bool BehaviorReleaseStance => Behavior != null && (BehaviorDodging || BehaviorRetreating && Behavior.On(ZBehaviorKey.BreakForRetreat));
+        bool BehaviorHoldRegroup => IsMinion && Behavior != null && World.Time < behaviorRegroupUntil && !PlayerOrderHeld;
+
+        bool BehaviorStartRun()
+        {
+            var p = Behavior; if (p == null || !BehaviorDodging) return false;
+            if (IsRunning || !p.On(ZBehaviorKey.Boost)) return true;
+            if (p.On(ZBehaviorKey.Endurance) && Stamina < p[ZBehaviorKey.MinStamina]) return true;
+            if (ShowDamaged && !p.On(ZBehaviorKey.DamagedBoost)) return true;
+            if (World.Rng.Next(10000) < p[ZBehaviorKey.BoostChance] * 100) IsRunning = true;
+            return true;
+        }
+        bool BehaviorStamina(double dt)
+        {
+            var p = Behavior; if (p == null) return false;
+            if (IsRunning)
+            {
+                if (!BehaviorDodging || p.On(ZBehaviorKey.Endurance)) Stamina = Math.Max(0, Stamina - dt * (BehaviorDodging ? p[ZBehaviorKey.Drain] : 1));
+                if ((Stamina <= 0 && (!BehaviorDodging || p.On(ZBehaviorKey.Endurance))) ||
+                    BehaviorDodging && p[ZBehaviorKey.BoostDuration] > 0 && World.Time - behaviorDodgeStart >= p[ZBehaviorKey.BoostDuration]) IsRunning = false;
+            }
+            else Stamina = Math.Min(MaxStamina, Stamina + dt * World.S.run_recharge_rate * p[ZBehaviorKey.Recharge]);
+            return true;
+        }
+        double BehaviorRunSpeed()
+        {
+            var p = Behavior; if (p == null || !BehaviorDodging) return -1;
+            double run = p.On(ZBehaviorKey.Boost) && IsRunning && (!ShowDamaged || p.On(ZBehaviorKey.DamagedBoost)) ? p[ZBehaviorKey.BoostSpeed] : 1;
+            if (p.On(ZBehaviorKey.PremiumBoost) && PremiumDriven) run = Math.Max(run, ZWorld.PremiumDodgeSpeedMul);
+            return run;
+        }
+
+        static double WrapRadians(double a) { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; }
+        static double Toward(double a, double b, double step) => a < b ? Math.Min(b, a + step) : Math.Max(b, a - step);
+        void BehaviorVelocity(double dt, ref double vx, ref double vy)
+        {
+            var p = Behavior;
+            if (p == null || !p.On(ZBehaviorKey.Physical) || dt <= 0) return;
+            double desired = Math.Sqrt(vx * vx + vy * vy), angle = Math.Atan2(cur.y - CenterY, cur.x - CenterX);
+            if (!behaviorHeadingSet) { BehaviorHeading = angle; behaviorHeadingSet = true; }
+            double offset = WrapRadians(angle - BehaviorHeading);
+            bool reverse = !p.On(ZBehaviorKey.Lateral) && p.On(ZBehaviorKey.Reverse) && Math.Abs(offset) > Math.PI * .61;
+            if (reverse != behaviorReversing) { behaviorReversing = reverse; behaviorReverseUntil = World.Time + p[ZBehaviorKey.ReverseDelay]; }
+            double aim = reverse ? angle + Math.PI : angle;
+            double delta = WrapRadians(aim - BehaviorHeading);
+            double maxRate = p[ZBehaviorKey.TurnRate] * Math.PI / 180;
+            if (maxRate == 0) { BehaviorHeading = aim; behaviorTurnSpeed = 0; }
+            else
+            {
+                double want = Math.Max(-maxRate, Math.Min(maxRate, delta / dt));
+                behaviorTurnSpeed = p[ZBehaviorKey.TurnAcceleration] == 0 ? want : Toward(behaviorTurnSpeed, want, p[ZBehaviorKey.TurnAcceleration] * Math.PI / 180 * dt);
+                double step = behaviorTurnSpeed * dt;
+                BehaviorHeading += Math.Abs(step) > Math.Abs(delta) ? delta : step;
+            }
+            double error = Math.Abs(WrapRadians(aim - BehaviorHeading));
+            double target = desired * (reverse ? p[ZBehaviorKey.ReverseSpeed] / 100 : 1);
+            target *= 1 - Math.Min(1, error / (Math.PI / 2)) * (1 - p[ZBehaviorKey.CornerSpeed] / 100);
+            if ((!p.On(ZBehaviorKey.TurnMoving) || p.On(ZBehaviorKey.Pivot) && error > Math.PI / 3) && error > Math.PI / 12) target = 0;
+            if (World.Time < behaviorReverseUntil) target = 0;
+            double remaining = Dist(CenterX, CenterY, cur.x, cur.y);
+            if (p[ZBehaviorKey.Braking] > 0) target = Math.Min(target, Math.Sqrt(2 * desired / p[ZBehaviorKey.Braking] * remaining));
+            double ramp = target < BehaviorActualSpeed ? p[ZBehaviorKey.Braking] : p[ZBehaviorKey.Acceleration];
+            BehaviorActualSpeed = ramp <= 0 ? target : Toward(BehaviorActualSpeed, target, Math.Max(1, desired) / ramp * dt);
+            double speed = Math.Min(BehaviorActualSpeed, remaining / dt);
+            double travel = p.On(ZBehaviorKey.Lateral) ? angle : BehaviorHeading + (reverse ? Math.PI : 0);
+            vx = Math.Cos(travel) * speed; vy = Math.Sin(travel) * speed;
+        }
+        bool BehaviorReached(out bool reached)
+        {
+            reached = false;
+            if (Behavior == null || !Behavior.On(ZBehaviorKey.Physical)) return false;
+            reached = Dist(CenterX, CenterY, cur.x, cur.y) <= 1.5;
+            return true;
+        }
+    }
+
+    public sealed partial class ZWorld
+    {
+        public void AlertBehaviorThreat(ZObject target, ZMissile missile, ZThreatKind kind)
+        {
+            if (target != null) target.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId);
+            foreach (var o in Objects)
+            {
+                if (o == target || o.Destroyed || o.Owner == missile.team || o.Owner == Team.Neutral) continue;
+                var p = o.Behavior;
+                if (p == null || !p.On(ZBehaviorKey.NearbyThreats)) continue;
+                double dx = o.CenterX - missile.x, dy = o.CenterY - missile.y;
+                if (dx * dx + dy * dy <= (double)missile.radius * missile.radius)
+                    o.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId, true);
+            }
+        }
+    }
+}

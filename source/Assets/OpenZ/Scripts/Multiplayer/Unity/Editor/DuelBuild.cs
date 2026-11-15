@@ -29,11 +29,15 @@ namespace OpenZ.Multiplayer.Editor
             PlayerSettings.defaultIsNativeResolution = false;
             PlayerSettings.defaultScreenWidth = 1280; PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.resizableWindow = true; PlayerSettings.runInBackground = true;
+            EditorUserBuildSettings.development = false;
+            EditorUserBuildSettings.allowDebugging = false;
+            EditorUserBuildSettings.connectProfiler = false;
+            EditorUserBuildSettings.buildWithDeepProfilingSupport = false;
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = scenes,
                 target = BuildTarget.StandaloneWindows64, locationPathName = output,
-                options = BuildOptions.Development | BuildOptions.CompressWithLz4
+                options = BuildOptions.CompressWithLz4HC
             });
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(output), "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors + "\n" + output);
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);

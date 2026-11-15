@@ -97,6 +97,7 @@ namespace OpenZ.Sim
         /// move and the tank's own shot).</summary>
         void DriverFireStep(double time)
         {
+            if (BehaviorHoldFire()) return;
             if (Kind != ZKind.Vehicle) return;
             if (IsApc) { ApcDriverStep(time); return; }
             if (!HasLid) return;
@@ -180,7 +181,7 @@ namespace OpenZ.Sim
             World.AddMissile(m);
             DriverHits++;
             World.Emit(ZEventType.DriverShot, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, true);
-            t.DodgeMissile(tx, ty, m.explodeTime - time);
+            World.AlertBehaviorThreat(t, m, ZThreatKind.Rocket);
         }
 
         /// <summary>The Electrobot's bolt from the hatch (DV45, ZObject.Electro.cs Bolt): his damage, no roll, a bolt that does not

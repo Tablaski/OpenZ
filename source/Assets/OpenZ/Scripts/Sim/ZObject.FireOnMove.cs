@@ -21,6 +21,7 @@ namespace OpenZ.Sim
         {
             get
             {
+                if (Behavior != null && !Behavior.On(ZBehaviorKey.FireMoving)) return false;
                 if (!ZWorld.FireOnMoveDeviation || Kind != ZKind.Robot || IsFortDefender) return false;
                 if (Type != "grunt" && Type != "psycho" && Type != "laser") return false;
                 if (Waypoints.Count == 0) return true;
@@ -36,6 +37,7 @@ namespace OpenZ.Sim
         /// <summary>ProcessMove's step: Zod drops the target of every moving robot; a DV57 walker keeps it.</summary>
         void WalkDisengage()
         {
+            if (BehaviorDodging && Behavior != null && Behavior.On(ZBehaviorKey.KeepTarget) && Behavior.On(ZBehaviorKey.FireDodge)) return;
             if (FiresOnMove && AttackObject != null && !AttackObject.Destroyed) return;
             Disengage();
         }

@@ -99,7 +99,7 @@ namespace OpenZ.Sim
             else m.CalcExplodeTime(CenterX, CenterY, u.attack_missile_speed, time);
             World.AddMissile(m);
             World.Emit(ZEventType.MissileFired, this, t, tx, ty, (float)(m.explodeTime - time), m.radius, false);
-            if (valid) t.DodgeMissile(tx, ty, m.explodeTime - time);
+            if (valid) World.AlertBehaviorThreat(t, m, ZThreatKind.Rocket);
             FortGunCommitted = false;
             if (!valid) { FortGunTarget = null; fortGunScan = time; }
         }

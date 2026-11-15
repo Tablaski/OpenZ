@@ -135,6 +135,7 @@ namespace OpenZ
             Add<OzUeControlsRoot>();                                                          // P2: dock, play bar, zoom, camera, floor
             Add<OzUeStatsRoot>();                                                             // P3: the STATS box, sets, table, balance, card
             Add<OzUeShellRoot>();                                                             // P4: top bar, dialogs, keys, placing, marks, files
+            Add<OzBehaviorPanel>();
         }
 
         void Add<T>() where T : Component

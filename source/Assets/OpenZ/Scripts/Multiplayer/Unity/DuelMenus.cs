@@ -252,10 +252,12 @@ namespace OpenZ.Multiplayer
             BuildHandicap(rules, editable);
             var construction = Panel("CONSTRUCTION · CURRENT RULES", 820, 800, 1010, 150);
             Label(construction, "MAX. TERRITORY BONUS: " + (rules.TerritoryBonus * 100).ToString("0") + " %", 24, 62, 650, 18, OzUi.Ink);
+            Label(construction, "More flags shorten build times for either team; this is the maximum reduction.", 24, 83, 760, 14, OzUi.Muted);
             Button(construction, "−", 810, 50, 65, () => { rules.TerritoryBonus = Math.Max(0, rules.TerritoryBonus - .1); R.ChangeRules(rules); }, false, editable);
             Button(construction, "+", 900, 50, 65, () => { rules.TerritoryBonus = Math.Min(.9, rules.TerritoryBonus + .1); R.ChangeRules(rules); }, false, editable);
-            Label(construction, "SHARED BUILD SPEED: ×" + (1 / rules.Common.BuildDuration).ToString("0.##"), 24, 113, 650, 18, OzUi.Ink);
-            Button(construction, "CHANGE", 810, 102, 155, () => { rules.Common.BuildDuration = NextDuration(rules.Common.BuildDuration); R.ChangeRules(rules); }, false, editable);
+            Label(construction, "SHARED BUILD TIME: " + (rules.Common.BuildDuration * 100).ToString("0.#") + "%  (×" + (1 / rules.Common.BuildDuration).ToString("0.##") + " speed)", 24, 113, 760, 18, OzUi.Ink);
+            Label(construction, "Shared time; handicap can override it. 50% = half as long. Minimum: " + rules.MinimumBuildSeconds.ToString("0.#") + " s.", 24, 135, 760, 14, OzUi.Muted);
+            Button(construction, "CHANGE", 810, 102, 155, () => { double old = rules.Common.BuildDuration; rules.Common.BuildDuration = NextDuration(old); if (rules.Handicap.BuildDuration == old) rules.Handicap.BuildDuration = rules.Common.BuildDuration; R.ChangeRules(rules); }, false, editable);
             BuildChatPanel(80, 800, 700, 180);
             Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
             Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
@@ -268,9 +270,9 @@ namespace OpenZ.Multiplayer
         void BuildArmy(DuelRules rules, bool editable)
         {
             var panel = Panel("SHARED ARMY · BOTH TEAMS", 820, 190, 1010, 310);
-            Label(panel, "ON THE FORT", 24, 68, 800, 17, OzUi.Muted);
+            Label(panel, "ON THE FORT · same starting turrets for both teams", 24, 68, 950, 17, OzUi.Muted);
             ArmySlots(panel, rules.Common.FortTurrets, 0, 24, 95, 960, editable);
-            Label(panel, "OUTSIDE THE FORT", 24, 190, 800, 17, OzUi.Muted);
+            Label(panel, "OUTSIDE THE FORT · same starting squads / vehicles for both teams", 24, 190, 950, 17, OzUi.Muted);
             ArmySlots(panel, rules.Common.StartingUnits, 1, 24, 217, 960, editable);
         }
         void ArmySlots(Transform parent, IList<string> units, int group, float x, float y, float width, bool editable)
@@ -299,7 +301,10 @@ namespace OpenZ.Multiplayer
             }
             Label(panel, "ADDITIONALLY OUTSIDE THE FORT", 510, 68, 480, 16, OzUi.Muted);
             ArmySlots(panel, rules.Handicap.StartingUnits, 2, 510, 100, 480, editable && rules.HandicapEnabled);
-            Label(panel, rules.HandicapEnabled ? "Four extra units for " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") + " only." : "Select a general to enable the handicap.", 24, 235, 960, 17, OzUi.Muted);
+            Label(panel, "BUILD TIME: " + (rules.Handicap.BuildDuration * 100).ToString("0.#") + "%  (×" + (1 / rules.Handicap.BuildDuration).ToString("0.##") + " speed)", 510, 190, 350, 16, OzUi.Ink);
+            Button(panel, "CHANGE TIME", 865, 183, 120, () => { rules.Handicap.BuildDuration = NextDuration(rules.Handicap.BuildDuration); R.ChangeRules(rules); }, false, editable && rules.HandicapEnabled, 34);
+            Label(panel, "Selected team only. Lower time = faster. One robot slot = one squad.", 510, 218, 475, 13, OzUi.Muted);
+            Label(panel, rules.HandicapEnabled ? "Only " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") + " receives these extras. The other team keeps the shared army." : "OFF: no bonus for either team. Select the general who should receive it.", 24, 240, 960, 16, OzUi.Muted);
         }
         void BuildMapPreview(Transform parent, DuelRules rules)
         {

@@ -203,6 +203,7 @@ namespace OpenZ
             { var l40t = toggles[toggles.Count - 1]; l40t.row.OnClick = c => { OzLightRows.TreesStep(c.right || c.shift ? -1 : Arrow(l40t)); OzSfx.Ui("ui_tab_switch"); }; l40t.row.OnRightClick = c => OzLightRows.TreesStep(-1); }
             AddToggle(p, toggles.Count, OzLightRows.WrecksLabel, null, null, true);                                         // oz_lite_wrecks FULL (default) / LIGHT
             { var l40w = toggles[toggles.Count - 1]; l40w.row.OnClick = c => { OzLightRows.WrecksStep(c.right || c.shift ? -1 : Arrow(l40w)); OzSfx.Ui("ui_tab_switch"); }; l40w.row.OnRightClick = c => OzLightRows.WrecksStep(-1); }
+            AddBehaviorOptions(p);
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
@@ -402,6 +403,7 @@ namespace OpenZ
         // duel menu keyboard ownership
             void Update()
         {
+            if (OzBehaviorOptions.CapturesInput) return;
             if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
             if (hud == null || game == null || game.World == null) return;
             var kb = Keyboard.current; var m = Mouse.current;
@@ -470,6 +472,8 @@ namespace OpenZ
             }
             foreach (var t in toggles)
             {
+                if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }
+                if (t.label == OzBehaviorLibrary.RobotsLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Robots)); continue; }
                 if (t.label == OzHudLayout.Label) { t.value.Set("DRAG THE PANELS  ▶"); continue; }
                 if (t.label == NightShadows.Label) { t.value.Set(OzText.Tab($"◀  {NightShadows.Name}  ▶")); continue; }
                 if (t.label == OzTouch.Label) { t.value.Set(OzText.Tab($"◀  {OzTouch.ModeName}  ▶")); continue; }

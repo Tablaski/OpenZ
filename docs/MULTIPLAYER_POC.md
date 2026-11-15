@@ -4,9 +4,13 @@
 
 Unity 6000.3.27f2 / C#. The host runs the existing simulation. The guest controls
 the blue team through a replicated world without running a second simulation.
-A versioned TCP protocol sends the initial state, then property changes,
+A versioned protocol sends the initial state, then property changes,
 creations, removals and events at 15 Hz. Commands are validated by the host.
 Map, settings and schema fingerprints must match.
+Online play uses encrypted reliable ordered WebRTC data channels with ICE/STUN
+and private Cloudflare TURN fallback. Advanced TCP/IP preserves the original
+transport as a separate alternative. Cloudflare Workers and SQLite Durable
+Objects handle invitations and signaling, never simulation or voice packets.
 
 The native Unity menus use the game's UI kit and portraits. PLAY SOLO and
 PLAY 1 VS 1 are consecutive entries in the main menu. The lobby provides
@@ -30,7 +34,8 @@ revision; new territory, comeback and construction-time rules remain deferred.
 In-game features include confirmed surrender (destroying the player's fort and
 awarding the opponent victory), a dedicated menu, chat with a configurable key,
 ping and optional push-to-talk voice with microphone selection. Voice uses a
-separate UDP channel: mono 16 kHz mu-law, about 18 kB/s while speaking.
+separate unreliable unordered WebRTC data channel online, or UDP in advanced
+TCP/IP mode: mono 16 kHz mu-law, about 18 kB/s while speaking.
 The microphone is never opened before the player explicitly enables it.
 
 ## Build and validate
@@ -68,25 +73,30 @@ the native menus. See [DUEL_VALIDATION.md](DUEL_VALIDATION.md) for actual result
 
 ## Connect and invite
 
-Main menu > PLAY 1 VS 1. The host enters the public or LAN address to share, creates a
-room and copies the invitation. The guest pastes it into Join. The invitation
-contains an address, port and random token. Both players need the same build
-and must mark themselves ready.
+Main menu > PLAY 1 VS 1 > PLAY ONLINE. The host creates an invitation and sends
+its HTTPS link to the guest. The guest opens it and chooses Join in OpenZ, or
+pastes the link/code into JOIN FRIEND. Neither player enters an IP address or
+configures a router or VPN. Both players need the same build and mark themselves
+ready in the lobby. See [the service guide](../services/duel-signaling/README.md)
+for deployment and the private relay allowlist.
 
-Run tools/Register-DuelInvitations.ps1 once to register openz:// links for the
-current Windows account. Opening a link fills in the join menu; the player still
-chooses to connect. Some messaging clients require copying and pasting the link.
+The Windows player registers openz:// links for the current account on a normal
+launch. An online link joins automatically. No administrator rights or background
+service are needed. Some messaging clients require copying and pasting the link.
+The existing registration script remains available for manual setup.
 
-Direct Internet play requires the host's chosen TCP port (27888 by default) to
+ADVANCED TCP/IP requires the host's chosen TCP port (27888 by default) to
 be reachable through the firewall/router. Voice uses the next UDP port (27889).
 For LAN play, use the host's LAN address. No permanent server is required.
 
 ## Limitations
 
-There is no NAT relay, public HTTPS invitation page, reconnection or host
-migration. Invitations cannot traverse every router. Two remote PCs and actual
-headset audio quality still require separate testing.
+There is no reconnection or host migration. Public players receive STUN only;
+TURN is issued only when both players present an authorized private code.
+This Windows libjuice build supports TURN over UDP, not TCP/TLS, so networks
+blocking all UDP can still fail. Private credentials expire after six hours.
+Two remote PCs and actual headset quality still require separate testing.
 
-TCP recovers packet loss but can delay later updates. State replication over
-UDP would require acknowledged baselines and appropriate recovery. Voice
-already uses a bounded buffer and drops stale frames.
+Reliable game channels recover packet loss but can delay later updates. Voice
+uses a separate bounded buffer and drops stale frames. TURN usage beyond the
+Cloudflare free allowance can be billed; the allowance is not a hard spending cap.

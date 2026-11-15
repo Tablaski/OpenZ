@@ -2,6 +2,7 @@
 > This fork keeps the upstream code-only Git layout; the complete local Unity project lives in `source/`.
 > Start with [the repository guide](docs/FORK.md) and [contributor instructions](CONTRIBUTING.md).
 > See [multiplayer behavior](docs/MULTIPLAYER_POC.md) and [validation](docs/DUEL_VALIDATION.md).
+> Windows online play supports invitation links, automatic WebRTC connections and private TURN fallback; advanced TCP/IP remains available. See the [Cloudflare service guide](services/duel-signaling/README.md).
 > The original OpenZ presentation below is preserved; its source ZIP instructions describe upstream.
 
 <p align="center">

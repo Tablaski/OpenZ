@@ -1,0 +1,7 @@
+{
+  "name": "org.openz.datachannel",
+  "version": "0.24.6",
+  "displayName": "OpenZ WebRTC Native Transport",
+  "description": "Pinned libdatachannel native runtime. Build with tools/Build-DuelNative.ps1. Windows x64 only.",
+  "unity": "6000.3"
+}

@@ -13,7 +13,7 @@ namespace OpenZ.Multiplayer
     /// Bounded queues disconnect a stalled peer instead of retaining unlimited snapshots.
     /// The main thread owns lobby, authority and application of received packets.
     /// </summary>
-    public sealed class DuelTcpPeer : IDisposable
+    public sealed class DuelTcpPeer : IDuelPeer
     {
         const int QueueBudget = 8 * 1024 * 1024;
         readonly TcpClient socket;
@@ -148,12 +148,12 @@ namespace OpenZ.Multiplayer
             while (incoming.TryDequeue(out _)) { }
             while (outgoing.TryDequeue(out _)) { }
         }
-        static byte[] EncodeHello(string secret, string fingerprint, string name)
+        internal static byte[] EncodeHello(string secret, string fingerprint, string name)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(secret + "\n" + fingerprint + "\n" + name);
             DecodeHello(bytes); return bytes;
         }
-        static string[] DecodeHello(byte[] bytes)
+        internal static string[] DecodeHello(byte[] bytes)
         {
             if (bytes.Length > 512) throw new InvalidDataException("Handshake too large.");
             var fields = new UTF8Encoding(false, true).GetString(bytes).Split('\n');
@@ -164,7 +164,7 @@ namespace OpenZ.Multiplayer
                 if (char.IsControl(c)) throw new InvalidDataException("Invalid handshake text.");
             return fields;
         }
-        static bool SameSecret(string expected, string actual)
+        internal static bool SameSecret(string expected, string actual)
         {
             if (expected == null || actual.Length != expected.Length) return false;
             int difference = 0; for (int i = 0; i < expected.Length; i++) difference |= expected[i] ^ actual[i];

@@ -18,6 +18,7 @@ namespace OpenZ.Multiplayer
         const int HeaderSize = 41;
         readonly ConcurrentQueue<float> playback = new ConcurrentQueue<float>();
         UdpClient udp;
+        DuelRtcPeer online;
         IPEndPoint destination;
         IPAddress expectedAddress;
         byte[] token;
@@ -32,7 +33,7 @@ namespace OpenZ.Multiplayer
         public string Device => device ?? "Default";
         public string Status { get; private set; } = "Microphone muted";
         public int FramesReceived => Volatile.Read(ref receivedFrames);
-        internal void SendProofFrame(float[] frame) { if (udp != null) Send(1, DuelVoiceCodec.Encode(frame)); }
+        internal void SendProofFrame(float[] frame) { if (udp != null || online != null) Send(1, DuelVoiceCodec.Encode(frame)); }
         public Key TalkKey => (Key)PlayerPrefs.GetInt("oz_duel_talk_key", (int)Key.V);
         public void ToggleMicrophone()
         {
@@ -56,10 +57,11 @@ namespace OpenZ.Multiplayer
         void Update()
         {
             var r = DuelRuntime.I;
-            if (!r || !r.Connected || !r.InMatch) { if (udp != null) StopVoice(); return; }
+            if (!r || !r.Connected || !r.InMatch) { if (udp != null || online != null) StopVoice(); return; }
             try
             {
-                if (udp == null) StartVoice(r);
+                if (udp == null && online == null) StartVoice(r);
+                if (online != null) while (online.TryReceiveVoice(out var samples)) BufferVoice(samples);
                 if (Time.realtimeSinceStartupAsDouble - lastProbe > 1)
                 { lastProbe = Time.realtimeSinceStartupAsDouble; Send(0, Array.Empty<byte>()); }
                 if (!MicrophoneEnabled || !microphone) return;
@@ -86,15 +88,21 @@ namespace OpenZ.Multiplayer
         }
         void StartVoice(DuelRuntime runtime)
         {
-            token = Encoding.ASCII.GetBytes(runtime.VoiceSecret); expectedAddress = runtime.PeerAddress;
-            udp = new UdpClient(runtime.IsHost ? runtime.TcpPort + 1 : 0); udp.Client.Blocking = false;
-            if (!runtime.IsHost) destination = new IPEndPoint(expectedAddress, runtime.TcpPort + 1);
+            online = runtime.OnlinePeer;
+            if (online == null)
+            {
+                token = Encoding.ASCII.GetBytes(runtime.VoiceSecret); expectedAddress = runtime.PeerAddress;
+                udp = new UdpClient(runtime.IsHost ? runtime.TcpPort + 1 : 0); udp.Client.Blocking = false;
+                if (!runtime.IsHost) destination = new IPEndPoint(expectedAddress, runtime.TcpPort + 1);
+                _ = Receive(udp);
+            }
             source = gameObject.AddComponent<AudioSource>(); source.spatialBlend = 0; source.volume = .8f; source.loop = true;
             source.clip = AudioClip.Create("Duel radio", DuelVoiceCodec.SampleRate, 1, DuelVoiceCodec.SampleRate, true, ReadAudio); source.Play();
-            sendSequence = 0; receivedSequence = -1; _ = Receive(udp);
+            sendSequence = 0; receivedSequence = -1;
         }
         void Send(byte kind, byte[] payload)
         {
+            if (online != null) { if (kind == 1) online.SendVoice(payload); return; }
             if (destination == null || udp == null) return;
             var packet = new byte[HeaderSize + payload.Length];
             packet[0] = (byte)'O'; packet[1] = (byte)'Z'; packet[2] = (byte)'V'; packet[3] = 1;
@@ -120,13 +128,17 @@ namespace OpenZ.Multiplayer
                     if (sequence <= receivedSequence) continue;
                     receivedSequence = sequence; destination = result.RemoteEndPoint;
                     if (bytes[36] == 0) continue;
-                    Interlocked.Increment(ref receivedFrames);
                     var payload = new byte[DuelVoiceCodec.FrameSamples]; Array.Copy(bytes, HeaderSize, payload, 0, payload.Length);
-                    foreach (float sample in DuelVoiceCodec.Decode(payload)) { playback.Enqueue(sample); Interlocked.Increment(ref buffered); }
-                    while (Volatile.Read(ref buffered) > 4800 && playback.TryDequeue(out _)) Interlocked.Decrement(ref buffered);
+                    BufferVoice(payload);
                 }
             }
             catch (Exception) { /* Socket shutdown ends the receive loop; microphone status stays on the main thread. */ }
+        }
+        void BufferVoice(byte[] payload)
+        {
+            Interlocked.Increment(ref receivedFrames);
+            foreach (float sample in DuelVoiceCodec.Decode(payload)) { playback.Enqueue(sample); Interlocked.Increment(ref buffered); }
+            while (Volatile.Read(ref buffered) > 4800 && playback.TryDequeue(out _)) Interlocked.Decrement(ref buffered);
         }
         void ReadAudio(float[] data)
         {
@@ -144,7 +156,7 @@ namespace OpenZ.Multiplayer
         }
         void StopVoice()
         {
-            StopMicrophone(); var socket = udp; udp = null; socket?.Dispose(); destination = null;
+            StopMicrophone(); var socket = udp; udp = null; socket?.Dispose(); destination = null; online = null;
             if (source) { var clip = source.clip; source.Stop(); Destroy(source); if (clip) Destroy(clip); source = null; }
             while (playback.TryDequeue(out _)) { } Interlocked.Exchange(ref buffered, 0); primed = false;
         }

@@ -40,6 +40,11 @@ build or code change.
 Edit source/ directly. Our module is in
 source/Assets/OpenZ/Scripts/Multiplayer/. There is no copy or preparation step.
 Code, shaders, their metadata, packages and project settings are tracked.
+The online invitation service and its deployment instructions are in
+`services/duel-signaling/README.md`. Build the local WebRTC native dependency
+once with `./tools/Build-DuelNative.ps1` before building a player on a new machine.
+Its binary archive is backed up separately under `builds/`; do not commit binaries
+or private relay access codes.
 Models, textures, sounds, scenes and other multimedia remain local, as upstream.
 Do not treat a commit as a backup of those ignored resources.
 

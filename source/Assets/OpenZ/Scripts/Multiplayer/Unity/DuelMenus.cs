@@ -29,13 +29,16 @@ namespace OpenZ.Multiplayer
         OzText ping, loading, voiceStatus;
         InputField chatField;
         bool bindingChat, bindingTalk;
+        bool advanced, onlineSettings;
+        string serviceUrl, accessCode = "", setupStatus = "";
+        string lastConnectionStatus, lastRoom;
         double endedAt = -1;
         public bool IsTyping => bindingChat || bindingTalk || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
         public bool CapturesInput => page != Page.Entry || (R.InMatch && !R.Playing);
         public void Refresh() { dirty = true; }
         public void ShowConnect() { page = Page.Connect; dirty = true; }
-        public void SetInvitation(string value) { invite = value; ShowConnect(); }
+        public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
         public void ShowLobby() { page = Page.Lobby; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
@@ -46,6 +49,8 @@ namespace OpenZ.Multiplayer
         {
             if (page == Page.Lobby && pickerGroup >= 0 && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             { pickerGroup = -1; dirty = true; }
+            if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
+            { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
             {
                 if (endedAt < 0) endedAt = Time.realtimeSinceStartupAsDouble;
@@ -76,7 +81,7 @@ namespace OpenZ.Multiplayer
             }
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
             voiceStatus?.Set(R.Voice.Status);
-            if (loading != null) loading.Set(R.Countdown >= 0 ? "STARTING IN " + Math.Ceiling(R.Countdown) : R.Status);
+            if (loading != null) loading.Set(R.Countdown >= 0 ? "STARTING IN " + Math.Ceiling(R.Countdown) : R.ConnectionStatus);
         }
         void Build()
         {
@@ -131,10 +136,16 @@ namespace OpenZ.Multiplayer
                 Label(root, "CONNECTION LOST", 180, 300, 1400, 34, OzUi.AlertText);
                 Label(root, R.Status, 180, 370, 1400, 22, OzUi.Ink);
                 Button(root, "BACK TO MENU", 180, 470, 400, Leave);
+                Button(root, "ADVANCED TCP/IP", 180, 565, 600, () => { Leave(); advanced = true; onlineSettings = false; ShowConnect(); });
             }
         }
         void BuildConnect()
         {
+            Button(root, "PLAY ONLINE", 80, 140, 550, () => { advanced = onlineSettings = false; dirty = true; }, !advanced && !onlineSettings);
+            Button(root, "ADVANCED TCP/IP", 660, 140, 550, () => { advanced = true; onlineSettings = false; dirty = true; }, advanced);
+            Button(root, "ONLINE SETTINGS", 1240, 140, 590, () => { onlineSettings = true; dirty = true; }, onlineSettings);
+            if (onlineSettings) { BuildOnlineSettings(); return; }
+            if (!advanced) { BuildOnlineConnect(); return; }
             var left = Panel("HOST", 80, 210, 850, 650);
             var right = Panel("JOIN", 980, 210, 850, 650);
             Input(left, "PLAYER NAME", 30, 90, 760, name, v => name = v, 32);
@@ -147,12 +158,48 @@ namespace OpenZ.Multiplayer
             Label(right, "Paste the invitation from your opponent.", 30, 340, 760, 19, OzUi.Muted);
             Button(root, "BACK", 80, 950, 300, CloseOverlay);
         }
+        void BuildOnlineConnect()
+        {
+            var left = Panel("CREATE A MATCH", 80, 250, 850, 610);
+            var right = Panel("JOIN A FRIEND", 980, 250, 850, 610);
+            Input(left, "YOUR NAME", 30, 90, 760, name, v => name = v, 32);
+            Button(left, "CREATE INVITATION", 30, 240, 760, () => { SaveName(); R.ConnectOnline(name, true, ""); }, true);
+            Label(left, "Send the invitation to your friend. That's it.", 30, 355, 760, 20, OzUi.Ink);
+            Label(left, "No IP address, router setup or VPN needed.", 30, 420, 760, 18, OzUi.Muted);
+            Input(right, "PASTE INVITATION OR ROOM CODE", 30, 90, 760, invite, v => invite = v, 1000);
+            Button(right, "PASTE", 30, 205, 210, () => { invite = GUIUtility.systemCopyBuffer; dirty = true; });
+            Button(right, "JOIN FRIEND", 30, 300, 760, () => { SaveName(); R.ConnectOnline(name, false, invite); }, true);
+            Label(right, "Private relay is available only to authorized players.", 30, 420, 760, 17, OzUi.Muted);
+            Button(root, "BACK", 80, 950, 300, CloseOverlay);
+        }
+        void BuildOnlineSettings()
+        {
+            if (serviceUrl == null) serviceUrl = DuelOnlineSettings.CurrentService;
+            var panel = Panel("ONE-TIME ONLINE SETUP", 280, 250, 1360, 610);
+            Input(panel, "INVITATION SERVICE", 40, 80, 1280, serviceUrl, v => serviceUrl = v, 500);
+            Input(panel, "PRIVATE ACCESS CODE (OPTIONAL)", 40, 210, 1280, accessCode, v => accessCode = v, 256);
+            var secretField = panel.GetComponentsInChildren<InputField>().Last(); secretField.contentType = InputField.ContentType.Password; secretField.ForceLabelUpdate();
+            Label(panel, DuelPrivateAccess.Enabled ? "Private access saved for this Windows user." : "No private access saved. Direct connections still work.", 40, 315, 1280, 19, OzUi.Muted);
+            Button(panel, "SAVE", 40, 385, 390, () => {
+                try {
+                    string normalized = DuelOnlineSettings.ValidateService(serviceUrl);
+                    if (!string.IsNullOrWhiteSpace(accessCode)) DuelPrivateAccess.Save(accessCode);
+                    PlayerPrefs.SetString("oz_duel_service", normalized); PlayerPrefs.Save();
+                    accessCode = ""; setupStatus = "Online settings saved.";
+                } catch (Exception error) { setupStatus = error.Message; }
+                dirty = true;
+            }, true);
+            Button(panel, "REMOVE PRIVATE ACCESS", 470, 385, 760, () => { DuelPrivateAccess.Save(""); accessCode = ""; setupStatus = "Private access removed."; dirty = true; });
+            Label(panel, setupStatus, 40, 490, 1280, 19, OzUi.Ink);
+            Button(root, "BACK", 80, 950, 300, () => { onlineSettings = false; dirty = true; });
+        }
         void SaveName() { PlayerPrefs.SetString("oz_duel_name", name); PlayerPrefs.Save(); }
         void BuildLobby()
         {
-            if (R.View == null) { loading = Label(root, R.Status, 180, 350, 1500, 28, OzUi.Ink); Button(root, "CANCEL", 80, 950, 300, Leave); return; }
+            if (R.View == null) { loading = Label(root, R.ConnectionStatus, 180, 350, 1500, 28, OzUi.Ink); Button(root, "CANCEL", 80, 950, 300, Leave); return; }
             var rules = R.Rules; bool editable = R.IsHost && R.View.Phase == (int)DuelPhase.Lobby;
-            if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, int.Parse(port)));
+            if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
+            if (R.OnlineMode) Label(root, R.Connected ? "CONNECTED" : R.ConnectionStatus, 80, 135, 1450, 20, OzUi.Ink);
             var left = Panel("MAP", 80, 190, 700, 595);
             int mx = 24;
             foreach (var map in OzLevelDef.All)

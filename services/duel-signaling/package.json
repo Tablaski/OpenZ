@@ -1,0 +1,15 @@
+{
+  "name": "openz-duel-signaling",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/worker.test.js",
+    "test:integration": "node test/integration.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.50.0",
+    "ws": "8.18.3"
+  }
+}

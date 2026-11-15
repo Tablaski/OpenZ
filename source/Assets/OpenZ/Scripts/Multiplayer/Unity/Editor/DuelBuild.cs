@@ -33,6 +33,8 @@ namespace OpenZ.Multiplayer.Editor
             });
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(output), "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors + "\n" + output);
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);
+            string notices = Path.Combine(Application.dataPath, "../Packages/org.openz.datachannel/Third Party Notices.txt");
+            File.Copy(notices, Path.Combine(Path.GetDirectoryName(output), "WebRTC Third Party Notices.txt"), true);
             Debug.Log("[OpenZ Duel] Built " + output);
         }
         public static void ValidateScriptBindings()

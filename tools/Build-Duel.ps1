@@ -2,6 +2,9 @@ param([string]$Unity = '', [string]$OutputDirectory = '')
 $ErrorActionPreference = 'Stop'
 $duelRoot = Split-Path $PSScriptRoot -Parent
 $duelProject = Join-Path $duelRoot 'source'
+if (-not (Test-Path -LiteralPath (Join-Path $duelProject 'Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll'))) {
+    throw 'The WebRTC native dependency is missing. Run tools/Build-DuelNative.ps1 first.'
+}
 if (-not (Test-Path -LiteralPath (Join-Path $duelProject 'Assets\OpenZ\Scenes\MainMenu.unity'))) {
     throw 'The local Unity resources are missing. Complete the one-time setup in CONTRIBUTING.md before building.'
 }
@@ -19,17 +22,28 @@ if (-not $Unity -or -not (Test-Path -LiteralPath $Unity)) {
 }
 $duelLogs = Join-Path $duelRoot 'tests\Multiplayer\.cli'
 New-Item -ItemType Directory -Path $duelLogs -Force | Out-Null
-$duelLog = Join-Path $duelLogs 'Unity-build.log'
+$duelLogName = if ($OutputDirectory) { 'Unity-build-' + [IO.Path]::GetFileName([IO.Path]::GetFullPath($OutputDirectory)) + '.log' } else { 'Unity-build.log' }
+$duelLog = Join-Path $duelLogs $duelLogName
 $duelArguments = @('-batchmode', '-nographics', '-quit', '-projectPath', ('"' + $duelProject + '"'),
     '-executeMethod', 'OpenZ.Multiplayer.Editor.DuelBuild.Windows', '-logFile', ('"' + $duelLog + '"'))
 if ($OutputDirectory) {
     $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
     $duelArguments += @('-oz-duel-output', ('"' + $OutputDirectory + '"'))
 }
-$duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WindowStyle Hidden -Wait -PassThru
-if ($duelBuild.ExitCode -ne 0) { throw "Unity build failed. Read $duelLog" }
-$duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Duel\BUILD_RESULT.txt' }
-if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {
-    throw "Unity did not report a successful player build. Read $duelLog"
+$duelMutex = [Threading.Mutex]::new($false, 'Local\OpenZ-Duel-UnityBuild')
+$duelOwnsMutex = $false
+try {
+    try { $duelOwnsMutex = $duelMutex.WaitOne(600000) }
+    catch [Threading.AbandonedMutexException] { $duelOwnsMutex = $true }
+    if (-not $duelOwnsMutex) { throw 'Another Unity build is still running. Try again after it finishes.' }
+    $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WindowStyle Hidden -Wait -PassThru
+    if ($duelBuild.ExitCode -ne 0) { throw "Unity build failed. Read $duelLog" }
+    $duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Duel\BUILD_RESULT.txt' }
+    if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {
+        throw "Unity did not report a successful player build. Read $duelLog"
+    }
+    Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'OpenZ-Duel.exe') + '. Keep the complete output folder together.')
+} finally {
+    if ($duelOwnsMutex) { $duelMutex.ReleaseMutex() }
+    $duelMutex.Dispose()
 }
-Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'OpenZ-Duel.exe') + '. Keep the complete output folder together.')

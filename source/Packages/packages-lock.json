@@ -232,6 +232,12 @@
       },
       "url": "https://packages.unity.com"
     },
+    "org.openz.datachannel": {
+      "version": "file:org.openz.datachannel",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
       "depth": 0,

@@ -61,7 +61,11 @@ namespace OpenZ.Multiplayer
         public DuelMenus Menus { get; private set; }
         public DuelVoice Voice { get; private set; }
         public string VoiceSecret => secret;
-        public IPAddress PeerAddress => peer?.RemoteAddress;
+        public IPAddress PeerAddress => (peer as DuelTcpPeer)?.RemoteAddress;
+        public DuelRtcPeer OnlinePeer => peer as DuelRtcPeer;
+        public bool OnlineMode { get; private set; }
+        public string OnlineRoom => online?.RoomCode;
+        public string ConnectionStatus => online != null && Connecting ? online.Status : Status;
         public int TcpPort { get; private set; }
         public bool IsHost { get; private set; }
         public bool Playing { get; private set; }
@@ -75,11 +79,12 @@ namespace OpenZ.Multiplayer
         public DuelRules Rules => View?.ReadRules() ?? Defaults("L02");
         public readonly List<string> Chat = new List<string>();
         public ZGame Game { get; private set; }
-        public string Invitation(string address, int port) => "openz://join?address=" + Uri.EscapeDataString(address) + "&port=" + port + "&invite=" + secret;
-        DuelTcpPeer peer;
+        public string Invitation(string address, int port) => OnlineMode ? DuelOnlineSettings.ValidateService(DuelOnlineSettings.CurrentService) + "/" + OnlineRoom : "openz://join?address=" + Uri.EscapeDataString(address) + "&port=" + port + "&invite=" + secret;
+        IDuelPeer peer;
+        DuelOnline online;
         TcpListener listener;
         CancellationTokenSource cancellation;
-        Task<DuelTcpPeer> connectTask;
+        Task<IDuelPeer> connectTask;
         DuelLobby lobby;
         string secret, localName;
         bool session, loadStarted, sentGameOver;
@@ -101,8 +106,13 @@ namespace OpenZ.Multiplayer
         void Awake() { I = this; Menus = gameObject.AddComponent<DuelMenus>(); Voice = gameObject.AddComponent<DuelVoice>(); SceneManager.sceneLoaded += SceneLoaded; }
         void Start()
         {
+            if (!Environment.GetCommandLineArgs().Any(a => a.StartsWith("-oz-duel-", StringComparison.Ordinal))) DuelInvitationLinks.Register();
             string invitation = Environment.GetCommandLineArgs().FirstOrDefault(a => a.StartsWith("openz://join?", StringComparison.OrdinalIgnoreCase));
-            if (invitation != null) Menus.SetInvitation(invitation);
+            if (invitation != null)
+            {
+                if (invitation.IndexOf("room=", StringComparison.OrdinalIgnoreCase) >= 0) ConnectOnline(PlayerPrefs.GetString("oz_duel_name", "PLAYER"), false, invitation);
+                else Menus.SetInvitation(invitation);
+            }
         }
         void OnDestroy() { Close(); SceneManager.sceneLoaded -= SceneLoaded; if (I == this) I = null; }
         public static DuelRules Defaults(string map)
@@ -124,7 +134,7 @@ namespace OpenZ.Multiplayer
             Close(); IsHost = true; TcpPort = port; localName = name; secret = DuelTcpPeer.NewInvitationSecret();
             lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, Defaults("L02")); View = DuelLobbyData.From(lobby);
             cancellation = new CancellationTokenSource();
-            try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token); Status = "Waiting for the other player…"; }
+            try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = AcceptTcp(); Status = "Waiting for the other player…"; }
             catch (Exception error) { Fail(error.Message); }
             Menus.ShowLobby();
         }
@@ -139,7 +149,23 @@ namespace OpenZ.Multiplayer
                 secret = args["invite"]; int port = int.Parse(args["port"]);
                 if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
                 TcpPort = port;
-                connectTask = DuelTcpPeer.ConnectAsync(args["address"], port, secret, Fingerprint(), name, cancellation.Token);
+                connectTask = ConnectTcp(args["address"], port, name);
+                Status = "Connecting…"; Menus.ShowLobby();
+            }
+            catch (Exception error) { Fail(error.Message); }
+        }
+        async Task<IDuelPeer> AcceptTcp() => await DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token);
+        async Task<IDuelPeer> ConnectTcp(string address, int port, string name) => await DuelTcpPeer.ConnectAsync(address, port, secret, Fingerprint(), name, cancellation.Token);
+        public void ConnectOnline(string name, bool host, string invitation)
+        {
+            Close(); IsHost = host; OnlineMode = true; localName = name;
+            try
+            {
+                if (host) { lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, Defaults("L02")); View = DuelLobbyData.From(lobby); }
+                cancellation = new CancellationTokenSource(); online = new DuelOnline(cancellation.Token);
+                string service = DuelOnlineSettings.CurrentService;
+                connectTask = online.ConnectAsync(service, host, invitation, Fingerprint(), name, DuelPrivateAccess.Read(),
+                    Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only"));
                 Status = "Connecting…"; Menus.ShowLobby();
             }
             catch (Exception error) { Fail(error.Message); }
@@ -192,14 +218,16 @@ namespace OpenZ.Multiplayer
                 if (connectTask != null && connectTask.IsCompleted)
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
-                    lastReceive = Now; Status = "Connected";
+                    lastReceive = Now; Status = OnlineMode ? (OnlinePeer.UsesRelay ? "Connected via private relay" : "Connected directly") : "Connected";
                     if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;
                 if (peer.Closed) { Fail(peer.Failure ?? "Connection closed"); return; }
                 int count = 0;
-                while (count++ < 256 && peer.TryReceive(out var packet)) { lastReceive = Now; Handle(packet); }
-                if (Now - lastReceive > 15) { Fail("Connection lost (no response for 15 seconds)."); return; }
+                while (peer != null && count++ < 256 && peer.TryReceive(out var packet)) { lastReceive = Now; Handle(packet); }
+                if (peer == null) return;
+                double responseTimeout = session && !Playing ? 180 : 15;
+                if (Now - lastReceive > responseTimeout) { Fail("Connection lost. Your opponent is no longer responding."); return; }
                 if (Now - lastPing > 1)
                 {
                     lastPing = pendingPing = Now;
@@ -274,6 +302,8 @@ namespace OpenZ.Multiplayer
         IEnumerator FinishLoading()
         {
             yield return null;
+            if (!session || !Connected || !Game) yield break;
+            lastReceive = Now;
             Game.DuelBindStartingViews();
             if (!IsHost)
             {
@@ -372,18 +402,24 @@ namespace OpenZ.Multiplayer
             if (!Playing || !Game) return;
             if (IsHost) Game.World.DuelSurrender(0); else peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
         }
-        void Fail(string reason) { Status = reason; Playing = false; peer?.Dispose(); peer = null; connectTask = null; listener?.Stop(); listener = null; cancellation?.Cancel(); Menus.ShowError(); }
+        void Fail(string reason) { Disconnect(); Status = reason; Playing = false; Menus.ShowError(); }
         public void ReportError(string reason) => Fail(reason);
         public void Close()
         {
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
+            Disconnect(); OnlineMode = false;
+            session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
+            commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
+        }
+        void Disconnect()
+        {
             cancellation?.Cancel(); cancellation?.Dispose(); cancellation = null;
             listener?.Stop(); listener = null; peer?.Dispose(); peer = null;
+            online?.Dispose(); online = null;
             // Observe a connection which completes after cancellation, and dispose it immediately.
             if (connectTask != null) _ = connectTask.ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion) t.Result.Dispose(); else _ = t.Exception; });
-            connectTask = null; session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
-            commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
+            connectTask = null;
         }
     }
 

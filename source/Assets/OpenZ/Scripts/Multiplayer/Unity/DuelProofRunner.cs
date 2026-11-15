@@ -39,17 +39,26 @@ namespace OpenZ.Multiplayer
                     Directory.CreateDirectory(folder);
                     if (role == "host")
                     {
-                        r.Host("HOST", 27889);
+                        if (Environment.GetCommandLineArgs().Contains("-oz-duel-online-proof")) r.ConnectOnline("HOST", true, "");
+                        else r.Host("HOST", 27889);
                         var args = Environment.GetCommandLineArgs(); int mapOption = Array.IndexOf(args, "-oz-duel-proof-map");
                         if (mapOption >= 0 && mapOption + 1 < args.Length) r.ChangeRules(DuelRuntime.Defaults(args[mapOption + 1]));
-                        File.WriteAllText(Path.Combine(folder, "invitation.txt"), r.Invitation("127.0.0.1", 27889));
+                        if (!r.OnlineMode) File.WriteAllText(Path.Combine(folder, "invitation.txt"), r.Invitation("127.0.0.1", 27889));
                         joined = true;
                     }
                     else if (File.Exists(Path.Combine(folder, "invitation.txt")))
-                    { r.Join("GUEST", File.ReadAllText(Path.Combine(folder, "invitation.txt"))); joined = true; }
+                    {
+                        string invitation = File.ReadAllText(Path.Combine(folder, "invitation.txt"));
+                        if (Environment.GetCommandLineArgs().Contains("-oz-duel-online-proof")) r.ConnectOnline("GUEST", false, invitation);
+                        else r.Join("GUEST", invitation);
+                        joined = true;
+                    }
                 }
+                if (role == "host" && r.OnlineMode && !string.IsNullOrEmpty(r.OnlineRoom) && !File.Exists(Path.Combine(folder, "invitation.txt")))
+                    File.WriteAllText(Path.Combine(folder, "invitation.txt"), r.Invitation("", 0));
                 if (r.Connected && r.View != null && r.View.Phase == (int)DuelPhase.Lobby)
                 {
+                    if (Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only") && (r.OnlinePeer == null || !r.OnlinePeer.UsesRelay)) throw new Exception("Forced relay proof selected a direct path.");
                     if (connectedAt < 0) connectedAt = Time.realtimeSinceStartupAsDouble;
                     double elapsed = Time.realtimeSinceStartupAsDouble - connectedAt;
                     if (!lobbyCaptured && elapsed > 1) { DuelProofCapture.Save(Path.Combine(folder, role + "-lobby.png"), true); lobbyCaptured = true; }
@@ -85,7 +94,7 @@ namespace OpenZ.Multiplayer
                     if (w.Time > 4 && w.Time < 12 && Time.realtimeSinceStartupAsDouble - lastVoice > .02)
                     {
                         lastVoice = Time.realtimeSinceStartupAsDouble;
-                        // A low-volume synthetic frame tests UDP and playback without opening a microphone.
+                        // A low-volume synthetic frame tests the active voice transport without opening a microphone.
                         var tone = new float[DuelVoiceCodec.FrameSamples];
                         for (int i = 0; i < tone.Length; i++) tone[i] = .005f * Mathf.Sin(2 * Mathf.PI * 440 * i / DuelVoiceCodec.SampleRate);
                         r.Voice.SendProofFrame(tone);
@@ -99,7 +108,7 @@ namespace OpenZ.Multiplayer
                     {
                         bool blueFortGone = w.Objects.Where(o => o.IsFort && o.Owner == Team.Blue).All(o => o.Destroyed);
                         Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
-                            "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions);
+                            "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
                     }
                 }
                 if (Time.realtimeSinceStartupAsDouble - began > 240) Finish(false, "Timeout; " + r.Status + "; exceptions=" + exceptions);

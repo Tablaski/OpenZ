@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "openz-duel",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-11-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "DuelRoom" },
+      { "name": "LIMITS", "class_name": "RequestLimit" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DuelRoom", "RequestLimit"] }],
+  "vars": { "TURN_ENABLED": "true", "TURN_TTL": "21600" }
+}

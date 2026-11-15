@@ -59,4 +59,58 @@ Unity rendering or gameplay.
 
 Tests use two processes on the same PC. They do not prove connectivity through
 all routers, variable remote latency or actual microphone/headset quality.
-No managed relay or public HTTPS invitation page is configured.
+Those earlier checks covered the TCP prototype. Online transport validation is
+recorded below.
+
+## Online transport and integrated lobby
+
+- 481 core and real-map checks pass, including the four-slot armies and additive
+  handicaps from the parallel lobby update.
+- The Windows player builds successfully with the pinned libdatachannel 0.24.6
+  native dependency, static C++ runtime, and bundled upstream license notices.
+- The Cloudflare invitation service is deployed at
+  `https://openz-duel.openz-tablaski.workers.dev`. Live checks pass for HTTPS
+  invitations, authenticated WebSockets, offers/answers and both ICE requests.
+- Two distinct private access codes are accepted and receive real expiring TURN
+  credentials. Public users are refused relay credentials even after TURN is
+  enabled. Permanent TURN credentials are encrypted server-side, never in the
+  distributed game. Private access is protected locally with Windows DPAPI.
+- Native WebRTC checks pass for selected TURN candidate pairs on both peers,
+  a fragmented state larger than 1 MiB, reverse commands, voice, build mismatch
+  rejection and oversized-frame rejection.
+- The integrated player passed a full two-player mission with **TURN forced**:
+  both processes report `transport=TURN`, combat damage, guest orders, received
+  voice, destroyed blue fort, red victory and zero exceptions. Evidence:
+  `proof-online-L02-20261115-003339` under `tests/Multiplayer/.cli/`.
+- The actual player registers its own per-user `openz://` handler without
+  administrator rights. The private relay game also validates reading the
+  owner's installed DPAPI-protected access, without a test credential override.
+- Advanced TCP/IP passes all four missions on the integrated network build:
+
+| Mission | Evidence under tests/Multiplayer/.cli/ |
+| --- | --- |
+| Desert | proof-L02-20261115-003548 |
+| Volcano | proof-L07-20261115-003708 |
+| Jungle | proof-L16-20261115-003825 |
+| Car Park | proof-L17-20261115-003942 |
+
+The native menu proof `menus-20261115-004050` passes for the main menu entries,
+automatic/advanced connection screens, tactical map, four shared outside slots,
+cannon picker, additive handicap, both beneficiaries, empty slots and unchanged
+construction times. The subsequent portrait-only correction was rebuilt and
+validated by `menus-20261115-005351`; the captured general portraits are populated.
+It does not change the network transport or simulation.
+
+The final player also passed the direct online path in
+`proof-online-L02-20261115-005545`, reporting `transport=WebRTC direct` on both
+peers, without a service URL or private-code override in the test environment.
+The earlier direct check was `proof-online-L02-20261115-001513`.
+These are same-PC two-process tests using
+the actual public service and, when forced, the actual Internet TURN relay.
+They do not prove every pair of remote networks or physical microphone/headset
+quality. Voice proofs use synthetic samples without enabling a microphone.
+
+The current native ICE backend supports TURN over UDP only. Networks blocking
+all UDP can still fail. Private credentials expire after six hours; there is no
+mid-match ICE restart, credential renewal or host migration. Cloudflare's free
+allowance is not a spending cap.

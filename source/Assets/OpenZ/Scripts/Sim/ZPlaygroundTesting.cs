@@ -6,14 +6,40 @@ namespace OpenZ.Sim
     /// <summary>World-local laboratory rules. Absent in ordinary games and parity worlds.</summary>
     public sealed class ZPlaygroundTesting
     {
-        public sealed class Score { public long Kills, Deaths; internal int virtualHp = -1, driverHp = -1, maxHp; }
+        public sealed class Score
+        {
+            public long Kills, Deaths;
+            public double SuccessPercent => Kills == 0 && Deaths == 0 ? 0 : 100.0 * Kills / ((double)Kills + Deaths);
+            internal int virtualHp = -1, driverHp = -1, maxHp;
+        }
         public struct Hit { public int Victim, Attacker, Damage, X, Y; public long Deaths; public bool Theoretical, Driver; }
         readonly ZWorld world;
         readonly Dictionary<int, Score> scores = new Dictionary<int, Score>();
         readonly Queue<Hit> hits = new Queue<Hit>();
         readonly bool[] immortal = new bool[3], circular = new bool[3];
         readonly double[] hpPercent = { 100, 100, 100 };
-        public bool ShowDamage, ShowCounts;
+        public bool ShowDamage, ShowCounts, ResetAutomaticallyOnParametersChange;
+        public void ResetCounters()
+        { foreach (var s in scores.Values) { s.Kills = 0; s.Deaths = 0; } }
+        internal void BehaviorChanging(ZBehaviorProfile before, ZBehaviorProfile after)
+        {
+            if (!ResetAutomaticallyOnParametersChange) return;
+            foreach (var o in world.Objects)
+            {
+                if (!Eligible(o) || o.Destroyed || o.IsFortDefender || o.IsEvilZod ||
+                    (after.family == ZBehaviorFamily.Robots ? !o.IsRobot || !ZBehaviorSchema.IsRobot(o.Type) : o.Kind != ZKind.Vehicle || !ZBehaviorSchema.IsTank(o.Type))) continue;
+                bool fighting = o.AttackObject != null || o.BehaviorDodging ||
+                    o.Waypoints.Exists(w => w.mode == WpMode.Attack || w.mode == WpMode.Agro) ||
+                    o.LastEnemyHit >= 0 && world.Time - o.LastEnemyHit <= 3;
+                if (!fighting) foreach (var attacker in world.Objects)
+                    if (!attacker.Destroyed && attacker.Owner != o.Owner && attacker.AttackObject == o) { fighting = true; break; }
+                if (!fighting) continue;
+                bool changed = before.NativeFor(o.Type) != after.NativeFor(o.Type);
+                foreach (var d in ZBehaviorSchema.All)
+                    if (before.Get(o.Type, d.Key) != after.Get(o.Type, d.Key)) { changed = true; break; }
+                if (changed) { ResetCounters(); return; }
+            }
+        }
         public ZPlaygroundTesting(ZWorld world) { this.world = world ?? throw new ArgumentNullException(nameof(world)); }
         public static bool Eligible(ZObject o) => o != null && o.MaxHealth > 0 && o.Owner != Team.Neutral &&
             (o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon);

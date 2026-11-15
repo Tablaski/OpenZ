@@ -23,6 +23,7 @@ namespace OpenZ
         OzUeBottomLayout.Out lay;
         /// <summary>The last layout (for the counted check).</summary>
         public OzUeBottomLayout.Out Laid => lay;
+        public UeBox CountsBox => counts != null ? counts.PlateBox : default;
 
         void Awake()
         {

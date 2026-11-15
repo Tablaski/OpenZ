@@ -1,7 +1,8 @@
 # Behavior laboratory
 
-Open the Unit Editor and click **BEHAVIOR** at the bottom right. The laboratory
-uses the same right-hand sidebar dimensions and native controls as STATS;
+Open the Unit Editor and click **COMBAT DYNAMICS** immediately to the right of
+the top-left BLUE/RED count and background controls. The laboratory opens below
+that row on the left, using the same sidebar dimensions and native controls as STATS;
 closing it restores STATS. **TANKS** and **ROBOTS** keep separate drafts.
 Their DODGING, MOVEMENT, BOOST and COMBAT pages expose 74 parameters. Every parameter has detailed hover help and
 shows its original OpenZ and Zod Classic reference values. Family-wide values
@@ -63,8 +64,12 @@ damage and score controls. See [UNIT_TESTING.md](UNIT_TESTING.md).
 SAVE updates the current custom preset; SAVE AS creates another named preset.
 Draft autosave is separate from the saved library and next-match choices.
 Saved presets freeze reference endpoints while preserving editable inheritance.
-EXPORT/IMPORT exchange `.ozbehavior` files in the UnitEditor/BehaviorPresets
-folder (FOLDER opens it). Invalid fields, foreign unit types and non-finite
+EXPORT writes readable `.json` files in the UnitEditor/BehaviorPresets folder
+(FOLDER opens it). IMPORT lists JSON and legacy `.ozbehavior` files from there.
+JSON stores `format: "openz-combat-dynamics"`, `version: 1`, the `tanks`/`robots`
+family, name, master, named-key overrides and reference arrays. Imported profiles
+become drafts; SAVE adds them to match selection. Exported references are frozen
+without flattening overrides or the master. Invalid fields, foreign unit types and non-finite
 numbers are rejected. Built-in references cannot be overwritten or deleted.
 
 Choose **TANK BEHAVIOR** and **ROBOT BEHAVIOR** independently in **Options > Game**.

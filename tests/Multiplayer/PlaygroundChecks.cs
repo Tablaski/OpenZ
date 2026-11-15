@@ -69,5 +69,30 @@ static class PlaygroundChecks
         w.Time += .15; red.DodgeMissile(red.CenterX, red.CenterY, 10);
         w.Time += .1; red.ProcessServer(w.Time);
         check(!red.Waypoints.Any(x => x.mode == WpMode.Dodge) && red.Waypoints.Any(x => x.refId == blue.Id), "Volley replanning cannot postpone attack resumption indefinitely");
+
+        var score = t.For(red.Id);
+        score.Kills = 3; score.Deaths = 0; check(score.SuccessPercent == 100, "Three kills without death gives 100 percent success");
+        score.Kills = 2; score.Deaths = 2; check(score.SuccessPercent == 50, "Equal kills and deaths give 50 percent success");
+        score.Kills = long.MaxValue; score.Deaths = long.MaxValue;
+        check(score.SuccessPercent == 50, "Success ratio cannot overflow long counters");
+        t.Configure(Team.Red, true, false); t.SetHpPercent(Team.Red, 50);
+        int hp = red.Health; red.DamageHealth(hp - 1, blue.Id);
+        t.ResetCounters();
+        check(score.Kills == 0 && score.Deaths == 0 && score.SuccessPercent == 0 && t.For(blue.Id).Kills == 0, "Reset clears every score and empty ratio");
+        check(red.Health == hp && red.Waypoints.Any(x => x.refId == blue.Id), "Reset preserves health and attack orders");
+        red.DamageHealth(1, blue.Id);
+        check(score.Deaths == 1 && t.For(blue.Id).Kills == 1, "Reset does not erase partial theoretical damage");
+        score.Kills = 7; t.ResetAutomaticallyOnParametersChange = true;
+        w.SetBehavior(p.Clone());
+        check(score.Kills == 7, "Identical effective profile does not auto-reset counters");
+        var renamed = p.Clone(); renamed.name = "Renamed only"; w.SetBehavior(renamed);
+        check(score.Kills == 7, "Renaming a profile does not auto-reset counters");
+        p.Set("medium", ZBehaviorKey.Reaction, .3); w.SetBehavior(p);
+        check(score.Kills == 7, "Editing an unused fighting type does not reset counters");
+        p.Set("light", ZBehaviorKey.Reaction, .3); w.SetBehavior(p);
+        check(score.Kills == 0 && score.Deaths == 0 && t.For(blue.Id).Kills == 0, "Effective change affecting one fighter resets all units' scores");
+        t.ResetAutomaticallyOnParametersChange = false; score.Kills = 4;
+        p.Set("light", ZBehaviorKey.Reaction, .5); w.SetBehavior(p);
+        check(score.Kills == 4, "Disabling automatic reset preserves counters on parameter changes");
     }
 }

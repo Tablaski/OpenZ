@@ -9,7 +9,7 @@ namespace OpenZ
     /// <summary>Pooled native-canvas damage numbers and per-object scores. No dependency on selection or HUD health-bar settings.</summary>
     public sealed class OzUnitTestingOverlay : MonoBehaviour
     {
-        sealed class Badge { public RectTransform Root; public OzText Kills, Deaths, Debug; public ZObject Unit; public float GoneAt = -1; }
+        sealed class Badge { public RectTransform Root; public OzText Kills, Deaths, Ratio, Debug; public ZObject Unit; public float GoneAt = -1; }
         sealed class Number { public RectTransform Root; public OzText Text; public float Until, Started; public int Id; public Vector3 At; }
         readonly Dictionary<int, Badge> badges = new Dictionary<int, Badge>();
         readonly List<Number> numbers = new List<Number>();
@@ -52,12 +52,14 @@ namespace OpenZ
                     MakeTrophy(b.Root, 4, 7); MakeSkull(b.Root, 78, 7);
                     b.Kills = Hud.Label(b.Root, "Kills", "0", 23, OzUi.AmberHi, 0, OzStyle.Outline).At(29, 18, OzH.L, true, 48);
                     b.Deaths = Hud.Label(b.Root, "Deaths", "0", 23, OzUi.Ink, 0, OzStyle.Outline).At(103, 18, OzH.L, true, 48);
-                    b.Debug = Hud.Label(b.Root, "Reason", "", 11, OzUi.Ink, 0, OzStyle.Outline).At(72, -8, OzH.C, true, 260);
+                    b.Ratio = Hud.Label(b.Root, "Success", "0%", 21, OzUi.Ink, 0, OzStyle.Outline).At(72, -10, OzH.C, true, 144);
+                    b.Debug = Hud.Label(b.Root, "Reason", "", 11, OzUi.Ink, 0, OzStyle.Outline).At(72, -32, OzH.C, true, 260);
                     badges.Add(o.Id, b);
                 }
                 if (!o.Destroyed) b.GoneAt = -1;
                 var score = testing.For(o.Id); b.Kills.Set(score.Kills.ToString()); b.Deaths.Set(score.Deaths.ToString());
-                b.Kills.SetActive(show); b.Deaths.SetActive(show);
+                b.Ratio.Set(score.SuccessPercent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%");
+                b.Kills.SetActive(show); b.Deaths.SetActive(show); b.Ratio.SetActive(show);
                 b.Root.Find("Trophy").gameObject.SetActive(show); b.Root.Find("Skull").gameObject.SetActive(show);
                 b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason);
             }
@@ -70,6 +72,7 @@ namespace OpenZ
                     if (b.GoneAt < 0) b.GoneAt = Time.unscaledTime;
                     if (Time.unscaledTime - b.GoneAt > 2.5f) { remove.Add(pair.Key); b.Root.gameObject.SetActive(false); continue; }
                     var score = testing.For(pair.Key); b.Kills.Set(score.Kills.ToString()); b.Deaths.Set(score.Deaths.ToString());
+                    b.Ratio.Set(score.SuccessPercent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%");
                 }
                 b.Root.gameObject.SetActive((show || debug) && Place(b.Root, Position(b.Unit) + Vector3.up * (b.Unit.Kind == ZKind.Vehicle ? 3.3f : 2.1f)));
             }

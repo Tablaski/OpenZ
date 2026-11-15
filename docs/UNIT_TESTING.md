@@ -1,7 +1,7 @@
 # Unit testing laboratory
 
-In the Unit Editor, click **UNIT TESTING** at the bottom right, or choose the
-tab beside BEHAVIOR. It uses the same native right-hand sidebar as STATS.
+In the Unit Editor, click **UNIT TESTING** next to **COMBAT DYNAMICS** in the
+top-left controls, or choose its tab. The native sidebar opens below on the left.
 Hover controls for detailed explanations. These rules belong to this playground
 world; they do not enter saved combat profiles or ordinary matches.
 
@@ -30,6 +30,20 @@ and skull counters. Virtual defeats credit the responsible enemy attacker;
 environmental/self-inflicted defeats have no credited killer. Counts accumulate
 even with the display disabled, survive HP resets and disappear with removed
 units. Ordinary mortal deaths retain their counters briefly above the wreck.
+
+Success appears above the trophy/skull counters: `100 * kills / (kills + deaths)`.
+An empty score is 0%; 3 kills/0 deaths is 100%, and 2 kills/2 deaths is 50%.
+**RESET COUNTERS**, next to the display toggle, clears kills/deaths/success for
+every unit without touching HP, partial damage pools, targets or orders.
+
+**Reset automatically on parameters change** is OFF by default. When ON, an
+effective combat-profile change affecting at least one living fighter resets all
+units' scores. Fighting includes an acquired target, attack/agro order, active
+dodge, incoming enemy attack or a hit in the previous three simulation seconds.
+Paused fights retain their orders and count. All application paths are covered:
+master, field, inheritance reset, native reset, loading and importing presets.
+Saving, renaming, reapplying identical values and changes affecting only absent
+or inactive types do not reset scores. Enabling the toggle itself does not reset.
 
 Display elements are native canvas text/vector shapes with no new asset dependency.
 Events and floating-number pools have bounded queues. Visual clarity, overlap

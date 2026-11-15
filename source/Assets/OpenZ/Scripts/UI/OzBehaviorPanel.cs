@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace OpenZ
 {
-    /// <summary>Native right-hand laboratory, sharing the stats panel's plate, dimensions, fields and side tooltips.</summary>
+    /// <summary>Native left-hand laboratory, sharing the stats panel's plate, dimensions, fields and side tooltips.</summary>
     public sealed class OzBehaviorPanel : MonoBehaviour
     {
         public static OzBehaviorPanel I { get; private set; }
@@ -47,24 +47,29 @@ namespace OpenZ
             if (!ed || !ed.Hud || !ed.Hud.Root || !OzUnitEditor.Layer(UeLayer.Panels)) return;
             if (entry == null)
             {
-                entry = HudButton.Make(ed.Hud.Root, "UE_Behavior", "BEHAVIOR", new Vector2(150, 34), HudButtonKind.Small, 12);
-                entry.OnClick = _ => Toggle(); entry.Tooltip = "BEHAVIOR|Open the right-hand tank and robot behavior laboratory. All changes apply immediately to existing units.|";
-                testingEntry = HudButton.Make(ed.Hud.Root, "UE_UnitTesting", "UNIT TESTING", new Vector2(150, 34), HudButtonKind.Small, 12);
+                entry = HudButton.Make(OzUnitEditor.Layer(UeLayer.Panels), "UE_CombatDynamics", "COMBAT DYNAMICS", new Vector2(174, 36), HudButtonKind.Small, 12);
+                entry.OnClick = _ => Toggle(); entry.Tooltip = "COMBAT DYNAMICS|Open the left-hand tank and robot combat dynamics laboratory. All changes apply immediately to existing units.|";
+                testingEntry = HudButton.Make(OzUnitEditor.Layer(UeLayer.Panels), "UE_UnitTesting", "UNIT TESTING", new Vector2(126, 36), HudButtonKind.Small, 12);
                 testingEntry.OnClick = _ => ShowTesting(); testingEntry.Tooltip = "UNIT TESTING|Immortality, reference HP per team, circular damage, floating damage and kill/death counts. Playground only.|";
                 ed.Hud.AddBlocker(entry.Rt); ed.Hud.AddBlocker(testingEntry.Rt);
             }
             var cs = OzUnitEditor.CanvasSize;
-            entry.Rt.TL(cs.x - 168, cs.y - 46, 150, 34);
-            testingEntry.Rt.TL(cs.x - 330, cs.y - 46, 150, 34);
+            var counts = OzUeControlsRoot.I != null ? OzUeControlsRoot.I.CountsBox : default;
+            float top = counts.h > 0 ? counts.y : Mathf.Max(40, OzUeInsets.Get(UeSide.Top)) + 12;
+            float entryX = counts.w > 0 ? counts.x + counts.w + 8 : 240;
+            entry.Rt.TL(entryX, top, 174, 36);
+            testingEntry.Rt.TL(entryX + 182, top, 126, 36);
             bool visible = !OzUnitEditor.PanelsHidden;
             entry.Rt.gameObject.SetActive(visible); testingEntry.Rt.gameObject.SetActive(visible);
             var next = UeBoxLayout.For(cs, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom));
+            next.x = counts.w > 0 ? counts.x : 12; next.y = top + 44;
+            next.h = Mathf.Max(240, Mathf.Min(860, cs.y - next.y - 12 - OzUeInsets.Get(UeSide.Bottom)));
             if ((next.Box.position - layout.Box.position).sqrMagnitude > .25f || (next.Box.size - layout.Box.size).sqrMagnitude > .25f) rebuild = true;
             layout = next;
             if (IsOpen && rebuild) Build();
             if (box) box.gameObject.SetActive(IsOpen && visible);
             if (OzUeStatsRoot.I != null) OzUeStatsRoot.I.CoverWithLaboratory(IsOpen);
-            OzUeInsets.Set(UeSide.Right, "laboratory", IsOpen ? layout.w + UeBoxLayout.Gap : 0);
+            OzUeInsets.Set(UeSide.Left, "laboratory", IsOpen ? layout.w + UeBoxLayout.Gap : 0);
             if (!IsOpen || !visible) return;
             list?.Tick(!OzUeLabInput.AnyFocused);
             foreach (var r in rows) if (r) r.gameObject.SetActive(list.Shows(r));
@@ -81,7 +86,7 @@ namespace OpenZ
         public bool TestingEntryIsClickable => Clickable(testingEntry);
         bool Clickable(HudButton button) => button != null && button.Alive && button.Interactable &&
             OzUnitEditor.I.Hud.IsOverUi(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
-        public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("BEHAVIOR is not clickable."); entry.OnClick(new HudClick()); }
+        public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("COMBAT DYNAMICS is not clickable."); entry.OnClick(new HudClick()); }
         public void ShowPage(ZBehaviorFamily f, int tab)
         { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 3); scope = 0; presetName = P.name; IsOpen = true; TestingOpen = false; rebuild = true; }
         public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
@@ -114,9 +119,9 @@ namespace OpenZ
             box = OzUeGfx.Node(OzUnitEditor.Layer(UeLayer.Panels), "UE_Laboratory", layout.x, layout.y, layout.w, layout.h);
             Hud.Plate(box, "md", layout.header); OzUnitEditor.I.Hud.AddBlocker(box);
             float w = layout.w;
-            Button(box, "BehaviorTab", "BEHAVIOR", new Rect(10, 4, 100, 27), "Separate tank and robot movement/combat profiles.", () => { TestingOpen = false; rebuild = true; });
-            Button(box, "TestingTab", "UNIT TESTING", new Rect(114, 4, 120, 27), "Playground-only immortality, HP levels, damage and score counters.", () => { TestingOpen = true; rebuild = true; });
-            Button(box, "Close", ">", new Rect(w - 38, 4, 28, 27), "Close the laboratory and show the statistics panel again. Rules keep running.", Close);
+            Button(box, "BehaviorTab", "COMBAT DYNAMICS", new Rect(10, 4, 150, 27), "Separate tank and robot movement/combat profiles.", () => { TestingOpen = false; rebuild = true; });
+            Button(box, "TestingTab", "UNIT TESTING", new Rect(164, 4, 120, 27), "Playground-only immortality, HP levels, damage and score counters.", () => { TestingOpen = true; rebuild = true; });
+            Button(box, "Close", ">", new Rect(w - 38, 4, 28, 27), "Close combat dynamics and show the statistics panel again. Rules keep running.", Close);
             footer = Text(box, status, 12, layout.h - 18, w - 24, 10, OzUi.Muted);
             if (TestingOpen) BuildTesting(); else BuildBehavior();
             rebuild = false; OzUeSideTip.Prune();
@@ -138,8 +143,8 @@ namespace OpenZ
             Input(box, "PresetName", new Rect(12, 107, inner - 78, 26), () => presetName, s => presetName = s, "Name used by SAVE / SAVE AS. Enter commits; Escape cancels. Existing named presets can be updated; built-in references remain protected.");
             Button(box, "Save", "SAVE", new Rect(w - 84, 107, 72, 26), "Save this family, its master position and its manual overrides. Select it in Options > Game for future matches.", () => Save(false));
             string[] actions = { "SAVE AS", "EXPORT", "IMPORT", "FOLDER" };
-            Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.Export(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
-            string[] tips = { "Save a new independently named copy.", "Export a .ozbehavior file with references and overrides.", "Load a local .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .ozbehavior preset files. Nothing is uploaded." };
+            Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.ExportJson(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
+            string[] tips = { "Save a new independently named copy.", "Export a readable .json combat profile with the master, overrides and reference endpoints.", "Load a local .json or legacy .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .json and legacy .ozbehavior preset files. Nothing is uploaded." };
             for (int i = 0; i < 4; i++) { int k = i; Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 139, (inner - 12) / 4, 24), tips[i], callbacks[k]); }
             Text(box, "OPENZ", 12, 179, 70, 11, OzUi.Amber); Text(box, "ZOD CLASSIC", w - 108, 179, 96, 11, OzUi.Amber);
             var master = Text(box, "", inner / 2 - 20, 179, 84, 12);
@@ -195,7 +200,15 @@ namespace OpenZ
                 var caption = Text(row, "", 10, 73, rw - 20, 10, OzUi.Muted); refresh.Add(() => caption.Set(t.HpPercent(side).ToString("0.#") + "%  |  applies to existing and future " + word + " units")); Tip(row, hpTip); y += 87;
             }
             ToggleRow("Show damage", () => t.ShowDamage, v => t.ShowDamage = v, ref y, "Floating HP lost above the unit for each landed hit. Invulnerable units display the HP they would have lost, marked as theoretical. Misses display no damage. Driver damage is identified separately.");
-            ToggleRow("Show kill and death counts", () => t.ShowCounts, v => t.ShowCounts = v, ref y, "Large persistent counters above each unit: trophy = units destroyed/defeated, skull = deaths. Immortal units count virtual kills and deaths too. Counts are recorded even while this display is OFF, remain through HP cycles and reset when the unit is removed. Robot squad members count individually; environmental deaths have no credited attacker.");
+            var scores = Row("Scores", y, 94); float sw = layout.w - 40;
+            const string scoreTip = "Trophy = kills, skull = deaths. Success above them = kills / (kills + deaths) x 100; no recorded fights = 0%. Immortals count virtual defeats too. Counts accumulate while hidden. Reset counters clears every unit's kills, deaths and success, without changing HP, orders or partial damage pools.";
+            var scoreLabel = Text(scores, "Show kill and death counts", 10, 16, sw - 20, 12); Tip(scoreLabel.rectTransform, scoreTip);
+            var countsToggle = Button(scores, "ShowCounts", "", new Rect(10, 33, 70, 27), scoreTip, () => t.ShowCounts = !t.ShowCounts);
+            refresh.Add(() => { countsToggle.Label.Set(t.ShowCounts ? "ON" : "OFF"); countsToggle.Selected = t.ShowCounts; countsToggle.Refresh(); });
+            Button(scores, "ResetCounters", "RESET COUNTERS", new Rect(88, 33, sw - 98, 27), scoreTip, t.ResetCounters);
+            Text(scores, "Success = kills / (kills + deaths)", 10, 78, sw - 20, 10, OzUi.Muted); y += 94;
+            ToggleRow("Reset automatically on\nparameters change", () => t.ResetAutomaticallyOnParametersChange, v => t.ResetAutomaticallyOnParametersChange = v, ref y,
+                "Reset ALL units' kills, deaths and success whenever a changed effective combat-dynamics value affects at least one living unit fighting in this playground (target/order, dodge, incoming attack or hit in the last 3 seconds). Covers master, fields, presets, import and restoring defaults. Changing a name, saving, reapplying identical values or editing an absent/non-fighting type does not reset. Enabling this option alone does not reset counters. HP and orders remain unchanged.");
             list.SetContentHeight(y); status = "Testing rules apply only in this playground; combat profiles are unchanged.";
         }
         void ToggleRow(string label, Func<bool> get, Action<bool> set, ref float y, string tip)
@@ -221,8 +234,8 @@ namespace OpenZ
             }
             else
             {
-                var files = Directory.Exists(OzBehaviorLibrary.Folder) ? Directory.GetFiles(OzBehaviorLibrary.Folder, "*.ozbehavior") : Array.Empty<string>();
-                if (files.Length == 0) { Text(list.Content, "No files. Use FOLDER to add .ozbehavior presets.", 9, 20, layout.w - 58, 11); y = 50; }
+                var files = Directory.Exists(OzBehaviorLibrary.Folder) ? Array.FindAll(Directory.GetFiles(OzBehaviorLibrary.Folder), f => string.Equals(Path.GetExtension(f), ".json", StringComparison.OrdinalIgnoreCase) || string.Equals(Path.GetExtension(f), ".ozbehavior", StringComparison.OrdinalIgnoreCase)) : Array.Empty<string>();
+                if (files.Length == 0) { Text(list.Content, "No files. Use FOLDER to add .json or .ozbehavior presets.", 9, 20, layout.w - 58, 11); y = 50; }
                 foreach (string path in files)
                 {
                     string file = path; var row = Row(Path.GetFileName(file), y, 36);
@@ -251,7 +264,7 @@ namespace OpenZ
         void OnDestroy()
         {
             FinishFields(); foreach (var p in drafts) if (p != null) OzBehaviorLibrary.SaveDraft(p);
-            PlayerPrefs.Save(); OzUeHooks.SetTyping(this, false); OzUeInsets.Set(UeSide.Right, "laboratory", 0);
+            PlayerPrefs.Save(); OzUeHooks.SetTyping(this, false); OzUeInsets.Set(UeSide.Left, "laboratory", 0);
             if (OzUeStatsRoot.I != null) OzUeStatsRoot.I.CoverWithLaboratory(false);
             if (box) Destroy(box.gameObject); if (entry != null && entry.Rt) Destroy(entry.Rt.gameObject); if (testingEntry != null && testingEntry.Rt) Destroy(testingEntry.Rt.gameObject);
             if (I == this) I = null;

@@ -1,5 +1,26 @@
 # Player validation record
 
+## Pending — success ratio, resets, JSON and left-hand combat dynamics
+
+These source changes are newer than `builds/OpenZ-Release` and need a newly
+requested release build before the user's manual validation. No player build or
+post-build game tests were requested or run for this follow-up.
+
+- Success percentage above kill/death counters, including zero score, virtual
+  deaths, destroyed units and readability alongside damage numbers.
+- RESET COUNTERS next to Show counts, plus optional automatic all-unit reset
+  only on effective changes affecting a fighter; preserve HP and orders.
+- Readable JSON export/import with both families, references, master and overrides;
+  legacy imports remain supported. Manual import errors and folder flows.
+- COMBAT DYNAMICS beside the top-left BLUE/RED/background controls, with the
+  panel below on the left, free combat space on the right, resize and scrolling.
+
+Source simulation checks: 762 passed, including ratio overflow, both reset modes,
+no-op/name/unused-type changes and preservation of partial damage and orders.
+Unity 6000.3.27f2 script-only compilation completed with exit code 0
+(`combat-dynamics-json-compile.log`). JSON file flows and the new placement
+remain for the user's validation in a future player; no game was launched.
+
 ## Pending — right-hand behavior and unit testing laboratory
 
 The following changes are included in `builds/OpenZ-Release/OpenZ-Duel.exe`,

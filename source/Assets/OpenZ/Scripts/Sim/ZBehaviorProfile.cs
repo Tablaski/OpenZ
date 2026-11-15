@@ -267,6 +267,7 @@ namespace OpenZ.Sim
         {
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             var copy = profile.Clone();
+            UnitTesting?.BehaviorChanging(BehaviorProfile(copy.family), copy);
             if (copy.family == ZBehaviorFamily.Tanks) tankBehavior = copy; else robotBehavior = copy;
             behaviorCache.Clear(); BehaviorRevision++;
             foreach (var o in Objects) o.BehaviorChanged();

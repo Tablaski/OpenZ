@@ -26,7 +26,12 @@ namespace OpenZ
         RectTransform panelsRoot, sheetsRoot, popsRoot, tipsRoot;
         internal UeBoxShell Shell;
         internal RectTransform PopsRoot => popsRoot;
-        internal void CoverWithLaboratory(bool covered) { if (panelsRoot) panelsRoot.gameObject.SetActive(!covered && !OzUnitEditor.PanelsHidden); }
+        internal void CoverWithLaboratory(bool covered)
+        {
+            if (panelsRoot) panelsRoot.gameObject.SetActive(!covered && !OzUnitEditor.PanelsHidden);
+            float inset = covered || OzUnitEditor.PanelsHidden ? 0 : UeBoxLayout.Gap + (OzUeStats.BoxOpen ? builtLayout.w : UeBoxLayout.RailW);
+            OzUeInsets.Set(UeSide.Right, "stats", inset);
+        }
         internal OzUeTable Table;
         internal OzUeCard Card;
         internal OzUeHoverCard Hover;
@@ -200,7 +205,7 @@ namespace OpenZ
             if (Shell != null) Shell.Sync();
             if (Table != null) Table.Sync();
             if (Card != null) Card.Sync();
-            float inset = hidden ? 0f : OzUeStats.BoxOpen ? UeBoxLayout.Gap + builtLayout.w : UeBoxLayout.Gap + UeBoxLayout.RailW;
+            float inset = hidden || (OzBehaviorPanel.I && OzBehaviorPanel.I.IsOpen) ? 0f : OzUeStats.BoxOpen ? UeBoxLayout.Gap + builtLayout.w : UeBoxLayout.Gap + UeBoxLayout.RailW;
             OzUeInsets.Set(UeSide.Right, "stats", inset);
             dirtyValues = dirtyCounts = dirtyArt = true;                                     // a view shown again refreshes everything once
         }

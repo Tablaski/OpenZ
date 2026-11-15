@@ -102,8 +102,8 @@ namespace OpenZ.Multiplayer
                 {
                     int shot = step - 3;
                     DuelProofCapture.Save(Path.Combine(folder, "behavior-" + (shot < 4 ? "tanks-" : "robots-") + (shot % 4) + ".png"));
-                    if (OzBehaviorPanel.I.PanelRect.x < OzUnitEditor.CanvasSize.x / 2 || OzBehaviorPanel.I.PanelRect.width > 480)
-                        throw new Exception("Behavior laboratory is not a compact right-hand sidebar.");
+                    if (OzBehaviorPanel.I.PanelRect.x > 24 || OzBehaviorPanel.I.PanelRect.width > 480)
+                        throw new Exception("Combat dynamics is not a compact left-hand sidebar.");
                     if (step < 10) OzBehaviorPanel.I.ShowPage(shot < 3 ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots, (shot + 1) % 4);
                     else
                     {
@@ -143,7 +143,7 @@ namespace OpenZ.Multiplayer
                 }
                 else if (step == 14)
                 {
-                    Finish("PASS: Unit Editor; clickable behavior/testing entries; eight native right-hand behavior pages; tooltips/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
+                    Finish("PASS: Unit Editor; clickable behavior/testing entries; eight native left-hand combat dynamics pages; tooltips/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
                 }
             }
             catch (Exception error) { Finish("FAIL: " + error, 1); }

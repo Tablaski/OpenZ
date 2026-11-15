@@ -2,8 +2,12 @@
 
 ## Pending — right-hand behavior and unit testing laboratory
 
-The following source changes are newer than the release below and require one
-fresh release player together. No new player was built for this follow-up.
+The following changes are included in `builds/OpenZ-Release/OpenZ-Duel.exe`,
+built successfully through `BUILD-OPENZ.bat` on November 15, 2026 (zero build
+errors, release settings). `SOURCE_VERSION.txt` identifies the source revision
+and existing local changes. No post-build game tests were run: the user explicitly
+reserved gameplay/UI/native validation for manual testing. All checks below
+remain pending until the user reports results or explicitly requests agent tests.
 
 - Native right-hand BEHAVIOR/UNIT TESTING tabs, same geometry/style as STATS;
   both entry buttons, restoration of STATS, resizing, scrolling, focus, free

@@ -75,14 +75,16 @@ namespace OpenZ.Multiplayer
             foreach (var type in h.StartingUnits)
                 if (type != "" && Array.IndexOf(AllowedExtras, type) < 0) throw new ArgumentException("Unknown starting unit.");
             foreach (var type in h.FortTurrets)
-                if (type != "" && type != "gun" && type != "gatling" && type != "howitzer" && type != "missile_cannon")
+                if (type != "" && Array.IndexOf(AllowedFortTurrets, type) < 0)
                     throw new ArgumentException("Unknown fort turret.");
         }
 
         public static readonly string[] AllowedExtras =
         {
-            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc", "gun", "gatling", "howitzer", "missile_cannon"
+            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc"
         };
+
+        public static readonly string[] AllowedFortTurrets = { "gun", "gatling", "howitzer", "missile_cannon" };
 
         public double BuildSeconds(int slot, double baseSeconds, double flagFraction, double healthFraction)
         {

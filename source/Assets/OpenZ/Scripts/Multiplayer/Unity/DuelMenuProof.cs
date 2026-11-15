@@ -67,6 +67,29 @@ namespace OpenZ.Multiplayer
                 { ((Action)item.GetType().GetField("act").GetValue(item))(); return; }
             throw new Exception("Missing native main menu item: " + label);
         }
+        void CheckPicker(bool fort)
+        {
+            var choices = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("SELECT ")).ToArray();
+            string[] turrets = { "gun", "gatling", "howitzer", "missile_cannon" };
+            string[] robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser" };
+            string[] vehicles = { "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc" };
+            var expected = fort ? turrets : robots.Concat(vehicles).ToArray();
+            if (!choices.Select(b => b.name.Substring(7)).OrderBy(t => t).SequenceEqual(expected.OrderBy(t => t)) || choices.Any(b => !b.interactable))
+                throw new Exception("Picker exposes incorrect unit types.");
+            foreach (var choice in choices)
+            {
+                string type = choice.name.Substring(7);
+                string category = fort ? "TURRETS" : robots.Contains(type) ? "ROBOTS" : "VEHICLES";
+                if (choice.transform.parent.name != category) throw new Exception("Incorrect picker category: " + type);
+                if (!choice.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing picker portrait: " + type);
+            }
+            if (!fort)
+            {
+                var laser = choices.Single(b => b.name == "SELECT laser").GetComponentsInChildren<RawImage>().Single(i => i.name == "Portrait");
+                if (laser.texture != Resources.Load<Texture2D>("OpenZ/UI/PortraitsBS01/portrait_laser_red"))
+                    throw new Exception("Laser picker uses the obsolete portrait.");
+            }
+        }
         void Update()
         {
             if (step < 0 || Time.realtimeSinceStartupAsDouble < next) return;
@@ -97,18 +120,18 @@ namespace OpenZ.Multiplayer
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
                         Capture("shared-rules"); Click("ARMY SLOT 0:0"); break;
                     case 5:
-                        if (r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "SELECT heavy").interactable) throw new Exception("Vehicle can be placed on the fort.");
+                        CheckPicker(true);
                         Capture("fort-unit-picker"); Click("SELECT howitzer"); break;
                     case 6:
                         Click("ARMY SLOT 1:3"); break;
-                    case 7: Capture("outside-unit-picker"); Click("SELECT heavy"); break;
+                    case 7: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;
                     case 8:
                         if (r.Rules.Common.StartingUnits[3] != "heavy") throw new Exception("Shared outside slot was not set.");
                         Click("GENERAL ZOD · RED"); break;
                     case 9:
                         if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 0 || r.Rules.Handicap.StartingUnits.Count != 0) throw new Exception("Red handicap did not start with empty slots.");
                         Capture("handicap-active"); Click("ARMY SLOT 2:0"); break;
-                    case 10: Click("SELECT jeep"); break;
+                    case 10: CheckPicker(false); Capture("handicap-unit-picker"); Click("SELECT jeep"); break;
                     case 11:
                         if (r.Rules.Handicap.StartingUnits[0] != "jeep" || r.Rules.EffectiveFor(0).StartingUnits.Count != r.Rules.EffectiveFor(1).StartingUnits.Count + 1)
                             throw new Exception("Handicap units are not additive.");

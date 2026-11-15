@@ -63,6 +63,21 @@ static class Program
         Reject(() => new DuelRules { TerritoryBonus = double.NaN }.Validate(), "NaN rule accepted");
         var invalid = new DuelRules(); invalid.Common.StartingUnits.Add("unknown");
         Reject(invalid.Validate, "Unknown unit accepted");
+        foreach (string turret in new[] { "gun", "gatling", "howitzer", "missile_cannon" })
+        {
+            var placement = new DuelRules(); placement.Common.StartingUnits.Add(turret);
+            Reject(placement.Validate, "Shared outside army accepted a turret: " + turret);
+            placement.Common.StartingUnits.Clear(); placement.Handicap.StartingUnits.Add(turret);
+            Reject(placement.Validate, "Handicap outside army accepted a turret: " + turret);
+            placement.Handicap.StartingUnits.Clear(); placement.Common.FortTurrets[0] = turret;
+            placement.Validate();
+        }
+        foreach (string mobile in new[] { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc" })
+        {
+            var placement = new DuelRules(); placement.Common.StartingUnits.Add(mobile); placement.Handicap.StartingUnits.Add(mobile);
+            placement.Validate(); placement.Common.FortTurrets[0] = mobile;
+            Reject(placement.Validate, "Fort accepted a mobile unit: " + mobile);
+        }
         Check(Math.Abs(new DuelRules().BuildSeconds(0, 100, 1, 1) - 50) < .001, "Territory calculation");
         var handicap = new DuelRules(); handicap.EnableHandicap(0); handicap.Handicap.BuildDuration = .8;
         Check(handicap.BuildSeconds(0, 100, 0, 1) == 80 && handicap.BuildSeconds(1, 100, 0, 1) == 100, "Asymmetric handicap");

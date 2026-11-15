@@ -288,16 +288,26 @@ namespace OpenZ.Multiplayer
             var panel = Panel(pickerGroup == 0 ? "ON THE FORT · SELECT CANNON" : "OUTSIDE THE FORT · SELECT UNIT", 340, 180, 1240, 720);
             var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950); backing.rectTransform.Fill(); backing.transform.SetAsFirstSibling(); backing.raycastTarget = true;
             Button(panel, "CLOSE", 1030, 14, 180, () => { pickerGroup = -1; dirty = true; });
-            Label(panel, pickerGroup == 0 ? "Fort mounts accept cannons only." : "One vehicle, cannon or robot squad per slot.", 24, 72, 1150, 18, OzUi.Muted);
-            for (int i = 0; i < DuelRules.AllowedExtras.Length; i++)
+            Label(panel, pickerGroup == 0 ? "Fort mounts accept cannons only." : "One robot squad or vehicle per slot.", 24, 72, 1150, 18, OzUi.Muted);
+            if (pickerGroup == 0) BuildPickerCategory(panel, rules, "TURRETS", DuelRules.AllowedFortTurrets, 112);
+            else
             {
-                string type = DuelRules.AllowedExtras[i];
-                bool allowed = pickerGroup != 0 || type == "gun" || type == "gatling" || type == "howitzer" || type == "missile_cannon";
-                var button = Button(panel, UnitName(type), 24 + i % 6 * 200, 115 + i / 6 * 155, 190, () => SetArmySlot(rules, type), false, allowed, 140);
+                BuildPickerCategory(panel, rules, "ROBOTS", DuelRules.AllowedExtras.Where(ZBuildLists.IsRobot).ToArray(), 112);
+                BuildPickerCategory(panel, rules, "VEHICLES", DuelRules.AllowedExtras.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
+            }
+            Button(panel, "EMPTY SLOT", 24, 625, 360, () => SetArmySlot(rules, ""));
+        }
+        void BuildPickerCategory(Transform panel, DuelRules rules, string title, string[] types, float y)
+        {
+            var category = Hud.Node(title, panel); category.TL(24, y, 1190, 310);
+            Label(category, title, 0, 0, 1150, 18, OzUi.Amber);
+            for (int i = 0; i < types.Length; i++)
+            {
+                string type = types[i];
+                var button = Button(category, UnitName(type), i % 6 * 200, 30 + i / 6 * 140, 190, () => SetArmySlot(rules, type), false, true, 130);
                 button.name = "SELECT " + type;
                 Portrait(button, type, 55, 12, 80);
             }
-            Button(panel, "EMPTY SLOT", 24, 625, 360, () => SetArmySlot(rules, ""));
         }
         void SetArmySlot(DuelRules rules, string type)
         {
@@ -366,8 +376,7 @@ namespace OpenZ.Multiplayer
         static void Portrait(Transform parent, string type, float x, float y, float size)
         {
             if (string.IsNullOrEmpty(type)) return;
-            string alias = type == "light" ? "light_tank" : type == "heavy" ? "heavy_tank" : type == "medium" ? "medium_mech" : type;
-            var texture = Resources.Load<Texture2D>("OpenZ/UI/Portraits/portrait_" + alias + "_red") ?? Resources.Load<Texture2D>("OpenZ/UI/PortraitsVehicles/portrait_" + alias + "_red");
+            var texture = ZBuildLists.IsRobot(type) ? UnitArt.Portrait(type, Team.Red) : UnitArt.VehiclePortrait(type, Team.Red) ?? UnitArt.Icon(type, Team.Red);
             if (!texture) return;
             var image = Hud.Node("Portrait", parent).gameObject.AddComponent<RawImage>(); image.texture = texture; image.rectTransform.TL(x, y, size, size); image.raycastTarget = false;
         }

@@ -39,16 +39,24 @@ namespace OpenZ
                 {
                     DebugLine(sim - Vector3.right * .45f, sim + Vector3.right * .45f, Color.cyan);
                     DebugLine(sim - Vector3.forward * .45f, sim + Vector3.forward * .45f, Color.cyan);
-                    DebugLine(sim, Position(o) + Vector3.up * .3f, OzForkOptions.Accent);
+                    // Compare ground-plane positions: model elevation is not movement lag.
+                    var model = Position(o); model.y = sim.y;
+                    if ((model - sim).sqrMagnitude > .0025f)
+                    {
+                        DebugLine(sim, model, OzForkOptions.Accent);
+                        DebugLine(model - Vector3.right * .25f, model + Vector3.right * .25f, OzForkOptions.Accent);
+                        DebugLine(model - Vector3.forward * .25f, model + Vector3.forward * .25f, OzForkOptions.Accent);
+                    }
                 }
                 if (panel.RouteDebug)
                 {
-                    DebugLine(sim, sim + new Vector3(o.Dx, 0, -o.Dy) * ZConst.PX_TO_M, Color.green);
-                    if (o.Waypoints.Count > 0)
+                    DebugArrow(sim, new Vector3(o.Dx, 0, -o.Dy) * ZConst.PX_TO_M, Color.green);
+                    if (o.IsMoving && o.Waypoints.Count > 0)
                     {
-                        var wp = o.Waypoints[0];
-                        var end = ZGame.PxToWorld(wp.x, wp.y); end.y = sim.y;
-                        DebugLine(sim, end, Color.yellow);
+                        // Orders may contain stale/unused coordinates (notably attack orders).
+                        var target = o.CurrentTarget;
+                        var end = ZGame.PxToWorld(target.x, target.y); end.y = sim.y;
+                        DebugArrow(sim, end - sim, Color.yellow);
                     }
                 }
             }
@@ -135,6 +143,30 @@ namespace OpenZ
             if (a.z <= 0 || b.z <= 0) return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(root, a, null, out var start);
             RectTransformUtility.ScreenPointToLocalPointInRectangle(root, b, null, out var end);
+            ScreenLine(start, end, color);
+        }
+        void DebugArrow(Vector3 from, Vector3 offset, Color color)
+        {
+            // These are local direction hints, not a full route or a trajectory prediction.
+            var camera = Camera.main;
+            var a = camera.WorldToScreenPoint(from);
+            var b = camera.WorldToScreenPoint(from + Vector3.ClampMagnitude(offset, 6f));
+            if (a.z <= camera.nearClipPlane || b.z <= camera.nearClipPlane ||
+                a.x < 0 || a.x > Screen.width || a.y < 0 || a.y > Screen.height) return;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, a, null, out var start);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, b, null, out var end);
+            if (!root.rect.Contains(start)) return;
+            var delta = Vector2.ClampMagnitude(end - start, 100f);
+            if (delta.sqrMagnitude < 9f) return;
+            end = start + delta;
+            var back = -delta.normalized * Mathf.Min(7f, delta.magnitude * .3f);
+            var side = new Vector2(-back.y, back.x) * .5f;
+            ScreenLine(start, end, color);
+            ScreenLine(end, end + back + side, color);
+            ScreenLine(end, end + back - side, color);
+        }
+        void ScreenLine(Vector2 start, Vector2 end, Color color)
+        {
             if (usedLines == debugLines.Count)
             {
                 var img = Hud.Img(root, "SimulationDebug", color); img.raycastTarget = false;

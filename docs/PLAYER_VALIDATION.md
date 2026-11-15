@@ -1,5 +1,20 @@
 # Player validation record
 
+## Testing movement overlays (0.2.5, awaiting player validation)
+
+- Cyan marks the authoritative combat position. Violet marks the displayed model
+  and its horizontal gap only above 5 cm; elevation is excluded. A lone cyan cross
+  means the model follows the simulation within that tolerance.
+- Yellow uses the current movement target instead of queued order coordinates
+  (which can be stale or unused for attack orders), and is hidden at rest. Green
+  shows commanded simulation velocity before physical steering. Both use arrows
+  capped at 6 m and 100 canvas UI pixels; neither predicts a complete trajectory.
+- Pending manual checks: idle attack, ordinary movement, dodge, follower/direct
+  model modes, physical steering, camera zoom and all overlay toggle combinations.
+- No player build or game launch was requested or performed.
+- Source validation: all Unity runtime scripts compile with the Unity compiler;
+  git diff whitespace checks pass. Existing unrelated compiler warnings remain.
+
 ## Pending — OpenZ-VK 0.2.0 menus, identity and duel flow
 
 No new player was requested, built or launched for this change set. These checks

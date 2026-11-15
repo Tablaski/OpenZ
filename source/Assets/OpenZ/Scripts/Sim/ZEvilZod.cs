@@ -336,7 +336,7 @@ namespace OpenZ.Sim
             int d = (int)DistanceFrom(t);
             bool dash = now <= evilDashArmedUntil && t.Id == evilDashTarget;
             int hp0 = t.Health;
-            t.DamageHealth(ZEvilZod.Hit(t, d, AttackRadius, dash));
+            t.DamageHealth(ZEvilZod.Hit(t, d, AttackRadius, dash), Id);
             t.LastEnemyHit = time; UpdatedAttackObjectHealth = true;                           // the server pass relays the death, the kill credit, the help call
             evilShotTick = now + ZEvilZod.CycleTicks; evilReloadTick = now + ZEvilZod.ReloadAfterTicks; evilDashArmedUntil = -1;
             World.EvilShots++;

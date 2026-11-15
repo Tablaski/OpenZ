@@ -18,7 +18,7 @@ namespace OpenZ.Sim
         ImmediateTurn, HeadingHold, HeadingCommit, DeadZone, ShortTurn, DirectView,
         Boost, BoostSpeed, BoostChance, BoostDuration, Endurance, Drain, Recharge, MinStamina,
         DamagedBoost, PremiumBoost, FireDodge, FireBoost, Accuracy, Settle, KeepTarget,
-        FireMoving, BreakForRetreat, Cohesion, RegroupDelay, Count
+        FireMoving, BreakForRetreat, Cohesion, RegroupDelay, CombatManoeuvres, ResumeAttack, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -35,7 +35,9 @@ namespace OpenZ.Sim
         public double Clamp(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value)) throw new ArgumentException("Non-finite behavior value: " + Key);
-            value = Math.Max(Min, Math.Min(Max, value));
+            // Max describes the suggested UI scale, not a cap on custom numeric values.
+            // Probabilities and discrete choices retain their mathematical bounds.
+            value = Math.Max(Min, Choices != null || Key == ZBehaviorKey.Chance || Key == ZBehaviorKey.BoostChance ? Math.Min(Max, value) : value);
             return Choices == null ? value : Math.Round(value, MidpointRounding.AwayFromZero);
         }
         public string Format(double value) => Choices != null ? Choices[(int)Clamp(value)] :
@@ -121,7 +123,9 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.FireMoving,"Allow robot fire on the move","COMBAT",true,false,"Enables existing grunt, psycho and laser moving fire. Does not invent moving attacks for stationary weapon types."),
             B(ZBehaviorKey.BreakForRetreat,"Retreat breaks firing stance","COMBAT",false,true,"A move away from a target can release sniper/electrobot standing fire."),
             N(ZBehaviorKey.Cohesion,"Maximum squad separation (0 = unlimited)","COMBAT","m",0,30,0,0,"Reject dodge endpoints farther than this from the squad leader."),
-            N(ZBehaviorKey.RegroupDelay,"Delay before post-dodge regroup","COMBAT","s",0,5,0,0,"Delay autonomous minion movement after a dodge; direct orders still resume immediately.")
+            N(ZBehaviorKey.RegroupDelay,"Delay before post-dodge regroup","COMBAT","s",0,5,0,0,"Delay autonomous minion movement after a dodge; direct orders still resume immediately."),
+            B(ZBehaviorKey.CombatManoeuvres,"OpenZ offensive combat manoeuvres","COMBAT",true,false,"OpenZ's flanks, arcs and reverses while attacking. OFF uses Zod's stop-and-fire behavior once in range. Defensive dodges remain separate."),
+            B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Custom combat safeguard: end the dodge 0.1 s after the first triggering blast and resume the interrupted attack. Later shots can change the direction but cannot postpone this return indefinitely. Stops long boosted dodge endpoints from behaving like a retreat. Enabled automatically when you manually tune a profile; turn it off to reproduce Zod's full random step. New player orders always take precedence.")
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium" };
@@ -241,13 +245,14 @@ namespace OpenZ.Sim
         public ZBehaviorValues Resolve(string type)
         {
             if (NativeFor(type)) return null;
-            var v = new ZBehaviorValues();
+            var v = new ZBehaviorValues { ClassicReference = master == 100 && overrides.Count == 0 };
             for (int i = 0; i < (int)ZBehaviorKey.Count; i++) v.values[i] = Get(type, (ZBehaviorKey)i);
             return v;
         }
     }
     public sealed class ZBehaviorValues
     {
+        public bool ClassicReference { get; internal set; }
         internal readonly double[] values = new double[(int)ZBehaviorKey.Count];
         public double this[ZBehaviorKey key] => values[(int)key];
         public bool On(ZBehaviorKey key) => this[key] >= .5;

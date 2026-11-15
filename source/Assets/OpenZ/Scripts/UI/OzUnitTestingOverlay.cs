@@ -1,0 +1,114 @@
+using System;
+using System.Collections.Generic;
+using OpenZ.Sim;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace OpenZ
+{
+    /// <summary>Pooled native-canvas damage numbers and per-object scores. No dependency on selection or HUD health-bar settings.</summary>
+    public sealed class OzUnitTestingOverlay : MonoBehaviour
+    {
+        sealed class Badge { public RectTransform Root; public OzText Kills, Deaths, Debug; public ZObject Unit; public float GoneAt = -1; }
+        sealed class Number { public RectTransform Root; public OzText Text; public float Until, Started; public int Id; public Vector3 At; }
+        readonly Dictionary<int, Badge> badges = new Dictionary<int, Badge>();
+        readonly List<Number> numbers = new List<Number>();
+        readonly List<int> remove = new List<int>();
+        RectTransform root;
+        ZWorld World => OzUnitEditor.I != null ? OzUnitEditor.I.World : null;
+        void LateUpdate()
+        {
+            if (!OzUnitEditor.Active || World?.UnitTesting == null || !Camera.main) return;
+            if (!root)
+            {
+                var layer = OzUnitEditor.Layer(UeLayer.Field); if (!layer) return;
+                root = Hud.Node("UnitTestingOverlays", layer); root.Fill();
+                var group = root.gameObject.AddComponent<CanvasGroup>(); group.blocksRaycasts = false; group.interactable = false;
+            }
+            var testing = World.UnitTesting;
+            while (testing.TryReadHit(out var hit))
+            {
+                if (!testing.ShowDamage || hit.Damage <= 0) continue;
+                Number number = numbers.Find(n => n.Until <= Time.unscaledTime);
+                if (number == null && numbers.Count < 256)
+                {
+                    number = new Number { Root = Hud.Node("Damage", root) }; number.Root.sizeDelta = new Vector2(190, 32);
+                    number.Text = Hud.Label(number.Root, "HP", "", 22, OzUi.Ink, 0, OzStyle.Outline).FillParent(OzH.C);
+                    numbers.Add(number);
+                }
+                if (number == null) continue;
+                number.Id = hit.Victim; number.At = new Vector3(hit.X * ZConst.PX_TO_M, 1.5f, -hit.Y * ZConst.PX_TO_M);
+                number.Started = Time.unscaledTime; number.Until = number.Started + 1.25f;
+                number.Text.Set("-" + hit.Damage + (hit.Theoretical ? " *" : "") + (hit.Driver ? " crew" : ""));
+                number.Text.color = hit.Theoretical ? (Color)OzUi.AmberHi : new Color(1, .4f, .32f);
+            }
+            bool show = testing.ShowCounts, debug = OzBehaviorPanel.I && OzBehaviorPanel.I.DebugEnabled;
+            if (show || debug) foreach (var o in World.Objects)
+            {
+                if (!ZPlaygroundTesting.Eligible(o)) continue;
+                if (!badges.TryGetValue(o.Id, out var b))
+                {
+                    b = new Badge { Root = Hud.Node("Score_" + o.Id, root), Unit = o }; b.Root.sizeDelta = new Vector2(144, 35);
+                    MakeTrophy(b.Root, 4, 7); MakeSkull(b.Root, 78, 7);
+                    b.Kills = Hud.Label(b.Root, "Kills", "0", 23, OzUi.AmberHi, 0, OzStyle.Outline).At(29, 18, OzH.L, true, 48);
+                    b.Deaths = Hud.Label(b.Root, "Deaths", "0", 23, OzUi.Ink, 0, OzStyle.Outline).At(103, 18, OzH.L, true, 48);
+                    b.Debug = Hud.Label(b.Root, "Reason", "", 11, OzUi.Ink, 0, OzStyle.Outline).At(72, -8, OzH.C, true, 260);
+                    badges.Add(o.Id, b);
+                }
+                if (!o.Destroyed) b.GoneAt = -1;
+                var score = testing.For(o.Id); b.Kills.Set(score.Kills.ToString()); b.Deaths.Set(score.Deaths.ToString());
+                b.Kills.SetActive(show); b.Deaths.SetActive(show);
+                b.Root.Find("Trophy").gameObject.SetActive(show); b.Root.Find("Skull").gameObject.SetActive(show);
+                b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason);
+            }
+            remove.Clear();
+            foreach (var pair in badges)
+            {
+                var b = pair.Value; var o = World.Get(pair.Key);
+                if (o == null || o.Destroyed || !ZPlaygroundTesting.Eligible(o))
+                {
+                    if (b.GoneAt < 0) b.GoneAt = Time.unscaledTime;
+                    if (Time.unscaledTime - b.GoneAt > 2.5f) { remove.Add(pair.Key); b.Root.gameObject.SetActive(false); continue; }
+                    var score = testing.For(pair.Key); b.Kills.Set(score.Kills.ToString()); b.Deaths.Set(score.Deaths.ToString());
+                }
+                b.Root.gameObject.SetActive((show || debug) && Place(b.Root, Position(b.Unit) + Vector3.up * (b.Unit.Kind == ZKind.Vehicle ? 3.3f : 2.1f)));
+            }
+            foreach (int id in remove) { Destroy(badges[id].Root.gameObject); badges.Remove(id); }
+            foreach (var n in numbers)
+            {
+                bool active = testing.ShowDamage && n.Until > Time.unscaledTime;
+                var o = World.Get(n.Id); var at = o != null ? Position(o) + Vector3.up * (o.Kind == ZKind.Vehicle ? 3.9f : 2.8f) : n.At;
+                n.Root.gameObject.SetActive(active && Place(n.Root, at));
+                n.Root.anchoredPosition += Vector2.up * ((Time.unscaledTime - n.Started) * 65);
+                var c = n.Text.color; c.a = Mathf.Clamp01((n.Until - Time.unscaledTime) / .4f); n.Text.color = c;
+            }
+        }
+        Vector3 Position(ZObject o)
+        {
+            var game = OzUnitEditor.I.Game;
+            return game.Views.TryGetValue(o.Id, out var view) && view ? view.transform.position : game.CenterWorld(o);
+        }
+        bool Place(RectTransform rect, Vector3 at)
+        {
+            var p = Camera.main.WorldToScreenPoint(at);
+            if (p.z <= 0 || p.x < 0 || p.x > Screen.width || p.y < 0 || p.y > Screen.height) return false;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, p, null, out var local);
+            rect.anchorMin = rect.anchorMax = root.pivot; rect.pivot = new Vector2(.5f, .5f); rect.anchoredPosition = local; return true;
+        }
+        static void Pixel(Transform parent, string name, Color c, float x, float y, float w, float h)
+        { var p = Hud.Img(parent, name, c); p.rectTransform.TL(x, y, w, h); p.raycastTarget = false; }
+        static void MakeTrophy(Transform parent, float x, float y)
+        {
+            var r = Hud.Node("Trophy", parent); r.TL(x, y, 21, 24);
+            Pixel(r, "Cup", OzUi.AmberHi, 5, 1, 11, 10); Pixel(r, "Stem", OzUi.AmberHi, 9, 11, 3, 6); Pixel(r, "Base", OzUi.AmberHi, 4, 18, 13, 3);
+            Pixel(r, "HandleL", OzUi.AmberHi, 1, 3, 3, 7); Pixel(r, "HandleR", OzUi.AmberHi, 17, 3, 3, 7);
+        }
+        static void MakeSkull(Transform parent, float x, float y)
+        {
+            var r = Hud.Node("Skull", parent); r.TL(x, y, 21, 24);
+            Pixel(r, "Head", OzUi.Ink, 2, 1, 17, 14); Pixel(r, "Jaw", OzUi.Ink, 5, 15, 11, 5);
+            Pixel(r, "EyeL", OzUi.GM950, 5, 6, 4, 4); Pixel(r, "EyeR", OzUi.GM950, 12, 6, 4, 4); Pixel(r, "Nose", OzUi.GM950, 9, 11, 3, 3);
+        }
+        void OnDestroy() { if (root) Destroy(root.gameObject); }
+    }
+}

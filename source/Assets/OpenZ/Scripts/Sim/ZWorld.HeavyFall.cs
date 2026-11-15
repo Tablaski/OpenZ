@@ -226,7 +226,7 @@ namespace OpenZ.Sim
                 if (!HeavyTreeStanding(o) || !HeavyCovers(f, heavyFeet[2 * i], heavyFeet[2 * i + 1])) continue;
                 heavyOfTree[o.Id] = f;
                 f.trees.Add(o.Id); HeavyFallTrees++;
-                o.SetHealth(0); UpdateObjectHealth(o, f.fallerId);
+                o.SetHealth(0, f.fallerId); UpdateObjectHealth(o, f.fallerId);
             }
             for (int i = 0; i < heavyTrees.Count; i++)
                 if (HeavyTreeStanding(heavyTrees[i]) && HeavyCovers(f, heavyFeet[2 * i], heavyFeet[2 * i + 1])) f.leftStanding++;

@@ -26,6 +26,7 @@ namespace OpenZ
         RectTransform panelsRoot, sheetsRoot, popsRoot, tipsRoot;
         internal UeBoxShell Shell;
         internal RectTransform PopsRoot => popsRoot;
+        internal void CoverWithLaboratory(bool covered) { if (panelsRoot) panelsRoot.gameObject.SetActive(!covered && !OzUnitEditor.PanelsHidden); }
         internal OzUeTable Table;
         internal OzUeCard Card;
         internal OzUeHoverCard Hover;
@@ -193,7 +194,7 @@ namespace OpenZ
         {
             dirtyView = false;
             bool hidden = OzUnitEditor.PanelsHidden;
-            if (panelsRoot) panelsRoot.gameObject.SetActiveFast(!hidden);
+            if (panelsRoot) panelsRoot.gameObject.SetActiveFast(!hidden && !(OzBehaviorPanel.I && OzBehaviorPanel.I.IsOpen));
             if (sheetsRoot) sheetsRoot.gameObject.SetActiveFast(!hidden);
             if (popsRoot) popsRoot.gameObject.SetActiveFast(!hidden);
             if (Shell != null) Shell.Sync();

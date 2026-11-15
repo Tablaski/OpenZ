@@ -1,8 +1,9 @@
 # Behavior laboratory
 
-Open the Unit Editor and click **BEHAVIOR** at the bottom right. **TANK BEHAVIOR**
-and **ROBOT BEHAVIOR** keep separate drafts. Their DODGING, MOVEMENT, BOOST and
-COMBAT pages expose 72 parameters. Every parameter has detailed hover help and
+Open the Unit Editor and click **BEHAVIOR** at the bottom right. The laboratory
+uses the same right-hand sidebar dimensions and native controls as STATS;
+closing it restores STATS. **TANKS** and **ROBOTS** keep separate drafts.
+Their DODGING, MOVEMENT, BOOST and COMBAT pages expose 74 parameters. Every parameter has detailed hover help and
 shows its original OpenZ and Zod Classic reference values. Family-wide values
 that differ by unit show a range; the tooltip lists each exact value.
 
@@ -12,7 +13,8 @@ With no overrides, master 0 preserves the original OpenZ code path. Master 100
 uses the classic Zod dodge semantics before fenio commit `37af18e`: tanks may
 interrupt attack orders, engaged robots may not dodge, random defensive
 directions and endurance-based sprint remain. Direct visual following removes
-the added mechanical follower. This reference does not enable global Zod exact
+the added mechanical follower. The reference also disables OpenZ offensive
+flanks/arcs/reverses: in-range units stop and fire, as in Zod. This reference does not enable global Zod exact
 mode or replace weapon statistics, collision/pathing, or other game systems.
 The **Zod Local (idle only)** reference also prevents dodges during active orders.
 
@@ -24,6 +26,11 @@ Editing a field creates an override. Master changes preserve overrides. A unit
 exception takes precedence over a family override; clicking OVERRIDE releases
 that field. RESET OVERRIDES releases the family's exceptions. The scope control
 cycles all units and individual types, including the mech separately from tanks.
+Numeric fields accept typed decimal or scientific values, with Enter/click-away
+to apply and Escape to cancel. Boost multipliers above x5 are supported; suggested
+schema maxima no longer cap custom values. Probabilities remain 0-100%, choices
+remain discrete and durations/distances retain their non-negative lower bounds. Map dimensions
+bound dodge endpoints and protect movement arithmetic.
 
 ## Live simulation and presets
 
@@ -38,7 +45,20 @@ Retreat means a move away from an acquired enemy, not a new order button.
 Retreat Dodge keeps native moving fire while allowing defensive escape.
 Predictive dodging samples unblocked directions and estimates reachable positions
 before the blast. It does not guarantee an escape or solve every simultaneous
-threat optimally. DEBUG displays threat/dodge lines and refusal reasons.
+threat optimally. DEBUG displays the last dodge/refusal reason above units.
+
+Custom planning applies the defensive boost once, avoiding compounded sprint
+lengths when another shot replans an existing dodge. Manual edits automatically
+enable **Resume attack after the threat passes**, unless that switch already has
+an explicit override: it ends the dodge 0.1 seconds after the first triggering
+blast. Replanning cannot postpone this deadline indefinitely. Disable this
+safeguard explicitly to keep the full random step of the classic reference.
+The original attack stays queued; explicit new player orders take precedence.
+Pure Zod Classic retains its original full-step planning, including its historic
+running-speed calculation. This distinction is intentional and configurable.
+
+The adjacent **UNIT TESTING** button opens playground-only HP, immortality,
+damage and score controls. See [UNIT_TESTING.md](UNIT_TESTING.md).
 
 SAVE updates the current custom preset; SAVE AS creates another named preset.
 Draft autosave is separate from the saved library and next-match choices.

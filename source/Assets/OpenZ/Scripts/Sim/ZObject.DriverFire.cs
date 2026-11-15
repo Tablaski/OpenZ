@@ -129,7 +129,7 @@ namespace OpenZ.Sim
             if (CoverMiss(t, World.Rng.Roll(), ZWorld.HitChanceOf(type, u), type == "pyro")) { World.Emit(ZEventType.DriverShot, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (Zod's hit roll, zobject.cpp:2187; DV122: a kneeling / lying sniper is a smaller target, Sim/ZObject.ProneTarget.cs)
             DriverHits++;
             int hp0 = t.Health;
-            t.DamageHealth(damage); t.LastEnemyHit = time;
+            t.DamageHealth(damage, Id); t.LastEnemyHit = time;
             if (type == "pyro") t.LastFireHit = time;
             World.Emit(ZEventType.DriverShot, this, t, t.CenterX, t.CenterY, 0, 0, true);
             DriverHitBooked(t, hp0);
@@ -189,7 +189,7 @@ namespace OpenZ.Sim
         void DriverBolt(double time, ZObject t, int damage)
         {
             int hp0 = t.Health;
-            t.DamageHealth(damage); t.LastEnemyHit = time; t.LastZapHit = time;
+            t.DamageHealth(damage, Id); t.LastEnemyHit = time; t.LastZapHit = time;
             bool killed = t.Destroyed, stunned = false;
             if (!killed && t.CanBeStunned()) stunned = t.ApplyStun(this);
             DriverHits++;

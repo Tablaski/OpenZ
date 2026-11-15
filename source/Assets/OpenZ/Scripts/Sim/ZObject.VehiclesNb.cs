@@ -108,7 +108,7 @@ namespace OpenZ.Sim
             var t = cgTarget;
             cgNextShot = time + u.attack_speed; cgLastShot = time;
             if (CoverMiss(t, World.Rng.Roll(), u.attack_damage_chance)) { World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (DV122: a kneeling / lying sniper is a smaller target, Sim/ZObject.ProneTarget.cs)
-            t.DamageHealth(u.Damage * ZWorld.CrewRifleMul);
+            t.DamageHealth(u.Damage * ZWorld.CrewRifleMul, Id);
             World.UpdateObjectHealth(t, Id);
             World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, true, false);
             if (t.Destroyed) cgTarget = null;

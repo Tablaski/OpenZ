@@ -224,6 +224,7 @@ namespace OpenZ.Sim
             o.Health = o.MaxHealth * Math.Max(0, Math.Min(100, healthPercent)) / 100;
             if (o.Destroyed) { OnKilled(o); o.HasProcessedDeath = true; }
             if (type == "flag") Flags.Add(o);
+            UnitTesting?.Initialize(o);
             return o;
         }
 
@@ -354,6 +355,7 @@ namespace OpenZ.Sim
             if (DuelIsReplica) return;
             ZRuleProf.TickBegin(); TickIndex++;                                                            // electrobot_v1 DV45: the stun / tesla clock (ZObject.Electro.cs)
             Time += dt;
+            UnitTesting?.Tick();
             L17CrewsTick();
             EvilLastDefenseTick();
             FortAutoRushTick();                                                     // DV168: a player's idle robot near an enemy fort's gate runs in, as the player's gate click sends it (Sim/ZWorld.FortAutoRush.cs); off = returns at once
@@ -469,7 +471,7 @@ namespace OpenZ.Sim
                 float ratio = (float)(mag / m.radius);
                 int dmg = m.nuke ? PlaygroundNukeDamage(m, o, mag) : CoverBlast(o, BlastHit(m, o, ratio)), hp0 = o.Health;     // 1.3 item 2: the Unit editor's NUKE takes all of it inside its inner ring, a share in its outer band (1.3 final, Sim/ZWorld.Playground.cs); DV104: a thrown grenade on the target's body = its own damage, only in its area = Zod's less one tenth; every other blast and the rule off: Zod's line (ZWorld.GrenadeBoost.cs); DV122: a kneeling / lying sniper takes less of it (Sim/ZObject.ProneTarget.cs)
                 if (o.IsFortDefender && o.FortDefenderInNest && mag > ZWorld.FortDefenderNestPx) dmg /= ZWorld.FortDefenderNestCover;
-                o.DamageHealth(dmg);
+                o.DamageHealth(dmg, m.attackerId);
                 if (m.nuke) PlaygroundNukeNote(m, o, mag, hp0);                      // 1.3 item 2: the check's record of the NUKE's wave (rule time, distance)
                 if (m.team != Team.Neutral && o.Health < hp0) { o.LastEnemyHit = Time; if (o.IsFort) { o.FortGunTakeHit(dmg); o.NoteFortAttack(m.attackerId, m.x, m.y); } }   // combat_nb_v1: NB31 hit time, DV25 the gun shares the fort's hits; fort_defender_v1 DV41: the attack's side
                 o.LastMissileHit = Time;

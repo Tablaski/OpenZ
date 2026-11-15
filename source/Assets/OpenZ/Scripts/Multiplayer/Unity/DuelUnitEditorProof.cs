@@ -79,6 +79,7 @@ namespace OpenZ.Multiplayer
                     var panel = OzBehaviorPanel.I;
                     if (!panel) throw new Exception("Behavior laboratory was not installed.");
                     if (!panel.EntryIsClickable) throw new Exception("BEHAVIOR button is visible but the HUD does not capture clicks on it.");
+                    if (!panel.TestingEntryIsClickable) throw new Exception("UNIT TESTING button does not capture clicks.");
                     panel.OpenFromButton();
                     if (!panel.IsOpen) throw new Exception("BEHAVIOR button did not open its panel.");
                     panel.SetMaster(ZBehaviorFamily.Tanks, 100);
@@ -100,13 +101,31 @@ namespace OpenZ.Multiplayer
                 else if (step >= 3 && step <= 10)
                 {
                     int shot = step - 3;
-                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, "behavior-" + (shot < 4 ? "tanks-" : "robots-") + (shot % 4) + ".png"));
+                    DuelProofCapture.Save(Path.Combine(folder, "behavior-" + (shot < 4 ? "tanks-" : "robots-") + (shot % 4) + ".png"));
+                    if (OzBehaviorPanel.I.PanelRect.x < OzUnitEditor.CanvasSize.x / 2 || OzBehaviorPanel.I.PanelRect.width > 480)
+                        throw new Exception("Behavior laboratory is not a compact right-hand sidebar.");
                     if (step < 10) OzBehaviorPanel.I.ShowPage(shot < 3 ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots, (shot + 1) % 4);
-                    else OzBehaviorPanel.I.Toggle();
+                    else
+                    {
+                        OzBehaviorPanel.I.ShowTesting();
+                        var w = OzUnitEditor.I.World; var testing = w.UnitTesting;
+                        testing.SetHpPercent(Team.Red, 37); testing.SetHpPercent(Team.Blue, 64);
+                        testing.Configure(Team.Red, true, true); testing.Configure(Team.Blue, true, false);
+                        testing.ShowDamage = testing.ShowCounts = true;
+                        var a = w.CreateObject("vehicle", "light", 240, 240, Team.Red);
+                        var b = w.CreateObject("vehicle", "heavy", 600, 240, Team.Blue);
+                        a.DamageHealth(a.Health, b.Id);
+                        if (a.Destroyed || a.Health != testing.ReferenceHp(a) || testing.For(a.Id).Deaths != 1 || testing.For(b.Id).Kills != 1)
+                            throw new Exception("Circular HP/score integration failed in the native playground.");
+                        b.DamageHealth(1, a.Id);
+                        if (b.Health != testing.ReferenceHp(b)) throw new Exception("Pinned blue HP changed after damage.");
+                    }
                     step++; readyAt = Time.realtimeSinceStartupAsDouble + .5;
                 }
                 else if (step == 11)
                 {
+                    if (!OzBehaviorPanel.I.TestingOpen) throw new Exception("Testing sidebar did not open.");
+                    DuelProofCapture.Save(Path.Combine(folder, "unit-testing.png"));
                     SceneManager.LoadScene("MainMenu");
                     step = 12;
                     readyAt = Time.realtimeSinceStartupAsDouble + 3;
@@ -124,7 +143,7 @@ namespace OpenZ.Multiplayer
                 }
                 else if (step == 14)
                 {
-                    Finish("PASS: shipped Unit Editor; eight behavior pages; detailed tooltips for every parameter; live independent family profiles; named save, import/export and game dropdown; clean return to menu.", 0);
+                    Finish("PASS: Unit Editor; clickable behavior/testing entries; eight native right-hand behavior pages; tooltips/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
                 }
             }
             catch (Exception error) { Finish("FAIL: " + error, 1); }

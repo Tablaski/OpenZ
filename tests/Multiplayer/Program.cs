@@ -166,6 +166,7 @@ static class Program
         Array.Resize(ref encoded, 13); await RejectFrame(encoded, "Truncated payload accepted");
         SimulationChecks.Run(Check, Reject);
         BehaviorChecks.Run(Check, Reject);
+        PlaygroundChecks.Run(Check, Reject);
         await TransportChecks.Run(Check);
         VoiceChecks.Run(Check, Reject);
         Console.WriteLine("PASS: " + checks + " core and real-map simulation checks (not Unity rendering validation).");

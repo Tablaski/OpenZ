@@ -93,7 +93,7 @@ namespace OpenZ.Sim
         internal int DuelStep(ZObject t, double dt, bool agro)
         {
             if (ChargeStep(t, dt, agro, out int chargeResult)) return chargeResult;     // DV121: a jeep drives at a robot it runs over, where Zod stops and fires (Sim/ZObject.JeepCharge.cs)
-            if (!ZWorld.DuelDeviation || !DuelCapable || t == null || !(t.Kind == ZKind.Vehicle || t.Kind == ZKind.Cannon)
+            if (Behavior != null && !Behavior.On(ZBehaviorKey.CombatManoeuvres) || !ZWorld.DuelDeviation || !DuelCapable || t == null || !(t.Kind == ZKind.Vehicle || t.Kind == ZKind.Cannon)
                 || (ZWorld.NoTankDuelVsJeep && Type != "jeep" && t.Kind == ZKind.Vehicle && t.Type == "jeep"))   // combat_nb_v1 NB12: tanks do not manoeuvre against a jeep
             {
                 if (duel != null && duel.active) EndDuel(duel, DuelEnd.Other);

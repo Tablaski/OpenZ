@@ -121,7 +121,7 @@ namespace OpenZ.Sim
         void Bolt(ZObject t, double time)
         {
             int hp0 = t.Health;
-            t.DamageHealth(Damage);
+            t.DamageHealth(Damage, Id);
             t.LastEnemyHit = time; t.LastZapHit = time;                                       // combat_nb_v1 NB31 + the view's zap death
             UpdatedAttackObjectHealth = true;                                                 // Zod's side-effect pass relays the death (ZWorld.Tick)
             bool killed = t.Destroyed, stunned = false;

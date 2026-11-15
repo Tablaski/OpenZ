@@ -829,8 +829,8 @@ namespace OpenZ.Sim
                 if (walking) NoteWalkShot(!miss);
                 if (miss) { World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (veterancy_v1 DV12: HitChance = Zod's damage_chance, veterans x1.10)
                 bool snipe = CanSnipe && t.CanBeSniped() && World.Rng.Roll() <= SnipeChanceAt(t) && !World.SnipeHeld(t);   // combat_nb_v1 DV27: x2 from behind (Zod: SnipeChance); DV82: never on a bridge or in a door lane (the roll is drawn all the same, the hit goes to the hull; ZWorld.SnipeSafe.cs)
-                if (snipe) { t.DamageDriverHealth(World.DriverHitDamage(this, t)); UpdatedAttackObjectDriverHealth = true; }   // DC2: Zod = Damage
-                else { t.DamageHealth(HeadshotHit(t, DirectHitDamage(t))); t.LastEnemyHit = time; UpdatedAttackObjectHealth = true; }   // DV78 rifle pair (ZObject.RiflePair.cs), else combat_nb_v1: DV29 chip (off: Zod's Damage), NB31; DV116: a sniper's headshot on a robot (ZObject.Headshot.cs)
+                if (snipe) { t.DamageDriverHealth(World.DriverHitDamage(this, t), Id); UpdatedAttackObjectDriverHealth = true; }   // DC2: Zod = Damage
+                else { t.DamageHealth(HeadshotHit(t, DirectHitDamage(t)), Id); t.LastEnemyHit = time; UpdatedAttackObjectHealth = true; }   // DV78 rifle pair (ZObject.RiflePair.cs), else combat_nb_v1: DV29 chip (off: Zod's Damage), NB31; DV116: a sniper's headshot on a robot (ZObject.Headshot.cs)
                 if (IsRobot && Type == "pyro") t.LastFireHit = time;
                 World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, true, snipe);
             }
@@ -867,22 +867,24 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ damage
         /// <summary>zobject.cpp:309-381</summary>
-        public void SetHealth(int h)
+        public void SetHealth(int h, int attackerId = -1)
         {
+            World.UnitTesting?.HealthChange(this, ref h, attackerId);
             bool was = Destroyed;
             Health = Math.Max(0, Math.Min(MaxHealth, h));
             if (was && !Destroyed) World.OnRevive(this);
             else if (!was && Destroyed) World.OnKilled(this);
         }
-        public int DamageHealth(int amount)
+        public int DamageHealth(int amount, int attackerId = -1)
         {
             if (Health <= 0) return Health;
-            SetHealth(Health - amount);
+            SetHealth(Health - amount, attackerId);
             if (Kind == ZKind.Building) RecalcBuildTime();                                                 // every hit (:361-381)
             return Health;
         }
-        public int DamageDriverHealth(int amount)
+        public int DamageDriverHealth(int amount, int attackerId = -1)
         {
+            if (World.UnitTesting != null && World.UnitTesting.DriverDamage(this, amount, attackerId)) return 1;
             if (Drivers.Count == 0 || Drivers[0] <= 0) return 0;
             Drivers[0] -= amount;
             if (Drivers[0] <= 0) { SnipedFrom = Owner; Drivers.Clear(); ResetDamageInfo(); Owner = Team.Neutral; UnmannedStop(false, true); }   // DV79 unmanned stop: it stops in this very step; its target stays for this tick's server pass, which books what it hit itself and then drops it (ZObject.Unmanned.cs; Zod: at the server level, zobject.cpp:354-355)

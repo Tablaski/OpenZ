@@ -71,7 +71,7 @@ namespace OpenZ.Sim
             {
                 if (o.Destroyed) continue;
                 int od = (int)DistanceFrom(o), hp0 = o.Health;
-                o.DamageHealth(ZEvilZod.Hit(o, od, AttackRadius, false));
+                o.DamageHealth(ZEvilZod.Hit(o, od, AttackRadius, false), Id);
                 o.LastEnemyHit = time;
                 bool killed = o.Destroyed;
                 EvilConeHits++; World.EvilConeHits++;

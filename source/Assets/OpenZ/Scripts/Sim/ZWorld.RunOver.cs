@@ -86,7 +86,7 @@ namespace OpenZ.Sim
                             r.KnockAt = Time; r.KnockUntil = Time + KnockBaseSec + KnockSpreadSec * (h % 1000u) / 1000.0;
                         }
                         int hurt = Math.Max(1, (int)(r.MaxHealth * (glancing ? RunOverGlanceFrac : RunOverHurtFrac)));   // head-on 25 %, glancing 10 % (never below 1 HP)
-                        r.SetHealth(Math.Max(1, r.Health - hurt));
+                        r.SetHealth(Math.Max(1, r.Health - hurt), v.Id);
                         r.LastEnemyHit = Time;
                         RunOverHits++; if (glancing) RunOverGlances++;
                         Events.Add(new ZEvent { type = ZEventType.RunOverHit, objId = r.Id, otherId = v.Id, x = r.CenterX, y = r.CenterY, value = hurt, flag = glancing });
@@ -95,7 +95,7 @@ namespace OpenZ.Sim
                     if (Time - r.RunOverAt < RunOverSquashDelay) continue;                                // he falls first
                     if (Math.Abs(lat) > halfW * RunOverSquashLat || along > halfLen * RunOverSquashAlong || along < -halfLen * 0.6) continue;
                     r.Squashed = true;                                                                     // driven over: flattened
-                    r.SetHealth(0);
+                    r.SetHealth(0, v.Id);
                     UpdateObjectHealth(r, v.Id);                                                           // Death event, veterancy credit to the crew
                     RunOverSquashes++;
                 }

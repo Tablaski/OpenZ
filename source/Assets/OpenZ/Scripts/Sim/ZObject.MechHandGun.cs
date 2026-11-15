@@ -164,7 +164,7 @@ namespace OpenZ.Sim
             }
             HandGunHits++;
             int hp0 = t.Health;
-            t.DamageHealth(HandGunDamageOn(t)); t.LastEnemyHit = time;
+            t.DamageHealth(HandGunDamageOn(t), Id); t.LastEnemyHit = time;
             World.Emit(ZEventType.MechHandGun, this, t, t.CenterX, t.CenterY, hp0 - t.Health, 0, true, t.Destroyed);
             World.UpdateObjectHealth(t, Id);                                                                  // the death relay with the mech as the attacker (the kill goes to its crew, DV12)
             if (t.Health < hp0) World.HelpCall(t, this);                                                      // DV53

@@ -136,6 +136,8 @@ namespace OpenZ
             Add<OzUeStatsRoot>();                                                             // P3: the STATS box, sets, table, balance, card
             Add<OzUeShellRoot>();                                                             // P4: top bar, dialogs, keys, placing, marks, files
             Add<OzBehaviorPanel>();
+            w.EnableUnitTesting();
+            Add<OzUnitTestingOverlay>();
         }
 
         void Add<T>() where T : Component

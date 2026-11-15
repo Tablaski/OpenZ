@@ -7,331 +7,253 @@ using UnityEngine;
 
 namespace OpenZ
 {
-    /// <summary>Runtime behavior laboratory. Edits update the playground world and its existing units immediately.</summary>
+    /// <summary>Native right-hand laboratory, sharing the stats panel's plate, dimensions, fields and side tooltips.</summary>
     public sealed class OzBehaviorPanel : MonoBehaviour
     {
         public static OzBehaviorPanel I { get; private set; }
         public bool IsOpen { get; private set; }
-        public static bool OwnsPointer
-        {
-            get
-            {
-                if (!I || !I.IsOpen || OzUnitEditor.PanelsHidden || UnityEngine.InputSystem.Mouse.current == null) return false;
-                var p = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
-                return I.panelRect.Contains(new Vector2(p.x / I.scale, (Screen.height - p.y) / I.scale));
-            }
-        }
+        public bool TestingOpen { get; private set; }
+        public bool DebugEnabled { get; private set; }
+        // All controls now use the ordinary HUD, so they must not bypass its input polling.
+        public static bool OwnsPointer => false;
         readonly ZBehaviorProfile[] drafts = new ZBehaviorProfile[2];
-        readonly Dictionary<string, string> numbers = new Dictionary<string, string>();
-        int family, page, scope;
-        bool dirty, profiles, imports, debug, clearFocus;
-        string presetName = "My behavior", status = "Edits apply immediately to this laboratory. Save a preset to use it in a match.";
-        Vector2 scroll, listScroll;
-        HudButton button;
-        RectTransform blocker;
-        Rect panelRect;
-        GUIStyle box, text, muted, title, field, btn, selected, tooltip;
+        readonly List<OzUeLabInput> inputs = new List<OzUeLabInput>();
+        readonly List<OzUeLabSlider> sliders = new List<OzUeLabSlider>();
+        readonly List<RectTransform> rows = new List<RectTransform>();
+        readonly List<Action> refresh = new List<Action>();
         readonly string[] pages = { "DODGING", "MOVEMENT", "BOOST", "COMBAT" };
-        readonly Color accent = new Color(.96f, .72f, .3f);
-        float scale = 1;
+        HudButton entry, testingEntry;
+        RectTransform box;
+        UeScroll list;
+        UeBoxLayout layout;
+        OzText footer;
+        int family, page, scope;
+        bool rebuild = true, dirty, profiles, imports;
+        string presetName = "My behavior", status = "Changes apply live to this playground.";
         ZBehaviorProfile P => drafts[family];
-        string Type => scope == 0 ? "" : (family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)[scope - 1];
         ZWorld World => OzUnitEditor.I != null ? OzUnitEditor.I.World : null;
-
+        string Type => scope == 0 ? "" : (family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)[scope - 1];
+        public Rect PanelRect => layout.Box;
         void Awake() { I = this; }
         void Start()
         {
-            for (int i = 0; i < 2; i++)
-            {
-                drafts[i] = OzBehaviorLibrary.Draft((ZBehaviorFamily)i).Clone();
-                World?.SetBehavior(drafts[i]);
-            }
+            for (int i = 0; i < 2; i++) { drafts[i] = OzBehaviorLibrary.Draft((ZBehaviorFamily)i).Clone(); World?.SetBehavior(drafts[i]); }
             presetName = P.name;
-            OzUeKeys.OnEsc(95, () => { if (!IsOpen) return false; Toggle(); return true; });
+            OzUeKeys.OnEsc(95, () => { if (!IsOpen) return false; Close(); return true; });
         }
         void Update()
         {
-            if (!OzUnitEditor.Active || !OzUnitEditor.I.Hud || !OzUnitEditor.I.Hud.Root) return;
-            var hud = OzUnitEditor.I.Hud;
-            if (button == null)
+            var ed = OzUnitEditor.I;
+            if (!ed || !ed.Hud || !ed.Hud.Root || !OzUnitEditor.Layer(UeLayer.Panels)) return;
+            if (entry == null)
             {
-                button = HudButton.Make(hud.Root, "UE_Behavior", "BEHAVIOR", new Vector2(150, 34), HudButtonKind.Small, 12);
-                button.Tooltip = "BEHAVIOR LABORATORY|Open separate tank and robot behavior menus. Experiment live with dodging, movement, boost and combat; save named presets for Options > Game. The OpenZ and Zod reference values are shown for every field.|";
-                button.OnClick = c => Toggle();
-                hud.AddBlocker(button.Rt);
-                blocker = Hud.Node("UE_BehaviorBlocker", hud.Root);
-                hud.AddBlocker(blocker);
+                entry = HudButton.Make(ed.Hud.Root, "UE_Behavior", "BEHAVIOR", new Vector2(150, 34), HudButtonKind.Small, 12);
+                entry.OnClick = _ => Toggle(); entry.Tooltip = "BEHAVIOR|Open the right-hand tank and robot behavior laboratory. All changes apply immediately to existing units.|";
+                testingEntry = HudButton.Make(ed.Hud.Root, "UE_UnitTesting", "UNIT TESTING", new Vector2(150, 34), HudButtonKind.Small, 12);
+                testingEntry.OnClick = _ => ShowTesting(); testingEntry.Tooltip = "UNIT TESTING|Immortality, reference HP per team, circular damage, floating damage and kill/death counts. Playground only.|";
+                ed.Hud.AddBlocker(entry.Rt); ed.Hud.AddBlocker(testingEntry.Rt);
             }
-            bool visible = !OzUnitEditor.PanelsHidden;
-            button.Rt.gameObject.SetActive(visible);
             var cs = OzUnitEditor.CanvasSize;
-            button.Rt.TL(cs.x - 168, cs.y - 46, 150, 34);
-            scale = Mathf.Clamp(Screen.width / 1280f, .75f, 1.5f);
-            float w = Screen.width / scale, h = Screen.height / scale;
-            float height = Mathf.Min(530, h - 110);
-            panelRect = new Rect(14, h - height - 58, w - 28, height);
-            blocker.gameObject.SetActive(IsOpen && visible);
-            if (IsOpen && visible)
-            {
-                blocker.TL(panelRect.x * scale / OzUnitEditor.PxPerUnit, panelRect.y * scale / OzUnitEditor.PxPerUnit,
-                    panelRect.width * scale / OzUnitEditor.PxPerUnit, panelRect.height * scale / OzUnitEditor.PxPerUnit);
-                OzUeInsets.Set(UeSide.Bottom, "Behavior laboratory", (h - panelRect.y) * scale / OzUnitEditor.PxPerUnit);
-            }
-            else OzUeInsets.Set(UeSide.Bottom, "Behavior laboratory", 0);
+            entry.Rt.TL(cs.x - 168, cs.y - 46, 150, 34);
+            testingEntry.Rt.TL(cs.x - 330, cs.y - 46, 150, 34);
+            bool visible = !OzUnitEditor.PanelsHidden;
+            entry.Rt.gameObject.SetActive(visible); testingEntry.Rt.gameObject.SetActive(visible);
+            var next = UeBoxLayout.For(cs, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom));
+            if ((next.Box.position - layout.Box.position).sqrMagnitude > .25f || (next.Box.size - layout.Box.size).sqrMagnitude > .25f) rebuild = true;
+            layout = next;
+            if (IsOpen && rebuild) Build();
+            if (box) box.gameObject.SetActive(IsOpen && visible);
+            if (OzUeStatsRoot.I != null) OzUeStatsRoot.I.CoverWithLaboratory(IsOpen);
+            OzUeInsets.Set(UeSide.Right, "laboratory", IsOpen ? layout.w + UeBoxLayout.Gap : 0);
+            if (!IsOpen || !visible) return;
+            list?.Tick(!OzUeLabInput.AnyFocused);
+            foreach (var r in rows) if (r) r.gameObject.SetActive(list.Shows(r));
+            foreach (var input in inputs.ToArray()) input.Tick();
+            foreach (var slider in sliders) slider.Tick();
+            foreach (var update in refresh) update();
+            footer?.Set(status);
         }
-        public void Toggle()
-        {
-            IsOpen = !IsOpen; profiles = imports = false; clearFocus = true;
-            OzUeHooks.SetTyping(this, false);
-        }
-        public bool EntryIsClickable
-        {
-            get
-            {
-                if (button == null || !button.Rt || !button.Alive || !button.Interactable || button.OnClick == null || !OzUnitEditor.I) return false;
-                Vector2 point = RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center));
-                return OzUnitEditor.I.Hud.IsOverUi(point);
-            }
-        }
-        public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("BEHAVIOR is not registered as clickable HUD."); button.OnClick(new HudClick()); }
+        public void Toggle() { if (IsOpen && !TestingOpen) Close(); else { IsOpen = true; TestingOpen = false; profiles = imports = false; rebuild = true; } }
+        public void ShowTesting() { if (IsOpen && TestingOpen) Close(); else { IsOpen = true; TestingOpen = true; profiles = imports = false; rebuild = true; } }
+        void Close() { FinishFields(); IsOpen = false; OzUeHooks.SetTyping(this, false); }
+        void FinishFields() { foreach (var i in inputs.ToArray()) i.Dispose(); }
+        public bool EntryIsClickable => Clickable(entry);
+        public bool TestingEntryIsClickable => Clickable(testingEntry);
+        bool Clickable(HudButton button) => button != null && button.Alive && button.Interactable &&
+            OzUnitEditor.I.Hud.IsOverUi(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
+        public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("BEHAVIOR is not clickable."); entry.OnClick(new HudClick()); }
+        public void ShowPage(ZBehaviorFamily f, int tab)
+        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 3); scope = 0; presetName = P.name; IsOpen = true; TestingOpen = false; rebuild = true; }
+        public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
-            drafts[(int)f].Set(type, key, value); Apply((int)f); dirty = true;
+            var p = drafts[(int)f]; p.Set(type, key, value);
+            // A manually tuned combat profile should return to its attack after the blast; the exact reference stays available.
+            if (key != ZBehaviorKey.ResumeAttack && !p.Has("", ZBehaviorKey.ResumeAttack)) p.Set("", ZBehaviorKey.ResumeAttack, 1);
+            Apply((int)f); dirty = true;
         }
         public void SetMaster(ZBehaviorFamily f, double value)
+        { value = Math.Max(0, Math.Min(100, value)); if (drafts[(int)f].master == value) return; drafts[(int)f].master = value; Apply((int)f); dirty = true; }
+        void Apply(int f) { World?.SetBehavior(drafts[f]); OzBehaviorLibrary.SaveDraft(drafts[f]); status = "CUSTOM - applied live. Save to use it in matches."; }
+        HudButton Button(Transform parent, string name, string label, Rect r, string tip, Action click, int priority = 45)
         {
-            drafts[(int)f].master = Math.Max(0, Math.Min(100, value)); Apply((int)f); dirty = true; numbers.Clear();
+            var b = OzUeGfx.Button(parent, name, label, r.x, r.y, r.width, r.height, HudButtonStyle.Normal, priority, 11, .05f);
+            b.OnClick = _ => Safe(click); Tip(b.Rt, tip, priority); return b;
         }
-        public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
-        public void ShowPage(ZBehaviorFamily f, int tab)
-        { family = (int)f; page = Mathf.Clamp(tab, 0, 3); scope = 0; scroll = Vector2.zero; presetName = P.name; numbers.Clear(); IsOpen = true; }
-        public string Explain(ZBehaviorKey key) => DetailedTip(ZBehaviorSchema.Def(key));
-        void Apply(int f)
+        void Tip(RectTransform rect, string text, int priority = 45) => OzUeSideTip.Add(rect, text, OzUeSideTip.Place.Side, priority, box);
+        OzText Text(Transform parent, string text, float x, float y, float width, float size = 12, Color? colour = null)
+            => OzUeGfx.Text(parent, "Label", text, size, colour ?? OzUi.Ink, 0, x, y, OzH.L, width);
+        OzUeLabInput Input(Transform parent, string name, Rect r, Func<string> read, Action<string> write, string tip)
+        { var i = new OzUeLabInput(parent, name, r, read, s => Safe(() => write(s))); inputs.Add(i); Tip(i.Button.Rt, tip); return i; }
+        void Slider(Transform parent, string name, Rect r, double min, double max, Func<double> read, Action<double> write, string tip)
+        { var s = new OzUeLabSlider(parent, name, r, min, max, read, write); sliders.Add(s); Tip(s.Button.Rt, tip); }
+        void Build()
         {
-            World?.SetBehavior(drafts[f]); OzBehaviorLibrary.SaveDraft(drafts[f]);
+            FinishFields(); inputs.Clear(); sliders.Clear(); rows.Clear(); refresh.Clear(); list = null;
+            if (box) { box.gameObject.SetActive(false); Destroy(box.gameObject); }
+            box = OzUeGfx.Node(OzUnitEditor.Layer(UeLayer.Panels), "UE_Laboratory", layout.x, layout.y, layout.w, layout.h);
+            Hud.Plate(box, "md", layout.header); OzUnitEditor.I.Hud.AddBlocker(box);
+            float w = layout.w;
+            Button(box, "BehaviorTab", "BEHAVIOR", new Rect(10, 4, 100, 27), "Separate tank and robot movement/combat profiles.", () => { TestingOpen = false; rebuild = true; });
+            Button(box, "TestingTab", "UNIT TESTING", new Rect(114, 4, 120, 27), "Playground-only immortality, HP levels, damage and score counters.", () => { TestingOpen = true; rebuild = true; });
+            Button(box, "Close", ">", new Rect(w - 38, 4, 28, 27), "Close the laboratory and show the statistics panel again. Rules keep running.", Close);
+            footer = Text(box, status, 12, layout.h - 18, w - 24, 10, OzUi.Muted);
+            if (TestingOpen) BuildTesting(); else BuildBehavior();
+            rebuild = false; OzUeSideTip.Prune();
         }
-        void Changed()
+        void MakeList(float top)
+        { list = UeScroll.Make(box, "Parameters", 8, top, layout.w - 16, Mathf.Max(60, layout.h - top - 38), OzUi.GM900, 46); }
+        RectTransform Row(string name, float y, float height)
         {
-            dirty = true; Apply(family);
-            status = "CUSTOM - applied to existing and future " + (family == 0 ? "tanks" : "robots") + ". Match selection is unchanged.";
+            var row = OzUeGfx.Node(list.Content, name, 0, y, layout.w - 40, height);
+            OzUeGfx.Rect(row, "Well", OzUi.GM900, 0, 0, layout.w - 40, height - 3);
+            rows.Add(row); return row;
         }
-        void Styles()
+        void BuildBehavior()
         {
-            if (box != null) return;
-            box = new GUIStyle(GUI.skin.box) { padding = new RectOffset(14, 14, 10, 10) };
-            text = new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = true, alignment = TextAnchor.MiddleLeft };
-            text.normal.textColor = new Color(.92f, .93f, .89f);
-            muted = new GUIStyle(text) { fontSize = 11 }; muted.normal.textColor = new Color(.65f, .74f, .76f);
-            title = new GUIStyle(text) { fontSize = 18, fontStyle = FontStyle.Bold }; title.normal.textColor = accent;
-            field = new GUIStyle(GUI.skin.textField) { fontSize = 13, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(8, 4, 3, 3) };
-            btn = new GUIStyle(GUI.skin.button) { fontSize = 12, wordWrap = true };
-            selected = new GUIStyle(btn); selected.normal.textColor = accent;
-            tooltip = new GUIStyle(GUI.skin.box) { fontSize = 13, wordWrap = true, alignment = TextAnchor.UpperLeft, padding = new RectOffset(14, 14, 12, 12) };
-            tooltip.normal.textColor = Color.white;
-        }
-        GUIContent C(string label, string tip) => new GUIContent(label, tip);
-        bool Button(Rect r, string label, string tip, bool on = false) => GUI.Button(r, C(label, tip), on ? selected : btn);
-        void Label(Rect r, string label, string tip = "", bool dim = false) => GUI.Label(r, C(label, tip), dim ? muted : text);
-        void OnGUI()
-        {
-            if (!IsOpen || OzUnitEditor.PanelsHidden || P == null) return;
-            Styles(); GUI.depth = -80;
-            if (clearFocus) { GUI.FocusControl(null); clearFocus = false; }
-            var matrix = GUI.matrix; GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
-            var r = panelRect;
-            GUI.backgroundColor = new Color(.09f, .13f, .16f, .99f); GUI.Box(r, GUIContent.none, box); GUI.backgroundColor = Color.white;
-            GUI.BeginGroup(r);
-            float w = r.width, h = r.height;
-            GUI.Label(new Rect(16, 8, 250, 30), "BEHAVIOR LABORATORY", title);
-            if (Button(new Rect(w - 48, 8, 32, 27), "X", "Close this panel. The current laboratory behavior remains active. Escape also closes it.")) Toggle();
-            for (int f = 0; f < 2; f++)
+            float w = layout.w, inner = w - 24;
+            for (int i = 0; i < 2; i++) { int f = i; Button(box, "Family" + i, i == 0 ? "TANKS" : "ROBOTS", new Rect(12 + i * (inner + 6) / 2, 42, (inner - 6) / 2, 28), "Change the edited family; the other family's values are preserved.", () => { family = f; scope = 0; presetName = P.name; profiles = imports = false; rebuild = true; }); }
+            var preset = Button(box, "Presets", "", new Rect(12, 76, inner, 26), "Load a reference or named preset into the playground. This does not change the profiles selected for your next match.", () => { profiles = !profiles; imports = false; rebuild = true; });
+            refresh.Add(() => preset.Label.Set((dirty ? "CUSTOM: " : "") + P.name + "  v"));
+            Input(box, "PresetName", new Rect(12, 107, inner - 78, 26), () => presetName, s => presetName = s, "Name used by SAVE / SAVE AS. Enter commits; Escape cancels. Existing named presets can be updated; built-in references remain protected.");
+            Button(box, "Save", "SAVE", new Rect(w - 84, 107, 72, 26), "Save this family, its master position and its manual overrides. Select it in Options > Game for future matches.", () => Save(false));
+            string[] actions = { "SAVE AS", "EXPORT", "IMPORT", "FOLDER" };
+            Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.Export(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
+            string[] tips = { "Save a new independently named copy.", "Export a .ozbehavior file with references and overrides.", "Load a local .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .ozbehavior preset files. Nothing is uploaded." };
+            for (int i = 0; i < 4; i++) { int k = i; Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 139, (inner - 12) / 4, 24), tips[i], callbacks[k]); }
+            Text(box, "OPENZ", 12, 179, 70, 11, OzUi.Amber); Text(box, "ZOD CLASSIC", w - 108, 179, 96, 11, OzUi.Amber);
+            var master = Text(box, "", inner / 2 - 20, 179, 84, 12);
+            refresh.Add(() => master.Set(P.master.ToString("0.#", CultureInfo.InvariantCulture) + "%"));
+            Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Master: OpenZ at 0%, classic Zod dodge/movement at 100%. Numeric values interpolate; switches change at 50%. Manual fields stay overridden. This is not a success percentage. Normal speed, weapon statistics and damage rules remain separate.");
+            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Cycle family defaults and per-type exceptions. Per-type overrides win; inherited fields follow the master.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
+            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 219, inner * .45f - 6, 26), "Release every manual override in this family. Keep the master position.", () => { P.overrides.Clear(); Apply(family); dirty = true; rebuild = true; });
+            for (int i = 0; i < 4; i++) { int k = i; Button(box, "Page" + i, pages[i], new Rect(12 + i * (inner + 4) / 4, 251, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); }
+            MakeList(283);
+            if (profiles || imports) { BuildPresetList(); return; }
+            float y = 0;
+            foreach (var d in ZBehaviorSchema.All)
             {
-                int id = f;
-                if (Button(new Rect(260 + f * 130, 8, 124, 28), f == 0 ? "TANK BEHAVIOR" : "ROBOT BEHAVIOR",
-                    "Switch to an independent behavior profile. Changes affect this family only; switching menus keeps your edits.", family == f))
-                { family = id; scope = 0; scroll = Vector2.zero; numbers.Clear(); presetName = P.name; profiles = imports = false; }
+                if (d.Group != pages[page]) continue;
+                var def = d; var row = Row(d.Key.ToString(), y, 100); float rw = layout.w - 40; string tip = Explain(d.Key);
+                var label = Text(row, d.Label, 9, 15, rw - 110, 12); Tip(label.rectTransform, tip);
+                var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the family/master again.", () => { P.Reset(Type, def.Key); Apply(family); });
+                refresh.Add(() => reset.Label.Set(P.Has(Type, def.Key) ? "OVERRIDE" : "INHERITED"));
+                var refs = Text(row, "OpenZ: " + Reference(d, false) + "  |  Zod: " + Reference(d, true), 9, 39, rw - 18, 10, OzUi.Muted); Tip(refs.rectTransform, tip);
+                if (d.Choices != null)
+                {
+                    var choice = Button(row, "Choice", "", new Rect(9, 57, rw - 18, 28), tip, () => Edit((ZBehaviorFamily)family, def.Key, ((int)P.Get(Type, def.Key) + 1) % def.Choices.Length, Type));
+                    refresh.Add(() => choice.Label.Set(def.Format(P.Get(Type, def.Key))));
+                }
+                else
+                {
+                    Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => Edit((ZBehaviorFamily)family, def.Key, OzUeLabInput.Number(s), Type), tip + "\nType any finite value, including scientific notation. Enter or clicking elsewhere applies it; Escape cancels. There is no gameplay slider maximum.");
+                    Text(row, d.Unit + "  /  free numeric input", 169, 71, rw - 178, 10, OzUi.Ink2);
+                }
+                y += 100;
             }
-            if (Button(new Rect(16, 44, 248, 28), (dirty ? "CUSTOM - " : "") + P.name + (dirty ? " *" : "") + "  v", "Load a reference or saved preset into the laboratory. This does not select it for future matches.")) { profiles = !profiles; imports = false; }
-            GUI.SetNextControlName("Behavior_PresetName");
-            presetName = GUI.TextField(new Rect(274, 44, Mathf.Max(100, w - 800), 28), presetName, 80, field);
-            GUI.Label(new Rect(274, 44, Mathf.Max(100, w - 800), 28), C("", "Preset name: 1 to 80 characters. SAVE updates your preset; SAVE AS creates a separate named copy."));
-            float ax = Mathf.Max(384, w - 516);
-            if (Button(new Rect(ax, 44, 75, 28), "SAVE", "Save the current family, master position and manual overrides under this name. Existing saved preset is updated; built-in references are never overwritten.")) Save(false);
-            if (Button(new Rect(ax + 81, 44, 82, 28), "SAVE AS", "Create a new independent preset with the entered name. It will appear in this family's Options > Game dropdown.")) Save(true);
-            if (Button(new Rect(ax + 169, 44, 72, 28), "EXPORT", "Write this behavior to a .ozbehavior file in UnitEditor/BehaviorPresets. Both reference values and all manual overrides are included.")) Safe(() => status = "Exported: " + OzBehaviorLibrary.Export(P));
-            if (Button(new Rect(ax + 247, 44, 72, 28), "IMPORT", "Load a .ozbehavior file from the BehaviorPresets folder into a laboratory draft. Save it to add it to the game dropdown.")) { imports = !imports; profiles = false; }
-            if (Button(new Rect(ax + 325, 44, 80, 28), "FOLDER", "Open the local folder used to exchange .ozbehavior preset files. Nothing is uploaded.")) Safe(() => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); });
-            if (Button(new Rect(ax + 411, 44, 89, 28), "DELETE", "Delete the current saved preset. Built-in references cannot be deleted. A selected deleted profile falls back to OpenZ Native."))
-                Safe(() => { if (!OzBehaviorLibrary.SavedProfiles.Exists(p => p.id == P.id)) throw new InvalidOperationException("Built-in references cannot be deleted."); OzBehaviorLibrary.Delete(P); status = "Saved preset deleted; laboratory draft retained."; });
-
-            const string masterTip = "Master slider: 0% preserves OpenZ's native simulation and presentation exactly when no manual overrides exist. 100% uses Zod Classic, before fenio commit 37af18e: immediate directions, native random dodge, endurance sprint, tanks may interrupt attack, engaged robots still cannot dodge. Numeric values interpolate; checkboxes switch at 50%. Manual overrides remain locked when the master moves. This is not an evasion success percentage and does not change weapon damage, range or projectile speed.";
-            Label(new Rect(16, 82, 180, 22), "OPENZ NATIVE", masterTip);
-            Label(new Rect(w - 186, 82, 170, 22), "ZOD CLASSIC", masterTip);
-            GUI.Label(new Rect(200, 82, w - 400, 22), C("MASTER  " + P.master.ToString("0") + "%  |  " + P.overrides.Count + " manual overrides", masterTip), selected);
-            float m = GUI.HorizontalSlider(new Rect(24, 112, w - 48, 20), (float)P.master, 0, 100);
-            GUI.Label(new Rect(24, 108, w - 48, 22), C("", masterTip), text);
-            if (Math.Abs(m - P.master) > .01) SetMaster((ZBehaviorFamily)family, Math.Round(m));
-            var types = family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes;
-            if (Button(new Rect(16, 140, 185, 27), scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), "Scope: click to cycle all-family defaults and per-unit exceptions. Per-unit overrides take precedence over family overrides. Right-click is not required."))
-            { scope = (scope + 1) % (types.Length + 1); numbers.Clear(); }
-            for (int i = 0; i < pages.Length; i++)
-            {
-                int id = i;
-                if (Button(new Rect(211 + i * 112, 140, 106, 27), pages[i], "Show " + pages[i].ToLowerInvariant() + " parameters. Every row shows the native OpenZ and Zod Classic endpoint values; hover for conditions and exact per-type references.", page == i))
-                { page = id; scroll = Vector2.zero; }
-            }
-            if (Button(new Rect(w - 235, 140, 140, 27), "RESET OVERRIDES", "Remove all manual overrides for this family, including per-type exceptions. The master position remains; every field follows it again."))
-            { P.overrides.Clear(); numbers.Clear(); Changed(); }
-            if (Button(new Rect(w - 87, 140, 70, 27), debug ? "DEBUG ON" : "DEBUG", "Draw current explosion threats, dodge endpoints and logical positions. Also show live reaction counters. This is a laboratory display only.", debug)) debug = !debug;
-
-            var defs = Array.FindAll(ZBehaviorSchema.All, d => d.Group == pages[page]);
-            float col = (w - 52) / 2, rowH = 77;
-            Rect area = new Rect(16, 176, w - 32, Mathf.Max(85, h - 248));
-            scroll = GUI.BeginScrollView(area, scroll, new Rect(0, 0, w - 54, ((defs.Length + 1) / 2) * rowH));
-            for (int i = 0; i < defs.Length; i++) DrawRow(defs[i], new Rect((i % 2) * (col + 12), (i / 2) * rowH, col, rowH - 4));
-            GUI.EndScrollView();
-            float bottom = h - 64;
-            Label(new Rect(16, bottom, w - 32, 22), status, "Laboratory edits update only this world. To use a profile in real matches: save it, return to Options > Game, select it separately for tanks and robots, then start a match.", true);
-            int alerts = 0, attempts = 0, refused = 0, replans = 0;
-            if (World != null) foreach (var o in World.Objects) if ((family == 1 && o.IsRobot) || (family == 0 && ZBehaviorSchema.IsTank(o.Type)))
-            { alerts += o.BehaviorAlerts; attempts += o.BehaviorAttempts; refused += o.BehaviorRefusals; replans += o.BehaviorReplans; }
-            Label(new Rect(16, bottom + 25, w - 270, 22), "LIVE  Alerts " + alerts + "   Attempts " + attempts + "   Refusals " + refused + "   Replans " + replans,
-                "Alerts include filtered or refused threats. Attempts count planned defensive steps, not successful escapes. Replans change an active step. Hover a unit with DEBUG enabled to read its latest reason.", true);
-            if (Button(new Rect(w - 252, bottom + 25, 114, 25), "RESET OPENZ", "Restore this family's exact native behavior in the laboratory. Saved presets and game selection are preserved."))
-            { drafts[family] = OzBehaviorLibrary.Native((ZBehaviorFamily)family); presetName = P.name; numbers.Clear(); Changed(); }
-            if (Button(new Rect(w - 130, bottom + 25, 114, 25), OzUeControls.Playing ? "PAUSE FIGHT" : "PLAY FIGHT", "Pause or resume the laboratory. Parameters are editable while paused and affect the next simulation tick.")) OzUeControls.TogglePlay();
-            if (profiles) DrawProfiles(w, h);
-            if (imports) DrawImports(w, h);
-            GUI.EndGroup();
-            string tip = GUI.tooltip;
-            OzUeHooks.SetTyping(this, GUI.GetNameOfFocusedControl().StartsWith("Behavior_") || profiles || imports);
-            if (!string.IsNullOrEmpty(tip))
-            {
-                float tw = Mathf.Min(850, Screen.width / scale - 32);
-                float th = tooltip.CalcHeight(new GUIContent(tip), tw);
-                float ty = Mathf.Max(5, r.y - th - 8);
-                GUI.backgroundColor = new Color(.04f, .07f, .10f, 1);
-                GUI.Box(new Rect(16, ty, tw, th), tip, tooltip); GUI.backgroundColor = Color.white;
-            }
-            GUI.matrix = matrix;
-            if (debug) DrawDebug();
+            var actionsRow = Row("Actions", y, 38);
+            Button(actionsRow, "Native", "RESTORE OPENZ", new Rect(9, 4, (layout.w - 64) * .65f, 26), "Restore exact native behavior in this family; named presets remain saved.", () => { drafts[family] = OzBehaviorLibrary.Native((ZBehaviorFamily)family); presetName = P.name; dirty = true; Apply(family); rebuild = true; });
+            var debug = Button(actionsRow, "Debug", "", new Rect(15 + (layout.w - 64) * .65f, 4, (layout.w - 64) * .35f, 26), "Show the last dodge reason above units. Useful to distinguish a committed dodge, exhausted sprint, blocked path and a forbidden reaction.", () => DebugEnabled = !DebugEnabled);
+            refresh.Add(() => debug.Label.Set(DebugEnabled ? "DEBUG ON" : "DEBUG OFF"));
+            list.SetContentHeight(y + 38);
         }
-        void DrawRow(ZBehaviorDef d, Rect r)
+        void BuildTesting()
         {
-            double value = P.Get(Type, d.Key); bool own = P.Has(Type, d.Key);
-            string tip = DetailedTip(d);
-            GUI.Box(r, GUIContent.none);
-            Label(new Rect(r.x + 8, r.y + 3, r.width - 125, 22), (own ? "* " : "") + d.Label, tip);
-            if (Button(new Rect(r.xMax - 110, r.y + 3, 102, 22), own ? "OVERRIDE" : "INHERITED", "Override state. Click to remove this field's manual override and inherit from the family or master slider. Changing any value creates a manual override.", own))
-            { P.Reset(Type, d.Key); numbers.Clear(); Changed(); }
-            Label(new Rect(r.x + 8, r.y + 26, r.width - 16, 18), "OpenZ: " + Reference(d, false) + "    |    Zod: " + Reference(d, true), tip, true);
-            Rect control = new Rect(r.x + 8, r.y + 47, r.width - 16, 22);
-            if (d.Choices != null)
+            MakeList(42); var t = World.UnitTesting; float y = 0;
+            foreach (Team team in new[] { Team.Red, Team.Blue })
             {
-                if (Button(control, d.Format(value), tip)) { P.Set(Type, d.Key, ((int)value + 1) % d.Choices.Length); Changed(); }
+                Team side = team; string word = team == Team.Red ? "RED" : "BLUE";
+                var heading = Row(word, y, 30); Text(heading, word + " UNITS", 10, 15, layout.w - 60, 13, team == Team.Red ? OzUi.RedHi : OzUi.BlueHi); y += 30;
+                ToggleRow("Immortal " + word.ToLowerInvariant() + " units", () => t.Immortal(side), v => t.Configure(side, v, t.Circular(side)), ref y,
+                    "Playground only. Units never enter destruction/removal, lose their drivers or abandon orders because of death. With circular damage OFF, actual HP stay at the reference percentage; a hidden HP pool still counts theoretical deaths. With circular damage ON, real HP decrease and reset at a virtual death.");
+                ToggleRow("Circular damage " + word.ToLowerInvariant() + " units", () => t.Circular(side), v => t.Configure(side, t.Immortal(side), v), ref y,
+                    "Only has an effect while this team's immortality is enabled. Damage lowers HP normally. A lethal hit records one death and one attacker kill, then restores exactly the reference HP percentage without moving the unit or clearing its orders. Excess damage does not kill several lives at once.");
+                var row = Row(word + " HP", y, 87); float rw = layout.w - 40;
+                string hpTip = "Reference HP for " + word + ": 1-100% of each unit's own maximum health. Applies immediately to current units and new spawns. Invulnerable units remain at this level. Circular units restart at this level after every virtual death. Changing the percentage resets their current HP and hidden damage pool, but keeps kill/death counts.";
+                Text(row, "REFERENCE HP", 10, 16, rw - 120, 12); Input(row, word + "Hp", new Rect(rw - 98, 3, 88, 26), () => t.HpPercent(side).ToString("0.#", CultureInfo.InvariantCulture), s => t.SetHpPercent(side, OzUeLabInput.Number(s)), hpTip);
+                Slider(row, word + "HpSlider", new Rect(10, 38, rw - 20, 22), 1, 100, () => t.HpPercent(side), n => { n = Math.Round(n, 1); if (n != t.HpPercent(side)) t.SetHpPercent(side, n); }, hpTip);
+                var caption = Text(row, "", 10, 73, rw - 20, 10, OzUi.Muted); refresh.Add(() => caption.Set(t.HpPercent(side).ToString("0.#") + "%  |  applies to existing and future " + word + " units")); Tip(row, hpTip); y += 87;
+            }
+            ToggleRow("Show damage", () => t.ShowDamage, v => t.ShowDamage = v, ref y, "Floating HP lost above the unit for each landed hit. Invulnerable units display the HP they would have lost, marked as theoretical. Misses display no damage. Driver damage is identified separately.");
+            ToggleRow("Show kill and death counts", () => t.ShowCounts, v => t.ShowCounts = v, ref y, "Large persistent counters above each unit: trophy = units destroyed/defeated, skull = deaths. Immortal units count virtual kills and deaths too. Counts are recorded even while this display is OFF, remain through HP cycles and reset when the unit is removed. Robot squad members count individually; environmental deaths have no credited attacker.");
+            list.SetContentHeight(y); status = "Testing rules apply only in this playground; combat profiles are unchanged.";
+        }
+        void ToggleRow(string label, Func<bool> get, Action<bool> set, ref float y, string tip)
+        {
+            var row = Row(label, y, 58); float rw = layout.w - 40;
+            Text(row, label, 10, 18, rw - 95, 12);
+            var b = Button(row, "Toggle", "", new Rect(rw - 80, 6, 70, 27), tip, () => set(!get()));
+            refresh.Add(() => { b.Label.Set(get() ? "ON" : "OFF"); b.Selected = get(); b.Refresh(); });
+            Text(row, "Hover for detailed rules", 10, 43, rw - 20, 10, OzUi.Muted); Tip(row, tip); y += 58;
+        }
+        void BuildPresetList()
+        {
+            float y = 0;
+            if (profiles)
+            {
+                foreach (var choice in OzBehaviorLibrary.Choices((ZBehaviorFamily)family))
+                {
+                    var p = choice; var row = Row(p.name, y, 36);
+                    Button(row, "Load", p.name, new Rect(6, 2, layout.w - 52, 29), "Load this preset into the playground. Unsaved edits are replaced; match selection stays unchanged.", () => { drafts[family] = p.Clone(); presetName = p.name; profiles = false; dirty = false; Apply(family); rebuild = true; }); y += 36;
+                }
+                var del = Row("Delete", y, 40);
+                Button(del, "DeletePreset", "DELETE CURRENT SAVED PRESET", new Rect(6, 3, layout.w - 52, 28), "Delete the current named preset; protected built-in references cannot be deleted.", () => { if (!OzBehaviorLibrary.SavedProfiles.Exists(p => p.id == P.id)) throw new InvalidOperationException("Built-in presets are protected."); OzBehaviorLibrary.Delete(P); rebuild = true; }); y += 40;
             }
             else
             {
-                var sr = new Rect(control.x, control.y + 3, control.width - 128, 18);
-                float v = GUI.HorizontalSlider(sr, (float)value, (float)d.Min, (float)d.Max);
-                GUI.Label(sr, C("", tip), text);
-                string key = Type + ":" + d.Key;
-                if (Math.Abs(v - value) > .00001) { P.Set(Type, d.Key, Math.Round(v, 3)); numbers.Remove(key); Changed(); }
-                if (!numbers.TryGetValue(key, out string s)) s = value.ToString("0.###", CultureInfo.InvariantCulture);
-                GUI.SetNextControlName("Behavior_" + key);
-                string next = GUI.TextField(new Rect(control.xMax - 120, control.y, 79, 22), s, 16, field);
-                GUI.Label(new Rect(control.xMax - 120, control.y, 79, 22), C("", tip + " Enter a number using a dot or comma as decimal separator. Invalid text is not applied."));
-                if (next != s)
+                var files = Directory.Exists(OzBehaviorLibrary.Folder) ? Directory.GetFiles(OzBehaviorLibrary.Folder, "*.ozbehavior") : Array.Empty<string>();
+                if (files.Length == 0) { Text(list.Content, "No files. Use FOLDER to add .ozbehavior presets.", 9, 20, layout.w - 58, 11); y = 50; }
+                foreach (string path in files)
                 {
-                    numbers[key] = next;
-                    if (double.TryParse(next.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) && !double.IsNaN(parsed) && !double.IsInfinity(parsed) && parsed >= d.Min && parsed <= d.Max)
-                    { P.Set(Type, d.Key, parsed); Changed(); }
+                    string file = path; var row = Row(Path.GetFileName(file), y, 36);
+                    Button(row, "Import", Path.GetFileName(file), new Rect(6, 2, layout.w - 52, 29), "Import this preset as a draft, then save it to use it in matches.", () => { var p = OzBehaviorLibrary.Import(file); family = (int)p.family; scope = 0; drafts[family] = p; presetName = p.name; imports = false; dirty = true; Apply(family); rebuild = true; }); y += 36;
                 }
-                Label(new Rect(control.xMax - 36, control.y, 36, 22), d.Unit, tip, true);
             }
+            list.SetContentHeight(y);
         }
         string Reference(ZBehaviorDef d, bool zod)
         {
-            var f = (ZBehaviorFamily)family;
             if (Type != "") return d.Format(P.Reference(Type, d.Key, zod));
-            var types = family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes;
             double lo = double.MaxValue, hi = double.MinValue;
-            foreach (string t in types) { double v = P.Reference(t, d.Key, zod); lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
-            return lo == hi ? d.Format(lo) : d.Format(lo) + " - " + d.Format(hi) + " (by type)";
+            foreach (var type in family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes) { double v = P.Reference(type, d.Key, zod); lo = Math.Min(lo, v); hi = Math.Max(hi, v); }
+            return lo == hi ? d.Format(lo) : d.Format(lo) + " - " + d.Format(hi) + " by type";
         }
-        string DetailedTip(ZBehaviorDef d)
+        public string Explain(ZBehaviorKey key)
         {
-            string effect = d.Group == "MOVEMENT" ? "Motion: fields marked visual affect presentation only. Acceleration, braking, reversal and turning constraints affect actual positions only when Simulate physical movement limits is ON. Zero acceleration/braking/turn rate means instantaneous, not disabled." :
-                d.Group == "BOOST" ? "Boost: only defensive sprint is changed. Unit statistics still supply maximum endurance. Existing bonuses use the strongest multiplier. Editing never refills endurance." :
-                d.Group == "COMBAT" ? "Combat: these rules apply to the selected family/type. Existing weapon eligibility and native attack cooldowns remain. Moving fire is only implemented for grunt, psycho and laser." :
-                "Dodging: enabling a situation does not bypass other requirements such as a protected doorway, an immobile/stunned unit, cooldown or stand-and-fire. A reaction is not a guaranteed successful escape. Retreat is a move away from an acquired enemy.";
-            string refs = "";
-            foreach (string t in family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)
-                if (Type == "" || Type == t) refs += DisplayType(t) + ": OpenZ " + d.Format(P.Reference(t, d.Key, false)) + "; Zod " + d.Format(P.Reference(t, d.Key, true)) + ". ";
-            return d.Label + "\n" + d.Tip + "\n" + effect + "\nReferences: " + refs + "\nZod means the classic dodge logic before local fork commit 37af18e. Features absent from Zod use their disabled/instant/native equivalent, not invented Zod constants. Manual edits override the master; per-type edits override family values. Use INHERITED/OVERRIDE to release an override.";
+            var d = ZBehaviorSchema.Def(key); string refs = "";
+            foreach (var type in family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)
+                if (Type == "" || Type == type) refs += DisplayType(type) + ": OpenZ " + d.Format(P.Reference(type, key, false)) + "; Zod " + d.Format(P.Reference(type, key, true)) + ".\n";
+            return d.Label + "\n" + d.Tip + "\n" + refs + "Zod Classic is the pre-#103 dodge/stop-and-fire behavior; Zod Local is idle-only. It does not replace projectile speeds, armor, range, collision, or weapon stats. Manual values override the master; numeric values are not limited by a slider. Physical movement limits affect real positions only when enabled; visual settings affect the model. Zero means instant/unlimited only where the label explicitly says so.";
         }
-        void DrawProfiles(float w, float h)
-        {
-            Rect r = new Rect(16, 76, Mathf.Min(560, w - 32), Mathf.Min(320, h - 100));
-            GUI.Box(r, GUIContent.none, box); var choices = OzBehaviorLibrary.Choices((ZBehaviorFamily)family);
-            listScroll = GUI.BeginScrollView(new Rect(r.x + 8, r.y + 8, r.width - 16, r.height - 16), listScroll, new Rect(0, 0, r.width - 40, choices.Count * 35));
-            for (int i = 0; i < choices.Count; i++)
-            {
-                var p = choices[i];
-                if (Button(new Rect(0, i * 35, r.width - 42, 30), p.name, "Load this preset into the laboratory. Built-ins are read-only references: editing them makes a Custom draft. Unsaved edits are replaced; the saved library and game selection are unchanged."))
-                { drafts[family] = p.Clone(); presetName = p.name; dirty = false; profiles = false; numbers.Clear(); Apply(family); status = "Loaded " + p.name + " into the laboratory."; }
-            }
-            GUI.EndScrollView();
-        }
-        void DrawImports(float w, float h)
-        {
-            Rect r = new Rect(16, 76, Mathf.Min(700, w - 32), Mathf.Min(320, h - 100)); GUI.Box(r, GUIContent.none, box);
-            string[] files = Directory.Exists(OzBehaviorLibrary.Folder) ? Directory.GetFiles(OzBehaviorLibrary.Folder, "*.ozbehavior") : Array.Empty<string>();
-            listScroll = GUI.BeginScrollView(new Rect(r.x + 8, r.y + 8, r.width - 16, r.height - 16), listScroll, new Rect(0, 0, r.width - 40, Math.Max(35, files.Length * 35)));
-            if (files.Length == 0) Label(new Rect(8, 0, r.width - 50, 50), "No preset files. Use FOLDER and place .ozbehavior files here.", "Import lists local files only. It does not download or upload presets.");
-            for (int i = 0; i < files.Length; i++)
-            {
-                string file = files[i];
-                if (Button(new Rect(0, i * 35, r.width - 42, 30), Path.GetFileName(file), "Import " + file + ". The file declares its family; the correct menu opens automatically. Save to add it to the game options."))
-                    Safe(() => { var p = OzBehaviorLibrary.Import(file); family = (int)p.family; scope = 0; drafts[family] = p; presetName = p.name; imports = false; numbers.Clear(); Changed(); });
-            }
-            GUI.EndScrollView();
-        }
-        void Save(bool copy) => Safe(() => { OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it in Options > Game for your next match."; });
-        void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Behavior] " + e.Message); } }
+        void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it in Options > Game."; }
+        void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Laboratory] " + e.Message); } }
         public static string DisplayType(string type) => type == "medium" ? "MECH" : type == ZMTank.Type ? "MEDIUM TANK" : type.ToUpperInvariant();
-        void DrawDebug()
-        {
-            if (World == null || !Camera.main) return;
-            foreach (var o in World.Objects)
-            {
-                if (o.Destroyed || o.Behavior == null || o.BehaviorThreatUntil < World.Time) continue;
-                var p = Camera.main.WorldToScreenPoint(new Vector3(o.CenterX * ZConst.PX_TO_M, 1.5f, -o.CenterY * ZConst.PX_TO_M));
-                if (p.z <= 0) continue;
-                GUI.Label(new Rect(p.x - 90, Screen.height - p.y - 20, 220, 40), new GUIContent(o.Type + ": " + o.BehaviorDodgeReason, "Latest reason for accepting or refusing a projectile reaction."), text);
-                var blast = Camera.main.WorldToScreenPoint(new Vector3(o.BehaviorThreatX * ZConst.PX_TO_M, .3f, -o.BehaviorThreatY * ZConst.PX_TO_M));
-                if (blast.z > 0) DrawLine(new Vector2(p.x, Screen.height - p.y), new Vector2(blast.x, Screen.height - blast.y), Color.yellow);
-                if (o.BehaviorDodging)
-                {
-                    var wp = o.Waypoints[0];
-                    var end = Camera.main.WorldToScreenPoint(new Vector3(wp.x * ZConst.PX_TO_M, .3f, -wp.y * ZConst.PX_TO_M));
-                    if (end.z > 0) DrawLine(new Vector2(p.x, Screen.height - p.y), new Vector2(end.x, Screen.height - end.y), Color.cyan);
-                }
-            }
-        }
-        static void DrawLine(Vector2 a, Vector2 b, Color color)
-        {
-            var matrix = GUI.matrix; var old = GUI.color;
-            GUI.color = color; GUIUtility.RotateAroundPivot(Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg, a);
-            GUI.DrawTexture(new Rect(a.x, a.y, Vector2.Distance(a, b), 2), Texture2D.whiteTexture);
-            GUI.matrix = matrix; GUI.color = old;
-        }
         void OnDestroy()
         {
-            foreach (var p in drafts) if (p != null) OzBehaviorLibrary.SaveDraft(p);
-            PlayerPrefs.Save(); OzUeHooks.SetTyping(this, false); OzUeInsets.Set(UeSide.Bottom, "Behavior laboratory", 0);
-            if (button != null && button.Rt) Destroy(button.Rt.gameObject);
-            if (blocker) Destroy(blocker.gameObject);
+            FinishFields(); foreach (var p in drafts) if (p != null) OzBehaviorLibrary.SaveDraft(p);
+            PlayerPrefs.Save(); OzUeHooks.SetTyping(this, false); OzUeInsets.Set(UeSide.Right, "laboratory", 0);
+            if (OzUeStatsRoot.I != null) OzUeStatsRoot.I.CoverWithLaboratory(false);
+            if (box) Destroy(box.gameObject); if (entry != null && entry.Rt) Destroy(entry.Rt.gameObject); if (testingEntry != null && testingEntry.Rt) Destroy(testingEntry.Rt.gameObject);
             if (I == this) I = null;
         }
     }

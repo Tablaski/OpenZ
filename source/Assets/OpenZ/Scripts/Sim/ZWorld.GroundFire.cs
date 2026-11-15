@@ -100,7 +100,7 @@ namespace OpenZ.Sim
                 if (Time + 1e-9 < o.GroundFireNext) continue;
                 o.GroundFireNext += GroundFireEvery;
                 int hp0 = o.Health;
-                o.DamageHealth(o.IsRobot ? GroundFireRobotHp : GroundFireVehicleHp);
+                o.DamageHealth(o.IsRobot ? GroundFireRobotHp : GroundFireVehicleHp, f.by);
                 o.LastFireHit = Time;                                                              // a death in it is a fire death
                 o.GroundFireTaken += hp0 - o.Health; GroundFireDealt += hp0 - o.Health;
                 UpdateObjectHealth(o, f.by);

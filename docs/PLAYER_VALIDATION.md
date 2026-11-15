@@ -1,5 +1,32 @@
 # Player validation record
 
+## Pending — right-hand behavior and unit testing laboratory
+
+The following source changes are newer than the release below and require one
+fresh release player together. No new player was built for this follow-up.
+
+- Native right-hand BEHAVIOR/UNIT TESTING tabs, same geometry/style as STATS;
+  both entry buttons, restoration of STATS, resizing, scrolling, focus, free
+  numeric keyboard entry and all detailed hover tooltips/reference labels.
+- Red/blue reference HP sliders and fields on existing/new units; fixed-HP
+  immortality; circular damage returning to the chosen percentage; preserved
+  targets/orders, protected crews and independent settings per team.
+- Floating actual/theoretical/crew damage and visible trophy/skull counters,
+  ordinary and virtual deaths, simultaneous hits and crowded robot squads.
+- Boosts above x5, repeated projectile replanning without indefinitely deferring
+  attack resumption, explicit player orders and the optional full-step reference.
+- Zod Classic stop-and-fire versus OpenZ offensive manoeuvres, engaged-robot
+  restrictions and practical visual/mechanical comparison with the local Zod engine.
+
+Completed source validation: 751 core/real-map simulation checks, including new
+HP, virtual-score, crew, free-value and sustained-volley regression checks.
+Unity 6000.3.27f2 script-only compilation also completed with exit code 0
+(`laboratory-final-compile.log` and `laboratory-proof-compile.log`).
+The native `DuelUnitEditorProof` now captures all eight canvas-based pages and
+the testing sidebar, and checks clickable entries, layout, HP and scores. It
+has been prepared for the next player; it has not passed on these new sources yet.
+Run it and all outstanding native integration checks against that same release.
+
 ## Combined release — November 15, 2026
 
 Final player: `builds/OpenZ-Behavior-Release/OpenZ-Duel.exe`. Keep its complete

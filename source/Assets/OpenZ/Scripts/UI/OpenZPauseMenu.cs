@@ -474,6 +474,7 @@ namespace OpenZ
             {
                 if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }
                 if (t.label == OzBehaviorLibrary.RobotsLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Robots)); continue; }
+                if (t.label == OzMapReadabilityOptions.FlagLabel) { t.value.Set(OzText.Tab("◀  " + OzMapReadabilityOptions.FlagName + "  ▶")); continue; }
                 if (t.label == OzHudLayout.Label) { t.value.Set("DRAG THE PANELS  ▶"); continue; }
                 if (t.label == NightShadows.Label) { t.value.Set(OzText.Tab($"◀  {NightShadows.Name}  ▶")); continue; }
                 if (t.label == OzTouch.Label) { t.value.Set(OzText.Tab($"◀  {OzTouch.ModeName}  ▶")); continue; }

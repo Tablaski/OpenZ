@@ -54,6 +54,7 @@ namespace OpenZ.Multiplayer
                 if (saved) PlayerPrefs.SetInt(OzForceBarOption.Pref, original); else PlayerPrefs.DeleteKey(OzForceBarOption.Pref);
                 PlayerPrefs.Save(); OzForceBarOption.Reload();
             }
+            if (DuelRuntime.I && DuelRuntime.I.IsHost) yield return DuelMapReadabilityProof.Run(folder);
             complete();
         }
     }

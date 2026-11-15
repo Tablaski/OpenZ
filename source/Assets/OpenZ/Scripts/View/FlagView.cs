@@ -305,6 +305,7 @@ namespace OpenZ
             var f = new Flag { obj = o, fort = fort, index = flags.Count, size = size, shown = o.Owner, seed = (o.Id * 0.6180339f) % 1f * 6.2831853f };
             f.root = new GameObject((fort ? "FortFlag_" : "Flag_") + o.Id).transform; f.root.SetParent(root, false);
             f.root.position = basePos;
+            f.root.localScale = Vector3.one * OzMapReadabilityOptions.FlagSize;
             var pg = new GameObject("Pole"); pg.transform.SetParent(f.root, false);
             pg.AddComponent<MeshFilter>().sharedMesh = pole;
             var pr = pg.AddComponent<MeshRenderer>(); pr.sharedMaterial = cloth; pr.shadowCastingMode = ShadowCastingMode.On; f.poleR = pr;
@@ -626,6 +627,7 @@ namespace OpenZ
         void LateUpdate()
         {
             if (game == null || game.World == null) return;
+            ApplyFlagSize();
             float now = Time.time, dt = Time.deltaTime;
             UpdateWind(dt, now);
             if (buildQueue.Count > 0) { int budget = drapeBudget; while (buildQueue.Count > 0 && budget > 0) { var d = buildQueue[0]; int before = d.filled; if (Fill(d, budget)) { buildQueue.RemoveAt(0); d.queued = false; } budget -= Mathf.Max(1, d.filled - before); } }
@@ -850,7 +852,7 @@ namespace OpenZ
             if (z.border)
             {
                 z.border.enabled = borderOn;
-                if (z.marker) z.marker.enabled = !borderOn && z.markerWasOn;
+                if (z.marker) z.marker.enabled = !borderOn && ZoneMarkers.ShowBorders;
                 if (borderOn)
                 {
                     mpb.Clear();

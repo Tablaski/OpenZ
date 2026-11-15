@@ -7,6 +7,8 @@ namespace OpenZ
     {
         void AddBehaviorOptions(RectTransform p)
         {
+            AddCycle(p, toggles.Count, OzMapReadabilityOptions.FlagLabel, () => OzMapReadabilityOptions.FlagName, OzMapReadabilityOptions.StepFlag);
+            AddToggle(p, toggles.Count, OzMapReadabilityOptions.BorderLabel, () => OzMapReadabilityOptions.Borders, v => OzMapReadabilityOptions.Borders = v);
             for (int i = 0; i < 2; i++)
             {
                 var family = (ZBehaviorFamily)i;
@@ -21,6 +23,11 @@ namespace OpenZ
     {
         void AddBehaviorOptions(RectTransform p)
         {
+            AddToggle(p, toggles.Count, OzMapReadabilityOptions.FlagLabel, null, null, true);
+            var flagSize = toggles[toggles.Count - 1];
+            flagSize.row.OnClick = c => OzMapReadabilityOptions.StepFlag(c.right || c.shift ? -1 : Arrow(flagSize));
+            flagSize.row.OnRightClick = c => OzMapReadabilityOptions.StepFlag(-1);
+            AddToggle(p, toggles.Count, OzMapReadabilityOptions.BorderLabel, () => OzMapReadabilityOptions.Borders, v => OzMapReadabilityOptions.Borders = v);
             for (int i = 0; i < 2; i++)
             {
                 var family = (ZBehaviorFamily)i;

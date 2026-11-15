@@ -5,7 +5,7 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
-    /// cluttered the map, so each zone gets a subtle ground line in its owner's colour instead: a soft band 0.3 m wide, 0.45 m
+        /// Optional Zod-style dotted borders, in each zone owner's colour: a soft band 0.18 m wide, 0.45 m
     /// inside the zone edge (two neighbouring zones show two lines side by side), draped over the terrain 6 cm above it (no
     /// z-fighting), on passable and water tiles only, recoloured live when the zone changes hands.
     /// </summary>
@@ -13,11 +13,13 @@ namespace OpenZ
     {
         ZGame game;
         readonly List<(Material m, int zone, Team shown)> zones = new List<(Material, int, Team)>();
+        readonly List<MeshRenderer> borders = new List<MeshRenderer>();
+        readonly List<Mesh> meshes = new List<Mesh>();
         float waterY = float.NegativeInfinity;
-        const float Inset = 0.45f, Width = 0.3f, Lift = 0.06f, Alpha = 0.5f;
+        const float Inset = 0.45f, Width = 0.18f, Lift = 0.06f, Alpha = 0.55f;
         /// <summary>Z draws no zone borders in the world (territory reads from flags, building colours and the minimap);
         /// </summary>
-        public static bool ShowBorders = false;
+        public static bool ShowBorders { get => OzMapReadabilityOptions.Borders; set => OzMapReadabilityOptions.Borders = value; }
 
         void Start()
         {
@@ -36,6 +38,7 @@ namespace OpenZ
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var mr = go.AddComponent<MeshRenderer>(); mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
                 mr.enabled = ShowBorders;
+                borders.Add(mr); meshes.Add(mesh);
                 var m = new Material(shader) { name = "ZoneBorder" + z.Id }; mr.sharedMaterial = m;
                 zones.Add((m, z.Id, (Team)(-1)));
             }
@@ -45,14 +48,17 @@ namespace OpenZ
         void LateUpdate()
         {
             if (game == null || game.World == null) return;
+            foreach (var border in borders) if (border && border.enabled != ShowBorders) border.enabled = ShowBorders;
             for (int i = 0; i < zones.Count; i++)
             {
                 var (m, id, shown) = zones[i];
                 var owner = game.World.Zones[id].Owner;
-                if (owner == shown) continue;
-                var c = TeamColors.Paint(owner); c.a = owner == Team.Neutral ? Alpha * 0.55f : Alpha;
+                // Track displayed colours as well, so a live team-colour swap updates the borders.
+                var painted = TeamColors.Shown(owner);
+                if (painted == shown) continue;
+                var c = owner == Team.Neutral ? new Color(.48f, .48f, .48f) : TeamColors.Paint(owner); c.a = owner == Team.Neutral ? Alpha * 0.85f : Alpha;
                 m.SetColor("_Color", c);
-                zones[i] = (m, id, owner);
+                zones[i] = (m, id, painted);
             }
         }
 
@@ -75,16 +81,19 @@ namespace OpenZ
         /// <summary>One soft band along a zone edge, sampled every 0.5 m; gaps over impassable tiles (cliffs, rock walls).</summary>
         void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, Vector3 inward, ZMapData map)
         {
-            float len = Vector3.Distance(a, b); int n = Mathf.Max(1, Mathf.CeilToInt(len / 0.5f));
+            float len = Vector3.Distance(a, b); int n = Mathf.Max(1, Mathf.CeilToInt(len / 0.2f));
             int prev = -1;
             for (int i = 0; i <= n; i++)
             {
                 var p = Vector3.Lerp(a, b, i / (float)n);
+                // Zod places small coloured markers on the passable perimeter tiles
+                // (zmap.cpp SetupAllZoneInfo / DoZoneEffects); use short, spaced ground dashes in 3D.
+                if ((len * i / n) % 2f > .8f) { prev = -1; continue; }
                 var px = ZGame.WorldToPx(p); var cls = map.ClassAt(px.x >> 4, px.y >> 4);
                 if (cls == ZClass.Impassable || cls == ZClass.DeepWater) { prev = -1; continue; }
                 // long red lines across the view), so the band breaks wherever the surface is well above the play floor
                 bool high = false;
-                for (int k = 0; k < 3 && !high; k++) { var q0 = p + inward * (Width * k * 0.5f); high = game.GroundY(q0.x, q0.z) > 1.5f; }
+                for (int k = 0; k < 3 && !high; k++) { var q0 = p + inward * (Width * k * 0.5f); high = game.GroundY(q0.x, q0.z) > game.TerrainY(q0.x, q0.z) + 1.2f; }
                 if (high) { prev = -1; continue; }
                 int start = v.Count;
                 for (int k = 0; k < 3; k++)
@@ -100,6 +109,24 @@ namespace OpenZ
                     { t.Add(prev + k); t.Add(start + k); t.Add(prev + k + 1); t.Add(prev + k + 1); t.Add(start + k); t.Add(start + k + 1); }
                 prev = start;
             }
+        }
+        public bool BordersUsePreference()
+        { foreach (var b in borders) if (b && b.enabled != ShowBorders) return false; return borders.Count > 0; }
+        public bool ColoursMatchOwners()
+        {
+            foreach (var z in zones)
+            {
+                var owner = game.World.Zones[z.zone].Owner;
+                var expected = owner == Team.Neutral ? new Color(.48f, .48f, .48f) : TeamColors.Paint(owner);
+                var actual = z.m.GetColor("_Color");
+                if (Mathf.Abs(actual.r - expected.r) + Mathf.Abs(actual.g - expected.g) + Mathf.Abs(actual.b - expected.b) > .01f) return false;
+            }
+            return zones.Count > 0;
+        }
+        void OnDestroy()
+        {
+            foreach (var z in zones) if (z.m) Destroy(z.m);
+            foreach (var mesh in meshes) if (mesh) Destroy(mesh);
         }
     }
 }

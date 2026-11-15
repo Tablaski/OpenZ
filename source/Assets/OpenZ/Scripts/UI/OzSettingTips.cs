@@ -37,6 +37,8 @@ namespace OpenZ
         static readonly Dictionary<string, string> Tips = new Dictionary<string, string>
         {
             [OzBehaviorLibrary.TanksLabel] = "TANK BEHAVIOR|Choose OpenZ Native, Zod Classic or a named behavior preset saved in Unit Editor > BEHAVIOR. Applies to the next match, independently of robots. Multiplayer uses the host's profiles for both teams.|",
+            [OzMapReadabilityOptions.FlagLabel] = OzMapReadabilityOptions.FlagTip,
+            [OzMapReadabilityOptions.BorderLabel] = OzMapReadabilityOptions.BorderTip,
             [OzBehaviorLibrary.RobotsLabel] = "ROBOT BEHAVIOR|Choose native behavior or a named robot preset. Tune live in Unit Editor > BEHAVIOR. Applies to the next match, independently of tanks. Zod Classic still prevents engaged robots from dodging; Custom can override it.|",
             ["EDGE SCROLL"] = "EDGE SCROLL|The map scrolls when the mouse touches the edge of the screen. WASD, the arrow keys and the minimap always scroll.|",
             ["HEALTH BARS ON EVERY DAMAGED UNIT"] = "HEALTH BARS ON EVERY DAMAGED UNIT|On: every damaged unit shows its health bar. Off: only selected and hovered units show it. Enemy units show theirs only while you own a standing radar.|",   // 1.4 DV172
@@ -97,7 +99,7 @@ namespace OpenZ
         {
             ("MUSIC · SOUNDTRACK", TabMain), ("ANNOUNCER CHATTER", TabMain), (RobotChatterLabel, TabMain), (OzSettings.FullLabel, TabMain), (OzSettings.ResLabel, TabMain), ("HUD SCALE", TabMain), ("UI SCALE", TabMain),
             ("EDGE SCROLL", TabGame), (OzFreeCam.Label, TabGame), (OzCamControls.SpeedLabel, TabGame), (OzCamControls.RightLabel, TabGame), ("HEALTH BARS ON EVERY DAMAGED UNIT", TabGame), (OzRangeRingsOption.Label, TabGame), (MinimalLabel, TabGame), (OzHudLayout.Label, TabGame), ("YOUR TEAM COLOUR · VISUAL ONLY", TabGame),
-            (OzForceBarOption.Label, TabGame), (OzBehaviorLibrary.TanksLabel, TabGame), (OzBehaviorLibrary.RobotsLabel, TabGame), ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame),
+            (OzForceBarOption.Label, TabGame), (OzMapReadabilityOptions.FlagLabel, TabGame), (OzMapReadabilityOptions.BorderLabel, TabGame), (OzBehaviorLibrary.TanksLabel, TabGame), (OzBehaviorLibrary.RobotsLabel, TabGame), ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame),
             (OzQuality.Label, TabGraphics), (OzFpsCap.Label, TabGraphics), (NightShadows.Label, TabGraphics), (OzNightRain.Label, TabGraphics),
             ("MOTION BLUR · FAST DEBRIS AND SHELLS", TabGraphics), (OzLensEdges.Label, TabGraphics), (OzQuality.FpsLabel, TabGraphics),
             (OzSmoothFrames.Label, TabGraphics), (OzSunSteps.Label, TabGraphics), (OzEndingDebris.Label, TabGraphics), (OzGfxApi.Label, TabGraphics), (OzMassLod.Label, TabGraphics),   // v1.3 item 25: rows for slower computers; ue_mass_battles: MASS BATTLES last

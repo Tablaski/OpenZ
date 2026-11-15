@@ -99,7 +99,7 @@ namespace OpenZ
             {
                 if (f.fort) continue;
                 var L = new Look { f = f, foot = f.root.position, ballVerts = ballVerts };
-                L.ball = L.foot + Vector3.up * ballY; L.footY = L.foot.y;
+                L.ball = f.root.TransformPoint(Vector3.up * ballY); L.footY = L.foot.y;
                 var mf = f.poleR ? f.poleR.GetComponent<MeshFilter>() : null;
                 if (mf)
                 {   // its own copy of the pole: the lamp's colour and phase ride in its uv1 (no per-renderer properties)

@@ -8,4 +8,5 @@ foreach ($duelMap in @('L02','L07','L16','L17')) {
     & (Join-Path $PSScriptRoot 'Test-DuelPlayers.ps1') -Map $duelMap
 }
 & (Join-Path $PSScriptRoot 'Test-DuelMenus.ps1')
-Write-Output 'PASS: final player built, all four local two-player integration proofs and native menu checks passed.'
+& (Join-Path $PSScriptRoot 'Test-UnitEditor.ps1')
+Write-Output 'PASS: final player built, all four local two-player integration proofs, native menus and Unit Editor checks passed.'

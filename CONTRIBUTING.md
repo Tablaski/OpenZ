@@ -65,7 +65,12 @@ For another installation, pass -Unity 'C:\path\to\Unity.exe' or set
 UNITY_EDITOR_PATH. The Unity menu OpenZ > Multiplayer > Build Windows POC
 also builds the player.
 
-Full local validation (core checks, build, four two-player missions and menus):
+The player includes the Unit Editor playground alongside the four missions.
+Check its main menu entry, playground initialization and return to the menu with
+`./tools/Test-UnitEditor.ps1` after building. Pass `-Executable` to check a player
+in another output folder.
+
+Full local validation (core checks, build, four two-player missions, menus and Unit Editor):
 
 ~~~powershell
 ./tools/Build-And-Test-Duel.ps1

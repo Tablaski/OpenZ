@@ -14,6 +14,10 @@ namespace OpenZ.Multiplayer.Editor
         {
             ValidateScriptBindings();
             ValidateWire();
+            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity");
+            foreach (string scene in scenes)
+                if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(scene))
+                    throw new InvalidOperationException("Required player scene is missing: " + scene);
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
             var args = Environment.GetCommandLineArgs();
             int outputOption = Array.IndexOf(args, "-oz-duel-output");
@@ -27,7 +31,7 @@ namespace OpenZ.Multiplayer.Editor
             PlayerSettings.resizableWindow = true; PlayerSettings.runInBackground = true;
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" }, s => "Assets/OpenZ/Scenes/" + s + ".unity"),
+                scenes = scenes,
                 target = BuildTarget.StandaloneWindows64, locationPathName = output,
                 options = BuildOptions.Development | BuildOptions.CompressWithLz4
             });

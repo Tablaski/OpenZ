@@ -197,3 +197,29 @@ must be added here and checked together on the next requested release.
   markers, repeated fights at the chosen separation, drag/drop lift appearance,
   squad movement, cancellation, and right-drag enabled/disabled with open panels
   and a rotated camera. No player was built or launched for these changes.
+
+## Combat feel laboratory (0.2.1, awaiting player validation)
+
+- FEEL highlights five existing controls: direct 2D following, hull turn rate,
+  dodge distance multiplier, defensive boost speed and dodge cooldown.
+- Each detailed category shows its main controls first; Advanced reveals the
+  remaining filters and fine tuning. Hidden values still apply. No saved keys,
+  values, defaults or presets are removed or reset.
+- Start from Zod Classic, keep direct following ON and physical limits OFF,
+  then tune hull turn rate and boost before distance/cooldown. This is a
+  suggested experiment, not a default migration. Zero turn rate means instant.
+- Direct following now limits displayed hull rotation while retaining the 2D
+  combat position. Sideways motion is intentional in this mode; this does not
+  impose a turning radius on combat movement. Physical mode changes combat
+  positions and takes priority. The legacy follower remains available for
+  comparisons; its catch-up arcs can distort short defensive steps.
+- Playground debug: cyan cross = combat position; violet line = model gap;
+  yellow line = first queued waypoint (not full navigation path); green line =
+  one simulation second of velocity. Reason labels include sprint, stamina,
+  simulation speed and model gap. These overlays do not alter simulation.
+- Completed: Unity runtime script compilation; 1025 core/real-map checks.
+- Pending manual validation on the next requested release: FEEL layout and
+  scrolling, each Advanced toggle, per-type overrides and preset round trips,
+  debug visibility/readability at different camera angles, turn rate at 0/90,
+  direct/follower/physical mode transitions and repeated infinite combat.
+  No player build or gameplay tests were requested or performed.

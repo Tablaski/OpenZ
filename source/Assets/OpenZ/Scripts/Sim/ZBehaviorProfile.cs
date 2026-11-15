@@ -104,7 +104,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.HeadingCommit,"Visual heading commitment","MOVEMENT","s",0,3,1.4,0,"Visual only: how long to keep a chosen hull heading."),
             N(ZBehaviorKey.DeadZone,"Visual heading dead zone","MOVEMENT","deg",0,45,9,0,"Visual only: ignore smaller heading changes."),
             N(ZBehaviorKey.ShortTurn,"Visual short-move turn limit","MOVEMENT","deg",0,180,35,180,"Visual only: hull rotation allowed toward a short step."),
-            B(ZBehaviorKey.DirectView,"Follow simulation position directly","MOVEMENT",false,true,"Remove the vehicle follower's positional lag. Allows arcade sideways motion."),
+            B(ZBehaviorKey.DirectView,"Follow 2D simulation directly","MOVEMENT",false,true,"Recommended for Z-style dodges: follow the combat position without catch-up arcs. Maximum turn rate still limits the hull. OFF uses the legacy follower, which can lag and curve while catching up. Physical limits take priority."),
             B(ZBehaviorKey.Boost,"Defensive boost enabled","BOOST",true,true,"Allow sprint during a dodge."),
             N(ZBehaviorKey.BoostSpeed,"Defensive boost speed","BOOST","x",1,5,1.8,1.8,"Replaces the defensive sprint multiplier; existing speed bonuses use the strongest factor."),
             N(ZBehaviorKey.BoostChance,"Boost activation chance","BOOST","%",0,100,80,80,"Native Zod attempts start a run 80 percent of the time."),

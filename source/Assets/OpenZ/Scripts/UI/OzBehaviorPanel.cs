@@ -21,7 +21,12 @@ namespace OpenZ
         readonly List<OzUeLabSlider> sliders = new List<OzUeLabSlider>();
         readonly List<RectTransform> rows = new List<RectTransform>();
         readonly List<Action> refresh = new List<Action>();
-        readonly string[] pages = { "DODGING", "MOVEMENT", "BOOST", "COMBAT" };
+        readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT" };
+        readonly bool[] advanced = new bool[5];
+        public bool SimulationDebug { get; private set; }
+        public bool RouteDebug { get; private set; }
+        static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.DirectView, ZBehaviorKey.TurnRate, ZBehaviorKey.Distance, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown };
+        static bool Primary(ZBehaviorKey k) => Array.IndexOf(essentials, k) >= 0 || k == ZBehaviorKey.Enabled || k == ZBehaviorKey.Boost || k == ZBehaviorKey.CombatManoeuvres || k == ZBehaviorKey.Physical;
         public Team RespawnPointTeam { get; private set; }
         bool builtTesting;
         RectTransform box;
@@ -74,7 +79,7 @@ namespace OpenZ
             OzUnitEditor.I.Hud.IsOverUi(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
         public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("COMBAT DYNAMICS is not clickable."); OzUeStats.SetTab(OzUeStats.Tab.Dynamics); }
         public void ShowPage(ZBehaviorFamily f, int tab)
-        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 3); scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
+        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 3) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
         public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
@@ -135,13 +140,19 @@ namespace OpenZ
             Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Master: OpenZ at 0%, classic Zod dodge/movement at 100%. Numeric values interpolate; switches change at 50%. Manual fields stay overridden. This is not a success percentage. Normal speed, weapon statistics and damage rules remain separate.");
             Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Cycle family defaults and per-type exceptions. Per-type overrides win; inherited fields follow the master.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
             Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 219, inner * .45f - 6, 26), "Release every manual override in this family. Keep the master position.", () => { P.overrides.Clear(); Apply(family); dirty = true; rebuild = true; });
-            for (int i = 0; i < 4; i++) { int k = i; Button(box, "Page" + i, pages[i], new Rect(12 + i * (inner + 4) / 4, 251, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); }
+            for (int i = 0; i < pages.Length; i++) { int k = i; Button(box, "Page" + i, pages[i], new Rect(12 + i * (inner + 4) / 5, 251, (inner - 16) / 5, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); }
             MakeList(283);
             if (profiles || imports) { BuildPresetList(); return; }
             float y = 0;
-            foreach (var d in ZBehaviorSchema.All)
+            var intro = Row("Guide", y, 72);
+            Text(intro, "OpenZ-VK | " + (page == 0 ? "START WITH THESE FIVE" : pages[page]), 9, 16, layout.w - 58, 12, OzForkOptions.Accent);
+            var mode = Text(intro, "", 9, 39, layout.w - 58, 10, OzUi.Muted);
+            refresh.Add(() => mode.Set(P.Get(Type, ZBehaviorKey.Physical) >= .5 ? "PHYSICAL: changes real combat positions" : P.Get(Type, ZBehaviorKey.DirectView) >= .5 ? "DIRECT: 2D position + rate-limited hull" : "FOLLOWER: catch-up can distort dodge paths"));
+            y += 72;
+            IEnumerable<ZBehaviorDef> definitions = page == 0 ? Array.ConvertAll(essentials, ZBehaviorSchema.Def) : ZBehaviorSchema.All;
+            foreach (var d in definitions)
             {
-                if (d.Group != pages[page]) continue;
+                if (page != 0 && (d.Group != pages[page] || !Primary(d.Key) && !advanced[page])) continue;
                 var def = d; var row = Row(d.Key.ToString(), y, 100); float rw = layout.w - 40; string tip = Explain(d.Key);
                 var label = Text(row, d.Label, 9, 15, rw - 110, 12); Tip(label.rectTransform, tip);
                 var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the family/master again.", () => { P.Reset(Type, def.Key); Apply(family); });
@@ -159,6 +170,14 @@ namespace OpenZ
                 }
                 y += 100;
             }
+            if (page != 0)
+            {
+                var more = Row("Advanced", y, 38);
+                Button(more, "Advanced", advanced[page] ? "ADVANCED - HIDE" : "ADVANCED - SHOW FINE TUNING", new Rect(9, 4, layout.w - 58, 26), "Extra rules and visual fine tuning. Hidden values remain active; saved profiles are preserved.", () => { advanced[page] = !advanced[page]; rebuild = true; });
+                y += 38;
+            }
+            ToggleRow("Debug: simulation + model gap", () => SimulationDebug, v => SimulationDebug = v, ref y, "Cyan cross = real combat position. Violet line = gap to the drawn model. Overlays never change combat.");
+            ToggleRow("Debug: route + velocity", () => RouteDebug, v => RouteDebug = v, ref y, "Yellow = first queued waypoint, not the complete path. Green = one second of simulation velocity.");
             var actionsRow = Row("Actions", y, 38);
             Button(actionsRow, "Native", "RESTORE OPENZ", new Rect(9, 4, (layout.w - 64) * .65f, 26), "Restore exact native behavior in this family; named presets remain saved.", () => { drafts[family] = OzBehaviorLibrary.Native((ZBehaviorFamily)family); presetName = P.name; dirty = true; Apply(family); rebuild = true; });
             var debug = Button(actionsRow, "Debug", "", new Rect(15 + (layout.w - 64) * .65f, 4, (layout.w - 64) * .35f, 26), "Show the last dodge reason above units. Useful to distinguish a committed dodge, exhausted sprint, blocked path and a forbidden reaction.", () => DebugEnabled = !DebugEnabled);

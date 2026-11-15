@@ -14,6 +14,8 @@ namespace OpenZ
         readonly Dictionary<int, Badge> badges = new Dictionary<int, Badge>();
         readonly List<Number> numbers = new List<Number>();
         readonly List<int> remove = new List<int>();
+        readonly List<RectTransform> debugLines = new List<RectTransform>();
+        int usedLines;
         RectTransform root;
         readonly Dictionary<Team, RectTransform> respawnMarkers = new Dictionary<Team, RectTransform>();
         ZWorld World => OzUnitEditor.I != null ? OzUnitEditor.I.World : null;
@@ -27,6 +29,30 @@ namespace OpenZ
                 var group = root.gameObject.AddComponent<CanvasGroup>(); group.blocksRaycasts = false; group.interactable = false;
             }
             var testing = World.UnitTesting;
+            usedLines = 0;
+            var panel = OzBehaviorPanel.I;
+            if (panel && (panel.SimulationDebug || panel.RouteDebug)) foreach (var o in World.Objects)
+            {
+                if (!ZPlaygroundTesting.Eligible(o) || o.Destroyed) continue;
+                var sim = OzUnitEditor.I.Game.CenterWorld(o) + Vector3.up * .3f;
+                if (panel.SimulationDebug)
+                {
+                    DebugLine(sim - Vector3.right * .45f, sim + Vector3.right * .45f, Color.cyan);
+                    DebugLine(sim - Vector3.forward * .45f, sim + Vector3.forward * .45f, Color.cyan);
+                    DebugLine(sim, Position(o) + Vector3.up * .3f, OzForkOptions.Accent);
+                }
+                if (panel.RouteDebug)
+                {
+                    DebugLine(sim, sim + new Vector3(o.Dx, 0, -o.Dy) * ZConst.PX_TO_M, Color.green);
+                    if (o.Waypoints.Count > 0)
+                    {
+                        var wp = o.Waypoints[0];
+                        var end = ZGame.PxToWorld(wp.x, wp.y); end.y = sim.y;
+                        DebugLine(sim, end, Color.yellow);
+                    }
+                }
+            }
+            for (int i = usedLines; i < debugLines.Count; i++) debugLines[i].gameObject.SetActive(false);
             foreach (Team team in new[] { Team.Red, Team.Blue })
             {
                 if (!testing.TryGetRespawnPoint(team, out int x, out int y)) continue;
@@ -75,7 +101,10 @@ namespace OpenZ
                 b.Ratio.Set(score.SuccessPercent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%");
                 b.Kills.SetActive(show); b.Deaths.SetActive(show); b.Ratio.SetActive(show);
                 b.Root.Find("Trophy").gameObject.SetActive(show); b.Root.Find("Skull").gameObject.SetActive(show);
-                b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason);
+                b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason + "\n" +
+                    (o.IsRunning ? "BOOST" : "WALK") + " | stamina " + o.Stamina.ToString("0.0") +
+                    " | sim " + (Math.Sqrt((double)o.Dx * o.Dx + (double)o.Dy * o.Dy) * ZConst.PX_TO_M).ToString("0.0") + " m/s" +
+                    " | gap " + Vector3.Distance(Position(o), OzUnitEditor.I.Game.CenterWorld(o)).ToString("0.0") + " m");
             }
             remove.Clear();
             foreach (var pair in badges)
@@ -99,6 +128,23 @@ namespace OpenZ
                 n.Root.anchoredPosition += Vector2.up * ((Time.unscaledTime - n.Started) * 65);
                 var c = n.Text.color; c.a = Mathf.Clamp01((n.Until - Time.unscaledTime) / .4f); n.Text.color = c;
             }
+        }
+        void DebugLine(Vector3 from, Vector3 to, Color color)
+        {
+            var a = Camera.main.WorldToScreenPoint(from); var b = Camera.main.WorldToScreenPoint(to);
+            if (a.z <= 0 || b.z <= 0) return;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, a, null, out var start);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(root, b, null, out var end);
+            if (usedLines == debugLines.Count)
+            {
+                var img = Hud.Img(root, "SimulationDebug", color); img.raycastTarget = false;
+                debugLines.Add(img.rectTransform);
+            }
+            var line = debugLines[usedLines++]; line.gameObject.SetActive(true);
+            line.GetComponent<Image>().color = color;
+            line.anchorMin = line.anchorMax = root.pivot; line.pivot = new Vector2(0, .5f);
+            line.anchoredPosition = start; line.sizeDelta = new Vector2(Vector2.Distance(start, end), 2);
+            line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(end.y - start.y, end.x - start.x) * Mathf.Rad2Deg);
         }
         Vector3 Position(ZObject o)
         {

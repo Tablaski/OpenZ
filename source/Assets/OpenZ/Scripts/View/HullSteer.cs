@@ -97,7 +97,10 @@ namespace OpenZ
             }
             if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.DirectView) && moving)
             {
-                hull = Mathf.Atan2(o.Dx, -o.Dy) * Mathf.Rad2Deg;
+                // Direct position following must not bypass the user's hull rotation limit.
+                float target = Mathf.Atan2(o.Dx, -o.Dy) * Mathf.Rad2Deg;
+                float cap = (float)behavior[OpenZ.Sim.ZBehaviorKey.TurnRate];
+                hull = cap == 0 ? target : Mathf.MoveTowardsAngle(hull, target, cap * dt);
                 goal = cand = hull; rate = 0f; return hull;
             }
             commitT += dt; forceT += dt;

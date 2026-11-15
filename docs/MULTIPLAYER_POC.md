@@ -8,7 +8,7 @@ A versioned protocol sends the initial state, then property changes,
 creations, removals and events at 15 Hz. Commands are validated by the host.
 Map, settings and schema fingerprints must match.
 Online play uses encrypted reliable ordered WebRTC data channels with ICE/STUN
-and private Cloudflare TURN fallback. Advanced TCP/IP preserves the original
+and Cloudflare TURN fallback with preventive usage cutoff. Advanced TCP/IP preserves the original
 transport as a separate alternative. Cloudflare Workers and SQLite Durable
 Objects handle invitations and signaling, never simulation or voice packets.
 
@@ -78,7 +78,7 @@ its HTTPS link to the guest. The guest opens it and chooses Join in OpenZ, or
 pastes the link/code into JOIN FRIEND. Neither player enters an IP address or
 configures a router or VPN. Both players need the same build and mark themselves
 ready in the lobby. See [the service guide](../services/duel-signaling/README.md)
-for deployment and the private relay allowlist.
+for deployment and the universal relay usage guard.
 
 The Windows player registers openz:// links for the current account on a normal
 launch. An online link joins automatically. No administrator rights or background
@@ -91,10 +91,11 @@ For LAN play, use the host's LAN address. No permanent server is required.
 
 ## Limitations
 
-There is no reconnection or host migration. Public players receive STUN only;
-TURN is issued only when both players present an authorized private code.
+There is no reconnection or host migration. All players can receive temporary
+TURN credentials while the account-wide usage guard permits it; otherwise
+connections use STUN only. No private access code is required.
 This Windows libjuice build supports TURN over UDP, not TCP/TLS, so networks
-blocking all UDP can still fail. Private credentials expire after six hours.
+blocking all UDP can still fail. Temporary credentials expire after six hours.
 Two remote PCs and actual headset quality still require separate testing.
 
 Reliable game channels recover packet loss but can delay later updates. Voice

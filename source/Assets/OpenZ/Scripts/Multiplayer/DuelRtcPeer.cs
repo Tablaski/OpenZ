@@ -99,7 +99,7 @@ namespace OpenZ.Multiplayer
                 var localCandidate = new StringBuilder(2048); var remoteCandidate = new StringBuilder(2048);
                 DuelRtcNative.Check(DuelRtcNative.rtcGetSelectedCandidatePair(pc, localCandidate, localCandidate.Capacity, remoteCandidate, remoteCandidate.Capacity));
                 UsesRelay = localCandidate.ToString().Contains("typ relay") || remoteCandidate.ToString().Contains("typ relay");
-                if (relayOnly && !UsesRelay) throw new IOException("The private relay check did not select a relay.");
+                if (relayOnly && !UsesRelay) throw new IOException("The relay check did not select a relay.");
                 Send(new DuelPacket(DuelMessage.Hello, DuelTcpPeer.EncodeHello(secret, fingerprint, name)));
                 byte[] sending = null; int offset = 0;
                 int voiceSequence = 0, receivedVoiceSequence = 0;

@@ -223,3 +223,27 @@ must be added here and checked together on the next requested release.
   debug visibility/readability at different camera angles, turn rate at 0/90,
   direct/follower/physical mode transitions and repeated infinite combat.
   No player build or gameplay tests were requested or performed.
+
+## Universal relay with preventive cutoff (0.2.2, awaiting player validation)
+
+- Private access codes, local credential loading and password fields are removed.
+  Existing personal preference keys/choices and old ignored private files are not
+  reset or deleted. No Google integration is introduced.
+- Every authenticated room seat can request temporary TURN credentials when the
+  shared server-side budget allows. The guard includes all TURN keys and SFU,
+  closes at 900 decimal GB, fails closed on unavailable analytics/configuration,
+  and caps budget grants at 120 per rolling hour across all rooms. Public direct
+  play stays available when TURN is refused. This is not a hard spending cap.
+- Server activation requires Account Analytics: Read credentials and the account's
+  verified UTC billing day, supplied only through secure Wrangler prompts. Until
+  configured, the updated service returns STUN only. No live credentials or live
+  billing-period settings were guessed from the local clock.
+- Completed: 12 server unit tests; real local Workers/SQLite/WebSocket integration
+  test with mocked TURN/SFU analytics and real shared cutoff; all Unity runtime
+  scripts compile (existing warnings only). No real TURN traffic was generated.
+- Pending user validation on the next requested release: Online Settings without
+  passwords, two remote PCs connecting directly and by relay, voice, and clear
+  direct-only feedback when the allowance is reserved or analytics unavailable.
+  Existing long sessions and credential expiry still need manual validation.
+- No game player was built or launched. A requested release build is recommended
+  because the connection flow and its failure handling changed.

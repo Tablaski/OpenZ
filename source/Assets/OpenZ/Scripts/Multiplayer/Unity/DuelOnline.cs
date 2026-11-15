@@ -30,10 +30,10 @@ namespace OpenZ.Multiplayer
             return uri.GetLeftPart(UriPartial.Authority);
         }
     }
-    [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint, relayToken; }
+    [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint; }
     [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; }
     [Serializable] sealed class DuelIceServer { public string[] urls; public string username, credential; }
-    [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string error; }
+    [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, error; }
     [Serializable] sealed class DuelSignal { public string type, sdp; }
 
     /// <summary>Small HTTPS/WebSocket signaling client. Game and voice never pass through the lobby.</summary>
@@ -48,6 +48,7 @@ namespace OpenZ.Multiplayer
         public string Secret { get; private set; }
         public string Status { get; private set; } = "Creating invitation…";
         public bool RelayAvailable { get; private set; }
+        public string RelayNotice { get; private set; } = "";
         public DuelOnline(CancellationToken cancel) { stop = CancellationTokenSource.CreateLinkedTokenSource(cancel); }
         public static string ReadCode(string invitation)
         {
@@ -90,13 +91,13 @@ namespace OpenZ.Multiplayer
                 }
             }
         }
-        public async Task<IDuelPeer> ConnectAsync(string service, bool host, string invitation, string fingerprint, string name, string relayToken, bool relayOnly)
+        public async Task<IDuelPeer> ConnectAsync(string service, bool host, string invitation, string fingerprint, string name, bool relayOnly)
         {
             try
             {
                 service = DuelOnlineSettings.ValidateService(service);
                 var room = await Post<DuelRoomResponse>(host ? service + "/rooms" : service + "/rooms/" + ReadCode(invitation) + "/join",
-                    new DuelOnlineRequest { name = name, fingerprint = fingerprint, relayToken = relayToken }).ConfigureAwait(false);
+                    new DuelOnlineRequest { name = name, fingerprint = fingerprint }).ConfigureAwait(false);
                 RoomCode = room.room; Secret = room.secret;
                 Status = host ? "Waiting for your opponent… Copy the invitation above." : "Joining your opponent…";
                 socket = new ClientWebSocket(); socket.Options.SetRequestHeader("Authorization", "Bearer " + room.seat);
@@ -108,17 +109,20 @@ namespace OpenZ.Multiplayer
                 stop.CancelAfter(TimeSpan.FromSeconds(90)); Status = "Preparing your connection…";
                 var ice = await Post<DuelIceResponse>(service + "/rooms/" + RoomCode + "/ice", new DuelOnlineRequest(), room.seat).ConfigureAwait(false);
                 RelayAvailable = ice.relay;
-                if (relayOnly && !ice.relay) throw new IOException("Private relay access is required on both installations.");
+                if (!ice.relay) RelayNotice = ice.relayReason == "budget"
+                    ? "Relay allowance reserved for this billing period. Trying a direct connection."
+                    : "Relay temporarily unavailable. Trying a direct connection.";
+                if (relayOnly && !ice.relay) throw new IOException(RelayNotice + " Relay-only testing cannot continue.");
                 string[] servers = ice.iceServers.SelectMany(server => server.urls.Select(url => IceUrl(url, server.username, server.credential))).ToArray();
                 peer = new DuelRtcPeer(servers, relayOnly, room.secret, fingerprint, name);
-                Status = "Finding a connection that works for you both…";
+                Status = ice.relay ? "Finding a connection that works for you both…" : RelayNotice;
                 if (host) await Send(new DuelSignal { type = "offer", sdp = await peer.DescriptionAsync("offer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
                 var description = await Receive().ConfigureAwait(false);
                 if (description.type != (host ? "answer" : "offer")) throw new IOException("Your opponent left. Ask for a new invitation.");
                 peer.SetRemoteDescription(description.sdp, description.type);
                 if (!host) await Send(new DuelSignal { type = "answer", sdp = await peer.DescriptionAsync("answer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
                 peer.Start();
-                Status = "Finishing your connection…";
+                Status = ice.relay ? "Finishing your connection…" : RelayNotice;
                 using (stop.Token.Register(() => peer.Dispose())) await peer.Ready.ConfigureAwait(false);
                 transferred = true; stop.CancelAfter(Timeout.InfiniteTimeSpan); Status = "Connected";
                 // Signaling is no longer needed; closing it does not close the peer connection.
@@ -126,7 +130,7 @@ namespace OpenZ.Multiplayer
                 return peer;
             }
             catch (DllNotFoundException) { throw new IOException("The WebRTC library is missing. Reinstall the complete player folder or use Advanced TCP/IP."); }
-            catch (OperationCanceledException) { throw new IOException("Connection cancelled or timed out. Try a new invitation. Without private relay access, some networks require Advanced TCP/IP."); }
+            catch (OperationCanceledException) { throw new IOException("Connection cancelled or timed out. " + RelayNotice + " Try a new invitation or Advanced TCP/IP."); }
             finally { if (!transferred) peer?.Dispose(); }
         }
         static string IceUrl(string url, string username, string credential)

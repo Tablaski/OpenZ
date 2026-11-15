@@ -8,17 +8,76 @@ export function randomToken(bytes = 24) {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(bytes)))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 export function validRoom(room) { return /^OPNZ-[A-F0-9]{24}$/.test(room); }
-export async function relayAllowed(token, hashes) {
-  if (typeof token !== "string" || token.length < 32 || token.length > 256) return false;
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  const actual = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
-  return (hashes || "").split(",").some(expected => {
-    expected = expected.trim().toLowerCase();
-    if (expected.length !== actual.length) return false;
-    let difference = 0;
-    for (let i = 0; i < actual.length; i++) difference |= expected.charCodeAt(i) ^ actual.charCodeAt(i);
-    return difference === 0;
-  });
+// All rooms share one guard. Its response contains no account or usage details.
+export function billingPeriod(day, now = Date.now()) {
+  if (!/^([1-9]|[12][0-9]|3[01])$/.test(String(day))) throw new Error("Missing billing day.");
+  const date = new Date(now);
+  const boundary = (year, month) => new Date(Date.UTC(year, month,
+    Math.min(Number(day), new Date(Date.UTC(year, month + 1, 0)).getUTCDate())));
+  let start = boundary(date.getUTCFullYear(), date.getUTCMonth());
+  if (+start > now) start = boundary(date.getUTCFullYear(), date.getUTCMonth() - 1);
+  const end = boundary(start.getUTCFullYear(), start.getUTCMonth() + 1);
+  return { start: start.toISOString().slice(0, 10), end: +end };
+}
+
+export class RelayBudget {
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; }
+  fetch() { return this.ctx.blockConcurrencyWhile(() => this.check()); }
+  async check() {
+    const unavailable = { allowed: false, reason: "unavailable" };
+    try {
+      const env = this.env, now = Date.now();
+      if (env.TURN_ENABLED !== "true") return json({ allowed: false, reason: "disabled" });
+      const limit = Number(env.TURN_BUDGET_BYTES);
+      // Require explicit configuration; never silently guess the billing cycle.
+      if (!/^[a-f0-9]{32}$/i.test(env.CF_ACCOUNT_ID || "") || !env.CF_ANALYTICS_TOKEN ||
+          !Number.isSafeInteger(limit) || limit <= 0 || limit > 900000000000) return json(unavailable);
+      const period = billingPeriod(env.TURN_BILLING_DAY, now);
+      const identity = `${env.CF_ACCOUNT_ID}:${period.start}:${limit}`;
+      let state = await this.ctx.storage.get("budget");
+      if (!state || state.identity !== identity) state = { identity, peak: 0, grants: [] };
+      if (state.peak >= limit) return json({ allowed: false, reason: "budget" });
+      if (!(state.checkedAt <= now && now - state.checkedAt < 60000)) {
+        // Account-wide TURN plus SFU: both consume the shared free allowance.
+        // No dimensions means one total, rather than a truncated list of users/keys.
+        const query = `query($account: string, $from: Date, $to: Date) {
+          viewer { accounts(filter: { accountTag: $account }) {
+            turn: callsTurnUsageAdaptiveGroups(limit: 1, filter: { date_geq: $from, date_leq: $to }) { sum { egressBytes } }
+            sfu: callsUsageAdaptiveGroups(limit: 1, filter: { date_geq: $from, date_leq: $to }) { sum { egressBytes } }
+          } }
+        }`;
+        const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+          method: "POST", headers: { Authorization: `Bearer ${env.CF_ANALYTICS_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, variables: { account: env.CF_ACCOUNT_ID, from: period.start, to: new Date(now).toISOString().slice(0, 10) } }),
+          signal: AbortSignal.timeout(8000)
+        });
+        if (!response.ok) return json(unavailable);
+        const result = await response.json(), accounts = result.data?.viewer?.accounts;
+        if ((result.errors && (!Array.isArray(result.errors) || result.errors.length)) || !Array.isArray(accounts) || accounts.length !== 1) return json(unavailable);
+        let used = 0;
+        for (const name of ["turn", "sfu"]) {
+          const groups = accounts[0][name];
+          if (!Array.isArray(groups) || groups.length > 1) return json(unavailable);
+          for (const group of groups) {
+            const bytes = group?.sum?.egressBytes;
+            if (!Number.isSafeInteger(bytes) || bytes < 0) return json(unavailable);
+            used += bytes;
+          }
+        }
+        if (!Number.isSafeInteger(used)) return json(unavailable);
+        state.peak = Math.max(state.peak, used); state.checkedAt = now;
+      }
+      // Global issuance cap, in addition to the per-network request limit.
+      // Temporary credentials can be extracted from any public client.
+      state.grants = state.grants.filter(time => time > now - 3600000);
+      const reason = state.peak >= limit ? "budget" : state.grants.length >= 120 ? "busy" : "";
+      if (!reason) state.grants.push(now);
+      await this.ctx.storage.put("budget", state);
+      await this.ctx.storage.setAlarm(period.end);
+      return json({ allowed: !reason, reason });
+    } catch { return json(unavailable); }
+  }
+  async alarm() { await this.ctx.storage.deleteAll(); }
 }
 async function body(request) {
   if (Number(request.headers.get("Content-Length")) > MAX_BODY) throw new Error("Request too large.");
@@ -91,7 +150,7 @@ export class DuelRoom {
         if (room) return json({ error: "Room already exists." }, 409);
         if (!validPlayer(data)) return json({ error: "Invalid player or game version." }, 400);
         room = { code: request.headers.get("X-Room-Code"), secret: randomToken(), fingerprint: data.fingerprint, expires: Date.now() + ROOM_LIFETIME,
-          host: { seat: randomToken(), relay: await relayAllowed(data.relayToken, this.env.PRIVATE_RELAY_HASHES) }, guest: null };
+          host: { seat: randomToken() }, guest: null };
         await this.ctx.storage.put("room", room); await this.ctx.storage.setAlarm(room.expires);
         return json({ room: room.code, secret: room.secret, seat: room.host.seat, role: "host" });
       }
@@ -99,7 +158,7 @@ export class DuelRoom {
       if (path === "/join") {
         if (room.guest) return json({ error: "This room is already full. Ask for a new invitation." }, 409);
         if (!validPlayer(data) || data.fingerprint !== room.fingerprint) return json({ error: "Both players must use the same game version." }, 409);
-        room.guest = { seat: randomToken(), relay: await relayAllowed(data.relayToken, this.env.PRIVATE_RELAY_HASHES) };
+        room.guest = { seat: randomToken() };
         await this.ctx.storage.put("room", room);
         return json({ room: room.code, secret: room.secret, seat: room.guest.seat, role: "guest" });
       }
@@ -108,21 +167,37 @@ export class DuelRoom {
       const role = seat === room.host.seat ? "host" : seat === room.guest?.seat ? "guest" : null;
       if (!role) return json({ error: "Invalid room access." }, 403);
       if (path === "/ice") {
-        if (this.env.TURN_ENABLED !== "true" || !room.host.relay || !room.guest?.relay) return json({ iceServers: STUN, relay: false });
+        const direct = reason => json({ iceServers: STUN, relay: false, relayReason: reason });
+        if (this.env.TURN_ENABLED !== "true") return direct("disabled");
+        if (!room.guest) return direct("waiting");
         const player = room[role];
-        if (!player.ice) {
-          if (!this.env.TURN_KEY_ID || !this.env.TURN_API_TOKEN) return json({ error: "Private relay is not configured. Contact the host." }, 503);
-          const response = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate`, {
+        if (!this.env.TURN_KEY_ID || !this.env.TURN_API_TOKEN) return direct("unavailable");
+        // Expired credentials are never reused. Cached credentials do not authorize
+        // a new allocation after the budget has closed.
+        let budget;
+        try {
+          const response = await this.env.RELAY_BUDGET.get(this.env.RELAY_BUDGET.idFromName("account")).fetch(new Request("https://internal/check"));
+          if (!response.ok) return direct("unavailable");
+          budget = await response.json();
+        } catch { return direct("unavailable"); }
+        if (budget.allowed !== true) return direct(["budget", "busy", "disabled"].includes(budget.reason) ? budget.reason : "unavailable");
+        if (!player.ice || !(player.iceExpires > Date.now())) {
+          const ttl = Math.min(21600, Math.max(600, Number(this.env.TURN_TTL) || 21600));
+          let response;
+          try {
+          response = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate`, {
             method: "POST", headers: { Authorization: `Bearer ${this.env.TURN_API_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ ttl: Math.min(21600, Math.max(600, Number(this.env.TURN_TTL) || 21600)) })
+            body: JSON.stringify({ ttl }), signal: AbortSignal.timeout(8000)
           });
-          if (!response.ok) return json({ error: "Private relay is temporarily unavailable. Please try again." }, 503);
+          if (!response.ok) return direct("unavailable");
           const credentials = await response.json();
           // libjuice supports TURN over UDP. Avoid advertising unsupported TCP/TLS paths.
           const source = Array.isArray(credentials.iceServers) ? credentials.iceServers : [credentials.iceServers];
-          player.ice = source.filter(Boolean).map(server => ({ urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => /^turn:/.test(url) && !url.includes("transport=tcp")), username: server.username, credential: server.credential })).filter(server => server.urls.length);
-          if (!player.ice.length) return json({ error: "No compatible relay is available." }, 503);
+          player.ice = source.filter(server => server && typeof server.username === "string" && server.username && typeof server.credential === "string" && server.credential).map(server => ({ urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => typeof url === "string" && /^turn:/.test(url) && !url.includes("transport=tcp")), username: server.username, credential: server.credential })).filter(server => server.urls.length);
+          if (!player.ice.length) return direct("unavailable");
+          player.iceExpires = Date.now() + ttl * 1000;
           await this.ctx.storage.put("room", room);
+          } catch { return direct("unavailable"); }
         }
         return json({ iceServers: [...STUN, ...player.ice], relay: true });
       }

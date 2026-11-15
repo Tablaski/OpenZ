@@ -23,5 +23,5 @@ try {
     # A public endpoint is safe in source. No account token or private code is written here.
     $configurationText = "namespace OpenZ.Multiplayer`n{`n    public static class DuelServiceConfiguration`n    {`n        public const string ServiceUrl = `"$normalizedUrl`";`n    }`n}`n"
     [IO.File]::WriteAllText($configuration, $configurationText, (New-Object Text.UTF8Encoding($false)))
-    Write-Output "Invitation service configured: $normalizedUrl. Build the player to include this public endpoint. Private TURN requires server-side secrets and authorization for both players."
+    Write-Output "Invitation service configured: $normalizedUrl. Build the player to include this public endpoint. Universal TURN requires server-side secrets, the correct billing day and successful budget checks."
 } finally { Pop-Location }

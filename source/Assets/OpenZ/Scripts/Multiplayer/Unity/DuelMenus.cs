@@ -37,7 +37,7 @@ namespace OpenZ.Multiplayer
         InputField chatField;
         bool bindingChat, bindingTalk;
         bool advanced, onlineSettings;
-        string serviceUrl, accessCode = "", setupStatus = "";
+        string serviceUrl, setupStatus = "";
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
         public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk || (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
@@ -203,11 +203,11 @@ namespace OpenZ.Multiplayer
             Input(left, "YOUR NAME", 30, 90, 760, name, v => name = v, 32);
             Button(left, "CREATE INVITATION", 30, 240, 760, () => { SaveName(); R.ConnectOnline(name, true, ""); }, true);
             Label(left, "Send the invitation to your friend. That's it.", 30, 355, 760, 20, OzUi.Ink);
-            Label(left, "No IP address, router setup or VPN needed.", 30, 420, 760, 18, OzUi.Muted);
+            Label(left, "Direct connection first; relay within the shared allowance.", 30, 420, 760, 18, OzUi.Muted);
             Input(right, "PASTE INVITATION OR ROOM CODE", 30, 90, 760, invite, v => invite = v, 1000);
             Button(right, "PASTE", 30, 205, 210, () => { invite = GUIUtility.systemCopyBuffer; dirty = true; });
             Button(right, "JOIN FRIEND", 30, 300, 760, () => { SaveName(); R.ConnectOnline(name, false, invite); }, true);
-            Label(right, "Private relay is available only to authorized players.", 30, 420, 760, 17, OzUi.Muted);
+            Label(right, "Automatic relay for everyone while allowance is available.", 30, 420, 760, 17, OzUi.Muted);
             Button(root, "BACK", 80, 950, 300, CloseOverlay);
         }
         void BuildOnlineSettings()
@@ -215,19 +215,16 @@ namespace OpenZ.Multiplayer
             if (serviceUrl == null) serviceUrl = DuelOnlineSettings.CurrentService;
             var panel = Panel("ONE-TIME ONLINE SETUP", 280, 250, 1360, 610);
             Input(panel, "INVITATION SERVICE", 40, 80, 1280, serviceUrl, v => serviceUrl = v, 500);
-            Input(panel, "PRIVATE ACCESS CODE (OPTIONAL)", 40, 210, 1280, accessCode, v => accessCode = v, 256);
-            var secretField = panel.GetComponentsInChildren<InputField>().Last(); secretField.contentType = InputField.ContentType.Password; secretField.ForceLabelUpdate();
-            Label(panel, DuelPrivateAccess.Enabled ? "Private access saved for this Windows user." : "No private access saved. Direct connections still work.", 40, 315, 1280, 19, OzUi.Muted);
+            Label(panel, "OpenZ-VK connects automatically. No relay password or account is required.", 40, 230, 1280, 19, OzUi.Muted);
+            Label(panel, "If the shared relay allowance is unavailable, direct connections still work where supported.", 40, 285, 1280, 19, OzUi.Muted);
             Button(panel, "SAVE", 40, 385, 390, () => {
                 try {
                     string normalized = DuelOnlineSettings.ValidateService(serviceUrl);
-                    if (!string.IsNullOrWhiteSpace(accessCode)) DuelPrivateAccess.Save(accessCode);
                     PlayerPrefs.SetString("oz_duel_service", normalized); PlayerPrefs.Save();
-                    accessCode = ""; setupStatus = "Online settings saved.";
+                    setupStatus = "Online settings saved.";
                 } catch (Exception error) { setupStatus = error.Message; }
                 dirty = true;
             }, true);
-            Button(panel, "REMOVE PRIVATE ACCESS", 470, 385, 760, () => { DuelPrivateAccess.Save(""); accessCode = ""; setupStatus = "Private access removed."; dirty = true; });
             Label(panel, setupStatus, 40, 490, 1280, 19, OzUi.Ink);
             Button(root, "BACK", 80, 950, 300, () => { onlineSettings = false; dirty = true; });
         }

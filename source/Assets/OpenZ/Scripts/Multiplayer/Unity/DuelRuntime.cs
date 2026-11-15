@@ -168,7 +168,7 @@ namespace OpenZ.Multiplayer
                 if (host) { lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, Defaults("L02")); View = DuelLobbyData.From(lobby); }
                 cancellation = new CancellationTokenSource(); online = new DuelOnline(cancellation.Token);
                 string service = DuelOnlineSettings.CurrentService;
-                connectTask = online.ConnectAsync(service, host, invitation, Fingerprint(), name, DuelPrivateAccess.Read(),
+                connectTask = online.ConnectAsync(service, host, invitation, Fingerprint(), name,
                     Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only"));
                 Status = "Connecting…"; Menus.ShowLobby();
             }
@@ -222,7 +222,7 @@ namespace OpenZ.Multiplayer
                 if (connectTask != null && connectTask.IsCompleted)
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
-                    lastReceive = Now; Status = OnlineMode ? (OnlinePeer.UsesRelay ? "Connected via private relay" : "Connected directly") : "Connected";
+                    lastReceive = Now; Status = OnlineMode ? (OnlinePeer.UsesRelay ? "Connected via relay" : "Connected directly") : "Connected";
                     if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;

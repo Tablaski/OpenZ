@@ -8,9 +8,15 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "DuelRoom" },
-      { "name": "LIMITS", "class_name": "RequestLimit" }
+      { "name": "LIMITS", "class_name": "RequestLimit" },
+      { "name": "RELAY_BUDGET", "class_name": "RelayBudget" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DuelRoom", "RequestLimit"] }],
-  "vars": { "TURN_ENABLED": "true", "TURN_TTL": "21600" }
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["DuelRoom", "RequestLimit"] },
+    { "tag": "v2", "new_sqlite_classes": ["RelayBudget"] }
+  ],
+  // Configure TURN_BILLING_DAY as a server-side secret with the setup helper.
+  // Missing account/analytics secrets or billing day leaves direct play available.
+  "vars": { "TURN_ENABLED": "true", "TURN_TTL": "21600", "TURN_BUDGET_BYTES": "900000000000" }
 }

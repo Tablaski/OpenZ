@@ -8,7 +8,6 @@ bool relayOnly = args.Contains("--relay");
 string[] hostServers = Array.Empty<string>(), guestServers = Array.Empty<string>();
 if (relayOnly)
 {
-    string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
     using var http = new HttpClient();
     string service = Environment.GetEnvironmentVariable("OPENZ_DUEL_SERVICE_URL") ?? "https://openz-duel.openz-tablaski.workers.dev";
     async Task<JsonElement> Post(string path, object data, string seat = null)
@@ -19,9 +18,9 @@ if (relayOnly)
         using var response = await http.SendAsync(request); response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
     }
-    var a = await Post("/rooms", new { name = "Native relay host", fingerprint = new string('A', 64), relayToken = File.ReadAllText(Path.Combine(root, ".local/duel-private/owner-access.txt")).Trim() });
+    var a = await Post("/rooms", new { name = "Native relay host", fingerprint = new string('A', 64) });
     string room = a.GetProperty("room").GetString();
-    var b = await Post("/rooms/" + room + "/join", new { name = "Native relay guest", fingerprint = new string('A', 64), relayToken = File.ReadAllText(Path.Combine(root, ".local/duel-private/brother-access.txt")).Trim() });
+    var b = await Post("/rooms/" + room + "/join", new { name = "Native relay guest", fingerprint = new string('A', 64) });
     async Task<string[]> Servers(string seat)
     {
         var ice = await Post("/rooms/" + room + "/ice", new { }, seat);
@@ -76,14 +75,3 @@ var invalid = new byte[12]; BitConverter.GetBytes(0x31445A4Fu).CopyTo(invalid, 0
 BitConverter.GetBytes((ushort)DuelMessage.Load).CopyTo(invalid, 6); BitConverter.GetBytes(DuelWire.MaxPayload + 1).CopyTo(invalid, 8);
 try { decoder.Add(invalid, invalid.Length).ToArray(); throw new Exception("Oversized frame accepted."); }
 catch (InvalidDataException) { Console.WriteLine("PASS: oversized snapshot rejected before allocation."); }
-
-string privateCode = DuelTcpPeer.NewInvitationSecret();
-try
-{
-    DuelPrivateAccess.Save(privateCode);
-    if (DuelPrivateAccess.Read() != privateCode) throw new Exception("Private access did not survive Windows DPAPI roundtrip.");
-    string path = Path.Combine(UnityEngine.Application.persistentDataPath, "duel-private-access.bin");
-    if (System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(path)).Contains(privateCode)) throw new Exception("Private access stored as plaintext.");
-    Console.WriteLine("PASS: Windows DPAPI protects private access and restores it for the local user.");
-}
-finally { DuelPrivateAccess.Save(""); }

@@ -114,3 +114,11 @@ The current native ICE backend supports TURN over UDP only. Networks blocking
 all UDP can still fail. Private credentials expire after six hours; there is no
 mid-match ICE restart, credential renewal or host migration. Cloudflare's free
 allowance is not a spending cap.
+
+## OpenZ-VK 0.2.2 supersedes private relay access
+
+The historical private-access validation above describes the previous service
+and players. Current source removes the allowlist/password flow and replaces it
+with universal temporary credentials guarded by account-wide usage. See
+[service setup](../services/duel-signaling/README.md), [security review](SECURITY_REVIEW.md)
+and [pending player validation](PLAYER_VALIDATION.md). No new player was built.

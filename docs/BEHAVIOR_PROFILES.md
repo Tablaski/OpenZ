@@ -88,6 +88,10 @@ release into `builds/OpenZ-Release`. Wait for SUCCESS. Start `OpenZ-Duel.exe`
 there and keep the complete folder together when moving or sharing the game.
 `SOURCE_VERSION.txt` identifies the source commit and any uncommitted files.
 Errors are in `tests/Multiplayer/.cli/Unity-build-OpenZ-Release.log`.
+Launch the batch file once and keep its window open. A second launch is refused
+while another build or Unity editor holds the project, with an explicit message;
+it does not stop that process or overwrite its log. Wait for the original
+window's SUCCESS message, or close the editor before trying again.
 
 This requires the complete existing local Unity project and its configured
 Unity installation. The launcher does not download missing assets or licenses.

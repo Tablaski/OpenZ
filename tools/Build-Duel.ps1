@@ -33,10 +33,22 @@ if ($OutputDirectory) {
 $duelMutex = [Threading.Mutex]::new($false, 'Local\OpenZ-Duel-UnityBuild')
 $duelOwnsMutex = $false
 try {
-    try { $duelOwnsMutex = $duelMutex.WaitOne(600000) }
+    try { $duelOwnsMutex = $duelMutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $duelOwnsMutex = $true }
-    if (-not $duelOwnsMutex) { throw 'Another Unity build is still running. Try again after it finishes.' }
-    $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WindowStyle Hidden -Wait -PassThru
+    if (-not $duelOwnsMutex) { throw 'Another Unity build is still running. Keep its window open and wait for SUCCESS; do not launch another build.' }
+    # Unity also locks the project for editor sessions and builds started outside this launcher.
+    # Check before starting a second instance, which would overwrite the running build's log.
+    $duelLockPath = Join-Path $duelProject 'Temp\UnityLockfile'
+    if (Test-Path -LiteralPath $duelLockPath) {
+        try {
+            $duelLockProbe = [IO.File]::Open($duelLockPath, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+            $duelLockProbe.Dispose()
+        } catch [IO.IOException] {
+            throw 'This project is already in use by Unity. A build may still be running: wait for its SUCCESS message. Otherwise close the Unity editor, then run BUILD-OPENZ.bat once. The current Unity process has not been stopped.'
+        }
+    }
+    Write-Output ('Building the release. Progress log: ' + $duelLog)
+    $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WorkingDirectory $duelRoot -WindowStyle Hidden -Wait -PassThru
     if ($duelBuild.ExitCode -ne 0) { throw "Unity build failed. Read $duelLog" }
     $duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Duel\BUILD_RESULT.txt' }
     if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {

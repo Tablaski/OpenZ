@@ -15,10 +15,11 @@ namespace OpenZ.Multiplayer
         string role, folder;
         double began;
         bool joined, ordered, surrendered, finished, captured, lobbyCaptured, menuShown, menuCaptured, menuClosed, arenaMade, damaged;
-        bool forceProofStarted, forceProofDone;
         double connectedAt = -1, lastVoice;
         int exceptions;
         bool lobbyVoice, chatSent, chatOpened, chatClosed, chatExpired;
+        bool microphoneCaptured, microphoneDevicesCaptured;
+        bool forceProofStarted, forceProofDone;
         double noticeSeenAt = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -122,6 +123,24 @@ namespace OpenZ.Multiplayer
                         for (int tab = 0; tab < OzSettingTips.TabNames.Length; tab++) pause.ProofOptTab(tab);
                         pause.ProofOptTab(0);
                         DuelProofCapture.Save(Path.Combine(folder, role + "-menu.png"), true); menuCaptured = true;
+                        var tabs = (System.Collections.Generic.List<HudButton>)typeof(OpenZPauseMenu).GetField("optTabBtns", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
+                        if (tabs.Count != 5 || tabs[4].Label.text != "MICROPHONE") throw new Exception("Missing native microphone options tab.");
+                        tabs[4].OnClick(new HudClick());
+                    }
+                    if (!microphoneCaptured && w.Time > 8.4)
+                    {
+                        var pause = FindFirstObjectByType<OpenZPauseMenu>();
+                        if (pause.ProofOptTabOpen != OpenZPauseMenu.MicrophoneTab || r.Menus.CapturesInput) throw new Exception("Microphone settings replaced the normal options menu.");
+                        DuelProofCapture.Save(Path.Combine(folder, role + "-microphone-tab.png"), true);
+                        var selector = (HudButton)typeof(OpenZPauseMenu).GetField("microphoneDevice", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
+                        selector.OnClick(new HudClick()); microphoneCaptured = true;
+                    }
+                    if (!microphoneDevicesCaptured && w.Time > 8.7)
+                    {
+                        var pause = FindFirstObjectByType<OpenZPauseMenu>();
+                        var choices = (System.Collections.Generic.List<HudButton>)typeof(OpenZPauseMenu).GetField("microphoneDeviceButtons", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
+                        if (choices.Count != Microphone.devices.Length + 1) throw new Exception("Native microphone tab is missing input devices.");
+                        DuelProofCapture.Save(Path.Combine(folder, role + "-microphone-tab-devices.png"), true); microphoneDevicesCaptured = true;
                     }
                     if (!menuClosed && w.Time > 9) { r.Menus.CloseOverlay(); menuClosed = true; }
                     if (w.Time > 4 && w.Time < 12 && Time.realtimeSinceStartupAsDouble - lastVoice > .02)
@@ -142,7 +161,7 @@ namespace OpenZ.Multiplayer
                     if (w.GameOver)
                     {
                         bool blueFortGone = w.Objects.Where(o => o.IsFort && o.Owner == Team.Blue).All(o => o.Destroyed);
-                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && forceProofDone && lobbyVoice && chatOpened && chatClosed && chatExpired && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
+                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && microphoneCaptured && microphoneDevicesCaptured && lobbyVoice && chatOpened && chatClosed && chatExpired && forceProofDone && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
                             "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; lobbyVoice=" + lobbyVoice + "; chatClick=" + chatOpened + "; chatExpiry=" + chatExpired + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
                     }
                 }

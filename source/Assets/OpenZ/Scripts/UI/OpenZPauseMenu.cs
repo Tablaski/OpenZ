@@ -84,7 +84,7 @@ namespace OpenZ
             {
                 bRestart.Interactable = false; bRestart.Tooltip = "Restart is unavailable during an online match."; bRestart.Refresh();
                 bQuit.OnClick = c => OzConfirm.Ask("LEAVE THE DUEL?", "YOU WILL DISCONNECT FROM YOUR OPPONENT.", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), id => OzSfx.Ui(id), canvas.sortingOrder + 10);
-                var comm = HudButton.Make(pausePanel, "DuelCommunications", "CHAT & MICROPHONE", new Vector2(OzLayout.PauseBtnW, 36), HudButtonKind.Small, 12);
+                var comm = HudButton.Make(pausePanel, "DuelCommunications", "CHAT & SURRENDER", new Vector2(OzLayout.PauseBtnW, 36), HudButtonKind.Small, 12);
                 comm.Rt.TL(OzLayout.PauseBtnX, 552, OzLayout.PauseBtnW, 36); comm.Priority = 100;
                 comm.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowCommunications(); };
             }
@@ -285,14 +285,21 @@ namespace OpenZ
         const int RoomyRows = 9;
         void BuildOptTabs(RectTransform p)
         {
-            float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * OzLayout.OptX; int n = OzSettingTips.TabNames.Length;
+            float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * OzLayout.OptX; int n = OzSettingTips.TabNames.Length + (OpenZ.Multiplayer.DuelRuntime.Active ? 1 : 0);
             float bw = (w - OzLayout.OptTabGap * (n - 1)) / n;
             optTabBtns.Clear();
+            float tabX = x;
             for (int i = 0; i < n; i++)
             {
                 int id = i;
-                var b = HudButton.Make(p, "Tab" + i, OzSettingTips.TabNames[i], new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.14f);
-                b.Rt.Place(new OzRect(x + i * (bw + OzLayout.OptTabGap), OzLayout.OptTabY, bw, OzLayout.OptTabH));
+                if (n == 5)
+                {
+                    float[] weights = { .8f, .8f, 1.05f, 1.15f, 1.35f };
+                    bw = (w - OzLayout.OptTabGap * (n - 1)) * weights[i] / 5.15f;
+                }
+                var b = HudButton.Make(p, "Tab" + i, i == MicrophoneTab ? "MICROPHONE" : OzSettingTips.TabNames[i], new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.14f);
+                b.Rt.Place(new OzRect(tabX, OzLayout.OptTabY, bw, OzLayout.OptTabH));
+                tabX += bw + OzLayout.OptTabGap;
                 b.Priority = 100; b.OnClick = c => { if (optTab != id) OzSfx.Ui("ui_tab_switch"); ShowOptTab(id); };   // the HUD adds ui_click
                 optTabBtns.Add(b);
             }
@@ -306,6 +313,7 @@ namespace OpenZ
                 if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit the 600 panel: the tab keeps a 9-row tab's height
                 for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + step * k, w, rowH));
             }
+            if (OpenZ.Multiplayer.DuelRuntime.Active) BuildMicrophoneTab();
             ShowOptTab(Mathf.Clamp(optTab, 0, n - 1));
         }
 
@@ -313,6 +321,7 @@ namespace OpenZ
         void ShowOptTab(int tab)
         {
             optTab = tab; dragging = null;
+            SetMicrophoneTabVisible(tab == MicrophoneTab);
             foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab);
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
             for (int i = 0; i < optTabBtns.Count; i++) if (optTabBtns[i].Selected != (i == tab)) { optTabBtns[i].Selected = i == tab; optTabBtns[i].Refresh(); }
@@ -384,6 +393,7 @@ namespace OpenZ
         {
             if (!IsOpen) return;
             IsOpen = false; closing = true; closeAt = OzMotion.Now;
+            microphoneBinding = false; if (microphonePage && MicrophoneVoice) MicrophoneVoice.Monitoring = false;
             PlayerPrefs.Save();                                                                              // menu_exe_v1: sliders / speed saved when the menu closes
             game.paused = wasPaused;
             Time.timeScale = prevScale > 0f ? prevScale : 1f;
@@ -397,11 +407,13 @@ namespace OpenZ
             var kb = Keyboard.current; var m = Mouse.current;
             bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
             if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
+            if (microphoneBinding) { TickMicrophoneBinding(); esc = false; }
             if (esc)
             {
                 if (IsOpen) Close();
                 else if (!(hud.EndScreen && hud.EndScreen.IsShown) && !(hud.Production && hud.Production.IsOpen) && !(hud.Rally && hud.Rally.Armed) && hud.input.Placing == null && !hud.ArrangeOwnsEsc) Open();
             }
+            TickMicrophone();
             ApplyShake();
             if (Time.unscaledTime < audioRetryUntil && Time.unscaledTime > nextAudioRetry) { nextAudioRetry = Time.unscaledTime + 2f; OzAudio.Apply(); }   // the audio table may load after the HUD
             if (IsOpen)

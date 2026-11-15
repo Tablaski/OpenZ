@@ -40,7 +40,7 @@ namespace OpenZ.Multiplayer
         string serviceUrl, accessCode = "", setupStatus = "";
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
-        public bool IsTyping => bindingChat || bindingTalk || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
+        public bool IsTyping => bindingChat || bindingTalk || (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
         public bool CapturesInput => page != Page.Entry || (R.InMatch && !R.Playing);
         public void Refresh() { dirty = true; }
@@ -60,7 +60,7 @@ namespace OpenZ.Multiplayer
             dirty = true;
         }
         void OpenChat() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
-        void OpenMicrophone() { microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
+        void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
         {
@@ -365,11 +365,10 @@ namespace OpenZ.Multiplayer
         }
         void BuildGameMenu()
         {
-            var panel = Panel("CHAT & MICROPHONE · MATCH CONTINUES", 480, 170, 960, 780);
+            var panel = Panel("CHAT & SURRENDER · MATCH CONTINUES", 480, 170, 960, 780);
             Button(panel, "BACK TO OPTIONS", 40, 85, 880, ShowInGameMenu, true);
             Button(panel, "OPEN CHAT", 40, 175, 880, OpenChat);
             Button(panel, bindingChat ? "PRESS A KEY…" : "CHAT KEY: " + ChatKey, 40, 265, 880, () => { bindingChat = true; dirty = true; });
-            Button(panel, "MICROPHONE SETTINGS", 40, 355, 880, OpenMicrophone);
             Button(panel, "SURRENDER · YOUR FORT WILL BE DESTROYED", 40, 660, 880, () =>
                 OzConfirm.Ask("SURRENDER THE DUEL?", "YOUR FORT WILL EXPLODE. YOUR OPPONENT WINS.", () => { R.Surrender(); CloseOverlay(); }, id => OzSfx.Ui(id), 1100));
         }

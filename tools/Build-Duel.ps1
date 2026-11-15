@@ -50,7 +50,7 @@ try {
     Write-Output ('Building the release. Progress log: ' + $duelLog)
     $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WorkingDirectory $duelRoot -WindowStyle Hidden -Wait -PassThru
     if ($duelBuild.ExitCode -ne 0) { throw "Unity build failed. Read $duelLog" }
-    $duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Duel\BUILD_RESULT.txt' }
+    $duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Release\BUILD_RESULT.txt' }
     if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {
         throw "Unity did not report a successful player build. Read $duelLog"
     }
@@ -60,7 +60,7 @@ try {
     $duelSourceRecord = @('OpenZ Windows Release', ('Source commit: ' + $duelSourceCommit), ('Built UTC: ' + [DateTime]::UtcNow.ToString('o')), 'Development build: false', 'Script debugging: false', 'Profiler connection: false', ('Uncommitted tracked/untracked source changes: ' + [bool]$duelSourceStatus))
     if ($duelSourceStatus) { $duelSourceRecord += $duelSourceStatus }
     $duelSourceRecord | Set-Content -LiteralPath (Join-Path (Split-Path $duelResult -Parent) 'SOURCE_VERSION.txt') -Encoding UTF8
-    Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'OpenZ-Duel.exe') + '. Keep the complete output folder together.')
+    Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'openz-vk.exe') + '. Keep the complete output folder together.')
 } finally {
     if ($duelOwnsMutex) { $duelMutex.ReleaseMutex() }
     $duelMutex.Dispose()

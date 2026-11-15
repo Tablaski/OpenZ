@@ -49,7 +49,7 @@ change needs a separate backup/distribution decision before delivery.
 ## Build and share
 
 Use tools/Build-Duel.ps1 to build the existing complete local project directly.
-The Windows output is builds/OpenZ-Duel/. Players need that whole folder in a
+The Windows output is builds/OpenZ-Release/openz-vk.exe. Players need that whole folder in a
 release ZIP; they do not need Unity or Git. A playable release should identify
 its source commit and preserve the licenses and credits.
 

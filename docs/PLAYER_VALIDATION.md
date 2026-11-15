@@ -265,3 +265,15 @@ must be added here and checked together on the next requested release.
   a newly requested release build is needed to include the password-free UI.
 - The 900 GB threshold blocks new issuance. Analytics lag and already-issued
   six-hour credentials still prevent any guarantee of a hard billing cap.
+
+## Windows executable name (0.2.4, awaiting player validation)
+
+- Future fork builds emit builds/OpenZ-Release/openz-vk.exe. The release launcher,
+  invitation registration helper and explicit player-test defaults use that name.
+- Unity produces the matching openz-vk_Data folder during the next requested
+  build; distribute the entire output folder. Existing players are not renamed.
+- Company/product and PlayerPrefs remain OpenZ/OpenZ. Preferences and persistent
+  data paths stay compatible. Automatic invitation registration uses the actual
+  running executable path; the manual helper now expects openz-vk.exe.
+- No player build or game launch was performed. Pending: next requested release
+  executable/data folder, launch and invitation registration on the user's PC.

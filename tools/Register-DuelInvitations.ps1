@@ -1,11 +1,11 @@
 param([string]$Executable = '')
 $ErrorActionPreference = 'Stop'
 if (-not $Executable) {
-    $Executable=Join-Path $PSScriptRoot 'OpenZ-Duel.exe'
-    if (-not (Test-Path -LiteralPath $Executable)) { $Executable=Join-Path $PSScriptRoot '..\builds\OpenZ-Duel\OpenZ-Duel.exe' }
+    $Executable=Join-Path $PSScriptRoot 'openz-vk.exe'
+    if (-not (Test-Path -LiteralPath $Executable)) { $Executable=Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe' }
 }
 $duelExecutable = (Resolve-Path -LiteralPath $Executable).Path
-if ([IO.Path]::GetFileName($duelExecutable) -ne 'OpenZ-Duel.exe') { throw 'Expected OpenZ-Duel.exe.' }
+if ([IO.Path]::GetFileName($duelExecutable) -ne 'openz-vk.exe') { throw 'Expected openz-vk.exe.' }
 # Per-user protocol registration. No administrator account or service is needed.
 $protocol = 'HKCU:\Software\Classes\openz'
 New-Item -Path $protocol -Force | Out-Null

@@ -1,4 +1,4 @@
-param([string]$Executable = (Join-Path $PSScriptRoot '../builds/OpenZ-Duel/OpenZ-Duel.exe'))
+param([string]$Executable = (Join-Path $PSScriptRoot '../builds/OpenZ-Release/openz-vk.exe'))
 $ErrorActionPreference = 'Stop'
 $playerPath = (Resolve-Path -LiteralPath $Executable).Path
 $proofDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ('../tests/Multiplayer/.cli/invitations-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))))

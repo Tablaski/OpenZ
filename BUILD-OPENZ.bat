@@ -11,7 +11,7 @@ echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\Build-Duel.ps1" -OutputDirectory "%~dp0builds\OpenZ-Release"
 if errorlevel 1 goto failed
 echo.
-echo  SUCCESS! Your game is in builds\OpenZ-Release\OpenZ-Duel.exe
+echo  SUCCESS! Your game is in builds\OpenZ-Release\openz-vk.exe
 echo  To share the game, copy the ENTIRE OpenZ-Release folder.
 explorer.exe "%~dp0builds\OpenZ-Release"
 goto done

@@ -1,4 +1,4 @@
-param([string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Duel\OpenZ-Duel.exe'))
+param([string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'))
 $ErrorActionPreference = 'Stop'
 $editorExecutable = (Resolve-Path -LiteralPath $Executable).Path
 $editorProofFolder = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ('..\tests\Multiplayer\.cli\unit-editor-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))))

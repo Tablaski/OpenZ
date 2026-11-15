@@ -21,8 +21,8 @@ namespace OpenZ.Multiplayer.Editor
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
             var args = Environment.GetCommandLineArgs();
             int outputOption = Array.IndexOf(args, "-oz-duel-output");
-            string outputFolder = outputOption >= 0 && outputOption + 1 < args.Length ? Path.GetFullPath(args[outputOption + 1]) : Path.Combine(root, "builds", "OpenZ-Duel");
-            string output = Path.Combine(outputFolder, "OpenZ-Duel.exe");
+            string outputFolder = outputOption >= 0 && outputOption + 1 < args.Length ? Path.GetFullPath(args[outputOption + 1]) : Path.Combine(root, "builds", "OpenZ-Release");
+            string output = Path.Combine(outputFolder, "openz-vk.exe");
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             OpenZ.EditorTools.OpenZBuild.IncludeRuntimeShaders();
             PlayerSettings.fullScreenMode = FullScreenMode.Windowed;

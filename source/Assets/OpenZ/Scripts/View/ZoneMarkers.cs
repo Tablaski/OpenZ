@@ -93,7 +93,7 @@ namespace OpenZ
         // Round luminous cores and a broad translucent halo; unlit colours stay visible at night.
         void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, Vector3 inward, ZMapData map)
         {
-            float len = Vector3.Distance(a, b), radius = .24f * Mathf.Max(1, OzMapReadabilityOptions.BorderSize);
+            float len = Vector3.Distance(a, b), radius = .06f * Mathf.Max(1, OzMapReadabilityOptions.BorderSize);
             int count = Mathf.Max(1, Mathf.FloorToInt(len / 2.8f));
             for (int dot = 0; dot < count; dot++)
             {

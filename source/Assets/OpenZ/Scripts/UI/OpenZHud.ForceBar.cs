@@ -73,13 +73,8 @@ namespace OpenZ
 
         void RefreshForceNumbers()
         {
-            if (!forceValueMode) { SetNum(redCount, ref shownRed, redTick.Value); SetNum(blueCount, ref shownBlue, blueTick.Value); return; }
-            SetForceTime(redCount, ref shownRed, redTick.Value); SetForceTime(blueCount, ref shownBlue, blueTick.Value);
-        }
-        static void SetForceTime(OzText label, ref int shown, int seconds)
-        {
-            if (shown == seconds) return; shown = seconds;
-            label.Set(OzText.Tab(seconds >= 3600 ? UnitInfo.Clock(seconds) : (seconds / 60) + ":" + (seconds % 60).ToString("00")));
+            SetNum(redCount, ref shownRed, redTick.Value);
+            SetNum(blueCount, ref shownBlue, blueTick.Value);
         }
 
         /// <summary>Display the actual fort-production reduction supplied by the match policy; never changes production.</summary>

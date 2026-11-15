@@ -80,11 +80,19 @@ namespace OpenZ
             bControls = Big("CONTROLS", HudButtonStyle.Normal, () => { if (!showControls) OzSfx.Ui("ui_tab_switch"); showControls = true; });
             bRestart = Big("RESTART LEVEL", HudButtonStyle.Normal, () => OzConfirm.Ask("RESTART THE LEVEL?", "THE MATCH STARTS OVER FROM THE BEGINNING.", () => OzScenes.Restart(), id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             bQuit = Big("QUIT TO MAIN MENU", HudButtonStyle.Danger, () => OzConfirm.Ask("QUIT TO THE MAIN MENU?", "THIS MATCH ENDS HERE AND ITS PROGRESS IS LOST.", () => { OzSfx.Ui("ui_back"); OzScenes.MainMenu(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+            if (OpenZ.Multiplayer.DuelRuntime.Active)
+            {
+                bRestart.Interactable = false; bRestart.Tooltip = "Restart is unavailable during an online match."; bRestart.Refresh();
+                bQuit.OnClick = c => OzConfirm.Ask("LEAVE THE DUEL?", "YOU WILL DISCONNECT FROM YOUR OPPONENT.", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), id => OzSfx.Ui(id), canvas.sortingOrder + 10);
+                var comm = HudButton.Make(pausePanel, "DuelCommunications", "CHAT & MICROPHONE", new Vector2(OzLayout.PauseBtnW, 36), HudButtonKind.Small, 12);
+                comm.Rt.TL(OzLayout.PauseBtnX, 552, OzLayout.PauseBtnW, 36); comm.Priority = 100;
+                comm.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowCommunications(); };
+            }
             // system browser (OzFeedback, Application.OpenURL); the game stays paused, nothing else changes. The HUD plays ui_click.
             bReport = HudButton.Make(pausePanel, "BtnReportBug", "REPORT A BUG  ↗", new Vector2(OzLayout.PauseBtnW, 36f), HudButtonKind.Small, 11, 0.16f);
             bReport.Rt.Place(new OzRect(OzLayout.PauseBtnX, OzLayout.PauseBtnY0 + OzLayout.PauseBtnStep * bi + 4f, OzLayout.PauseBtnW, 36f));
             bReport.Priority = 100; bReport.OnClick = c => OzFeedback.Open("pause menu");
-            Hud.Label(pausePanel, "Foot", "GAME TIME IS FROZEN WHILE PAUSED", 9, OzUi.Dim, 0.2f, OzStyle.Plain).At(OzLayout.PauseBtnX, OzLayout.PauseFootY);
+            Hud.Label(pausePanel, "Foot", OpenZ.Multiplayer.DuelRuntime.Active ? "ONLINE MATCH CONTINUES WHILE THIS MENU IS OPEN" : "GAME TIME IS FROZEN WHILE PAUSED", 9, OzUi.Dim, 0.2f, OzStyle.Plain).At(OzLayout.PauseBtnX, OzLayout.PauseFootY);
 
             // ---- side panel: options / controls
             sidePanel = Hud.Node("SidePanel", root).Place(new OzRect(OzAnchor.TC, cx + OzLayout.OptionsDX, OzLayout.PauseY, OzLayout.PauseW, OzLayout.PauseH));
@@ -94,6 +102,8 @@ namespace OpenZ
             optionsRoot = Hud.Node("Options", sidePanel); optionsRoot.Fill();
             controlsRoot = Hud.Node("Controls", sidePanel); controlsRoot.Fill();
             BuildOptions();
+            if (OpenZ.Multiplayer.DuelRuntime.Active)
+                foreach (var speed in speedBtns) { speed.Interactable = false; speed.Tooltip = "Online matches use a shared game speed."; speed.Refresh(); }
             BuildControls();
             go.SetActive(false);
             ApplySaved();
@@ -351,11 +361,10 @@ namespace OpenZ
         // duel in-game menu
             public void Open()
         {
-            if (OpenZ.Multiplayer.DuelRuntime.Active) { OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowInGameMenu(); return; }
             if (IsOpen || hud == null || (hud.EndScreen && hud.EndScreen.IsShown)) return;
             IsOpen = true; closing = false; openAt = OzMotion.Now;
-            wasPaused = game.paused; game.paused = true;
-            prevScale = Time.timeScale; Time.timeScale = 0f;
+            wasPaused = game.paused; prevScale = Time.timeScale;
+            if (!OpenZ.Multiplayer.DuelRuntime.Active) { game.paused = true; Time.timeScale = 0f; }
             if (hud.Production) hud.Production.Close();
             // The whole in-game HUD (selection panel, minimap,
             // top bar, build bar, toasts, tooltips, unit overlays and labels) goes away while the pause menu is up and comes back once
@@ -381,7 +390,7 @@ namespace OpenZ
         // duel menu keyboard ownership
             void Update()
         {
-            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
+            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
             if (hud == null || game == null || game.World == null) return;
             var kb = Keyboard.current; var m = Mouse.current;
             bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks && !OzUeHooks.EscTaken;

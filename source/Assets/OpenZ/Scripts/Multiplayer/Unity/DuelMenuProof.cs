@@ -18,10 +18,13 @@ namespace OpenZ.Multiplayer
         double next;
         bool hadPlayerName;
         string savedPlayerName;
+        string savedMicrophone;
+        bool hadMicrophone;
         void Awake()
         {
             hadPlayerName = PlayerPrefs.HasKey("oz_duel_name");
             savedPlayerName = PlayerPrefs.GetString("oz_duel_name", "");
+            hadMicrophone = PlayerPrefs.HasKey("oz_duel_mic_device"); savedMicrophone = PlayerPrefs.GetString("oz_duel_mic_device", "");
         }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -156,7 +159,22 @@ namespace OpenZ.Multiplayer
                             r.Rules.BuildSeconds(0, 100, .5, 1) != 75 || r.Rules.BuildSeconds(1, 100, .5, 1) != 75)
                             throw new Exception("Army configuration changed construction times.");
                         Capture("shared-rules-restored");
-                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps with tactical previews, cannon picker, four shared outside slots, additive handicap slots, both generals, empty slots and unchanged construction times.");
+                        Click("SETUP"); break;
+                    case 20:
+                        if (!r.Voice.Monitoring || r.Voice.MicrophoneEnabled) throw new Exception("Microphone preview must meter locally while muted.");
+                        var gain = r.Menus.GetComponentsInChildren<Slider>().Single();
+                        if (gain.minValue != 0 || gain.maxValue != 4 || gain.value != r.Voice.Gain) throw new Exception("Incorrect microphone gain slider.");
+                        Capture("microphone-settings");
+                        Click("MICROPHONE: " + r.Voice.Device + "  ▼"); break;
+                    case 21:
+                        var choices = r.Menus.GetComponentsInChildren<ScrollRect>().Single().content.GetComponentsInChildren<Button>();
+                        if (choices.Length != Microphone.devices.Length + 1 || !choices.Any(b => b.name == "System default") || Microphone.devices.Any(d => !choices.Any(b => b.name == d)))
+                            throw new Exception("Microphone dropdown does not contain every input device.");
+                        Capture("microphone-devices"); Click("System default"); break;
+                    case 22: Click("BACK"); break;
+                    case 23:
+                        if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "Toggle microphone")) throw new Exception("Lobby microphone controls were not restored.");
+                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps, army pickers, additive handicap, unchanged construction times, lobby microphone controls, gain slider, local meter and complete microphone dropdown.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
             }
@@ -168,6 +186,7 @@ namespace OpenZ.Multiplayer
             yield return null;
             if (hadPlayerName) PlayerPrefs.SetString("oz_duel_name", savedPlayerName);
             else PlayerPrefs.DeleteKey("oz_duel_name");
+            if (hadMicrophone) PlayerPrefs.SetString("oz_duel_mic_device", savedMicrophone); else PlayerPrefs.DeleteKey("oz_duel_mic_device");
             PlayerPrefs.Save();
             Application.Quit(code);
         }

@@ -257,7 +257,8 @@ namespace OpenZ.Multiplayer
                     if (packet.Payload.Length > 1024) throw new InvalidDataException("Chat too large.");
                     string message = Encoding.UTF8.GetString(packet.Payload);
                     if (message.Length > 240 || message.Any(char.IsControl)) throw new InvalidDataException("Invalid chat.");
-                    AddChat((IsHost ? View.GuestName : View.HostName) + " : " + message); break;
+                    string receivedChat = (IsHost ? View.GuestName : View.HostName) + " : " + message;
+                    AddChat(receivedChat); Menus.NotifyChat(receivedChat.Replace("<", "‹").Replace(">", "›")); break;
                 case DuelMessage.Lobby:
                     if (IsHost) throw new InvalidDataException("Guest cannot publish a lobby.");
                     View = ReadJson<DuelLobbyData>(packet); View.ReadRules(); Menus.Refresh(); break;

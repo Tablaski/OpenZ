@@ -29,8 +29,27 @@ namespace OpenZ.Multiplayer
         int receivedFrames;
         volatile bool primed;
         double lastProbe;
+        double retryMicrophoneAt;
         public bool MicrophoneEnabled { get; private set; }
-        public string Device => device ?? "Default";
+        public string Device => device ?? "System default";
+        public bool Monitoring { get; set; }
+        public float InputLevel { get; private set; }
+        public float Gain { get => PlayerPrefs.GetFloat("oz_duel_mic_gain", 1f); set => PlayerPrefs.SetFloat("oz_duel_mic_gain", Mathf.Clamp(value, 0, 4)); }
+        void Awake() { device = PlayerPrefs.GetString("oz_duel_mic_device", ""); if (device == "" || !Microphone.devices.Contains(device)) device = null; }
+        public void SelectDevice(string selected)
+        {
+            bool resume = MicrophoneEnabled; StopMicrophone(); device = selected; retryMicrophoneAt = 0;
+            PlayerPrefs.SetString("oz_duel_mic_device", device ?? ""); PlayerPrefs.Save();
+            if (resume) ToggleMicrophone();
+        }
+        void StartMicrophone()
+        {
+            if (microphone) return;
+            if (Microphone.devices.Length == 0) throw new IOException("No microphone detected");
+            microphone = Microphone.Start(device, true, 2, DuelVoiceCodec.SampleRate);
+            if (!microphone) throw new IOException("The microphone could not start.");
+            readPosition = 0;
+        }
         public string Status { get; private set; } = "Microphone muted";
         public int FramesReceived => Volatile.Read(ref receivedFrames);
         internal void SendProofFrame(float[] frame) { if (udp != null || online != null) Send(1, DuelVoiceCodec.Encode(frame)); }
@@ -40,38 +59,38 @@ namespace OpenZ.Multiplayer
             if (MicrophoneEnabled) { StopMicrophone(); return; }
             try
             {
-                if (Microphone.devices.Length == 0) { Status = "No microphone detected"; return; }
-                microphone = Microphone.Start(device, true, 2, DuelVoiceCodec.SampleRate);
-                if (!microphone) throw new IOException("The microphone could not start.");
-                readPosition = 0; MicrophoneEnabled = true; Status = "Hold " + TalkKey + " to talk";
+                StartMicrophone(); MicrophoneEnabled = true; Status = "Hold " + TalkKey + " to talk";
             }
             catch (Exception error) { StopMicrophone(); Status = error.Message; }
-        }
-        public void NextDevice()
-        {
-            bool resume = MicrophoneEnabled; StopMicrophone();
-            var devices = Microphone.devices;
-            if (devices.Length > 0) device = devices[(Array.IndexOf(devices, device) + 1) % devices.Length];
-            if (resume) ToggleMicrophone();
         }
         void Update()
         {
             var r = DuelRuntime.I;
-            if (!r || !r.Connected || !r.InMatch) { if (udp != null || online != null) StopVoice(); return; }
             try
             {
-                if (udp == null && online == null) StartVoice(r);
-                if (online != null) while (online.TryReceiveVoice(out var samples)) BufferVoice(samples);
-                if (Time.realtimeSinceStartupAsDouble - lastProbe > 1)
-                { lastProbe = Time.realtimeSinceStartupAsDouble; Send(0, Array.Empty<byte>()); }
-                if (!MicrophoneEnabled || !microphone) return;
+                if (!r || !r.Connected) { if (udp != null || online != null) StopVoice(); }
+                else
+                {
+                    if (udp == null && online == null) StartVoice(r);
+                    if (online != null) while (online.TryReceiveVoice(out var samples)) BufferVoice(samples);
+                    if (Time.realtimeSinceStartupAsDouble - lastProbe > 1)
+                    { lastProbe = Time.realtimeSinceStartupAsDouble; Send(0, Array.Empty<byte>()); }
+                }
+                if (!Monitoring && !MicrophoneEnabled) { if (microphone) StopMicrophone(); return; }
+                if (Time.realtimeSinceStartupAsDouble < retryMicrophoneAt) return;
+                try { StartMicrophone(); }
+                catch (Exception)
+                {
+                    StopMicrophone(); retryMicrophoneAt = Time.realtimeSinceStartupAsDouble + 3;
+                    Status = "Microphone unavailable. Choose another input device."; return;
+                }
                 int position = Microphone.GetPosition(device);
                 if (position < 0) { StopMicrophone(); Status = "Microphone unavailable"; return; }
-                bool talking = Application.isFocused && Keyboard.current != null && Keyboard.current[TalkKey].isPressed && !r.Menus.IsTyping;
-                if (!talking) { readPosition = position / DuelVoiceCodec.FrameSamples * DuelVoiceCodec.FrameSamples; Status = "Microphone ready · " + TalkKey; return; }
-                Status = "TRANSMITTING";
+                bool talking = MicrophoneEnabled && r && r.Connected && Application.isFocused && Keyboard.current != null && Keyboard.current[TalkKey].isPressed && !r.Menus.IsTyping;
+                Status = !MicrophoneEnabled ? "Microphone muted · local meter only" : talking ? "TRANSMITTING" : "Hold " + TalkKey + " to talk";
                 int available = (position - readPosition + microphone.samples) % microphone.samples;
                 if (available > 1600) { readPosition = (position / 320 * 320 + microphone.samples - 320) % microphone.samples; available = 320; }
+                float peak = 0, gain = Gain;
                 int packets = 0;
                 while (available >= DuelVoiceCodec.FrameSamples && packets++ < 4)
                 {
@@ -79,12 +98,17 @@ namespace OpenZ.Multiplayer
                     var raw = new float[DuelVoiceCodec.FrameSamples * channels]; microphone.GetData(raw, readPosition);
                     var frame = new float[DuelVoiceCodec.FrameSamples];
                     for (int i = 0; i < frame.Length; i++)
-                    { for (int c = 0; c < channels; c++) frame[i] += raw[i * channels + c]; frame[i] /= channels; }
-                    Send(1, DuelVoiceCodec.Encode(frame)); readPosition = (readPosition + frame.Length) % microphone.samples; available -= frame.Length;
+                    {
+                        for (int c = 0; c < channels; c++) frame[i] += raw[i * channels + c];
+                        frame[i] = Mathf.Clamp(frame[i] / channels * gain, -1, 1); peak = Mathf.Max(peak, Mathf.Abs(frame[i]));
+                    }
+                    if (talking) Send(1, DuelVoiceCodec.Encode(frame));
+                    readPosition = (readPosition + frame.Length) % microphone.samples; available -= frame.Length;
                 }
+                InputLevel = Mathf.Max(peak, InputLevel - Time.unscaledDeltaTime * 2);
             }
             catch (SocketException error) when (error.SocketErrorCode == SocketError.WouldBlock) { }
-            catch (Exception error) { Status = error.Message; StopVoice(); }
+            catch (Exception error) { StopVoice(); Status = error.Message; }
         }
         void StartVoice(DuelRuntime runtime)
         {
@@ -152,7 +176,7 @@ namespace OpenZ.Multiplayer
         void StopMicrophone()
         {
             if (microphone) { Microphone.End(device); Destroy(microphone); microphone = null; }
-            MicrophoneEnabled = false; Status = "Microphone muted";
+            InputLevel = 0; MicrophoneEnabled = false; Status = "Microphone muted";
         }
         void StopVoice()
         {

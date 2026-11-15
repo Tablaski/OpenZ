@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
+using UnityEngine.UI;
+using System.Reflection;
 
 namespace OpenZ.Multiplayer
 {
@@ -15,6 +17,8 @@ namespace OpenZ.Multiplayer
         bool joined, ordered, surrendered, finished, captured, lobbyCaptured, menuShown, menuCaptured, menuClosed, arenaMade, damaged;
         double connectedAt = -1, lastVoice;
         int exceptions;
+        bool lobbyVoice, chatSent, chatOpened, chatClosed, chatExpired;
+        double noticeSeenAt = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
         {
@@ -61,12 +65,31 @@ namespace OpenZ.Multiplayer
                     if (Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only") && (r.OnlinePeer == null || !r.OnlinePeer.UsesRelay)) throw new Exception("Forced relay proof selected a direct path.");
                     if (connectedAt < 0) connectedAt = Time.realtimeSinceStartupAsDouble;
                     double elapsed = Time.realtimeSinceStartupAsDouble - connectedAt;
+                    SendVoiceProof(r);
+                    if (r.Voice.FramesReceived > 0) lobbyVoice = true;
                     if (!lobbyCaptured && elapsed > 1) { DuelProofCapture.Save(Path.Combine(folder, role + "-lobby.png"), true); lobbyCaptured = true; }
-                    if (elapsed > 2 && (role == "host" ? !r.View.HostReady : !r.View.GuestReady)) r.Ready();
+                    if (elapsed > 4 && (role == "host" ? !r.View.HostReady : !r.View.GuestReady))
+                    { if (!lobbyVoice) throw new Exception("Voice was not received in the lobby."); r.Ready(); }
                 }
                 if (r.Playing && r.Game)
                 {
                     var w = r.Game.World;
+                    if (!chatSent && w.Time > 2) { r.SendChat("Hello from " + role); chatSent = true; }
+                    var notice = r.Menus.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == "Incoming chat");
+                    if (notice && noticeSeenAt < 0) noticeSeenAt = Time.realtimeSinceStartupAsDouble;
+                    if (!chatOpened && w.Time > 3.5)
+                    {
+                        if (!notice || !r.Chat.Any(c => c.Contains("Hello from " + (role == "host" ? "guest" : "host")))) throw new Exception("Incoming text was not shown without opening chat.");
+                        DuelProofCapture.Save(Path.Combine(folder, role + "-chat-notice.png"), true);
+                        notice.onClick.Invoke(); chatOpened = true;
+                    }
+                    if (chatOpened && !chatClosed && w.Time > 4.5)
+                    {
+                        if (!r.Menus.GetComponentsInChildren<InputField>().Any()) throw new Exception("Clicking incoming text did not open chat.");
+                        r.Menus.CloseOverlay(); chatClosed = true;
+                    }
+                    if (!chatExpired && noticeSeenAt >= 0 && Time.realtimeSinceStartupAsDouble > noticeSeenAt + 10.5)
+                    { if (notice) throw new Exception("Incoming text did not expire after ten seconds."); chatExpired = true; }
                     if (w.Bots.Count != 0 || r.Game.blueBot || r.Game.redBot) throw new Exception("A CPU controls a human duel seat.");
                     if (role == "host" && !arenaMade && w.Time > 1)
                     {
@@ -89,7 +112,16 @@ namespace OpenZ.Multiplayer
                         if (camera) { camera.focus = ZGame.PxToWorld(combatants[0].CenterX, combatants[0].CenterY); camera.SetHeightImmediate(30); }
                     }
                     if (!menuShown && w.Time > 7) { r.Menus.ShowInGameMenu(); menuShown = true; }
-                    if (!menuCaptured && w.Time > 8) { DuelProofCapture.Save(Path.Combine(folder, role + "-menu.png"), true); menuCaptured = true; }
+                    if (!menuCaptured && w.Time > 8)
+                    {
+                        var pause = FindFirstObjectByType<OpenZPauseMenu>();
+                        if (!pause || !pause.IsOpen || r.Game.paused || Time.timeScale != 1) throw new Exception("Native options menu paused or replaced the duel.");
+                        foreach (var field in new[] { "bOptions", "bControls", "bReport" })
+                            if (typeof(OpenZPauseMenu).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause) == null) throw new Exception("Missing normal menu option: " + field);
+                        for (int tab = 0; tab < OzSettingTips.TabNames.Length; tab++) pause.ProofOptTab(tab);
+                        pause.ProofOptTab(0);
+                        DuelProofCapture.Save(Path.Combine(folder, role + "-menu.png"), true); menuCaptured = true;
+                    }
                     if (!menuClosed && w.Time > 9) { r.Menus.CloseOverlay(); menuClosed = true; }
                     if (w.Time > 4 && w.Time < 12 && Time.realtimeSinceStartupAsDouble - lastVoice > .02)
                     {
@@ -107,13 +139,21 @@ namespace OpenZ.Multiplayer
                     if (w.GameOver)
                     {
                         bool blueFortGone = w.Objects.Where(o => o.IsFort && o.Owner == Team.Blue).All(o => o.Destroyed);
-                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
-                            "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
+                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && lobbyVoice && chatOpened && chatClosed && chatExpired && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
+                            "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; lobbyVoice=" + lobbyVoice + "; chatClick=" + chatOpened + "; chatExpiry=" + chatExpired + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
                     }
                 }
                 if (Time.realtimeSinceStartupAsDouble - began > 240) Finish(false, "Timeout; " + r.Status + "; exceptions=" + exceptions);
             }
             catch (Exception error) { Finish(false, error.ToString()); }
+        }
+        void SendVoiceProof(DuelRuntime runtime)
+        {
+            if (Time.realtimeSinceStartupAsDouble - lastVoice < .02) return;
+            lastVoice = Time.realtimeSinceStartupAsDouble;
+            var tone = new float[DuelVoiceCodec.FrameSamples];
+            for (int i = 0; i < tone.Length; i++) tone[i] = .005f * Mathf.Sin(2 * Mathf.PI * 440 * i / DuelVoiceCodec.SampleRate);
+            runtime.Voice.SendProofFrame(tone);
         }
         static void CreateArena(ZWorld world, ZGame game)
         {

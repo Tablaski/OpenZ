@@ -121,6 +121,7 @@ namespace OpenZ.Sim
         public bool CanAttackObject(ZObject o)                                                          // :4767-4777
         {
             if (o == null || !CanAttack() || o.Destroyed || Owner == o.Owner) return false;
+            if (World.UnitTesting != null && (World.UnitTesting.Held(this) || World.UnitTesting.Held(o))) return false;
             if (o.ExitOutAt >= 0 && o.World != null && o.ExitWalking(o.World.Time) && !o.DriverOutTarget) return false;   // DV132: still getting out of the shuttle / an APC: nobody's target yet (Sim/ZObject.ExitWalk.cs); 1.4 DV171 fix round 4: a driver climbing out of a tank or the mech is a target all the same (Sim/ZObject.VehicleExit.cs)
             if (!HasExplosives() && o.AttackedByExplosives && !PyroBurnsNow(o)) return false;   // DV113: a Pyro on the player's Ctrl order burns a building or bridge (ZObject.PyroForceBurn.cs)
             return true;
@@ -169,7 +170,7 @@ namespace OpenZ.Sim
             EnteredTargetId = DeleteGrenadeBoxId = DestroyFortId = EnteredRepairId = -1;
             if (DoAutoRepair && time >= NextAutoRepairTime) { DoAutoRepair = false; World.AutoRepair(this); }   // :4235-4257
             ProcessRunStamina(dt);
-            if (Destroyed) return;
+            if (Destroyed || World.UnitTesting != null && World.UnitTesting.Held(this)) return;
             if (Kind == ZKind.Building) { ProcessBuilding(time); return; }                                    // BuildUnit / RepairUnit (:1456-1462)
             if (IsFortDefender) { FortDefenderManStep(time); return; }                                        // fort_defender_v1 DV41: no orders, no pathing, fires from his ring
             if (IsShuttle && ShuttleStep(time, dt)) return;                                               // DV118: the playable shuttle flies by its own plan, no weapon (Sim/ZWorld.Shuttle.cs)

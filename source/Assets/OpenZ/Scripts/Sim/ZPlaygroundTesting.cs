@@ -19,6 +19,75 @@ namespace OpenZ.Sim
         readonly bool[] immortal = new bool[3], circular = new bool[3];
         readonly double[] hpPercent = { 100, 100, 100 };
         public bool ShowDamage, ShowCounts, ResetAutomaticallyOnParametersChange;
+        public bool Respawning;
+        readonly Dictionary<Team, (int x, int y)> respawnPoints = new Dictionary<Team, (int x, int y)>();
+        readonly Dictionary<int, int> respawns = new Dictionary<int, int>();
+        readonly HashSet<int> held = new HashSet<int>();
+        public bool HasRespawnPoint(Team team) => respawnPoints.ContainsKey(team);
+        public bool TryGetRespawnPoint(Team team, out int x, out int y)
+        {
+            bool found = respawnPoints.TryGetValue(team, out var p); x = p.x; y = p.y; return found;
+        }
+        public bool CanPlace(ZObject o, int x, int y)
+        {
+            int left = x - o.WidthPix / 2, top = y - o.HeightPix / 2;
+            if (left < 0 || top < 0 || left + o.WidthPix >= world.Map.WidthPix || top + o.HeightPix >= world.Map.HeightPix) return false;
+            for (int ty = top / 16; ty <= (top + o.HeightPix - 1) / 16; ty++)
+                for (int tx = left / 16; tx <= (left + o.WidthPix - 1) / 16; tx++)
+                    if (!world.Path.TilePassable(tx, ty, o.Kind == ZKind.Robot)) return false;
+            return true;
+        }
+        public bool SetRespawnPoint(Team team, int x, int y)
+        {
+            CheckTeam(team);
+            if (x < 16 || y < 16 || x >= world.Map.WidthPix - 16 || y >= world.Map.HeightPix - 16 ||
+                !world.Path.TilePassable(x / 16, y / 16, true)) return false;
+            respawnPoints[team] = (x, y); return true;
+        }
+        public bool Held(ZObject o) => o != null && (held.Contains(o.Id) || respawns.ContainsKey(o.Id));
+        public void Hold(ZObject o, bool value)
+        {
+            if (o == null) return;
+            if (value)
+            {
+                held.Add(o.Id); o.TestingStop(); world.TestingClearMissiles(new[] { o.Id });
+                foreach (var enemy in world.Objects)
+                    if (enemy.AttackObject == o) enemy.Disengage();
+            }
+            else held.Remove(o.Id);
+        }
+        bool QueueRespawn(ZObject victim, int attacker)
+        {
+            var killer = world.Get(attacker);
+            if (!Respawning || !Eligible(killer) || killer.Destroyed || killer == victim || killer.Owner == victim.Owner ||
+                Held(killer) || !HasRespawnPoint(victim.Owner) || !HasRespawnPoint(killer.Owner)) return false;
+            var a = respawnPoints[victim.Owner]; var b = respawnPoints[killer.Owner];
+            if (!CanPlace(victim, a.x, a.y) || !CanPlace(killer, b.x, b.y)) return false;
+            respawns[victim.Id] = killer.Id; respawns[killer.Id] = victim.Id;
+            return true;
+        }
+        internal void FinishRespawns()
+        {
+            if (respawns.Count == 0) return;
+            foreach (var pair in respawns)
+            {
+                var o = world.Get(pair.Key); if (o == null) continue;
+                var point = respawnPoints[o.Owner];
+                o.TestingStop(); o.SetCords(point.x - o.WidthPix / 2, point.y - o.HeightPix / 2);
+                Initialize(o);
+                for (int i = 0; i < o.Drivers.Count; i++) o.Drivers[i] = Math.Max(1, world.S.Unit(o.DriverType)?.MaxHealth ?? 1);
+                For(o.Id).driverHp = -1; o.TestingResetWeapon();
+            }
+            world.TestingClearMissiles(respawns.Keys);
+            foreach (var pair in respawns)
+            {
+                var o = world.Get(pair.Key); var enemy = world.Get(pair.Value);
+                if (o == null || enemy == null) continue;
+                o.Waypoints.Add(new ZWaypoint { mode = WpMode.Attack, refId = enemy.Id, playerGiven = true });
+                o.UpdatedWaypoints = true;
+            }
+            respawns.Clear();
+        }
         public void ResetCounters()
         { foreach (var s in scores.Values) { s.Kills = 0; s.Deaths = 0; } }
         internal void BehaviorChanging(ZBehaviorProfile before, ZBehaviorProfile after)
@@ -90,6 +159,7 @@ namespace OpenZ.Sim
         static long Add(long a, long b) => a > long.MaxValue - b ? long.MaxValue : a + b;
         public void HealthChange(ZObject o, ref int next, int attacker)
         {
+            if (Held(o)) { next = o.Health; return; }
             if (!Eligible(o) || o.Health <= 0) return;
             int requested = (int)Math.Min(int.MaxValue, Math.Max(0L, (long)o.Health - next));
             if (requested <= 0) { if (Immortal(o.Owner) && !Circular(o.Owner)) next = ReferenceHp(o); return; }
@@ -112,9 +182,11 @@ namespace OpenZ.Sim
             }
             else if (next <= 0) deaths = 1;
             Count(o, attacker, deaths); Emit(o, shown, attacker, deaths, immortalNow && !cycling);
+            if (deaths > 0 && QueueRespawn(o, attacker)) next = ReferenceHp(o);
         }
         public bool DriverDamage(ZObject o, int amount, int attacker)
         {
+            if (Held(o)) return true;
             if (!Eligible(o) || amount <= 0 || o.Drivers.Count == 0) return false;
             bool immortalNow = Immortal(o.Owner), cycling = Circular(o.Owner);
             var score = For(o.Id);
@@ -122,6 +194,7 @@ namespace OpenZ.Sim
             bool lethal = amount >= hp;
             if (lethal) Count(o, attacker, 1);
             Emit(o, immortalNow ? amount : Math.Min(hp, amount), attacker, lethal ? 1 : 0, immortalNow && !cycling, true);
+            if (lethal && QueueRespawn(o, attacker)) return true;
             if (!immortalNow) return false;
             score.driverHp = lethal ? Math.Max(1, world.S.Unit(o.DriverType)?.MaxHealth ?? hp) : hp - amount;
             if (cycling && !lethal) o.Drivers[0] = hp - amount;
@@ -129,9 +202,34 @@ namespace OpenZ.Sim
             return true;
         }
     }
+    public partial class ZObject
+    {
+        internal void TestingStop()
+        {
+            Waypoints.Clear(); lastWp = ZWaypoint.Cleared; cur = default;
+            ClearOrderModes(); Disengage(); StopMove();
+            behaviorPending = behaviorWasDodging = behaviorReversing = false;
+            behaviorRegroupUntil = behaviorFireUntil = behaviorReverseUntil = 0;
+            BehaviorActualSpeed = behaviorTurnSpeed = 0;
+            World.Pathing?.OnOrder(this); UpdatedWaypoints = true;
+        }
+        internal void TestingResetWeapon()
+        {
+            nextDamageTime = nextPassiveCheck = World.Time;
+            elPhase = ElectroPhase.Charged; elRelease = elReady = -1; elTarget = -1;
+            Stamina = MaxStamina; EndStun(true);
+            LastEnemyHit = LastMissileHit = LastFireHit = -100;
+        }
+    }
     public sealed partial class ZWorld
     {
         public ZPlaygroundTesting UnitTesting { get; private set; }
+        internal void TestingClearMissiles(IEnumerable<int> ids)
+        {
+            var set = new HashSet<int>(ids);
+            missiles.RemoveAll(m => set.Contains(m.attackerId) || set.Contains(m.targetId));
+            newMissiles.RemoveAll(m => set.Contains(m.attackerId) || set.Contains(m.targetId));
+        }
         public void EnableUnitTesting()
         {
             if (!NoGameEnd) throw new InvalidOperationException("Unit testing is restricted to a playground world.");

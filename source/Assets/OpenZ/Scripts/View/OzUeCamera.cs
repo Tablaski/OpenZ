@@ -12,8 +12,8 @@ namespace OpenZ
     ///    a panel opens or closes the floor point there glides (180 ms) to the new middle;
     ///  - the middle button turns and tilts round that point (tilt held at 40 .. 66 degrees, the prototype's range);
     ///  - the wheel zooms TO THE CURSOR (the floor point under it stays under it; the zoom buttons zoom about the free field's middle);
-    ///  - (run 11, owner item 227) the RIGHT button never moves the view:
-    ///    every right press and release is a click for the editor (OzUeField, OzUePlace, PlayerInput), however far the mouse slid; the
+    ///  - RIGHT-DRAG SCROLL follows Options > Game:
+    ///    a drag moves the view and its release gives no order. With the option off, the right button only orders. The
     ///    view moves with W A S D, the arrows, the screen edge, the wheel, the middle button, the compass and the zoom buttons;
     ///  - Fit (Home), CentreOn, the compass's glide home, a double-click on empty floor centres the view there.
     /// Every move is the RTS camera's own focus shifted after its Update and placed again (RtsCamera.Place), so its limits stay.
@@ -91,7 +91,8 @@ namespace OpenZ
             if (m != null)
             {
                 dragging = false;
-                if (OzUeHooks.RightDragged) OzUeHooks.RightDragged = false;
+                OzUeHooks.RightDragged = OzRightDrag.Scrolling(m);
+                if (OzUeHooks.RightDragged) { zoomOn = glideOn = moveOn = false; }
 
                 // the middle button turns round the free field's middle (the RTS camera turns, LateUpdate keeps that point there)
                 if (m.middleButton.wasPressedThisFrame) { turnOn = FreeCentreGround(out turnWorld); glideOn = false; }

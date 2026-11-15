@@ -394,6 +394,7 @@ namespace OpenZ.Sim
             ProneTargetTick(dt);                                                    // DV122: every sniper's stance, a rule (Sim/ZObject.ProneTarget.cs)
             CheckFlagCaptures();
             rp = ZRuleProf.Enter(ZRuleProf.Combat); ProcessMissiles(); ZRuleProf.Exit(rp);   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
+            UnitTesting?.FinishRespawns();
             HeavyFallTick();                                                        // DV124: a fort cannon shot to pieces gets its toss; the shuttle / cannon that land now fell their trees (Sim/ZWorld.HeavyFall.cs)
             CheckEndGame();
             SquadSplitTick();                                                       // DV98: a member left far behind becomes a squad of his own (ZWorld.SquadSplit.cs)

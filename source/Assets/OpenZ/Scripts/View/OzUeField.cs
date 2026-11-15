@@ -31,6 +31,68 @@ namespace OpenZ
         public static int RightPicks, ObjectClicks, Hints, EventToasts;
 
         OzUnitEditor ed;
+        ZObject liftCandidate;
+        bool lifting;
+        bool suppressRightRelease;
+        readonly List<ZObject> lifted = new List<ZObject>();
+        readonly List<Vector2Int> liftOffsets = new List<Vector2Int>();
+
+        bool TestingPointer(Mouse m, Keyboard kb, PlayerInput input, Vector2 mp, bool overUi)
+        {
+            var panel = OzBehaviorPanel.I;
+            if (panel && panel.RespawnPointTeam != Team.Neutral)
+            {
+                input.enabled = false; heldByUs = true;
+                if (m.rightButton.wasPressedThisFrame)
+                { suppressRightRelease = true; panel.FinishRespawnPoint(); return true; }
+                if (m.leftButton.wasPressedThisFrame && !overUi && OzUePlaceDriver.FloorPoint(ed, mp, out var p))
+                {
+                    var px = ZGame.WorldToPx(p);
+                    if (W.UnitTesting.SetRespawnPoint(panel.RespawnPointTeam, px.x, px.y))
+                    { panel.FinishRespawnPoint(); OzUeToast.Show("RESPAWN POINT SET"); }
+                    else OzUeToast.Show("CHOOSE CLEAR GROUND INSIDE THE FIELD");
+                }
+                return true;
+            }
+            if (m.leftButton.wasPressedThisFrame && !overUi && !OzUePick.InputHeld && OzUePick.Hover != null && OzUePick.Hover.IsUnit)
+            {
+                liftCandidate = OzUePick.Hover; leftDownAt = mp;
+                OzUePick.HoldInput(this, true);
+            }
+            if (liftCandidate == null) return false;
+            if (liftCandidate.Destroyed || W.Get(liftCandidate.Id) != liftCandidate) { ReleaseLift(); return true; }
+            input.enabled = false; heldByUs = true;
+            if (!lifting && (mp - leftDownAt).sqrMagnitude > PlayerInput.BoxSqr)
+            {
+                lifting = true; lifted.Add(liftCandidate); lifted.AddRange(liftCandidate.Minions);
+                foreach (var o in lifted)
+                {
+                    liftOffsets.Add(new Vector2Int(o.CenterX - liftCandidate.CenterX, o.CenterY - liftCandidate.CenterY));
+                    W.UnitTesting.Hold(o, true);
+                }
+            }
+            if (lifting && !overUi && OzUePlaceDriver.FloorPoint(ed, mp, out var ground))
+            {
+                var px = ZGame.WorldToPx(ground);
+                bool valid = true;
+                for (int i = 0; i < lifted.Count; i++)
+                    if (!W.UnitTesting.CanPlace(lifted[i], px.x + liftOffsets[i].x, px.y + liftOffsets[i].y)) valid = false;
+                if (valid) for (int i = 0; i < lifted.Count; i++)
+                    lifted[i].SetCords(px.x + liftOffsets[i].x - lifted[i].WidthPix / 2, px.y + liftOffsets[i].y - lifted[i].HeightPix / 2);
+            }
+            if (!m.leftButton.isPressed || !Application.isFocused || OzUeHooks.AnyModal)
+            {
+                if (!lifting && !overUi) OzUePick.Pick(new[] { liftCandidate }, kb != null && kb.shiftKey.isPressed);
+                ReleaseLift();
+            }
+            return true;
+        }
+        void ReleaseLift()
+        {
+            foreach (var o in lifted) W?.UnitTesting?.Hold(o, false);
+            lifted.Clear(); liftOffsets.Clear(); liftCandidate = null; lifting = false;
+            OzUePick.HoldInput(this, false);
+        }
         bool heldByUs;
         Vector2 rightDownAt, leftDownAt; bool rightOnField, leftOnField, leftWasDown;
         int leftReleaseFrame = -1; bool leftReleaseDrag; ZObject leftReleaseHover;
@@ -43,12 +105,20 @@ namespace OpenZ
 
         void OnDestroy()
         {
+            ReleaseLift();
             OzUnitEditor.UiReady -= RegisterEsc;
             if (heldByUs && ed && ed.Input) ed.Input.enabled = true;
         }
 
         void RegisterEsc()
         {
+            OzUeKeys.OnEsc(115, () =>
+            {
+                if (OzBehaviorPanel.I && OzBehaviorPanel.I.RespawnPointTeam != Team.Neutral)
+                { OzBehaviorPanel.I.FinishRespawnPoint(); return true; }
+                if (liftCandidate == null) return false;
+                ReleaseLift(); return true;
+            });
             OzUeKeys.OnEsc(OzUeKeys.EscUnpick, () =>
             {
                 var i = ed ? ed.Input : null;
@@ -72,10 +142,13 @@ namespace OpenZ
             // click-to-place owns the mouse: PlayerInput stays off (re-enabled in LateUpdate, after the HUD's own gating)
             if (OzUePick.InputHeld) { input.enabled = false; heldByUs = true; }
             var m = Mouse.current; var kb = Keyboard.current; var hud = OpenZHud.I;
-            if (m == null) return;
+            if (m == null) { ReleaseLift(); return; }
+            if (suppressRightRelease && m.rightButton.wasReleasedThisFrame)
+            { suppressRightRelease = false; rightOnField = false; OzUeHooks.RightPickFrame = Time.frameCount; }
             Vector2 mp = m.position.ReadValue();
             bool overUi = (hud && (hud.PointerOverUi || hud.Modal)) || OzUeHooks.AnyModal || mp.x < 0f || mp.y < 0f || mp.x > Screen.width || mp.y > Screen.height;
             OzUePick.Hover = overUi ? null : HoverAt(input, w, mp);
+            if (TestingPointer(m, kb, input, mp, overUi)) return;
             bool placing = OzUePick.InputHeld;
             ScanEvents(w);
 
@@ -93,7 +166,7 @@ namespace OpenZ
             if (m.rightButton.wasReleasedThisFrame && rightOnField)
             {
                 rightOnField = false;
-                if (!overUi && !placing) RightClick(input, w, kb);
+                if (!overUi && !placing && OzRightDrag.Click(m, OzRightDrag.SiteOrders)) RightClick(input, w, kb);
             }
         }
 

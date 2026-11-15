@@ -94,5 +94,51 @@ static class PlaygroundChecks
         t.ResetAutomaticallyOnParametersChange = false; score.Kills = 4;
         p.Set("light", ZBehaviorKey.Reaction, .5); w.SetBehavior(p);
         check(score.Kills == 4, "Disabling automatic reset preserves counters on parameter changes");
+        t.ResetAutomaticallyOnParametersChange = false;
+        int rx = 0, ry = 0, bx = 0, by = 0;
+        for (int y = 64; y < w.Map.HeightPix - 64 && bx == 0; y += 32)
+            for (int x = 64; x < w.Map.WidthPix - 64; x += 32)
+            {
+                if (!t.CanPlace(red, x, y) || !t.CanPlace(blue, x, y)) continue;
+                if (rx == 0) { rx = x; ry = y; }
+                else if (Math.Abs(x - rx) + Math.Abs(y - ry) >= 320) { bx = x; by = y; break; }
+            }
+        check(bx > 0 && t.SetRespawnPoint(Team.Red, rx, ry) && t.SetRespawnPoint(Team.Blue, bx, by), "Both respawn points accept clear ground");
+        check(!t.SetRespawnPoint(Team.Red, -1, ry), "Invalid point preserves the previous respawn point");
+        t.Respawning = true; t.ResetCounters();
+        foreach (bool immortal in new[] { false, true }) foreach (bool cycling in new[] { false, true })
+        {
+            t.Configure(Team.Red, immortal, cycling); t.Configure(Team.Blue, immortal, cycling);
+            for (int round = 0; round < 20; round++)
+            {
+                var loser = round % 2 == 0 ? red : blue; var winner = loser == red ? blue : red;
+                long deaths = t.For(loser.Id).Deaths, kills = t.For(winner.Id).Kills;
+                loser.DamageHealth(int.MaxValue, winner.Id);
+                loser.DamageHealth(int.MaxValue, winner.Id);
+                check(!loser.Destroyed && t.For(loser.Id).Deaths == deaths + 1 && t.For(winner.Id).Kills == kills + 1,
+                    "Respawn counts one defeat per round for mortal and both immortal modes");
+                w.AddMissileForTest(new ZMissile { attackerId = winner.Id, targetId = loser.Id });
+                t.FinishRespawns();
+                check(red.CenterX == rx && red.CenterY == ry && blue.CenterX == bx && blue.CenterY == by &&
+                    red.Health == t.ReferenceHp(red) && blue.Health == t.ReferenceHp(blue), "Every duel restarts at the same points and reference HP");
+                check(red.Waypoints.Single().refId == blue.Id && blue.Waypoints.Single().refId == red.Id &&
+                    !w.QueuedMissiles.Any(m => m.attackerId == winner.Id), "Both opponents attack again without old projectiles");
+            }
+        }
+        t.Configure(Team.Red, false, false); red.Drivers.Clear(); red.Drivers.Add(1);
+        red.DamageDriverHealth(100, blue.Id); t.FinishRespawns();
+        check(red.Owner == Team.Red && red.Drivers.Count == 1 && red.Drivers[0] > 1, "Mortal crew defeat restores the original crew and ownership");
+        t.Hold(red, true); int heldHp = red.Health;
+        red.DamageHealth(int.MaxValue, blue.Id); red.DamageDriverHealth(int.MaxValue, blue.Id);
+        red.ProcessServer(w.Time + .1);
+        check(red.Health == heldHp && red.Owner == Team.Red && red.Waypoints.Count == 0 && !blue.CanAttackObject(red),
+            "Lifted units stop fighting and cannot receive hull or crew damage or be targeted");
+        t.Hold(red, false); check(!t.Held(red), "Dropping releases the lifted unit");
+        red.DamageHealth(int.MaxValue, blue.Id); w.Tick(ZConst.TICK);
+        check(!t.Held(red) && red.CenterX == rx && red.CenterY == ry && blue.CenterX == bx && blue.CenterY == by &&
+            red.Waypoints.Any(x => x.refId == blue.Id) && blue.Waypoints.Any(x => x.refId == red.Id),
+            "The world tick completes deferred respawns and restarts both attacks");
+        t.Respawning = false; red.DamageHealth(int.MaxValue, blue.Id);
+        check(red.Destroyed, "Disabling respawning restores ordinary mortal death");
     }
 }

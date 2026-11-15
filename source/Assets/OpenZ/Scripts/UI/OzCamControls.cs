@@ -15,7 +15,7 @@ namespace OpenZ
     ///    arrows (UI/OzScrollSpeedSlider.cs). Touch, gamepad and the trackpad's MOVE MAP keep their own ground grab.
     ///  - RIGHT-DRAG SCROLL: OFF (default) / ON (oz_right_drag_scroll). ON: a right press on the map that moves more than a few pixels
     ///    moves the map like the middle drag and gives no order on release; a right click without that travel gives the order as
-    ///    before (View/OzRightDrag.cs). Never in the Unit editor (its right button never moves the view) and never over the HUD.
+    ///    before (View/OzRightDrag.cs). Also applies in the Unit editor; never starts over the HUD.
     /// View and input only: the sim never reads these.
     /// </summary>
     public static class OzCamControls

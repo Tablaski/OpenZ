@@ -5,7 +5,7 @@ namespace OpenZ
 {
     /// <summary>
     /// 1.4 RIGHT-DRAG SCROLL (UI/OzCamControls.cs): the right button's drag, read once a frame from the mouse the game reads.
-    /// With the row ON, a right press on the map (not over the HUD or a menu, not in the Unit editor, not while the ending holds
+    /// With the row ON, a right press on the map (not over the HUD or a menu, not while the ending holds
     /// the camera) is armed; once the pointer is more than ThresholdPx from where it went down it scrolls: RtsCamera moves the map
     /// by the mouse travel as the middle drag does (View/RtsCamera.cs). Its release is no click: every place that gives an order
     /// or a rally point on the right button's release asks Click(), which is false for that release (PlayerInput's orders and
@@ -54,7 +54,8 @@ namespace OpenZ
         /// <summary>A right press may become a drag now: the row is on and the match's RTS camera takes mouse input here.</summary>
         static bool CanStart()
         {
-            if (!OzCamControls.RightDrag || OzCamControls.HooksOff || !Application.isPlaying || OzUeHooks.Active || RtsCamera.InputLocked || OzConfirm.Blocks) return false;
+            if (!OzCamControls.RightDrag || OzCamControls.HooksOff || !Application.isPlaying || RtsCamera.InputLocked || OzConfirm.Blocks) return false;
+            if (OzUeHooks.Active && (OzUeHooks.AnyModal || OzUePick.InputHeld)) return false;
             var hud = OpenZHud.I;
             return hud && hud.rts && hud.rts.isActiveAndEnabled && !hud.Modal && !hud.PointerOverUi;
         }

@@ -22,6 +22,7 @@ namespace OpenZ
         readonly List<RectTransform> rows = new List<RectTransform>();
         readonly List<Action> refresh = new List<Action>();
         readonly string[] pages = { "DODGING", "MOVEMENT", "BOOST", "COMBAT" };
+        public Team RespawnPointTeam { get; private set; }
         bool builtTesting;
         RectTransform box;
         UeScroll list;
@@ -191,6 +192,20 @@ namespace OpenZ
             Text(scores, "Success = kills / (kills + deaths)", 10, 78, sw - 20, 10, OzUi.Muted); y += 94;
             ToggleRow("Reset automatically on parameters change", () => t.ResetAutomaticallyOnParametersChange, v => t.ResetAutomaticallyOnParametersChange = v, ref y,
                 "Reset ALL units' kills, deaths and success whenever a changed effective combat-dynamics value affects at least one living unit fighting in this playground (target/order, dodge, incoming attack or hit in the last 3 seconds). Covers master, fields, presets, import and restoring defaults. Changing a name, saving, reapplying identical values or editing an absent/non-fighting type does not reset. Enabling this option alone does not reset counters. HP and orders remain unchanged.");
+            ToggleRow("Respawning", () => t.Respawning, v => t.Respawning = v, ref y,
+                "After a real or virtual defeat, reset both opponents to their team points, restore reference HP and crew, clear old projectiles and attack again. Set both points first. Works with or without immortality and cycling damage.");
+            foreach (Team side in new[] { Team.Red, Team.Blue })
+            {
+                Team team = side; var row = Row("RespawnPoint" + team, y, 42);
+                var button = Button(row, "SetPoint", "", new Rect(10, 4, layout.w - 60, 30),
+                    "Click, then choose a ground point on the field. Right-click or Escape cancels.", () =>
+                    {
+                        OzUePlace.Stop(); RespawnPointTeam = team; OzUePick.HoldInput(this, true);
+                        OzUeToast.Show("CLICK THE " + team.ToString().ToUpperInvariant() + " RESPAWN POINT");
+                    });
+                refresh.Add(() => button.Label.Set("SET " + team.ToString().ToUpperInvariant() + " RESPAWN POINT" + (t.HasRespawnPoint(team) ? " [SET]" : "")));
+                y += 42;
+            }
             list.SetContentHeight(y); status = "Testing rules apply only in this playground; combat profiles are unchanged.";
         }
         void ToggleRow(string label, Func<bool> get, Action<bool> set, ref float y, string tip)
@@ -243,9 +258,11 @@ namespace OpenZ
         void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it in Options > Game."; }
         void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Laboratory] " + e.Message); } }
         public static string DisplayType(string type) => type == "medium" ? "MECH" : type == ZMTank.Type ? "MEDIUM TANK" : type.ToUpperInvariant();
+        public void FinishRespawnPoint()
+        { RespawnPointTeam = Team.Neutral; OzUePick.HoldInput(this, false); }
         void OnDestroy()
         {
-            FinishFields(); foreach (var p in drafts) if (p != null) OzBehaviorLibrary.SaveDraft(p);
+            FinishRespawnPoint(); FinishFields(); foreach (var p in drafts) if (p != null) OzBehaviorLibrary.SaveDraft(p);
             PlayerPrefs.Save(); OzUeHooks.SetTyping(this, false);
 
             if (box) Destroy(box.gameObject);

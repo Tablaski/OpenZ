@@ -6,6 +6,12 @@ if (-not (Test-Path -LiteralPath $response)) { throw 'Build the Unity project on
 $checkDirectory=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\tests\Multiplayer\.cli\unity-source-check'))
 New-Item -ItemType Directory -Path $checkDirectory -Force | Out-Null
 $lines=[IO.File]::ReadAllLines($response) | Where-Object { $_ -notmatch '^-(out|refout):' }
+# Refresh source paths: scripts added since the last player build must be checked too.
+$lines = @($lines | Where-Object { $_ -notmatch '^"Assets/OpenZ/Scripts/.*\.cs"$' })
+$scriptRoot = Join-Path $duelProject 'Assets/OpenZ/Scripts'
+$lines += @(Get-ChildItem -LiteralPath $scriptRoot -Filter '*.cs' -File -Recurse |
+    Where-Object { $_.FullName -notmatch '[\\/]Editor[\\/]' } |
+    ForEach-Object { '"' + $_.FullName.Substring($duelProject.Length + 1).Replace('\', '/') + '"' })
 $lines+=('-out:"'+(Join-Path $checkDirectory 'Assembly-CSharp.dll')+'"')
 $lines+=('-refout:"'+(Join-Path $checkDirectory 'Assembly-CSharp.ref.dll')+'"')
 $checkResponse=Join-Path $checkDirectory 'runtime.rsp'

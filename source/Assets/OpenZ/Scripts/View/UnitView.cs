@@ -486,6 +486,7 @@ namespace OpenZ
                 float slotYaw = Obj.Leader != null && game.Views.TryGetValue(Obj.Leader.Id, out var lv) && lv ? lv.heading : heading;   // leader may be dead while the formation eases out; combatview: the path heading (a shooting leader may face backwards)
                 p += Quaternion.Euler(0, slotYaw, 0) * new Vector3(s.x, 0, s.y) * Mathf.SmoothStep(0, 1, formation);
             }
+            if (game.World.UnitTesting != null && game.World.UnitTesting.Held(Obj)) p = game.CenterWorld(Obj) + Vector3.up * 1.5f;
             basePos = p;
             SolveSeparation();
             sepOffset += Vector3.ClampMagnitude(sepCorr * Mathf.Min(1f, 12f * dt), 2f * dt);          // relax the overlap, at most 2 m/s (parity P4: no fast view-only slides)
@@ -595,6 +596,8 @@ namespace OpenZ
                 transform.rotation = Quaternion.Euler(0, yaw + modelYaw, 0);
                 if (reactKind != 0) ApplyReaction(ReactStep(dt));                                    // deaths_mech_v1: knockdown / stagger / flinch (view only); vehicle_exit_gun 2b: frozen (step 0) from his death event until his death is drawn (View/UnitView.DeathWins.cs)
             }
+            if (game.World.UnitTesting != null && game.World.UnitTesting.Held(Obj))
+                transform.position = game.CenterWorld(Obj) + Vector3.up * (yOffset + 1.5f);
             if (turret && !(gunAim && gunAim.HasRig))                                                 // combatview: UnitAim solves yaw + pitch on the muzzle
             {
                 float want = engaged ? AimYaw() : yaw;

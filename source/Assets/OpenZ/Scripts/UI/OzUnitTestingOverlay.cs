@@ -15,6 +15,7 @@ namespace OpenZ
         readonly List<Number> numbers = new List<Number>();
         readonly List<int> remove = new List<int>();
         RectTransform root;
+        readonly Dictionary<Team, RectTransform> respawnMarkers = new Dictionary<Team, RectTransform>();
         ZWorld World => OzUnitEditor.I != null ? OzUnitEditor.I.World : null;
         void LateUpdate()
         {
@@ -26,6 +27,19 @@ namespace OpenZ
                 var group = root.gameObject.AddComponent<CanvasGroup>(); group.blocksRaycasts = false; group.interactable = false;
             }
             var testing = World.UnitTesting;
+            foreach (Team team in new[] { Team.Red, Team.Blue })
+            {
+                if (!testing.TryGetRespawnPoint(team, out int x, out int y)) continue;
+                if (!respawnMarkers.TryGetValue(team, out var marker))
+                {
+                    marker = Hud.Node(team + "Respawn", root); marker.sizeDelta = new Vector2(180, 28);
+                    Hud.Label(marker, "Point", "+ " + team.ToString().ToUpperInvariant() + " RESPAWN", 15,
+                        team == Team.Red ? new Color(1, .3f, .3f) : new Color(.35f, .65f, 1), 0, OzStyle.Outline).FillParent(OzH.C);
+                    respawnMarkers[team] = marker;
+                }
+                var point = ZGame.PxToWorld(x, y); point.y = OzUnitEditor.I.Game.GroundY(point.x, point.z) + .2f;
+                marker.gameObject.SetActive(Place(marker, point));
+            }
             while (testing.TryReadHit(out var hit))
             {
                 if (!testing.ShowDamage || hit.Damage <= 0) continue;

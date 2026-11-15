@@ -138,3 +138,26 @@ readability and in-match option captures were visually inspected.
 No new build is needed for the user's manual checks of the current features;
 use the combined player above. Future source changes requiring a new player
 must be added here and checked together on the next requested release.
+
+## Unit testing respawns and field gestures (awaiting a new release player)
+
+- Added playground-only respawning at the end of Unit Testing: enable it and
+  set RED and BLUE points by clicking the field. Labels mark both points.
+- A lethal hull or crew hit, including virtual immortal defeats with cycling
+  damage enabled or disabled, resets both opponents to their points, restores
+  reference HP and crew, resets weapon readiness and stamina, removes their old
+  projectiles and gives both a new attack order. Kill/death counters persist.
+  Both points must be configured and passable for the opponents.
+- Dragging a field unit lifts and moves it (including its squad), clears its
+  orders and protects it from combat while held. Invalid terrain keeps the last
+  valid position. Dropping resumes ordinary simulation. Escape releases it.
+- RIGHT-DRAG SCROLL now follows Options > Game in the unit editor. A pan release
+  must neither issue an order nor select a unit; the disabled option retains
+  right-button orders. UI panels and point placement block pan initiation.
+- Source checks: Unity runtime scripts compile using refreshed source paths;
+  simulation checks cover repeated mortal/virtual respawns, crew defeat,
+  projectile cleanup, score preservation, held-unit protection and disabling.
+- Pending user validation on the next requested release: point buttons and
+  markers, repeated fights at the chosen separation, drag/drop lift appearance,
+  squad movement, cancellation, and right-drag enabled/disabled with open panels
+  and a rotated camera. No player was built or launched for these changes.

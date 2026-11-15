@@ -1,5 +1,24 @@
 # Player validation record
 
+## Pending — shared right-hand Stats / Balance / Dynamics / Testing tabs
+
+These changes are newer than the last player. No new game build or game tests
+were requested or run. They await a requested build and the user's validation.
+
+- Remove the separate Combat dynamics / Unit testing buttons and left panel.
+- Integrate Dynamics and Testing as content inside the existing right-hand
+  Stats/Balance panel, with one shared header and hide/restore rail.
+- Content-aware panel widths (500 for Stats/Balance, 520-620 for Testing,
+  640-760 for Dynamics), field/tooltip/reference comfort and window resizing.
+- Switching tabs commits active fields and preserves profiles, testing rules,
+  HP and counters; hide, restore, I/B keys and normal stats/table behavior.
+- Native proof source now expects the widened right-hand Dynamics content;
+  no native proof was executed, as game testing belongs to the user.
+
+Unity 6000.3.27f2 script-only compilation passed with exit code 0
+(`editor-four-tabs-final-compile.log`). Runtime layout, keyboard interactions and
+visual comfort remain for the user's validation after a requested build.
+
 ## Pending — success ratio, resets, JSON and left-hand combat dynamics
 
 These changes are now included in `builds/OpenZ-Release`, built by the user's

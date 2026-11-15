@@ -1,7 +1,9 @@
 # Unit testing laboratory
 
-In the Unit Editor, click **UNIT TESTING** next to **COMBAT DYNAMICS** in the
-top-left controls, or choose its tab. The native sidebar opens below on the left.
+In the Unit Editor, select **TESTING** in the existing right-hand panel, beside
+**STATS**, **BALANCE** and **DYNAMICS**. The panel adapts its width to the active
+tab, with extra room for Dynamics. Switching tabs preserves testing rules,
+profiles, HP and counters; hiding the shared panel does not pause their effects.
 Hover controls for detailed explanations. These rules belong to this playground
 world; they do not enter saved combat profiles or ordinary matches.
 

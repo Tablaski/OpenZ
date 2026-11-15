@@ -12,7 +12,8 @@ namespace OpenZ
     /// <summary>The STATS box, its BALANCE tab, the TABLE sheet and the unit card.</summary>
     public static class OzUeStats
     {
-        internal enum Tab { Stats = 0, Balance = 1 }
+        internal enum Tab { Stats = 0, Balance = 1, Dynamics = 2, Testing = 3 }
+        internal static bool LaboratoryTab => tab == Tab.Dynamics || tab == Tab.Testing;
 
         static bool boxOpen = true, tableOpen;
         static Tab tab = Tab.Stats;
@@ -23,13 +24,13 @@ namespace OpenZ
         public static bool BoxOpen => boxOpen;
         /// <summary>I: the box or its rail (with a click sound: the key path; the box's own buttons sound by themselves).</summary>
         public static void ToggleBox() { SetBox(!boxOpen); OzSfx.Ui("ui_click"); }
-        internal static void SetBox(bool open) { if (boxOpen == open) return; boxOpen = open; Raise(); }
+        internal static void SetBox(bool open) { if (boxOpen == open) return; if (!open) OzBehaviorPanel.I?.CommitInputs(); boxOpen = open; Raise(); }
 
         public static bool BalanceOpen => tab == Tab.Balance;
         /// <summary>B: the Balance tab of the same box (no layout jump); the box opens when it was hidden.</summary>
         public static void ToggleBalance() { SetTab(tab == Tab.Balance ? Tab.Stats : Tab.Balance); OzSfx.Ui("ui_click"); }
         internal static Tab CurrentTab => tab;
-        internal static void SetTab(Tab t) { bool ch = tab != t || !boxOpen; tab = t; boxOpen = true; if (ch) Raise(); }
+        internal static void SetTab(Tab t) { bool ch = tab != t || !boxOpen; if (ch) OzBehaviorPanel.I?.CommitInputs(); tab = t; boxOpen = true; if (ch) Raise(); }
 
         /// <summary>[ and ]: the previous / next stat of the Balance tab (only while it shows).</summary>
         public static void StepBalanceStat(int dir)
@@ -62,7 +63,7 @@ namespace OpenZ
             get
             {
                 if (!boxOpen || OzUnitEditor.PanelsHidden || !OzUnitEditor.UiBuilt) return 0f;
-                return UeBoxLayout.For(OzUnitEditor.CanvasSize, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom)).w;
+                return UeBoxLayout.ForTab(OzUnitEditor.CanvasSize, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom), tab).w;
             }
         }
 
@@ -89,6 +90,17 @@ namespace OpenZ
         public const float Gap = 12f, MaxH = 860f, RailW = 40f, RailH = 105.5f;
         /// <summary>The inspector at normal rows (spec 2.3): under this the box uses the compact rows.</summary>
         public const float NormalNeed = 705f;
+
+        internal static UeBoxLayout ForTab(Vector2 canvas, float insetTop, float insetBottom, OzUeStats.Tab tab)
+        {
+            var l = For(canvas, insetTop, insetBottom);
+            float desired = tab == OzUeStats.Tab.Dynamics ? Mathf.Clamp(canvas.x * .36f, 640, 760) :
+                tab == OzUeStats.Tab.Testing ? Mathf.Clamp(canvas.x * .29f, 520, 620) : Mathf.Max(500, l.w);
+            l.w = Mathf.Min(desired, Mathf.Max(500, canvas.x - 2 * Gap));
+            l.x = canvas.x - Gap - l.w;
+            l.hideVs = l.w < 419; l.narrowList = l.w < 400; l.narrowBal = l.w < 380;
+            return l;
+        }
 
         public static UeBoxLayout For(Vector2 canvas, float insetTop, float insetBottom)
         {

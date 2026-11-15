@@ -1,9 +1,11 @@
 # Behavior laboratory
 
-Open the Unit Editor and click **COMBAT DYNAMICS** immediately to the right of
-the top-left BLUE/RED count and background controls. The laboratory opens below
-that row on the left, using the same sidebar dimensions and native controls as STATS;
-closing it restores STATS. **TANKS** and **ROBOTS** keep separate drafts.
+Open the Unit Editor's existing right-hand panel and select **DYNAMICS**.
+Its shared header contains **STATS**, **BALANCE**, **DYNAMICS** and **TESTING**;
+there are no separate combat/testing buttons by the BLUE/RED counts.
+The panel widens by content: Stats/Balance use 500 canvas units, Testing 520-620,
+and Dynamics 640-760. It stays anchored to the right with the usual hide/restore
+rail and I shortcut. **TANKS** and **ROBOTS** keep separate drafts.
 Their DODGING, MOVEMENT, BOOST and COMBAT pages expose 74 parameters. Every parameter has detailed hover help and
 shows its original OpenZ and Zod Classic reference values. Family-wide values
 that differ by unit show a range; the tooltip lists each exact value.
@@ -58,7 +60,7 @@ The original attack stays queued; explicit new player orders take precedence.
 Pure Zod Classic retains its original full-step planning, including its historic
 running-speed calculation. This distinction is intentional and configurable.
 
-The adjacent **UNIT TESTING** button opens playground-only HP, immortality,
+The **TESTING** tab opens playground-only HP, immortality,
 damage and score controls. See [UNIT_TESTING.md](UNIT_TESTING.md).
 
 SAVE updates the current custom preset; SAVE AS creates another named preset.

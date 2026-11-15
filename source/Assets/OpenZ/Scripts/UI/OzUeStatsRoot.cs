@@ -26,12 +26,6 @@ namespace OpenZ
         RectTransform panelsRoot, sheetsRoot, popsRoot, tipsRoot;
         internal UeBoxShell Shell;
         internal RectTransform PopsRoot => popsRoot;
-        internal void CoverWithLaboratory(bool covered)
-        {
-            if (panelsRoot) panelsRoot.gameObject.SetActive(!covered && !OzUnitEditor.PanelsHidden);
-            float inset = covered || OzUnitEditor.PanelsHidden ? 0 : UeBoxLayout.Gap + (OzUeStats.BoxOpen ? builtLayout.w : UeBoxLayout.RailW);
-            OzUeInsets.Set(UeSide.Right, "stats", inset);
-        }
         internal OzUeTable Table;
         internal OzUeCard Card;
         internal OzUeHoverCard Hover;
@@ -131,7 +125,7 @@ namespace OpenZ
             Debug.Log(Log + "stats box built at " + builtCanvas.x.ToString("0") + " x " + builtCanvas.y.ToString("0") + " u (box " + builtLayout.w.ToString("0.#") + " x " + builtLayout.h.ToString("0.#") + (builtLayout.compact ? ", compact rows" : "") + ")");
         }
 
-        UeBoxLayout CurrentLayout() => UeBoxLayout.For(OzUnitEditor.CanvasSize, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom));
+        UeBoxLayout CurrentLayout() => UeBoxLayout.ForTab(OzUnitEditor.CanvasSize, OzUeInsets.Get(UeSide.Top), OzUeInsets.Get(UeSide.Bottom), OzUeStats.CurrentTab);
 
         void BuildPanels()
         {
@@ -199,13 +193,13 @@ namespace OpenZ
         {
             dirtyView = false;
             bool hidden = OzUnitEditor.PanelsHidden;
-            if (panelsRoot) panelsRoot.gameObject.SetActiveFast(!hidden && !(OzBehaviorPanel.I && OzBehaviorPanel.I.IsOpen));
+            if (panelsRoot) panelsRoot.gameObject.SetActiveFast(!hidden);
             if (sheetsRoot) sheetsRoot.gameObject.SetActiveFast(!hidden);
             if (popsRoot) popsRoot.gameObject.SetActiveFast(!hidden);
             if (Shell != null) Shell.Sync();
             if (Table != null) Table.Sync();
             if (Card != null) Card.Sync();
-            float inset = hidden || (OzBehaviorPanel.I && OzBehaviorPanel.I.IsOpen) ? 0f : OzUeStats.BoxOpen ? UeBoxLayout.Gap + builtLayout.w : UeBoxLayout.Gap + UeBoxLayout.RailW;
+            float inset = hidden ? 0f : OzUeStats.BoxOpen ? UeBoxLayout.Gap + builtLayout.w : UeBoxLayout.Gap + UeBoxLayout.RailW;
             OzUeInsets.Set(UeSide.Right, "stats", inset);
             dirtyValues = dirtyCounts = dirtyArt = true;                                     // a view shown again refreshes everything once
         }
@@ -227,9 +221,10 @@ namespace OpenZ
         UeSeg tabs, sets; OzUeScope scope;
         HudButton tableBtn, hideBtn, railHot, unpick;
         Image[] railEdge;
-        RectTransform strip; OzText stripBlue, stripRed, stripPicked, stripHint;
+        RectTransform strip, statControls; OzText stripBlue, stripRed, stripPicked, stripHint;
         internal OzUeStatsList List; internal OzUeInspector Inspector; internal OzUeObjectPanel Objects; internal OzUeBalance Balance;
         string shownKey;
+        internal HudButton TabButton(OzUeStats.Tab tab) => tabs.Hots[(int)tab];
         int pickedBlue = -1, pickedRed = -1;
 
         public void Build(RectTransform parent, OpenZHud hud, UeBoxLayout L)
@@ -244,13 +239,14 @@ namespace OpenZ
             var probe = Hud.Label(Box, "Probe", "", 12, OzUi.Ink, 0.10f, OzStyle.Plain);
             float t1 = Mathf.Max(68.5f, probe.WidthAt("STATS") + 24f), t2 = Mathf.Max(88.8f, probe.WidthAt("BALANCE") + 24f);
             UnityEngine.Object.Destroy(probe.gameObject);
-            tabs = UeSeg.Make(Box, "Tabs", 12f, by, 28f, new[] { "STATS", "BALANCE" }, new[] { t1, t2 }, 12f, 0.10f, PFix);
-            tabs.Hots[0].OnClick = c => OzUeStats.SetTab(OzUeStats.Tab.Stats);
-            tabs.Hots[1].OnClick = c => OzUeStats.SetTab(OzUeStats.Tab.Balance);
+            tabs = UeSeg.Make(Box, "Tabs", 12f, by, 28f, new[] { "STATS", "BALANCE", "DYNAMICS", "TESTING" }, new[] { t1, t2, 100f, 87f }, 12f, 0.10f, 50);
+            for (int i = 0; i < tabs.Hots.Count; i++) { var tab = (OzUeStats.Tab)i; tabs.Hots[i].OnClick = c => OzUeStats.SetTab(tab); }
+            OzUeSideTip.Add(tabs.Hots[2].Rt, "Dynamics: live tank and robot dodge, boost and physical profiles. This tab widens for comfortable editing.", OzUeSideTip.Place.Side, 50, Box);
+            OzUeSideTip.Add(tabs.Hots[3].Rt, "Testing: HP, immortality, circular damage, damage numbers and kill/death/success counters.", OzUeSideTip.Place.Side, 50, Box);
             OzUeSideTip.Add(tabs.Hots[0].Rt, "Stats: all units, or the picked unit", OzUeSideTip.Place.Side, PFix, Box);
             OzUeSideTip.Add(tabs.Hots[1].Rt, "Balance: one stat for every unit as bars of the four sets (B)", OzUeSideTip.Place.Side, PFix, Box);
             // ---- E053 TABLE, E054 hide
-            hideBtn = OzUeGfx.Button(Box, "Hide", ">", L.w - 10f - 28f, by, 28f, 28f, HudButtonStyle.Normal, PFix, 14f, 0f);
+            hideBtn = OzUeGfx.Button(Box, "Hide", ">", L.w - 10f - 28f, by, 28f, 28f, HudButtonStyle.Normal, 50, 14f, 0f);
             hideBtn.OnClick = c => OzUeStats.SetBox(false);
             OzUeSideTip.Add(hideBtn.Rt, "Hide the stats box (I)", OzUeSideTip.Place.Side, PFix, Box);
             tableBtn = OzUeGfx.Button(Box, "Table", "TABLE", L.w - 10f - 28f - 8f - 62f, by, 62f, 28f, HudButtonStyle.Normal, PFix);
@@ -258,14 +254,15 @@ namespace OpenZ
             OzUeSideTip.Add(tableBtn.Rt, "Table: every unit, every stat, over the field (T)", OzUeSideTip.Place.Side, PFix, Box);
             // ---- E055 the set switch: four equal cells, names in mixed case
             float sw = L.w - 22f, cw = sw / 4f;
-            sets = UeSeg.Make(Box, "Sets", 11f, L.setTop, OzUePlan.CellH(L.compact), new[] { "OpenZ", "ZodEngine", "Z-Wiki", "Custom" }, new[] { cw, cw, cw, cw }, 12f, 0.03f, PFix);   // 24 u (compact 20): the line under it says which stats are used
+            statControls = OzUeGfx.Node(Box, "StatControls", 0, 0, L.w, L.h);
+            sets = UeSeg.Make(statControls, "Sets", 11f, L.setTop, OzUePlan.CellH(L.compact), new[] { "OpenZ", "ZodEngine", "Z-Wiki", "Custom" }, new[] { cw, cw, cw, cw }, 12f, 0.03f, PFix);   // 24 u (compact 20): the line under it says which stats are used
             for (int i = 0; i < 4; i++)
             {
                 var s = OzUeSets.All[i];
                 sets.Hots[i].OnClick = c => OzUeSets.Use(s);
                 OzUeSideTip.Add(sets.Hots[i].Rt, OzUeSets.LongName(s) + "|The field here uses this set, every unit, both teams|Levels: OpenZ, or your saved Custom stats if you pick Custom on the level screen", OzUeSideTip.Place.Side, PFix, Box);
             }
-            scope = OzUeScope.Build(Box, L, PFix);                                                          // "In use here: Custom. Levels: OpenZ, or Custom on the level screen." (UI/OzUeScope.cs)
+            scope = OzUeScope.Build(statControls, L, PFix);                                                          // "In use here: Custom. Levels: OpenZ, or Custom on the level screen." (UI/OzUeScope.cs)
             // ---- E056 the body: the views swap in place
             Body = OzUeGfx.Node(Box, "Body", 0, L.bodyTop, L.w, L.h - L.bodyTop);
             BuildStrip();
@@ -395,6 +392,11 @@ namespace OpenZ
 
         void ShowView()
         {
+            bool laboratory = OzUeStats.LaboratoryTab;
+            statControls.gameObject.SetActiveFast(!laboratory);
+            Body.gameObject.SetActiveFast(!laboratory);
+            tableBtn.Rt.gameObject.SetActiveFast(!laboratory);
+            if (laboratory) { CloseDropdown(); return; }
             var v = Which();
             RefreshStrip();
             float top = StripH;
@@ -408,7 +410,7 @@ namespace OpenZ
 
         public void Refresh(bool values, bool counts, bool art)
         {
-            if (!Box || !Box.gameObject.activeInHierarchy) return;
+            if (!Box || !Box.gameObject.activeInHierarchy || OzUeStats.LaboratoryTab) return;
             if (values) PaintSets();
             RefreshStrip();
             if (List.Shown) List.Refresh(values, counts, art);
@@ -423,7 +425,9 @@ namespace OpenZ
             if (!Box) return;
             if (Box.gameObject.activeInHierarchy)
             {
-                tabs.Tick(); sets.Tick();
+                tabs.Tick();
+                if (OzUeStats.LaboratoryTab) return;
+                sets.Tick();
                 bool strip = StripShown;
                 if (strip != strip_) { strip_ = strip; ShowView(); }
                 else RefreshStrip();
@@ -442,7 +446,7 @@ namespace OpenZ
 
         public void TickLive()
         {
-            if (Box && Box.gameObject.activeInHierarchy)
+            if (Box && Box.gameObject.activeInHierarchy && !OzUeStats.LaboratoryTab)
             {
                 if (Inspector.Shown) Inspector.TickLive();
                 if (Objects.Shown) Objects.Refresh();

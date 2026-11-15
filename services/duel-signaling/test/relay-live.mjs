@@ -1,5 +1,4 @@
 // Explicit live credential test; run manually. Never prints permanent or temporary credentials.
-import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 const service = process.env.OPENZ_DUEL_SERVICE_URL;
 if (!service) throw new Error("Set OPENZ_DUEL_SERVICE_URL.");

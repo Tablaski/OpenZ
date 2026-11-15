@@ -50,3 +50,8 @@ credentials. Missing or incorrect configuration returns STUN only. Live GraphQL
 schema/permissions, billing alignment and actual relay connections are not
 proven by mocked unit/integration checks. Deployment and player validation must
 be recorded separately in PLAYER_VALIDATION.md.
+
+Deployment update: live TURN/SFU analytics and universal credential issuance were
+validated on 2026-11-15 after the user supplied a dedicated token through masked
+local input. The configured monthly billing day is 14, matching the visible
+Realtime renewal date. See PLAYER_VALIDATION.md for scope and remaining checks.

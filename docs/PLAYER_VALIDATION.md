@@ -247,3 +247,21 @@ must be added here and checked together on the next requested release.
   Existing long sessions and credential expiry still need manual validation.
 - No game player was built or launched. A requested release build is recommended
   because the connection flow and its failure handling changed.
+
+## Live universal relay activation — 2026-11-15
+
+- Deployed source 66ab2a45 to the Cloudflare invitation service with a shared
+  900,000,000,000-byte cutoff, TURN/SFU analytics and billing day 14 (Realtime
+  subscription renews December 14). Account and analytics credentials are stored
+  only as Worker secrets. The user entered the new token through masked local
+  input; no token was written to source or chat.
+- Live checks passed: two room seats without private codes receive temporary
+  UDP TURN credentials, HTTPS invitation page, authenticated WebSockets,
+  offer/answer exchange and unauthorized ICE rejection. No actual relay payload,
+  game player, voice or rendering test was run.
+- The former STUN-only live smoke assertion was obsolete after universal access;
+  the signaling smoke test now leaves issuance to the separate relay-live check.
+- The server is active. Existing compiled players retain their previous menus;
+  a newly requested release build is needed to include the password-free UI.
+- The 900 GB threshold blocks new issuance. Analytics lag and already-issued
+  six-hour credentials still prevent any guarantee of a hard billing cap.

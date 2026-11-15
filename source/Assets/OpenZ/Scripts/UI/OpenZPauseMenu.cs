@@ -173,6 +173,8 @@ namespace OpenZ
             { var vs = toggles[toggles.Count - 1]; vs.row.OnClick = c => { OzVehicleSizeOption.Step(c.right || c.shift ? -1 : Arrow(vs)); OzSfx.Ui("ui_tab_switch"); }; vs.row.OnRightClick = c => OzVehicleSizeOption.Step(-1); }
             AddToggle(p, toggles.Count, OzRangeRingsOption.Label, null, null, true);                       // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS, oz_range_rings, live (UI/OzRangeRingsOption.cs); GAME, under HEALTH BARS (OzSettingTips)
             { var rg = toggles[toggles.Count - 1]; rg.row.OnClick = c => { OzRangeRingsOption.Step(c.right || c.shift ? -1 : Arrow(rg)); OzSfx.Ui("ui_tab_switch"); }; rg.row.OnRightClick = c => OzRangeRingsOption.Step(-1); }
+            AddToggle(p, toggles.Count, OzForceBarOption.Label, null, null, true);
+            { var fb = toggles[toggles.Count - 1]; fb.row.OnClick = c => { OzForceBarOption.Step(c.right || c.shift ? -1 : Arrow(fb)); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.Step(-1); }
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
             { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
             AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
@@ -473,6 +475,7 @@ namespace OpenZ
                 if (t.label == OzOverlapOption.Label) { t.value.Set(OzText.Tab($"◀  {OzOverlapOption.Name}  ▶")); continue; }   // FRIENDLY UNITS OVERLAP: NO / YES
                 if (t.label == OzVehicleSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzVehicleSizeOption.Name}  ▶")); continue; }   // VEHICLE SIZE: 60 to 100 %
                 if (t.label == OzRangeRingsOption.Label) { t.value.Set(OzText.Tab($"◀  {OzRangeRingsOption.Name}  ▶")); continue; }   // 1.4 RANGE RINGS: FADE / ALWAYS
+                if (t.label == OzForceBarOption.Label) { t.value.Set(OzText.Tab($"◀  {OzForceBarOption.Name}  ▶")); continue; }
                 if (CamRowValue(t)) continue;                                                              // 1.4: MIDDLE MOUSE and SCROLL SPEED (UI/OpenZPauseMenu.CamControls.cs)
                 if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab($"◀  {OzSettings.ResolutionName}  ▶")); continue; }
                 if (t.chatter && t.robots) { t.value.Set(OzText.Tab($"◀  {AudioDirector.RobotChatter.Names[AudioDirector.RobotChatter.Level]}  ▶")); continue; }

@@ -15,6 +15,7 @@ namespace OpenZ.Multiplayer
         string role, folder;
         double began;
         bool joined, ordered, surrendered, finished, captured, lobbyCaptured, menuShown, menuCaptured, menuClosed, arenaMade, damaged;
+        bool forceProofStarted, forceProofDone;
         double connectedAt = -1, lastVoice;
         int exceptions;
         bool lobbyVoice, chatSent, chatOpened, chatClosed, chatExpired;
@@ -135,11 +136,13 @@ namespace OpenZ.Multiplayer
                     {
                         DuelProofCapture.Save(Path.Combine(folder, role + "-game.png")); captured = true;
                     }
-                    if (role == "guest" && !surrendered && w.Time > 20) { r.Surrender(); surrendered = true; }
+                    if (!forceProofStarted && w.Time > 14)
+                    { forceProofStarted = true; StartCoroutine(DuelForceBarProof.Run(folder, role, () => forceProofDone = true)); }
+                    if (role == "guest" && !surrendered && forceProofDone && w.Time > 20) { r.Surrender(); surrendered = true; }
                     if (w.GameOver)
                     {
                         bool blueFortGone = w.Objects.Where(o => o.IsFort && o.Owner == Team.Blue).All(o => o.Destroyed);
-                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && lobbyVoice && chatOpened && chatClosed && chatExpired && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
+                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && forceProofDone && lobbyVoice && chatOpened && chatClosed && chatExpired && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
                             "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; lobbyVoice=" + lobbyVoice + "; chatClick=" + chatOpened + "; chatExpiry=" + chatExpired + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
                     }
                 }

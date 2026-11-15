@@ -64,6 +64,7 @@ namespace OpenZ
             [OzOverlapOption.Label] = OzOverlapOption.Tip,                                 // FRIENDLY UNITS OVERLAP (OzOverlapOption.cs)
             [OzVehicleSizeOption.Label] = OzVehicleSizeOption.Tip,                         // VEHICLE SIZE (OzVehicleSizeOption.cs)
             [OzRangeRingsOption.Label] = OzRangeRingsOption.Tip,                           // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS (UI/OzRangeRingsOption.cs)
+            [OzForceBarOption.Label] = OzForceBarOption.Tip,
             [OzTouch.Label] = OzTouch.Tip,                                                  // touch and gamepad (OzTouch.cs)
             [OzTrackpadScroll.Label] = OzTrackpadScroll.Tip,                                // TRACKPAD SCROLL: ZOOM / MOVE MAP (OzTrackpadScroll.cs)
             [MinimalLabel] = "MINIMAL UI|Hide the permanent HUD panels; keep the menu button and the minimap.|",
@@ -94,7 +95,7 @@ namespace OpenZ
         {
             ("MUSIC · SOUNDTRACK", TabMain), ("ANNOUNCER CHATTER", TabMain), (RobotChatterLabel, TabMain), (OzSettings.FullLabel, TabMain), (OzSettings.ResLabel, TabMain), ("HUD SCALE", TabMain), ("UI SCALE", TabMain),
             ("EDGE SCROLL", TabGame), (OzFreeCam.Label, TabGame), (OzCamControls.SpeedLabel, TabGame), (OzCamControls.RightLabel, TabGame), ("HEALTH BARS ON EVERY DAMAGED UNIT", TabGame), (OzRangeRingsOption.Label, TabGame), (MinimalLabel, TabGame), (OzHudLayout.Label, TabGame), ("YOUR TEAM COLOUR · VISUAL ONLY", TabGame),
-            ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame),
+            (OzForceBarOption.Label, TabGame), ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame),
             (OzQuality.Label, TabGraphics), (OzFpsCap.Label, TabGraphics), (NightShadows.Label, TabGraphics), (OzNightRain.Label, TabGraphics),
             ("MOTION BLUR · FAST DEBRIS AND SHELLS", TabGraphics), (OzLensEdges.Label, TabGraphics), (OzQuality.FpsLabel, TabGraphics),
             (OzSmoothFrames.Label, TabGraphics), (OzSunSteps.Label, TabGraphics), (OzEndingDebris.Label, TabGraphics), (OzGfxApi.Label, TabGraphics), (OzMassLod.Label, TabGraphics),   // v1.3 item 25: rows for slower computers; ue_mass_battles: MASS BATTLES last

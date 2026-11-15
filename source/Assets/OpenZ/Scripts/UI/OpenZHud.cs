@@ -625,8 +625,9 @@ namespace OpenZ
             clockW = cr.w; clockH = cr.h;
             Hud.Kit(cw, "Glass", "Panels/well_clock_glass", new OzRect(0, 0, cr.w, cr.h), null, Image.Type.Simple).enabled = OzKit.Available;
             clockHot = Hotspot(top, "ClockHot", cr, "MISSION TIME|Game time since the start (Zod clock). Stops while paused.|");
-            Hotspot(top, "RedHot", new OzRect(20, 4, 280, 56), TeamColors.Name(Team.Red) + " FORCE|Units on the field (robots count one by one). At 70 the factories pause.|");
-            Hotspot(top, "BlueHot", new OzRect(480, 4, 280, 56), TeamColors.Name(Team.Blue) + " FORCE|Units on the field (robots count one by one). At 70 the factories pause.|");
+            forceRedHot = Hotspot(top, "RedHot", new OzRect(20, 4, 280, 56), TeamColors.Name(Team.Red) + " FORCE|");
+            forceBlueHot = Hotspot(top, "BlueHot", new OzRect(480, 4, 280, 56), TeamColors.Name(Team.Blue) + " FORCE|");
+            BuildForceComparison();
 
             // territory tab: one segment per zone, red packed from the left, blue from the right, neutral between
             terr = Hud.Node("Territory", Root).Place(OzHudLayout.At(OzPanel.Status, OzLayout.TerrTab));
@@ -662,10 +663,9 @@ namespace OpenZ
             {
                 nextTop = now + 0.1f;
                 int r = W.UnitCount(Team.Red), b = W.UnitCount(Team.Blue);
-                redTick.Set(r); blueTick.Set(b);
-                redBar.Set(r / (float)ZWorld.MAX_UNITS_PER_TEAM); blueBar.Set(b / (float)ZWorld.MAX_UNITS_PER_TEAM);
+                RefreshForceMetrics(r, b);
                 bool rl = W.UnitLimitReached(Team.Red), bl = W.UnitLimitReached(Team.Blue);
-                redLimit.gameObject.SetActiveFast(rl && redLimit.texture); blueLimit.gameObject.SetActiveFast(bl && blueLimit.texture);
+                redLimit.gameObject.SetActiveFast(!forceValueMode && rl && redLimit.texture); blueLimit.gameObject.SetActiveFast(!forceValueMode && bl && blueLimit.texture);
 
                 // territory (zones: owned per team; red from the left, blue from the right)
                 int zr = 0, zb = 0, total = W.Zones.Count;
@@ -690,11 +690,12 @@ namespace OpenZ
                 }
             }
             // tickers + flashes every frame (strings are only built when the shown number changes: no per-frame garbage)
-            SetNum(redCount, ref shownRed, redTick.Value); SetNum(blueCount, ref shownBlue, blueTick.Value);
+            RefreshForceNumbers();
             bool rl2 = W.UnitLimitReached(Team.Red), bl2 = W.UnitLimitReached(Team.Blue);
             redCount.color = rl2 ? (Color)OzUi.Signal : redTick.Colour(OzUi.Ink, OzUi.TeamText(Team.Red));
             blueCount.color = bl2 ? (Color)OzUi.Signal : blueTick.Colour(OzUi.Ink, OzUi.TeamText(Team.Blue));
             PlaceOf70();
+            RefreshForceAppearance();
             SetNum(terrRed, ref shownTerrRed, terrRedTick.Value); SetNum(terrBlue, ref shownTerrBlue, terrBlueTick.Value);
             terrRed.color = terrRedTick.Colour(OzUi.TeamText(Team.Red), OzUi.Ink); terrBlue.color = terrBlueTick.Colour(OzUi.TeamText(Team.Blue), OzUi.Ink);
             for (int i = 0; i < segs.Count; i++)
@@ -739,8 +740,8 @@ namespace OpenZ
         void PlaceOf70()
         {
             float rw = redCount.preferredWidth, bw = blueOf.preferredWidth;
-            if (!Mathf.Approximately(rw, lastRedW)) { lastRedW = rw; redOf.At(OzLayout.TopCountLX + rw + OzLayout.TopOf70Gap, OzLayout.TopOf70Y, OzH.L, false, 60); }
-            if (!Mathf.Approximately(bw, lastBlueW)) { lastBlueW = bw; blueCount.At(OzLayout.TopCountRX - bw - OzLayout.TopOf70Gap, OzLayout.TopCountY, OzH.R, false, 80); }
+            if (!Mathf.Approximately(rw, lastRedW)) { lastRedW = rw; redOf.At(OzLayout.TopCountLX + rw + OzLayout.TopOf70Gap, OzLayout.TopOf70Y, OzH.L, false, 120); }
+            if (!Mathf.Approximately(bw, lastBlueW)) { lastBlueW = bw; blueCount.At(OzLayout.TopCountRX - bw - OzLayout.TopOf70Gap, OzLayout.TopCountY, OzH.R, false, 120); }
         }
 
         // ================================================================== menu button (guide 9.12)

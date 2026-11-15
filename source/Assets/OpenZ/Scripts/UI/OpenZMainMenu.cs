@@ -341,6 +341,7 @@ namespace OpenZ
             AddToggle(p, 9, OzSettingTips.PathV3Label, () => OzSettingTips.PathV3, v => OzSettingTips.PathV3 = v);
             AddToggle(p, 10, OzSettingTips.MinimalLabel, () => OzSettingTips.MinimalUi, v => OzSettingTips.MinimalUi = v);
             AddCycle(p, toggles.Count, NightShadows.Label, () => NightShadows.Name, NightShadows.Step);
+            AddCycle(p, toggles.Count, OzForceBarOption.Label, () => OzForceBarOption.Name, OzForceBarOption.Step);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
             AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)

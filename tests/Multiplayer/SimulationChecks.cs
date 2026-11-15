@@ -14,6 +14,29 @@ static class SimulationChecks
         foreach (string map in new[] { "L02", "L07", "L16", "L17" })
         {
             string json = File.ReadAllText(Path.Combine(root, "Maps", map + "_grid.json"));
+            var military = ZWorld.Create(settings, json);
+            military.Objects.RemoveAll(o => o.IsUnit);
+            var heavy = military.CreateObject("vehicle", "heavy", 160, 160, Team.Red);
+            military.CreateObject("vehicle", "heavy", 224, 160, Team.Red);
+            for (int i = 0; i < 4; i++) military.CreateObject("vehicle", "light", 160 + i * 64, 240, Team.Blue);
+            military.CreateRobotGroup("grunt", 160, 320, Team.Red);
+            double redValue = 2 * military.S.Unit("heavy").build_time + military.S.Unit("grunt").build_time;
+            check(military.MilitaryValue(Team.Red) == redValue, map + ": military value counted robot squad members more than once");
+            check(military.MilitaryValue(Team.Blue) == 4 * military.S.Unit("light").build_time, map + ": military value did not weight light tanks by their normal cost");
+            military.CreateObject("cannon", "missile_cannon", 400, 400, Team.Red);
+            military.CreateObject("vehicle", "heavy", 480, 400, Team.Neutral);
+            var destroyed = military.CreateObject("vehicle", "heavy", 560, 400, Team.Red); destroyed.Health = 0;
+            check(military.MilitaryValue(Team.Red) == redValue && military.MilitaryValue(Team.Neutral) == 0,
+                map + ": turrets, destroyed or neutral units changed military value");
+            heavy.Health = 1;
+            check(military.MilitaryValue(Team.Red) == redValue, map + ": damage changed normal construction value");
+            military.Objects.Remove(heavy);
+            check(military.MilitaryValue(Team.Red) == redValue - military.S.Unit("heavy").build_time, map + ": deleted unit retained military value");
+            check(Math.Abs(ZForceComparison.RelativePercent(1300, 1000) - 30) < 1e-9 && Math.Abs(ZForceComparison.RelativePercent(1000, 1300) + 30) < 1e-9,
+                map + ": relative force gap is not symmetric against the smaller army");
+            check(ZForceComparison.Share(0, 0) == .5 && ZForceComparison.RelativePercent(0, 0) == 0 &&
+                double.IsPositiveInfinity(ZForceComparison.RelativePercent(1, 0)) && double.IsNegativeInfinity(ZForceComparison.RelativePercent(0, 1)),
+                map + ": empty-army force comparison failed");
             var host = ZWorld.Create(settings, json);
             host.Bots.Add(new ZBot(host, Team.Blue, 1));
             host.TechBonus[1] = 5;

@@ -103,6 +103,10 @@ namespace OpenZ.Multiplayer
                 switch (step++)
                 {
                     case 0:
+                        var mainMenu = FindFirstObjectByType<OpenZMainMenu>();
+                        mainMenu.ProofOpenOptions(OzSettingTips.TabGame);
+                        if (!mainMenu.ProofOptTabRows.Contains(OzForceBarOption.Label)) throw new Exception("Force bar option missing from main menu GAME options.");
+                        mainMenu.ProofOpen("");
                         if (!FindObjectsByType<Transform>(FindObjectsSortMode.None).Any(t => t.name == "Item_PLAY SOLO")) throw new Exception("Missing PLAY SOLO entry.");
                         if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "1VS1")) throw new Exception("Old floating duel button is still present.");
                         Capture("main-menu"); ClickMainItem("PLAY 1 VS 1"); break;

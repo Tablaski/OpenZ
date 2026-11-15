@@ -1,5 +1,26 @@
 # Player validation record
 
+## Brake-pivot-accelerate release (0.2.6, awaiting player validation)
+
+- Movement-only setup on FEEL/MOVEMENT for the selected family or type: brake
+  along the old hull axis, pivot at zero or limited speed, accelerate once aligned.
+  Separate turn rate, angular acceleration, alignment, acceleration and braking.
+- Existing profiles remain unchanged unless the new mode is enabled. Old setting
+  IDs are preserved. Local preference history schema 2 includes both drafts,
+  selected profiles and named profile library; prior history and choices remain.
+- Actual accepted physical displacement drives render extrapolation and movement
+  indicators. DEBUG ON reports the movement phase. Live edits retain hull heading.
+- Completed: 1,052 core/real-map simulation checks, including full-stop and near-stop
+  pivots, braking before turning, acceleration after alignment, family/type
+  inheritance, legacy profile decoding and host/guest physical-state replication.
+- Completed: Unity runtime source compilation and Git diff whitespace checks;
+  only existing unrelated compiler warnings remain.
+- Pending manual checks: hull rotation and track appearance, pivots from rest and
+  while moving, dodge/replan behavior on all tank types, high turn rates, game-speed
+  controls, camera/overlay rendering, profile save/load and existing preferences.
+- The requested release build and archive publication are being prepared. A build
+  does not mark any gameplay, rendering or native integration checks as passed.
+
 ## Testing movement overlays (0.2.5, awaiting player validation)
 
 - Cyan marks the authoritative combat position. Violet marks the displayed model

@@ -10,12 +10,15 @@ namespace OpenZ.Sim
         public string BehaviorDodgeReason = "No threat";
         public int BehaviorAlerts, BehaviorAttempts, BehaviorRefusals, BehaviorReplans;
         public double BehaviorHeading, BehaviorActualSpeed;
+        public bool BehaviorHeadingSet;
+        public float BehaviorStepDx, BehaviorStepDy;
+        public string BehaviorMotionPhase = "Idle";
         public int BehaviorThreatX, BehaviorThreatY;
         public double BehaviorThreatUntil;
         internal bool BehaviorRocketWeapon => Type == "tough" || Type == "medium" || Type == "missile_launcher" || Type == "missile_cannon";
         double behaviorTurnSpeed, behaviorReverseUntil, behaviorDodgeStart = -100, behaviorBlastAt,
             behaviorLastDodge = -100, behaviorFireUntil, behaviorRegroupUntil;
-        bool behaviorHeadingSet, behaviorReversing, behaviorWasDodging, behaviorPending;
+        bool behaviorReversing, behaviorWasDodging, behaviorPending;
         double behaviorReactAt, behaviorPendingBlast, behaviorAttackReturnAt;
         int behaviorPendingX, behaviorPendingY, behaviorOriginX, behaviorOriginY, behaviorShots;
         ZThreatKind behaviorPendingKind;
@@ -43,7 +46,9 @@ namespace OpenZ.Sim
                 if (BehaviorDodging && behaviorWasDodging) KillWP();
                 behaviorWasDodging = false;
             }
-            behaviorHeadingSet = false; BehaviorActualSpeed = 0; behaviorTurnSpeed = 0;
+            // Live tuning must not snap an established physical heading to a new target.
+            if (Behavior == null || !Behavior.On(ZBehaviorKey.Physical))
+            { BehaviorHeadingSet = false; BehaviorActualSpeed = 0; behaviorTurnSpeed = 0; }
         }
         bool BehaviorRefuse(string reason)
         { BehaviorDodgeReason = reason; BehaviorRefusals++; return false; }
@@ -128,7 +133,8 @@ namespace OpenZ.Sim
             length = Math.Min(BehaviorMapSpan, length);
             int k = World.Rng.Next(1000); if (k == 0) k = 1000;
             double random = 2 * 3.14159 * (1000.0 / k);
-            double heading = behaviorHeadingSet ? BehaviorHeading : Math.Atan2(Dy, Dx);
+            double heading = BehaviorHeadingSet ? BehaviorHeading : p.On(ZBehaviorKey.TurnFirst) ?
+                (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : Math.Atan2(Dy, Dx);
             int bestX = CenterX, bestY = CenterY; double best = double.NegativeInfinity;
             int strategy = (int)p[ZBehaviorKey.Direction];
             int samples = strategy == 0 ? 1 : strategy == 1 ? 9 : 24;
@@ -147,7 +153,7 @@ namespace OpenZ.Sim
                 double reachable = Math.Min(length, BehaviorBaseMoveSpeed * time * (p.On(ZBehaviorKey.Boost) ? p[ZBehaviorKey.BoostSpeed] : 1));
                 if (p.On(ZBehaviorKey.Physical))
                 {
-                    double turn = p.On(ZBehaviorKey.Lateral) || p[ZBehaviorKey.TurnRate] == 0 ? 0 : abs / (p[ZBehaviorKey.TurnRate] * Math.PI / 180);
+                    double turn = p.On(ZBehaviorKey.Lateral) && !p.On(ZBehaviorKey.TurnFirst) || p[ZBehaviorKey.TurnRate] == 0 ? 0 : abs / (p[ZBehaviorKey.TurnRate] * Math.PI / 180);
                     double available = Math.Max(0, time - turn);
                     reachable = Math.Min(reachable, RealMoveSpeed * available);
                     if (p[ZBehaviorKey.Acceleration] > 0) reachable *= Math.Min(1, available / p[ZBehaviorKey.Acceleration] * .5 + BehaviorActualSpeed / Math.Max(1, RealMoveSpeed));
@@ -258,7 +264,14 @@ namespace OpenZ.Sim
             var p = Behavior;
             if (p == null || !p.On(ZBehaviorKey.Physical) || dt <= 0) return;
             double desired = Math.Sqrt(vx * vx + vy * vy), angle = Math.Atan2(cur.y - CenterY, cur.x - CenterX);
-            if (!behaviorHeadingSet) { BehaviorHeading = angle; behaviorHeadingSet = true; }
+            if (!BehaviorHeadingSet)
+            {
+                BehaviorHeading = p.On(ZBehaviorKey.TurnFirst) ?
+                    (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : angle;
+                BehaviorHeadingSet = true;
+            }
+            if (p.On(ZBehaviorKey.TurnFirst))
+            { BehaviorTurnFirst(dt, desired, angle, ref vx, ref vy); return; }
             double offset = WrapRadians(angle - BehaviorHeading);
             bool reverse = !p.On(ZBehaviorKey.Lateral) && p.On(ZBehaviorKey.Reverse) && Math.Abs(offset) > Math.PI * .61;
             if (reverse != behaviorReversing) { behaviorReversing = reverse; behaviorReverseUntil = World.Time + p[ZBehaviorKey.ReverseDelay]; }
@@ -285,6 +298,43 @@ namespace OpenZ.Sim
             double speed = Math.Min(BehaviorActualSpeed, remaining / dt);
             double travel = p.On(ZBehaviorKey.Lateral) ? angle : BehaviorHeading + (reverse ? Math.PI : 0);
             vx = Math.Cos(travel) * speed; vy = Math.Sin(travel) * speed;
+        }
+        void BehaviorTurnFirst(double dt, double desired, double angle, ref double vx, ref double vy)
+        {
+            var p = Behavior;
+            double tolerance = Math.Min(45, p[ZBehaviorKey.AlignmentTolerance]) * Math.PI / 180;
+            double error = Math.Abs(WrapRadians(angle - BehaviorHeading));
+            double pivotSpeed = desired * Math.Min(100, p[ZBehaviorKey.PivotSpeed]) / 100;
+            bool turning = error > Math.Max(1e-6, tolerance);
+            double remaining = Dist(CenterX, CenterY, cur.x, cur.y);
+            double target = turning ? Math.Min(BehaviorActualSpeed, pivotSpeed) : desired;
+            if (p[ZBehaviorKey.Braking] > 0)
+                target = Math.Min(target, Math.Sqrt(2 * desired / p[ZBehaviorKey.Braking] * remaining));
+            double ramp = target < BehaviorActualSpeed ? p[ZBehaviorKey.Braking] : p[ZBehaviorKey.Acceleration];
+            BehaviorActualSpeed = ramp <= 0 ? target : Toward(BehaviorActualSpeed, target, Math.Max(1, desired) / ramp * dt);
+            bool braking = turning && BehaviorActualSpeed > pivotSpeed + 1e-6;
+            BehaviorMotionPhase = braking ? "Braking" : turning ? "Pivoting" : BehaviorActualSpeed < desired - 1e-6 ? "Accelerating" : "Driving";
+            if (braking) behaviorTurnSpeed = 0;
+            else
+            {
+                double delta = WrapRadians(angle - BehaviorHeading);
+                double cap = p[ZBehaviorKey.TurnRate] * Math.PI / 180;
+                if (cap == 0) { BehaviorHeading = angle; behaviorTurnSpeed = 0; }
+                else
+                {
+                    double want = Math.Max(-cap, Math.Min(cap, delta / dt));
+                    behaviorTurnSpeed = p[ZBehaviorKey.TurnAcceleration] == 0 ? want :
+                        Toward(behaviorTurnSpeed, want, p[ZBehaviorKey.TurnAcceleration] * Math.PI / 180 * dt);
+                    behaviorTurnSpeed = Math.Max(-cap, Math.Min(cap, behaviorTurnSpeed));
+                    double step = behaviorTurnSpeed * dt;
+                    // Never carry angular momentum past alignment or turn away after a replan.
+                    if (step * delta <= 0) step = 0;
+                    if (Math.Abs(step) >= Math.Abs(delta)) { step = delta; behaviorTurnSpeed = 0; }
+                    BehaviorHeading = WrapRadians(BehaviorHeading + step);
+                }
+            }
+            double speed = Math.Min(BehaviorActualSpeed, remaining / dt);
+            vx = Math.Cos(BehaviorHeading) * speed; vy = Math.Sin(BehaviorHeading) * speed;
         }
         bool BehaviorReached(out bool reached)
         {

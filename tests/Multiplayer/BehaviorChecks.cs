@@ -96,5 +96,68 @@ static class BehaviorChecks
         check(moving.LocX - initialX < moving.RealMoveSpeed * .1, "Acceleration limits actual displacement");
         for (int i = 2; i < 150; i++) moving.ProcessServer(i * .1);
         check(moving.LocX > initialX + 20 && moving.LocX <= initialX + 73, "Physical controller approaches the real target without overshoot");
+        TurnFirstChecks(settings, map, openX, openY, check);
+    }
+
+    static void TurnFirstChecks(string settings, string map, int x, int y, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, map, 827);
+        if (world.Pathing != null) world.Pathing.Enabled = false;
+        var p = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, master = 100 };
+        p.Set("", ZBehaviorKey.Distance, 1.7); p.Set("heavy", ZBehaviorKey.TurnRate, 180);
+        string oldProfile = p.Encode();
+        p.ConfigureTurnFirst(""); p.Set("", ZBehaviorKey.Boost, 0);
+        check(p.Get("light", ZBehaviorKey.Distance) == 1.7 && p.master == 100 && p.Get("heavy", ZBehaviorKey.TurnRate) == 180,
+            "Turn-first setup preserves dodge choices, master and per-type exceptions");
+        check(ZBehaviorProfile.Decode(oldProfile).Get("light", ZBehaviorKey.TurnFirst) == 0 &&
+            ZBehaviorProfile.Decode(p.Encode()).Encode() == p.Encode(), "Old profiles keep turn-first off; new controls round-trip");
+        p.Set("", ZBehaviorKey.TurnRate, 90); p.Set("", ZBehaviorKey.AlignmentTolerance, 1);
+        p.Set("", ZBehaviorKey.Acceleration, 1); p.Set("", ZBehaviorKey.Braking, .5);
+        world.SetBehavior(p);
+        var tank = world.CreateObject("vehicle", "light", x + 32, y + 32, Team.Red);
+        tank.Waypoints.Add(new ZWaypoint { mode = WpMode.Dodge, x = tank.CenterX + 64, y = tank.CenterY });
+        double startX = tank.PosX, startY = tank.PosY;
+        tank.ProcessServer(.1);
+        check(Math.Abs(tank.BehaviorHeading + Math.PI * .45) < .0001 && tank.BehaviorMotionPhase == "Pivoting",
+            "First move turns from the standing hull heading at the configured rate, without snapping");
+        check(tank.PosX == startX && tank.PosY == startY && tank.BehaviorActualSpeed == 0 && tank.BehaviorStepDx == 0 && tank.BehaviorStepDy == 0,
+            "Zero-percent pivot has no displacement or render extrapolation despite commanded velocity");
+        for (int i = 2; i <= 10; i++) tank.ProcessServer(i * .1);
+        check(Math.Abs(tank.PosX - startX) < .001 && Math.Abs(tank.PosY - startY) < .001,
+            "Tank remains stationary throughout the ninety-degree pivot");
+        tank.ProcessServer(1.1);
+        check(tank.PosX > startX && Math.Abs(tank.PosY - startY) < .001 && tank.BehaviorActualSpeed < tank.RealMoveSpeed,
+            "Tank accelerates along its aligned hull after the pivot, even with Zod lateral/reverse settings");
+        for (int i = 12; i <= 20; i++) tank.ProcessServer(i * .1);
+        double heading = tank.BehaviorHeading, speed = tank.BehaviorActualSpeed;
+        tank.Waypoints[0] = new ZWaypoint { mode = WpMode.Dodge, x = tank.CenterX, y = tank.CenterY - 64 };
+        tank.ProcessServer(2.1);
+        check(tank.BehaviorMotionPhase == "Braking" && tank.BehaviorHeading == heading && tank.BehaviorActualSpeed < speed,
+            "Moving tank brakes along its old heading before starting a sharp pivot");
+        double time = 2.1;
+        for (int i = 0; i < 20 && tank.BehaviorMotionPhase != "Pivoting"; i++) { time += .1; tank.ProcessServer(time); }
+        check(tank.BehaviorMotionPhase == "Pivoting" && tank.BehaviorActualSpeed == 0 &&
+            tank.BehaviorStepDx == 0 && tank.BehaviorStepDy == 0, "Rotation starts only after full braking at zero-percent pivot speed");
+        heading = tank.BehaviorHeading;
+        p.Set("", ZBehaviorKey.TurnRate, 720); world.SetBehavior(p);
+        check(tank.BehaviorHeading == heading && tank.BehaviorHeadingSet, "Live tuning retains the physical hull heading");
+        var guest = ZWorld.Create(settings, map, 827); guest.ConfigureDuel(new DuelRules { Map = "L02" }, true);
+        DuelReplica.Apply(guest, DuelReplica.Capture(world));
+        var remote = guest.Get(tank.Id);
+        check(remote != null && remote.BehaviorHeadingSet && remote.BehaviorHeading == tank.BehaviorHeading &&
+            remote.BehaviorStepDx == tank.BehaviorStepDx && remote.BehaviorMotionPhase == tank.BehaviorMotionPhase,
+            "Physical heading, movement and pivot phase replicate to the guest");
+        p.Set("", ZBehaviorKey.PivotSpeed, 5); world.SetBehavior(p);
+        tank.BehaviorActualSpeed = tank.RealMoveSpeed;
+        tank.Waypoints[0] = new ZWaypoint { mode = WpMode.Dodge, x = tank.CenterX - 64, y = tank.CenterY };
+        bool crept = false;
+        for (int i = 0; i < 70; i++)
+        {
+            time += .025; tank.ProcessServer(time);
+            if (tank.BehaviorMotionPhase != "Pivoting") continue;
+            crept |= tank.BehaviorStepDx * tank.BehaviorStepDx + tank.BehaviorStepDy * tank.BehaviorStepDy > 0;
+            check(tank.BehaviorActualSpeed <= tank.RealMoveSpeed * .05 + .0001, "Near-stop pivot respects the retained-speed cap");
+        }
+        check(crept, "Five-percent pivot permits controlled creeping instead of forcing a complete stop");
     }
 }

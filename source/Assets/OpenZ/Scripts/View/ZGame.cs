@@ -575,6 +575,8 @@ namespace OpenZ
             var p = CenterWorld(o, false);
             if (!o.IsMoving) return p;
             float t = TickAlpha * (float)ZConst.TICK;
+            if (o.Behavior != null && o.Behavior.On(ZBehaviorKey.Physical))
+                return p + new Vector3(o.BehaviorStepDx * t / 8f, 0f, -o.BehaviorStepDy * t / 8f);
             return p + new Vector3(o.Dx * t / 8f, 0f, -o.Dy * t / 8f);
         }
     }

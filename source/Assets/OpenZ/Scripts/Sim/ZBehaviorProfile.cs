@@ -18,7 +18,8 @@ namespace OpenZ.Sim
         ImmediateTurn, HeadingHold, HeadingCommit, DeadZone, ShortTurn, DirectView,
         Boost, BoostSpeed, BoostChance, BoostDuration, Endurance, Drain, Recharge, MinStamina,
         DamagedBoost, PremiumBoost, FireDodge, FireBoost, Accuracy, Settle, KeepTarget,
-        FireMoving, BreakForRetreat, Cohesion, RegroupDelay, CombatManoeuvres, ResumeAttack, Count
+        FireMoving, BreakForRetreat, Cohesion, RegroupDelay, CombatManoeuvres, ResumeAttack,
+        TurnFirst, PivotSpeed, AlignmentTolerance, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -125,7 +126,10 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Cohesion,"Maximum squad separation (0 = unlimited)","COMBAT","m",0,30,0,0,"Reject dodge endpoints farther than this from the squad leader."),
             N(ZBehaviorKey.RegroupDelay,"Delay before post-dodge regroup","COMBAT","s",0,5,0,0,"Delay autonomous minion movement after a dodge; direct orders still resume immediately."),
             B(ZBehaviorKey.CombatManoeuvres,"OpenZ offensive combat manoeuvres","COMBAT",true,false,"OpenZ's flanks, arcs and reverses while attacking. OFF uses Zod's stop-and-fire behavior once in range. Defensive dodges remain separate."),
-            B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Custom combat safeguard: end the dodge 0.1 s after the first triggering blast and resume the interrupted attack. Later shots can change the direction but cannot postpone this return indefinitely. Stops long boosted dodge endpoints from behaving like a retreat. Enabled automatically when you manually tune a profile; turn it off to reproduce Zod's full random step. New player orders always take precedence.")
+            B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Custom combat safeguard: end the dodge 0.1 s after the first triggering blast and resume the interrupted attack. Later shots can change the direction but cannot postpone this return indefinitely. Stops long boosted dodge endpoints from behaving like a retreat. Enabled automatically when you manually tune a profile; turn it off to reproduce Zod's full random step. New player orders always take precedence."),
+            B(ZBehaviorKey.TurnFirst,"Brake, pivot, then accelerate","MOVEMENT",false,false,"Requires physical movement limits. On direction changes, brake along the current hull axis, pivot only once slow enough, then accelerate once aligned. Applies to normal movement and dodges. Overrides lateral movement, reversing and the legacy pivot/turn-while-moving switches while enabled."),
+            N(ZBehaviorKey.PivotSpeed,"Retained speed during pivot","MOVEMENT","%",0,100,0,0,"Brake to this fraction of commanded speed before pivoting. 0 = stop completely; 5 = almost stop. Effective range 0-100%. Requires brake-pivot-accelerate mode."),
+            N(ZBehaviorKey.AlignmentTolerance,"Alignment before acceleration","MOVEMENT","deg",0,45,5,5,"Start accelerating when the hull is within this angle of the movement direction. Effective maximum 45 degrees. Requires brake-pivot-accelerate mode.")
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium" };
@@ -176,6 +180,14 @@ namespace OpenZ.Sim
             Reset(type, key); overrides.Add(new ZBehaviorOverride { type = type, key = key, value = value });
         }
         public bool KnownType(string type) => type == "" || (family == ZBehaviorFamily.Tanks ? ZBehaviorSchema.IsTank(type) : ZBehaviorSchema.IsRobot(type));
+        public void ConfigureTurnFirst(string type)
+        {
+            // A movement-only starting point: retain every dodge/combat choice and type exception.
+            Set(type, ZBehaviorKey.Physical, 1); Set(type, ZBehaviorKey.TurnFirst, 1);
+            Set(type, ZBehaviorKey.PivotSpeed, 0); Set(type, ZBehaviorKey.AlignmentTolerance, 5);
+            Set(type, ZBehaviorKey.TurnRate, 720); Set(type, ZBehaviorKey.TurnAcceleration, 0);
+            Set(type, ZBehaviorKey.Acceleration, .25); Set(type, ZBehaviorKey.Braking, .15);
+        }
         public double Get(string type, ZBehaviorKey key)
         {
             for (int i = overrides.Count - 1; i >= 0; i--) if (overrides[i].key == key && overrides[i].type == type) return overrides[i].value;

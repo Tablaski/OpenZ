@@ -25,7 +25,10 @@ namespace OpenZ
         readonly bool[] advanced = new bool[5];
         public bool SimulationDebug { get; private set; }
         public bool RouteDebug { get; private set; }
-        static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.DirectView, ZBehaviorKey.TurnRate, ZBehaviorKey.Distance, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown };
+        static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.Physical, ZBehaviorKey.TurnFirst,
+            ZBehaviorKey.PivotSpeed, ZBehaviorKey.AlignmentTolerance, ZBehaviorKey.TurnRate,
+            ZBehaviorKey.TurnAcceleration, ZBehaviorKey.Acceleration, ZBehaviorKey.Braking,
+            ZBehaviorKey.DirectView, ZBehaviorKey.Distance, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown };
         static bool Primary(ZBehaviorKey k) => Array.IndexOf(essentials, k) >= 0 || k == ZBehaviorKey.Enabled || k == ZBehaviorKey.Boost || k == ZBehaviorKey.CombatManoeuvres || k == ZBehaviorKey.Physical;
         public Team RespawnPointTeam { get; private set; }
         bool builtTesting;
@@ -145,10 +148,20 @@ namespace OpenZ
             if (profiles || imports) { BuildPresetList(); return; }
             float y = 0;
             var intro = Row("Guide", y, 72);
-            Text(intro, "OpenZ-VK | " + (page == 0 ? "START WITH THESE FIVE" : pages[page]), 9, 16, layout.w - 58, 12, OzForkOptions.Accent);
+            Text(intro, "OpenZ-VK | " + (page == 0 ? "MOVEMENT AND DODGE FEEL" : pages[page]), 9, 16, layout.w - 58, 12, OzForkOptions.Accent);
             var mode = Text(intro, "", 9, 39, layout.w - 58, 10, OzUi.Muted);
-            refresh.Add(() => mode.Set(P.Get(Type, ZBehaviorKey.Physical) >= .5 ? "PHYSICAL: changes real combat positions" : P.Get(Type, ZBehaviorKey.DirectView) >= .5 ? "DIRECT: 2D position + rate-limited hull" : "FOLLOWER: catch-up can distort dodge paths"));
+            refresh.Add(() => mode.Set(P.Get(Type, ZBehaviorKey.Physical) >= .5 ?
+                P.Get(Type, ZBehaviorKey.TurnFirst) >= .5 ? "BRAKE > PIVOT > ACCELERATE: hull controls real movement" : "PHYSICAL: changes real combat positions" :
+                P.Get(Type, ZBehaviorKey.DirectView) >= .5 ? "DIRECT: 2D position + rate-limited hull" : "FOLLOWER: catch-up can distort dodge paths"));
             y += 72;
+            if (page == 0 || page == 2)
+            {
+                var setup = Row("TurnFirstSetup", y, 44);
+                Button(setup, "Apply", "BRAKE > PIVOT > ACCELERATE", new Rect(9, 5, layout.w - 58, 30),
+                    "Apply a movement-only starting point to the selected scope: physical mode ON, brake-pivot-accelerate ON, pivot speed 0%, alignment 5 deg, turn rate 720 deg/s, angular acceleration instant, acceleration 0.25 s, braking 0.15 s. Dodge rules and master remain unchanged. Existing per-type exceptions still win over family values. Tune the fields below; SAVE AS keeps a named profile.",
+                    () => { FinishFields(); P.ConfigureTurnFirst(Type); Apply(family); dirty = true; });
+                y += 44;
+            }
             IEnumerable<ZBehaviorDef> definitions = page == 0 ? Array.ConvertAll(essentials, ZBehaviorSchema.Def) : ZBehaviorSchema.All;
             foreach (var d in definitions)
             {

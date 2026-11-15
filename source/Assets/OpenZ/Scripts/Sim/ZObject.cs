@@ -166,6 +166,8 @@ namespace OpenZ.Sim
         {
             double dt = time - lastProcessTime;
             lastProcessTime = time;
+            BehaviorStepDx = BehaviorStepDy = 0;
+            BehaviorMotionPhase = "Idle";
             UpdatedWaypoints = UpdatedVelocity = UpdatedAttackObjectHealth = UpdatedAttackObjectDriverHealth = false;
             EnteredTargetId = DeleteGrenadeBoxId = DestroyFortId = EnteredRepairId = -1;
             if (DoAutoRepair && time >= NextAutoRepairTime) { DoAutoRepair = false; World.AutoRepair(this); }   // :4235-4257
@@ -326,6 +328,8 @@ namespace OpenZ.Sim
                 return ReachedTarget();
             if (!stoppable && LavaWalkHalt(inx, iny)) return true;                     // DV152: a walk into / out of lava never enters a rock, building or cliff tile; it ends there (ZWorld.Lava.cs)
             if (IsRobot) WalkDisengage();                                              // robots don't attack while moving (DV57: grunt / psycho / laser keep firing, ZObject.FireOnMove.cs)
+            if (dt > 0)
+            { BehaviorStepDx = (float)((nx - PosX) / dt); BehaviorStepDy = (float)((ny - PosY) / dt); }
             XOver = nx - inx; YOver = ny - iny;
             LocX = inx; LocY = iny;
             CenterX = LocX + (WidthPix >> 1); CenterY = LocY + (HeightPix >> 1);

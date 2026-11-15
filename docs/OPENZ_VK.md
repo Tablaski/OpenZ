@@ -27,9 +27,9 @@ The territory-border key retains 0=OFF and 1=x1 and now also accepts 2 and 4.
 Already-saved choices are preserved. Microphone mode is saved; Tap to speak starts
 with transmission stopped and requires a fresh tap after losing focus/connection.
 
-OzForkPreferences tracks schema 1 and snapshots changed non-sensitive settings
+OzForkPreferences tracks schema 2 and snapshots changed non-sensitive settings
 on startup, every 30 seconds, focus loss and shutdown. Snapshots are stored in
-Application.persistentDataPath/OpenZ-VK/preferences/schema-1, with current.json
+Application.persistentDataPath/OpenZ-VK/preferences/schema-2, with current.json
 and timestamped history. They are local history, not files shipped in a build.
 Existing unknown PlayerPrefs keys are not changed. A lower-version player does not
 lower the saved schema marker. No automatic reset or bulk restoration is performed.
@@ -37,6 +37,35 @@ Device choices are included only in local snapshots. External profile assets and
 credentials keep their existing storage and are not included in snapshots. Future key migrations must explicitly preserve the user's choice and
 extend the preference manifest. Physical capture/runtime persistence still await
 user testing on a requested build.
+
+Schema 2 extends the manifest with both behavior drafts, the named profile library
+and both selected profile IDs. Schema 1 history remains in place; existing values
+are neither reset nor rewritten. New movement controls are appended to the behavior
+schema, preserving legacy numeric setting IDs and named JSON fields. Profiles
+without the new controls keep brake-pivot-accelerate disabled.
+
+## Brake, pivot, then accelerate
+
+In Unit Editor > Dynamics > Tanks, select ALL TANKS or an individual type and use
+BRAKE > PIVOT > ACCELERATE on FEEL or MOVEMENT. This changes only eight movement
+values: Physical ON, TurnFirst ON, PivotSpeed 0%, AlignmentTolerance 5 degrees,
+TurnRate 720 degrees/s, TurnAcceleration 0, Acceleration 0.25 s and Braking 0.15 s.
+It preserves dodge settings, master and existing type exceptions. SAVE AS stores a
+named profile; select it in Options > Game to use it in matches.
+
+With physical limits and TurnFirst enabled, a sharp change brakes along the old
+hull axis first, then pivots at the chosen rate once at or below PivotSpeed, then
+accelerates when within AlignmentTolerance. Zero PivotSpeed stops completely;
+a small percentage allows creeping. While enabled this mode takes precedence over
+free lateral movement, reversing and the older pivot/turn-moving switches.
+Acceleration and braking remain independently editable. Explicit stop orders and
+collisions retain their immediate safe stop. These controls also use the existing
+robot-family and per-type inheritance, though robot visual facing remains separate.
+
+Physical presentation extrapolates actual accepted movement, rather than the
+commanded velocity, so a stationary pivot does not slide toward its target between
+ticks. Live physical tuning retains the established heading. DEBUG ON reports
+Braking, Pivoting, Accelerating or Driving plus actual simulation speed.
 
 ## Options presentation
 

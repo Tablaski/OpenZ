@@ -109,9 +109,11 @@ namespace OpenZ
                 b.Ratio.Set(score.SuccessPercent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%");
                 b.Kills.SetActive(show); b.Deaths.SetActive(show); b.Ratio.SetActive(show);
                 b.Root.Find("Trophy").gameObject.SetActive(show); b.Root.Find("Skull").gameObject.SetActive(show);
-                b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason + "\n" +
+                bool physical = o.Behavior != null && o.Behavior.On(ZBehaviorKey.Physical);
+                double dx = physical ? o.BehaviorStepDx : o.Dx, dy = physical ? o.BehaviorStepDy : o.Dy;
+                b.Debug.SetActive(debug); b.Debug.Set(o.BehaviorDodgeReason + (physical ? " | " + o.BehaviorMotionPhase : "") + "\n" +
                     (o.IsRunning ? "BOOST" : "WALK") + " | stamina " + o.Stamina.ToString("0.0") +
-                    " | sim " + (Math.Sqrt((double)o.Dx * o.Dx + (double)o.Dy * o.Dy) * ZConst.PX_TO_M).ToString("0.0") + " m/s" +
+                    " | sim " + (Math.Sqrt(dx * dx + dy * dy) * ZConst.PX_TO_M).ToString("0.0") + " m/s" +
                     " | gap " + Vector3.Distance(Position(o), OzUnitEditor.I.Game.CenterWorld(o)).ToString("0.0") + " m");
             }
             remove.Clear();

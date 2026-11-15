@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 1;
+        public const int Schema = 2;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -41,6 +41,11 @@ namespace OpenZ
                 Add("oz_attack_approach", "Int");
                 Add("oz_autogate", "Int");
                 Add("oz_behavior_draft_", "String");
+                Add("oz_behavior_draft_0", "String");
+                Add("oz_behavior_draft_1", "String");
+                Add("oz_behavior_library_v1", "String");
+                Add("oz_behavior_selected_0", "String");
+                Add("oz_behavior_selected_1", "String");
                 Add("oz_bfort_auto", "String");
                 Add("oz_board_nearest", "Int");
                 Add("oz_bot_commit", "Int");

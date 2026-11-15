@@ -91,7 +91,7 @@ namespace OpenZ
             behaviorCommit = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.HeadingCommit] : Commit;
             if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.Physical))
             {
-                hull = (float)(o.BehaviorHeading * Mathf.Rad2Deg) + 90f;
+                if (o.BehaviorHeadingSet) hull = (float)(o.BehaviorHeading * Mathf.Rad2Deg) + 90f;
                 goal = cand = hull; rate = 0f;
                 return hull;
             }

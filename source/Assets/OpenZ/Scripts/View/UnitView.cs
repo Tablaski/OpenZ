@@ -473,7 +473,9 @@ namespace OpenZ
             var p = game.CenterWorldSmooth(Obj);                                                        // parity P4: Zod client SmoothMove, no tick judder
             // OpenZ pathing (Sim/ZPathing.cs): a unit held in a queue / at a lane keeps Zod's heading (Dx/Dy) but stands: no walk
             // cycle, dust, bounce or turning in place. With the layer on the squad keeps 14 px (1.75 m) in the sim: no view slots.
-            bool moving = Obj.IsMoving && !Obj.PathHeld;
+            bool physicalMotion = Obj.Behavior != null && Obj.Behavior.On(ZBehaviorKey.Physical);
+            float motionDx = physicalMotion ? Obj.BehaviorStepDx : Obj.Dx, motionDy = physicalMotion ? Obj.BehaviorStepDy : Obj.Dy;
+            bool moving = (physicalMotion ? motionDx * motionDx + motionDy * motionDy > .0001f : Obj.IsMoving) && !Obj.PathHeld;
             bool simSpacing = game.World.Pathing != null && game.World.Pathing.Enabled;
             // view-only squad formation: in Zod every member walks the leader's exact path on top of the others (no
             // formation offsets, spread only by ScuffleUnits when idle), so a moving squad would read as one robot.
@@ -532,8 +534,8 @@ namespace OpenZ
 
             bool engaged = (Obj.AttackObject != null && !Obj.AttackObject.Destroyed) || Obj.DragonAiming;   // DV163: the upper body up at a dragon
             bool vehicle = Obj.Kind == ZKind.Vehicle;
-            float speed01 = moving && Obj.MoveSpeed > 0 ? Mathf.Clamp01(Mathf.Sqrt(Obj.Dx * Obj.Dx + Obj.Dy * Obj.Dy) / (Obj.MoveSpeed * 1.689f)) : 0f;
-            var moveDir = moving ? new Vector3(Obj.Dx, 0, -Obj.Dy).normalized : Vector3.zero;
+            float speed01 = moving && Obj.MoveSpeed > 0 ? Mathf.Clamp01(Mathf.Sqrt(motionDx * motionDx + motionDy * motionDy) / (Obj.MoveSpeed * 1.689f)) : 0f;
+            var moveDir = moving ? new Vector3(motionDx, 0, -motionDy).normalized : Vector3.zero;
             var bodyDir = new Vector3(bodyVel.x, 0f, bodyVel.z);
             bool bodyGoes = Obj.Kind == ZKind.Robot && walkShown && bodyDir.sqrMagnitude > FaceMin * FaceMin;   // motion_v1: the drawn robot visibly walks
             var legDir = bodyGoes ? bodyDir.normalized : moving || !walkShown ? moveDir : new Vector3(dispVel.x, 0f, dispVel.z).normalized;   // take2 legs; motion_v1: where the drawn body goes

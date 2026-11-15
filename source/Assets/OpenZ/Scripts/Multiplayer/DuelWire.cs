@@ -8,7 +8,7 @@ namespace OpenZ.Multiplayer
     public enum DuelMessage : ushort
     {
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
-        Command, Delta, Ping, Pong, Disconnect, Surrender
+        Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby
     }
 
     public sealed class DuelPacket
@@ -25,7 +25,7 @@ namespace OpenZ.Multiplayer
     /// </summary>
     public static class DuelWire
     {
-        public const int Version = 1, MaxPayload = 4 * 1024 * 1024;
+        public const int Version = 2, MaxPayload = 4 * 1024 * 1024;
         const uint Magic = 0x31445A4F; // OZ D1
 
         public static async Task WriteAsync(Stream stream, DuelPacket packet, CancellationToken cancel)

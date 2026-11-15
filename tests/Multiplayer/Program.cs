@@ -58,6 +58,13 @@ static class Program
         Check(lobby.StartAt == 103, "Duplicate load reset countdown");
         Check(lobby.Advance(103) && lobby.Phase == DuelPhase.Playing, "Loading barrier failed");
         Reject(() => lobby.ChangeRules(0, rules), "Rules changed during match");
+        lobby.Restart();
+        Check(lobby.Phase == DuelPhase.Loading && lobby.StartAt < 0 && lobby.Name(0) == "Host" && lobby.Name(1) == "Guest", "Restart lost seats or loading barrier");
+        lobby.MarkLoaded(0, lobby.Revision, 110); Check(!lobby.Advance(200), "Restart started before guest loaded");
+        lobby.MarkLoaded(1, lobby.Revision, 210); Check(lobby.Advance(213), "Restart failed after both loaded");
+        int playedRevision = lobby.Revision; lobby.ReturnToLobby();
+        Check(lobby.Phase == DuelPhase.Lobby && !lobby.Ready(0) && !lobby.Ready(1) && lobby.Revision > playedRevision && lobby.Rules.HandicapEnabled, "Return to lobby lost rules or kept readiness");
+        Reject(lobby.Restart, "Restart allowed outside match");
         lobby.Disconnect("Guest left");
         Check(!lobby.Advance(200) && lobby.Phase == DuelPhase.Closed, "Closed session restarted");
         Reject(() => new DuelRules { TerritoryBonus = double.NaN }.Validate(), "NaN rule accepted");
@@ -79,6 +86,18 @@ static class Program
             Reject(placement.Validate, "Fort accepted a mobile unit: " + mobile);
         }
         Check(Math.Abs(new DuelRules().BuildSeconds(0, 100, 1, 1) - 50) < .001, "Territory calculation");
+        var balancing = new DuelRules();
+        Check(balancing.FortLoserReduction(100, 200) == 0 && balancing.TerritoryReductionCap == 1, "Optional VK balance rules enabled by default");
+        balancing.FortLoserMaximum = .5;
+        Check(balancing.FortLoserReduction(100, 130) < 1e-12 && Math.Abs(balancing.FortLoserReduction(100, 150) - 1d / 6) < 1e-10, "Fort bonus start/ramp");
+        Check(Math.Abs(balancing.FortLoserReduction(100, 170) - 1d / 3) < 1e-10 && Math.Abs(balancing.FortLoserReduction(100, 190) - .5) < 1e-10, "Fort bonus does not reach 50% at 90% lead");
+        Check(balancing.FortLoserReduction(0, 100) == .5 && balancing.FortLoserReduction(0, 0) == 0 && balancing.FortLoserReduction(200, 100) == 0, "Fort bonus empty/leading armies");
+        balancing.TerritoryReductionCap = .25;
+        Check(balancing.BuildSeconds(0, 100, 1, 1) == 75 && balancing.BuildSeconds(0, 100, .2, 1) == 90, "Territory cap replaced original bonus rather than limiting it");
+        balancing.TerritoryReductionCap = 1;
+        Check(balancing.BuildSeconds(0, 100, 1, 1) == 50, "Disabling cap failed to restore original rule");
+        balancing.FortLoserMaximum = double.NaN; Reject(balancing.Validate, "Invalid fort bonus accepted");
+
         var handicap = new DuelRules(); handicap.EnableHandicap(0); handicap.Handicap.BuildDuration = .8;
         Check(handicap.BuildSeconds(0, 100, 0, 1) == 80 && handicap.BuildSeconds(1, 100, 0, 1) == 100, "Asymmetric handicap");
         handicap.HandicapEnabled = false;
@@ -164,6 +183,7 @@ static class Program
         await RejectFrame(corrupt, "Unbounded allocation accepted");
         await RejectFrame(new byte[] { 1, 2 }, "Truncated header accepted");
         Array.Resize(ref encoded, 13); await RejectFrame(encoded, "Truncated payload accepted");
+        BalanceChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
         BehaviorChecks.Run(Check, Reject);
         PlaygroundChecks.Run(Check, Reject);

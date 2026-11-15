@@ -25,6 +25,7 @@ namespace OpenZ
             float w = OzLayout.PauseW - 2 * OzLayout.OptX;
             var b = HudButton.Make(microphonePage, name, text, new Vector2(w, height), HudButtonKind.Small, 12, .04f);
             b.Rt.TL(OzLayout.OptX, y, w, height); b.Priority = 100; b.OnClick = c => action();
+            b.LabelColor = OzForkOptions.Accent; b.Refresh();
             return b;
         }
 
@@ -32,7 +33,7 @@ namespace OpenZ
         {
             microphonePage = Hud.Node("TabMicrophone", optionsRoot); microphonePage.Fill();
             float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * x;
-            microphoneToggle = MicrophoneButton("MicrophoneMute", "", 90, () => MicrophoneVoice.ToggleMicrophone());
+            microphoneToggle = MicrophoneButton("MicrophoneMute", "", 90, () => MicrophoneVoice.SetMode((DuelVoice.MicrophoneMode)(((int)MicrophoneVoice.Mode + 1) % 3)));
             Hud.Label(microphonePage, "InputDeviceLabel", "INPUT DEVICE", 11, OzUi.Muted).At(x, 150);
             microphoneDevice = MicrophoneButton("MicrophoneDevice", "", 174, ToggleMicrophoneDevices, 54);
             microphoneDevice.Tooltip = "Choose the microphone used for voice chat. System default follows Windows.";
@@ -49,7 +50,7 @@ namespace OpenZ
             microphoneMeter = Hud.Img(meter.transform, "MicrophoneLevel", OzUi.Go); microphoneMeter.rectTransform.Fill();
             microphoneStatus = Hud.Label(microphonePage, "MicrophoneStatus", "", 11, OzUi.Muted).Body(x, 412, w);
             microphoneKey = MicrophoneButton("MicrophoneTalkKey", "", 486, () => microphoneBinding = true);
-            Hud.Label(microphonePage, "MicrophoneHint", "Hold the shortcut to talk.\nThe input meter also works while muted.", 11, OzUi.Muted).Body(x, 544, w);
+            Hud.Label(microphonePage, "MicrophoneHint", "Tap the shortcut to start/stop speaking in Tap to speak mode.\nThe input meter also works while muted.", 11, OzUi.Muted).Body(x, 544, w);
             microphonePage.gameObject.SetActive(false);
         }
 
@@ -106,7 +107,7 @@ namespace OpenZ
             MicrophoneVoice.Monitoring = active;
             if (!active) { microphoneBinding = microphoneDragging = false; return; }
             var voice = MicrophoneVoice;
-            microphoneToggle.Label.Set(voice.MicrophoneEnabled ? "MICROPHONE: ON · CLICK TO MUTE" : "MICROPHONE: MUTED · CLICK TO ENABLE");
+            microphoneToggle.Label.Set("MICROPHONE: " + voice.ModeName + " · CLICK TO CHANGE");
             string device = voice.Device;
             microphoneDevice.Label.Set((device.Length > 36 ? device.Substring(0, 33) + "…" : device) + "  ▼");
             microphoneGainText.Set("INPUT VOLUME: " + Mathf.RoundToInt(voice.Gain * 100) + "%");
@@ -116,7 +117,7 @@ namespace OpenZ
             microphoneMeter.color = voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go;
             microphoneLevelText.Set("TEST YOUR MICROPHONE: " + Mathf.RoundToInt(voice.InputLevel * 100) + "%");
             microphoneStatus.Set(voice.Status);
-            microphoneKey.Label.Set(microphoneBinding ? "PRESS A KEY · ESC TO CANCEL" : "PUSH TO TALK: " + voice.TalkKey);
+            microphoneKey.Label.Set(microphoneBinding ? "PRESS A KEY · ESC TO CANCEL" : "TAP TO SPEAK: " + voice.TalkKey);
             var mouse = Mouse.current;
             if (mouse == null || OzConfirm.Blocks) return;
             bool devicesOpen = microphoneDevices && microphoneDevices.gameObject.activeSelf;

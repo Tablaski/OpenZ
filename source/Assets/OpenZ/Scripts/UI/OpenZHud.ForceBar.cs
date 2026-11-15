@@ -31,6 +31,11 @@ namespace OpenZ
 
         void RefreshForceMetrics(int redUnits, int blueUnits)
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active)
+            {
+                SetFortProductionBoost(Team.Red, W.DuelFortLoserReduction(Team.Red));
+                SetFortProductionBoost(Team.Blue, W.DuelFortLoserReduction(Team.Blue));
+            }
             bool valueMode = OzForceBarOption.MilitaryValue;
             if (forceValueMode != valueMode)
             {
@@ -51,7 +56,7 @@ namespace OpenZ
             blueOf.Set(valueMode ? otherDelta : otherDelta + " · / 70");
             redOf.rectTransform.sizeDelta = new Vector2(120, redOf.rectTransform.sizeDelta.y);
             blueOf.rectTransform.sizeDelta = new Vector2(120, blueOf.rectTransform.sizeDelta.y);
-            string description = valueMode ? "Normal construction time of mobile units. Robot squads count once; cannons and buildings do not count." : "Units on the field; robots count individually. At 70 the factories pause.";
+            string description = valueMode ? "Normal construction time of offensive mobile units. Robot squads count once; cranes, unarmed units, cannons and buildings do not count." : "Units on the field; robots count individually. At 70 the factories pause.";
             string reference = "The signed gap is relative to the smaller army; the cursor marks each team's share of the combined total.";
             forceRedHot.Tooltip = TeamColors.Name(Team.Red) + " FORCE|" + description + "\n" + reference + "\nUnits: " + redUnits + "/70." + BoostTip(forceRedBoost) + "|";
             forceBlueHot.Tooltip = TeamColors.Name(Team.Blue) + " FORCE|" + description + "\n" + reference + "\nUnits: " + blueUnits + "/70." + BoostTip(forceBlueBoost) + "|";

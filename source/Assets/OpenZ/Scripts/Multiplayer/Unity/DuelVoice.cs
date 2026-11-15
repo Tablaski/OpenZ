@@ -33,14 +33,15 @@ namespace OpenZ.Multiplayer
         public bool MicrophoneEnabled { get; private set; }
         public string Device => device ?? "System default";
         public bool Monitoring { get; set; }
+        public bool HudMonitoring { get; set; }
         public float InputLevel { get; private set; }
         public float Gain { get => PlayerPrefs.GetFloat("oz_duel_mic_gain", 1f); set => PlayerPrefs.SetFloat("oz_duel_mic_gain", Mathf.Clamp(value, 0, 4)); }
-        void Awake() { device = PlayerPrefs.GetString("oz_duel_mic_device", ""); if (device == "" || !Microphone.devices.Contains(device)) device = null; }
+        void Awake() { device = PlayerPrefs.GetString("oz_duel_mic_device", ""); if (device == "" || !Microphone.devices.Contains(device)) device = null; Mode = (MicrophoneMode)Mathf.Clamp(PlayerPrefs.GetInt("oz_duel_mic_mode", 0), 0, 2); }
         public void SelectDevice(string selected)
         {
-            bool resume = MicrophoneEnabled; StopMicrophone(); device = selected; retryMicrophoneAt = 0;
+            var mode = Mode; StopMicrophone(); device = selected; retryMicrophoneAt = 0;
             PlayerPrefs.SetString("oz_duel_mic_device", device ?? ""); PlayerPrefs.Save();
-            if (resume) ToggleMicrophone();
+            SetMode(mode);
         }
         void StartMicrophone()
         {
@@ -53,18 +54,29 @@ namespace OpenZ.Multiplayer
         public string Status { get; private set; } = "Microphone muted";
         public int FramesReceived => Volatile.Read(ref receivedFrames);
         internal void SendProofFrame(float[] frame) { if (udp != null || online != null) Send(1, DuelVoiceCodec.Encode(frame)); }
+        public enum MicrophoneMode { Mute, AlwaysOn, TapToSpeak }
+        public MicrophoneMode Mode { get; private set; }
+        bool tapped;
+        public bool Transmitting { get; private set; }
+        public string ModeName => Mode == MicrophoneMode.AlwaysOn ? "ALWAYS ON" : Mode == MicrophoneMode.TapToSpeak ? "TAP TO SPEAK" : "MUTE";
+        public void SetMode(MicrophoneMode mode)
+        {
+            Mode = mode; tapped = false; PlayerPrefs.SetInt("oz_duel_mic_mode", (int)mode); PlayerPrefs.Save();
+            if (mode == MicrophoneMode.Mute) StopMicrophone();
+            else
+            {
+                try { StartMicrophone(); MicrophoneEnabled = true; }
+                catch (Exception error) { StopMicrophone(); Mode = MicrophoneMode.Mute; Status = error.Message; }
+            }
+        }
         public Key TalkKey => (Key)PlayerPrefs.GetInt("oz_duel_talk_key", (int)Key.V);
         public void ToggleMicrophone()
         {
-            if (MicrophoneEnabled) { StopMicrophone(); return; }
-            try
-            {
-                StartMicrophone(); MicrophoneEnabled = true; Status = "Hold " + TalkKey + " to talk";
-            }
-            catch (Exception error) { StopMicrophone(); Status = error.Message; }
+            SetMode(Mode == MicrophoneMode.Mute ? MicrophoneMode.TapToSpeak : MicrophoneMode.Mute);
         }
         void Update()
         {
+            Transmitting = false;
             var r = DuelRuntime.I;
             try
             {
@@ -76,7 +88,7 @@ namespace OpenZ.Multiplayer
                     if (Time.realtimeSinceStartupAsDouble - lastProbe > 1)
                     { lastProbe = Time.realtimeSinceStartupAsDouble; Send(0, Array.Empty<byte>()); }
                 }
-                if (!Monitoring && !MicrophoneEnabled) { if (microphone) StopMicrophone(); return; }
+                if (!Monitoring && !HudMonitoring && Mode == MicrophoneMode.Mute) { if (microphone) StopMicrophone(); return; }
                 if (Time.realtimeSinceStartupAsDouble < retryMicrophoneAt) return;
                 try { StartMicrophone(); }
                 catch (Exception)
@@ -84,10 +96,15 @@ namespace OpenZ.Multiplayer
                     StopMicrophone(); retryMicrophoneAt = Time.realtimeSinceStartupAsDouble + 3;
                     Status = "Microphone unavailable. Choose another input device."; return;
                 }
+                MicrophoneEnabled = Mode != MicrophoneMode.Mute;
                 int position = Microphone.GetPosition(device);
                 if (position < 0) { StopMicrophone(); Status = "Microphone unavailable"; return; }
-                bool talking = MicrophoneEnabled && r && r.Connected && Application.isFocused && Keyboard.current != null && Keyboard.current[TalkKey].isPressed && !r.Menus.IsTyping;
-                Status = !MicrophoneEnabled ? "Microphone muted · local meter only" : talking ? "TRANSMITTING" : "Hold " + TalkKey + " to talk";
+                bool canTalk = MicrophoneEnabled && r && r.Connected && (!r.Game || !r.Game.World.GameOver) && Application.isFocused && !r.Menus.IsTyping;
+                if (!canTalk) tapped = false;
+                else if (Mode == MicrophoneMode.TapToSpeak && Keyboard.current != null && Keyboard.current[TalkKey].wasPressedThisFrame) tapped = !tapped;
+                bool talking = canTalk && (Mode == MicrophoneMode.AlwaysOn || tapped);
+                Transmitting = talking;
+                Status = !MicrophoneEnabled ? "Microphone muted · local meter only" : talking ? "TRANSMITTING" : Mode == MicrophoneMode.AlwaysOn ? "Always on" : "Tap " + TalkKey + " to speak";
                 int available = (position - readPosition + microphone.samples) % microphone.samples;
                 if (available > 1600) { readPosition = (position / 320 * 320 + microphone.samples - 320) % microphone.samples; available = 320; }
                 float peak = 0, gain = Gain;
@@ -176,7 +193,7 @@ namespace OpenZ.Multiplayer
         void StopMicrophone()
         {
             if (microphone) { Microphone.End(device); Destroy(microphone); microphone = null; }
-            InputLevel = 0; MicrophoneEnabled = false; Status = "Microphone muted";
+            InputLevel = 0; MicrophoneEnabled = false; tapped = false; Transmitting = false; Status = "Microphone muted";
         }
         void StopVoice()
         {

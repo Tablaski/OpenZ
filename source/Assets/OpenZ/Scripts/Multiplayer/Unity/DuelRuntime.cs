@@ -32,19 +32,19 @@ namespace OpenZ.Multiplayer
         public string Map, HostName, GuestName;
         public int Revision, Phase, HandicapSlot;
         public bool HostReady, GuestReady, HandicapEnabled;
-        public double TerritoryBonus, MinimumBuildSeconds;
+        public double TerritoryBonus, MinimumBuildSeconds, FortLoserMaximum, TerritoryReductionCap;
         public DuelArmyData Common, Handicap;
         public static DuelLobbyData From(DuelLobby l)
         {
             var r = l.Rules;
             return new DuelLobbyData { Map = r.Map, HostName = l.Name(0), GuestName = l.Name(1), Revision = l.Revision,
                 Phase = (int)l.Phase, HostReady = l.Ready(0), GuestReady = l.Ready(1), HandicapEnabled = r.HandicapEnabled,
-                HandicapSlot = r.HandicapSlot, TerritoryBonus = r.TerritoryBonus, MinimumBuildSeconds = r.MinimumBuildSeconds,
+                HandicapSlot = r.HandicapSlot, TerritoryBonus = r.TerritoryBonus, MinimumBuildSeconds = r.MinimumBuildSeconds, FortLoserMaximum = r.FortLoserMaximum, TerritoryReductionCap = r.TerritoryReductionCap,
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap) };
         }
         public DuelRules ReadRules()
         {
-            var rules = new DuelRules { Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds,
+            var rules = new DuelRules { Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
                 Common = Common.Read(), Handicap = Handicap.Read(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot };
             rules.Validate(); return rules;
         }
@@ -88,6 +88,10 @@ namespace OpenZ.Multiplayer
         DuelLobby lobby;
         string secret, localName;
         bool session, loadStarted, sentGameOver;
+        bool restartPending, restartPromptOpen;
+        bool finalStatsSent, localEndReady, remoteEndReady;
+        public bool FinalStatsReady { get; private set; }
+        double restartDeadline;
         bool savedSoloRules, soloCrews, soloFortGun;
         double startAt = -1, lastReceive, lastPing, pendingPing = -1, lastSnapshot;
         long commandSequence;
@@ -123,7 +127,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-1.4-duel-3\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-0.2-duel-4\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             foreach (string map in new[] { "L02", "L07", "L16", "L17" }) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
@@ -222,6 +226,8 @@ namespace OpenZ.Multiplayer
                     if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;
+                if (restartPromptOpen && (!Playing || !Game || Game.World.GameOver)) OzConfirm.Dismiss();
+                if (IsHost && restartPending && Now > restartDeadline) { if (restartPromptOpen) OzConfirm.Dismiss(); else FinishRestartRequest(false); }
                 if (peer.Closed) { Fail(peer.Failure ?? "Connection closed"); return; }
                 int count = 0;
                 while (peer != null && count++ < 256 && peer.TryReceive(out var packet)) { lastReceive = Now; Handle(packet); }
@@ -269,7 +275,7 @@ namespace OpenZ.Multiplayer
                     if (ready.Revision == lobby.Revision) lobby.SetReady(1, ready.Revision, ready.Ready);
                     PublishLobby(); break;
                 case DuelMessage.Load:
-                    if (IsHost || session || View == null) throw new InvalidDataException("Unexpected load.");
+                    if (IsHost || (session && (Playing || Game)) || View == null) throw new InvalidDataException("Unexpected load.");
                     ReceiveState(packet); session = true; loadStarted = true; LoadScene(); break;
                 case DuelMessage.Loaded:
                     if (!IsHost || !session || lobby.Phase != DuelPhase.Loading) break;
@@ -283,6 +289,31 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.Delta:
                     if (IsHost || !session || !Game) throw new InvalidDataException("Unexpected replica state.");
                     ReceiveState(packet); break;
+                case DuelMessage.MatchStats:
+                    if (IsHost || !Game || !Game.World.GameOver) throw new InvalidDataException("Unexpected final statistics.");
+                    ReadJson<DuelMatchStats>(packet).Apply(FindFirstObjectByType<OpenZHud>().Stats); FinalStatsReady = true; break;
+                case DuelMessage.EndReady:
+                    if (!IsHost || !Playing || !Game || !Game.World.GameOver) break;
+                    remoteEndReady = true; TryReturnToLobby(); break;
+                case DuelMessage.ReturnLobby:
+                    if (IsHost || !Game || !Game.World.GameOver || !localEndReady) throw new InvalidDataException("Unexpected lobby return.");
+                    ReturnToLobbyScene(); break;
+                case DuelMessage.RestartRequest:
+                    if (!Playing || !Game || Game.World.GameOver) break;
+                    if (IsHost) BeginRestartRequest(false);
+                    else AskRestart(() => peer.Send(new DuelPacket(DuelMessage.RestartReply, new byte[] { 1 })), () => peer.Send(new DuelPacket(DuelMessage.RestartReply, new byte[] { 0 })));
+                    break;
+                case DuelMessage.RestartReply:
+                    if (!IsHost || packet.Payload.Length != 1) throw new InvalidDataException("Invalid restart reply.");
+                    if (restartPending) FinishRestartRequest(packet.Payload[0] == 1);
+                    break;
+                case DuelMessage.RestartBegin:
+                    if (IsHost || !Playing) throw new InvalidDataException("Unexpected restart.");
+                    ResetMatchForRestart(); Menus.ShowLoading(); break;
+                case DuelMessage.RestartNotice:
+                    if (IsHost || packet.Payload.Length > 240) throw new InvalidDataException("Invalid restart notice.");
+                    if (restartPromptOpen) OzConfirm.Dismiss();
+                    Menus.NotifyChat(Encoding.UTF8.GetString(packet.Payload)); break;
                 case DuelMessage.Surrender:
                     if (IsHost && Playing && Game) Game.World.DuelSurrender(1); break;
                 case DuelMessage.Disconnect: Fail("Your opponent left the match."); break;
@@ -398,18 +429,85 @@ namespace OpenZ.Multiplayer
             foreach (var o in Game.World.Objects)
                 if (o.IsUnit && !Game.Views.ContainsKey(o.Id)) Game.SpawnUnitView(o);
         }
+        public void PublishFinalStats(OpenZMatchStats stats)
+        {
+            if (!IsHost || finalStatsSent || !Game || !Game.World.GameOver) return;
+            SendJson(DuelMessage.MatchStats, DuelMatchStats.From(stats)); finalStatsSent = FinalStatsReady = true;
+        }
+        public void ReadyForLobby()
+        {
+            if (!Connected || !Playing || !Game || !Game.World.GameOver || localEndReady) return;
+            localEndReady = true; Menus.NotifyChat("Ready for lobby. Waiting for your opponent to finish viewing statistics.");
+            if (IsHost) TryReturnToLobby(); else peer.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>()));
+        }
+        void TryReturnToLobby()
+        {
+            if (!localEndReady || !remoteEndReady) return;
+            lobby.ReturnToLobby();
+            peer.Send(new DuelPacket(DuelMessage.ReturnLobby, Array.Empty<byte>()));
+            PublishLobby(); ReturnToLobbyScene();
+        }
+        void ReturnToLobbyScene()
+        {
+            session = Playing = loadStarted = sentGameOver = restartPending = false; startAt = -1; Game = null;
+            finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
+            commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear();
+            Menus.ShowLobby(); SceneManager.LoadSceneAsync("MainMenu");
+        }
+
+        public void RequestRestart()
+        {
+            if (!Connected || !Playing || !Game || Game.World.GameOver) return;
+            if (IsHost) BeginRestartRequest(true);
+            else { peer.Send(new DuelPacket(DuelMessage.RestartRequest, Array.Empty<byte>())); Menus.NotifyChat("Restart requested. Waiting for your opponent."); }
+        }
+        void AskRestart(Action yes, Action no)
+        {
+            restartPromptOpen = true;
+            OzConfirm.Ask("RESTART THIS DUEL?", "YOUR OPPONENT WANTS TO RESTART THE SAME LEVEL.", () => { restartPromptOpen = false; if (Connected && Playing && Game && !Game.World.GameOver) yes(); }, id => OzSfx.Ui(id), 1100, () => { restartPromptOpen = false; if (Connected) no(); });
+        }
+        void BeginRestartRequest(bool local)
+        {
+            if (restartPending) { RestartNotice("A restart request is already pending."); return; }
+            restartPending = true; restartDeadline = Now + 30;
+            if (local) { peer.Send(new DuelPacket(DuelMessage.RestartRequest, Array.Empty<byte>())); Menus.NotifyChat("Restart requested. Waiting for your opponent."); }
+            else AskRestart(() => FinishRestartRequest(true), () => FinishRestartRequest(false));
+        }
+        void RestartNotice(string text)
+        {
+            Menus.NotifyChat(text); peer.Send(new DuelPacket(DuelMessage.RestartNotice, Encoding.UTF8.GetBytes(text)));
+        }
+        void FinishRestartRequest(bool accepted)
+        {
+            if (!restartPending) return;
+            restartPending = false;
+            if (!accepted || !Playing || !Game || Game.World.GameOver) { RestartNotice("Restart declined or request expired. The match continues."); return; }
+            lobby.Restart();
+            peer.Send(new DuelPacket(DuelMessage.RestartBegin, Array.Empty<byte>()));
+            ResetMatchForRestart(); LoadScene();
+        }
+        void ResetMatchForRestart()
+        {
+            finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
+            restartPending = false; Playing = false; loadStarted = true; sentGameOver = false; startAt = -1;
+            Game = null; commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); lastSnapshot = 0;
+            Menus.CloseOverlay();
+        }
+
         public void Surrender()
         {
             if (!Playing || !Game) return;
             if (IsHost) Game.World.DuelSurrender(0); else peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
         }
-        void Fail(string reason) { Disconnect(); Status = reason; Playing = false; Menus.ShowError(); }
+        void Fail(string reason) { if (restartPromptOpen) OzConfirm.Dismiss(); Disconnect(); Status = reason; Playing = false; Menus.ShowError(); }
         public void ReportError(string reason) => Fail(reason);
         public void Close()
         {
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
             Disconnect(); OnlineMode = false;
+            finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
+            restartPending = false;
             session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
         }

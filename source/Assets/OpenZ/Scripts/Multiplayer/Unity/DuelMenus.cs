@@ -40,7 +40,7 @@ namespace OpenZ.Multiplayer
         string serviceUrl, accessCode = "", setupStatus = "";
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
-        public bool IsTyping => bindingChat || bindingTalk || (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
+        public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk || (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
         public bool CapturesInput => page != Page.Entry || (R.InMatch && !R.Playing);
         public void Refresh() { dirty = true; }
@@ -50,7 +50,7 @@ namespace OpenZ.Multiplayer
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
         public void ShowInGameMenu() { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
-        public void ShowCommunications() { page = Page.Game; dirty = true; }
+        public void ShowCommunications() { OpenChat(); }
         public void CloseOverlay() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Entry; dirty = true; }
         public void NotifyChat(string message)
         {
@@ -59,7 +59,7 @@ namespace OpenZ.Multiplayer
             if (notices.Count > 4) notices.RemoveAt(0);
             dirty = true;
         }
-        void OpenChat() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
+        public void OpenChat() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
         void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
@@ -77,7 +77,7 @@ namespace OpenZ.Multiplayer
             if (R.InMatch && R.Game && R.Game.World.GameOver)
             {
                 if (endedAt < 0) endedAt = Time.realtimeSinceStartupAsDouble;
-                if (Time.realtimeSinceStartupAsDouble - endedAt > 3 && page == Page.Entry) { page = Page.End; dirty = true; }
+                // The standard end screen owns the statistics and return-to-lobby controls.
             }
             else endedAt = -1;
             bool wasBinding = bindingChat || bindingTalk;
@@ -91,7 +91,7 @@ namespace OpenZ.Multiplayer
             if (((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
                 var pause = FindFirstObjectByType<OpenZPauseMenu>();
-                if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
+                if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
                 { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
             }
@@ -154,7 +154,7 @@ namespace OpenZ.Multiplayer
             var background = Hud.Img(root, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
             if (poster) { var raw = Hud.Node("MissionBackground", root).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; }
-            Label(root, "OPENZ", 80, 40, 370, 57, OzUi.Amber);
+            Label(root, "OpenZ-VK", 80, 40, 370, 57, OzUi.Amber);
             Label(root, "DUEL · 1VS1", 80, 108, 800, 22, OzUi.Ink);
             ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
             if (page == Page.Connect) BuildConnect();
@@ -243,7 +243,7 @@ namespace OpenZ.Multiplayer
             foreach (var map in OzLevelDef.All)
             {
                 string chosen = map.Id;
-                Button(left, map.Name, mx, 65, 157, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable); mx += 165;
+                Button(left, map.Id + " · " + map.Name, mx, 65, 157, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable); mx += 165;
             }
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
             if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }
@@ -251,19 +251,18 @@ namespace OpenZ.Multiplayer
             BuildArmy(rules, editable);
             BuildHandicap(rules, editable);
             var construction = Panel("CONSTRUCTION · CURRENT RULES", 820, 800, 1010, 150);
-            Label(construction, "MAX. TERRITORY BONUS: " + (rules.TerritoryBonus * 100).ToString("0") + " %", 24, 62, 650, 18, OzUi.Ink);
-            Label(construction, "More flags shorten build times for either team; this is the maximum reduction.", 24, 83, 760, 14, OzUi.Muted);
-            Button(construction, "−", 810, 50, 65, () => { rules.TerritoryBonus = Math.Max(0, rules.TerritoryBonus - .1); R.ChangeRules(rules); }, false, editable);
-            Button(construction, "+", 900, 50, 65, () => { rules.TerritoryBonus = Math.Min(.9, rules.TerritoryBonus + .1); R.ChangeRules(rules); }, false, editable);
-            Label(construction, "SHARED BUILD TIME: " + (rules.Common.BuildDuration * 100).ToString("0.#") + "%  (×" + (1 / rules.Common.BuildDuration).ToString("0.##") + " speed)", 24, 113, 760, 18, OzUi.Ink);
-            Label(construction, "Shared time; handicap can override it. 50% = half as long. Minimum: " + rules.MinimumBuildSeconds.ToString("0.#") + " s.", 24, 135, 760, 14, OzUi.Muted);
-            Button(construction, "CHANGE", 810, 102, 155, () => { double old = rules.Common.BuildDuration; rules.Common.BuildDuration = NextDuration(old); if (rules.Handicap.BuildDuration == old) rules.Handicap.BuildDuration = rules.Common.BuildDuration; R.ChangeRules(rules); }, false, editable);
+            Label(construction, "VK TERRITORY CAP: " + (rules.TerritoryReductionCap >= .5 ? "OFF — ORIGINAL" : "MAX. −" + (rules.TerritoryReductionCap * 100).ToString("0") + "% TIME"), 24, 48, 755, 18, OzForkOptions.Accent);
+            Label(construction, "Original rule: time −50% × owned flag share. VK cap only limits that reduction.", 24, 73, 755, 14, OzUi.Muted);
+            Button(construction, "CHANGE", 810, 40, 155, () => { rules.TerritoryReductionCap = rules.TerritoryReductionCap >= .5 ? .4 : rules.TerritoryReductionCap > .35 ? .3 : rules.TerritoryReductionCap > .27 ? .25 : rules.TerritoryReductionCap > .22 ? .2 : 1; rules.TerritoryBonus = .5; R.ChangeRules(rules); }, false, editable);
+            Label(construction, "FORT LOSER BONUS: " + (rules.FortLoserMaximum == 0 ? "OFF" : "MAX. −" + (rules.FortLoserMaximum * 100).ToString("0") + "% TIME"), 24, 109, 760, 18, OzForkOptions.Accent);
+            Label(construction, "Offensive value gap: starts at +30% enemy lead; full bonus at +90%. Fort only.", 24, 132, 760, 14, OzUi.Muted);
+            Button(construction, "CHANGE", 810, 102, 155, () => { rules.FortLoserMaximum = rules.FortLoserMaximum == 0 ? .3 : rules.FortLoserMaximum < .4 ? .5 : rules.FortLoserMaximum < .6 ? .75 : 0; R.ChangeRules(rules); }, false, editable);
             BuildChatPanel(80, 800, 700, 180);
-            Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
-            Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 1000, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
+            Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
+            Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
             Button(root, "LEAVE", 80, 1000, 250, Leave);
             Label(root, R.Status, 360, 1020, 950, 16, OzUi.AlertText);
-            Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 1010, 440, R.Ready, true, R.Connected);
+            Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected);
             if (pickerGroup >= 0) BuildUnitPicker(rules, editable);
         }
         static double NextDuration(double current) => current > .9 ? .8 : current > .7 ? 2d / 3 : current > .55 ? .5 : 1;
@@ -295,7 +294,7 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < 2; i++)
             {
                 int seat = i; float x = 24 + i * 230;
-                var b = Button(panel, i == 0 ? "GENERAL ZOD · RED" : "EVIL ZOD · BLUE", x, 65, 215, () => { rules.EnableHandicap(seat); R.ChangeRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
+                var b = Button(panel, (i == 0 ? R.View.HostName : R.View.GuestName ?? "WAITING FOR PLAYER"), x, 65, 215, () => { rules.EnableHandicap(seat); R.ChangeRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
                 generalImages[i] = Hud.Node("GeneralPortrait", b).gameObject.AddComponent<RawImage>();
                 generalImages[i].rectTransform.TL(47, 0, 120, 118); generalImages[i].raycastTarget = false; generalImages[i].enabled = false;
             }
@@ -304,7 +303,7 @@ namespace OpenZ.Multiplayer
             Label(panel, "BUILD TIME: " + (rules.Handicap.BuildDuration * 100).ToString("0.#") + "%  (×" + (1 / rules.Handicap.BuildDuration).ToString("0.##") + " speed)", 510, 190, 350, 16, OzUi.Ink);
             Button(panel, "CHANGE TIME", 865, 183, 120, () => { rules.Handicap.BuildDuration = NextDuration(rules.Handicap.BuildDuration); R.ChangeRules(rules); }, false, editable && rules.HandicapEnabled, 34);
             Label(panel, "Selected team only. Lower time = faster. One robot slot = one squad.", 510, 218, 475, 13, OzUi.Muted);
-            Label(panel, rules.HandicapEnabled ? "Only " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") + " receives these extras. The other team keeps the shared army." : "OFF: no bonus for either team. Select the general who should receive it.", 24, 240, 960, 16, OzUi.Muted);
+            Label(panel, rules.HandicapEnabled ? "Only " + (rules.HandicapSlot == 0 ? "RED" : "BLUE") + " receives these extras. The other team keeps the shared army." : "OFF: no bonus for either team. Select the player who should receive it.", 24, 240, 960, 16, OzUi.Muted);
         }
         void BuildMapPreview(Transform parent, DuelRules rules)
         {
@@ -370,12 +369,7 @@ namespace OpenZ.Multiplayer
         }
         void BuildGameMenu()
         {
-            var panel = Panel("CHAT & SURRENDER · MATCH CONTINUES", 480, 170, 960, 780);
-            Button(panel, "BACK TO OPTIONS", 40, 85, 880, ShowInGameMenu, true);
-            Button(panel, "OPEN CHAT", 40, 175, 880, OpenChat);
-            Button(panel, bindingChat ? "PRESS A KEY…" : "CHAT KEY: " + ChatKey, 40, 265, 880, () => { bindingChat = true; dirty = true; });
-            Button(panel, "SURRENDER · YOUR FORT WILL BE DESTROYED", 40, 660, 880, () =>
-                OzConfirm.Ask("SURRENDER THE DUEL?", "YOUR FORT WILL EXPLODE. YOUR OPPONENT WINS.", () => { R.Surrender(); CloseOverlay(); }, id => OzSfx.Ui(id), 1100));
+            OpenChat();
         }
         void BuildMicrophone()
         {
@@ -427,14 +421,16 @@ namespace OpenZ.Multiplayer
         public void LeaveMatch() { Leave(); }
         RectTransform Panel(string title, float x, float y, float w, float h)
         {
-            var panel = Hud.Node(title, root); panel.TL(x, y, w, h); Hud.Plate(panel, "lg", 0, OzUi.Amber);
-            Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : OzUi.Amber); return panel;
+            var panel = Hud.Node(title, root); panel.TL(x, y, w, h); Hud.Plate(panel, "lg", 0, OzForkOptions.Accent);
+            Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : OzForkOptions.Accent); return panel;
         }
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
         RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46)
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
+            if (!primary) b.LabelColor = OzForkOptions.Accent;
             b.Rt.TL(x, y, w, height); b.Interactable = enabled; b.Refresh();
+            if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
             if (height > 70 && b.Label != null) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
             b.Bg.raycastTarget = true;
             var ui = b.Rt.gameObject.AddComponent<Button>(); ui.targetGraphic = b.Bg; ui.interactable = enabled;

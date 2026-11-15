@@ -31,6 +31,7 @@ namespace OpenZ.Multiplayer
                     if ((string)row.GetType().GetField("label").GetValue(row) == OzForceBarOption.Label)
                     { ((HudButton)row.GetType().GetField("row").GetValue(row)).OnClick(new HudClick()); clicked = true; break; }
                 if (!clicked || !OzForceBarOption.MilitaryValue) throw new Exception("Native force bar option does not switch to military value.");
+                yield return new WaitForSecondsRealtime(.2f);
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-options.png"), true);
                 pause.Close(); DuelRuntime.I.Menus.CloseOverlay();
                 yield return new WaitForSecondsRealtime(.6f);

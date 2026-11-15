@@ -45,7 +45,7 @@ namespace OpenZ
 
         // ================================================================ the top bar (UI/OzUeTopBar.cs, DESIGN_SPEC E001-E009)
         public const float BarH = 40f, BarHCompact = 36f, LogoX = 16f, LogoGap = 14f, Right = 12f, GroupGap = 6f, GroupMargin = 6f, Gap = 14f, BtnH = 28f;
-        public const float LogoAspect = 517f / 187f;                                                          // Wordmarks/wm_openz, size_u
+        public const float LogoAspect = 100f / 26f;                                                          // Wordmarks/wm_openz, size_u
         public const string ResetLabel = "RESET STATS";
         /// <summary>RESET STATS stands this far left of SAVE: in the file group, a little apart from it.</summary>
         public const float ResetGap = GroupGap + GroupMargin;

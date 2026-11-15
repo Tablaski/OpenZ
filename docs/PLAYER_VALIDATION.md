@@ -1,5 +1,41 @@
 # Player validation record
 
+## Pending — OpenZ-VK 0.2.0 menus, identity and duel flow
+
+No new player was requested, built or launched for this change set. These checks
+remain pending for the user's manual testing on a future requested release build.
+
+- Main menu, Unit Editor, solo and duel HUD, loading/faction/pause/end screens:
+  OpenZ-VK identity and bottom-right fork version/commit/build timestamp; narrow
+  windows, UI scale and no overlap with READY/other controls. Older existing
+  players remain unchanged; compare the visible identity before testing.
+- Violet fork option groups after upstream rows in main/pause options; live
+  flag x2 continuity, border OFF/x1/x2/x4, bright round dots by day/night, water,
+  cliffs, captures and team-colour swaps. No new raster/media assets are required.
+- Command-bar chat and rebinding (including Escape cancellation); no chat entry
+  in Escape, separate Surrender directly under Restart level.
+- Microphone Always on / Tap to speak / Mute, physical input meter, device/gain,
+  focus changes, typing, lobby/in-game audio, no muted transmission, reconnection.
+- Restart requests from each peer: yes reloads the same map/rules on both sides,
+  loading barrier, no rejects/desync; no/timeout/disconnect/simultaneous requests
+  notify correctly and do not restart unexpectedly.
+- Final statistics and chart after wins/surrender on both peers, no solo high-score
+  submission; both finish viewing before returning to the same lobby with names,
+  map/rules preserved and ready flags cleared; repeated matches and disconnects.
+- Lobby names in handicap selection and L02/L07/L16/L17 with world names.
+- Original territorial advantage with VK cap OFF; cap choices 40/30/25/20%; fort
+  loser bonus independently OFF/30/50/75%, military-value ramp +30% to +90%,
+  fort-only production, preserved work, activation/deactivation shown in force bar.
+- Existing preferences survive replacement of the player folder; changed settings
+  create local versioned history, including x2 flags, without resetting other keys.
+
+Completed source validation: 1,025 core/real-map simulation checks, Unity runtime
+C# compilation and isolated compilation of the fork build-stamp editor hook.
+No rendering, menu interaction, native microphone, online-session or build-stamp
+runtime result is claimed. The broad UI/network change warrants a requested
+release build for the user's grouped manual checks.
+
+
 ## Pending — shared right-hand Stats / Balance / Dynamics / Testing tabs
 
 These changes are newer than the last player. No new game build or game tests

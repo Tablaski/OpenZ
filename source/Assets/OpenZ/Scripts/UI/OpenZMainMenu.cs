@@ -221,20 +221,11 @@ namespace OpenZ
             var p = mainRoot; float lx = OzMenuLayout.MenuX;
             eyebrow = Hud.Label(p, "Eyebrow", "A 3D REMAKE OF THE 1996 BITMAP BROTHERS CLASSIC", OzMenuLayout.EyebrowSize, OzUi.Amber, 0.26f).At(OzMenuLayout.EyebrowX, OzMenuLayout.EyebrowY, OzH.L, false, 700);
             float lh = OzMenuLayout.LogoH - 2 * OzMenuLayout.LogoPad;
-            if (OzKit.GetSprite("Wordmarks/wm_openz") != null)
-            {
-                logo = Hud.Kit(p, "Logo", "Wordmarks/wm_openz", new OzRect(lx - OzMenuLayout.LogoPad, OzMenuLayout.LogoY - OzMenuLayout.LogoPad, OzMenuLayout.LogoW, OzMenuLayout.LogoH), null, Image.Type.Simple);
-                logo.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                logo.rectTransform.anchoredPosition += new Vector2(OzMenuLayout.LogoW * 0.5f, -OzMenuLayout.LogoH * 0.5f);
-            }
-            else
-            {
-                logo = Hud.Img(p, "LogoAnchor", Color.clear); logo.enabled = false;                             // transform only: keeps the stamp animation path
-                logo.rectTransform.Place(new OzRect(lx, OzMenuLayout.LogoY, OzMenuLayout.LogoW - 2 * OzMenuLayout.LogoPad, lh));
-                logo.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                logo.rectTransform.anchoredPosition += new Vector2((OzMenuLayout.LogoW - 2 * OzMenuLayout.LogoPad) * 0.5f, -lh * 0.5f);
-                Hud.Label(logo.transform, "LogoText", "OPENZ", 143, OzUi.Amber, -0.02f).At(0, 0, OzH.L, false, 600);
-            }
+            logo = Hud.Img(p, "LogoAnchor", Color.clear); logo.enabled = false;
+            logo.rectTransform.Place(new OzRect(lx, OzMenuLayout.LogoY, 640, lh));
+            logo.rectTransform.pivot = new Vector2(.5f, .5f);
+            logo.rectTransform.anchoredPosition += new Vector2(320, -lh * .5f);
+            Hud.Label(logo.transform, "LogoText", "OpenZ-VK", 112, OzForkOptions.Accent, -.02f).At(0, 0, OzH.L, false, 640);
             underline = Hud.Kit(p, "Underline", "Menu/logo_underline", new OzRect(lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap, 80, 3), OzKit.GetSprite("Menu/logo_underline") != null ? (Color?)null : OzUi.Amber, Image.Type.Simple);
             // Z turns 30 (1996-2026): the anniversary badge under the logo
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);
@@ -248,16 +239,16 @@ namespace OpenZ
             AddItem("ROADMAP", "WHERE OPENZ IS HEADED", () => ToggleSide(Side.Roadmap));
             AddItem("CREDITS", "TRIBUTE · ORIGINAL CONTENT", () => ToggleSide(Side.Credits));
             AddItem(OzFeedback.Button, "IDEAS · BUGS · FEATURES  ↗", () => OzFeedback.Open("main menu"));
-            AddItem("QUIT", "BACK TO THE DESKTOP", () => OzConfirm.Ask("QUIT OPENZ?", "BACK TO THE DESKTOP.", Quit, Sfx, canvas.sortingOrder + 50));
+            AddItem("QUIT", "BACK TO THE DESKTOP", () => OzConfirm.Ask("QUIT OPENZ-VK?", "BACK TO THE DESKTOP.", Quit, Sfx, canvas.sortingOrder + 50));
             rail = Hud.Img(p, "RailMarker", OzUi.Amber);
             rail.rectTransform.Place(new OzRect(OzMenuLayout.RailX * CW / OzLayout.RefW, OzMenuLayout.ItemY0 + OzMenuLayout.RailDY, OzMenuLayout.RailW, OzMenuLayout.RailH));
 
             footer2 = Hud.Label(p, "Footer2", "A FAITHFUL FAN TRIBUTE REMAKE OF Z BY THE BITMAP BROTHERS (1996), CELEBRATING ITS 30TH ANNIVERSARY", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
                 .At(lx, OzMenuLayout.FooterY - 16, OzH.L, false, 1100);
-            footer = Hud.Label(p, "Footer", "OPENZ " + OzVersion.Number + " · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
+            footer = Hud.Label(p, "Footer", "OpenZ-VK " + OzForkVersion.Number + " · BASED ON OPENZ " + OzVersion.Number + " · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
                 .At(lx, OzMenuLayout.FooterY, OzH.L, false, 1100);   // 1.4: the version from OzVersion.Number (1.3 still read "OPENZ 1.2" here)
             // contrast, under the preview caption plate (which ends at y 1020), never over other UI
-            versionLabel = Hud.Label(p, "Version", OzVersion.Label, OzMenuLayout.FooterSize, OzUi.Dim, 0.16f, OzStyle.Plain)
+            versionLabel = Hud.Label(p, "Version", "UPSTREAM " + OzVersion.Label, OzMenuLayout.FooterSize, OzUi.Dim, 0.16f, OzStyle.Plain)
                 .At(CW - OzMenuLayout.VersionRX, OzMenuLayout.VersionY, OzH.R, false, 220);
 
             // preview caption plate (bottom-right)
@@ -342,6 +333,7 @@ namespace OpenZ
             AddToggle(p, 10, OzSettingTips.MinimalLabel, () => OzSettingTips.MinimalUi, v => OzSettingTips.MinimalUi = v);
             AddCycle(p, toggles.Count, NightShadows.Label, () => NightShadows.Name, NightShadows.Step);
             AddCycle(p, toggles.Count, OzForceBarOption.Label, () => OzForceBarOption.Name, OzForceBarOption.Step);
+            toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OptW - 2 * OzLayout.OptX - 130);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
             AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
@@ -439,6 +431,7 @@ namespace OpenZ
                 t.state = Hud.Label(t.row.Content, "State", "", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(w - 16 - 48 - 8, OzLayout.OptToggleH * 0.5f, OzH.R, true, 40);
                 AddHot(t.row.Rt, View.Main, () => { bool v = !t.get(); t.set(v); PlayerPrefs.Save(); Sfx(v ? "ui_toggle_on" : "ui_toggle_off"); }, null, t.row, null, Side.Options);   // menu_exe_v1: saved at once
             }
+            OzForkOptions.Highlight(t.row, label);
             toggles.Add(t);
         }
 
@@ -453,6 +446,7 @@ namespace OpenZ
             var tip = OzSettingTips.For(label); if (tip != null) optTips[t.row.Rt] = tip;
             t.value = Hud.Label(t.row.Content, "Value", "", OzLayout.OptRowText, OzUi.Ink2, 0.06f, OzStyle.Plain).At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, 170);
             AddHot(t.row.Rt, View.Main, () => step(Shift ? -1 : OzSettings.ArrowDir(t.value, lastMouse)), null, t.row, "ui_tab_switch", Side.Options);
+            OzForkOptions.Highlight(t.row, label);
             toggles.Add(t);
         }
 
@@ -1093,6 +1087,7 @@ namespace OpenZ
 
         void Keys()
         {
+            if (OzForkOptions.CaptureChatBinding()) return;
             var kb = Keyboard.current; if (kb == null || OzControlsTable.Capturing) return;   // menu_exe_v1: a key being bound is no menu key
             bool up = kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame, down = kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame;
             bool left = kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame, right = kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame;

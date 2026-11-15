@@ -5,7 +5,7 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
-        /// Optional Zod-style dotted borders, in each zone owner's colour: a soft band 0.18 m wide, 0.45 m
+    /// Bright round territory markers in each owner's colour, inset 1.1 m
     /// inside the zone edge (two neighbouring zones show two lines side by side), draped over the terrain 6 cm above it (no
     /// z-fighting), on passable and water tiles only, recoloured live when the zone changes hands.
     /// </summary>
@@ -16,7 +16,8 @@ namespace OpenZ
         readonly List<MeshRenderer> borders = new List<MeshRenderer>();
         readonly List<Mesh> meshes = new List<Mesh>();
         float waterY = float.NegativeInfinity;
-        const float Inset = 0.45f, Width = 0.18f, Lift = 0.06f, Alpha = 0.55f;
+        const float Inset = 1.1f, Lift = 0.10f, Alpha = 1f;
+        int shownSize;
         /// <summary>Z draws no zone borders in the world (territory reads from flags, building colours and the minimap);
         /// </summary>
         public static bool ShowBorders { get => OzMapReadabilityOptions.Borders; set => OzMapReadabilityOptions.Borders = value; }
@@ -42,12 +43,23 @@ namespace OpenZ
                 var m = new Material(shader) { name = "ZoneBorder" + z.Id }; mr.sharedMaterial = m;
                 zones.Add((m, z.Id, (Team)(-1)));
             }
+            shownSize = OzMapReadabilityOptions.BorderSize;
             LateUpdate();
         }
 
         void LateUpdate()
         {
             if (game == null || game.World == null) return;
+            if (shownSize != OzMapReadabilityOptions.BorderSize && ShowBorders)
+            {
+                shownSize = OzMapReadabilityOptions.BorderSize;
+                for (int i = 0; i < borders.Count; i++)
+                {
+                    var mesh = BuildZoneMesh(game.World.Zones[zones[i].zone]);
+                    borders[i].GetComponent<MeshFilter>().sharedMesh = mesh;
+                    Destroy(meshes[i]); meshes[i] = mesh;
+                }
+            }
             foreach (var border in borders) if (border && border.enabled != ShowBorders) border.enabled = ShowBorders;
             for (int i = 0; i < zones.Count; i++)
             {
@@ -56,7 +68,7 @@ namespace OpenZ
                 // Track displayed colours as well, so a live team-colour swap updates the borders.
                 var painted = TeamColors.Shown(owner);
                 if (painted == shown) continue;
-                var c = owner == Team.Neutral ? new Color(.48f, .48f, .48f) : TeamColors.Paint(owner); c.a = owner == Team.Neutral ? Alpha * 0.85f : Alpha;
+                var c = owner == Team.Neutral ? new Color(.8f, .8f, .8f) : TeamColors.Paint(owner); c.a = Alpha;
                 m.SetColor("_Color", c);
                 zones[i] = (m, id, painted);
             }
@@ -78,36 +90,44 @@ namespace OpenZ
             return m;
         }
 
-        /// <summary>One soft band along a zone edge, sampled every 0.5 m; gaps over impassable tiles (cliffs, rock walls).</summary>
+        // Round luminous cores and a broad translucent halo; unlit colours stay visible at night.
         void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, Vector3 inward, ZMapData map)
         {
-            float len = Vector3.Distance(a, b); int n = Mathf.Max(1, Mathf.CeilToInt(len / 0.2f));
-            int prev = -1;
-            for (int i = 0; i <= n; i++)
+            float len = Vector3.Distance(a, b), radius = .24f * Mathf.Max(1, OzMapReadabilityOptions.BorderSize);
+            int count = Mathf.Max(1, Mathf.FloorToInt(len / 2.8f));
+            for (int dot = 0; dot < count; dot++)
             {
-                var p = Vector3.Lerp(a, b, i / (float)n);
-                // Zod places small coloured markers on the passable perimeter tiles
-                // (zmap.cpp SetupAllZoneInfo / DoZoneEffects); use short, spaced ground dashes in 3D.
-                if ((len * i / n) % 2f > .8f) { prev = -1; continue; }
+                var p = Vector3.Lerp(a, b, (dot + .5f) / count);
                 var px = ZGame.WorldToPx(p); var cls = map.ClassAt(px.x >> 4, px.y >> 4);
-                if (cls == ZClass.Impassable || cls == ZClass.DeepWater) { prev = -1; continue; }
-                // long red lines across the view), so the band breaks wherever the surface is well above the play floor
-                bool high = false;
-                for (int k = 0; k < 3 && !high; k++) { var q0 = p + inward * (Width * k * 0.5f); high = game.GroundY(q0.x, q0.z) > game.TerrainY(q0.x, q0.z) + 1.2f; }
-                if (high) { prev = -1; continue; }
-                int start = v.Count;
-                for (int k = 0; k < 3; k++)
+                if (cls == ZClass.Impassable || cls == ZClass.DeepWater) continue;
+                bool blocked = false;
+                for (int j = 0; j < 8; j++)
                 {
-                    var q = p + inward * (Width * k * 0.5f);
-                    float y = game.GroundY(q.x, q.z);
-                    if (cls == ZClass.Water) { float wq = OzWaterLevel.At(game.level, q.x, q.z, waterY); if (wq > y) y = wq; }   // each pool at its own height (level 16)
-                    v.Add(new Vector3(q.x, y + Lift, q.z));
-                    col.Add(new Color(1, 1, 1, k == 1 ? 1f : 0f));                                    // soft edges, solid centre
+                    float angle = j * Mathf.PI / 4;
+                    var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius;
+                    if (game.GroundY(q.x, q.z) > game.TerrainY(q.x, q.z) + 1.2f) { blocked = true; break; }
                 }
-                if (prev >= 0)
-                    for (int k = 0; k < 2; k++)
-                    { t.Add(prev + k); t.Add(start + k); t.Add(prev + k + 1); t.Add(prev + k + 1); t.Add(start + k); t.Add(start + k + 1); }
-                prev = start;
+                if (blocked) continue;
+                int start = v.Count;
+                // A bright centre disk, coloured ring and feathered halo, each following the ground.
+                float[] radii = { 0, radius * .55f, radius, radius * 1.6f };
+                Color[] colours = { new Color(3, 3, 3, 1), new Color(2.4f, 2.4f, 2.4f, 1), Color.white, new Color(1, 1, 1, 0) };
+                for (int ring = 0; ring < 4; ring++)
+                    for (int j = 0; j < 16; j++)
+                    {
+                        float angle = j * Mathf.PI / 8;
+                        var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radii[ring];
+                        float y = game.GroundY(q.x, q.z);
+                        if (cls == ZClass.Water) y = Mathf.Max(y, OzWaterLevel.At(game.level, q.x, q.z, waterY));
+                        v.Add(new Vector3(q.x, y + Lift, q.z)); col.Add(colours[ring]);
+                    }
+                for (int ring = 0; ring < 3; ring++)
+                    for (int j = 0; j < 16; j++)
+                    {
+                        int k = start + ring * 16 + j, next = start + ring * 16 + (j + 1) % 16;
+                        t.Add(k); t.Add(next); t.Add(k + 16);
+                        t.Add(next); t.Add(next + 16); t.Add(k + 16);
+                    }
             }
         }
         public bool BordersUsePreference()
@@ -117,7 +137,7 @@ namespace OpenZ
             foreach (var z in zones)
             {
                 var owner = game.World.Zones[z.zone].Owner;
-                var expected = owner == Team.Neutral ? new Color(.48f, .48f, .48f) : TeamColors.Paint(owner);
+                var expected = owner == Team.Neutral ? new Color(.8f, .8f, .8f) : TeamColors.Paint(owner);
                 var actual = z.m.GetColor("_Color");
                 if (Mathf.Abs(actual.r - expected.r) + Mathf.Abs(actual.g - expected.g) + Mathf.Abs(actual.b - expected.b) > .01f) return false;
             }

@@ -79,18 +79,25 @@ namespace OpenZ
             bOptions = Big("OPTIONS", HudButtonStyle.Normal, () => { if (showControls) OzSfx.Ui("ui_tab_switch"); showControls = false; });
             bControls = Big("CONTROLS", HudButtonStyle.Normal, () => { if (!showControls) OzSfx.Ui("ui_tab_switch"); showControls = true; });
             bRestart = Big("RESTART LEVEL", HudButtonStyle.Normal, () => OzConfirm.Ask("RESTART THE LEVEL?", "THE MATCH STARTS OVER FROM THE BEGINNING.", () => OzScenes.Restart(), id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+            if (OpenZ.Multiplayer.DuelRuntime.Active)
+            {
+                bRestart.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.RequestRestart(); };
+                bRestart.Tooltip = "Ask your opponent to restart this map. Both players must agree.";
+                Big("SURRENDER", HudButtonStyle.Danger, () => OzConfirm.Ask("SURRENDER THE DUEL?", "YOUR FORT WILL EXPLODE. YOUR OPPONENT WINS.", () => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Surrender(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+            }
             bQuit = Big("QUIT TO MAIN MENU", HudButtonStyle.Danger, () => OzConfirm.Ask("QUIT TO THE MAIN MENU?", "THIS MATCH ENDS HERE AND ITS PROGRESS IS LOST.", () => { OzSfx.Ui("ui_back"); OzScenes.MainMenu(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             if (OpenZ.Multiplayer.DuelRuntime.Active)
             {
-                bRestart.Interactable = false; bRestart.Tooltip = "Restart is unavailable during an online match."; bRestart.Refresh();
                 bQuit.OnClick = c => OzConfirm.Ask("LEAVE THE DUEL?", "YOU WILL DISCONNECT FROM YOUR OPPONENT.", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), id => OzSfx.Ui(id), canvas.sortingOrder + 10);
-                var comm = HudButton.Make(pausePanel, "DuelCommunications", "CHAT & SURRENDER", new Vector2(OzLayout.PauseBtnW, 36), HudButtonKind.Small, 12);
-                comm.Rt.TL(OzLayout.PauseBtnX, 552, OzLayout.PauseBtnW, 36); comm.Priority = 100;
-                comm.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowCommunications(); };
+                int row = 0;
+                foreach (var button in new[] { bResume, bOptions, bControls, bRestart }) button.Rt.TL(OzLayout.PauseBtnX, 126 + 56 * row++, OzLayout.PauseBtnW, 48);
+                var surrender = pausePanel.Find("BtnSURRENDER") as RectTransform;
+                if (surrender) surrender.TL(OzLayout.PauseBtnX, 350, OzLayout.PauseBtnW, 48);
+                bQuit.Rt.TL(OzLayout.PauseBtnX, 406, OzLayout.PauseBtnW, 48);
             }
             // system browser (OzFeedback, Application.OpenURL); the game stays paused, nothing else changes. The HUD plays ui_click.
             bReport = HudButton.Make(pausePanel, "BtnReportBug", "REPORT A BUG  ↗", new Vector2(OzLayout.PauseBtnW, 36f), HudButtonKind.Small, 11, 0.16f);
-            bReport.Rt.Place(new OzRect(OzLayout.PauseBtnX, OzLayout.PauseBtnY0 + OzLayout.PauseBtnStep * bi + 4f, OzLayout.PauseBtnW, 36f));
+            bReport.Rt.Place(new OzRect(OzLayout.PauseBtnX, OpenZ.Multiplayer.DuelRuntime.Active ? 466 : OzLayout.PauseBtnY0 + OzLayout.PauseBtnStep * bi + 4f, OzLayout.PauseBtnW, 36f));
             bReport.Priority = 100; bReport.OnClick = c => OzFeedback.Open("pause menu");
             Hud.Label(pausePanel, "Foot", OpenZ.Multiplayer.DuelRuntime.Active ? "ONLINE MATCH CONTINUES WHILE THIS MENU IS OPEN" : "GAME TIME IS FROZEN WHILE PAUSED", 9, OzUi.Dim, 0.2f, OzStyle.Plain).At(OzLayout.PauseBtnX, OzLayout.PauseFootY);
 
@@ -174,7 +181,7 @@ namespace OpenZ
             AddToggle(p, toggles.Count, OzRangeRingsOption.Label, null, null, true);                       // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS, oz_range_rings, live (UI/OzRangeRingsOption.cs); GAME, under HEALTH BARS (OzSettingTips)
             { var rg = toggles[toggles.Count - 1]; rg.row.OnClick = c => { OzRangeRingsOption.Step(c.right || c.shift ? -1 : Arrow(rg)); OzSfx.Ui("ui_tab_switch"); }; rg.row.OnRightClick = c => OzRangeRingsOption.Step(-1); }
             AddToggle(p, toggles.Count, OzForceBarOption.Label, null, null, true);
-            { var fb = toggles[toggles.Count - 1]; fb.row.OnClick = c => { OzForceBarOption.Step(c.right || c.shift ? -1 : Arrow(fb)); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.Step(-1); }
+            { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.Step(c.right || c.shift ? -1 : Arrow(fb)); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.Step(-1); }
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
             { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
             AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
@@ -275,6 +282,7 @@ namespace OpenZ
                 t.state = Hud.Label(t.row.Content, "State", "", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(w - 16 - 48 - 8, OzLayout.OptToggleH * 0.5f, OzH.R, true, 40);
                 t.row.OnClick = c => { bool v = !t.get(); t.set(v); PlayerPrefs.Save(); OzSfx.Ui(v ? "ui_toggle_on" : "ui_toggle_off"); };
             }
+            OzForkOptions.Highlight(t.row, label);
             toggles.Add(t);
         }
 
@@ -308,7 +316,7 @@ namespace OpenZ
             for (int tab = 0; tab < n; tab++)
             {
                 var rows = toggles.FindAll(t => t.tab == tab);
-                rows.Sort((r1, r2) => { int o = OzSettingTips.TabOrder(r1.label).CompareTo(OzSettingTips.TabOrder(r2.label)); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
+                rows.Sort((r1, r2) => { int o = OzForkOptions.Compare(r1.label, r2.label); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
                 float top = tab == OzSettingTips.TabMain ? OzLayout.OptToggleY0 + OzLayout.OptTabShift : OzLayout.OptTabRowY0;
                 float step = OzLayout.OptToggleStep, rowH = OzLayout.OptToggleH;
                 if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit the 600 panel: the tab keeps a 9-row tab's height
@@ -409,6 +417,7 @@ namespace OpenZ
             var kb = Keyboard.current; var m = Mouse.current;
             bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
             if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
+            if (OzForkOptions.CaptureChatBinding()) esc = false;
             if (microphoneBinding) { TickMicrophoneBinding(); esc = false; }
             if (esc)
             {
@@ -472,6 +481,8 @@ namespace OpenZ
             }
             foreach (var t in toggles)
             {
+                if (t.label == OzForkOptions.ChatLabel) { t.value.Set(OzForkOptions.ChatName); continue; }
+                if (t.label == OzMapReadabilityOptions.BorderLabel) { t.value.Set(OzMapReadabilityOptions.BorderName); continue; }
                 if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }
                 if (t.label == OzBehaviorLibrary.RobotsLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Robots)); continue; }
                 if (t.label == OzMapReadabilityOptions.FlagLabel) { t.value.Set(OzText.Tab("◀  " + OzMapReadabilityOptions.FlagName + "  ▶")); continue; }

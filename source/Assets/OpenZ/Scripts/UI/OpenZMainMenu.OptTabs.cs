@@ -46,7 +46,7 @@ namespace OpenZ
             for (int tab = 0; tab < n; tab++)
             {
                 var rows = toggles.FindAll(t => t.tab == tab);
-                rows.Sort((r1, r2) => { int o = OzSettingTips.TabOrder(r1.label).CompareTo(OzSettingTips.TabOrder(r2.label)); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
+                rows.Sort((r1, r2) => { int o = OzForkOptions.Compare(r1.label, r2.label); return o != 0 ? o : toggles.IndexOf(r1).CompareTo(toggles.IndexOf(r2)); });
                 float top = tab == OzSettingTips.TabMain ? OzLayout.OptToggleY0 + OzLayout.OptTabShift : OzLayout.OptTabRowY0;
                 float step = OzLayout.OptToggleStep, rowH = OzLayout.OptToggleH;
                 if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit: the tab keeps a 9-row tab's height

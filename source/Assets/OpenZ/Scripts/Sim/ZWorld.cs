@@ -353,6 +353,7 @@ namespace OpenZ.Sim
         {
             // OpenZ duel hook: a replica never runs gameplay rules.
             if (DuelIsReplica) return;
+            DuelUpdateFortBonus();
             ZRuleProf.TickBegin(); TickIndex++;                                                            // electrobot_v1 DV45: the stun / tesla clock (ZObject.Electro.cs)
             Time += dt;
             UnitTesting?.Tick();

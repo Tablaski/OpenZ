@@ -138,7 +138,7 @@ namespace OpenZ
             buttons.Clear();
         }
 
-        void OnDestroy() { if (I == this) I = null; if (input && gatedByUs) input.enabled = true; }
+        void OnDestroy() { if (OpenZ.Multiplayer.DuelRuntime.I) OpenZ.Multiplayer.DuelRuntime.I.Voice.HudMonitoring = false; if (I == this) I = null; if (input && gatedByUs) input.enabled = true; }
 
         bool prebuilt;
         Behaviour[] SubParts => new Behaviour[] { Rally, Minimap, Production, Overlay, Cursors, Pause, EndScreen, Help };
@@ -206,6 +206,7 @@ namespace OpenZ
             Minimap.Build(this);            // bottom-right; its width places the unit panel
             BuildUnitPanel();
             BuildBottomBar();
+            BuildForkHud();
             BuildRepairKey();                                                                          // 1.2 item 10: the wrench key over the bar's R key (OpenZHud.RepairKey.cs)
             BuildFactoryList();
             BuildStoredCannons();
@@ -343,6 +344,7 @@ namespace OpenZ
             RefreshTopBar();
             RefreshUnitPanel();
             RefreshAlertTab();
+            TickForkHud();
             RefreshBottomBar();
             RefreshFactoryList();
             TickRepairKey();                                                                               // 1.2 item 10: after the factory list, whose place it keeps clear of (OpenZHud.RepairKey.cs)

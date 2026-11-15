@@ -40,7 +40,9 @@ namespace OpenZ
             current.Show(what, line, onYes, onNo, sfx, sortingOrder);
         }
 
-        /// <summary>Proof hook: answer the open modal as a click would.</summary>
+        /// <summary>Cancel a confirmation whose owning request expired or ended.</summary>
+        public static void Dismiss() { if (IsOpen) current.Answer(false); }
+
         public static void ProofAnswer(bool y) { if (IsOpen) current.Answer(y); }
 
         void Build(int order)

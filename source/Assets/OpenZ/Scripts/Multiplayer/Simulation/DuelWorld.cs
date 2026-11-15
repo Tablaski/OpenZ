@@ -72,6 +72,7 @@ namespace OpenZ.Sim
     public sealed partial class ZWorld
     {
         DuelRules duelRules;
+        readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
         internal bool DuelSend(Team team, ZObject unit, DuelOrder order)
@@ -94,12 +95,37 @@ namespace OpenZ.Sim
             foreach (var b in Objects) if (b.IsProducer) b.RecalcBuildTime();
         }
 
+        public double DuelFortLoserReduction(Team team)
+        {
+            if (duelRules == null || (team != Team.Red && team != Team.Blue)) return 0;
+            return duelRules.FortLoserReduction(MilitaryValue(team), MilitaryValue(team == Team.Red ? Team.Blue : Team.Red));
+        }
+        internal void DuelUpdateFortBonus()
+        {
+            if (duelRules == null || DuelIsReplica || duelRules.FortLoserMaximum <= 0) return;
+            for (int slot = 0; slot < 2; slot++)
+            {
+                Team team = slot == 0 ? Team.Red : Team.Blue;
+                double reduction = DuelFortLoserReduction(team);
+                if (Math.Abs(reduction - duelFortReduction[slot]) < .0000001) continue;
+                duelFortReduction[slot] = reduction;
+                foreach (var fort in Objects)
+                    if (fort.IsFort && fort.Owner == team && !fort.Destroyed && fort.Building && fort.CurUnit != null)
+                    {
+                        double progress = fort.ProductionProgress;
+                        double duration = DuelBuildSeconds(fort, S.Unit(fort.CurUnit)?.build_time ?? 0);
+                        fort.BInit = Time - progress * duration; fort.BFinal = fort.BInit + duration;
+                    }
+            }
+        }
+
         internal double DuelBuildSeconds(ZObject building, int seconds)
         {
             if (duelRules == null) throw new InvalidOperationException("Not a duel world.");
-            return duelRules.BuildSeconds(building.Owner == Team.Blue ? 1 : 0, seconds,
+            double duration = duelRules.BuildSeconds(building.Owner == Team.Blue ? 1 : 0, seconds,
                 Math.Max(0, Math.Min(1, building.ZoneOwnage)),
                 building.MaxHealth > 0 ? Math.Max(0, Math.Min(1, (double)building.Health / building.MaxHealth)) : 1);
+            return building.IsFort ? Math.Max(duelRules.MinimumBuildSeconds, duration * (1 - DuelFortLoserReduction(building.Owner))) : duration;
         }
     }
 

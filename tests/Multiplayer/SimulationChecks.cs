@@ -28,6 +28,12 @@ static class SimulationChecks
             var destroyed = military.CreateObject("vehicle", "heavy", 560, 400, Team.Red); destroyed.Health = 0;
             check(military.MilitaryValue(Team.Red) == redValue && military.MilitaryValue(Team.Neutral) == 0,
                 map + ": turrets, destroyed or neutral units changed military value");
+            military.CreateObject("vehicle", "crane", 640, 400, Team.Red);
+            var unarmed = military.CreateObject("vehicle", "jeep", 704, 400, Team.Red); unarmed.Damage = 0;
+            check(military.MilitaryValue(Team.Red) == redValue, map + ": cranes or unarmed mobile units changed offensive production value");
+            var apc = military.CreateObject("vehicle", "apc", 768, 400, Team.Blue);
+            check(apc.CanAttack() && military.MilitaryValue(Team.Blue) == 4 * military.S.Unit("light").build_time + military.S.Unit("apc").build_time,
+                map + ": armed APC was excluded because its weapon comes from its crew");
             heavy.Health = 1;
             check(military.MilitaryValue(Team.Red) == redValue, map + ": damage changed normal construction value");
             military.Objects.Remove(heavy);

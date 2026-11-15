@@ -108,13 +108,18 @@ namespace OpenZ
         // duel owns its end screen
             void Update()
         {
-            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
+            if (OpenZ.Multiplayer.DuelRuntime.Active && game && game.World != null && game.World.GameOver)
+            {
+                var duel = OpenZ.Multiplayer.DuelRuntime.I;
+                if (!OpenZVictory.HoldEndScreen) duel.PublishFinalStats(hud.Stats);
+                if (!duel.FinalStatsReady) return;
+            }
             if (hud == null || game == null || game.World == null) return;
             var W = game.World;
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
             if (!IsShown) return;
             Animate();
-            HandleKeys();
+            if (!OpenZ.Multiplayer.DuelRuntime.CapturesInput && !OzConfirm.Blocks) HandleKeys();
         }
 
         /// <summary>RulesView's plain OnGUI banner stays off: cleared after every Update (RulesView sets it in its own Update,
@@ -269,15 +274,25 @@ namespace OpenZ
 
             // buttons + hint
             BuildScore(accent, sx0);                                                                     // score, rank and the level's table (OpenZEndScreen.Score.cs)
-            string primary = win ? "CONTINUE" : "RETRY";
+            bool duelMatch = OpenZ.Multiplayer.DuelRuntime.Active;
+            string primary = duelMatch ? "RETURN TO LOBBY" : win ? "CONTINUE" : "RETRY";
+            if (duelMatch)
+            {
+                Button(0, primary, cx - 270, 310, HudButtonStyle.Primary, () => OpenZ.Multiplayer.DuelRuntime.I.ReadyForLobby(), "RETURN TO LOBBY|Return when both players have finished viewing the match statistics.|ENTER");
+                Button(1, "LEAVE DUEL", cx + 50, 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), "LEAVE DUEL|Disconnect and return to the main menu.|ESC");
+            }
+            else
+            {
+
             System.Action again = kind == "defeat" ? (System.Action)OzScenes.RestartAfterLoss : OzScenes.Restart;   // 1.3 row 58 DV165: after a DEFEAT the level again with the retry flag (UI/OzUi.cs OzScenes)
             Button(0, "REPLAY", cx - 330, 220, HudButtonStyle.Normal, again, "REPLAY|Play this level again from the start.|R");
             Button(1, primary, cx - 100, 200, HudButtonStyle.Primary, win ? (System.Action)OzScenes.Next : again,
                    win ? "CONTINUE|The next operation.|ENTER" : "RETRY|Fight this battle again.|ENTER");
             Button(2, "MAIN MENU", cx + 110, 220, HudButtonStyle.Normal, OzScenes.MainMenu, OzScenes.HasMenu ? "MAIN MENU|Back to the front end.|ESC" : "MAIN MENU|The front end is not in the build yet: this loads the first level.|ESC");
+            }
             focusRing = Hud.Kit(root, "Focus", "Buttons/btn_l_focus", new OzRect(OzAnchor.TC, cx - 104, OzLayout.EndButtonsY - 4, 208, 58), OzUi.Amber);
-            focusRing.enabled = OzKit.Available; focus = 1;
-            hint = Hud.Label(root, "Hint", $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
+            focusRing.enabled = OzKit.Available; focus = duelMatch ? 0 : 1;
+            hint = Hud.Label(root, "Hint", duelMatch ? "ENTER  RETURN TO LOBBY     ESC  LEAVE DUEL" : $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
             hint.At(0, OzLayout.EndHintY, OzH.C, false, 800);
             hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 1); hint.rectTransform.pivot = new Vector2(0.5f, 1);
             hint.rectTransform.anchoredPosition = new Vector2(0, -(OzLayout.EndHintY + 0.3635f * 9 - 8.1f));
@@ -348,8 +363,8 @@ namespace OpenZ
             if (focus != v3f) OzSfx.Ui("ui_hover");                                                    // sound_v3
             if (OzMotion.Now - skipAt < 0.3f) return;
             if (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[focus].OnClick?.Invoke(default); }
-            else if (kb.rKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[0].OnClick?.Invoke(default); }
-            else if (kb.escapeKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[2].OnClick?.Invoke(default); }
+            else if (!OpenZ.Multiplayer.DuelRuntime.Active && kb.rKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[0].OnClick?.Invoke(default); }
+            else if (kb.escapeKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[buttons.Count - 1].OnClick?.Invoke(default); }
         }
 
         // ------------------------------------------------------------------ reveal timeline (guide 9.13), unscaled seconds from game over

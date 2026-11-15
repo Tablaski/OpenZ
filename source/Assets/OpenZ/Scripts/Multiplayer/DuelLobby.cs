@@ -27,6 +27,8 @@ namespace OpenZ.Multiplayer
         public string Map = "L02";
         public double TerritoryBonus = .5;
         public double MinimumBuildSeconds = 1;
+        public double FortLoserMaximum;
+        public double TerritoryReductionCap = 1;
         public DuelArmySettings Common = new DuelArmySettings();
         public bool HandicapEnabled;
         public int HandicapSlot;
@@ -53,7 +55,7 @@ namespace OpenZ.Multiplayer
 
         public DuelRules Copy() => new DuelRules
         {
-            Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds,
+            Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot
         };
 
@@ -63,6 +65,8 @@ namespace OpenZ.Multiplayer
                 throw new ArgumentException("Unknown duel map.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
                 throw new ArgumentException("Invalid territory rule.");
+            if (!InRange(TerritoryReductionCap, 0, 1)) throw new ArgumentException("Invalid territory cap.");
+            if (!InRange(FortLoserMaximum, 0, .75)) throw new ArgumentException("Invalid fort loser bonus.");
             if (HandicapSlot != 0 && HandicapSlot != 1) throw new ArgumentException("Invalid handicap seat.");
             CheckArmy(Common); CheckArmy(Handicap);
         }
@@ -86,13 +90,23 @@ namespace OpenZ.Multiplayer
 
         public static readonly string[] AllowedFortTurrets = { "gun", "gatling", "howitzer", "missile_cannon" };
 
+        /// <summary>Enemy advantage relative to the smaller offensive army: 0 at +30%, full reduction at +90%.</summary>
+        public double FortLoserReduction(double ownValue, double enemyValue)
+        {
+            if (!InRange(ownValue, 0, double.MaxValue) || !InRange(enemyValue, 0, double.MaxValue)) throw new ArgumentOutOfRangeException();
+            if (FortLoserMaximum <= 0 || enemyValue <= ownValue) return 0;
+            if (ownValue == 0) return FortLoserMaximum;
+            double lead = enemyValue / ownValue - 1;
+            return FortLoserMaximum * Math.Max(0, Math.Min(1, (lead - .3) / .6));
+        }
+
         public double BuildSeconds(int slot, double baseSeconds, double flagFraction, double healthFraction)
         {
             Validate();
             if (slot < 0 || slot > 1 || !InRange(baseSeconds, 0, 86400) ||
                 !InRange(flagFraction, 0, 1) || !InRange(healthFraction, 0, 1))
                 throw new ArgumentOutOfRangeException();
-            return Math.Max(MinimumBuildSeconds, baseSeconds * (1 - TerritoryBonus * flagFraction) *
+            return Math.Max(MinimumBuildSeconds, baseSeconds * (1 - Math.Min(TerritoryBonus * flagFraction, TerritoryReductionCap)) *
                 (1 + 1.25 * (1 - healthFraction)) * (HandicapEnabled && HandicapSlot == slot ? Handicap : Common).BuildDuration);
         }
     }
@@ -150,6 +164,18 @@ namespace OpenZ.Multiplayer
             CheckTime(now);
             if (Phase != DuelPhase.Loading || StartAt < 0 || now < StartAt) return false;
             Phase = DuelPhase.Playing; return true;
+        }
+
+        public void ReturnToLobby()
+        {
+            Require(DuelPhase.Playing);
+            Array.Clear(ready, 0, 2); Array.Clear(loaded, 0, 2); StartAt = -1; Phase = DuelPhase.Lobby; Revision++;
+        }
+
+        public void Restart()
+        {
+            Require(DuelPhase.Playing);
+            Array.Clear(loaded, 0, 2); StartAt = -1; Phase = DuelPhase.Loading;
         }
 
         public void Disconnect(string reason)

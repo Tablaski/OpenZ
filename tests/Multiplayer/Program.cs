@@ -28,6 +28,7 @@ static class Program
     }
     static async Task<int> Main()
     {
+        if (Environment.GetEnvironmentVariable("OZ_DUEL_BENCH") == "1") { ReplicationPerformance.Run(); return 0; }
         try { await Run(); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
@@ -185,6 +186,7 @@ static class Program
         Array.Resize(ref encoded, 13); await RejectFrame(encoded, "Truncated payload accepted");
         BalanceChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
+        ReplicationChecks.Run(Check);
         BehaviorChecks.Run(Check, Reject);
         LobbyRulesChecks.Run(Check, Reject);
         PlaygroundChecks.Run(Check, Reject);

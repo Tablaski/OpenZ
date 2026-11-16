@@ -24,6 +24,9 @@ namespace OpenZ.Multiplayer
         readonly bool relayOnly;
         int pc = -1, game = -1, voice = -1, disposed, cleanupQueued, queuedBytes, receivedBytes, voiceInCount, voiceOutCount;
         Task pump;
+        int nativeBuffered;
+        public int PendingSendBytes => Volatile.Read(ref queuedBytes) + Volatile.Read(ref nativeBuffered);
+        public int PendingReceiveBytes => Volatile.Read(ref receivedBytes);
         public string RemoteName { get; private set; }
         public string Failure { get; private set; }
         public bool UsesRelay { get; private set; }
@@ -114,6 +117,7 @@ namespace OpenZ.Multiplayer
                         { await DuelWire.WriteAsync(buffer, packet, stop.Token).ConfigureAwait(false); sending = buffer.ToArray(); offset = 0; }
                         Interlocked.Add(ref queuedBytes, -sending.Length);
                     }
+                    Volatile.Write(ref nativeBuffered, DuelRtcNative.rtcGetBufferedAmount(game) + (sending == null ? 0 : sending.Length - offset));
                     if (sending != null && DuelRtcNative.rtcGetBufferedAmount(game) < 256 * 1024)
                     {
                         int size = Math.Min(ChunkSize, sending.Length - offset); var part = new byte[size]; Array.Copy(sending, offset, part, 0, size);

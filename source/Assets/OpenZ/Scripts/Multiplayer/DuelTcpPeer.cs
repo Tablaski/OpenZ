@@ -23,6 +23,8 @@ namespace OpenZ.Multiplayer
         readonly SemaphoreSlim wake = new SemaphoreSlim(0);
         int receivedBytes, queuedBytes, disposed;
         long sentBytes, readBytes;
+        public int PendingSendBytes => Volatile.Read(ref queuedBytes);
+        public int PendingReceiveBytes => Volatile.Read(ref receivedBytes);
         public string RemoteName { get; private set; }
         public string Failure { get; private set; }
         public bool Closed => Volatile.Read(ref disposed) != 0;

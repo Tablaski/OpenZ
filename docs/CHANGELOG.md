@@ -1,5 +1,21 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.9 (source update, 16 Nov 2026)
+
+- Reduce host replication allocations with reusable capture buffers, immutable
+  unchanged records, typed scalar writers and cached map-item field selection.
+- Reduce client copying and temporary lists; apply changed fields directly.
+- Preserve the existing field-level wire schema and authority model. Validate
+  outgoing deltas without allocating a second decoded copy.
+- Limit receive bursts between packets and postpone new snapshots during send
+  congestion while retaining ordered baselines and events.
+- Correct multiplayer simulation timing and add passive ten-second performance
+  logs identifying the build, peer role, direct/TURN/TCP path, processing costs,
+  rates, queues, FPS and collections.
+- Source only: no new player release. Manual validation remains pending in
+  PLAYER_VALIDATION.md.
+
+
 ## OpenZ 1.4 (7 Nov 2026)
 
 OpenZ is a free remake of the original Z (The Bitmap Brothers, 1996), the real-time strategy game where flags and territory decide the battle and time is the only resource. Version 1.4 brings MAYHEM, a fourth difficulty that hides the battlefield under the fog of war; drivers who jump out of their tanks; new camera and build options; a faster game; and many changes and fixes.

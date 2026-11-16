@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +11,7 @@ using System.Text;
 namespace OpenZ.Sim
 {
     /// <summary>
-    /// POC replication schema: individual public presentation fields are independent delta records.
+    /// Replication schema: individual public presentation fields are independent delta records.
     /// Game logic, RNGs, path caches and settings never travel from the client to the host.
     /// Call from the simulation/main thread, not the socket read thread.
     /// </summary>
@@ -20,6 +21,7 @@ namespace OpenZ.Sim
         sealed class Slot
         {
             public string Name; public Type Type; public FieldInfo Field; public PropertyInfo Property;
+            public Action<BinaryWriter, ZObject> Writer;
             public object Get(ZObject o) => Field != null ? Field.GetValue(o) : Property.GetValue(o);
             public void Set(ZObject o, object value)
             {
@@ -33,6 +35,19 @@ namespace OpenZ.Sim
                 else if (Field != null) Field.SetValue(o, value);
                 else Property.SetValue(o, value);
             }
+            public void ReadInto(BinaryReader reader, ZObject o, ZWorld world)
+            {
+                // Preserve list identity and avoid allocating and copying an intermediate list.
+                if (Field != null && Type.IsGenericType && Type.GetGenericTypeDefinition() == typeof(List<>) && Field.GetValue(o) is IList list)
+                {
+                    int count = reader.ReadInt32();
+                    if (count < -1 || count > 16384) throw new InvalidDataException("Invalid list size.");
+                    if (count == -1) { Set(o, null); return; }
+                    list.Clear(); var element = Type.GetGenericArguments()[0];
+                    for (int i = 0; i < count; i++) list.Add(Read(reader, element, world));
+                }
+                else Set(o, Read(reader, Type, world));
+            }
         }
         static readonly Slot[] Slots = Schema();
         static readonly HashSet<string> MapItemFields = new HashSet<string>(StringComparer.Ordinal)
@@ -41,7 +56,8 @@ namespace OpenZ.Sim
             "F:CenterX", "F:CenterY", "F:Health", "F:MaxHealth", "F:KillAt", "F:HasProcessedDeath",
             "F:BlockTiles", "F:ZoneIndex", "F:LinkedObjects", "F:CanBeDestroyed", "F:IsDestroyableImpass", "F:Source"
         };
-        static bool Needed(ZKind kind, Slot slot) => kind != ZKind.MapItem || MapItemFields.Contains(slot.Name);
+        static readonly int[] AllSlots = Enumerable.Range(0, Slots.Length).ToArray();
+        static readonly int[] MapSlots = AllSlots.Where(i => MapItemFields.Contains(Slots[i].Name)).ToArray();
         public static string SchemaHash
         {
             get
@@ -60,36 +76,68 @@ namespace OpenZ.Sim
                 .Select(p => new Slot { Name = "P:" + p.Name, Type = p.PropertyType, Property = p });
             var result = fields.Concat(properties).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray();
             if (result.Length >= Stride - 1) throw new InvalidOperationException("Entity schema outgrew record stride.");
+            foreach (var slot in result)
+            {
+                // Mono releases can compile direct typed accessors once at load time. AOT retains the wire-identical fallback.
+                slot.Writer = (writer, obj) => Write(writer, slot.Type, slot.Get(obj));
+#if !ENABLE_IL2CPP
+                var valueType = slot.Type.IsEnum ? typeof(int) : slot.Type;
+                var method = typeof(BinaryWriter).GetMethod("Write", new[] { valueType });
+                if (method == null || slot.Type == typeof(string)) continue;
+                var w = Expression.Parameter(typeof(BinaryWriter), "writer");
+                var o = Expression.Parameter(typeof(ZObject), "obj");
+                Expression value = slot.Field != null ? (Expression)Expression.Field(o, slot.Field) : Expression.Property(o, slot.Property);
+                if (slot.Type.IsEnum) value = Expression.Convert(value, typeof(int));
+                slot.Writer = Expression.Lambda<Action<BinaryWriter, ZObject>>(Expression.Call(w, method, value), w, o).Compile();
+#endif
+            }
             return result;
         }
         static bool Supported(Type t) => t.IsEnum || t == typeof(bool) || t == typeof(int) || t == typeof(long) ||
             t == typeof(float) || t == typeof(double) || t == typeof(string) || t == typeof(ZObject) ||
             t == typeof(ZWaypoint) || t == typeof(ZMapData.Obj) || t == typeof(int[]) || (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(List<>) && Supported(t.GetGenericArguments()[0]));
 
-        public static Dictionary<int, byte[]> Capture(ZWorld world)
+        public sealed class CaptureBuffer
         {
-            if (world.DuelIsReplica) throw new InvalidOperationException("A replica is not an authority.");
-            var records = new Dictionary<int, byte[]>();
-            records[0] = Bytes(w =>
+            Dictionary<int, byte[]> previous = new Dictionary<int, byte[]>(), next = new Dictionary<int, byte[]>();
+            readonly MemoryStream stream = new MemoryStream(512);
+            readonly BinaryWriter writer;
+            public CaptureBuffer() { writer = new BinaryWriter(stream); }
+            void Begin() { stream.Position = 0; stream.SetLength(0); }
+            void End(int key)
             {
-                w.Write(world.Time); w.Write(world.GameOver); w.Write((int)world.Winner); w.Write(world.TickIndex);
-                w.Write(world.Zones.Count); foreach (var zone in world.Zones) w.Write((int)zone.Owner);
-            });
-            records[1] = Bytes(world.DuelWriteAuxiliary);
-            foreach (var o in world.DuelPresentationObjects())
-            {
-                int key = checked(o.Id * Stride);
-                records.Add(key, Bytes(w => { w.Write(o.Type); w.Write((int)o.Kind); w.Write(world.Get(o.Id) != null); }));
-                for (int i = 0; i < Slots.Length; i++)
+                int length = checked((int)stream.Length);
+                var buffer = stream.GetBuffer();
+                if (previous.TryGetValue(key, out var old) && old.Length == length)
                 {
-                    var slot = Slots[i];
-                    if (!Needed(o.Kind, slot)) continue;
-                    records.Add(key + i + 1, Bytes(w => Write(w, slot.Type, slot.Get(o))));
+                    int i = 0; while (i < length && old[i] == buffer[i]) i++;
+                    if (i == length) { next.Add(key, old); return; }
                 }
-                if (o.IsUnit) records.Add(key + Stride - 1, Bytes(o.DuelWriteMotion));
+                next.Add(key, stream.ToArray());
             }
-            return records;
+            /// <summary>Borrowed dictionary, valid until the next capture. Published arrays must remain immutable.</summary>
+            public Dictionary<int, byte[]> Capture(ZWorld world)
+            {
+                if (world.DuelIsReplica) throw new InvalidOperationException("A replica is not an authority.");
+                next.Clear(); Begin();
+                writer.Write(world.Time); writer.Write(world.GameOver); writer.Write((int)world.Winner); writer.Write(world.TickIndex);
+                writer.Write(world.Zones.Count); foreach (var zone in world.Zones) writer.Write((int)zone.Owner);
+                End(0); Begin(); world.DuelWriteAuxiliary(writer); End(1);
+                foreach (var o in world.DuelPresentationObjects())
+                {
+                    int key = checked(o.Id * Stride);
+                    Begin(); writer.Write(o.Type); writer.Write((int)o.Kind); writer.Write(world.Get(o.Id) != null); End(key);
+                    foreach (int i in o.Kind == ZKind.MapItem ? MapSlots : AllSlots)
+                    {
+                        var slot = Slots[i];
+                        Begin(); slot.Writer(writer, o); End(key + i + 1);
+                    }
+                    if (o.IsUnit) { Begin(); o.DuelWriteMotion(writer); End(key + Stride - 1); }
+                }
+                var swap = previous; previous = next; next = swap; return previous;
+            }
         }
+        public static Dictionary<int, byte[]> Capture(ZWorld world) => new CaptureBuffer().Capture(world);
 
         public static void ApplyDelta(ZWorld world, OpenZ.Multiplayer.DuelDelta delta)
         {
@@ -120,22 +168,37 @@ namespace OpenZ.Sim
                     world.DuelReplicaObject(id, type, kind);
                 }
             }
-            foreach (int id in ids)
+            using (var input = new RecordInput())
+            using (var r = new BinaryReader(input))
             {
-                var o = world.GetAny(id);
-                for (int i = 0; i < Slots.Length; i++)
+                if (partial)
                 {
-                    if (!Needed(o.Kind, Slots[i])) continue;
-                    if (!records.TryGetValue(id * Stride + i + 1, out var data))
-                    { if (partial) continue; throw new InvalidDataException("Incomplete entity state."); }
-                    using (var r = Reader(data))
+                    // A moving object often changes only a handful of fields. Visit those records directly.
+                    foreach (var record in records)
                     {
-                        var slot = Slots[i]; slot.Set(o, Read(r, slot.Type, world));
-                        if (r.BaseStream.Position != r.BaseStream.Length) throw new InvalidDataException("Trailing field data.");
+                        if (record.Key < Stride) continue;
+                        int field = record.Key % Stride;
+                        if (field == 0 || field == Stride - 1) continue;
+                        if (field > Slots.Length) throw new InvalidDataException("Unknown entity field.");
+                        var obj = world.GetAny(record.Key / Stride);
+                        input.Bind(record.Value); Slots[field - 1].ReadInto(r, obj, world);
+                        if (input.Position != input.Length) throw new InvalidDataException("Trailing field data.");
                     }
                 }
-                if (o.IsUnit && records.TryGetValue(id * Stride + Stride - 1, out var motionData))
-                    using (var motion = Reader(motionData)) o.DuelReadMotion(motion);
+                foreach (int id in ids)
+                {
+                    var o = world.GetAny(id);
+                    if (!partial)
+                    foreach (int i in o.Kind == ZKind.MapItem ? MapSlots : AllSlots)
+                    {
+                        if (!records.TryGetValue(id * Stride + i + 1, out var data))
+                            throw new InvalidDataException("Incomplete entity state.");
+                        input.Bind(data); Slots[i].ReadInto(r, o, world);
+                        if (input.Position != input.Length) throw new InvalidDataException("Trailing field data.");
+                    }
+                    if (o.IsUnit && records.TryGetValue(id * Stride + Stride - 1, out var motionData))
+                        using (var motion = Reader(motionData)) o.DuelReadMotion(motion);
+                }
             }
             if (partial) foreach (int id in described) world.DuelSetReplicaLive(id, live.Contains(id));
             else
@@ -158,9 +221,26 @@ namespace OpenZ.Sim
             }
         }
 
-        static byte[] Bytes(Action<BinaryWriter> write)
+        // Rebind one reader per delta instead of allocating streams for each changed field.
+        sealed class RecordInput : Stream
         {
-            using (var s = new MemoryStream()) using (var w = new BinaryWriter(s)) { write(w); return s.ToArray(); }
+            byte[] bytes = Array.Empty<byte>(); int position;
+            public void Bind(byte[] value) { bytes = value; position = 0; }
+            public override bool CanRead => true;
+            public override bool CanSeek => true;
+            public override bool CanWrite => false;
+            public override long Length => bytes.Length;
+            public override long Position { get => position; set { if (value < 0 || value > bytes.Length) throw new IOException("Invalid record position."); position = (int)value; } }
+            public override int Read(byte[] buffer, int offset, int count)
+            { int n = Math.Min(count, bytes.Length - position); Array.Copy(bytes, position, buffer, offset, n); position += n; return n; }
+            public override int Read(Span<byte> buffer)
+            { int n = Math.Min(buffer.Length, bytes.Length - position); new ReadOnlySpan<byte>(bytes, position, n).CopyTo(buffer); position += n; return n; }
+            public override int ReadByte() => position < bytes.Length ? bytes[position++] : -1;
+            public override long Seek(long offset, SeekOrigin origin)
+            { Position = offset + (origin == SeekOrigin.Begin ? 0 : origin == SeekOrigin.Current ? position : bytes.Length); return position; }
+            public override void Flush() { }
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         }
         static BinaryReader Reader(byte[] bytes) => new BinaryReader(new MemoryStream(bytes, false));
         static void Write(BinaryWriter w, Type t, object value)

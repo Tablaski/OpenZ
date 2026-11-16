@@ -11,7 +11,20 @@ namespace OpenZ.Multiplayer
         public static byte[] Encode(DuelDelta delta)
         {
             if (delta == null) throw new ArgumentNullException(nameof(delta));
-            using (var stream = new MemoryStream())
+            if (delta.Sequence <= 0 || delta.Baseline < 0 || delta.Baseline >= delta.Sequence ||
+                delta.Changed.Count > MaxEntities || delta.Removed.Count > MaxEntities || (delta.Full && delta.Removed.Count != 0))
+                throw new InvalidDataException("Invalid delta header.");
+            long size = 25L + 4L * delta.Removed.Count;
+            foreach (var pair in delta.Changed)
+            {
+                if (pair.Key < 0 || pair.Value == null || pair.Value.Length > MaxRecord) throw new InvalidDataException("Invalid entity payload.");
+                size += 8L + pair.Value.Length;
+            }
+            if (size > DuelWire.MaxPayload) throw new InvalidDataException("Delta too large.");
+            var seen = new System.Collections.Generic.HashSet<int>();
+            foreach (int id in delta.Removed)
+                if (id < 0 || delta.Changed.ContainsKey(id) || !seen.Add(id)) throw new InvalidDataException("Invalid removal.");
+            using (var stream = new MemoryStream((int)size))
             using (var writer = new BinaryWriter(stream))
             {
                 writer.Write(delta.Sequence); writer.Write(delta.Baseline); writer.Write(delta.Full);
@@ -25,7 +38,6 @@ namespace OpenZ.Multiplayer
                 writer.Write(delta.Removed.Count);
                 foreach (int id in delta.Removed) writer.Write(id);
                 byte[] payload = stream.ToArray();
-                Decode(payload); // One validation contract for local and remote producers.
                 return payload;
             }
         }

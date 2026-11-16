@@ -30,7 +30,19 @@
   thumbnails, scrolling, custom preset transitions and slot clearing; loading,
   restarts and in-game profile lock; production and neutral units under all
   presets; logo colours and fork highlights. All movement/crippling checks below
-  remain pending too. Build/package/publication results will be added afterwards.
+  remain pending too.
+- The replacement Windows x64 release build succeeded with zero errors, with
+  development, script debugging and profiler connections OFF. The Unity lobby
+  wire check passed, including the new roster and both dynamics profiles.
+  Source: `093c35cdba0e6d7ad3f8d9c0fde1537ef630b988`; build stamp:
+  `2026-11-16 07:58:24 UTC`. The pre-existing local ProjectSettings shader
+  preload accounts for the modified-tree flag and is included as an exact patch.
+- Player: `builds/OpenZ-VK-0.2.7-Windows-x64/openz-vk.exe`. The two ZIPs under
+  `builds/release-0.2.7/` contain all 187 runtime/distribution files, without
+  missing or duplicate entries. Every entry's SHA-256 matches its player file.
+  Part 1: 1,741,064,194 bytes; part 2: 982,654,543 bytes. Extract both into the
+  same destination. No personal preferences, credentials, history or symbols
+  are included. No player gameplay or rendering was launched for validation.
 
 ## Shortest hull turns and CRIPPLING (0.2.7, awaiting player validation)
 
@@ -60,8 +72,9 @@
   Source commit: `1ffa9b42535831bc3ce478ff5d86ac0b37c606b1`; build stamp:
   `2026-11-16 07:25:50 UTC`. The modified-tree flag records the pre-existing
   ProjectSettings shader preload; its exact SOURCE_CHANGES.patch is included.
-- Local player: `builds/OpenZ-VK-0.2.7-Windows-x64/openz-vk.exe`. Both ZIPs in
-  `builds/release-0.2.7/` jointly contain all 187 runtime/distribution files.
+- Superseded local player: `builds/OpenZ-VK-0.2.7-before-lobby-20261116-075634/openz-vk.exe`.
+  Its ZIPs were kept under `builds/release-0.2.7-before-lobby-20261116-075634/`;
+  they jointly contain all 187 runtime/distribution files.
   Every ZIP entry was read back and SHA-256 checked against its player file;
   coverage and absence of duplicate entries were checked. Part 1 is
   1,741,074,810 bytes; part 2 is 982,649,533 bytes. Both must be extracted into

@@ -1,5 +1,31 @@
 # Player validation record
 
+## Multiplayer replication optimization (0.2.9, source only)
+
+- Reuse capture streams, dictionaries and immutable unchanged records; compile
+  typed scalar writers once on Mono, retaining the reflection fallback on AOT.
+- Preserve the existing field-level delta schema and 15 Hz target. Skip capture
+  while outgoing buffers are congested, without dropping already published
+  baseline-dependent deltas or pending events.
+- Reuse client record readers and lists; visit changed fields directly; avoid
+  defensive byte-array copies inside the private validated replication pipeline.
+  Public APIs retain their defensive-copy contract.
+- Replace encode-time decoding with writer-side validation and exact capacity.
+- Bound receive processing to three milliseconds between complete packets.
+  An individual large packet can still exceed this budget; no delta is discarded.
+- Fix zero/stale multiplayer simulation timers. Add passive ten-second
+  [OpenZ Multiplayer Perf] lines with build identity, host/guest, direct/TURN/TCP,
+  FPS, longest frame, send/receive costs, state rates, throughput, queue sizes,
+  ping, collection count and live object count. Logs use the existing Player.log
+  rotation, contain no credentials/SDP/chat/IP, and do not change settings or caps.
+- Validation details and reproducible benchmark procedure are in
+  MULTIPLAYER_PERFORMANCE.md. No game player was built or launched.
+- Pending manual testing on a newly requested release player: both remote PCs,
+  FPS and hitch behavior, orders/combat/production, surrender, restart, return to
+  lobby, voice, slow links and direct/TURN paths. This is a broad change to the
+  replication hot path: a fresh release build is recommended when requested.
+
+
 ## Converted maps (0.2.8)
 
 - Added a separate converted-map browser under PLAY: Load Shitty maps, with a
@@ -10,10 +36,23 @@
   red/blue starting unit objects, including owners, types and coordinates.
 - Completed: standalone editor parser checks against every original Mayhem
   object, document round-trip, and measured bridge deck/ramp support tests.
-- Pending on the newly requested release player: converted-map menu and card,
-  loading, terrain/material appearance, starting armies, bridge traversal and
-  regression checks of ordinary level selection. A successful build alone does
-  not pass these runtime checks.
+- Completed on release player 91af9620: normal level cards remain visible, the
+  converted-map button is separate from High Scores, the Mayhem/City minimap card
+  opens, and DEPLOY reaches the ordinary loading screen and the actual L19 scene.
+- Completed on that same release player: visible City terrain and starting army,
+  normal orders, flag captures and combat. A red Mech and Light Tank crossed the
+  City bridge at (20,76) to the opposite bank. The unattended test reached defeat.
+- The final source additionally corrects the end-screen level name and portrait
+  background to Mayhem/City. These cosmetic changes require the final player;
+  the gameplay observations above were made before this two-line correction.
+- Its reconstruction was interrupted before player output was updated because
+  unrelated multiplayer changes and a 0.2.9 version edit appeared concurrently.
+  The existing tested output remains stamped 0.2.8 / 91af9620. It does not yet
+  include the end-screen identity correction in d4560dac. Do not present that
+  correction as validated or included in the existing player.
+- Pending: other bridges, dense opposing traffic, exhaustive unit/decor placement,
+  and extended converted-map play. Native integration beyond this solo map was
+  not tested. A successful build alone does not pass runtime checks.
 - Ignored Mayhem scene, terrain meshes/materials and map data are distributed
   separately in the Mayhem resource archive; they are not stored in Git.
 

@@ -30,6 +30,7 @@ namespace OpenZ.Multiplayer
     [Serializable] public sealed class DuelLobbyData
     {
         public string Map, HostName, GuestName;
+        public string HostRelease, GuestRelease;
         public int Revision, Phase, HandicapSlot;
         public bool HostReady, GuestReady, HandicapEnabled;
         public double TerritoryBonus, MinimumBuildSeconds, FortLoserMaximum, TerritoryReductionCap;
@@ -55,7 +56,7 @@ namespace OpenZ.Multiplayer
             rules.Validate(); return rules;
         }
     }
-    [Serializable] sealed class DuelReadyData { public int Revision; public bool Ready; }
+    [Serializable] sealed class DuelReadyData { public int Revision; public bool Ready; public string Release; public bool ReleaseOnly; }
     [Serializable] public sealed class DuelEventData { public ZEvent[] Events; }
 
     [DefaultExecutionOrder(-1000)]
@@ -93,6 +94,11 @@ namespace OpenZ.Multiplayer
         Task<IDuelPeer> connectTask;
         DuelLobby lobby;
         string secret, localName;
+        string guestRelease;
+        static string LocalRelease => OzForkVersion.Label.Replace('\n', '|');
+        public string ReleaseWarning => View == null ? "" : string.IsNullOrEmpty(View.HostRelease) || string.IsNullOrEmpty(View.GuestRelease)
+            ? "WARNING: peer release unverified. You may still play at your own risk."
+            : (View.HostRelease != View.GuestRelease || View.HostRelease.Contains("UNSTAMPED")) ? "WARNING: different releases. You may still play at your own risk." : "";
         bool session, loadStarted, sentGameOver;
         bool restartPending, restartPromptOpen;
         bool finalStatsSent, localEndReady, remoteEndReady;
@@ -219,7 +225,7 @@ namespace OpenZ.Multiplayer
             try { ValidateArmies(Rules); }
             catch (Exception error) { Status = error.Message; Menus.Refresh(); return; }
             if (IsHost) { lobby.SetReady(0, View.Revision, !View.HostReady); PublishLobby(); }
-            else SendJson(DuelMessage.Ready, new DuelReadyData { Revision = View.Revision, Ready = !View.GuestReady });
+            else SendJson(DuelMessage.Ready, new DuelReadyData { Revision = View.Revision, Ready = !View.GuestReady, Release = LocalRelease });
         }
         public void SendChat(string message)
         {
@@ -230,7 +236,7 @@ namespace OpenZ.Multiplayer
         void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.Refresh(); }
         void PublishLobby()
         {
-            View = DuelLobbyData.From(lobby); if (Connected) SendJson(DuelMessage.Lobby, View); Menus.Refresh();
+            View = DuelLobbyData.From(lobby); View.HostRelease = LocalRelease; View.GuestRelease = guestRelease; if (Connected) SendJson(DuelMessage.Lobby, View); Menus.Refresh();
         }
         void SendJson<T>(DuelMessage kind, T value) => peer?.Send(new DuelPacket(kind, Encoding.UTF8.GetBytes(JsonUtility.ToJson(value))));
         static T ReadJson<T>(DuelPacket packet)
@@ -297,12 +303,17 @@ namespace OpenZ.Multiplayer
                     AddChat(receivedChat); Menus.NotifyChat(receivedChat.Replace("<", "‹").Replace(">", "›")); break;
                 case DuelMessage.Lobby:
                     if (IsHost) throw new InvalidDataException("Guest cannot publish a lobby.");
-                    View = ReadJson<DuelLobbyData>(packet); View.ReadRules(); Menus.Refresh(); break;
+                    View = ReadJson<DuelLobbyData>(packet); View.ReadRules();
+                    if (View.GuestRelease != LocalRelease)
+                        SendJson(DuelMessage.Ready, new DuelReadyData { Revision = View.Revision, Ready = View.GuestReady, Release = LocalRelease, ReleaseOnly = true });
+                    Menus.Refresh(); break;
                 case DuelMessage.Ready:
                     if (!IsHost || lobby.Phase != DuelPhase.Lobby) break;
                     var ready = ReadJson<DuelReadyData>(packet);
+                    guestRelease = string.IsNullOrEmpty(ready.Release) ? null : ready.Release;
+                    if (guestRelease != null && guestRelease.Length > 512) throw new InvalidDataException("Invalid release identity.");
                     // A click sent against an obsolete revision is ignored and the current lobby is resent.
-                    if (ready.Revision == lobby.Revision)
+                    if (!ready.ReleaseOnly && ready.Revision == lobby.Revision)
                     {
                         try { if (ready.Ready) ValidateArmies(lobby.Rules); lobby.SetReady(1, ready.Revision, ready.Ready); }
                         catch (ArgumentException error) { Status = error.Message; }
@@ -564,7 +575,7 @@ namespace OpenZ.Multiplayer
         {
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
-            Disconnect(); OnlineMode = false;
+            Disconnect(); OnlineMode = false; guestRelease = null;
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             restartPending = false;
             session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;

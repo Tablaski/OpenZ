@@ -475,3 +475,15 @@ must be added here and checked together on the next requested release.
   running executable path; the manual helper now expects openz-vk.exe.
 - No player build or game launch was performed. Pending: next requested release
   executable/data folder, launch and invitation registration on the user's PC.
+
+## Lobby release warning (0.2.10, source only)
+
+- Exchange the displayed release/build identity in lobby metadata. Both updated
+  players see a persistent warning for different identities, unstamped builds,
+  or an unverified peer. Readiness remains available; release mismatch alone
+  does not block launch. Schema/settings incompatibility checks remain intact.
+- Release announcements cannot change readiness. Old players cannot display a
+  warning added after their build; the updated peer reports them as unverified.
+- Pending manual validation: matching and mismatching builds on both PCs,
+  unstamped/legacy peers, ready races, restart and return to lobby.
+- Source compilation checked; no player built or launched.

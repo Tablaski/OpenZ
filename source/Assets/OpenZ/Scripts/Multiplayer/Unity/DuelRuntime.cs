@@ -149,7 +149,7 @@ namespace OpenZ.Multiplayer
         {
             var text = new StringBuilder("OpenZ-VK-0.2-duel-5-lobby-rules\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
-            foreach (string map in new[] { "L02", "L07", "L16", "L17", "L19" }) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
+            foreach (string map in new[] { "L02", "L07", "L16", "L17" }.Concat(OzShittyMapCatalog.All.Where(m=>m.Duel).Select(m=>m.Id))) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
         }
         public void Host(string name, int port)
@@ -369,7 +369,7 @@ namespace OpenZ.Multiplayer
         {
             Status = "Loading both teams…"; Menus.ShowLoading();
             string scene = View.Map == "L02" ? "L02_Desert" : View.Map == "L07" ? "L07_Volcanic" : View.Map == "L16" ? "L16_Jungle" : View.Map == "L19" ? "L19_Mayhem_Converted" : "L17_CarPark";
-            OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(scene);
+            OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(OzShittyMapCatalog.Find(View.Map)?.Scene ?? scene);
         }
         void SceneLoaded(Scene scene, LoadSceneMode mode)
         {

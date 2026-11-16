@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
@@ -14,7 +15,7 @@ namespace OpenZ.Multiplayer.Editor
         {
             ValidateScriptBindings();
             ValidateWire();
-            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", "L19_Mayhem_Converted", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity");
+            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity").Concat(OzShittyMapCatalog.All.Select(m=>m.ScenePath)).ToArray();
             foreach (string scene in scenes)
                 if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(scene))
                     throw new InvalidOperationException("Required player scene is missing: " + scene);

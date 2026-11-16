@@ -15,7 +15,7 @@ namespace OpenZ.Sim
                 int dx = o.x - fort.x, dy = o.y - fort.y;
                 if (o.Category == "cannon" && (dx == 1 || dx == 7) && (dy == 0 || dy == 3))
                     continue;
-                if (army.StartingUnits.Count < 4 && (o.Category == "robot" || o.Category == "vehicle" || o.Category == "cannon"))
+                if (army.StartingUnits.Count < 4 && (o.Category == "robot" || o.Category == "vehicle"))
                     army.StartingUnits.Add(o.Type);
             }
             return army;

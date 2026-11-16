@@ -1,0 +1,2 @@
+PASS 60 map variants; 1571 source starting-unit records; original types, ownership and positions; duel rule validation and starting-army application.
+Player menus, rendering and full gameplay remain pending manual validation on a requested release player.

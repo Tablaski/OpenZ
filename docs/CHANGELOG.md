@@ -1,5 +1,23 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.12 (source update, 16 Nov 2026)
+
+- Add the local p02 Zod catalog: 31 solo missions and 44 converted 1v1 choices,
+  excluding the four levels already restored in OpenZ. Separate original Z and
+  expansion missions; label approved fixed-file solo exceptions 21 and 27.
+- Prefer balanced fixed/FDL variants in duel and warn when none was provided.
+- Add world-filtered, sortable minimap galleries and font-independent poop icons.
+  Guests can inspect maps; selection remains a host-owned lobby rule.
+- Add lightweight Arctic terrain and palettes without original Zod artwork.
+- Track map data, small converted scenes and previews in shittymaps/, connected
+  as a local Unity package; reuse base game assets and generate terrain meshes
+  at load time so map updates travel through Git without another large ZIP.
+- Preserve bridge material/model families after damage and rebuild on new worlds.
+- Brighten blue territory border LEDs on gray City terrain, respecting team swaps.
+- Source only. Player rendering, navigation and full matches remain pending manual
+  testing on a newly requested release build; see PLAYER_VALIDATION.md.
+
+
 ## OpenZ-VK 0.2.11 (source update, 16 Nov 2026)
 
 - Raise converted Mayhem rock obstacles to 4.1 m, comparable to the map cliffs,

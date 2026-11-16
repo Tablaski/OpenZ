@@ -68,11 +68,14 @@ namespace OpenZ
                 // Track displayed colours as well, so a live team-colour swap updates the borders.
                 var painted = TeamColors.Shown(owner);
                 if (painted == shown) continue;
-                var c = owner == Team.Neutral ? new Color(.8f, .8f, .8f) : TeamColors.Paint(owner); c.a = Alpha;
+                var c = BorderColor(owner); c.a = Alpha;
                 m.SetColor("_Color", c);
                 zones[i] = (m, id, painted);
             }
         }
+
+        // The displayed blue needs a bright cyan-blue base; multiplying the old dark paint by the LED core was insufficient on City grey.
+        public static Color BorderColor(Team owner) => owner==Team.Neutral ? new Color(.8f,.8f,.8f) : TeamColors.Shown(owner)==Team.Blue ? new Color(.30f,.68f,1f) : TeamColors.Paint(owner);
 
         Mesh BuildZoneMesh(ZZone z)
         {

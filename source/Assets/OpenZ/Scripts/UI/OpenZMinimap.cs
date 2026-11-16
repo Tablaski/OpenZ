@@ -80,7 +80,7 @@ namespace OpenZ
             }
             else Hud.Plate(panel, "lg", 28f, OzUi.Amber);
             panel.gameObject.AddComponent<Canvas>();                                                   // nested canvas: per-frame frustum updates rebuild only this panel
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
+            string lvl = OzShittyMapCatalog.Find(game.level) is OzShittyMap converted ? converted.Title : game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             Hud.Label(panel, "Level", lvl, 10, OzUi.Muted, 0.16f, OzStyle.Plain).At(OzLayout.MinimapTitleX, OzLayout.MinimapLevelY, OzH.L, false, 200);
 
             // well: the map fitted keeping its aspect (zmini_map.cpp:24-59), letterbox bands hatched with coordinate ticks
@@ -129,13 +129,14 @@ namespace OpenZ
         struct Pal { public Color32 ground, road, water, deep, cliff, cliffDark; public bool plates; }
         Pal Palette()
         {
-            if (game.level == "L17")                                                                          // Z level 17 (refs/zod_maps/L17_z1996.png)
+            if (W.Map.planet == "arctic") return new Pal { ground=new Color32(226,237,242,255), road=new Color32(167,202,221,255), water=new Color32(52,134,194,255), deep=new Color32(28,75,132,255), cliff=new Color32(177,207,226,255), cliffDark=new Color32(112,150,180,255) };
+            if (W.Map.planet == "city")                                                                          // Z level 17 (refs/zod_maps/L17_z1996.png)
                 return new Pal { ground = new Color32(86, 86, 84, 255), road = new Color32(118, 116, 110, 255), water = new Color32(92, 104, 58, 255),
                                  deep = new Color32(70, 82, 44, 255), cliff = new Color32(172, 168, 158, 255), cliffDark = new Color32(138, 134, 126, 255), plates = true };
-            if (game.level == "L16")
+            if (W.Map.planet == "jungle")
                 return new Pal { ground = new Color32(104, 122, 54, 255), road = new Color32(124, 122, 116, 255), water = new Color32(110, 96, 50, 255),
                                  deep = new Color32(86, 74, 38, 255), cliff = new Color32(132, 104, 70, 255), cliffDark = new Color32(104, 80, 52, 255), plates = false };
-            if (OzVolcanic.Is(game.level))                                                                    // level 7: ash and grey rock; lava tiles in lava orange (BakeTerrain)
+            if (W.Map.planet == "volcanic")                                                                    // level 7: ash and grey rock; lava tiles in lava orange (BakeTerrain)
                 return new Pal { ground = OzVolcanic.MiniGround, road = OzVolcanic.MiniRoad, water = new Color32(78, 168, 160, 255),
                                  deep = new Color32(56, 128, 128, 255), cliff = OzVolcanic.MiniCliff, cliffDark = OzVolcanic.MiniCliffDark, plates = false };
             return new Pal { ground = new Color32(158, 120, 80, 255), road = new Color32(126, 124, 118, 255), water = new Color32(78, 168, 160, 255),   // Z level 2; turquoise water like the 3D river

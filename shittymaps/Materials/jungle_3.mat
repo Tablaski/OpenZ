@@ -1,0 +1,194 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: jungle_3
+  m_Shader: {fileID: 4800000, guid: 6cdcd87f60a9058419cdfec9e9650fea, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: 0e0b4ce2b17f78044836d1231763821e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CrackMask:
+        m_Texture: {fileID: 2800000, guid: 5d1f6a0c9b3e47a8a6c2e1d07b94f316, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GroundNoise:
+        m_Texture: {fileID: 2800000, guid: f7f2992923c3c1541a92715615bb0d14, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Layers:
+        m_Texture: {fileID: 18700000, guid: 1aa24cd711a67e14388d8cdaf8685407, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _LeafyMask:
+        m_Texture: {fileID: 2800000, guid: 9f1cbf783bc14ab9828a23c721d7be6e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _OzCraterDecal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RimCut:
+        m_Texture: {fileID: 2800000, guid: 113393fb47f741eba905294bef913d33, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RoadStuds:
+        m_Texture: {fileID: 2800000, guid: b771be73a6f29d44f916d4518db4196c, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SplatA:
+        m_Texture: {fileID: 2800000, guid: 611d1d58c3227b74b9b752a69c6b44bb, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SplatB:
+        m_Texture: {fileID: 2800000, guid: e10f0218a353e904fa29c76c0ac54440, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SplatC:
+        m_Texture: {fileID: 2800000, guid: 3ddd529507d4ff14ea8dd73b5bc665b5, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Accent: 0
+    - _AccentFrom: 2
+    - _AccentHi: -100000
+    - _AccentLo: 100000
+    - _AccentTo: 2
+    - _AmbientBoost: 1.35
+    - _BandWorld: 0
+    - _BumpScale: 1
+    - _CalmDrift: 0.5
+    - _CraterMud: 0.8
+    - _CreamToTeam: 0
+    - _DarkThreshold: 0.12
+    - _Degreen: 1
+    - _Degrime: 0.5
+    - _DegrimeLod: 2.5
+    - _EmissionNight: 1
+    - _FlatShade: 0
+    - _HueMax: 0.34
+    - _HueMax2: 0
+    - _HueMin: 0.12
+    - _HueMin2: 1
+    - _HueShift: 0
+    - _LayerTile: 12.8
+    - _LegacyHeavy: 0
+    - _MaskArea: 2
+    - _MaskDilate: 0
+    - _MaskSatBoost: 0.06
+    - _Metallic: 0
+    - _NightClass: -1
+    - _OwnerPart: 0
+    - _OzCraterDecalMul: 1
+    - _OzCraterRole: 0
+    - _PaintFromAlpha: 0
+    - _RimCutOn: 1
+    - _RimPower: 3.2
+    - _Rust: 0
+    - _RustScale: 1
+    - _RustWaterY: -1000
+    - _SatMin: 0.32
+    - _SatMin2: 0.3
+    - _SatScale: 1
+    - _SeeThru: 0
+    - _ShadeMax: 1.6
+    - _ShadeMin: 0.85
+    - _Smoothness: 0.06
+    - _SoftFill: 0.7
+    - _Stylize: 0
+    - _TeamLift: 0
+    - _TeamMode: 0
+    - _TeamRef: 0.3
+    - _TeamTone: 0.15
+    - _TopBlend: 0
+    - _TopMax: 0.8
+    - _TopMin: 0.62
+    - _TriHeight: 18
+    - _TriScale: 0.045
+    - _TriVertical: 0
+    - _Triplanar: 1
+    - _UnitLook: 0
+    - _UseMaskMap: 0
+    - _UseNormalMap: 0
+    - _UseVertexColor: 0
+    - _ValMax: 0.6
+    - _ValScale: 1
+    - _VertexColorSRGB: 0
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _CalmAmt: {r: 1, g: 0.7, b: 0.7, a: 1}
+    - _CalmRule: {r: 8, g: 0.5, b: 0.15, a: 4}
+    - _CrackEarth: {r: 0.26, g: 0.22, b: 0.14, a: 0.5}
+    - _CrackEdge: {r: 0.25, g: 0.1, b: 2.4, a: 0.1}
+    - _CrackFar: {r: 0.075, g: 0.1, b: 0.2, a: 0}
+    - _CrackMoss: {r: 0.25, g: 0.27, b: 0.19, a: 1}
+    - _CrackRule: {r: 1, g: 0.75, b: 0, a: 1}
+    - _DarkColor: {r: 0.049999982, g: 0.05599998, b: 0.06999998, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _EmissionMapColor: {r: 0, g: 0, b: 0, a: 1}
+    - _FarPx: {r: 0.075, g: 0.14, b: 0, a: 0}
+    - _FieldRule: {r: 0.55, g: 0.02, b: 0.15, a: 0}
+    - _GrassCool: {r: 0.961, g: 0.969, b: 1.123, a: 1}
+    - _GrassMood: {r: 1, g: 1, b: 1, a: 0}
+    - _GrassTint: {r: 0.795, g: 0.798, b: 0.925, a: 1}
+    - _GrassWarm: {r: 1.058, g: 1.008, b: 1.07, a: 1}
+    - _GroundRect: {r: -24, g: -280, b: 0.00390625, a: 0.0032894737}
+    - _HeavyLook: {r: 0.1575, g: 0.42, b: 0.8, a: 1}
+    - _KeyWarm: {r: 1.08, g: 1, b: 0.9, a: 1}
+    - _LeafyTint: {r: 1, g: 1, b: 1, a: 1}
+    - _LookCal: {r: 0.905, g: 0.965, b: 1.085, a: 1}
+    - _MapTiles: {r: 104, g: 128, b: 0, a: 0}
+    - _NeutralPaint: {r: 0.7, g: 0.68, b: 0.62, a: 1}
+    - _OZFortPaint: {r: 0, g: 0, b: 0, a: 0}
+    - _OZPanel: {r: 0, g: 0, b: 0, a: 0}
+    - _OZPanelY: {r: 0, g: 0, b: 0, a: 0}
+    - _OZTeamGlow: {r: 0, g: 0, b: 0, a: 0}
+    - _OZTeamVivid: {r: 0, g: 0, b: 0, a: 0}
+    - _OzWindPalm: {r: 0, g: 0, b: 0, a: 0}
+    - _OzWindPalm2: {r: 0, g: 0, b: 0, a: 0}
+    - _RimColor: {r: 0.55, g: 0.5, b: 0.42, a: 1}
+    - _StudColor: {r: 0.8235294, g: 0.80784315, b: 0.7607843, a: 1}
+    - _StudRule: {r: 0.22, g: 0.37, b: 1.3333334, a: 1}
+    - _TeamColor: {r: 0.17099997, g: 0.17099997, b: 0.17099997, a: 1}
+    - _TintMud: {r: 0.93, g: 0.92, b: 0.84, a: 1}
+    - _TintPaving: {r: 0.705, g: 0.655, b: 0.725, a: 1}
+    - _TintSide: {r: 0.71, g: 0.76, b: 0.82, a: 1}
+    - _TintWet: {r: 0.77, g: 0.81, b: 0.78, a: 1}
+    - _TopColor: {r: 0.67, g: 0.52, b: 0.38999996, a: 1}
+    - _UnitKick: {r: 0.74, g: 0.93, b: 0.8, a: 0.14}
+    - _UnitRamp: {r: -0.05, g: 0.85, b: 0.8, a: 0}
+    - _UnitShade: {r: 1, g: 0.15, b: 0.1, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

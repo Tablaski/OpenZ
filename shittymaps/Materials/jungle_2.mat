@@ -1,0 +1,135 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: jungle_2
+  m_Shader: {fileID: 4800000, guid: 0bdb15b839ed9c84685d9b2a0f32e935, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords:
+  - _VERTEXCOLORSRGB_ON
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 1
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: 01db6793eddad7b4c952ae3a80019be4, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Accent: 0
+    - _AccentFrom: 2
+    - _AccentHi: -100000
+    - _AccentLo: 100000
+    - _AccentTo: 2
+    - _AmbientBoost: 1.35
+    - _BandWorld: 0
+    - _BumpScale: 1
+    - _CreamToTeam: 0
+    - _DarkThreshold: 0.12
+    - _Degreen: 1
+    - _Degrime: 0.5
+    - _DegrimeLod: 2.5
+    - _EmissionNight: 1
+    - _FlatShade: 0
+    - _HueMax: 0.34
+    - _HueMax2: 0
+    - _HueMin: 0.12
+    - _HueMin2: 1
+    - _HueShift: 0
+    - _LegacyHeavy: 0
+    - _MaskArea: 2
+    - _MaskDilate: 0
+    - _MaskSatBoost: 0.06
+    - _Metallic: 0
+    - _NightClass: -1
+    - _OZCamFade: 0
+    - _OZDead: 0
+    - _OZHeat: 0
+    - _OZHeatInBand: 0
+    - _OZLegHeat: 0
+    - _OZLegLine: 0
+    - _OZLegTop: 0
+    - _OwnerPart: 0
+    - _PaintFromAlpha: 0
+    - _RimPower: 3.2
+    - _Rust: 0
+    - _RustScale: 1
+    - _RustWaterY: -1000
+    - _SatMin: 0.32
+    - _SatMin2: 0.3
+    - _SatScale: 1
+    - _SeeThru: 0
+    - _ShadeMax: 1.6
+    - _ShadeMin: 0.85
+    - _Smoothness: 0.2
+    - _SoftFill: 0.7
+    - _Stylize: 0
+    - _TeamLift: 0
+    - _TeamMode: 0
+    - _TeamRef: 0.3
+    - _TeamTone: 0.15
+    - _TopBlend: 0
+    - _TopMax: 0.8
+    - _TopMin: 0.62
+    - _TriHeight: 18
+    - _TriScale: 0.045
+    - _TriVertical: 0
+    - _Triplanar: 0
+    - _UnitLook: 0
+    - _UseMaskMap: 0
+    - _UseNormalMap: 0
+    - _UseVertexColor: 0
+    - _ValMax: 0.6
+    - _ValScale: 1
+    - _VertexColorSRGB: 1
+    m_Colors:
+    - _BaseColor: {r: 0.3, g: 0.39, b: 0.21, a: 1}
+    - _DarkColor: {r: 0.049999982, g: 0.05599998, b: 0.06999998, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _EmissionMapColor: {r: 0, g: 0, b: 0, a: 1}
+    - _HeavyLook: {r: 0.1575, g: 0.42, b: 0.8, a: 1}
+    - _KeyWarm: {r: 1.08, g: 1, b: 0.9, a: 1}
+    - _NeutralPaint: {r: 0.7, g: 0.68, b: 0.62, a: 1}
+    - _OZEmptyDisc: {r: 0, g: 0, b: 0, a: 0}
+    - _OZEmptyV1: {r: 0, g: 0, b: 0, a: 0}
+    - _OZFortPaint: {r: 0, g: 0, b: 0, a: 0}
+    - _OZPanel: {r: 0, g: 0, b: 0, a: 0}
+    - _OZPanelY: {r: 0, g: 0, b: 0, a: 0}
+    - _OZTeamGlow: {r: 0, g: 0, b: 0, a: 0}
+    - _OZTeamVivid: {r: 0, g: 0, b: 0, a: 0}
+    - _OzWindPalm: {r: 0, g: 0, b: 0, a: 0}
+    - _OzWindPalm2: {r: 0, g: 0, b: 0, a: 0}
+    - _RimColor: {r: 0.55, g: 0.5, b: 0.42, a: 1}
+    - _TeamColor: {r: 0.17099997, g: 0.17099997, b: 0.17099997, a: 1}
+    - _TopColor: {r: 0.67, g: 0.52, b: 0.38999996, a: 1}
+    - _UnitKick: {r: 0.74, g: 0.93, b: 0.8, a: 0.14}
+    - _UnitRamp: {r: -0.05, g: 0.85, b: 0.8, a: 0}
+    - _UnitShade: {r: 1, g: 0.15, b: 0.1, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

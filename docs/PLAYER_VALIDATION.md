@@ -1,5 +1,46 @@
 # Player validation record
 
+## Complete p02 Shitty Maps catalog and blue borders (0.2.12, source only)
+
+- Added the tracked shittymaps/ Unity local package: 60 selected native-source
+  variants, 31 solo choices, 44 converted duel choices, plus the four normal OpenZ
+  maps. Campaign levels 02, 07, 16 and 17 are excluded from converted choices.
+- Solo separates Z Original (01–20) and Z Expansion (21–35), using original files.
+  The user approved FIXED-only exceptions for missing originals 21 and 27; both
+  are visibly labeled. Original and fixed Mayhem have separate map identities.
+- Duel prefers fixed/FDL variants; maps without one show a warning pictogram.
+  Non-numbered p02 maps have a Multiplayer tab. Names 30/31/32 retain approved
+  numeric placeholders; custom names are derived from source filenames.
+- Added a shared minimap gallery with world filters and numeric/name/world sort;
+  guests inspect, only hosts apply. Cards and the lobby selector display poop
+  pictograms independently of font emoji coverage.
+- Added an Arctic snow/ice/blue-water presentation using OpenZ geometry and small
+  generated shared textures, with matching minimaps. No original Zod artwork.
+- Regenerate terrain geometry from tracked grids before ZGame.Awake. Map scenes
+  reference shared prefabs; rebuilt/destroyed bridges keep their source world's
+  model family. Inherited atmospheric/detail helpers use the selected map ID.
+- Raised destructible rocks to 4.1 m with unchanged horizontal footprints.
+- Lightened displayed blue territory LEDs to RGB (0.30, 0.68, 1.00), including team
+  swaps, while preserving red/neutral colors, size choices and saved preferences.
+- Completed: 1,959 core and real-map simulation checks, including every variant's
+  identity/counts, solo/duel selection policy, authoritative armies and orders,
+  and initial replica creation; existing loopback transport checks pass.
+- Completed: batch Unity compilation, all 60 scenes authored, all source object
+  views spawned, obstacle dimensions checked, and 1,571 starting-unit records
+  checked for actual simulation types, owners and source coordinates.
+- The package and its metadata/scenes/minimaps/materials are tracked directly in
+  Git and mounted through source/Packages/manifest.json. No separate resource
+  ZIP is needed for these maps; the shared base OpenZ assets remain required.
+- Pending manual player validation: both solo tabs, every world/sort/filter,
+  scrolling/selection/closing and poop/warning pictograms; 21/27 exception labels;
+  loading/restart/end-screen names; terrain generation, Arctic palette, bridges,
+  rocks and opened passages; full AI campaigns, performance on the largest maps;
+  two-PC host/guest selection, previews, readiness, starts, combat and restarts.
+  Check blue LED contrast on City in daylight/night and after a team-color swap.
+- This is a broad addition. A fresh release build is recommended for manual
+  validation when requested. No game player was built or launched in this task.
+
+
 ## Mayhem terrain, force HUD and 1v1 selection (0.2.11, source only)
 
 - Raised all 307 original Mayhem rock views to 4.1 m, comparable to its City

@@ -151,7 +151,7 @@ namespace OpenZ
             post = kind == "victory" ? new OzPost("OZ_EndScreen", -45f, -0.9f, 0.35f) : kind == "defeat" ? new OzPost("OZ_EndScreen", -70f, -1.1f, 0.45f) : new OzPost("OZ_EndScreen", -60f, -1f, 0.4f);
             Color accent = win ? OzUi.Amber : kind == "defeat" ? (Color)OzUi.Alert : (Color)OzUi.Ink2;
             float cx = OzLayout.RefW * 0.5f;
-            string level = game.level == "L19" ? "MAYHEM" : game.level == "L17" ? "THE CAR PARK" : game.level == "L16" ? "THE JUNGLE" : OzVolcanic.Is(game.level) ? OzVolcanic.EndName : "THE DESERT";
+            string level = OzShittyMapCatalog.Find(game.level) is OzShittyMap converted ? converted.Name.ToUpperInvariant() : game.level == "L19" ? "MAYHEM" : game.level == "L17" ? "THE CAR PARK" : game.level == "L16" ? "THE JUNGLE" : OzVolcanic.Is(game.level) ? OzVolcanic.EndName : "THE DESERT";
             string lvlCode = game.level;
             Team enemy = me == Team.Red ? Team.Blue : Team.Red;
 

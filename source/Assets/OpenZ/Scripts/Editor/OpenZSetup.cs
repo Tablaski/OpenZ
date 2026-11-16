@@ -826,7 +826,7 @@ namespace OpenZ.EditorTools
                 else if (cat == "vehicle") { key = type; w = h = 2; yaw = team == Team.Neutral ? rng.Next(2) * 180 : teamYaw; }   // parked along the bays
                 else if (cat == "robot") { key = SpawnLv == "L16" && Pf("bs01_" + type) != null ? "bs01_" + type : type == "tough" ? "tough" : "robot"; }
                 else if (type == "flag") key = "flag";
-                else if (type == "grenades") key = "grenades";
+                else if (type == "grenades" || type == "rockets") key = "grenades";
                 else if (type == "hut") key = "hut";
                 // rocks sit square-on in their tile (+-8 deg jitter): a freely rotated 2.2 m rock overlaps its neighbours in Zod's rock rows
                 else if (type == "rock") { key = city ? "city_block" : "rock_desert_" + rng.Next(4); yaw = rng.Next(4) * 90; }

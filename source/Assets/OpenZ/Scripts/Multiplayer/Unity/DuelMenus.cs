@@ -70,7 +70,7 @@ namespace OpenZ.Multiplayer
             if (microphoneWasEnabled != R.Voice.MicrophoneEnabled) { microphoneWasEnabled = R.Voice.MicrophoneEnabled; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
-            if (page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            if (!OzShittyMapGallery.IsOpen && page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             { pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; }
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
@@ -239,21 +239,10 @@ namespace OpenZ.Multiplayer
             if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
             if (R.OnlineMode) Label(root, R.Connected ? "CONNECTED" : R.ConnectionStatus, 80, 135, 1450, 20, OzUi.Ink);
             var left = Panel("MAP", 80, 190, 700, 595);
-            int mx = 24;
-            foreach (var map in OzLevelDef.All.Concat(new[] { OzConvertedMapsScreen.Mayhem }))
-            {
-                string chosen = map.Id;
-                var button = Button(left, map.Id + " · " + map.Name, mx, 65, 124, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable);
-                if (chosen == "L19")
-                {
-                    var icon = Hud.Img(button, "PoopEmoji", Color.white);
-                    icon.sprite = OzConvertedMapsScreen.PoopSprite(); icon.raycastTarget = false;
-                    icon.rectTransform.TL(4, 9, 26, 26);
-                    foreach (var text in button.GetComponentsInChildren<TMPro.TMP_Text>()) text.rectTransform.Fill(30, 0, 3, 0);
-                    foreach (var text in button.GetComponentsInChildren<Text>()) text.rectTransform.Fill(30, 0, 3, 0);
-                }
-                mx += 131;
-            }
+            var chosenMap=OzShittyMapGallery.Definition(rules.Map);
+            var choose=Button(left, (editable ? "SELECT MAP · " : "INSPECT MAP · ")+(chosenMap?.Name ?? rules.Map), 24, 65, 650, () =>
+                OzShittyMapGallery.Open(false, editable, rules.Map, definition => { rules.Map=definition.Id; pickerGroup=-1; R.ChangeRules(rules); }));
+            var poop=Hud.Img(choose,"PoopEmoji",Color.white); poop.sprite=OzConvertedMapsScreen.PoopSprite(); poop.rectTransform.TL(12,9,28,28); poop.raycastTarget=false;
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
             if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }
             BuildMapPreview(left, rules);

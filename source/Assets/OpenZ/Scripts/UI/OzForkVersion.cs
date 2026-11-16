@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>The fork version is independent of upstream OpenZ's version and build counter.</summary>
     public static class OzForkVersion
     {
-        public const string Number = "0.2.7";
+        public const string Number = "0.2.8";
         [Serializable] public sealed class BuildIdentity { public string version, commit, builtUtc; public bool dirty; }
         static BuildIdentity identity;
         public static string Label

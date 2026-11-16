@@ -732,6 +732,7 @@ namespace OpenZ
             for (int i = 0; i < n; i++) cards[i] = BuildCard(cardParent, i, slots[i].x, slots[i].y, slots[i].w, slots[i].ih);
             BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
             BuildDeployBar(p);
+            BuildConvertedMapsButton(p);
             BuildHighScores(p);                                                                              // the HIGH SCORES button and its popup, last: their pointer areas lie over the cards and the bar (OpenZMainMenu.HighScores.cs)
         }
 
@@ -1289,10 +1290,13 @@ namespace OpenZ
         }
 
         // ================================================================== deploy + loading (guide 9.16)
-        void Deploy()
+        OzLevelDef deployingOperation;
+        internal void DeployConvertedMap(OzLevelDef operation) => DeployOperation(operation);
+        void Deploy() => DeployOperation(levels[focusCard]);
+        void DeployOperation(OzLevelDef d)
         {
             if (view != View.Select) return;
-            var d = levels[focusCard];
+            deployingOperation = d;
             if (!Application.CanStreamedLevelBeLoaded(d.Scene))
             {
                 Sfx("ui_error");
@@ -1357,6 +1361,7 @@ namespace OpenZ
             var p = previews[focusCard];
             var img = Raw(loadingRoot, "Poster");
             Texture tex = LoadingStill(d.Id);
+            if (d.Id == "L19" && tex == null) tex = OzLevelInfo.Load(d.Id).Mini;
             if (tex == null) tex = p.Poster != null ? p.Poster : p.VideoOk ? p.Frame : null;
             if (tex != null) { img.texture = tex; img.uvRect = OzLevelPreview.Cover((float)tex.width / Mathf.Max(1, tex.height), (float)Screen.width / Mathf.Max(1, Screen.height)); img.color = Color.white; }
             var gl = Raw(loadingRoot, "ScrimLeft"); gl.texture = Gradient(true); gl.color = OzUi.A(new Color32(10, 13, 11, 255), 0.5f);
@@ -1393,7 +1398,7 @@ namespace OpenZ
             loadingCg.alpha = k; if (mainCg) mainCg.alpha = Mathf.Min(mainCg.alpha, 1f - k); if (selectCg) selectCg.alpha = Mathf.Min(selectCg.alpha, 1f - k);
             if (musicSrc) musicSrc.volume = MusicFallbackVolume * (1f - k);
             if (k >= 1f) foreach (var p in previews) p?.Pause();                                              // the loading screen shows the still: stop decoding
-            float warm = ueLoading ? 1f : OzLevelWarm.Step(levels[loadLevel].Id);                                 // 1.4: the level's own shader list warms on this screen (View/OzLevelWarm.cs); the Unit editor's loading as before
+            float warm = ueLoading ? 1f : OzLevelWarm.Step((deployingOperation ?? levels[loadLevel]).Id);                                 // 1.4: the level's own shader list warms on this screen (View/OzLevelWarm.cs); the Unit editor's loading as before
             float target = Mathf.Min(loadOp == null ? 1f : Mathf.Clamp01(loadOp.progress / 0.9f), warm);
             float minT = Mathf.Clamp01((OzMotion.Now - loadStartAt) / Mathf.Max(0.1f, minLoadingTime));
             loadShown = Mathf.MoveTowards(loadShown, Mathf.Min(target, 0.25f + 0.75f * minT), dt * 1.6f);

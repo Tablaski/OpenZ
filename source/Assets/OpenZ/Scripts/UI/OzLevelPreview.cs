@@ -73,7 +73,7 @@ namespace OpenZ
         {
             const int k = 3; const float zoneTint = 0.3f;
             int mw = W.Map.width, mh = W.Map.height, tw = mw * k, th = mh * k;
-            bool city = level == "L17";
+            bool city = level == "L17" || level == "L19";
             Color32 ground = city ? new Color32(86, 86, 84, 255) : new Color32(158, 120, 80, 255), road = city ? new Color32(118, 116, 110, 255) : new Color32(126, 124, 118, 255),
                     water = city ? new Color32(92, 104, 58, 255) : new Color32(78, 168, 160, 255), deep = city ? new Color32(70, 82, 44, 255) : new Color32(56, 128, 128, 255),
                     cliff = city ? new Color32(172, 168, 158, 255) : new Color32(190, 136, 86, 255), cliffDark = city ? new Color32(138, 134, 126, 255) : new Color32(158, 106, 64, 255);

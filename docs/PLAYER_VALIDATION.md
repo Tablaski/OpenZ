@@ -1,5 +1,22 @@
 # Player validation record
 
+## Converted maps (0.2.8)
+
+- Added a separate converted-map browser under PLAY: Load Shitty maps, with a
+  minimap card for Level 19 - Mayhem (City).
+- Baked the original Zod Engine p02_bb_orig19_fixed.map with City resources and
+  ordinary game object prefabs. The 128 x 116 map retains all 453 source objects.
+- Completed: Unity compilation and actual game simulation checks of all 16
+  red/blue starting unit objects, including owners, types and coordinates.
+- Completed: standalone editor parser checks against every original Mayhem
+  object, document round-trip, and measured bridge deck/ramp support tests.
+- Pending on the newly requested release player: converted-map menu and card,
+  loading, terrain/material appearance, starting armies, bridge traversal and
+  regression checks of ordinary level selection. A successful build alone does
+  not pass these runtime checks.
+- Ignored Mayhem scene, terrain meshes/materials and map data are distributed
+  separately in the Mayhem resource archive; they are not stored in Git.
+
 ## Lobby rules replacement (0.2.7, awaiting player validation)
 
 - This replaces the unshipped first 0.2.7 build, keeping 0.2.7 once at the user's

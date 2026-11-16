@@ -40,7 +40,7 @@ namespace OpenZ
         /// own when the kit has it, else the city's grey, never the desert's sand.</summary>
         public static string PortraitBg(string level)
         {
-            if (level == "L17") return "city";
+            if (level == "L17" || level == "L19") return "city";
             if (level != Level) return "desert";
             return OzKit.GetSprite("Portrait/portrait_bg_" + PortraitBgName) != null ? PortraitBgName : "city";
         }

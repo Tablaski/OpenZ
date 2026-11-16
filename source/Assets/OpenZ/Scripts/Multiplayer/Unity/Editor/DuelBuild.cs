@@ -84,6 +84,16 @@ namespace OpenZ.Multiplayer.Editor
             var read = JsonUtility.FromJson<DuelLobbyData>(JsonUtility.ToJson(DuelLobbyData.From(lobby))).ReadRules();
             if (!read.HandicapEnabled || read.HandicapSlot != 1 || read.Handicap.StartingUnits.Count != rules.Handicap.StartingUnits.Count)
                 throw new Exception("Unity lobby serialization loses the optional handicap.");
+            rules.SetUnitPreset(DuelUnitPreset.Z1996); rules.SetUnitAllowed("heavy", false);
+            var tanks = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, name = "Wire tank profile", master = 100 };
+            tanks.Set("light", ZBehaviorKey.RedShake, 2.5);
+            rules.TankDynamics = tanks.Encode();
+            rules.RobotDynamics = new ZBehaviorProfile { family = ZBehaviorFamily.Robots, name = "Wire robot profile", master = 50 }.Encode();
+            lobby.ChangeRules(0, rules);
+            read = JsonUtility.FromJson<DuelLobbyData>(JsonUtility.ToJson(DuelLobbyData.From(lobby))).ReadRules();
+            if (read.UnitPreset != DuelUnitPreset.Custom || read.Allows("heavy") || read.Allows("electrobot") || read.Allows("mtank") || !read.Allows("medium") ||
+                read.TankDynamics != rules.TankDynamics || read.RobotDynamics != rules.RobotDynamics)
+                throw new Exception("Unity lobby serialization loses unit restrictions or server dynamics.");
             Debug.Log("[OpenZ Duel] Unity wire validation PASS: waypoints, combat events, common rules and optional handicap.");
         }
     }

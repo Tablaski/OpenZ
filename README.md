@@ -17,6 +17,9 @@ An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), focused on 
 - Choose Desert, Volcano, Jungle or Car Park, with a tactical preview of the starting armies.
 - Configure a common starting army and fort defenses for both sides. Optionally give one player extra starting units or a production handicap.
 - Review the shared rules, confirm readiness and enter the match together.
+- Open **DYNAMICS** in the lobby to select the server's tank and robot profiles. Both teams use those exact profiles for the whole match; they cannot be changed through the pause menu. The guest can inspect all values.
+- Open **Allowed units** beside the lobby logo. Choose **OpenZ** (all 22 game unit types), **Z 1996** (the 17 robot/vehicle/cannon types listed in The Zod Engine), or **Custom**. Any manual unit toggle switches to Custom. The guest sees the same thumbnails and selection in read-only mode.
+- Unit restrictions apply to shared/handicap starting slots, neutral map units and factory production, including server-side build/queue validation. Excluded starting slots become empty; ordinary technology requirements still apply to allowed units. A change clears both players' READY confirmations.
 - Use text chat and optional voice chat, including mute and speaking controls.
 - Surrender, request a restart that the opponent can accept, review end-of-match statistics, or return together to the lobby for another game.
 
@@ -28,6 +31,7 @@ Both players need the same version. Rejoining an interrupted match is not curren
 - Adjust flag size and use smaller, dotted territory borders to reduce visual clutter.
 - Configure the chat shortcut and access chat and microphone controls during a match.
 - Keep your existing game preferences across updates.
+- OpenZ-VK logos use dark orange. Violet identifies added game options outside the lobby; lobby controls use the ordinary orange and neutral colours.
 
 ## Experiment with combat dynamics
 
@@ -39,7 +43,7 @@ Both players need the same version. Rejoining an interrupted match is not curren
 - Tanks choose the front or rear hull axis requiring the shortest turn. With reversing enabled, rearward moves back up instead of making an unnecessary half-turn, including brake-pivot-accelerate dodges.
 - Open **CRIPPLING** to configure moving hull shake, retained speed, extra acceleration time, rear smoke and fading oil trails for each health colour. Green is above 50% HP, yellow is above 25% through 50%, and red is 25% or below, matching the Unit Editor hover card.
 - Enable **Movement penalty on damaging hits** for two independently configurable damage thresholds, speed caps and durations. A heavy hit can briefly stop a tank; smaller hits cannot weaken an active heavy penalty. These thresholds use actual HP lost per hit.
-- Save named profiles, export them to share, and select separate tank and robot profiles for later matches.
+- Save named profiles and export them to share. Select separate tank and robot profiles in the 1 vs 1 lobby before confirming READY.
 
 These settings are experiments, not a promise of identical behavior to the original Z or The Zod Engine.
 
@@ -63,7 +67,9 @@ Download the Windows build from [OpenZ-VK releases](https://github.com/Tablaski/
 
 To try the tank movement mode: open **Unit Editor > Dynamics > Tanks**, choose **ALL TANKS** or an individual type, then click **BRAKE > PIVOT > ACCELERATE** under **FEEL** or **MOVEMENT**. Set **Retained speed during pivot** to 0% for a full stop or a small value for a near-stop, then tune turning, acceleration and braking. Existing per-type overrides take priority over family values. Use **SAVE AS** to keep the result.
 
-For damage behaviour, open **CRIPPLING**, turn on **Custom damage movement and trails**, then select **GREEN**, **YELLOW** or **RED**. Zero shake/smoke/oil disables that effect; oil fade duration is in simulation seconds. Retained speed replaces the native damage speed factor in that band; extra acceleration time also works with physical movement limits off. Hit penalties have their own enable switch. Both new switches default to off, preserving existing profiles and preferences. **Allow boost when badly damaged** has moved from BOOST to CRIPPLING with its saved key unchanged.
+For damage behaviour, open **CRIPPLING**, turn on **Custom damage movement and trails**, then select **GREEN**, **YELLOW** or **RED**. Zero shake/smoke/oil disables that effect; oil fade duration is in simulation seconds. Retained speed replaces the native damage speed factor in that band; extra acceleration time also works with physical movement limits off. Hit penalties have their own enable switch. Both new switches default to off, preserving existing profiles and preferences. **Allow boost when badly damaged** has moved from BOOST to CRIPPLING with its saved key unchanged. Save the profile in the editor, then select it under **DYNAMICS** in the lobby for multiplayer.
+
+**Z 1996 is a unit availability preset, not a full historical rules mode.** The engine's `medium` ID is presented as **MEDIUM MECH** by OpenZ; the additional **MEDIUM TANK** (`mtank`), Electrobot, heroes, EvilZod and shuttle are excluded. Existing internal names and unit statistics are preserved.
 
 New builds still need manual gameplay validation. Development and the latest fork documentation are on `dev`.
 
@@ -73,6 +79,10 @@ These are fork source versions. A playable build is identified separately by its
 
 ### 0.2.7
 
+- Replace the initial 0.2.7 build at the user's request, keeping this version number once. Subsequent releases increment it.
+- Move tank/robot profile selection into the host-owned lobby; guests can inspect the settings, and profiles stay fixed through play and restarts. Remove the main/pause-menu selectors.
+- Add **Allowed units** with thumbnails and **OpenZ**, **Z 1996** and **Custom** presets. Apply the host's selection to starting armies, neutral units and production; reject excluded build/queue commands on the server.
+- Keep logos dark orange and remove violet fork highlighting from lobby controls, while preserving it for added game options elsewhere.
 - Choose the shortest tank hull rotation, including backing into rearward dodge directions. Respect reverse speed and delay, and brake before switching travel direction.
 - Add the OpenZ-VK **CRIPPLING** tab, three health bands, configurable movement shake, speed and acceleration loss, rear smoke and gradually fading oil trails.
 - Add two temporary hit penalties using actual HP loss, with independent thresholds, retained speeds and durations; allow a temporary complete stop without losing orders.

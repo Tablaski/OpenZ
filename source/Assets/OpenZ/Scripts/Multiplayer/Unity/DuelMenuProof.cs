@@ -74,7 +74,7 @@ namespace OpenZ.Multiplayer
         {
             var choices = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("SELECT ")).ToArray();
             string[] turrets = { "gun", "gatling", "howitzer", "missile_cannon" };
-            string[] robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser" };
+            string[] robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };
             string[] vehicles = { "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc" };
             var expected = fort ? turrets : robots.Concat(vehicles).ToArray();
             if (!choices.Select(b => b.name.Substring(7)).OrderBy(t => t).SequenceEqual(expected.OrderBy(t => t)) || choices.Any(b => !b.interactable))

@@ -28,7 +28,7 @@ namespace OpenZ.Sim
         {
             if (duelRules == null || DuelIsReplica || Time != 0) throw new InvalidOperationException("Fresh authoritative duel required.");
             foreach (var o in Objects.ToArray())
-                if (o.IsUnit && o.Owner != Team.Neutral) DeleteObject(o);
+                if (o.IsUnit && (o.Owner != Team.Neutral || !DuelAllowsUnit(o.IsHero ? "heroes" : o.Type))) DeleteObject(o);
             for (int seat = 0; seat < 2; seat++)
             {
                 Team team = seat == 0 ? Team.Red : Team.Blue;

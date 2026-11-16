@@ -1,5 +1,37 @@
 # Player validation record
 
+## Lobby rules replacement (0.2.7, awaiting player validation)
+
+- This replaces the unshipped first 0.2.7 build, keeping 0.2.7 once at the user's
+  explicit request. Its earlier interrupted upload did not replace the 0.2.6
+  downloads. Future releases increment the fork version.
+- Tank/robot profiles move into DYNAMICS beside the lobby logo. The host chooses
+  profiles, guests inspect the values by unit type, and the simulation freezes
+  profiles and availability for the match. Main/pause-menu selectors are removed.
+- Allowed units includes all 22 editor unit types with thumbnails. OpenZ allows
+  all; Z 1996 follows the local Zod Engine's six robot, seven vehicle and four
+  cannon IDs; toggling a unit selects Custom. The historical medium ID remains
+  OpenZ's MEDIUM MECH; the additional mtank is excluded from Z 1996.
+- Starting and handicap slots, neutral map units, production lists/defaults,
+  stored cannons and authoritative build/queue commands respect the roster.
+  Excluded crew types cannot be ejected; fort defenders and EvilZod spawns also
+  respect it. Allowed units retain their original technology requirements.
+- Logos are dark orange in the main menu, editor, HUD, multiplayer and build
+  identity. Lobby controls use orange/neutral; other fork game options stay violet.
+- Completed: 1,220 core/real-map checks, including the prior movement/crippling
+  checks and new preset classification, readiness invalidation, host authority,
+  immutable profiles, restricted production and guest-state checks on all maps.
+- Completed: Unity runtime source compilation (existing warnings only). The
+  build's Unity wire check additionally covers profile and roster serialization.
+- Completed: native WebRTC library checks for encrypted handshake, fragmented
+  1 MiB snapshot, reverse commands, independent voice channel, incompatible-build
+  rejection and oversized-snapshot rejection. This did not launch a game player.
+- Pending manual checks on the replacement player: host/client lobby dialogs,
+  thumbnails, scrolling, custom preset transitions and slot clearing; loading,
+  restarts and in-game profile lock; production and neutral units under all
+  presets; logo colours and fork highlights. All movement/crippling checks below
+  remain pending too. Build/package/publication results will be added afterwards.
+
 ## Shortest hull turns and CRIPPLING (0.2.7, awaiting player validation)
 
 - The user's light-versus-light check of 0.2.6 confirms the quick pre-dodge
@@ -23,7 +55,19 @@
   layout/scrolling and tooltips; each health band, shake intensity, acceleration,
   rear smoke and oil placement/fade (including pause/game speed and terrain);
   light/heavy impact tuning, saved profile selection and two-PC replication.
-- Build and release packaging results will be recorded after completion.
+- The superseded first Windows x64 release build succeeded with zero errors.
+  Development mode, script debugging and profiler connections were disabled.
+  Source commit: `1ffa9b42535831bc3ce478ff5d86ac0b37c606b1`; build stamp:
+  `2026-11-16 07:25:50 UTC`. The modified-tree flag records the pre-existing
+  ProjectSettings shader preload; its exact SOURCE_CHANGES.patch is included.
+- Local player: `builds/OpenZ-VK-0.2.7-Windows-x64/openz-vk.exe`. Both ZIPs in
+  `builds/release-0.2.7/` jointly contain all 187 runtime/distribution files.
+  Every ZIP entry was read back and SHA-256 checked against its player file;
+  coverage and absence of duplicate entries were checked. Part 1 is
+  1,741,074,810 bytes; part 2 is 982,649,533 bytes. Both must be extracted into
+  the same destination. Symbols, personal settings and history are excluded.
+- No game player was launched and no post-build gameplay, rendering, audio or
+  live two-PC validation was performed. The manual checklist above stays pending.
 
 ## Brake-pivot-accelerate release (0.2.6, awaiting player validation)
 

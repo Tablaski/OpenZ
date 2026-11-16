@@ -133,7 +133,7 @@ namespace OpenZ
             var preset = Button(box, "Presets", "", new Rect(12, 76, inner, 26), "Load a reference or named preset into the playground. This does not change the profiles selected for your next match.", () => { profiles = !profiles; imports = false; rebuild = true; });
             refresh.Add(() => preset.Label.Set((dirty ? "CUSTOM: " : "") + P.name + "  v"));
             Input(box, "PresetName", new Rect(12, 107, inner - 78, 26), () => presetName, s => presetName = s, "Name used by SAVE / SAVE AS. Enter commits; Escape cancels. Existing named presets can be updated; built-in references remain protected.");
-            Button(box, "Save", "SAVE", new Rect(w - 84, 107, 72, 26), "Save this family, its master position and its manual overrides. Select it in Options > Game for future matches.", () => Save(false));
+            Button(box, "Save", "SAVE", new Rect(w - 84, 107, 72, 26), "Save this family, its master position and its manual overrides. The host selects it under DYNAMICS in the 1 vs 1 lobby.", () => Save(false));
             string[] actions = { "SAVE AS", "EXPORT", "IMPORT", "FOLDER" };
             Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.ExportJson(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
             string[] tips = { "Save a new independently named copy.", "Export a readable .json combat profile with the master, overrides and reference endpoints.", "Load a local .json or legacy .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .json and legacy .ozbehavior preset files. Nothing is uploaded." };
@@ -299,7 +299,7 @@ namespace OpenZ
                 if (Type == "" || Type == type) refs += DisplayType(type) + ": OpenZ " + d.Format(P.Reference(type, key, false)) + "; Zod " + d.Format(P.Reference(type, key, true)) + ".\n";
             return d.Label + "\n" + d.Tip + "\n" + refs + "Zod Classic is the pre-#103 dodge/stop-and-fire behavior; Zod Local is idle-only. It does not replace projectile speeds, armor, range, collision, or weapon stats. Manual values override the master; numeric values are not limited by a slider. Physical movement limits affect real positions only when enabled; visual settings affect the model. Zero means instant/unlimited only where the label explicitly says so.";
         }
-        void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it in Options > Game."; }
+        void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it under DYNAMICS in the lobby."; }
         void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Laboratory] " + e.Message); } }
         public static string DisplayType(string type) => type == "medium" ? "MECH" : type == ZMTank.Type ? "MEDIUM TANK" : type.ToUpperInvariant();
         public void FinishRespawnPoint()

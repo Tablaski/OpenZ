@@ -225,7 +225,7 @@ namespace OpenZ
             logo.rectTransform.Place(new OzRect(lx, OzMenuLayout.LogoY, 640, lh));
             logo.rectTransform.pivot = new Vector2(.5f, .5f);
             logo.rectTransform.anchoredPosition += new Vector2(320, -lh * .5f);
-            Hud.Label(logo.transform, "LogoText", "OpenZ-VK", 112, OzForkOptions.Accent, -.02f).At(0, 0, OzH.L, false, 640);
+            Hud.Label(logo.transform, "LogoText", "OpenZ-VK", 112, OzForkOptions.Brand, -.02f).At(0, 0, OzH.L, false, 640);
             underline = Hud.Kit(p, "Underline", "Menu/logo_underline", new OzRect(lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap, 80, 3), OzKit.GetSprite("Menu/logo_underline") != null ? (Color?)null : OzUi.Amber, Image.Type.Simple);
             // Z turns 30 (1996-2026): the anniversary badge under the logo
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);

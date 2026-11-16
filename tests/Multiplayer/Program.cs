@@ -186,6 +186,7 @@ static class Program
         BalanceChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
         BehaviorChecks.Run(Check, Reject);
+        LobbyRulesChecks.Run(Check, Reject);
         PlaygroundChecks.Run(Check, Reject);
         await TransportChecks.Run(Check);
         VoiceChecks.Run(Check, Reject);

@@ -165,8 +165,8 @@ namespace OpenZ
         public static void AtWorldStart(ZGame game)
         {
             if (game.World == null || OzUnitEditor.IsPlayground(game.gameObject.scene)) return;
-            // Multiplayer guests use the host's replicated profiles, never their own local choices.
-            if (OpenZ.Multiplayer.DuelRuntime.Active && !OpenZ.Multiplayer.DuelRuntime.I.IsHost) return;
+            // Both multiplayer seats use the frozen lobby profiles installed by ConfigureDuel.
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
             game.World.SetBehavior(Selected(ZBehaviorFamily.Tanks)); game.World.SetBehavior(Selected(ZBehaviorFamily.Robots));
         }
     }

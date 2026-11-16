@@ -825,6 +825,7 @@ namespace OpenZ.Sim
         {
             // OpenZ duel command: Eject
             if (DuelIsReplica) return DuelSend(team, v, new DuelOrder { Kind = DuelOrderKind.Eject });
+            if (v != null && !DuelAllowsUnit(v.IsApc || v.IsShuttle ? v.PassengerType : v.DriverType)) return false;
             if (v != null && v.IsShuttle) return EjectPassengers(team, v);                       // DV118: the shuttle's passengers leave by the APC's rules, only on the ground (Sim/ZWorld.Shuttle.cs)
             if (ApcCrewDeviation && v != null && v.IsApc) return EjectPassengers(team, v);   // apc_v1 DV15: only the passengers leave, the driver stays
             if (v != null && v.IsHatchVehicle) return ExitDriver(team, v);                   // 1.4 DV171 EXIT DRIVER: a tank's or the mech's driver climbs out beside the hull, nobody climbs in by himself for 30 s (Sim/ZObject.VehicleExit.cs); switch off or a computer team: refused, as before

@@ -7,6 +7,7 @@ namespace OpenZ
     public static class OzForkOptions
     {
         public static readonly Color Accent = new Color32(213, 112, 255, 255);
+        public static readonly Color Brand = new Color32(200, 90, 32, 255);
         public const string ChatLabel = "CHAT SHORTCUT";
         public static bool BindingChat { get; private set; }
         static int bindingFrame = -1, closedFrame = -1;

@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace OpenZ
 {
-    /// <summary>A dropdown shared by the main and pause options. Match behavior is read only at world creation.</summary>
+    /// <summary>Legacy profile picker retained for standalone/editor tooling. Multiplayer selection belongs to the lobby.</summary>
     public sealed class OzBehaviorOptions : MonoBehaviour
     {
         static OzBehaviorOptions instance;
@@ -16,6 +16,7 @@ namespace OpenZ
         GUIStyle label, button, plate;
         public static void Show(ZBehaviorFamily f)
         {
+            if (Multiplayer.DuelRuntime.Active) return;
             if (!instance)
             {
                 var go = new GameObject("BehaviorProfileDropdown"); DontDestroyOnLoad(go);

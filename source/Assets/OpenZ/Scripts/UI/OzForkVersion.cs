@@ -37,7 +37,7 @@ namespace OpenZ
             var panel = Hud.Node("Version", go.transform);
             panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(1, 0); panel.sizeDelta = new Vector2(500, 44); panel.anchoredPosition = new Vector2(-12, 8);
             var bg = Hud.Img(panel, "Background", OzUi.A(OzUi.GM950, .88f)); bg.rectTransform.Fill(); bg.raycastTarget = false;
-            var label = Hud.Label(panel, "Identity", Label, 12, OzForkOptions.Accent, .02f).Body(10, 4, 480);
+            var label = Hud.Label(panel, "Identity", Label, 12, OzForkOptions.Brand, .02f).Body(10, 4, 480);
             label.rectTransform.sizeDelta = new Vector2(480, 36);
             if (label.graphic is TMPro.TMP_Text text) text.alignment = TMPro.TextAlignmentOptions.TopRight;
             else if (label.graphic is Text legacy) legacy.alignment = TextAnchor.UpperRight;

@@ -61,6 +61,7 @@ namespace OpenZ.Sim
         public bool CanEjectCrew()
         {
             if (Destroyed || Owner == Team.Neutral) return false;
+            if (World != null && !World.DuelAllowsUnit(ApcCrewRules ? PassengerType : DriverType)) return false;
             if (ApcCrewRules) return (Passengers.Count > 0 || ShuttleHeroPilot) && (ShuttleDoorOk || ShuttleAirExitOk()) && ShuttleCrewSettled;   // K256f2: a hero pilot gets out too (Sim/ZWorld.ShuttleHeroes.cs)   // DV118: the shuttle lets them out on the ground, once the squad walking in has sat down; K256f: in the air only where it may land and let them out (Sim/ZWorld.ShuttleEmpty.cs)
             return CanEjectDrivers() && Drivers.Count > 0;
         }
@@ -170,7 +171,7 @@ namespace OpenZ.Sim
         /// vehicle) per robot, which BoardingView plays as the exit, then Ejected (vehicle, leader). Returns the leader.</summary>
         ZObject PassengersOut(ZObject v, Team team)
         {
-            if (v == null || v.Passengers.Count == 0) return null;
+            if (v == null || v.Passengers.Count == 0 || !DuelAllowsUnit(v.PassengerType)) return null;
             if (team == Team.Neutral) { v.Passengers.Clear(); v.PassengerGrenades = 0; v.ResetDamageInfo(); return null; }
             var hp = v.Passengers.ToList();
             var leader = CreateRobotGroup(v.PassengerType, v.LocX, v.LocY, team, hp.Count);

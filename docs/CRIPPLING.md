@@ -1,8 +1,9 @@
 # Tank crippling and shortest hull turns (0.2.7)
 
 Unit Editor > Dynamics > Tanks > CRIPPLING edits the selected family or tank
-type live. SAVE AS stores a named profile; select that profile in Options > Game
-to use it in a match. Per-type exceptions take priority over family values.
+type live. SAVE AS stores a named profile; the host selects that profile under
+DYNAMICS in the 1 vs 1 lobby. The guest can inspect it, and it is fixed for the
+match, including restarts. Per-type exceptions take priority over family values.
 
 ## Health bands
 

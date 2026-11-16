@@ -11,7 +11,7 @@ using UnityEngine.UI;
 
 namespace OpenZ.Multiplayer
 {
-    public sealed class DuelMenus : MonoBehaviour
+    public sealed partial class DuelMenus : MonoBehaviour
     {
         enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End }
         Page page;
@@ -70,8 +70,8 @@ namespace OpenZ.Multiplayer
             if (microphoneWasEnabled != R.Voice.MicrophoneEnabled) { microphoneWasEnabled = R.Voice.MicrophoneEnabled; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
-            if (page == Page.Lobby && pickerGroup >= 0 && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            { pickerGroup = -1; dirty = true; }
+            if (page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            { pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; }
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
@@ -116,6 +116,7 @@ namespace OpenZ.Multiplayer
             if (page != Page.Lobby)
             {
                 pickerGroup = -1;
+                lobbyDialog = LobbyDialog.None;
                 if (generals) { generals.Close(false); generals = null; }
             }
             if (root) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
@@ -154,7 +155,7 @@ namespace OpenZ.Multiplayer
             var background = Hud.Img(root, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
             if (poster) { var raw = Hud.Node("MissionBackground", root).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; }
-            Label(root, "OpenZ-VK", 80, 40, 370, 57, OzUi.Amber);
+            Label(root, "OpenZ-VK", 80, 40, 370, 57, OzForkOptions.Brand);
             Label(root, "DUEL · 1VS1", 80, 108, 800, 22, OzUi.Ink);
             ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
             if (page == Page.Connect) BuildConnect();
@@ -233,6 +234,8 @@ namespace OpenZ.Multiplayer
         {
             if (R.View == null) { loading = Label(root, R.ConnectionStatus, 180, 350, 1500, 28, OzUi.Ink); Button(root, "CANCEL", 80, 950, 300, Leave); return; }
             var rules = R.Rules; bool editable = R.IsHost && R.View.Phase == (int)DuelPhase.Lobby;
+            Button(root, "Allowed units · " + DuelUnitRoster.Name(rules.UnitPreset), 470, 40, 355, () => { lobbyDialog = LobbyDialog.Units; pickerGroup = -1; dirty = true; });
+            Button(root, "DYNAMICS", 845, 40, 350, () => { lobbyDialog = LobbyDialog.Dynamics; pickerGroup = -1; dirty = true; });
             if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
             if (R.OnlineMode) Label(root, R.Connected ? "CONNECTED" : R.ConnectionStatus, 80, 135, 1450, 20, OzUi.Ink);
             var left = Panel("MAP", 80, 190, 700, 595);
@@ -248,19 +251,20 @@ namespace OpenZ.Multiplayer
             BuildArmy(rules, editable);
             BuildHandicap(rules, editable);
             var construction = Panel("CONSTRUCTION · CURRENT RULES", 820, 800, 1010, 150);
-            Label(construction, "VK TERRITORY CAP: " + (rules.TerritoryReductionCap >= .5 ? "OFF — ORIGINAL" : "MAX. −" + (rules.TerritoryReductionCap * 100).ToString("0") + "% TIME"), 24, 48, 755, 18, OzForkOptions.Accent);
+            Label(construction, "VK TERRITORY CAP: " + (rules.TerritoryReductionCap >= .5 ? "OFF — ORIGINAL" : "MAX. −" + (rules.TerritoryReductionCap * 100).ToString("0") + "% TIME"), 24, 48, 755, 18, OzUi.Ink);
             Label(construction, "Original rule: time −50% × owned flag share. VK cap only limits that reduction.", 24, 73, 755, 14, OzUi.Muted);
             Button(construction, "CHANGE", 810, 40, 155, () => { rules.TerritoryReductionCap = rules.TerritoryReductionCap >= .5 ? .4 : rules.TerritoryReductionCap > .35 ? .3 : rules.TerritoryReductionCap > .27 ? .25 : rules.TerritoryReductionCap > .22 ? .2 : 1; rules.TerritoryBonus = .5; R.ChangeRules(rules); }, false, editable);
-            Label(construction, "FORT LOSER BONUS: " + (rules.FortLoserMaximum == 0 ? "OFF" : "MAX. −" + (rules.FortLoserMaximum * 100).ToString("0") + "% TIME"), 24, 109, 760, 18, OzForkOptions.Accent);
+            Label(construction, "FORT LOSER BONUS: " + (rules.FortLoserMaximum == 0 ? "OFF" : "MAX. −" + (rules.FortLoserMaximum * 100).ToString("0") + "% TIME"), 24, 109, 760, 18, OzUi.Ink);
             Label(construction, "Offensive value gap: starts at +30% enemy lead; full bonus at +90%. Fort only.", 24, 132, 760, 14, OzUi.Muted);
             Button(construction, "CHANGE", 810, 102, 155, () => { rules.FortLoserMaximum = rules.FortLoserMaximum == 0 ? .3 : rules.FortLoserMaximum < .4 ? .5 : rules.FortLoserMaximum < .6 ? .75 : 0; R.ChangeRules(rules); }, false, editable);
             BuildChatPanel(80, 800, 700, 180);
             Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
             Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
             Button(root, "LEAVE", 80, 1000, 250, Leave);
-            Label(root, R.Status, 360, 1020, 950, 16, OzUi.AlertText);
-            Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected);
+            Label(root, rules.HasStartingArmies ? R.Status : "Each team needs a starting squad, vehicle or turret before READY.", 360, 1020, 950, 16, OzUi.AlertText);
+            Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected && rules.HasStartingArmies);
             if (pickerGroup >= 0) BuildUnitPicker(rules, editable);
+            if (lobbyDialog != LobbyDialog.None) BuildLobbyRules(rules, editable);
         }
         static double NextDuration(double current) => current > .9 ? .8 : current > .7 ? 2d / 3 : current > .55 ? .5 : 1;
         void BuildArmy(DuelRules rules, bool editable)
@@ -304,7 +308,7 @@ namespace OpenZ.Multiplayer
         }
         void BuildMapPreview(Transform parent, DuelRules rules)
         {
-            string key = JsonUtility.ToJson(DuelArmyData.From(rules.Common)) + JsonUtility.ToJson(DuelArmyData.From(rules.Handicap)) + rules.Map + rules.HandicapEnabled + rules.HandicapSlot;
+            string key = JsonUtility.ToJson(DuelArmyData.From(rules.Common)) + JsonUtility.ToJson(DuelArmyData.From(rules.Handicap)) + rules.Map + rules.HandicapEnabled + rules.HandicapSlot + string.Join(",", rules.AllowedUnits);
             if (!mapPreview || previewKey != key)
             {
                 var settings = Resources.Load<TextAsset>("OpenZ/default_settings");
@@ -328,11 +332,11 @@ namespace OpenZ.Multiplayer
             var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950); backing.rectTransform.Fill(); backing.transform.SetAsFirstSibling(); backing.raycastTarget = true;
             Button(panel, "CLOSE", 1030, 14, 180, () => { pickerGroup = -1; dirty = true; });
             Label(panel, pickerGroup == 0 ? "Fort mounts accept cannons only." : "One robot squad or vehicle per slot.", 24, 72, 1150, 18, OzUi.Muted);
-            if (pickerGroup == 0) BuildPickerCategory(panel, rules, "TURRETS", DuelRules.AllowedFortTurrets, 112);
+            if (pickerGroup == 0) BuildPickerCategory(panel, rules, "TURRETS", DuelRules.AllowedFortTurrets.Where(rules.Allows).ToArray(), 112);
             else
             {
-                BuildPickerCategory(panel, rules, "ROBOTS", DuelRules.AllowedExtras.Where(ZBuildLists.IsRobot).ToArray(), 112);
-                BuildPickerCategory(panel, rules, "VEHICLES", DuelRules.AllowedExtras.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
+                BuildPickerCategory(panel, rules, "ROBOTS", DuelRules.AllowedExtras.Where(t => ZBuildLists.IsRobot(t) && rules.Allows(t)).ToArray(), 112);
+                BuildPickerCategory(panel, rules, "VEHICLES", DuelRules.AllowedExtras.Where(t => !ZBuildLists.IsRobot(t) && rules.Allows(t)).ToArray(), 292);
             }
             Button(panel, "EMPTY SLOT", 24, 625, 360, () => SetArmySlot(rules, ""));
         }
@@ -343,9 +347,9 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < types.Length; i++)
             {
                 string type = types[i];
-                var button = Button(category, UnitName(type), i % 6 * 200, 30 + i / 6 * 140, 190, () => SetArmySlot(rules, type), false, true, 130);
+                var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138, () => SetArmySlot(rules, type), false, true, 130);
                 button.name = "SELECT " + type;
-                Portrait(button, type, 55, 12, 80);
+                Portrait(button, type, 29, 12, 80);
             }
         }
         void SetArmySlot(DuelRules rules, string type)
@@ -418,14 +422,14 @@ namespace OpenZ.Multiplayer
         public void LeaveMatch() { Leave(); }
         RectTransform Panel(string title, float x, float y, float w, float h)
         {
-            var panel = Hud.Node(title, root); panel.TL(x, y, w, h); Hud.Plate(panel, "lg", 0, OzForkOptions.Accent);
-            Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : OzForkOptions.Accent); return panel;
+            var panel = Hud.Node(title, root); panel.TL(x, y, w, h); Hud.Plate(panel, "lg", 0, page == Page.Lobby ? (Color)OzUi.AmberLo : OzForkOptions.Accent);
+            Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : page == Page.Lobby ? (Color)OzUi.Amber : OzForkOptions.Accent); return panel;
         }
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
         RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46)
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
-            if (!primary) b.LabelColor = OzForkOptions.Accent;
+            if (!primary) b.LabelColor = page == Page.Lobby ? (Color)OzUi.Ink : OzForkOptions.Accent;
             b.Rt.TL(x, y, w, height); b.Interactable = enabled; b.Refresh();
             if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
             if (height > 70 && b.Label != null) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
@@ -445,7 +449,7 @@ namespace OpenZ.Multiplayer
         static void Portrait(Transform parent, string type, float x, float y, float size)
         {
             if (string.IsNullOrEmpty(type)) return;
-            var texture = ZBuildLists.IsRobot(type) ? UnitArt.Portrait(type, Team.Red) : UnitArt.VehiclePortrait(type, Team.Red) ?? UnitArt.Icon(type, Team.Red);
+            var texture = OzUeArt.Picture(type, Team.Red);
             if (!texture) return;
             var image = Hud.Node("Portrait", parent).gameObject.AddComponent<RawImage>(); image.texture = texture; image.rectTransform.TL(x, y, size, size); image.raycastTarget = false;
         }

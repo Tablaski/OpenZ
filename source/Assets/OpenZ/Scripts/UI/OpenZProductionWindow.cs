@@ -249,7 +249,7 @@ namespace OpenZ
             tiles.Clear();
             foreach (var l in classLabels) if (l != null) Destroy(l.gameObject);
             classLabels.Clear();
-            var b = Building; var list = ZBuildLists.For(b.Type, b.BuildLevel);
+            var b = Building; var list = b.World.ProductionUnits(b);
             // one row per class (Zod's full picker), up to 7 tiles per row; a longer class wraps onto the next row
             var perClass = new List<string>[3] { new List<string>(), new List<string>(), new List<string>() };
             foreach (var u in list) perClass[ClassOf(u)].Add(u);

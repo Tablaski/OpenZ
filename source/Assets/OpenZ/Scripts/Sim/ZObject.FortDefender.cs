@@ -207,7 +207,7 @@ namespace OpenZ.Sim
                 fdMan = null; SetFdPhase(FortDefenderPhase.Down, time);
                 if (killed) { fdNextSpawn = time + ZWorld.FortDefenderRespawn; fdHealth = -1; fdNadesKeep = -1; FortDefenderDeaths++; }
             }
-            bool on = ZWorld.FortDefenderDeviation && Owner != Team.Neutral;
+            bool on = ZWorld.FortDefenderDeviation && Owner != Team.Neutral && World.DuelAllowsUnit(ZWorld.FortSniperDeviation ? "sniper" : "grunt");
             bool frozen = World.GameOver && ZWorld.EndFreezeDeviation;                               // DV10: nothing new after the game over
             if (on && !frozen) FortDefenderThreatScan(time);
             double lastThreat = Math.Max(LastEnemyHit, fdThreatAt);

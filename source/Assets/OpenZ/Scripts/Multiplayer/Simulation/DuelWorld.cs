@@ -82,6 +82,20 @@ namespace OpenZ.Sim
         }
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
+        public bool DuelAllowsUnit(string type) => duelRules == null || duelRules.Allows(type);
+        public static ZBehaviorProfile DuelProfile(string encoded, ZBehaviorFamily family)
+        {
+            var profile = string.IsNullOrEmpty(encoded) ? new ZBehaviorProfile { family = family, name = "OpenZ Native", id = "native" } : ZBehaviorProfile.Decode(encoded);
+            if (profile.family != family) throw new ArgumentException("Incorrect dynamics family.");
+            return profile;
+        }
+        public System.Collections.Generic.IReadOnlyList<string> ProductionUnits(ZObject building)
+        {
+            var list = ZBuildLists.For(building.Type, building.BuildLevel);
+            if (duelRules == null) return list;
+            var filtered = new List<string>(); foreach (string type in list) if (duelRules.Allows(type)) filtered.Add(type);
+            return filtered;
+        }
 
         /// <summary>Call once after map creation, before the first simulation tick.</summary>
         public void ConfigureDuel(DuelRules rules, bool replica)
@@ -89,10 +103,19 @@ namespace OpenZ.Sim
             if (rules == null) throw new ArgumentNullException(nameof(rules));
             rules.Validate();
             if (Time != 0 || duelRules != null) throw new InvalidOperationException("Configure a fresh world only.");
+            var tanks = DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks);
+            var robots = DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots);
+            SetBehavior(tanks); SetBehavior(robots);
             duelRules = rules.Copy(); DuelIsReplica = replica;
             Bots.Clear(); Array.Clear(TechBonus, 0, TechBonus.Length);
+            foreach (var b in Objects) b.StoredCannons.RemoveAll(t => !DuelAllowsUnit(t));
             // The same neutral technology policy applies to both human seats.
-            foreach (var b in Objects) if (b.IsProducer) b.RecalcBuildTime();
+            foreach (var b in Objects) if (b.IsProducer)
+            {
+                b.Queue.RemoveAll(t => !DuelAllowsUnit(t));
+                if (b.CurUnit != null && !DuelAllowsUnit(b.CurUnit)) { b.StopBuildingProduction(false); b.SetBuildingDefaultProduction(); }
+                b.RecalcBuildTime();
+            }
         }
 
         public double DuelFortLoserReduction(Team team)

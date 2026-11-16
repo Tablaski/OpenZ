@@ -64,7 +64,7 @@ namespace OpenZ.Sim
             {
                 string next = Queue[0];
                 Queue.RemoveAt(0);
-                if (ZBuildLists.InList(Type, BuildLevel, next)) { SetBuildingProduction(next); return true; }
+                if (ZBuildLists.InList(Type, BuildLevel, next) && World.DuelAllowsUnit(next)) { SetBuildingProduction(next); return true; }
                 World.RepeatQueueSkips++;
             }
             return true;

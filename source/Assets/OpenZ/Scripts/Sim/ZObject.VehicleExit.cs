@@ -64,6 +64,7 @@ namespace OpenZ.Sim
             if (!IsHatchVehicle) { why = "only a tank or the mech"; return false; }
             if (World == null || Destroyed || KillAt >= 0) { why = "destroyed"; return false; }
             if (Owner == Team.Neutral || Drivers.Count == 0) { why = "nobody inside"; return false; }
+            if (!World.DuelAllowsUnit(DriverType)) { why = "crew type excluded by lobby rules"; return false; }
             if (!World.IsHumanTeam(Owner)) { why = "a computer team's vehicle"; return false; }
             if (!CanOverwriteWP() || PathInBuildingStage) { why = ZWorld.DriverWhyFactory; return false; }
             if (World.DriverStillClimbing(this)) { why = ZWorld.DriverWhyClimbing; return false; }               // fix round 4: the last driver let out of it is still held on its hull

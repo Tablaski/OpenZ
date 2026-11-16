@@ -103,6 +103,7 @@ namespace OpenZ.Sim
         /// Created + UnitBuilt as for any unit the fort sends out (the door, the roll-out), and EvilGuardOut (his line). No build list, no unit cap, no computer's note.</summary>
         ZObject EvilGuardComesOut(ZObject fort)
         {
+            if (!DuelAllowsUnit(ZEvilZod.Type)) return null;
             if (!fort.GetCreationPoint(out int cx, out int cy) || !fort.GetCreationMovePoint(out int ex, out int ey)) return null;
             if (!EvilGuardSpot(fort, null, out int gx, out int gy)) return null;
             EvilDoorAxis(fort, out double ux, out double uy, out _);
@@ -121,7 +122,7 @@ namespace OpenZ.Sim
         /// Null = DV161 off, no fort, no free spot.</summary>
         public ZObject AddEvilRetryHelp(Team team)
         {
-            if (!EvilZodDeviation || team == Team.Neutral || EvilRetryId >= 0) return null;
+            if (!EvilZodDeviation || team == Team.Neutral || EvilRetryId >= 0 || !DuelAllowsUnit(ZEvilZod.Type)) return null;
             var fort = EvilFort(team);
             if (fort == null || !EvilGuardSpot(fort, null, out int gx, out int gy)) return null;
             var u = CreateRobotGroup(ZEvilZod.Type, gx - 8, gy - 8, team, 1);

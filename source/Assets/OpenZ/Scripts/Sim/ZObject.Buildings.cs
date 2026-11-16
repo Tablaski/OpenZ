@@ -154,7 +154,7 @@ namespace OpenZ.Sim
             if (Destroyed && ZWorld.RuinNoBuildDeviation) { ZWorld.RuinStartsRefused++; return false; }   // DV155: no build clock on a ruin, so nothing comes out of it when it is rebuilt (Sim/ZWorld.RuinProduction.cs)
             if (World.GameOver && ZWorld.EndFreezeDeviation) return false;                                // endgame_ui_v1 (DV10): no production after the win
             if (unit == CurUnit) return false;
-            if (!ZBuildLists.InList(Type, BuildLevel, unit)) return false;
+            if (!ZBuildLists.InList(Type, BuildLevel, unit) || !World.DuelAllowsUnit(unit)) return false;
             CurUnit = unit; Building = true; BInit = World.Time;
             RecalcBuildTime();
             if (Queue.Count == 0 && !ZWorld.FifoQueueDeviation) Queue.Add(unit);                           // the repeat copy (Zod; DV21 repeats by flag)
@@ -166,7 +166,7 @@ namespace OpenZ.Sim
             if (Owner == Team.Neutral || !IsProducer || Queue.Count >= MAX_QUEUE_ITEMS) return false;
             if (Destroyed && ZWorld.RuinNoBuildDeviation) { ZWorld.RuinStartsRefused++; return false; }   // DV155: a ruin queues nothing either
             if (World.GameOver && ZWorld.EndFreezeDeviation) return false;                                // endgame_ui_v1 (DV10)
-            if (!ZBuildLists.InList(Type, BuildLevel, unit)) return false;
+            if (!ZBuildLists.InList(Type, BuildLevel, unit) || !World.DuelAllowsUnit(unit)) return false;
             if (pushToFront && !ZWorld.FifoQueueDeviation) Queue.Insert(0, unit); else Queue.Add(unit);   // DV21: first in, first out
             return true;
         }
@@ -184,7 +184,7 @@ namespace OpenZ.Sim
         public bool SetBuildingDefaultProduction()
         {
             if (!IsProducer || Building || CurUnit != null) return false;
-            var list = ZBuildLists.For(Type, BuildLevel);
+            var list = World.ProductionUnits(this);
             return list.Count > 0 && SetBuildingProduction(list[0]);
         }
         /// <summary>zbuilding.cpp:477-506: pop the front item and start it (it repeats when it was the last one).</summary>
@@ -216,7 +216,7 @@ namespace OpenZ.Sim
             BuildUnitType = null; RepairUnitReady = false;
             if (IsProducer && Building && CurUnit != null && Owner != Team.Neutral && time >= BFinal && !World.UnitLimitReached(Owner)
                 && !(World.GameOver && ZWorld.EndFreezeDeviation))                                   // endgame_ui_v1 (DV10): nothing is built after the win
-                BuildUnitType = CurUnit;
+                if (World.DuelAllowsUnit(CurUnit)) BuildUnitType = CurUnit;
             if (Type == "repair" && ZWorld.RepairInPlaceDeviation) RepairBayTick(time);
             else if (Type == "repair" && RepairingUnit && time >= RepairTime) { RepairingUnit = false; RepairUnitReady = true; }
             if (IsFort) { ProcessFortGun(time); FortDefenderStep(time); }                                  // DV7 fort gun (OpenZ); fort_defender_v1 DV41 roof defender

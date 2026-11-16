@@ -33,6 +33,45 @@ namespace OpenZ.Multiplayer
         public bool HandicapEnabled;
         public int HandicapSlot;
         public DuelArmySettings Handicap = new DuelArmySettings();
+        public string TankDynamics = "", RobotDynamics = "";
+        public DuelUnitPreset UnitPreset = DuelUnitPreset.OpenZ;
+        public List<string> AllowedUnits = new List<string>(DuelUnitRoster.All);
+
+        public bool Allows(string type) => AllowedUnits != null && AllowedUnits.Contains(type);
+        public bool HasStartingArmies
+        {
+            get
+            {
+                for (int seat = 0; seat < 2; seat++)
+                {
+                    var army = EffectiveFor(seat);
+                    if (army.StartingUnits.Count == 0 && !Array.Exists(army.FortTurrets, t => !string.IsNullOrEmpty(t))) return false;
+                }
+                return true;
+            }
+        }
+        public void SetUnitPreset(DuelUnitPreset preset)
+        {
+            if (preset == DuelUnitPreset.Custom) { UnitPreset = preset; return; }
+            if (preset != DuelUnitPreset.OpenZ && preset != DuelUnitPreset.Z1996) throw new ArgumentOutOfRangeException(nameof(preset));
+            UnitPreset = preset; AllowedUnits = new List<string>(preset == DuelUnitPreset.OpenZ ? DuelUnitRoster.All : DuelUnitRoster.Z1996);
+            RemoveDisallowedStartingUnits();
+        }
+        public void SetUnitAllowed(string type, bool allowed)
+        {
+            if (!DuelUnitRoster.Known(type)) throw new ArgumentException("Unknown allowed unit.");
+            if (allowed) { if (!AllowedUnits.Contains(type)) AllowedUnits.Add(type); }
+            else AllowedUnits.Remove(type);
+            UnitPreset = DuelUnitPreset.Custom; RemoveDisallowedStartingUnits();
+        }
+        void RemoveDisallowedStartingUnits()
+        {
+            foreach (var army in new[] { Common, Handicap })
+            {
+                for (int i = 0; i < army.StartingUnits.Count; i++) if (!Allows(army.StartingUnits[i])) army.StartingUnits[i] = "";
+                for (int i = 0; i < army.FortTurrets.Length; i++) if (!Allows(army.FortTurrets[i])) army.FortTurrets[i] = "";
+            }
+        }
 
         public void EnableHandicap(int slot)
         {
@@ -56,7 +95,8 @@ namespace OpenZ.Multiplayer
         public DuelRules Copy() => new DuelRules
         {
             Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
-            Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot
+            Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
+            TankDynamics = TankDynamics, RobotDynamics = RobotDynamics, UnitPreset = UnitPreset, AllowedUnits = new List<string>(AllowedUnits)
         };
 
         public void Validate()
@@ -69,6 +109,19 @@ namespace OpenZ.Multiplayer
             if (!InRange(FortLoserMaximum, 0, .75)) throw new ArgumentException("Invalid fort loser bonus.");
             if (HandicapSlot != 0 && HandicapSlot != 1) throw new ArgumentException("Invalid handicap seat.");
             CheckArmy(Common); CheckArmy(Handicap);
+            if (TankDynamics == null || RobotDynamics == null || TankDynamics.Length > 200000 || RobotDynamics.Length > 200000)
+                throw new ArgumentException("Invalid dynamics profile size.");
+            if (!Enum.IsDefined(typeof(DuelUnitPreset), UnitPreset) || AllowedUnits == null || AllowedUnits.Count > DuelUnitRoster.All.Length)
+                throw new ArgumentException("Invalid allowed units.");
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string type in AllowedUnits) if (!DuelUnitRoster.Known(type) || !seen.Add(type)) throw new ArgumentException("Unknown or duplicate allowed unit.");
+            if (UnitPreset == DuelUnitPreset.OpenZ && !DuelUnitRoster.Matches(AllowedUnits, DuelUnitRoster.All) ||
+                UnitPreset == DuelUnitPreset.Z1996 && !DuelUnitRoster.Matches(AllowedUnits, DuelUnitRoster.Z1996)) throw new ArgumentException("Unit selection does not match the named preset.");
+            foreach (var army in new[] { Common, Handicap })
+            {
+                foreach (string type in army.StartingUnits) if (type != "" && !Allows(type)) throw new ArgumentException("Starting unit is disabled: " + type);
+                foreach (string type in army.FortTurrets) if (type != "" && !Allows(type)) throw new ArgumentException("Fort cannon is disabled: " + type);
+            }
         }
 
         static bool InRange(double v, double min, double max) => !double.IsNaN(v) && v >= min && v <= max;
@@ -85,7 +138,7 @@ namespace OpenZ.Multiplayer
 
         public static readonly string[] AllowedExtras =
         {
-            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc"
+            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc"
         };
 
         public static readonly string[] AllowedFortTurrets = { "gun", "gatling", "howitzer", "missile_cannon" };

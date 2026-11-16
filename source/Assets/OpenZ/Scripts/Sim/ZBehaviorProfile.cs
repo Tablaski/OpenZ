@@ -307,6 +307,7 @@ namespace OpenZ.Sim
         public int BehaviorRevision { get; private set; }
         public void SetBehavior(ZBehaviorProfile profile)
         {
+            if (HasDuelRules && !DuelIsReplica) throw new InvalidOperationException("Match dynamics are locked to the host's lobby rules.");
             if (profile == null) throw new ArgumentNullException(nameof(profile));
             var copy = profile.Clone();
             UnitTesting?.BehaviorChanging(BehaviorProfile(copy.family), copy);

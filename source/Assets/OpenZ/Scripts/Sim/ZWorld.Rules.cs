@@ -168,6 +168,7 @@ namespace OpenZ.Sim
 
         ZObject BuildingCreateUnit(ZObject b, string type)
         {
+            if (!DuelAllowsUnit(type)) return null;
             if (ZBuildLists.IsCannon(type))
             {
                 if (CannonsInZone(b) < ZObject.MAX_STORED_CANNONS && b.StoredCannons.Count < ZObject.MAX_STORED_CANNONS)
@@ -402,6 +403,7 @@ namespace OpenZ.Sim
             // OpenZ duel command: PlaceCannon
             if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.PlaceCannon, X = tx, Y = ty, Index = index }) ? b : null;
             if (!Owns(team, b) || index < 0 || index >= b.StoredCannons.Count) return null;
+            if (!DuelAllowsUnit(b.StoredCannons[index])) return null;
             if (!CannonPlacable(b, tx, ty)) return null;
             var type = b.StoredCannons[index]; b.StoredCannons.RemoveAt(index);
             var c = CreateObject("cannon", type, tx * 16, ty * 16, b.Owner);

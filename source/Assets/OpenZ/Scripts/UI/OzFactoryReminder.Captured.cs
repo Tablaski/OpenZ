@@ -25,7 +25,7 @@ namespace OpenZ
         public static string DefaultUnit(ZObject b)
         {
             if (b == null) return null;
-            var list = ZBuildLists.For(b.Type, b.BuildLevel);
+            var list = b.World.ProductionUnits(b);
             return list.Count > 0 ? list[0] : null;
         }
 

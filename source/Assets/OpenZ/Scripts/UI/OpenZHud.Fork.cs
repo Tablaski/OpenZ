@@ -13,7 +13,7 @@ namespace OpenZ
         {
             var badge = Hud.Node("OpenZ-VK", Root); badge.TL(16, 10, 154, 30);
             var back = Hud.Img(badge, "Plate", OzUi.A(OzUi.GM950, .9f)); back.rectTransform.Fill();
-            Hud.Label(badge, "Wordmark", "OpenZ-VK", 21, OzForkOptions.Accent, .08f).At(10, 4);
+            Hud.Label(badge, "Wordmark", "OpenZ-VK", 21, OzForkOptions.Brand, .08f).At(10, 4);
             if (!DuelRuntime.Active) return;
             var chat = HudButton.Make(cmdBar, "Chat", "CHAT", new Vector2(62, 48), HudButtonKind.Small, 11);
             chat.Rt.TL(718, 6, 62, 48); chat.OnClick = c => DuelRuntime.I.Menus.OpenChat();

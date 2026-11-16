@@ -473,7 +473,7 @@ namespace OpenZ
             var p = game.CenterWorldSmooth(Obj);                                                        // parity P4: Zod client SmoothMove, no tick judder
             // OpenZ pathing (Sim/ZPathing.cs): a unit held in a queue / at a lane keeps Zod's heading (Dx/Dy) but stands: no walk
             // cycle, dust, bounce or turning in place. With the layer on the squad keeps 14 px (1.75 m) in the sim: no view slots.
-            bool physicalMotion = Obj.Behavior != null && Obj.Behavior.On(ZBehaviorKey.Physical);
+            bool physicalMotion = Obj.BehaviorUsesActualMotion;
             float motionDx = physicalMotion ? Obj.BehaviorStepDx : Obj.Dx, motionDy = physicalMotion ? Obj.BehaviorStepDy : Obj.Dy;
             bool moving = (physicalMotion ? motionDx * motionDx + motionDy * motionDy > .0001f : Obj.IsMoving) && !Obj.PathHeld;
             bool simSpacing = game.World.Pathing != null && game.World.Pathing.Enabled;
@@ -576,10 +576,11 @@ namespace OpenZ
                 if (n.y < 0) n = -n;
                 tilt = Quaternion.Slerp(tilt, Quaternion.FromToRotation(Vector3.up, n), 1f - Mathf.Exp(-8f * dt));
                 p.y = Mathf.Max((hf + hb + hr + hl) * 0.25f, hc) + yOffset;   // wheels on top, never inside a bump
-                float speedMs = moving ? Mathf.Sqrt(Obj.Dx * Obj.Dx + Obj.Dy * Obj.Dy) / 8f : 0f;      // px/s -> m/s
+                float speedMs = moving ? Mathf.Sqrt(motionDx * motionDx + motionDy * motionDy) / 8f : 0f;      // px/s -> m/s, actual accepted motion in custom movement modes
                 if (slip != null && VehicleSlip.Enabled) speedMs = slip.AlongSpeed; else                    // vehicles_nb_v1 NB21: wheels / tracks roll with the drawn motion
                 if (hullSteer != null && hullSteer.Reversing) speedMs = -speedMs;                         // motion_v1: backing up: wheels / tracks roll back
                 var feel = motion ? motion.Step(speedMs, yawRate, dt) : Quaternion.identity;
+                feel *= CripplingVisual(moving, p, dt);
                 if (motion) p.y += motion.Bounce * speed01;
                 if (moving && FxManager.I && !DustTrails.Active && !Obj.IsShuttle && (dustT -= dt) <= 0)   // tracks package: DustTrails owns surface-aware dust
                 {

@@ -97,6 +97,7 @@ static class BehaviorChecks
         for (int i = 2; i < 150; i++) moving.ProcessServer(i * .1);
         check(moving.LocX > initialX + 20 && moving.LocX <= initialX + 73, "Physical controller approaches the real target without overshoot");
         TurnFirstChecks(settings, map, openX, openY, check);
+        CripplingChecks.Run(settings, map, openX, openY, check);
     }
 
     static void TurnFirstChecks(string settings, string map, int x, int y, Action<bool, string> check)

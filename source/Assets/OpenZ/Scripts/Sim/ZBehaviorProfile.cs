@@ -19,7 +19,11 @@ namespace OpenZ.Sim
         Boost, BoostSpeed, BoostChance, BoostDuration, Endurance, Drain, Recharge, MinStamina,
         DamagedBoost, PremiumBoost, FireDodge, FireBoost, Accuracy, Settle, KeepTarget,
         FireMoving, BreakForRetreat, Cohesion, RegroupDelay, CombatManoeuvres, ResumeAttack,
-        TurnFirst, PivotSpeed, AlignmentTolerance, Count
+        TurnFirst, PivotSpeed, AlignmentTolerance,
+        Crippling, GreenShake, GreenSpeed, GreenAcceleration, GreenSmoke, GreenOil, GreenOilLife,
+        YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
+        RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
+        Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -114,7 +118,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Drain,"Endurance consumption","BOOST","x",0,5,1,1,"Defensive boost consumption relative to native running."),
             N(ZBehaviorKey.Recharge,"Endurance recharge","BOOST","x",0,5,1,1,"Recharge multiplier. Reserve capacity still comes from unit statistics."),
             N(ZBehaviorKey.MinStamina,"Minimum starting endurance","BOOST","s",0,10,.3,.3,"Minimum reserve to start a defensive boost."),
-            B(ZBehaviorKey.DamagedBoost,"Allow boost when badly damaged","BOOST",false,false,"Ignore the native damage restriction for defensive sprint."),
+            B(ZBehaviorKey.DamagedBoost,"Allow boost when badly damaged","CRIPPLING",false,false,"Ignore the native damage restriction for defensive sprint. Independent of the custom crippling switch."),
             B(ZBehaviorKey.PremiumBoost,"Keep premium driver dodge bonus","BOOST",true,false,"Preserve the native 1.08 premium-driver bonus; use strongest bonus, never multiply boosts."),
             B(ZBehaviorKey.FireDodge,"Can fire during dodge","COMBAT",true,true,"Keep acquired targets and permit shots while dodging."),
             B(ZBehaviorKey.FireBoost,"Can fire during defensive boost","COMBAT",true,true,"Allow shots while sprinting defensively."),
@@ -127,9 +131,35 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.RegroupDelay,"Delay before post-dodge regroup","COMBAT","s",0,5,0,0,"Delay autonomous minion movement after a dodge; direct orders still resume immediately."),
             B(ZBehaviorKey.CombatManoeuvres,"OpenZ offensive combat manoeuvres","COMBAT",true,false,"OpenZ's flanks, arcs and reverses while attacking. OFF uses Zod's stop-and-fire behavior once in range. Defensive dodges remain separate."),
             B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Custom combat safeguard: end the dodge 0.1 s after the first triggering blast and resume the interrupted attack. Later shots can change the direction but cannot postpone this return indefinitely. Stops long boosted dodge endpoints from behaving like a retreat. Enabled automatically when you manually tune a profile; turn it off to reproduce Zod's full random step. New player orders always take precedence."),
-            B(ZBehaviorKey.TurnFirst,"Brake, pivot, then accelerate","MOVEMENT",false,false,"Requires physical movement limits. On direction changes, brake along the current hull axis, pivot only once slow enough, then accelerate once aligned. Applies to normal movement and dodges. Overrides lateral movement, reversing and the legacy pivot/turn-while-moving switches while enabled."),
+            B(ZBehaviorKey.TurnFirst,"Brake, pivot, then accelerate","MOVEMENT",false,false,"Requires physical movement limits. Brake along the current travel axis, pivot once slow enough, then accelerate once aligned. With reversing allowed, choose the front or rear axis requiring the shortest turn (at most 90 degrees). Applies to orders and dodges; overrides lateral movement and legacy pivot switches."),
             N(ZBehaviorKey.PivotSpeed,"Retained speed during pivot","MOVEMENT","%",0,100,0,0,"Brake to this fraction of commanded speed before pivoting. 0 = stop completely; 5 = almost stop. Effective range 0-100%. Requires brake-pivot-accelerate mode."),
-            N(ZBehaviorKey.AlignmentTolerance,"Alignment before acceleration","MOVEMENT","deg",0,45,5,5,"Start accelerating when the hull is within this angle of the movement direction. Effective maximum 45 degrees. Requires brake-pivot-accelerate mode.")
+            N(ZBehaviorKey.AlignmentTolerance,"Alignment before acceleration","MOVEMENT","deg",0,45,5,5,"Start accelerating when the chosen front or rear hull axis is within this angle of travel. Effective maximum 45 degrees. Requires brake-pivot-accelerate mode."),
+            B(ZBehaviorKey.Crippling,"Custom damage movement and trails","CRIPPLING",false,false,"Enable per-health-band movement and visual effects. OFF retains native damage speed and existing effects. Bands match the editor hover bar: GREEN above 50%, YELLOW above 25% through 50%, RED at or below 25%. Tank family and per-type overrides are saved with the profile."),
+            N(ZBehaviorKey.GreenShake,"Green: movement shake","CRIPPLING","deg",0,10,0,0,"Visible hull pitch and roll amplitude while actually moving. 0 disables it. Reduced motion suppresses shaking."),
+            N(ZBehaviorKey.GreenSpeed,"Green: retained movement speed","CRIPPLING","%",0,100,100,100,"Replaces the native damage speed factor in this band. 0 stops travel; 100 retains full terrain/boost speed. Requires custom damage movement."),
+            N(ZBehaviorKey.GreenAcceleration,"Green: extra acceleration time","CRIPPLING","s",0,10,0,0,"Additional time to reach full speed, even when physical limits are OFF. 0 adds no acceleration loss. Requires custom damage movement."),
+            N(ZBehaviorKey.GreenSmoke,"Green: rear smoke rate","CRIPPLING","puffs/s",0,20,0,0,"Additional smoke from the hull rear only while moving. 0 disables it. Existing damage/fire smoke is preserved."),
+            N(ZBehaviorKey.GreenOil,"Green: rear oil trail width","CRIPPLING","m",0,1,0,0,"Width of a continuous dark oil trail behind the moving hull. 0 disables it; trails do not affect gameplay."),
+            N(ZBehaviorKey.GreenOilLife,"Green: oil fade duration","CRIPPLING","s",0,120,20,20,"Each trail segment fades progressively over this many simulation seconds. 0 disables trails. Bounded visual pool removes the oldest marks if full."),
+            N(ZBehaviorKey.YellowShake,"Yellow: movement shake","CRIPPLING","deg",0,10,.8,.8,"Hull pitch and roll amplitude while actually moving; 0 disables it. YELLOW: HP above 25% and at most 50%. Reduced motion suppresses shaking."),
+            N(ZBehaviorKey.YellowSpeed,"Yellow: retained movement speed","CRIPPLING","%",0,100,90,90,"Replaces the native damage speed factor in this band. 0 stops travel; 100 keeps full terrain/boost speed."),
+            N(ZBehaviorKey.YellowAcceleration,"Yellow: extra acceleration time","CRIPPLING","s",0,10,.35,.35,"Additional time to full speed, also without physical limits. 0 adds no acceleration loss."),
+            N(ZBehaviorKey.YellowSmoke,"Yellow: rear smoke rate","CRIPPLING","puffs/s",0,20,3,3,"Additional rear smoke while moving; 0 disables it. Existing damage/fire smoke is preserved."),
+            N(ZBehaviorKey.YellowOil,"Yellow: rear oil trail width","CRIPPLING","m",0,1,.16,.16,"Width of oil trail behind the moving hull; 0 disables it. Marks fade and never affect gameplay."),
+            N(ZBehaviorKey.YellowOilLife,"Yellow: oil fade duration","CRIPPLING","s",0,120,20,20,"Progressive trail fade in simulation seconds. 0 disables trails. The oldest marks are recycled when the pool is full."),
+            N(ZBehaviorKey.RedShake,"Red: movement shake","CRIPPLING","deg",0,10,1.8,1.8,"Hull pitch and roll amplitude while moving; 0 disables it. RED: HP at or below 25%. Reduced motion suppresses shaking."),
+            N(ZBehaviorKey.RedSpeed,"Red: retained movement speed","CRIPPLING","%",0,100,80,80,"Replaces the native damage speed factor in this band. 0 stops travel; 100 keeps full terrain/boost speed."),
+            N(ZBehaviorKey.RedAcceleration,"Red: extra acceleration time","CRIPPLING","s",0,10,.8,.8,"Additional time to full speed, also without physical limits. 0 adds no acceleration loss."),
+            N(ZBehaviorKey.RedSmoke,"Red: rear smoke rate","CRIPPLING","puffs/s",0,20,6,6,"Additional rear smoke while moving; 0 disables it. Existing damage/fire smoke is preserved."),
+            N(ZBehaviorKey.RedOil,"Red: rear oil trail width","CRIPPLING","m",0,1,.26,.26,"Width of oil trail behind the moving hull; 0 disables it. Marks fade and never affect gameplay."),
+            N(ZBehaviorKey.RedOilLife,"Red: oil fade duration","CRIPPLING","s",0,120,30,30,"Progressive trail fade in simulation seconds. 0 disables trails. The oldest marks are recycled when the pool is full."),
+            B(ZBehaviorKey.Impact,"Movement penalty on damaging hits","CRIPPLING",false,false,"Enable temporary speed caps for enemy hits or explosions that actually remove hull HP, independently of custom per-band movement. No penalty on a miss, armor-only hit, healing, friendly fire or HP editing. Heavy qualifying hits take priority; repeated hits refresh without weakening an active penalty."),
+            N(ZBehaviorKey.ImpactMin,"Light hit: minimum HP lost","CRIPPLING","HP",0,10000,1,1,"Minimum actual HP lost in one hit to trigger the light penalty. Heavy hits are checked first. Set the heavy threshold higher for two distinct tiers."),
+            N(ZBehaviorKey.ImpactSpeed,"Light hit: retained speed","CRIPPLING","%",0,100,45,45,"Speed cap during a light impact, relative to current healthy terrain/boost movement. 0 stops the unit. Does not reduce hull turning or delete orders."),
+            N(ZBehaviorKey.ImpactDuration,"Light hit: penalty duration","CRIPPLING","s",0,5,.2,.2,"Simulation seconds of light impact speed cap. 0 disables this tier. Acceleration settings determine recovery afterwards."),
+            N(ZBehaviorKey.HeavyImpactMin,"Heavy hit: minimum HP lost","CRIPPLING","HP",0,10000,1000,1000,"Minimum actual HP lost in one hit for the heavy tier, independent of the light threshold. Heavy tier wins if both qualify."),
+            N(ZBehaviorKey.HeavyImpactSpeed,"Heavy hit: retained speed","CRIPPLING","%",0,100,2,2,"Speed cap during a heavy impact. 2% almost stops the unit; 0 fully stops travel temporarily."),
+            N(ZBehaviorKey.HeavyImpactDuration,"Heavy hit: penalty duration","CRIPPLING","s",0,5,.6,.6,"Simulation seconds of heavy impact speed cap. 0 disables this tier. Subsequent weaker hits cannot shorten or weaken it.")
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium" };

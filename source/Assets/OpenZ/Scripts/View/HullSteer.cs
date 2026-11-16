@@ -92,6 +92,7 @@ namespace OpenZ
             if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.Physical))
             {
                 if (o.BehaviorHeadingSet) hull = (float)(o.BehaviorHeading * Mathf.Rad2Deg) + 90f;
+                reverse = ZBehaviorSchema.IsTank(o.Type) && ZObject.NearestHullReverse((hull - 90f) * Mathf.Deg2Rad, Mathf.Atan2(o.Dy, o.Dx));
                 goal = cand = hull; rate = 0f;
                 return hull;
             }
@@ -99,6 +100,8 @@ namespace OpenZ
             {
                 // Direct position following must not bypass the user's hull rotation limit.
                 float target = Mathf.Atan2(o.Dx, -o.Dy) * Mathf.Rad2Deg;
+                reverse = ZBehaviorSchema.IsTank(o.Type) && Mathf.Abs(Mathf.DeltaAngle(hull, target)) > 90f;
+                if (reverse) target = Mathf.Repeat(target + 180f, 360f);
                 float cap = (float)behavior[OpenZ.Sim.ZBehaviorKey.TurnRate];
                 hull = cap == 0 ? target : Mathf.MoveTowardsAngle(hull, target, cap * dt);
                 goal = cand = hull; rate = 0f; return hull;
@@ -120,7 +123,8 @@ namespace OpenZ
                 var duelKind = o.DuelKind;
                 bool shortMove = duelKind == ZDuelKind.None ? remain < ShortMovePx || IsMinorMove(o) : duelKind == ZDuelKind.Reverse;
                 float off = Mathf.Abs(Mathf.DeltaAngle(hull, want));
-                reverse = (shortMove || duelKind != ZDuelKind.None) && (reverse ? off > ReverseOff : off > ReverseOn);
+                reverse = ZBehaviorSchema.IsTank(o.Type) ? off > 90f :
+                    (shortMove || duelKind != ZDuelKind.None) && (reverse ? off > ReverseOff : off > ReverseOn);
                 if (reverse) want = Mathf.Repeat(want + 180f, 360f);
                 if (shortMove)
                 {   // a short move turns the hull only a little toward it (forward or reverse axis, whichever is nearer)

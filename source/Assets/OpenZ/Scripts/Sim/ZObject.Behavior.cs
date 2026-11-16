@@ -19,6 +19,7 @@ namespace OpenZ.Sim
         double behaviorTurnSpeed, behaviorReverseUntil, behaviorDodgeStart = -100, behaviorBlastAt,
             behaviorLastDodge = -100, behaviorFireUntil, behaviorRegroupUntil;
         bool behaviorReversing, behaviorWasDodging, behaviorPending;
+        int behaviorTravelSign = 1;
         double behaviorReactAt, behaviorPendingBlast, behaviorAttackReturnAt;
         int behaviorPendingX, behaviorPendingY, behaviorOriginX, behaviorOriginY, behaviorShots;
         ZThreatKind behaviorPendingKind;
@@ -262,7 +263,9 @@ namespace OpenZ.Sim
         void BehaviorVelocity(double dt, ref double vx, ref double vy)
         {
             var p = Behavior;
-            if (p == null || !p.On(ZBehaviorKey.Physical) || dt <= 0) return;
+            if (dt <= 0) return;
+            CripplingCommand(ref vx, ref vy);
+            if (p == null || !p.On(ZBehaviorKey.Physical)) { CripplingFreeVelocity(dt, ref vx, ref vy); return; }
             double desired = Math.Sqrt(vx * vx + vy * vy), angle = Math.Atan2(cur.y - CenterY, cur.x - CenterX);
             if (!BehaviorHeadingSet)
             {
@@ -272,8 +275,8 @@ namespace OpenZ.Sim
             }
             if (p.On(ZBehaviorKey.TurnFirst))
             { BehaviorTurnFirst(dt, desired, angle, ref vx, ref vy); return; }
-            double offset = WrapRadians(angle - BehaviorHeading);
-            bool reverse = !p.On(ZBehaviorKey.Lateral) && p.On(ZBehaviorKey.Reverse) && Math.Abs(offset) > Math.PI * .61;
+            bool reverse = (!p.On(ZBehaviorKey.Lateral) || ZBehaviorSchema.IsTank(Type)) &&
+                p.On(ZBehaviorKey.Reverse) && NearestHullReverse(BehaviorHeading, angle);
             if (reverse != behaviorReversing) { behaviorReversing = reverse; behaviorReverseUntil = World.Time + p[ZBehaviorKey.ReverseDelay]; }
             double aim = reverse ? angle + Math.PI : angle;
             double delta = WrapRadians(aim - BehaviorHeading);
@@ -294,6 +297,8 @@ namespace OpenZ.Sim
             double remaining = Dist(CenterX, CenterY, cur.x, cur.y);
             if (p[ZBehaviorKey.Braking] > 0) target = Math.Min(target, Math.Sqrt(2 * desired / p[ZBehaviorKey.Braking] * remaining));
             double ramp = target < BehaviorActualSpeed ? p[ZBehaviorKey.Braking] : p[ZBehaviorKey.Acceleration];
+            if (target >= BehaviorActualSpeed) ramp += CripplingAcceleration;
+            if (CripplingHitActive || CripplingActive) BehaviorActualSpeed = Math.Min(BehaviorActualSpeed, desired);
             BehaviorActualSpeed = ramp <= 0 ? target : Toward(BehaviorActualSpeed, target, Math.Max(1, desired) / ramp * dt);
             double speed = Math.Min(BehaviorActualSpeed, remaining / dt);
             double travel = p.On(ZBehaviorKey.Lateral) ? angle : BehaviorHeading + (reverse ? Math.PI : 0);
@@ -302,24 +307,33 @@ namespace OpenZ.Sim
         void BehaviorTurnFirst(double dt, double desired, double angle, ref double vx, ref double vy)
         {
             var p = Behavior;
+            bool reverse = p.On(ZBehaviorKey.Reverse) && NearestHullReverse(BehaviorHeading, angle);
+            double aim = WrapRadians(angle + (reverse ? Math.PI : 0));
+            int sign = reverse ? -1 : 1;
+            if (reverse != behaviorReversing) { behaviorReversing = reverse; behaviorReverseUntil = World.Time + p[ZBehaviorKey.ReverseDelay]; }
+            desired *= reverse ? p[ZBehaviorKey.ReverseSpeed] / 100 : 1;
             double tolerance = Math.Min(45, p[ZBehaviorKey.AlignmentTolerance]) * Math.PI / 180;
-            double error = Math.Abs(WrapRadians(angle - BehaviorHeading));
+            double error = Math.Abs(WrapRadians(aim - BehaviorHeading));
             double pivotSpeed = desired * Math.Min(100, p[ZBehaviorKey.PivotSpeed]) / 100;
             bool turning = error > Math.Max(1e-6, tolerance);
+            bool reversing = sign != behaviorTravelSign && BehaviorActualSpeed > 1e-6;
             double remaining = Dist(CenterX, CenterY, cur.x, cur.y);
-            double target = turning ? Math.Min(BehaviorActualSpeed, pivotSpeed) : desired;
+            double target = reversing || World.Time < behaviorReverseUntil ? 0 : turning ? Math.Min(BehaviorActualSpeed, pivotSpeed) : desired;
             if (p[ZBehaviorKey.Braking] > 0)
                 target = Math.Min(target, Math.Sqrt(2 * desired / p[ZBehaviorKey.Braking] * remaining));
             double ramp = target < BehaviorActualSpeed ? p[ZBehaviorKey.Braking] : p[ZBehaviorKey.Acceleration];
+            if (target >= BehaviorActualSpeed) ramp += CripplingAcceleration;
+            if (CripplingHitActive || CripplingActive) BehaviorActualSpeed = Math.Min(BehaviorActualSpeed, desired);
             BehaviorActualSpeed = ramp <= 0 ? target : Toward(BehaviorActualSpeed, target, Math.Max(1, desired) / ramp * dt);
-            bool braking = turning && BehaviorActualSpeed > pivotSpeed + 1e-6;
+            bool braking = (turning && BehaviorActualSpeed > pivotSpeed + 1e-6) || (reversing && BehaviorActualSpeed > 1e-6);
+            if (!braking) behaviorTravelSign = sign;
             BehaviorMotionPhase = braking ? "Braking" : turning ? "Pivoting" : BehaviorActualSpeed < desired - 1e-6 ? "Accelerating" : "Driving";
             if (braking) behaviorTurnSpeed = 0;
             else
             {
-                double delta = WrapRadians(angle - BehaviorHeading);
+                double delta = WrapRadians(aim - BehaviorHeading);
                 double cap = p[ZBehaviorKey.TurnRate] * Math.PI / 180;
-                if (cap == 0) { BehaviorHeading = angle; behaviorTurnSpeed = 0; }
+                if (cap == 0) { BehaviorHeading = aim; behaviorTurnSpeed = 0; }
                 else
                 {
                     double want = Math.Max(-cap, Math.Min(cap, delta / dt));
@@ -334,7 +348,7 @@ namespace OpenZ.Sim
                 }
             }
             double speed = Math.Min(BehaviorActualSpeed, remaining / dt);
-            vx = Math.Cos(BehaviorHeading) * speed; vy = Math.Sin(BehaviorHeading) * speed;
+            vx = Math.Cos(BehaviorHeading) * speed * behaviorTravelSign; vy = Math.Sin(BehaviorHeading) * speed * behaviorTravelSign;
         }
         bool BehaviorReached(out bool reached)
         {

@@ -21,8 +21,9 @@ namespace OpenZ
         readonly List<OzUeLabSlider> sliders = new List<OzUeLabSlider>();
         readonly List<RectTransform> rows = new List<RectTransform>();
         readonly List<Action> refresh = new List<Action>();
-        readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT" };
-        readonly bool[] advanced = new bool[5];
+        readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT", "CRIPPLING" };
+        readonly bool[] advanced = new bool[6];
+        int healthBand = 1;
         public bool SimulationDebug { get; private set; }
         public bool RouteDebug { get; private set; }
         static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.Physical, ZBehaviorKey.TurnFirst,
@@ -82,7 +83,7 @@ namespace OpenZ
             OzUnitEditor.I.Hud.IsOverUi(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
         public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("COMBAT DYNAMICS is not clickable."); OzUeStats.SetTab(OzUeStats.Tab.Dynamics); }
         public void ShowPage(ZBehaviorFamily f, int tab)
-        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 3) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
+        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 4) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
         public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
@@ -143,8 +144,8 @@ namespace OpenZ
             Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Master: OpenZ at 0%, classic Zod dodge/movement at 100%. Numeric values interpolate; switches change at 50%. Manual fields stay overridden. This is not a success percentage. Normal speed, weapon statistics and damage rules remain separate.");
             Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Cycle family defaults and per-type exceptions. Per-type overrides win; inherited fields follow the master.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
             Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 219, inner * .45f - 6, 26), "Release every manual override in this family. Keep the master position.", () => { P.overrides.Clear(); Apply(family); dirty = true; rebuild = true; });
-            for (int i = 0; i < pages.Length; i++) { int k = i; Button(box, "Page" + i, pages[i], new Rect(12 + i * (inner + 4) / 5, 251, (inner - 16) / 5, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); }
-            MakeList(283);
+            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 3 * (inner + 4) / 3, 251 + i / 3 * 29, (inner - 8) / 3, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); if (i == 5) tab.Label.color = OzForkOptions.Accent; }
+            MakeList(312);
             if (profiles || imports) { BuildPresetList(); return; }
             float y = 0;
             var intro = Row("Guide", y, 72);
@@ -154,6 +155,14 @@ namespace OpenZ
                 P.Get(Type, ZBehaviorKey.TurnFirst) >= .5 ? "BRAKE > PIVOT > ACCELERATE: hull controls real movement" : "PHYSICAL: changes real combat positions" :
                 P.Get(Type, ZBehaviorKey.DirectView) >= .5 ? "DIRECT: 2D position + rate-limited hull" : "FOLLOWER: catch-up can distort dodge paths"));
             y += 72;
+            if (page == 5)
+            {
+                var bands = Row("HealthBand", y, 60);
+                if (family != 0) { Text(bands, "Crippling applies to tanks. Select TANKS above.", 9, 22, layout.w - 58, 11, OzForkOptions.Accent); list.SetContentHeight(y + 60); return; }
+                Text(bands, "GREEN >50%  |  YELLOW >25-50%  |  RED <=25% HP", 9, 14, layout.w - 58, 10);
+                for (int i = 0; i < 3; i++) { int b = i; Button(bands, "Band" + i, (i == healthBand ? "[" : "") + ((ZHealthBand)i).ToString().ToUpperInvariant() + (i == healthBand ? "]" : ""), new Rect(9 + i * (layout.w - 58) / 3, 28, (layout.w - 64) / 3, 26), "Edit this health colour. Hidden bands retain their values. Matches the Unit Editor hover bar thresholds.", () => { healthBand = b; rebuild = true; }); }
+                y += 60;
+            }
             if (page == 0 || page == 2)
             {
                 var setup = Row("TurnFirstSetup", y, 44);
@@ -165,9 +174,12 @@ namespace OpenZ
             IEnumerable<ZBehaviorDef> definitions = page == 0 ? Array.ConvertAll(essentials, ZBehaviorSchema.Def) : ZBehaviorSchema.All;
             foreach (var d in definitions)
             {
-                if (page != 0 && (d.Group != pages[page] || !Primary(d.Key) && !advanced[page])) continue;
+                if (page != 0 && (d.Group != pages[page] || page != 5 && !Primary(d.Key) && !advanced[page])) continue;
+                if (page == 5 && d.Key >= ZBehaviorKey.GreenShake && d.Key <= ZBehaviorKey.RedOilLife &&
+                    ((int)d.Key - (int)ZBehaviorKey.GreenShake) / 6 != healthBand) continue;
                 var def = d; var row = Row(d.Key.ToString(), y, 100); float rw = layout.w - 40; string tip = Explain(d.Key);
                 var label = Text(row, d.Label, 9, 15, rw - 110, 12); Tip(label.rectTransform, tip);
+                if (OzForkOptions.IsFork(d.Label)) label.color = OzForkOptions.Accent;
                 var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the family/master again.", () => { P.Reset(Type, def.Key); Apply(family); });
                 refresh.Add(() => reset.Label.Set(P.Has(Type, def.Key) ? "OVERRIDE" : "INHERITED"));
                 var refs = Text(row, "OpenZ: " + Reference(d, false) + "  |  Zod: " + Reference(d, true), 9, 39, rw - 18, 10, OzUi.Muted); Tip(refs.rectTransform, tip);
@@ -183,7 +195,7 @@ namespace OpenZ
                 }
                 y += 100;
             }
-            if (page != 0)
+            if (page != 0 && page != 5)
             {
                 var more = Row("Advanced", y, 38);
                 Button(more, "Advanced", advanced[page] ? "ADVANCED - HIDE" : "ADVANCED - SHOW FINE TUNING", new Rect(9, 4, layout.w - 58, 26), "Extra rules and visual fine tuning. Hidden values remain active; saved profiles are preserved.", () => { advanced[page] = !advanced[page]; rebuild = true; });

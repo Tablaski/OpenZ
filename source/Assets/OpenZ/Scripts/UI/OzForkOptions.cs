@@ -27,7 +27,13 @@ namespace OpenZ
                 }
             return true;
         }
-        public static bool IsFork(string label) => label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
+        static bool IsCrippling(string label)
+        {
+            if (label == "CRIPPLING") return true;
+            foreach (var def in Sim.ZBehaviorSchema.All) if (def.Group == "CRIPPLING" && def.Label == label) return true;
+            return false;
+        }
+        public static bool IsFork(string label) => IsCrippling(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label || label == ChatLabel;
         public static int Compare(string a, string b)
         {

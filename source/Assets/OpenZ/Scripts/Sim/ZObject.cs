@@ -167,6 +167,7 @@ namespace OpenZ.Sim
             double dt = time - lastProcessTime;
             lastProcessTime = time;
             BehaviorStepDx = BehaviorStepDy = 0;
+            if (!IsMoving || PathHeld) CripplingActualSpeed = 0;
             BehaviorMotionPhase = "Idle";
             UpdatedWaypoints = UpdatedVelocity = UpdatedAttackObjectHealth = UpdatedAttackObjectDriverHealth = false;
             EnteredTargetId = DeleteGrenadeBoxId = DestroyFortId = EnteredRepairId = -1;
@@ -394,6 +395,7 @@ namespace OpenZ.Sim
         public bool StopMove()
         {
             BehaviorActualSpeed = 0;
+            CripplingActualSpeed = 0;
             if (!IsMoving) return false;
             Dx = 0; Dy = 0; UpdatedVelocity = true;
             return true;
@@ -883,7 +885,9 @@ namespace OpenZ.Sim
         public int DamageHealth(int amount, int attackerId = -1)
         {
             if (Health <= 0) return Health;
+            int before = Health;
             SetHealth(Health - amount, attackerId);
+            CripplingHit(before - Health, attackerId);
             if (Kind == ZKind.Building) RecalcBuildTime();                                                 // every hit (:361-381)
             return Health;
         }

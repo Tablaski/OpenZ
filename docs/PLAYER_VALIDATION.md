@@ -1,5 +1,30 @@
 # Player validation record
 
+## Shortest hull turns and CRIPPLING (0.2.7, awaiting player validation)
+
+- The user's light-versus-light check of 0.2.6 confirms the quick pre-dodge
+  pivot is satisfactory and reveals the unnecessary rearward half-turn fixed
+  in this version. It does not validate the other outstanding 0.2.6 checks.
+- Tanks select the nearest front/rear axis in physical movement (including
+  brake-pivot-accelerate), direct view and the legacy follower. Physical reverse
+  speed/delay and the explicit reversing switch remain effective.
+- CRIPPLING provides green/yellow/red hover-bar bands, moving hull shake,
+  retained speed, extra acceleration time, rear smoke and fading rear oil trails.
+  Existing damaged-boost choice moved here with its saved ID unchanged.
+- Separate light/heavy actual-HP hit thresholds, speed caps and durations can
+  briefly stop real travel. Weaker follow-ups cannot weaken an active penalty.
+  Custom per-band movement and hit penalties are independent, OFF by default.
+- Completed: 1,164 core/real-map simulation checks, including all four quadrants,
+  reverse speed, colour boundaries, zero-speed recovery, impact tiers and expiry,
+  disabled/native compatibility, profile round trips and guest replication.
+- Completed: Unity runtime source compilation (existing warnings only).
+- Pending on this release player: light/light and other tank duels; diagonal
+  backward pivots, replans, braking forward-to-reverse, track direction; tab
+  layout/scrolling and tooltips; each health band, shake intensity, acceleration,
+  rear smoke and oil placement/fade (including pause/game speed and terrain);
+  light/heavy impact tuning, saved profile selection and two-PC replication.
+- Build and release packaging results will be recorded after completion.
+
 ## Brake-pivot-accelerate release (0.2.6, awaiting player validation)
 
 - Movement-only setup on FEEL/MOVEMENT for the selected family or type: brake

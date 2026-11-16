@@ -18,8 +18,23 @@
 - Pending manual checks: hull rotation and track appearance, pivots from rest and
   while moving, dodge/replan behavior on all tank types, high turn rates, game-speed
   controls, camera/overlay rendering, profile save/load and existing preferences.
-- The requested release build and archive publication are being prepared. A build
-  does not mark any gameplay, rendering or native integration checks as passed.
+- The requested Windows x64 release build succeeded with zero errors. Development
+  mode, script debugging and profiler connections were disabled. Game source:
+  `e711edfd0a3d705de9884fd8cbdfc7b5ada8005d`; build stamp:
+  `2026-11-15 23:08:25 UTC`. Its modified-tree flag records the pre-existing local
+  shader preload in ProjectSettings; SOURCE_CHANGES.patch accompanies the player.
+- Local player: `builds/OpenZ-VK-0.2.6-Windows-x64/openz-vk.exe`. Two ZIPs under
+  `builds/release-0.2.6/` cover all 185 runtime/distribution files. Every ZIP entry
+  was read back and its SHA-256 compared with the corresponding player file.
+  Sizes: part 1 = 983,600,453 bytes; part 2 = 1,755,734,473 bytes. Both must be
+  extracted into the same destination. Personal preferences/history are excluded;
+  build-only symbol directories are excluded. READ-ME-FIRST.txt includes setup.
+- Published: [OpenZ-VK v0.2.6](https://github.com/Tablaski/OpenZ/releases/tag/v0.2.6),
+  marked experimental early beta. Both uploaded ZIP sizes and SHA-256 digests were
+  verified against local archives. The release tag identifies the game source
+  commit above; the accompanying checksum file is also available on the release.
+- The game was not launched. Build and packaging success do not mark gameplay,
+  rendering, audio, microphone or native integration checks as passed.
 
 ## Testing movement overlays (0.2.5, awaiting player validation)
 

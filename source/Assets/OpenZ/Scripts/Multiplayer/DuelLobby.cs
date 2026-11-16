@@ -101,7 +101,7 @@ namespace OpenZ.Multiplayer
 
         public void Validate()
         {
-            if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17")
+            if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17" && Map != "L19")
                 throw new ArgumentException("Unknown duel map.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
                 throw new ArgumentException("Invalid territory rule.");

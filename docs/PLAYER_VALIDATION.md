@@ -1,5 +1,28 @@
 # Player validation record
 
+## Mayhem terrain, force HUD and 1v1 selection (0.2.11, source only)
+
+- Raised all 307 original Mayhem rock views to 4.1 m, comparable to its City
+  cliffs, preserving horizontal footprints, source objects and blocked tiles.
+- Assigned generated repeating concrete and asphalt textures to ground and roads.
+- Fixed the widened blue percentage label's right edge so it stays out of the badge.
+- Added L19 to host-owned duel selection, map validation, loading and peer data
+  compatibility, with a font-independent poop pictogram on its lobby button.
+- Completed: Unity runtime source compilation (existing warnings only), full
+  Unity editor compilation, scene repair/save, original map/object/start checks,
+  and 1,563 core/real-map checks including L19 simulation and loopback transport.
+- Ignored scene, materials, textures, map data and meshes are backed up separately
+  by tools/Backup-MayhemResources.ps1 under .local/converted-map-backups/0.2.11/.
+  Restore the archive at the repository root alongside the existing local assets.
+- Pending manual validation on a newly requested release player: rock appearance,
+  destruction and passage through opened gaps; ground/road textures and contrast;
+  blue count/percentage with both force modes and large values; all five lobby
+  buttons, poop icon and client read-only selection; L19 preview, loading, both
+  armies, orders, combat, restart and return to lobby between two PCs.
+- No game player was built or launched. A fresh release build would be useful
+  for the terrain, HUD and new multiplayer map checks when requested.
+
+
 ## Multiplayer replication optimization (0.2.9, source only)
 
 - Reuse capture streams, dictionaries and immutable unchanged records; compile

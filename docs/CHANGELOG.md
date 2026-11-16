@@ -1,5 +1,16 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.11 (source update, 16 Nov 2026)
+
+- Raise converted Mayhem rock obstacles to 4.1 m, comparable to the map cliffs,
+  preserving their horizontal footprints and original gameplay objects.
+- Add repeating concrete and asphalt textures to its ground and roads.
+- Keep the blue force percentage inside the gauge, clear of the team badge.
+- Enable Level 19 Mayhem in the host-controlled 1v1 map selector, with a visible
+  poop pictogram independent of font emoji support; include its data in peer compatibility.
+- Source and local scene resources only; player rendering and remote-match
+  validation remain pending a requested release build.
+
 ## OpenZ-VK 0.2.9 (source update, 16 Nov 2026)
 
 - Reduce host replication allocations with reusable capture buffers, immutable

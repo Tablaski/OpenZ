@@ -55,7 +55,8 @@ namespace OpenZ
             redOf.Set(valueMode ? delta : "/ 70 · " + delta);
             blueOf.Set(valueMode ? otherDelta : otherDelta + " · / 70");
             redOf.rectTransform.sizeDelta = new Vector2(120, redOf.rectTransform.sizeDelta.y);
-            blueOf.rectTransform.sizeDelta = new Vector2(120, blueOf.rectTransform.sizeDelta.y);
+            // Keep the right edge fixed when widening this right-aligned label.
+            blueOf.At(OzLayout.TopCountRX, OzLayout.TopOf70Y, OzH.R, false, 120);
             string description = valueMode ? "Normal construction time of offensive mobile units. Robot squads count once; cranes, unarmed units, cannons and buildings do not count." : "Units on the field; robots count individually. At 70 the factories pause.";
             string reference = "The signed gap is relative to the smaller army; the cursor marks each team's share of the combined total.";
             forceRedHot.Tooltip = TeamColors.Name(Team.Red) + " FORCE|" + description + "\n" + reference + "\nUnits: " + redUnits + "/70." + BoostTip(forceRedBoost) + "|";

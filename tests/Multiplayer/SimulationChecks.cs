@@ -11,7 +11,7 @@ static class SimulationChecks
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Assets/OpenZ/Resources/OpenZ"));
         string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
-        foreach (string map in new[] { "L02", "L07", "L16", "L17" })
+        foreach (string map in new[] { "L02", "L07", "L16", "L17", "L19" })
         {
             string json = File.ReadAllText(Path.Combine(root, "Maps", map + "_grid.json"));
             var military = ZWorld.Create(settings, json);

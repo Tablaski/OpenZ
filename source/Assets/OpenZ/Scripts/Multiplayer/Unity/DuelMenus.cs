@@ -240,10 +240,19 @@ namespace OpenZ.Multiplayer
             if (R.OnlineMode) Label(root, R.Connected ? "CONNECTED" : R.ConnectionStatus, 80, 135, 1450, 20, OzUi.Ink);
             var left = Panel("MAP", 80, 190, 700, 595);
             int mx = 24;
-            foreach (var map in OzLevelDef.All)
+            foreach (var map in OzLevelDef.All.Concat(new[] { OzConvertedMapsScreen.Mayhem }))
             {
                 string chosen = map.Id;
-                Button(left, map.Id + " · " + map.Name, mx, 65, 157, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable); mx += 165;
+                var button = Button(left, map.Id + " · " + map.Name, mx, 65, 124, () => { rules.Map = chosen; pickerGroup = -1; R.ChangeRules(rules); }, chosen == rules.Map, editable);
+                if (chosen == "L19")
+                {
+                    var icon = Hud.Img(button, "PoopEmoji", Color.white);
+                    icon.sprite = OzConvertedMapsScreen.PoopSprite(); icon.raycastTarget = false;
+                    icon.rectTransform.TL(4, 9, 26, 26);
+                    foreach (var text in button.GetComponentsInChildren<TMPro.TMP_Text>()) text.rectTransform.Fill(30, 0, 3, 0);
+                    foreach (var text in button.GetComponentsInChildren<Text>()) text.rectTransform.Fill(30, 0, 3, 0);
+                }
+                mx += 131;
             }
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
             if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }

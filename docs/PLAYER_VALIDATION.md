@@ -43,6 +43,14 @@
   Part 1: 1,741,064,194 bytes; part 2: 982,654,543 bytes. Extract both into the
   same destination. No personal preferences, credentials, history or symbols
   are included. No player gameplay or rendering was launched for validation.
+- Published and independently re-read through the GitHub API:
+  [OpenZ-VK v0.2.7](https://github.com/Tablaski/OpenZ/releases/tag/v0.2.7).
+  The existing release was replaced in place, including its notes and version;
+  both prior ZIPs and the prior checksum file were removed only after all new
+  assets were received and their sizes/SHA-256 digests verified. The public
+  README/changelog and completed source are on both main and dev. The v0.2.7
+  tag identifies the stamped game source commit above; later commits only
+  record build/publication results. Gameplay and visual checks remain pending.
 
 ## Shortest hull turns and CRIPPLING (0.2.7, awaiting player validation)
 
@@ -111,7 +119,8 @@
   Sizes: part 1 = 983,600,453 bytes; part 2 = 1,755,734,473 bytes. Both must be
   extracted into the same destination. Personal preferences/history are excluded;
   build-only symbol directories are excluded. READ-ME-FIRST.txt includes setup.
-- Published: [OpenZ-VK v0.2.6](https://github.com/Tablaski/OpenZ/releases/tag/v0.2.6),
+- Originally published as v0.2.6 (downloads subsequently replaced in place by
+  [OpenZ-VK v0.2.7](https://github.com/Tablaski/OpenZ/releases/tag/v0.2.7)),
   marked experimental early beta. Both uploaded ZIP sizes and SHA-256 digests were
   verified against local archives. The release tag identifies the game source
   commit above; the accompanying checksum file is also available on the release.

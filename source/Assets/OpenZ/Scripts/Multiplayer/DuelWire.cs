@@ -15,6 +15,8 @@ namespace OpenZ.Multiplayer
     {
         public readonly DuelMessage Kind;
         public readonly byte[] Payload;
+        // Local transport timestamp. It is set before publishing a received delta to the game thread.
+        internal long ReceivedAtTicks;
         public DuelPacket(DuelMessage kind, byte[] payload) { Kind = kind; Payload = payload; }
     }
 

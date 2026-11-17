@@ -106,7 +106,8 @@ namespace OpenZ.Multiplayer
                     if (generalImages[i] && generals.P[i] != null && generals.P[i].modelReady)
                     { generalImages[i].texture = generals.P[i].rt; generalImages[i].material = generals.Figure; generalImages[i].enabled = generals.P[i].rt; }
             }
-            ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
+            ping?.Set("PING " + R.PingMs.ToString("0") + " MS" +
+                (page == Page.Entry && R.OnlinePeer?.UsesRelay == true ? " · TURN" : ""));
             voiceStatus?.Set(R.Voice.Status);
             if (inputMeter) { inputMeter.rectTransform.anchorMax = new Vector2(R.Voice.InputLevel, 1); inputMeter.color = R.Voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go; }
             meterValue?.Set("INPUT LEVEL: " + Mathf.RoundToInt(R.Voice.InputLevel * 100) + "%");

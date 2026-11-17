@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -115,11 +116,23 @@ namespace OpenZ.Multiplayer
         double startAt = -1, lastReceive, lastPing, pendingPing = -1, lastSnapshot;
         long commandSequence;
         DuelReplica.CaptureBuffer capture = new DuelReplica.CaptureBuffer();
-        double perfAt;
-        long perfSendTicks, perfReceiveTicks, perfSendBytes, perfReceiveBytes;
-        int perfSent, perfReceived, perfFrames;
-        int perfGcStart;
-        float perfWorstFrame;
+        struct PerformanceWindow
+        {
+            public long SendTicks, ReceiveTicks, SendBytes, ReceiveBytes;
+            public long CaptureTicks, EncodeTicks, EnqueueTicks, DecodeTicks, ApplyTicks;
+            public long SendMaxTicks, ReceiveMaxTicks, DrainMaxTicks, ViewSyncMaxTicks;
+            public long SendGapMaxTicks, ArrivalGapMaxTicks, ReceiveGapMaxTicks, QueueWaitMaxTicks;
+            public int Sent, Received, Frames, GcStart, DrainLimitFrames, DrainMaxPackets, SlowFrames;
+            public int SendQueuePeak, ReceiveQueuePeak, SendPayloadPeak, ReceivePayloadPeak, PingSamples;
+            public int SnapshotBackpressureFrames;
+            public float WorstFrame, PingMin, PingMax, SimulationMaxMs;
+            public double MainMaxMs, RenderMaxMs, GpuMaxMs, PresentWaitMaxMs;
+            public int FrameTimingSamples;
+        }
+        PerformanceWindow perf;
+        double perfMatchStart, perfAt;
+        long perfLastSend, perfLastArrival, perfLastReceive;
+        static readonly double PerfTickMs = 1000.0 / Stopwatch.Frequency;
         int QueuedSendBytes => peer is DuelRtcPeer rtc ? rtc.PendingSendBytes : peer is DuelTcpPeer tcp ? tcp.PendingSendBytes : 0;
         int QueuedReceiveBytes => peer is DuelRtcPeer rtc ? rtc.PendingReceiveBytes : peer is DuelTcpPeer tcp ? tcp.PendingReceiveBytes : 0;
         readonly DuelDeltaSender sender = new DuelDeltaSender();
@@ -308,14 +321,23 @@ namespace OpenZ.Multiplayer
                 if (IsHost && restartPending && Now > restartDeadline) { if (restartPromptOpen) OzConfirm.Dismiss(); else FinishRestartRequest(false); }
                 if (peer.Closed) { Fail(peer.Failure ?? "Connection closed"); return; }
                 int count = 0;
-                long receiveStart = System.Diagnostics.Stopwatch.GetTimestamp();
-                while (peer != null && count++ < 256 && peer.TryReceive(out var packet))
+                if (Playing) perf.ReceiveQueuePeak = Math.Max(perf.ReceiveQueuePeak, QueuedReceiveBytes);
+                long receiveStart = Stopwatch.GetTimestamp();
+                bool budgetReached = false;
+                while (peer != null && count < 256 && peer.TryReceive(out var packet))
                 {
+                    count++;
                     lastReceive = Now; Handle(packet);
                     // Preserve every ordered delta; resume queued work next frame instead of monopolizing rendering.
-                    if ((System.Diagnostics.Stopwatch.GetTimestamp() - receiveStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency >= 3) break;
+                    if ((Stopwatch.GetTimestamp() - receiveStart) * PerfTickMs >= 3) { budgetReached = true; break; }
                 }
                 if (peer == null) return;
+                if (Playing && count > 0)
+                {
+                    perf.DrainMaxTicks = Math.Max(perf.DrainMaxTicks, Stopwatch.GetTimestamp() - receiveStart);
+                    perf.DrainMaxPackets = Math.Max(perf.DrainMaxPackets, count);
+                    if (budgetReached || count == 256) perf.DrainLimitFrames++;
+                }
                 double responseTimeout = session && !Playing ? 180 : 15;
                 if (Now - lastReceive > responseTimeout) { Fail("Connection lost. Your opponent is no longer responding."); return; }
                 if (Now - lastPing > 1)
@@ -327,10 +349,31 @@ namespace OpenZ.Multiplayer
                 { loadStarted = true; session = true; LoadScene(); }
                 if (session && !Playing && startAt >= 0 && Now >= startAt)
                 {
-                    Playing = true; if (IsHost) lobby.Advance(Now); Menus.CloseOverlay();
+                    Playing = true; BeginPerformance(); if (IsHost) lobby.Advance(Now); Menus.CloseOverlay();
                 }
-                if (Game && session && !IsHost) SyncClientViews();
-                if (Playing) LogPerformance();
+                if (Game && session && !IsHost)
+                {
+                    long viewsStarted = Stopwatch.GetTimestamp();
+                    SyncClientViews();
+                    if (Playing) perf.ViewSyncMaxTicks = Math.Max(perf.ViewSyncMaxTicks, Stopwatch.GetTimestamp() - viewsStarted);
+                }
+                if (Playing)
+                {
+                    float frameMs = Time.unscaledDeltaTime * 1000;
+                    perf.Frames++;
+                    perf.WorstFrame = Math.Max(perf.WorstFrame, frameMs);
+                    if (frameMs >= 50) perf.SlowFrames++;
+                    OzFrameTimes.Sample();
+                    if (OzFrameTimes.Have)
+                    {
+                        perf.FrameTimingSamples++;
+                        perf.MainMaxMs = Math.Max(perf.MainMaxMs, OzFrameTimes.Main);
+                        perf.RenderMaxMs = Math.Max(perf.RenderMaxMs, OzFrameTimes.Render);
+                        perf.GpuMaxMs = Math.Max(perf.GpuMaxMs, OzFrameTimes.Gpu);
+                        perf.PresentWaitMaxMs = Math.Max(perf.PresentWaitMaxMs, OzFrameTimes.PresentWait);
+                    }
+                    if (Now - perfAt >= 10) LogPerformance("periodic");
+                }
             }
             catch (Exception error) { Debug.LogException(error); Fail(error.Message); }
         }
@@ -343,7 +386,15 @@ namespace OpenZ.Multiplayer
                     peer.Send(new DuelPacket(DuelMessage.Pong, packet.Payload)); break;
                 case DuelMessage.Pong:
                     if (packet.Payload.Length == 8 && BitConverter.ToDouble(packet.Payload, 0) == pendingPing)
-                    { PingMs = (float)((Now - pendingPing) * 1000); pendingPing = -1; } break;
+                    {
+                        PingMs = (float)((Now - pendingPing) * 1000); pendingPing = -1;
+                        if (Playing)
+                        {
+                            perf.PingMin = perf.PingSamples++ == 0 ? PingMs : Math.Min(perf.PingMin, PingMs);
+                            perf.PingMax = Math.Max(perf.PingMax, PingMs);
+                        }
+                    }
+                    break;
                 case DuelMessage.Chat:
                     if (packet.Payload.Length > 1024) throw new InvalidDataException("Chat too large.");
                     string message = Encoding.UTF8.GetString(packet.Payload);
@@ -482,10 +533,16 @@ namespace OpenZ.Multiplayer
             if (!I.Playing || !I.Connected) return true;
             if (I.IsHost)
             {
-                game.DuelAdvance(Time.unscaledDeltaTime);
+                game.DuelAdvance(Math.Min(Time.unscaledDeltaTime, Now - I.startAt));
+                I.perf.SimulationMaxMs = Math.Max(I.perf.SimulationMaxMs, ZGame.RuleMsLastFrame);
                 if (I.pendingEvents.Count > 4096) { I.Fail("Too many pending network events."); return true; }
-                if ((Now - I.lastSnapshot >= 1d / 15 && I.QueuedSendBytes < 256 * 1024) || (game.World.GameOver && (!I.sentGameOver || I.pendingEvents.Count > 0)))
+                int queuedBytes = I.QueuedSendBytes;
+                I.perf.SendQueuePeak = Math.Max(I.perf.SendQueuePeak, queuedBytes);
+                bool snapshotDue = Now - I.lastSnapshot >= 1d / 15;
+                bool forceSnapshot = game.World.GameOver && (!I.sentGameOver || I.pendingEvents.Count > 0);
+                if ((snapshotDue && queuedBytes < 256 * 1024) || forceSnapshot)
                 { I.lastSnapshot = Now; I.SendState(DuelMessage.Delta, false); if (game.World.GameOver) I.sentGameOver = true; }
+                else if (snapshotDue) I.perf.SnapshotBackpressureFrames++;
             }
             return true;
         }
@@ -495,52 +552,110 @@ namespace OpenZ.Multiplayer
         }
         void SendState(DuelMessage kind, bool full)
         {
-            long started = System.Diagnostics.Stopwatch.GetTimestamp();
-            var delta = DuelDeltaCodec.Encode(sender.CaptureImmutable(capture.Capture(Game.World), full));
+            long started = Stopwatch.GetTimestamp();
+            var snapshot = capture.Capture(Game.World);
+            long captured = Stopwatch.GetTimestamp();
+            var delta = DuelDeltaCodec.Encode(sender.CaptureImmutable(snapshot, full));
+            int payloadBytes;
+            long enqueuing;
             using (var stream = new MemoryStream()) using (var writer = new BinaryWriter(stream))
             {
                 writer.Write(delta.Length); writer.Write(delta);
                 writer.Write(JsonUtility.ToJson(new DuelEventData { Events = pendingEvents.ToArray() }));
-                perfSendBytes += stream.Length;
-                if (!peer.Send(new DuelPacket(kind, stream.ToArray()))) throw new IOException("The connection cannot keep up with updates.");
+                var payload = stream.ToArray();
+                payloadBytes = payload.Length;
+                enqueuing = Stopwatch.GetTimestamp();
+                if (!peer.Send(new DuelPacket(kind, payload))) throw new IOException("The connection cannot keep up with updates.");
             }
-            pendingEvents.Clear(); perfSent++; perfSendTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+            pendingEvents.Clear();
+            if (kind != DuelMessage.Delta) return;
+            long elapsed = Stopwatch.GetTimestamp() - started;
+            perf.Sent++;
+            perf.SendBytes += payloadBytes;
+            perf.SendPayloadPeak = Math.Max(perf.SendPayloadPeak, payloadBytes);
+            perf.SendTicks += elapsed;
+            perf.SendMaxTicks = Math.Max(perf.SendMaxTicks, elapsed);
+            perf.CaptureTicks += captured - started;
+            perf.EncodeTicks += enqueuing - captured;
+            perf.EnqueueTicks += elapsed - (enqueuing - started);
+            RecordGap(enqueuing, ref perfLastSend, ref perf.SendGapMaxTicks);
         }
         void ReceiveState(DuelPacket packet)
         {
-            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            long started = Stopwatch.GetTimestamp();
+            long applyTicks;
             using (var stream = new MemoryStream(packet.Payload, false)) using (var reader = new BinaryReader(stream))
             {
                 int length = reader.ReadInt32();
                 if (length < 0 || length > stream.Length - stream.Position) throw new InvalidDataException("Invalid state frame.");
                 var delta = DuelDeltaCodec.Decode(reader.ReadBytes(length));
+                long applyingBaseline = Stopwatch.GetTimestamp();
                 if (!receiver.ApplyOwned(delta)) throw new InvalidDataException("Missing state baseline.");
+                long baselineApplied = Stopwatch.GetTimestamp();
                 var events = JsonUtility.FromJson<DuelEventData>(reader.ReadString());
                 if (stream.Position != stream.Length || events?.Events == null || events.Events.Length > 4096) throw new InvalidDataException("Invalid event frame.");
+                long applyingWorld = Stopwatch.GetTimestamp();
                 if (Game)
                 {
                     if (packet.Kind == DuelMessage.Delta) DuelReplica.ApplyDelta(Game.World, delta);
                     Game.World.Events.AddRange(events.Events);
                 }
+                applyTicks = baselineApplied - applyingBaseline + Stopwatch.GetTimestamp() - applyingWorld;
             }
-            perfReceived++; perfReceiveBytes += packet.Payload.Length;
-            perfReceiveTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+            if (!Playing || packet.Kind != DuelMessage.Delta) return;
+            long finished = Stopwatch.GetTimestamp();
+            long elapsed = finished - started;
+            perf.Received++;
+            perf.ReceiveBytes += packet.Payload.Length;
+            perf.ReceivePayloadPeak = Math.Max(perf.ReceivePayloadPeak, packet.Payload.Length);
+            perf.ReceiveTicks += elapsed;
+            perf.ReceiveMaxTicks = Math.Max(perf.ReceiveMaxTicks, elapsed);
+            perf.DecodeTicks += elapsed - applyTicks;
+            perf.ApplyTicks += applyTicks;
+            RecordGap(started, ref perfLastReceive, ref perf.ReceiveGapMaxTicks);
+            if (packet.ReceivedAtTicks == 0) return;
+            RecordGap(packet.ReceivedAtTicks, ref perfLastArrival, ref perf.ArrivalGapMaxTicks);
+            perf.QueueWaitMaxTicks = Math.Max(perf.QueueWaitMaxTicks, started - packet.ReceivedAtTicks);
         }
-        void LogPerformance()
+        static void RecordGap(long current, ref long last, ref long maximum)
         {
-            perfFrames++; perfWorstFrame = Math.Max(perfWorstFrame, Time.unscaledDeltaTime * 1000);
-            if (perfAt == 0) { perfAt = Now; perfGcStart = GC.CollectionCount(0); return; }
-            double elapsed = Now - perfAt; if (elapsed < 10) return;
-            double ms = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            if (last != 0) maximum = Math.Max(maximum, current - last);
+            last = current;
+        }
+        void BeginPerformance()
+        {
+            perfMatchStart = perfAt = Now;
+            perfLastSend = perfLastArrival = perfLastReceive = 0;
+            perf = new PerformanceWindow { GcStart = GC.CollectionCount(0) };
+        }
+        void LogPerformance(string reason)
+        {
+            double now = Now;
+            double elapsed = now - perfAt;
+            if (perf.Frames == 0 || elapsed <= 0) return;
+            double sendMs = PerfTickMs / Math.Max(1, perf.Sent);
+            double receiveMs = PerfTickMs / Math.Max(1, perf.Received);
             Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                "[OpenZ Multiplayer Perf] version={0} role={1} transport={2} fps={3:F1} worstFrameMs={4:F1} sendMsPerUpdate={5:F2} receiveMsPerUpdate={6:F2} sentHz={7:F1} receivedHz={8:F1} sendKBps={9:F1} receiveKBps={10:F1} queuedSendBytes={11} queuedReceiveBytes={12} pingMs={13:F0} gcCollections={14} objects={15} build={16}",
+                "[OpenZ Multiplayer Perf] version={0} role={1} transport={2} fps={3:F1} worstFrameMs={4:F1} sendMsPerUpdate={5:F2} receiveMsPerUpdate={6:F2} sentHz={7:F1} receivedHz={8:F1} sendKBps={9:F1} receiveKBps={10:F1} queuedSendBytes={11} queuedReceiveBytes={12} pingMs={13:F0} gcCollections={14} objects={15}" +
+                " utc={17:O} map={18} matchS={19:F1} windowS={20:F1} reason={21} slowFrames50Ms={22} simulationMaxMs={23:F2} viewSyncMaxMs={24:F2}" +
+                " sent={25} received={26} sendPayloadMaxBytes={27} receivePayloadMaxBytes={28} sendQueuePeakBytes={29} receiveQueuePeakBytes={30} snapshotBackpressureFrames={31}" +
+                " sendGapMaxMs={32:F1} arrivalGapMaxMs={33:F1} receiveGapMaxMs={34:F1} receiveQueueWaitMaxMs={35:F1} pingSamples={36} pingMinMs={37:F0} pingMaxMs={38:F0}" +
+                " sendMaxMs={39:F2} receiveMaxMs={40:F2} captureMsPerUpdate={41:F2} encodeMsPerUpdate={42:F2} enqueueMsPerUpdate={43:F2} decodeMsPerUpdate={44:F2} applyMsPerUpdate={45:F2}" +
+                " drainMaxMs={46:F2} drainMaxPackets={47} drainLimitFrames={48}" +
+                " frameTimingSamples={49} mainMaxMs={50:F1} renderMaxMs={51:F1} gpuMaxMs={52:F1} presentWaitMaxMs={53:F1} build={16}",
                 OzForkVersion.Number, IsHost ? "host" : "guest", OnlineMode ? (OnlinePeer.UsesRelay ? "TURN" : "direct") : "TCP",
-                perfFrames / elapsed, perfWorstFrame, perfSendTicks * ms / Math.Max(1, perfSent), perfReceiveTicks * ms / Math.Max(1, perfReceived),
-                perfSent / elapsed, perfReceived / elapsed, perfSendBytes / 1024.0 / elapsed, perfReceiveBytes / 1024.0 / elapsed,
-                QueuedSendBytes, QueuedReceiveBytes, PingMs, GC.CollectionCount(0) - perfGcStart, Game ? Game.World.Objects.Count : 0, OzForkVersion.Label.Replace('\n', '|')));
-            perfAt = Now; perfFrames = perfSent = perfReceived = 0; perfWorstFrame = 0;
-            perfGcStart = GC.CollectionCount(0);
-            perfSendTicks = perfReceiveTicks = perfSendBytes = perfReceiveBytes = 0;
+                perf.Frames / elapsed, perf.WorstFrame, perf.SendTicks * sendMs, perf.ReceiveTicks * receiveMs,
+                perf.Sent / elapsed, perf.Received / elapsed, perf.SendBytes / 1024.0 / elapsed, perf.ReceiveBytes / 1024.0 / elapsed,
+                QueuedSendBytes, QueuedReceiveBytes, PingMs, GC.CollectionCount(0) - perf.GcStart, Game ? Game.World.Objects.Count : 0, LocalRelease,
+                DateTime.UtcNow, View?.Map ?? "unknown", now - perfMatchStart, elapsed, reason, perf.SlowFrames, perf.SimulationMaxMs, perf.ViewSyncMaxTicks * PerfTickMs,
+                perf.Sent, perf.Received, perf.SendPayloadPeak, perf.ReceivePayloadPeak, perf.SendQueuePeak, perf.ReceiveQueuePeak, perf.SnapshotBackpressureFrames,
+                perf.SendGapMaxTicks * PerfTickMs, perf.ArrivalGapMaxTicks * PerfTickMs, perf.ReceiveGapMaxTicks * PerfTickMs, perf.QueueWaitMaxTicks * PerfTickMs,
+                perf.PingSamples, perf.PingMin, perf.PingMax, perf.SendMaxTicks * PerfTickMs, perf.ReceiveMaxTicks * PerfTickMs,
+                perf.CaptureTicks * sendMs, perf.EncodeTicks * sendMs, perf.EnqueueTicks * sendMs, perf.DecodeTicks * receiveMs, perf.ApplyTicks * receiveMs,
+                perf.DrainMaxTicks * PerfTickMs, perf.DrainMaxPackets, perf.DrainLimitFrames,
+                perf.FrameTimingSamples, perf.MainMaxMs, perf.RenderMaxMs, perf.GpuMaxMs, perf.PresentWaitMaxMs));
+            perfAt = now;
+            perf = new PerformanceWindow { GcStart = GC.CollectionCount(0) };
         }
         void SyncClientViews()
         {
@@ -567,6 +682,7 @@ namespace OpenZ.Multiplayer
         }
         void ReturnToLobbyScene()
         {
+            if (Playing) LogPerformance("lobby");
             session = Playing = loadStarted = sentGameOver = restartPending = false; startAt = -1; Game = null;
             capture = new DuelReplica.CaptureBuffer();
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
@@ -607,11 +723,10 @@ namespace OpenZ.Multiplayer
         }
         void ResetMatchForRestart()
         {
+            if (Playing) LogPerformance("restart");
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             restartPending = false; Playing = false; loadStarted = true; sentGameOver = false; startAt = -1;
             capture = new DuelReplica.CaptureBuffer();
-            perfAt = 0; perfFrames = perfSent = perfReceived = 0; perfWorstFrame = 0;
-            perfSendTicks = perfReceiveTicks = perfSendBytes = perfReceiveBytes = 0;
             Game = null; commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); lastSnapshot = 0;
             Menus.CloseOverlay();
         }
@@ -634,11 +749,10 @@ namespace OpenZ.Multiplayer
             session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
             capture = new DuelReplica.CaptureBuffer();
-            perfAt = 0; perfFrames = perfSent = perfReceived = 0; perfWorstFrame = 0;
-            perfSendTicks = perfReceiveTicks = perfSendBytes = perfReceiveBytes = 0;
         }
         void Disconnect()
         {
+            if (Playing && peer != null) LogPerformance("disconnect");
             cancellation?.Cancel(); cancellation?.Dispose(); cancellation = null;
             listener?.Stop(); listener = null; peer?.Dispose(); peer = null;
             online?.Dispose(); online = null;

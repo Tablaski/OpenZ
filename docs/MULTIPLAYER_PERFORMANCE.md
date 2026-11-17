@@ -87,3 +87,41 @@ All Unity runtime scripts compile using the Unity compiler and references.
 See PLAYER_VALIDATION.md for checks that still require a requested release
 build and the user's manual testing on both remote PCs. Slow links, end-game,
 restart/return to lobby, voice, direct/TURN and actual FPS remain pending.
+
+## Two-sided match diagnostics (OpenZ-VK 0.2.23)
+
+Both PCs automatically log an `[OpenZ Multiplayer Perf]` summary every ten
+seconds, with a partial window on disconnect, restart or return to the lobby.
+Compare the same map and match time using `matchS` and `windowS`. The optional
+UTC comparison depends on the clocks of both PCs. Each line identifies the
+role, transport and build.
+
+- Compare host `sendGapMaxMs` with guest `arrivalGapMaxMs`. The host value is
+  measured at submission to the transport. The guest value is measured after
+  the complete delta reaches the transport worker. It includes network and
+  transport-worker scheduling effects.
+- Compare guest `receiveGapMaxMs` and `receiveQueueWaitMaxMs` to see whether
+  deltas were available before the game thread started processing them.
+  `drainLimitFrames` counts receive loops that reached the time or packet
+  budget. Queue peaks are sampled, and queue bytes exclude some in-flight
+  transport data. Payload counts and sizes cover game-state deltas.
+- Use mean capture, encoding, enqueue, decode and apply times together with
+  the maximum send and receive cost of a single delta. Encoding includes
+  delta construction and serialization of events. Application includes
+  updating the delta baseline, replica and event list.
+- Compare frame spikes with simulation, guest view synchronization, frame
+  timing and GC collection counts in the same window. The engine reports its
+  latest available main-thread, render, GPU and present-wait figures. Zero
+  frame-timing samples indicates unavailable timings. Window maxima may
+  refer to different frames.
+- Ping is an application round trip, sampled roughly once a second. It can
+  include queueing and scheduling at either endpoint. Turn relay measurements
+  alone do not isolate relay delay or packet loss.
+
+On each Windows PC, run this PowerShell command before opening the game again
+to collect the relevant summaries for sharing:
+
+```powershell
+Select-String -Path "$env:USERPROFILE\AppData\LocalLow\OpenZ\OpenZ\Player*.log" -SimpleMatch '[OpenZ Multiplayer Perf]' |
+    Select-Object -ExpandProperty Line
+```

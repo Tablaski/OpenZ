@@ -1,5 +1,19 @@
 # Player validation record
 
+## OpenZ-VK 0.2.23 duel diagnostics (awaiting compiled-game validation)
+
+- Pending on two PCs: play the same map over a direct connection and over
+  TURN. Collect both logs and align the host and guest windows. Confirm
+  that send and arrival gaps, game-thread queue wait, processing costs and
+  engine timings help explain any visible stalls.
+- Confirm that a short duel produces a partial window on disconnect, restart
+  and return to the lobby, and that the next match starts with fresh counters.
+- Check that both HUDs show TURN alongside the in-match ping on a relayed
+  connection, with enough width for a three-digit ping at supported UI sizes.
+  Check the direct connection and TCP HUDs as well.
+- Session summaries include build, timing and volume counters. They do not
+  contain chat, player names, peer addresses, invitation links or credentials.
+
 ## Current local review adjustments (validated)
 
 - Player changelogs now describe features, gameplay changes and visible fixes.

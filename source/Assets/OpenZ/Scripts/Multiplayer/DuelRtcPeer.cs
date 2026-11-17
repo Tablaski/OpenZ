@@ -142,6 +142,7 @@ namespace OpenZ.Multiplayer
                             else
                             {
                                 if (Interlocked.Add(ref receivedBytes, received.Payload.Length + 12) > Budget) throw new IOException("Incoming game queue exceeded.");
+                                if (received.Kind == DuelMessage.Delta) received.ReceivedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                                 incoming.Enqueue(received);
                             }
                         }

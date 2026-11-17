@@ -122,6 +122,7 @@ namespace OpenZ.Multiplayer
                     var packet = await connection.ReceiveAsync(stop.Token).ConfigureAwait(false);
                     int size = packet.Payload.Length + 12;
                     if (Interlocked.Add(ref receivedBytes, size) > QueueBudget) throw new IOException("Incoming queue exceeded.");
+                    if (packet.Kind == DuelMessage.Delta) packet.ReceivedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                     Interlocked.Add(ref readBytes, size); incoming.Enqueue(packet);
                 }
             }

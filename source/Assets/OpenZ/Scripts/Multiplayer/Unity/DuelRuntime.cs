@@ -517,6 +517,7 @@ namespace OpenZ.Multiplayer
         void ReturnToLobbyScene()
         {
             session = Playing = loadStarted = sentGameOver = restartPending = false; startAt = -1; Game = null;
+            capture = new DuelReplica.CaptureBuffer();
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear();
             Menus.ShowLobby(); SceneManager.LoadSceneAsync("MainMenu");

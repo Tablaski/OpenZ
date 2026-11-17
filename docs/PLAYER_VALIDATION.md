@@ -1,5 +1,33 @@
 # Player validation record
 
+## Multiplayer field capture cache (0.2.20, source only)
+
+- Compare values before serializing object fields and reuse immutable field
+  records until their contents change. Check nested lists/arrays, all waypoint
+  flags, source entries and referenced IDs; preserve exact floating-point bits.
+- Keep health, destruction, repair, production, ownership, obstacle fields and
+  live/graveyard descriptors current. World/auxiliary state and unit motion
+  records retain the existing serialization path, including simulation debris.
+  Local Unity debris physics/rendering is unchanged.
+- Expire histories for removed objects, new worlds and failed captures. Reset
+  the capture buffer when returning to the lobby, restarting or closing.
+- Completed: 5,410 core, real-map and loopback transport checks on the normal
+  path and the AOT reflection-check branch in the .NET harness. This does not
+  establish native IL2CPP integration. Packet/state equality includes all 44
+  converted duel choices, destruction, repair, projectile/debris state, surrender,
+  full refreshes, in-place mutations, match replacement and failure recovery.
+- Benchmark procedure, measurements and retained-memory tradeoff are documented
+  in MULTIPLAYER_CAPTURE_CACHE.md. No FPS claim follows from the .NET benchmark.
+- Completed: all Unity runtime scripts compile with the Unity compiler and
+  references, with existing warnings only. Paired benchmarks compare every
+  payload byte for byte and show 34-38% less host replication CPU time in motion.
+- Pending user checks on a newly requested release player: both PCs, orders,
+  combat, destruction and opened passages, building/bridge repairs, capture and
+  production, wrecks/fragments, restart, lobby return, voice, slow links and
+  direct/TURN/TCP; compare the existing performance log lines on both machines.
+- This changes the replication hot path. A new release build is recommended
+  when requested; no player build, launch or gameplay automation was performed.
+
 ## Dodge/boost budgets and directional circle (0.2.18, source only)
 
 - FEEL exposes both maximum durations and both maximum travel distances.

@@ -15,13 +15,14 @@ namespace OpenZ.Sim
     /// Game logic, RNGs, path caches and settings never travel from the client to the host.
     /// Call from the simulation/main thread, not the socket read thread.
     /// </summary>
-    public static class DuelReplica
+    public static partial class DuelReplica
     {
         const int Stride = 1024;
         sealed class Slot
         {
             public string Name; public Type Type; public FieldInfo Field; public PropertyInfo Property;
             public Action<BinaryWriter, ZObject> Writer;
+            public Func<ZObject, ValueState, bool> Track;
             public object Get(ZObject o) => Field != null ? Field.GetValue(o) : Property.GetValue(o);
             public void Set(ZObject o, object value)
             {
@@ -80,6 +81,7 @@ namespace OpenZ.Sim
             {
                 // Mono releases can compile direct typed accessors once at load time. AOT retains the wire-identical fallback.
                 slot.Writer = (writer, obj) => Write(writer, slot.Type, slot.Get(obj));
+                slot.Track = BuildTracker(slot);
 #if !ENABLE_IL2CPP
                 var valueType = slot.Type.IsEnum ? typeof(int) : slot.Type;
                 var method = typeof(BinaryWriter).GetMethod("Write", new[] { valueType });
@@ -100,9 +102,15 @@ namespace OpenZ.Sim
         public sealed class CaptureBuffer
         {
             Dictionary<int, byte[]> previous = new Dictionary<int, byte[]>(), next = new Dictionary<int, byte[]>();
+            Dictionary<int, ObjectState> objects = new Dictionary<int, ObjectState>(), nextObjects = new Dictionary<int, ObjectState>();
             readonly MemoryStream stream = new MemoryStream(512);
             readonly BinaryWriter writer;
-            public CaptureBuffer() { writer = new BinaryWriter(stream); }
+            readonly bool cacheFields;
+            ZWorld authority;
+            public int SerializedFieldsLastCapture { get; private set; }
+            public int ReusedFieldsLastCapture { get; private set; }
+            public int CachedObjectCount => objects.Count;
+            public CaptureBuffer(bool cacheFields = true) { this.cacheFields = cacheFields; writer = new BinaryWriter(stream); }
             void Begin() { stream.Position = 0; stream.SetLength(0); }
             void End(int key)
             {
@@ -118,7 +126,23 @@ namespace OpenZ.Sim
             /// <summary>Borrowed dictionary, valid until the next capture. Published arrays must remain immutable.</summary>
             public Dictionary<int, byte[]> Capture(ZWorld world)
             {
+                try { return CaptureCore(world); }
+                catch
+                {
+                    // A rejected capture must not publish partially updated value histories.
+                    authority = null; previous.Clear(); next.Clear(); objects.Clear(); nextObjects.Clear(); throw;
+                }
+            }
+            Dictionary<int, byte[]> CaptureCore(ZWorld world)
+            {
                 if (world.DuelIsReplica) throw new InvalidOperationException("A replica is not an authority.");
+                // A restarted match can reuse entity IDs. Never reuse another world's field history.
+                if (!ReferenceEquals(authority, world))
+                {
+                    previous.Clear(); next.Clear(); objects.Clear(); nextObjects.Clear(); authority = world;
+                }
+                SerializedFieldsLastCapture = ReusedFieldsLastCapture = 0;
+                nextObjects.Clear();
                 next.Clear(); Begin();
                 writer.Write(world.Time); writer.Write(world.GameOver); writer.Write((int)world.Winner); writer.Write(world.TickIndex);
                 writer.Write(world.Zones.Count); foreach (var zone in world.Zones) writer.Write((int)zone.Owner);
@@ -126,18 +150,42 @@ namespace OpenZ.Sim
                 foreach (var o in world.DuelPresentationObjects())
                 {
                     int key = checked(o.Id * Stride);
-                    Begin(); writer.Write(o.Type); writer.Write((int)o.Kind); writer.Write(world.Get(o.Id) != null); End(key);
-                    foreach (int i in o.Kind == ZKind.MapItem ? MapSlots : AllSlots)
+                    var indices = o.Kind == ZKind.MapItem ? MapSlots : AllSlots;
+                    ObjectState state = null;
+                    if (cacheFields)
                     {
+                        if (!objects.TryGetValue(o.Id, out state) || !ReferenceEquals(state.Object, o) || state.Kind != o.Kind)
+                            state = new ObjectState(o, indices.Length);
+                        nextObjects.Add(o.Id, state);
+                    }
+                    bool live = world.Get(o.Id) != null;
+                    if (state != null && state.Described && state.Type == o.Type && state.Live == live)
+                        next.Add(key, previous[key]);
+                    else
+                    {
+                        Begin(); writer.Write(o.Type); writer.Write((int)o.Kind); writer.Write(live); End(key);
+                        if (state != null) { state.Described = true; state.Type = o.Type; state.Live = live; }
+                    }
+                    for (int j = 0; j < indices.Length; j++)
+                    {
+                        int i = indices[j];
                         var slot = Slots[i];
+                        if (state != null && !slot.Track(o, state.Values[j]))
+                        {
+                            next.Add(key + i + 1, previous[key + i + 1]); ReusedFieldsLastCapture++; continue;
+                        }
                         Begin(); slot.Writer(writer, o); End(key + i + 1);
+                        SerializedFieldsLastCapture++;
                     }
                     if (o.IsUnit) { Begin(); o.DuelWriteMotion(writer); End(key + Stride - 1); }
                 }
+                var oldObjects = objects; objects = nextObjects; nextObjects = oldObjects;
+                // Release histories for objects no longer live or retained in the graveyard.
+                nextObjects.Clear();
                 var swap = previous; previous = next; next = swap; return previous;
             }
         }
-        public static Dictionary<int, byte[]> Capture(ZWorld world) => new CaptureBuffer().Capture(world);
+        public static Dictionary<int, byte[]> Capture(ZWorld world) => new CaptureBuffer(false).Capture(world);
 
         public static void ApplyDelta(ZWorld world, OpenZ.Multiplayer.DuelDelta delta)
         {

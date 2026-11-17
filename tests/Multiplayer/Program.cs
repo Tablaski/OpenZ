@@ -190,6 +190,7 @@ static class Program
         BalanceChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
         ReplicationChecks.Run(Check);
+        CaptureCacheChecks.Run(Check);
         BehaviorChecks.Run(Check, Reject);
         LobbyRulesChecks.Run(Check, Reject);
         PlaygroundChecks.Run(Check, Reject);

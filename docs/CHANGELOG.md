@@ -1,5 +1,19 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.20 (source update, 17 Nov 2026)
+
+- Cache unchanged serialized object fields before preparing multiplayer updates.
+  Check current values and collection contents without relying on mutation flags.
+- Preserve exact packet contents, destruction/repair, ownership, production,
+  obstacle changes and retained dead objects. Keep simulation, projectile/debris
+  updates, snapshot frequency and saved preferences unchanged.
+- Clear field history when objects expire, a match changes or capture fails;
+  release the capture buffer on return to the lobby.
+- Add cached/uncached packet equivalence checks and repeatable paired benchmarks.
+  See MULTIPLAYER_CAPTURE_CACHE.md for measured costs and pending player checks.
+- Source only; a fresh release player is recommended for manual two-PC validation
+  when requested. No player was built or launched.
+
 ## OpenZ-VK 0.2.18 (source update, 17 Nov 2026)
 
 - Put maximum dodge/boost time and travel distance directly in FEEL. Zero keeps

@@ -4,19 +4,19 @@ Download **OpenZ-VK-Installer.exe** from the [official release](https://github.c
 
 ## Play a published version
 
-Choose a published player, read its changelog and click **INSTALL / UPDATE**. **Unity is not required.** The installer checks for updates when opened and every 30 minutes while open; installation starts only when requested. Unchanged resource blocks are reused and downloads/files are verified with SHA-256. The existing player is replaced only after the complete replacement is verified.
+Choose a published player, click **Read what's new**, then **Install game** or **Update / check files**. **Unity is not required.** The installer checks for updates when opened and every 30 minutes while open; installation starts only when requested. Unchanged resource blocks are reused and downloads/files are verified with SHA-256. The existing player is replaced only after the complete replacement is verified.
 
-Use **REUSE FILES** to seed the installation from an existing extracted build. **COMPLETE ZIPS** opens the GitHub releases for manual installation: extract both player ZIPs from the same version into one destination. GitHub's automatic source ZIP is not a playable download.
+Use **Installation options** to choose the destination and optionally reuse files from an existing extracted build. **Manual ZIP download** opens the GitHub releases for manual installation: extract both player ZIPs from the same version into one destination. GitHub's automatic source ZIP is not a playable download.
 
 Click **PLAY** or **UNIT EDITOR**. The editor's direct launcher is also in `Unit Editor/Open Unit Editor.bat` inside every new player.
 
 ## Retrieve any main/dev source revision and compile it
 
-1. Open **SOURCES & UNITY**. Choose stable **main** or development **dev**. Browse commits, use **OLDER COMMITS**, or paste a commit ID. This includes source revisions without a published player.
-2. Choose an empty **SOURCE WORKSPACE** initially, then **GET SOURCES**. Installed Git is detected and used for clone/fetch and a detached checkout of the selected revision. If Git is absent, the installer offers its optional installation and can use GitHub commit snapshots instead. Local source edits are protected rather than silently overwritten.
+1. Choose **Build from sources · Unity**. The **Tools** page detects Git and Unity; setup buttons are disabled when available. Git is optional. Continue to **Choose version**, then select stable **main** or development **dev**. Browse commits with **Older versions**, or paste a commit ID. Published players are not required for this workflow.
+2. Choose an empty working folder initially, then **Get this version**. Installed Git is used for clone/fetch and a detached checkout. Without Git, GitHub commit snapshots are used. Local source edits are protected rather than silently overwritten.
 3. Continue to **Game resources**, then **Prepare resources**. Optionally select an existing complete Unity project with the matching resource package; otherwise the installer obtains the package required by that source revision. Unchanged resources stay in the workspace. A source revision that requires new base assets prepares the updated package before compilation. Source and map packages travel with the selected revision.
-4. The required Unity version is read from that revision's ProjectVersion.txt. Its installed editor is detected in standard locations; **BROWSE** supports another location. **GET UNITY** opens the matching Unity Hub editor installation, or the Hub download page. Install Windows Build Support and activate your Unity license in Hub yourself.
-5. Close this project's editor, then click **BUILD RELEASE**. The result is under the workspace's `builds/OpenZ-VK-Local/` folder. The installer reports the log path and does not launch the game automatically. Keep the complete player folder together.
+4. The required Unity version is read from that revision's ProjectVersion.txt. On **Tools**, **Choose another editor** supports another location; **Install Unity / Hub** guides installation. Install Windows Build Support and activate your Unity license in Hub yourself.
+5. Close this project's editor, then click **Build game**. The result is under the workspace's `builds/OpenZ-VK-Local/` folder. The installer reports the log path and does not launch the game automatically. Keep the complete player folder together.
 
 Compilation requires Unity even when Git is installed. Git-free source builds record the downloaded commit and source changes in `FORK_BUILD.json`. Historical fork revisions without Git-free provenance support receive an explicit build-only compatibility adaptation and are marked modified. Older upstream revisions use their enabled Build Settings scenes. Historical revisions may need their matching original assets if their asset layout differs.
 

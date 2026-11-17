@@ -41,7 +41,7 @@ namespace OpenZVK.Update
                 float x=i*span+4;Color color=i==Current?WizardUi.Orange:i<Current?WizardUi.Green:WizardUi.Muted;
                 using(var brush=new SolidBrush(color))e.Graphics.FillEllipse(brush,x,11,28,28);
                 TextRenderer.DrawText(e.Graphics,(i+1).ToString(),font,new Rectangle((int)x,11,28,28),Color.FromArgb(15,20,18),TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
-                TextRenderer.DrawText(e.Graphics,Steps[i],small,new Rectangle((int)x+40,7,(int)span-55,36),i==Current?WizardUi.Ink:WizardUi.Muted,TextFormatFlags.Left|TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(e.Graphics,Steps[i],small,new Rectangle((int)x+40,7,(int)span-55,36),i==Current?WizardUi.Ink:WizardUi.Muted,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPrefix);
             }
         }
     }
@@ -58,7 +58,11 @@ namespace OpenZVK.Update
             b.Click+=(s,e)=>click();parent.Controls.Add(b);return b;
         }
         internal static TextBox Text(Control parent,int x,int y,int width,int height,bool multi=false,bool readOnly=false,float size=11)
-        {var t=new TextBox{Left=x,Top=y,Width=width,Height=height,Multiline=multi,ReadOnly=readOnly,BackColor=Plate,ForeColor=Ink,BorderStyle=BorderStyle.FixedSingle,Font=new Font("Segoe UI",size),ScrollBars=multi?ScrollBars.Vertical:ScrollBars.None};parent.Controls.Add(t);return t;}
+        {
+            var t=new TextBox{Left=x,Top=y,Width=width,Height=height,Multiline=multi,ReadOnly=readOnly,BackColor=Plate,ForeColor=Ink,BorderStyle=BorderStyle.FixedSingle,Font=new Font("Segoe UI",size),ScrollBars=multi?ScrollBars.Vertical:ScrollBars.None};
+            if(multi)t.TextChanged+=(s,e)=>{string normalized=t.Text.Replace("\r\n","\n").Replace('\r','\n').Replace("\n","\r\n");if(t.Text!=normalized)t.Text=normalized;};
+            parent.Controls.Add(t);return t;
+        }
         internal static void Combo(ComboBox combo){combo.BackColor=Plate;combo.ForeColor=Ink;combo.FlatStyle=FlatStyle.Flat;combo.DropDownStyle=ComboBoxStyle.DropDownList;combo.DrawMode=DrawMode.OwnerDrawFixed;combo.ItemHeight=25;combo.DrawItem+=(s,e)=>{using(var b=new SolidBrush(Plate))e.Graphics.FillRectangle(b,e.Bounds);string text=e.Index>=0?combo.Items[e.Index].ToString():combo.Text;TextRenderer.DrawText(e.Graphics,text,combo.Font,e.Bounds,Ink,TextFormatFlags.Left|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);};}
         internal static Panel Card(Control parent,WizardIcon icon,string title,string body,int y,int height=150)
         {var p=new Panel{Left=0,Top=y,Width=980,Height=height,BackColor=Plate};parent.Controls.Add(p);p.Controls.Add(new Pictogram(icon){Left=22,Top=25});Label(p,title,96,20,600,30,15,true);if(!String.IsNullOrEmpty(body))Label(p,body,96,56,600,height-65,11,false,Muted);return p;}

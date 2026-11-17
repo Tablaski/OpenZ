@@ -84,7 +84,7 @@ namespace OpenZVK.Update
             if(older!=null)older.Enabled=!Busy;if(branch!=null)branch.Enabled=!Busy;if(commits!=null)commits.Enabled=!Busy;
             if(browseWorkspace!=null)browseWorkspace.Enabled=!Busy;if(browseExisting!=null)browseExisting.Enabled=!Busy;if(browseUnity!=null)browseUnity.Enabled=!Busy;
             if(workspace!=null)workspace.ReadOnly=Busy;if(revision!=null)revision.ReadOnly=Busy;if(existing!=null)existing.ReadOnly=Busy;
-            if(refreshTools!=null)refreshTools.Enabled=!Busy;if(openBuild!=null)openBuild.Enabled=!Busy&&File.Exists(Path.Combine(workspace.Text,"builds/OpenZ-VK-Local/openz-vk.exe"));
+            if(refreshTools!=null)refreshTools.Enabled=!Busy;if(openBuild!=null)openBuild.Enabled=!Busy&&HasCurrentBuild();
             if(getGit!=null)getGit.Enabled=!Busy&&SourceManager.FindGit()==null;if(getUnity!=null)getUnity.Enabled=!Busy&&!File.Exists(unity.Text);
         }
         async Task Execute(Func<Task> run)
@@ -139,9 +139,19 @@ namespace OpenZVK.Update
         void RefreshResourceState(){resourceInfo.Text=ResourcesReady()?"The matching resource package is ready. No resource download is needed.":localResources!=null?"The required resource package will be prepared from this local review bundle.":"Prepare the package required by this version. Unchanged resources are kept.";}
         void RefreshBuildState()
         {
-            string result=Path.Combine(workspace.Text,"builds/OpenZ-VK-Local/BUILD_RESULT.txt");bool done=File.Exists(result)&&File.ReadAllText(result).StartsWith("Succeeded");
+            bool done=HasCurrentBuild();
             buildInfo.Text=done?"Your build finished successfully.\nOpen the build folder to find the game and keep the complete folder together.":"Selected Unity: "+requiredVersion+"\nUnity will compile a release player. This can take a few minutes; the game will not be launched automatically.";
             openBuild.Enabled=done&&!Busy;
+        }
+        bool HasCurrentBuild()
+        {
+            try{
+                string folder=Path.Combine(workspace.Text,"builds/OpenZ-VK-Local"),result=Path.Combine(folder,"BUILD_RESULT.txt");
+                if(!File.Exists(result)||!File.ReadAllText(result).StartsWith("Succeeded")||!File.Exists(Path.Combine(folder,"openz-vk.exe")))return false;
+                var source=Format.Json().Deserialize<SourceIdentity>(File.ReadAllText(Path.Combine(workspace.Text,"FORK_SOURCE.json")));
+                var built=Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(Path.Combine(folder,"FORK_BUILD.json")));
+                return !String.IsNullOrEmpty(source.commit)&&source.commit==(string)built["commit"];
+            }catch{return false;}
         }
         static void Browse(TextBox field){using(var dialog=new FolderBrowserDialog{Description="Choose a regular folder for the Unity project"})if(dialog.ShowDialog()==DialogResult.OK)field.Text=dialog.SelectedPath;}
         void Log(string text){if(InvokeRequired){BeginInvoke(new Action<string>(Log),text);return;}activity.AppendText(text+Environment.NewLine);activity.SelectionStart=activity.TextLength;activity.ScrollToCaret();Footer.Text=text.Split(new[]{'\r','\n'},StringSplitOptions.RemoveEmptyEntries).LastOrDefault()??"";}

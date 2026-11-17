@@ -72,9 +72,9 @@ namespace OpenZ
             line = Hud.Img(root, "Line", OzUi.GM600);
             line.rectTransform.anchorMin = Vector2.zero; line.rectTransform.anchorMax = new Vector2(1f, 0f); line.rectTransform.pivot = new Vector2(0.5f, 0f);
             line.rectTransform.anchoredPosition = Vector2.zero; line.rectTransform.sizeDelta = new Vector2(0f, OzPx.Line(1f));
-            logo = Hud.Kit(root, "Wordmark", "Wordmarks/wm_openz", new OzRect(LogoX, 7, 72, 26), OzKit.GetSprite("Wordmarks/wm_openz") != null ? (Color?)null : OzUi.Amber, Image.Type.Simple);
-            logo.enabled = false;
-            Hud.Label(logo.transform, "ForkWordmark", "OpenZ-VK", 14, OzForkOptions.Brand, 0).At(0, 4, OzH.L, false, 100);
+            logo = Hud.Kit(root, "Wordmark", "Wordmarks/wm_openz_vk_menu", new OzRect(LogoX, 7, 100, 26), null, Image.Type.Simple);
+            logo.preserveAspect = true; logo.enabled = logo.sprite != null;
+            if (!logo.sprite) Hud.Label(logo.transform, "ForkWordmark", "OpenZ-VK", 14, OzForkOptions.Brand, 0).At(0, 4, OzH.L, false, 100);
             crumb = Hud.Label(root, "Crumb", Crumb, 12, OzUi.Ink, 0.16f);
             reset = OzUeShell.Button(root, "ResetStats", OzUePlan.ResetLabel, 0, 0, BtnH, HudButtonStyle.Normal, ResetTip, onReset);   // RESET STATS: it asks first (UI/OzUeLeave.cs)
             save = OzUeShell.Button(root, "Save", "SAVE", 0, 0, BtnH, HudButtonStyle.Normal, SaveTip, onSave);

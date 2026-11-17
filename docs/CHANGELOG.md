@@ -1,5 +1,12 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.15 (source update, 17 Nov 2026)
+
+- Reuse the transparent main-menu logo at a smaller size in the Unit Editor
+  top bar and the in-game top-left badge, preserving aspect ratio and UI spacing.
+- Keep a text fallback when local image resources are missing.
+- Source only; manual player rendering validation remains pending.
+
 ## OpenZ-VK 0.2.14 (source update, 17 Nov 2026)
 
 - Replace the large main-menu text logo with the user-provided gold/pink logo

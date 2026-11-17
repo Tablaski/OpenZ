@@ -1,5 +1,18 @@
 # Player validation record
 
+## Small editor and HUD logos (0.2.15, source only)
+
+- Reuse Wordmarks/wm_openz_vk_menu in the Unit Editor top bar and in-game
+  top-left badge, with aspect preservation, no input raycasts and a text fallback.
+- Uses the existing local PNG and metadata backed up in
+  .local/OpenZ-VK-menu-logo-0.2.14.zip; no additional image resource is required.
+- Completed: runtime C# compilation with the committed simulation files substituted
+  in a temporary compiler response file; ongoing simulation edits were untouched.
+  The full working-tree check encountered an unrelated ZBehaviorProfile.cs syntax error.
+- Pending manual player validation: legibility at small sizes, transparency,
+  compact/normal editor top bar and in-game badge spacing at supported scales.
+- No player build or gameplay test was requested or performed.
+
 ## Transparent main-menu logo (0.2.14, source only)
 
 - Replace only the large main-menu wordmark with the supplied gold/pink artwork.

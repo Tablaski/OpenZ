@@ -4,9 +4,9 @@
 
 ### Install and update
 
-- A new OpenZ-VK installer guides you through choosing a version, reading its changelog and installing or updating the game. Published players need neither Unity nor Git.
+- A new OpenZ-VK installer guides you through choosing a version, reading its changelog and installing or updating the game. Ready-to-play releases need neither Unity nor Git.
 - Updates reuse game files already on your PC instead of downloading everything again. Your settings and saved combat profiles are kept, and damaged or missing game files can be repaired.
-- You can also choose a stable main or development dev source version and build it yourself. This requires Unity; the installer helps you find or install the right editor. Git is optional and is used automatically when available.
+- You can also build a main (stable) or dev (development) version yourself with Unity. The installer helps you find or install the required Unity editor. Git is optional and is used automatically when available.
 - When a version needs different game resources, the installer helps prepare the matching package. The game now warns you and prevents play if incompatible resources are installed, with instructions to repair the installation.
 
 ### Set up your match

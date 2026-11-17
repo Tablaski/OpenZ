@@ -1,6 +1,6 @@
 # Player validation record
 
-## Current local review adjustments
+## Current local review adjustments (validated)
 
 - Player changelogs now describe features, gameplay changes and visible fixes.
   Development details remain in commits and technical records. Upstream history
@@ -15,7 +15,17 @@
   Unity runtime source compilation. Updated player/menu/solo captures and packaging
   remain pending the requested release build below. Previous evidence is historical.
 
-## OpenZ-VK 0.2.22 local review candidate (17 Nov 2026)
+Current player: clean source f3b889745daaab362c066d444264eab7354a62a7,
+built 2026-11-17 17:07:01 UTC, resource package openz-1.4-vk-1.
+The final menu proof passes all 22 tile bounds, solo OpenZ/Z 1996/Custom selection,
+saved choices and restoration, lobby OpenZ/Z 1996 controls, and both Shitty Maps
+gallery titles/icons. Native captures are from menus-20261117-180956.
+The final solo mission also passes on source f3b88974 (solo-units-final-20261117-182113). The Unit Editor and host/guest L02 pass on source 450350cd;
+the final change only adjusts picker layout and its rendering check. The solo
+mission verifies both teams' production and starting-unit restrictions with an
+active CPU and no multiplayer rules. Simulation checks: 5,440 passed.
+
+## Earlier OpenZ-VK 0.2.22 candidate (17 Nov 2026)
 
 Release player: `builds/OpenZ-VK-0.2.22-Windows-x64/openz-vk.exe`.
 Unity stamped source `a4d87dad96076e746b6e8b9a71b47041a52c4c30`, clean,

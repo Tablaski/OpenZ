@@ -22,8 +22,8 @@ Fresh installations supply **OpenZ** and **Z Classic** reference profiles only. 
 **Z 1996 is a unit-availability preset, not a complete historical rules mode.** Custom dynamics do not promise identical behavior to Z or The Zod Engine. Existing preferences and saved profiles are retained across updates.
 
 <table>
-  <tr><td><img src="media/review-0.2.22/main-menu.png" alt="OpenZ-VK main menu"></td><td><img src="media/review-0.2.22/shared-rules.png" alt="Shared lobby rules and centered fort placement"></td></tr>
-  <tr><td><img src="media/review-0.2.22/behavior-game-dropdown-tanks.png" alt="Native combat profile selection"></td><td><img src="media/review-0.2.22/behavior-tanks-0.png" alt="Unit Editor dynamics"></td></tr>
+  <tr><td><img src="media/review-0.2.22/solo-selection.png" alt="Solo mission selection and Allowed units"></td><td><img src="media/review-0.2.22/shared-rules.png" alt="Shared lobby rules and centered fort placement"></td></tr>
+  <tr><td><img src="media/review-0.2.22/solo-allowed-z1996.png" alt="Solo allowed-unit selection"></td><td><img src="media/review-0.2.22/behavior-tanks-0.png" alt="Unit Editor dynamics"></td></tr>
   <tr><td><img src="media/review-0.2.22/shitty-maps-arctic.png" alt="Shitty Maps Arctic gallery"></td><td><img src="media/review-0.2.22/shitty-maps-expansion.png" alt="Shitty Maps Z Expansion gallery"></td></tr>
 </table>
 

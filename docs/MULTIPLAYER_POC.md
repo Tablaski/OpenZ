@@ -19,8 +19,10 @@ a shared loading barrier and a three-second countdown.
 
 The MAP section shows the solo mission thumbnail and a complete tactical preview
 of the configured starting armies. Changing maps preserves the custom armies.
-Both players share four fort turret slots and four slots outside the fort.
-Each slot opens a unit-selection popup; fort mounts accept cannons only.
+Both players share four slots outside the fort. A dedicated top-view popup
+shows four real cannon mounts on each fort, editable independently for red and
+blue. Existing shared defaults remain compatible until a team mount is edited.
+Outside slots open a unit-selection popup; fort mounts accept cannons only.
 The default fort contains a howitzer and a missile cannon. The outside slots
 start with up to four entries from the mission's red army, without solo bonuses
 or bots. A robot slot represents a whole squad.
@@ -28,6 +30,13 @@ An optional handicap is disabled by default. Selecting General Zod (red) or Evil
 Zod (blue) selects its beneficiary. Four initially empty additional outside slots
 add units to that player's shared army. Later edits to the common army still
 apply to both players. Any rule change resets both ready confirmations.
+The guest can use PREPARE SETTINGS to edit a local draft and SEND PROPOSAL to
+submit it as one request. The host sees one persistent panel with REVIEW,
+ACCEPT and DECLINE; no per-field notifications are sent. A new proposal replaces
+the old one and can be withdrawn. The map gallery also supports direct map
+proposals. Official changes expire proposals and require stale drafts to be
+refreshed. Proposal submission, replacement, withdrawal and rejection preserve
+readiness. Acceptance applies all changes and resets both confirmations.
 Construction formulas and their existing defaults are unchanged in this UI
 revision; new territory, comeback and construction-time rules remain deferred.
 

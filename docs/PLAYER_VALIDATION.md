@@ -656,3 +656,28 @@ must be added here and checked together on the next requested release.
 - Pending manual validation: matching and mismatching builds on both PCs,
   unstamped/legacy peers, ready races, restart and return to lobby.
 - Source compilation checked; no player built or launched.
+
+## Lobby proposals and independent fort mounts (0.2.21, source only)
+
+- Guest edits stay local until SEND PROPOSAL. The host receives one replaceable
+  grouped request with a difference list and ACCEPT / DECLINE. No chat message,
+  sound or modal prompt is emitted for each changed field. Map suggestions are
+  also available directly in the gallery; WITHDRAW removes the pending request.
+- Official host changes expire pending proposals. Stale drafts require REFRESH
+  SETTINGS, which starts again from current official values. Accepting the whole
+  proposal clears both readiness confirmations. Decline/withdrawal do not.
+- Fort placement has a dedicated top-view popup with four fixed real mounts per
+  team. Red and blue cannons are independent. Legacy shared defaults still work.
+  There is no free positioning outside the four simulation mounts.
+- Completed: 4,354 core and real-map checks, including proposal authority,
+  snapshot isolation, replacement/old-accept races, stale revisions, rejection,
+  withdrawal, match freeze, legacy mounts, roster filtering and all eight actual
+  team mount coordinates on L02/L07/L16/L17. Unity runtime compilation passed.
+- Pending on the next requested release: host/client lobby layout and popup
+  readability, map-gallery suggestions, profile proposals, replacement/cooldown,
+  host edits while a guest is drafting, readiness races, disconnect/reconnect,
+  actual JSON transport, tactical previews, correct team cannon models and mount
+  positions on converted maps. Both PCs need the new lobby protocol.
+- No player was built or launched. A new release build is recommended for these
+  network/menu changes and the accumulated source updates; only the user can
+  authorize that build, and its gameplay checks remain pending manual testing.

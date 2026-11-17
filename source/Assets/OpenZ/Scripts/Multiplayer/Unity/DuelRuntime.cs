@@ -38,6 +38,10 @@ namespace OpenZ.Multiplayer
         public string TankDynamics, RobotDynamics;
         public int UnitPreset;
         public string[] AllowedUnits;
+        public string[] RedFortTurrets, BlueFortTurrets;
+        public string ProposalJson;
+        public DuelRules ProposedRules => string.IsNullOrEmpty(ProposalJson) ? null : JsonUtility.FromJson<DuelLobbyData>(ProposalJson).ReadRules();
+        public int ProposalId;
         public static DuelLobbyData From(DuelLobby l)
         {
             var r = l.Rules;
@@ -45,18 +49,21 @@ namespace OpenZ.Multiplayer
                 Phase = (int)l.Phase, HostReady = l.Ready(0), GuestReady = l.Ready(1), HandicapEnabled = r.HandicapEnabled,
                 HandicapSlot = r.HandicapSlot, TerritoryBonus = r.TerritoryBonus, MinimumBuildSeconds = r.MinimumBuildSeconds, FortLoserMaximum = r.FortLoserMaximum, TerritoryReductionCap = r.TerritoryReductionCap,
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap),
+                RedFortTurrets = r.FortTurretsFor(0), BlueFortTurrets = r.FortTurretsFor(1),
                 TankDynamics = r.TankDynamics, RobotDynamics = r.RobotDynamics, UnitPreset = (int)r.UnitPreset, AllowedUnits = r.AllowedUnits.ToArray() };
         }
         public DuelRules ReadRules()
         {
             var rules = new DuelRules { Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
                 Common = Common.Read(), Handicap = Handicap.Read(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
+                RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
                 AllowedUnits = AllowedUnits == null ? new List<string>(DuelUnitRoster.All) : new List<string>(AllowedUnits) };
             rules.Validate(); return rules;
         }
     }
     [Serializable] sealed class DuelReadyData { public int Revision; public bool Ready; public string Release; public bool ReleaseOnly; }
+    [Serializable] sealed class DuelProposalData { public int Revision; public bool Cancel; public DuelLobbyData Rules; }
     [Serializable] public sealed class DuelEventData { public ZEvent[] Events; }
 
     [DefaultExecutionOrder(-1000)]
@@ -147,7 +154,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-0.2-duel-5-lobby-rules\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-0.2-duel-6-proposals-fort-mounts\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             foreach (string map in new[] { "L02", "L07", "L16", "L17" }.Concat(OzShittyMapCatalog.All.Where(m=>m.Duel).Select(m=>m.Id))) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
@@ -236,12 +243,54 @@ namespace OpenZ.Multiplayer
         void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.Refresh(); }
         void PublishLobby()
         {
-            View = DuelLobbyData.From(lobby); View.HostRelease = LocalRelease; View.GuestRelease = guestRelease; if (Connected) SendJson(DuelMessage.Lobby, View); Menus.Refresh();
+            View = DuelLobbyData.From(lobby); View.HostRelease = LocalRelease; View.GuestRelease = guestRelease;
+            View.ProposalId = lobby.ProposalId;
+            if (lobby.Proposal != null) View.ProposalJson = JsonUtility.ToJson(RulesData(lobby.Proposal));
+            if (Connected) SendJson(DuelMessage.Lobby, View); Menus.Refresh();
+        }
+        static DuelLobbyData RulesData(DuelRules rules)
+        {
+            var holder = new DuelLobby(); holder.ChangeRules(0, rules); return DuelLobbyData.From(holder);
+        }
+        double lastProposalAt = -10;
+        public double ProposalWait => Math.Max(0, 3 - (Now - lastProposalAt));
+        public void ProposeRules(DuelRules rules, int revision)
+        {
+            if (IsHost || !Connected || View == null || View.Phase != (int)DuelPhase.Lobby || revision != View.Revision || ProposalWait > 0) return;
+            rules.Validate();
+            SendJson(DuelMessage.ProposeRules, new DuelProposalData { Revision = revision, Rules = RulesData(rules) });
+            lastProposalAt = Now;
+        }
+        public void WithdrawProposal() { if (!IsHost && Connected) SendJson(DuelMessage.ProposeRules, new DuelProposalData { Cancel = true }); }
+        public void ResolveProposal(int id, bool accept)
+        {
+            if (!IsHost || lobby == null || lobby.Phase != DuelPhase.Lobby) return;
+            if (lobby.ResolveProposal(0, id, accept)) PublishLobby();
+        }
+        void ReceiveProposal(DuelPacket packet)
+        {
+            if (!IsHost || lobby == null || lobby.Phase != DuelPhase.Lobby) return;
+            var request = ReadJson<DuelProposalData>(packet);
+            if (request == null) throw new InvalidDataException("Invalid proposal.");
+            if (request.Cancel) { lobby.CancelProposal(1); PublishLobby(); return; }
+            if (Now - lastProposalAt < 1) return;
+            lastProposalAt = Now;
+            if (request.Revision == lobby.Revision)
+            {
+                try
+                {
+                    var proposed = request.Rules.ReadRules();
+                    ZWorld.DuelProfile(proposed.TankDynamics, ZBehaviorFamily.Tanks); ZWorld.DuelProfile(proposed.RobotDynamics, ZBehaviorFamily.Robots);
+                    lobby.Propose(1, request.Revision, proposed);
+                }
+                catch (ArgumentException error) { Status = error.Message; }
+            }
+            PublishLobby();
         }
         void SendJson<T>(DuelMessage kind, T value) => peer?.Send(new DuelPacket(kind, Encoding.UTF8.GetBytes(JsonUtility.ToJson(value))));
         static T ReadJson<T>(DuelPacket packet)
         {
-            if (packet.Payload.Length > 512000) throw new InvalidDataException("Control message too large.");
+            if (packet.Payload.Length > 2 * 1024 * 1024) throw new InvalidDataException("Control message too large.");
             return JsonUtility.FromJson<T>(Encoding.UTF8.GetString(packet.Payload));
         }
         void Update()
@@ -307,6 +356,8 @@ namespace OpenZ.Multiplayer
                     if (View.GuestRelease != LocalRelease)
                         SendJson(DuelMessage.Ready, new DuelReadyData { Revision = View.Revision, Ready = View.GuestReady, Release = LocalRelease, ReleaseOnly = true });
                     Menus.Refresh(); break;
+                case DuelMessage.ProposeRules:
+                    ReceiveProposal(packet); break;
                 case DuelMessage.Ready:
                     if (!IsHost || lobby.Phase != DuelPhase.Lobby) break;
                     var ready = ReadJson<DuelReadyData>(packet);
@@ -577,6 +628,7 @@ namespace OpenZ.Multiplayer
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
             Disconnect(); OnlineMode = false; guestRelease = null;
+            lastProposalAt = -10;
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             restartPending = false;
             session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;

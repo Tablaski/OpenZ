@@ -30,6 +30,19 @@ namespace OpenZ.Multiplayer
         public double FortLoserMaximum;
         public double TerritoryReductionCap = 1;
         public DuelArmySettings Common = new DuelArmySettings();
+        // Null keeps the legacy shared mounts until a team is edited independently.
+        public string[] RedFortTurrets, BlueFortTurrets;
+        public string[] FortTurretsFor(int slot)
+        {
+            if (slot != 0 && slot != 1) throw new ArgumentOutOfRangeException(nameof(slot));
+            return (string[])(slot == 0 ? RedFortTurrets ?? Common.FortTurrets : BlueFortTurrets ?? Common.FortTurrets).Clone();
+        }
+        public void SetFortTurret(int seat, int mount, string type)
+        {
+            if (mount < 0 || mount > 3) throw new ArgumentOutOfRangeException(nameof(mount));
+            var turrets = FortTurretsFor(seat); turrets[mount] = type;
+            if (seat == 0) RedFortTurrets = turrets; else BlueFortTurrets = turrets;
+        }
         public bool HandicapEnabled;
         public int HandicapSlot;
         public DuelArmySettings Handicap = new DuelArmySettings();
@@ -66,6 +79,8 @@ namespace OpenZ.Multiplayer
         }
         void RemoveDisallowedStartingUnits()
         {
+            foreach (var turrets in new[] { RedFortTurrets, BlueFortTurrets })
+                if (turrets != null) for (int i = 0; i < turrets.Length; i++) if (!Allows(turrets[i])) turrets[i] = "";
             foreach (var army in new[] { Common, Handicap })
             {
                 for (int i = 0; i < army.StartingUnits.Count; i++) if (!Allows(army.StartingUnits[i])) army.StartingUnits[i] = "";
@@ -83,6 +98,7 @@ namespace OpenZ.Multiplayer
         {
             if (slot != 0 && slot != 1) throw new ArgumentOutOfRangeException(nameof(slot));
             var army = Common.Copy();
+            army.FortTurrets = FortTurretsFor(slot);
             army.StartingUnits.RemoveAll(string.IsNullOrEmpty);
             if (HandicapEnabled && HandicapSlot == slot)
             {
@@ -96,6 +112,8 @@ namespace OpenZ.Multiplayer
         {
             Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
+            RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
+            BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
             TankDynamics = TankDynamics, RobotDynamics = RobotDynamics, UnitPreset = UnitPreset, AllowedUnits = new List<string>(AllowedUnits)
         };
 
@@ -109,6 +127,14 @@ namespace OpenZ.Multiplayer
             if (!InRange(FortLoserMaximum, 0, .75)) throw new ArgumentException("Invalid fort loser bonus.");
             if (HandicapSlot != 0 && HandicapSlot != 1) throw new ArgumentException("Invalid handicap seat.");
             CheckArmy(Common); CheckArmy(Handicap);
+            foreach (var turrets in new[] { RedFortTurrets, BlueFortTurrets })
+                if (turrets != null)
+                {
+                    if (turrets.Length != 4) throw new ArgumentException("Invalid fort mounts.");
+                    foreach (string type in turrets)
+                        if (type == null || type != "" && (Array.IndexOf(AllowedFortTurrets, type) < 0 || !Allows(type)))
+                            throw new ArgumentException("Invalid team fort cannon.");
+                }
             if (TankDynamics == null || RobotDynamics == null || TankDynamics.Length > 200000 || RobotDynamics.Length > 200000)
                 throw new ArgumentException("Invalid dynamics profile size.");
             if (!Enum.IsDefined(typeof(DuelUnitPreset), UnitPreset) || AllowedUnits == null || AllowedUnits.Count > DuelUnitRoster.All.Length)
@@ -174,6 +200,35 @@ namespace OpenZ.Multiplayer
         public int Revision { get; private set; }
         public double StartAt { get; private set; } = -1;
         public string CloseReason { get; private set; }
+        DuelRules proposal;
+        int proposalId;
+        public int ProposalId => proposalId;
+        public DuelRules Proposal => proposal?.Copy();
+        public bool Propose(int senderSlot, int revision, DuelRules next)
+        {
+            Require(DuelPhase.Lobby);
+            if (senderSlot != 1 || names[1] == null) throw new InvalidOperationException("Only the guest proposes rules.");
+            if (revision != Revision) return false;
+            if (next == null) throw new ArgumentNullException(nameof(next));
+            next.Validate();
+            if (DuelRuleChanges.Describe(rules, next).Count == 0) return false;
+            proposal = next.Copy(); proposalId++; return true;
+        }
+        public bool ResolveProposal(int senderSlot, int id, bool accept)
+        {
+            Require(DuelPhase.Lobby);
+            if (senderSlot != 0) throw new InvalidOperationException("Only the host reviews proposals.");
+            if (proposal == null || id != proposalId) return false;
+            var next = proposal; proposal = null;
+            if (accept) ChangeRules(0, next);
+            return true;
+        }
+        public void CancelProposal(int senderSlot)
+        {
+            Require(DuelPhase.Lobby);
+            if (senderSlot != 1) throw new InvalidOperationException("Only the guest withdraws a proposal.");
+            proposal = null;
+        }
         public DuelRules Rules => rules.Copy();
         public string Name(int slot) { CheckSlot(slot); return names[slot]; }
         public bool Ready(int slot) { CheckSlot(slot); return ready[slot]; }
@@ -200,7 +255,7 @@ namespace OpenZ.Multiplayer
             CheckSlot(slot); Require(DuelPhase.Lobby);
             if (names[slot] == null || revision != Revision) throw new InvalidOperationException("Stale lobby or empty seat.");
             ready[slot] = value;
-            if (ready[0] && ready[1]) Phase = DuelPhase.Loading;
+            if (ready[0] && ready[1]) { proposal = null; Phase = DuelPhase.Loading; }
         }
 
         // Host clock only. The wire protocol must distribute the start epoch to the client.
@@ -233,11 +288,12 @@ namespace OpenZ.Multiplayer
 
         public void Disconnect(string reason)
         {
+            proposal = null;
             Phase = DuelPhase.Closed; CloseReason = reason ?? "Disconnected";
             Array.Clear(ready, 0, 2); Array.Clear(loaded, 0, 2); StartAt = -1;
         }
 
-        void InvalidateReady() { Revision++; Array.Clear(ready, 0, 2); }
+        void InvalidateReady() { proposal = null; Revision++; Array.Clear(ready, 0, 2); }
         static void CheckSlot(int slot) { if (slot < 0 || slot > 1) throw new ArgumentOutOfRangeException(nameof(slot)); }
         static void CheckTime(double now)
         {

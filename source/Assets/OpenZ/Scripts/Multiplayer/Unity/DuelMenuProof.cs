@@ -127,10 +127,11 @@ namespace OpenZ.Multiplayer
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
-                        Capture("shared-rules"); Click("ARMY SLOT 0:0"); break;
+                        Capture("shared-rules"); Click("FORT PLACEMENT · RED / BLUE"); break;
                     case 5:
-                        CheckPicker(true);
-                        Capture("fort-unit-picker"); Click("SELECT howitzer"); break;
+                        if (r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("FORT MOUNT ")) != 8)
+                            throw new Exception("Fort popup must expose four mounts for each team.");
+                        Capture("fort-unit-picker"); Click("FORT CANNON howitzer"); Click("CLOSE"); break;
                     case 6:
                         Click("ARMY SLOT 1:3"); break;
                     case 7: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;

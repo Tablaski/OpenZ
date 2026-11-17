@@ -17,7 +17,7 @@
 - Preserve the user's personal email privacy: use the configured GitHub noreply address.
 - A playable release must contain the entire player output folder and identify its source commit. Do not describe a source commit as a downloadable player release.
 - A user request to "release" authorizes pushing the completed source to GitHub, updating the public README and version changelog, rebuilding the release ZIPs and uploading them to GitHub. Increment the fork/release version for future releases. The current 0.2.7 replacement is an explicit one-time exception: replace its previous build and assets while retaining version 0.2.7.
-- Multiplayer tank and robot dynamics are host-owned lobby rules, frozen for the match. Do not offer profile changes in the in-game options. Clients may inspect lobby rules but cannot edit them.
+- Multiplayer tank and robot dynamics are host-owned lobby rules, frozen for the match. Do not offer profile changes in the in-game options. Clients may prepare a local grouped proposal; only host acceptance changes official rules. Expire proposals and require draft refresh after an official revision change.
 - Keep every OpenZ/OpenZ-VK logo dark orange. Use violet to identify fork-added game options outside the lobby; the lobby itself uses the ordinary orange/neutral presentation.
 
 ## OpenZ-VK presentation and compatibility

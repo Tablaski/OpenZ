@@ -14,6 +14,21 @@
 - Source only; a fresh release player is recommended for manual two-PC validation
   when requested. No player was built or launched.
 
+## OpenZ-VK 0.2.21 (source update, 17 Nov 2026)
+
+- Let the guest prepare lobby settings locally and send one grouped proposal.
+  The host can review differences, accept or decline without a blocking prompt.
+  New submissions replace the pending proposal; the guest can withdraw it.
+- Keep map suggestions available directly from the map gallery. Official host
+  edits expire pending proposals and require a draft refresh. Only accepted
+  changes reset readiness; proposals cannot change a match after loading starts.
+- Add a dedicated top-view popup for the red and blue forts. Select any of the
+  four real mounts and choose its cannon independently for each team.
+- Update lobby compatibility so both peers must support proposals and team
+  mounts. Existing solo settings and saved preferences are preserved.
+- Source only; lobby rendering, two-PC interaction and gameplay await a newly
+  requested release build and the user's manual testing.
+
 ## OpenZ-VK 0.2.18 (source update, 17 Nov 2026)
 
 - Put maximum dodge/boost time and travel distance directly in FEEL. Zero keeps

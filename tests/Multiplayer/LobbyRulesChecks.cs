@@ -9,6 +9,7 @@ static class LobbyRulesChecks
 {
     public static void Run(Action<bool, string> check, Action<Action, string> reject)
     {
+        ProposalChecks.Run(check, reject);
         var rules = new DuelRules();
         check(rules.AllowedUnits.Count == 22 && DuelUnitRoster.All.All(rules.Allows), "OpenZ preset allows the complete 22-type game catalogue");
         rules.Common.StartingUnits.AddRange(new[] { "mtank", "electrobot", "light" });

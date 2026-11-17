@@ -7,7 +7,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics }
+        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
         int dynamicsType;
@@ -15,11 +15,13 @@ namespace OpenZ.Multiplayer
 
         void BuildLobbyRules(DuelRules rules, bool editable)
         {
+            if (lobbyDialog == LobbyDialog.Forts) { BuildFortPlacement(rules, editable); return; }
+            if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
             var background = Hud.Img(panel, "LobbyRulesBackground", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;
             Button(panel, "CLOSE", 1260, 12, 190, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
-            Label(panel, editable ? "HOST RULES · changes clear both READY confirmations" : "READ ONLY · the host sets these rules for both teams", 24, 58, 1390, 18, OzUi.Muted);
+            Label(panel, editable ? R.IsHost ? "HOST RULES · changes clear both READY confirmations" : "YOUR PROPOSAL · edits stay local until you send them" : "CURRENT HOST RULES · use PREPARE SETTINGS to propose changes", 24, 58, 1390, 18, OzUi.Muted);
             if (lobbyDialog == LobbyDialog.Units) BuildAllowedUnits(panel, rules, editable);
             else BuildDynamics(panel, rules, editable);
         }
@@ -30,7 +32,7 @@ namespace OpenZ.Multiplayer
             {
                 var selected = preset;
                 Button(panel, DuelUnitRoster.Name(preset), 24 + i++ * 340, 92, 320,
-                    () => { rules.SetUnitPreset(selected); R.ChangeRules(rules); }, rules.UnitPreset == preset, editable);
+                    () => { rules.SetUnitPreset(selected); EditLobbyRules(rules); }, rules.UnitPreset == preset, editable);
             }
             Label(panel, "Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply.", 24, 146, 1410, 16, OzUi.Ink);
             Label(panel, rules.AllowedUnits.Count + "/" + DuelUnitRoster.All.Length + " allowed · Z 1996 uses Zod's medium ID (shown here as MEDIUM MECH); it excludes OpenZ's additional MEDIUM TANK.", 24, 173, 1410, 14, OzUi.Muted);
@@ -41,7 +43,7 @@ namespace OpenZ.Multiplayer
             {
                 string type = DuelUnitRoster.All[index]; bool allowed = rules.Allows(type);
                 var tile = Button(content, UnitName(type), index % 6 * 238, index / 6 * 146, 224,
-                    () => { rules.SetUnitAllowed(type, !allowed); R.ChangeRules(rules); }, false, editable, 136);
+                    () => { rules.SetUnitAllowed(type, !allowed); EditLobbyRules(rules); }, false, editable, 136);
                 tile.name = "ALLOWED UNIT " + type;
                 Portrait(tile, type, 77, 28, 70);
                 Label(tile, allowed ? "ALLOWED" : "EXCLUDED", 10, 8, 204, 13, allowed ? (Color)OzUi.Go : OzUi.Muted);
@@ -65,7 +67,7 @@ namespace OpenZ.Multiplayer
                     {
                         var frozen = next.Clone(); frozen.FreezeReferences();
                         if (dynamicsFamily == ZBehaviorFamily.Tanks) rules.TankDynamics = frozen.Encode(); else rules.RobotDynamics = frozen.Encode();
-                        R.ChangeRules(rules);
+                        EditLobbyRules(rules);
                     }, profile.id == next.id);
                 }
             }

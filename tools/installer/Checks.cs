@@ -122,9 +122,35 @@ namespace OpenZVK.Update
                 using (var zip = ZipFile.Open(Path.Combine(root, "bad-source.zip"), ZipArchiveMode.Create)) using (var writer = new StreamWriter(zip.CreateEntry("OpenZ-fixture/../../outside.txt").Open())) writer.Write("invalid");
                 Reject(() => SourceManager.ReadArchive(Path.Combine(root, "bad-source.zip"), true), "Unsafe source archive path accepted.");
                 Check(SourceManager.FindGit() == null || File.Exists(SourceManager.FindGit()), "Git detection returned an invalid executable.");
+                string resourceWorkspace=Path.Combine(root,"ResourceEpochs");Directory.CreateDirectory(resourceWorkspace);
+                var resourceV1=ResourceFixture(root,"epoch1",new Dictionary<string,string>{{"changed.txt","first"},{"obsolete.txt","old"},{"user-edited.txt","original"}});
+                SourceManager.ApplyResources(resourceWorkspace,resourceV1,new Dictionary<string,string>{{"epoch1.zip",Path.Combine(root,"epoch1.zip")}},CancellationToken.None);
+                string prefix="source/Assets/";
+                File.WriteAllText(Format.SafePath(resourceWorkspace,prefix+"user-edited.txt"),"personal change");
+                File.WriteAllText(Format.SafePath(resourceWorkspace,prefix+"unknown.txt"),"keep unknown");
+                var resourceV2=ResourceFixture(root,"epoch2",new Dictionary<string,string>{{"changed.txt","other"},{"added.txt","arctic"},{"user-edited.txt","replacement"}});
+                SourceManager.ApplyResources(resourceWorkspace,resourceV2,new Dictionary<string,string>{{"epoch2.zip",Path.Combine(root,"epoch2.zip")}},CancellationToken.None);
+                Check(File.ReadAllText(Format.SafePath(resourceWorkspace,prefix+"changed.txt"))=="other","Equal-size resource update was skipped.");
+                Check(File.Exists(Format.SafePath(resourceWorkspace,prefix+"added.txt"))&&!File.Exists(Format.SafePath(resourceWorkspace,prefix+"obsolete.txt")),"Resource epoch did not add/remove managed assets.");
+                Check(File.ReadAllText(Format.SafePath(resourceWorkspace,prefix+"unknown.txt"))=="keep unknown","Unknown local resource was deleted.");
+                Check(Directory.GetFiles(Path.Combine(resourceWorkspace,".local/resource-backups"),"user-edited.txt",SearchOption.AllDirectories).Any(f=>File.ReadAllText(f)=="personal change"),"Modified resource was not backed up.");
+                SourceManager.ApplyResources(resourceWorkspace,resourceV2,new Dictionary<string,string>(),CancellationToken.None);
+                Check(Format.Json().Deserialize<ResourceState>(File.ReadAllText(Path.Combine(resourceWorkspace,".local/resources-state.json"))).version=="epoch2","Unchanged resource epoch needed an archive or lost identity.");
                 Console.WriteLine("PASS: " + count + " installer checks: install, byte-range transport, SHA-256, shifted-resource reuse, zero-download reinstall, extracted-build seed, stable/dev switch, downgrade, failed/cancelled-update rollback, unsafe paths and unmanaged-folder protection.");
             }
             finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        }
+        static ResourceIndex ResourceFixture(string root,string version,Dictionary<string,string> entries)
+        {
+            var index=new ResourceIndex{schema=2,version=version,archives=new List<ResourceArchive>{new ResourceArchive{name=version+".zip"}},files=new List<ResourceFile>()};
+            using(var zip=ZipFile.Open(Path.Combine(root,version+".zip"),ZipArchiveMode.Create))foreach(var item in entries)
+            {
+                string path="source/Assets/"+item.Key;
+                using(var writer=new StreamWriter(zip.CreateEntry(path).Open(),new System.Text.UTF8Encoding(false)))writer.Write(item.Value);
+                string hashFile=Path.Combine(root,"hash-fixture");File.WriteAllText(hashFile,item.Value,new System.Text.UTF8Encoding(false));
+                index.files.Add(new ResourceFile{path=path,length=new FileInfo(hashFile).Length,sha256=Format.FileHash(hashFile),archive=version+".zip"});
+            }
+            return index;
         }
     }
 }

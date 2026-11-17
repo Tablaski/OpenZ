@@ -53,8 +53,7 @@ namespace OpenZ
             var wordmark=Hud.Kit(panel,"ForkWordmark","Wordmarks/wm_openz_vk_menu",new OzRect(24,8,160,48),null,Image.Type.Simple);
             wordmark.preserveAspect=true; wordmark.enabled=wordmark.sprite!=null;
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
-            Label(panel,solo ? "SHITTY MAPS · SOLO" : "MAP GALLERY · 1 VS 1",24,65,1400,30,OzUi.Ink);
-            Icon(panel,OzConvertedMapsScreen.PoopSprite(),330,16,38);
+            InlineTitle(panel,"Gallery title",solo ? "SHITTY MAPS · SOLO" : "MAP GALLERY · 1 VS 1",24,65,1400,44,30,solo || group!="OPENZ");
             Button(panel,"CLOSE",1510,20,220,Close);
             var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION"} : new[]{"OPENZ","Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
             for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*420,118,400,()=>{group=value;scrollPosition=1;Build();},group==value); }
@@ -82,9 +81,8 @@ namespace OpenZ
                 card.name = "MAP " + map.Id;
                 var mini=Hud.Node("Minimap",card).gameObject.AddComponent<RawImage>(); mini.texture=Preview(map.Id); float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float width=Mathf.Min(250,155*ratio),height=width/ratio; mini.rectTransform.TL(8+(250-width)/2,8+(155-height)/2,width,height); mini.raycastTarget=false;
                 if(mini.texture) mini.uvRect=new Rect(0,0,1,1);
-                Label(card,entry?.Title ?? map.Id+" · "+map.Name,10,174,246,17,OzUi.Ink);
+                InlineTitle(card,"Map title",entry?.Title ?? map.Id+" · "+map.Name,10,166,246,32,17,entry!=null);
                 Label(card,World(map.Id).ToUpperInvariant()+" · "+(entry?.Variant ?? "OPENZ"),10,204,246,12,OzUi.Muted);
-                if(entry!=null) Icon(card,OzConvertedMapsScreen.PoopSprite(),226,10,30);
                 if(entry!=null && !solo && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
                 if(entry?.SoloException==true && solo) Icon(card,WarningSprite(),10,10,28);
             }
@@ -93,7 +91,7 @@ namespace OpenZ
             if(chosen!=null)
             {
                 var entry=OzShittyMapCatalog.Find(selected);
-                Label(panel,entry?.Title ?? chosen.Id+" · "+chosen.Name,1180,300,550,25,OzUi.Ink);
+                InlineTitle(panel,"Selected map title",entry?.Title ?? chosen.Id+" · "+chosen.Name,1180,292,550,42,25,entry!=null);
                 var mini=Hud.Node("Selected minimap",panel).gameObject.AddComponent<RawImage>(); mini.texture=Preview(selected); mini.raycastTarget=false;
                 float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float w=Mathf.Min(540,380*ratio),h=w/ratio; mini.rectTransform.TL(1180+(540-w)/2,355+(380-h)/2,w,h);
                 Label(panel,(entry?.Group ?? "OPENZ")+" · "+World(selected).ToUpperInvariant(),1180,755,550,17,OzUi.Amber);
@@ -106,6 +104,14 @@ namespace OpenZ
             Label(panel,"Source layout preview · lobby army rules apply in 1v1",24,902,1120,14,OzUi.Muted);
         }
         static string World(string id) => OzShittyMapCatalog.Find(id)?.World ?? (id=="L07" ? "volcanic" : id=="L16" ? "jungle" : id=="L17" || id=="L19" ? "city" : "desert");
+        static void InlineTitle(Transform parent,string name,string text,float x,float y,float width,float height,float fontSize,bool poop)
+        {
+            var row=Hud.Node(name,parent);row.TL(x,y,width,height);
+            float size=height>=40?32:24;
+            if(poop){var icon=Hud.Img(row,"Poop",Color.white);icon.sprite=OzConvertedMapsScreen.PoopSprite();icon.rectTransform.TL(0,(height-size)/2,size,size);icon.raycastTarget=false;}
+            var label=Hud.Label(row,"Title",text,fontSize,OzUi.Ink);label.FillParent(OzH.L,poop?size+10:0,0,0,0);
+            if(label.graphic is TMPro.TMP_Text fitted){fitted.enableAutoSizing=true;fitted.fontSizeMin=fontSize-2;fitted.fontSizeMax=fontSize;fitted.overflowMode=TMPro.TextOverflowModes.Ellipsis;fitted.enableWordWrapping=false;}
+        }
         Texture Preview(string id)
         {
             if(previews.TryGetValue(id,out var cached)) return cached;

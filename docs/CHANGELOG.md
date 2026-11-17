@@ -3,6 +3,18 @@
 ## OpenZ-VK 0.2.22 (local Windows release candidate, 17 Nov 2026)
 
 - Await the user's final review before any GitHub push or publication.
+- Guide player installation and source compilation with separate wizards, pictograms,
+  a large changelog reading area and dedicated tool setup. Disable Git/Unity setup
+  buttons when the tools are already available.
+- Initialize option toggles in their correct right-hand positions immediately,
+  including main-menu and in-match options. Align Shitty Map icons with their labels.
+- Pin an independent resource package in every source revision. Verify resource
+  hashes, reuse unchanged files, replace changed managed files, remove obsolete
+  managed files and back up local modifications before replacement. Preserve unknown
+  assets and personal preferences. This supports future upstream resource upgrades.
+- Verify the base resource package and embedded build identity at player startup.
+  Block incompatible or mixed installations with repair/update guidance; refuse
+  source builds using a mismatched package.
 - Center the fort-placement button caption instead of using portrait-card layout.
 - Supply only OpenZ and Z Classic factory profiles. Preserve existing local
   personal/legacy profiles without bundling them in downloadable files.

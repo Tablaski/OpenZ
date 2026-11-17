@@ -428,8 +428,9 @@ namespace OpenZ
             {
                 var track = Hud.Kit(t.row.Content, "Track", "Buttons/switch_track", new OzRect(w - 16 - 48, (OzLayout.OptToggleH - 18) * 0.5f, 48, 18), null);
                 if (!OzKit.Available) track.color = OzUi.GM950;
-                t.knob = Hud.Kit(t.row.Content, "Knob", "Buttons/switch_knob", new OzRect(0, (OzLayout.OptToggleH - 14) * 0.5f, 22, 14), OzUi.Amber, Image.Type.Simple);
-                t.state = Hud.Label(t.row.Content, "State", "", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(w - 16 - 48 - 8, OzLayout.OptToggleH * 0.5f, OzH.R, true, 40);
+                bool initial = get != null && get();
+                t.knob = Hud.Kit(t.row.Content, "Knob", "Buttons/switch_knob", new OzRect(w - 16 - 48 + (initial ? 24 : 2), (OzLayout.OptToggleH - 14) * 0.5f, 22, 14), initial ? (Color)OzUi.Amber : OzUi.GM500, Image.Type.Simple);
+                t.state = Hud.Label(t.row.Content, "State", initial ? "ON" : "OFF", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(w - 16 - 48 - 8, OzLayout.OptToggleH * 0.5f, OzH.R, true, 40);
                 AddHot(t.row.Rt, View.Main, () => { bool v = !t.get(); t.set(v); PlayerPrefs.Save(); Sfx(v ? "ui_toggle_on" : "ui_toggle_off"); }, null, t.row, null, Side.Options);   // menu_exe_v1: saved at once
             }
             OzForkOptions.Highlight(t.row, label);

@@ -256,7 +256,11 @@ namespace OpenZ.Multiplayer
                     rules.Map=definition.Id; pickerGroup=-1;
                     if (!R.IsHost && lobbyDraft == null) R.ProposeRules(rules, mapRevision); else EditLobbyRules(rules);
                 }));
-            var poop=Hud.Img(choose,"PoopEmoji",Color.white); poop.sprite=OzConvertedMapsScreen.PoopSprite(); poop.rectTransform.TL(12,9,28,28); poop.raycastTarget=false;
+            if(OzShittyMapCatalog.Find(rules.Map)!=null)
+            {
+                var poop=Hud.Img(choose.Find("Content"),"PoopEmoji",Color.white);poop.sprite=OzConvertedMapsScreen.PoopSprite();poop.rectTransform.TL(16,9,28,28);poop.raycastTarget=false;
+                var caption=choose.Find("Content/Label") as RectTransform;if(caption){caption.Fill(60,0,12,0);if(caption.GetComponent<TMPro.TMP_Text>() is TMPro.TMP_Text text)text.alignment=TMPro.TextAlignmentOptions.Left;}
+            }
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
             if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }
             BuildMapPreview(left, rules);

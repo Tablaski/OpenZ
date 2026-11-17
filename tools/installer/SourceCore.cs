@@ -27,11 +27,19 @@ namespace OpenZVK.Update
         public List<SourceFile> files = new List<SourceFile>();
     }
     public sealed class ResourceArchive { public string name, sha256; public long length; }
-    public sealed class ResourceIndex { public int schema; public string version, releaseTag; public List<ResourceArchive> archives; }
+    public sealed class ResourceFile { public string path, sha256, archive; public long length; }
+    public sealed class ResourceIndex { public int schema; public string version, releaseTag; public List<ResourceArchive> archives; public List<ResourceFile> files; }
+    public sealed class ResourceState { public string version; public List<ResourceFile> files = new List<ResourceFile>(); }
     public sealed class SourceManager
     {
         readonly GitHub github;
         public SourceManager(GitHub github) { this.github = github; }
+        public static void ValidateWorkspace(string workspace)
+        {
+            string full = Path.GetFullPath(workspace);
+            if (full.Substring(Path.GetPathRoot(full).Length).Split(Path.DirectorySeparatorChar).Any(p => p.StartsWith(".", StringComparison.Ordinal)))
+                throw new IOException("Unity source projects cannot be inside dot-prefixed folders. Choose a regular folder such as D:\\OpenZ-VK-Source.");
+        }
         public static string FindGit()
         {
             var candidates = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator).Select(p => Path.Combine(p.Trim('"'), "git.exe")).ToList();
@@ -75,6 +83,7 @@ namespace OpenZVK.Update
             var commit = await github.Api<CommitChoice>("commits/" + revision, cancellation).ConfigureAwait(false);
             if (!Regex.IsMatch(commit.sha ?? "", "^[a-f0-9]{40}$")) throw new InvalidDataException("GitHub did not identify the source commit.");
             workspace = Path.GetFullPath(workspace).TrimEnd(Path.DirectorySeparatorChar);
+            ValidateWorkspace(workspace);
             Format.SafePath(Path.GetDirectoryName(workspace), Path.GetFileName(workspace));
             string marker = Path.Combine(workspace, "FORK_SOURCE.json");
             SourceIdentity previous = null;
@@ -185,20 +194,41 @@ namespace OpenZVK.Update
         {
             if (!File.Exists(Path.Combine(workspace, "FORK_SOURCE.json"))) throw new IOException("Retrieve a source revision first.");
             string marker = Path.Combine(workspace, ".local", "resources-ready.txt");
-            if (File.Exists(marker) && File.Exists(Path.Combine(workspace, "source/Assets/OpenZ/Scenes/MainMenu.unity")) && File.Exists(Path.Combine(workspace, "source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"))) { log("Existing Unity resources retained; no resource download needed."); return; }
+            string pointerPath = Path.Combine(workspace, "SOURCE_RESOURCES.json");
+            string wantedVersion = File.Exists(pointerPath) ? (string)Format.Json().Deserialize<Dictionary<string, object>>(File.ReadAllText(pointerPath))["version"] : null;
+            string statePath = Path.Combine(workspace, ".local", "resources-state.json");
+            if (File.Exists(statePath))
+            {
+                var state = Format.Json().Deserialize<ResourceState>(File.ReadAllText(statePath));
+                if (state.version == wantedVersion && state.files.Count > 0 && state.files.All(f => Matches(workspace,f)))
+                { log("The required Unity resource package is already installed. No download needed."); return; }
+            }
             if (!String.IsNullOrWhiteSpace(existingProject))
             {
+                var reused=new ResourceState{version=wantedVersion};
                 string project = Directory.Exists(Path.Combine(existingProject, "Assets")) ? existingProject : Path.Combine(existingProject, "source");
                 if (!File.Exists(Path.Combine(project, "Assets/OpenZ/Scenes/MainMenu.unity"))) throw new IOException("Select a complete Unity project with the OpenZ scenes.");
+                string package = Path.Combine(project, "Assets/OpenZ/Resources/OpenZ/resource_package.json");
+                if (wantedVersion != null && (!File.Exists(package) || (string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(package))["version"] != wantedVersion))
+                    throw new IOException("This local Unity project has a different resource package. Choose the package required by the selected source version: " + wantedVersion);
                 foreach (string file in Directory.GetFiles(Path.Combine(project, "Assets"), "*", SearchOption.AllDirectories))
                 {
                     cancellation.ThrowIfCancellationRequested(); string relative = "source/" + file.Substring(project.Length + 1).Replace('\\', '/');
                     if (relative.StartsWith("source/Assets/OpenZ/Scripts/", StringComparison.Ordinal) || relative.StartsWith("source/Assets/OpenZ/Shaders/", StringComparison.Ordinal)) continue;
-                    string output = Format.SafePath(workspace, relative); if (File.Exists(output)) continue;
-                    Directory.CreateDirectory(Path.GetDirectoryName(output)); File.Copy(file, output);
+                    if (relative.Contains("/fork_build_resources.json")) continue;
+                    reused.files.Add(new ResourceFile{path=relative,length=new FileInfo(file).Length,sha256=Format.FileHash(file)});
+                    string output = Format.SafePath(workspace, relative); if (File.Exists(output) && Format.FileHash(output) == Format.FileHash(file)) continue;
+                    BackupResource(workspace, relative); Directory.CreateDirectory(Path.GetDirectoryName(output)); File.Copy(file, output, true);
                 }
                 string plugin = Path.Combine(project, "Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll");
                 if (File.Exists(plugin)) { string output = Format.SafePath(workspace, "source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"); Directory.CreateDirectory(Path.GetDirectoryName(output)); File.Copy(plugin, output, true); }
+                if(File.Exists(plugin))reused.files.Add(new ResourceFile{path="source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll",length=new FileInfo(plugin).Length,sha256=Format.FileHash(plugin)});
+                if(File.Exists(statePath))
+                {
+                    var prior=Format.Json().Deserialize<ResourceState>(File.ReadAllText(statePath));var paths=new HashSet<string>(reused.files.Select(f=>f.path),StringComparer.OrdinalIgnoreCase);
+                    foreach(var old in prior.files.Where(f=>!paths.Contains(f.path))){string path=Format.SafePath(workspace,old.path);if(File.Exists(path)){if(!Matches(workspace,old))BackupResource(workspace,old.path);File.Delete(path);}}
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(statePath));File.WriteAllText(statePath,Format.Json().Serialize(reused));
                 log("Reused local Unity resources without downloading them.");
             }
             else
@@ -212,26 +242,83 @@ namespace OpenZVK.Update
                     if (File.Exists(pointer)) wantedTag = (string)Format.Json().Deserialize<Dictionary<string, object>>(File.ReadAllText(pointer))["releaseTag"];
                     release = releases.FirstOrDefault(r => !r.draft && (wantedTag == null || r.tag_name == wantedTag) && r.assets.Any(a => a.name == "OpenZ-VK-source-resources.json"));
                     if (release == null) throw new IOException("The source resource bundle is not published yet. Select an existing full Unity project or the local review bundle.");
-                    index = Format.Json().Deserialize<ResourceIndex>(await github.Text(GitHub.AssetUrl(release.tag_name, "OpenZ-VK-source-resources.json"), 1024 * 1024, cancellation).ConfigureAwait(false));
+                    index = Format.Json().Deserialize<ResourceIndex>(await github.Text(GitHub.AssetUrl(release.tag_name, "OpenZ-VK-source-resources.json"), 16 * 1024 * 1024, cancellation).ConfigureAwait(false));
                 }
-                if (index.schema != 1 || (release != null && index.releaseTag != release.tag_name) || index.archives == null || index.archives.Count > 20) throw new InvalidDataException("Invalid resource bundle index.");
+                if (index.schema != 2 || index.version != wantedVersion || (release != null && index.releaseTag != release.tag_name) || index.archives == null || index.archives.Count > 20 || index.files == null || index.files.Count == 0) throw new InvalidDataException("The resource bundle does not match the selected source version.");
+                ValidateResources(workspace,index);
+                var archives = new Dictionary<string,string>(StringComparer.Ordinal);
                 foreach (var asset in index.archives)
                 {
                     if (!Regex.IsMatch(asset.name ?? "", "^OpenZ-VK-UnityResources-part[0-9]{2}\\.zip$") || !Format.IsHash(asset.sha256) || asset.length <= 0 || asset.length >= 2000000000 || (release != null && !release.assets.Any(a => a.name == asset.name && a.size == asset.length))) throw new InvalidDataException("Invalid source resource asset.");
-                    string archive = localIndex != null ? Path.Combine(Path.GetDirectoryName(localIndex), asset.name) : Path.Combine(workspace, ".local", "downloads", asset.name);
-                    log("One-time Unity resources: " + asset.name);
+                    if (index.files.Where(f=>f.archive==asset.name).All(f=>Matches(workspace,f))) continue;
+                    string archive = localIndex != null ? Path.Combine(Path.GetDirectoryName(localIndex), asset.name) : Path.Combine(workspace, ".local", "downloads", index.version, asset.name);
+                    log("Preparing required Unity resources: " + asset.name);
                     if (localIndex != null) { if (!File.Exists(archive) || new FileInfo(archive).Length != asset.length || Format.FileHash(archive) != asset.sha256) throw new InvalidDataException("Local resource bundle checksum mismatch."); }
                     else await github.DownloadFile(GitHub.AssetUrl(release.tag_name, asset.name), archive, asset.sha256, (n, total) => log(asset.name + ": " + Format.Size(n) + " / " + Format.Size(total)), cancellation).ConfigureAwait(false);
-                    var entries = ReadArchive(archive, false);
-                    using (var zip = ZipFile.OpenRead(archive)) foreach (var item in entries)
-                    {
-                        cancellation.ThrowIfCancellationRequested(); string path = Format.SafePath(workspace, item.Key); if (File.Exists(path) && new FileInfo(path).Length == zip.GetEntry(item.Value).Length) continue;
-                        Directory.CreateDirectory(Path.GetDirectoryName(path)); using (var input = zip.GetEntry(item.Value).Open()) using (var output = File.Create(path)) input.CopyTo(output);
-                    }
+                    archives.Add(asset.name,archive);
                 }
+                ApplyResources(workspace,index,archives,cancellation);
             }
             if (!File.Exists(Path.Combine(workspace, "source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"))) throw new IOException("The native datachannel dependency is missing. Use the published resource bundle or a complete fork Unity project.");
             Directory.CreateDirectory(Path.GetDirectoryName(marker)); File.WriteAllText(marker, "Resources retained across source revisions.");
+        }
+        static bool Matches(string workspace, ResourceFile file)
+        {
+            string path=Format.SafePath(workspace,file.path);
+            return File.Exists(path)&&new FileInfo(path).Length==file.length&&Format.FileHash(path)==file.sha256;
+        }
+        static void ValidateResources(string workspace,ResourceIndex index)
+        {
+            if(!Regex.IsMatch(index.version??"","^[a-zA-Z0-9._-]{1,80}$"))throw new InvalidDataException("Invalid resource package ID.");
+            var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach(var file in index.files)
+            {
+                Format.SafePath(workspace,file.path);
+                if(!seen.Add(file.path)||!Format.IsHash(file.sha256)||file.length<0||!index.archives.Any(a=>a.name==file.archive)||
+                    !(file.path.StartsWith("source/Assets/",StringComparison.Ordinal)||file.path=="source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll")||
+                    file.path.StartsWith("source/Assets/OpenZ/Scripts/",StringComparison.Ordinal)||file.path.StartsWith("source/Assets/OpenZ/Shaders/",StringComparison.Ordinal))
+                    throw new InvalidDataException("Invalid managed resource path.");
+            }
+        }
+        static void BackupResource(string workspace,string relative)
+        {
+            string path=Format.SafePath(workspace,relative);if(!File.Exists(path))return;
+            string backup=Format.SafePath(workspace,".local/resource-backups/"+DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff")+"/"+relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(backup));File.Copy(path,backup);
+        }
+        public static void ApplyResources(string workspace,ResourceIndex index,Dictionary<string,string> archives,CancellationToken cancellation)
+        {
+            ValidateResources(workspace,index);
+            string statePath=Path.Combine(workspace,".local/resources-state.json");
+            var previous=File.Exists(statePath)?Format.Json().Deserialize<ResourceState>(File.ReadAllText(statePath)):new ResourceState();
+            var stage=Path.Combine(workspace,".local/resource-stage");Directory.CreateDirectory(stage);
+            // Verify every changed file before changing the working resource set.
+            foreach(var group in index.files.Where(f=>!Matches(workspace,f)).GroupBy(f=>f.archive))
+            {
+                using(var zip=ZipFile.OpenRead(archives[group.Key]))foreach(var file in group)
+                {
+                    cancellation.ThrowIfCancellationRequested();var entry=zip.GetEntry(file.path);
+                    if(entry==null||entry.Length!=file.length)throw new InvalidDataException("Resource archive is incomplete.");
+                    string path=Format.SafePath(stage,file.path);Directory.CreateDirectory(Path.GetDirectoryName(path));
+                    using(var input=entry.Open())using(var output=File.Create(path))input.CopyTo(output);
+                    if(Format.FileHash(path)!=file.sha256)throw new InvalidDataException("Resource file checksum mismatch.");
+                }
+            }
+            cancellation.ThrowIfCancellationRequested();
+            foreach(var file in index.files.Where(f=>!Matches(workspace,f)))
+            {
+                string path=Format.SafePath(workspace,file.path);var old=previous.files.FirstOrDefault(f=>f.path==file.path);
+                if(File.Exists(path)&&(old==null||!Matches(workspace,old)))BackupResource(workspace,file.path);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));File.Copy(Format.SafePath(stage,file.path),path,true);
+            }
+            var nextPaths=new HashSet<string>(index.files.Select(f=>f.path),StringComparer.OrdinalIgnoreCase);
+            foreach(var old in previous.files.Where(f=>!nextPaths.Contains(f.path)))
+            {
+                string path=Format.SafePath(workspace,old.path);if(!File.Exists(path))continue;
+                if(!Matches(workspace,old))BackupResource(workspace,old.path);File.Delete(path);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(statePath));File.WriteAllText(statePath,Format.Json().Serialize(new ResourceState{version=index.version,files=index.files}));
+            Directory.Delete(stage,true);
         }
         public static string RequiredUnity(string workspace)
         {
@@ -248,8 +335,17 @@ namespace OpenZVK.Update
         }
         public async Task Build(string workspace, string unity, Action<string> log, CancellationToken cancellation)
         {
+            ValidateWorkspace(workspace);
             if (!File.Exists(unity) || !File.Exists(Path.Combine(workspace, "FORK_SOURCE.json"))) throw new IOException("Choose the required Unity editor and retrieve a source version first.");
             if (!File.Exists(Path.Combine(workspace, ".local", "resources-ready.txt"))) throw new IOException("Prepare the Unity resources before building.");
+            string resourcePointer=Path.Combine(workspace,"SOURCE_RESOURCES.json");
+            if(File.Exists(resourcePointer))
+            {
+                string required=(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(resourcePointer))["version"];
+                string actual=Path.Combine(workspace,"source/Assets/OpenZ/Resources/OpenZ/resource_package.json");
+                if(!File.Exists(actual)||(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(actual))["version"]!=required)
+                    throw new IOException("This source revision needs a different Unity resource package. Return to Resources and prepare the required update before building.");
+            }
             string project = Path.Combine(workspace, "source"), output = Path.Combine(workspace, "builds", "OpenZ-VK-Local"), buildLog = Path.Combine(workspace, ".local", "Unity-build.log");
             if (File.Exists(Path.Combine(project, "Temp/UnityLockfile")))
             {

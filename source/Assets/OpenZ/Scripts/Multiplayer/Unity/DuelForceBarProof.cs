@@ -16,6 +16,7 @@ namespace OpenZ.Multiplayer
             var hud = OpenZHud.I;
             bool saved = PlayerPrefs.HasKey(OzForceBarOption.Pref);
             int original = PlayerPrefs.GetInt(OzForceBarOption.Pref, 0);
+            bool hadEdge = PlayerPrefs.HasKey("oz_edge_scroll"); int edge = PlayerPrefs.GetInt("oz_edge_scroll", 1);
             try
             {
                 OzForceBarOption.MilitaryValue = false;
@@ -24,6 +25,18 @@ namespace OpenZ.Multiplayer
                 var pause = UnityEngine.Object.FindFirstObjectByType<OpenZPauseMenu>();
                 pause.OpenOptions(OzSettingTips.TabGame);
                 yield return new WaitForSecondsRealtime(.4f);
+                DuelOptionProof.SetEdgeScroll(pause,true);
+                yield return new WaitForSecondsRealtime(.3f);
+                DuelOptionProof.Check(pause);
+                DuelProofCapture.Save(Path.Combine(folder,role+"-pause-options-on.png"),true);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder,role+"-pause-options-on-screen.png"));
+                yield return new WaitForSecondsRealtime(.2f);
+                DuelOptionProof.SetEdgeScroll(pause,false);
+                yield return new WaitForSecondsRealtime(.3f);
+                DuelOptionProof.Check(pause);
+                DuelProofCapture.Save(Path.Combine(folder,role+"-pause-options-off.png"),true);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder,role+"-pause-options-off-screen.png"));
+                yield return new WaitForSecondsRealtime(.2f);
                 if (pause.IsOpen && !pause.ProofOptTabRows.Contains(OzForceBarOption.Label)) throw new Exception("Force bar option missing from GAME options.");
                 var rows = (IEnumerable)typeof(OpenZPauseMenu).GetField("toggles", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
                 bool clicked = false;
@@ -56,6 +69,7 @@ namespace OpenZ.Multiplayer
             {
                 if (hud) { hud.SetFortProductionBoost(Team.Red, 0); hud.SetFortProductionBoost(Team.Blue, 0); }
                 if (saved) PlayerPrefs.SetInt(OzForceBarOption.Pref, original); else PlayerPrefs.DeleteKey(OzForceBarOption.Pref);
+                if(hadEdge)PlayerPrefs.SetInt("oz_edge_scroll",edge);else PlayerPrefs.DeleteKey("oz_edge_scroll");
                 PlayerPrefs.Save(); OzForceBarOption.Reload();
             }
             if (DuelRuntime.I && DuelRuntime.I.IsHost) yield return DuelMapReadabilityProof.Run(folder);

@@ -14,17 +14,20 @@ namespace OpenZ.Multiplayer
     public sealed class DuelMenuProof : MonoBehaviour
     {
         string folder;
-        int step;
+        int step, preparation;
         double next;
         bool hadPlayerName;
         string savedPlayerName;
         string savedMicrophone;
         bool hadMicrophone;
+        bool hadEdgeScroll;
+        int savedEdgeScroll;
         void Awake()
         {
             hadPlayerName = PlayerPrefs.HasKey("oz_duel_name");
             savedPlayerName = PlayerPrefs.GetString("oz_duel_name", "");
             hadMicrophone = PlayerPrefs.HasKey("oz_duel_mic_device"); savedMicrophone = PlayerPrefs.GetString("oz_duel_mic_device", "");
+            hadEdgeScroll = PlayerPrefs.HasKey("oz_edge_scroll"); savedEdgeScroll = PlayerPrefs.GetInt("oz_edge_scroll", 1);
         }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -101,15 +104,41 @@ namespace OpenZ.Multiplayer
             try
             {
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
+                var menu = FindFirstObjectByType<OpenZMainMenu>();
+                if (preparation < 8)
+                {
+                    next = Time.realtimeSinceStartupAsDouble + .6;
+                    switch (preparation++)
+                    {
+                        case 0:
+                            var expected=new OzResourcePackage.Identity{resourcePackage="test-package",commit="a",builtUtc="now"};
+                            var package=new OzResourcePackage.Identity{version="test-package"};
+                            var embedded=new OzResourcePackage.Identity{resourcePackage="test-package",commit="a",builtUtc="now"};
+                            if(OzResourcePackage.Validate(expected,package,embedded)!=null)throw new Exception("Matching resource identity rejected.");
+                            embedded.commit="b";
+                            if(OzResourcePackage.Validate(expected,package,embedded)==null||OzResourcePackage.Validate(expected,null,embedded)==null||OzResourcePackage.Validate(null,package,embedded)==null)throw new Exception("Mismatched resource identity accepted.");
+                            menu.ProofOpenOptions(OzSettingTips.TabGame);
+                            if (!menu.ProofOptTabRows.Contains(OzForceBarOption.Label) || !menu.ProofOptTabRows.Contains(OzMapReadabilityOptions.FlagLabel) || !menu.ProofOptTabRows.Contains(OzMapReadabilityOptions.BorderLabel)) throw new Exception("Fork options missing.");
+                            DuelOptionProof.SetEdgeScroll(menu, true); break;
+                        case 1:
+                            DuelOptionProof.Check(menu); Capture("main-menu-options-on"); ScreenCapture.CaptureScreenshot(Path.Combine(folder,"main-menu-options-on-screen.png")); break;
+                        case 2: DuelOptionProof.SetEdgeScroll(menu, false); break;
+                        case 3:
+                            DuelOptionProof.Check(menu); Capture("main-menu-options-off"); ScreenCapture.CaptureScreenshot(Path.Combine(folder,"main-menu-options-off-screen.png")); break;
+                        case 4:
+                            RestoreEdgeScroll(); menu.ProofOpen(""); break;
+                        case 5:
+                            Capture("main-menu"); menu.ProofSelect(); break;
+                        case 6:
+                            DuelOptionProof.CheckInlineBadges(menu.transform.root); Capture("solo-selection"); menu.ProofMain(); break;
+                        case 7: break;
+                    }
+                    return;
+                }
                 switch (step++)
                 {
                     case 0:
                         var mainMenu = FindFirstObjectByType<OpenZMainMenu>();
-                        mainMenu.ProofOpenOptions(OzSettingTips.TabGame);
-                        if (!mainMenu.ProofOptTabRows.Contains(OzForceBarOption.Label)) throw new Exception("Force bar option missing from main menu GAME options.");
-                        if (!mainMenu.ProofOptTabRows.Contains(OzMapReadabilityOptions.FlagLabel) || !mainMenu.ProofOptTabRows.Contains(OzMapReadabilityOptions.BorderLabel))
-                            throw new Exception("Live flag-size or territory-border option is absent from main menu GAME options.");
-                        mainMenu.ProofOpen("");
                         if (!FindObjectsByType<Transform>(FindObjectsSortMode.None).Any(t => t.name == "Item_PLAY SOLO")) throw new Exception("Missing PLAY SOLO entry.");
                         if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "1VS1")) throw new Exception("Old floating duel button is still present.");
                         Capture("main-menu"); ClickMainItem("PLAY 1 VS 1"); break;
@@ -233,15 +262,52 @@ namespace OpenZ.Multiplayer
             var images = gallery.GetComponentsInChildren<RawImage>();
             if (!images.Any(i => i.name == "Minimap") || images.Any(i => !i.texture))
                 throw new Exception("Gallery contains missing minimaps.");
+            DuelOptionProof.CheckInlineBadges(gallery.transform);
         }
+        void RestoreEdgeScroll(){if(hadEdgeScroll)PlayerPrefs.SetInt("oz_edge_scroll",savedEdgeScroll);else PlayerPrefs.DeleteKey("oz_edge_scroll");PlayerPrefs.Save();}
         IEnumerator Exit(int code)
         {
             yield return null;
             if (hadPlayerName) PlayerPrefs.SetString("oz_duel_name", savedPlayerName);
             else PlayerPrefs.DeleteKey("oz_duel_name");
             if (hadMicrophone) PlayerPrefs.SetString("oz_duel_mic_device", savedMicrophone); else PlayerPrefs.DeleteKey("oz_duel_mic_device");
+            RestoreEdgeScroll();
             PlayerPrefs.Save();
             Application.Quit(code);
+        }
+    }
+    internal static class DuelOptionProof
+    {
+        static IEnumerable Rows(object menu) => (IEnumerable)menu.GetType().GetField("toggles",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(menu);
+        internal static void SetEdgeScroll(object menu,bool desired)
+        {
+            foreach(var item in Rows(menu))if((string)item.GetType().GetField("label").GetValue(item)=="EDGE SCROLL")
+            {
+                var get=(Func<bool>)item.GetType().GetField("get").GetValue(item);if(get()!=desired)((HudButton)item.GetType().GetField("row").GetValue(item)).OnClick(new HudClick());return;
+            }
+            throw new Exception("Edge-scroll toggle missing.");
+        }
+        internal static void Check(object menu)
+        {
+            int visible=0;
+            foreach(var item in Rows(menu))
+            {
+                var knob=item.GetType().GetField("knob").GetValue(item) as Image;var row=(HudButton)item.GetType().GetField("row").GetValue(item);
+                if(!knob||!row.Rt.gameObject.activeInHierarchy)continue;visible++;
+                var point=row.Rt.InverseTransformPoint(knob.rectTransform.TransformPoint(knob.rectTransform.rect.center));
+                if(point.x < row.Rt.rect.xMin+row.Rt.rect.width*.75f || point.x>row.Rt.rect.xMax)throw new Exception("Toggle thumb is outside the right-hand control: "+item.GetType().GetField("label").GetValue(item));
+            }
+            if(visible==0)throw new Exception("No visible boolean options were checked.");
+        }
+        internal static void CheckInlineBadges(Transform root)
+        {
+            foreach(var icon in root.GetComponentsInChildren<Image>())if(icon.name=="Poop"&&icon.gameObject.activeInHierarchy)
+            {
+                var label=icon.transform.parent.Find("Title") as RectTransform ?? icon.transform.parent.Find("Label") as RectTransform;
+                if(!label)continue;var image=icon.rectTransform;
+                float y=image.TransformPoint(image.rect.center).y,ty=label.TransformPoint(label.rect.center).y;
+                if(Mathf.Abs(y-ty)>2)throw new Exception("Shitty Map icon is not aligned with its text.");
+            }
         }
     }
 }

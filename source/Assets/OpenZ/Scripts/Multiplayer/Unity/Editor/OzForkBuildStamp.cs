@@ -13,6 +13,22 @@ namespace OpenZ.Multiplayer.Editor
     {
         public int callbackOrder => 10000;
         static OzForkVersion.BuildIdentity identity;
+        [Serializable] sealed class ResourceIdentity { public string version, resourcePackage, commit, builtUtc; public bool dirty; }
+        static ResourceIdentity resourceIdentity;
+        static void PrepareResources(string root)
+        {
+            string pointer = Path.Combine(root, "SOURCE_RESOURCES.json");
+            // Historical revisions predate resource identities and retain their original build path.
+            if (!File.Exists(pointer)) { resourceIdentity = null; return; }
+            var required = JsonUtility.FromJson<ResourceIdentity>(File.ReadAllText(pointer));
+            string assets = Path.Combine(Application.dataPath, "OpenZ/Resources/OpenZ");
+            string marker = Path.Combine(assets, "resource_package.json");
+            if (!File.Exists(marker) || JsonUtility.FromJson<ResourceIdentity>(File.ReadAllText(marker)).version != required.version)
+                throw new BuildFailedException("The Unity resource package does not match SOURCE_RESOURCES.json. Prepare the required resources with the installer before building.");
+            resourceIdentity = new ResourceIdentity { version = identity.version, resourcePackage = required.version, commit = identity.commit, builtUtc = identity.builtUtc, dirty = identity.dirty };
+            File.WriteAllText(Path.Combine(assets, "fork_build_resources.json"), JsonUtility.ToJson(resourceIdentity, true));
+            UnityEditor.AssetDatabase.Refresh(UnityEditor.ImportAssetOptions.ForceSynchronousImport);
+        }
         [Serializable] sealed class SourceFile { public string path, sha256; }
         [Serializable] sealed class SourceIdentity { public string repository, commit; public bool compatibilityPatch; public SourceFile[] files; }
         static string Git(string arguments)
@@ -51,15 +67,16 @@ namespace OpenZ.Multiplayer.Editor
                     if (!known.Contains(path.Substring(root.Length + 1).Replace('\\', '/'))) modified = true;
                 identity = new OzForkVersion.BuildIdentity { version = OzForkVersion.Number, commit = source.commit,
                     dirty = modified, builtUtc = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'") };
-                return;
+                PrepareResources(root); return;
             }
             identity = new OzForkVersion.BuildIdentity { version = OzForkVersion.Number, commit = Git("rev-parse HEAD"),
                 dirty = Git("status --porcelain").Length > 0, builtUtc = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss 'UTC'") };
+            PrepareResources(root);
         }
         public void OnPostprocessBuild(BuildReport report)
         {
             string folder = Path.GetDirectoryName(report.summary.outputPath);
-            File.WriteAllText(Path.Combine(folder, "FORK_BUILD.json"), JsonUtility.ToJson(identity, true));
+            File.WriteAllText(Path.Combine(folder, "FORK_BUILD.json"), resourceIdentity == null ? JsonUtility.ToJson(identity, true) : JsonUtility.ToJson(resourceIdentity, true));
         }
     }
 }

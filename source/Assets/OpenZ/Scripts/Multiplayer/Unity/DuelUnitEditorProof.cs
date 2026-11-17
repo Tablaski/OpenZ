@@ -173,6 +173,14 @@ namespace OpenZ.Multiplayer
                 }
                 else if (step == 19)
                 {
+                    var custom=OzBehaviorLibrary.Native(ZBehaviorFamily.Tanks);custom.master=55;
+                    OzBehaviorLibrary.Save(custom,"Example custom tank profile",true);OzBehaviorLibrary.Select(custom);
+                    if(!OzBehaviorLibrary.Choices(ZBehaviorFamily.Tanks).Exists(p=>p.id==custom.id))throw new Exception("Saved custom tank profile is absent.");
+                    OzBehaviorOptions.Show(ZBehaviorFamily.Tanks);step=20;readyAt=Time.realtimeSinceStartupAsDouble+1;
+                }
+                else if (step == 20)
+                {
+                    DuelProofCapture.Save(Path.Combine(folder,"behavior-custom-profile.png"),true);OzBehaviorOptions.Dismiss();
                     Finish("PASS: Unit Editor; clickable behavior/testing entries; twelve Dynamics pages in the shared right-hand tabbed panel; help/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
                 }
             }

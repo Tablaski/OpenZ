@@ -14,7 +14,7 @@ Click **PLAY** or **UNIT EDITOR**. The editor's direct launcher is also in `Unit
 
 1. Open **SOURCES & UNITY**. Choose stable **main** or development **dev**. Browse commits, use **OLDER COMMITS**, or paste a commit ID. This includes source revisions without a published player.
 2. Choose an empty **SOURCE WORKSPACE** initially, then **GET SOURCES**. Installed Git is detected and used for clone/fetch and a detached checkout of the selected revision. If Git is absent, the installer offers its optional installation and can use GitHub commit snapshots instead. Local source edits are protected rather than silently overwritten.
-3. Click **PREPARE RESOURCES**. Optionally select an existing complete Unity project to reuse its assets; otherwise the installer downloads the published Unity resource archives once. Resources stay in the workspace when switching commits; subsequent source updates do not download the large asset archives again. Source and map packages travel with the selected revision.
+3. Continue to **Game resources**, then **Prepare resources**. Optionally select an existing complete Unity project with the matching resource package; otherwise the installer obtains the package required by that source revision. Unchanged resources stay in the workspace. A source revision that requires new base assets prepares the updated package before compilation. Source and map packages travel with the selected revision.
 4. The required Unity version is read from that revision's ProjectVersion.txt. Its installed editor is detected in standard locations; **BROWSE** supports another location. **GET UNITY** opens the matching Unity Hub editor installation, or the Hub download page. Install Windows Build Support and activate your Unity license in Hub yourself.
 5. Close this project's editor, then click **BUILD RELEASE**. The result is under the workspace's `builds/OpenZ-VK-Local/` folder. The installer reports the log path and does not launch the game automatically. Keep the complete player folder together.
 
@@ -25,6 +25,29 @@ Your existing OpenZ/OpenZ preferences, saved profiles and local preference histo
 The installer is not code-signed. If a network blocks partial player downloads, use the complete player ZIPs. Unity Hub licensing, authentication and editor installation remain user-controlled.
 
 ## Publish a future player or resource update
+
+### Resource compatibility across upstream upgrades
+
+`SOURCE_RESOURCES.json` pins an independent package ID, such as `openz-1.4-vk-1`,
+and the release containing its resource index. An upstream upgrade that changes
+assets (for example the planned 1.5 Arctic assets) requires a new package ID and
+matching archives; a source rebase alone does not update Unity's ignored assets.
+Keep older packages published so older commits remain buildable.
+
+The index records individual file SHA-256 hashes and archive membership. Only
+archives containing required changed files are fetched; unchanged files are reused.
+A source resource update verifies all changed files before applying them, removes
+obsolete managed files and keeps unknown files. Locally modified managed assets are
+copied under `.local/resource-backups/` before replacement/removal. This folder and
+personal game settings never belong in a release. If preparation is interrupted,
+run it again before building. The required package is checked again before compilation.
+
+The player checks its packaged base-resource marker and embedded build identity
+against `FORK_BUILD.json` at startup. An incompatible package or mixed installation
+blocks play with repair instructions. Published-player updates carry their own
+complete matching resources and continue to reuse unchanged download blocks.
+
+### Release preparation
 
 Build and push the player source first. `tools/Publish-PlayerUpdate.ps1` prepares the installer and verified player payloads, uploads a draft, checks remote assets and publishes it. Pass the complete fallback ZIPs with `-AdditionalAssets`. Stable releases come from `origin/main` and become the official latest release:
 

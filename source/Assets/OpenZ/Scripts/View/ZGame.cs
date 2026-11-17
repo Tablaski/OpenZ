@@ -67,6 +67,7 @@ namespace OpenZ
 
         void Awake()
         {
+            if (!OzResourcePackage.Compatible) { enabled = false; return; }
             I = this; ZRuleProf.On = true; ZRuleProf.Reset();   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
             Time.maximumDeltaTime = OzSmoothFrames.FrameStep;                                   // v1.3 SMOOTH FRAMES ON SLOW PCS (Options, default OFF = MaxFrameStep as before; View/OzWeakPcOptions.cs)
             // Every level starts at the warm sunrise, whatever time a proof left saved in the scene

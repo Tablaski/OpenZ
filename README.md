@@ -24,7 +24,7 @@ Fresh installations supply **OpenZ** and **Z Classic** reference profiles only. 
 
 Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest). Install a published player and read its changelog, or open **SOURCES & UNITY** to select any commit from stable **main** or development **dev** and compile it. The installer detects Git and uses it when present; otherwise it retrieves source snapshots. Git installation is offered as an option.
 
-**Unity is required only for compiling sources.** The installer detects the required editor and guides its installation. Source resources are downloaded once or reused from an existing Unity project, then retained across source updates. Published players require neither Unity nor Git. See the short [installer guide](docs/INSTALLER.md).
+**Unity is required only for compiling sources.** The installer detects the required editor and guides its installation. It reuses unchanged source resources and prepares a new package when a selected version needs updated assets. Published players require neither Unity nor Git. A startup check detects incompatible resource packages. See the short [installer guide](docs/INSTALLER.md).
 
 For a manual installation, download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
 

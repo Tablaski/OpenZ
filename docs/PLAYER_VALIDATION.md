@@ -12,8 +12,8 @@
   difficulty/production bonuses and applies to starting units and production for
   both sides. Preferences schema 4 adds one optional key without resetting settings.
 - Completed: 5,440 simulation checks, including the solo roster on four real maps;
-  Unity runtime source compilation. Updated player/menu/solo captures and packaging
-  remain pending the requested release build below. Previous evidence is historical.
+  Unity runtime source compilation, updated native menu/solo captures, verified
+  player ZIPs and installer installation/repair. Previous evidence is historical.
 
 Current player: clean source f3b889745daaab362c066d444264eab7354a62a7,
 built 2026-11-17 17:07:01 UTC, resource package openz-1.4-vk-1.

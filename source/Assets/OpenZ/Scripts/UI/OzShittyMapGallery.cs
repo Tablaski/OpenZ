@@ -32,7 +32,8 @@ namespace OpenZ
             var gallery = go.AddComponent<OzShittyMapGallery>();
             gallery.solo=solo; gallery.editable=editable; gallery.selected=selected; gallery.apply=apply; gallery.closed=closed;
             gallery.group=solo ? "Z ORIGINAL" : OzShittyMapCatalog.Find(selected)?.Group ?? "OPENZ";
-            var canvas=go.GetComponent<Canvas>(); canvas.renderMode=RenderMode.ScreenSpaceOverlay; canvas.sortingOrder=950;
+            var canvas=go.GetComponent<Canvas>(); canvas.renderMode=RenderMode.ScreenSpaceOverlay; // Above DuelCanvas (1000), including its full-screen input blocker.
+            canvas.sortingOrder=1100;
             var scaler=go.GetComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(1920,1080); scaler.matchWidthOrHeight=0;
             if (!EventSystem.current)
             {

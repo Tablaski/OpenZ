@@ -1,5 +1,13 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.13 (source update, 17 Nov 2026)
+
+- Display the map gallery above the 1v1 lobby and its full-screen input blocker.
+  The previous gallery layer was below DuelCanvas, hiding the popup and routing
+  clicks to the lobby instead of the map cards, tabs and filters.
+- Source only; player menu validation remains pending a requested release build.
+
+
 ## OpenZ-VK 0.2.12 (source update, 16 Nov 2026)
 
 - Add the local p02 Zod catalog: 31 solo missions and 44 converted 1v1 choices,

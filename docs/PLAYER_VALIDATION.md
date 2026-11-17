@@ -1,5 +1,18 @@
 # Player validation record
 
+## 1v1 map gallery layering fix (0.2.13, source only)
+
+- Raise the shared map-gallery canvas from sorting order 950 to 1100, above the
+  lobby canvas and full-screen raycast blocker at 1000. Build identity remains
+  above both at 1200. No map data, preferences or authority rules change.
+- Completed: runtime C# compilation and source inspection of the actual lobby,
+  gallery and build-identity canvas priorities.
+- Pending manual checks on a newly requested release player: open the 1v1 map
+  popup, click campaign tabs/world filters/sort/cards, scroll, apply as host,
+  inspect as guest, close and reopen; check the solo gallery too.
+- No game player was built or launched. The fix requires a fresh release player.
+
+
 ## Complete p02 Shitty Maps catalog and blue borders (0.2.12, source only)
 
 - Added the tracked shittymaps/ Unity local package: 60 selected native-source

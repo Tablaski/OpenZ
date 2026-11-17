@@ -1,5 +1,13 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.14 (source update, 17 Nov 2026)
+
+- Replace the large main-menu text logo with the user-provided gold/pink logo
+  and tank character, with the baked checkerboard removed to actual transparency.
+- Preserve image proportions and move menu entries below the taller logo.
+- Local image resources are backed up separately; see PLAYER_VALIDATION.md.
+- Source only; manual player rendering validation remains pending.
+
 ## OpenZ-VK 0.2.13 (source update, 17 Nov 2026)
 
 - Display the map gallery above the 1v1 lobby and its full-screen input blocker.

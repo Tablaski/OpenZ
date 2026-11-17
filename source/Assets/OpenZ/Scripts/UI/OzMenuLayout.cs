@@ -12,7 +12,7 @@ namespace OpenZ
         // ---- main menu (guide 9.14): left column
         public const float MenuX = 110, EyebrowX = 112, EyebrowY = 150, EyebrowSize = 12;
         public const float LogoY = 176, LogoPad = 40, LogoW = 517, LogoH = 187, UnderlineGap = 22;
-        public const float ItemY0 = 390, ItemStep = 62, ItemSize = 26, ItemHoverSize = 32, ItemShift = 10, ItemCapDY = 6;
+        public const float ItemY0 = 450, ItemStep = 62, ItemSize = 26, ItemHoverSize = 32, ItemShift = 10, ItemCapDY = 6;
         public const float ItemHitDX = -20, ItemHitDY = -6, ItemHitW = 460, ItemHitH = 54;
         public const float RailX = 61, RailW = 3, RailH = 46, RailDY = -2;
         public const float HintGap = 18, HintDY = 17, HintSize = 11;

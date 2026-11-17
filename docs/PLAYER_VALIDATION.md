@@ -1,5 +1,20 @@
 # Player validation record
 
+## Transparent main-menu logo (0.2.14, source only)
+
+- Replace only the large main-menu wordmark with the supplied gold/pink artwork.
+  Background extraction uses the built-in ImageGen tool; preserve the lettering,
+  tank and character and replace the checkerboard with real alpha transparency.
+- Local asset: source/Assets/OpenZ/Resources/OpenZ/Kit/Wordmarks/wm_openz_vk_menu.png
+  and its Unity metadata. Separate backup: .local/OpenZ-VK-menu-logo-0.2.14.zip.
+  Restore both files into that Wordmarks directory on another source checkout.
+  The original OpenZ artwork remains unchanged; multimedia is excluded from Git.
+- Completed: verified RGBA alpha at outer background and the O counter.
+- Pending manual player validation: aspect ratio, clean edges, entrance animation,
+  anniversary badge and all menu entries at supported resolutions. No player built.
+
+
+
 ## 1v1 map gallery layering fix (0.2.13, source only)
 
 - Raise the shared map-gallery canvas from sorting order 950 to 1100, above the

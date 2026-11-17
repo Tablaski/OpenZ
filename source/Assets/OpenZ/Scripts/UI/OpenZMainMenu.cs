@@ -220,12 +220,13 @@ namespace OpenZ
         {
             var p = mainRoot; float lx = OzMenuLayout.MenuX;
             eyebrow = Hud.Label(p, "Eyebrow", "A 3D REMAKE OF THE 1996 BITMAP BROTHERS CLASSIC", OzMenuLayout.EyebrowSize, OzUi.Amber, 0.26f).At(OzMenuLayout.EyebrowX, OzMenuLayout.EyebrowY, OzH.L, false, 700);
-            float lh = OzMenuLayout.LogoH - 2 * OzMenuLayout.LogoPad;
-            logo = Hud.Img(p, "LogoAnchor", Color.clear); logo.enabled = false;
-            logo.rectTransform.Place(new OzRect(lx, OzMenuLayout.LogoY, 640, lh));
+            float lh = OzMenuLayout.LogoH;
+            var forkLogo = OzKit.GetSprite("Wordmarks/wm_openz_vk_menu");
+            logo = Hud.Img(p, "Logo", Color.white); logo.sprite = forkLogo; logo.preserveAspect = true; logo.enabled = forkLogo != null;
+            logo.rectTransform.Place(new OzRect(lx, OzMenuLayout.LogoY, OzMenuLayout.LogoW, lh));
             logo.rectTransform.pivot = new Vector2(.5f, .5f);
-            logo.rectTransform.anchoredPosition += new Vector2(320, -lh * .5f);
-            Hud.Label(logo.transform, "LogoText", "OpenZ-VK", 112, OzForkOptions.Brand, -.02f).At(0, 0, OzH.L, false, 640);
+            logo.rectTransform.anchoredPosition += new Vector2(OzMenuLayout.LogoW * .5f, -lh * .5f);
+            if (!forkLogo) Hud.Label(logo.transform, "LogoText", "OpenZ-VK", 90, OzForkOptions.Brand, -.02f).At(0, 0, OzH.L, false, OzMenuLayout.LogoW);
             underline = Hud.Kit(p, "Underline", "Menu/logo_underline", new OzRect(lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap, 80, 3), OzKit.GetSprite("Menu/logo_underline") != null ? (Color?)null : OzUi.Amber, Image.Type.Simple);
             // Z turns 30 (1996-2026): the anniversary badge under the logo
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);

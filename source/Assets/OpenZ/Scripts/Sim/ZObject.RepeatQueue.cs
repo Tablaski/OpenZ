@@ -40,7 +40,7 @@ namespace OpenZ.Sim
         public bool SetBuildingRepeatQueue(Team team, ZObject b, bool on)
         {
             // OpenZ duel command: RepeatQueue
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.RepeatQueue, Enabled = on });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.RepeatQueue, Enabled = on });
             if (!RepeatQueueDeviation || !FifoQueueDeviation || !Owns(team, b) || !b.IsProducer) return false;
             b.RepeatQueue = on; Emit(ZEventType.ProductionChanged, b); return true;
         }

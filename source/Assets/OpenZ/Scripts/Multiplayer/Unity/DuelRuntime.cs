@@ -32,7 +32,7 @@ namespace OpenZ.Multiplayer
     {
         public string Map, HostName, GuestName;
         public string HostRelease, GuestRelease;
-        public int Revision, Phase, HandicapSlot;
+        public int Revision, Phase, HandicapSlot, PlanningSeconds;
         public bool HostReady, GuestReady, HandicapEnabled;
         public double TerritoryBonus, MinimumBuildSeconds, FortLoserMaximum, TerritoryReductionCap;
         public DuelArmyData Common, Handicap;
@@ -46,7 +46,7 @@ namespace OpenZ.Multiplayer
         public static DuelLobbyData From(DuelLobby l)
         {
             var r = l.Rules;
-            return new DuelLobbyData { Map = r.Map, HostName = l.Name(0), GuestName = l.Name(1), Revision = l.Revision,
+            return new DuelLobbyData { Map = r.Map, PlanningSeconds = r.PlanningSeconds, HostName = l.Name(0), GuestName = l.Name(1), Revision = l.Revision,
                 Phase = (int)l.Phase, HostReady = l.Ready(0), GuestReady = l.Ready(1), HandicapEnabled = r.HandicapEnabled,
                 HandicapSlot = r.HandicapSlot, TerritoryBonus = r.TerritoryBonus, MinimumBuildSeconds = r.MinimumBuildSeconds, FortLoserMaximum = r.FortLoserMaximum, TerritoryReductionCap = r.TerritoryReductionCap,
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap),
@@ -55,7 +55,7 @@ namespace OpenZ.Multiplayer
         }
         public DuelRules ReadRules()
         {
-            var rules = new DuelRules { Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
+            var rules = new DuelRules { Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
                 Common = Common.Read(), Handicap = Handicap.Read(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
                 RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
@@ -84,6 +84,7 @@ namespace OpenZ.Multiplayer
         public int TcpPort { get; private set; }
         public bool IsHost { get; private set; }
         public bool Playing { get; private set; }
+        public bool Planning { get; private set; }
         public bool Connecting => connectTask != null;
         public bool Connected => peer != null && !peer.Closed;
         public bool InMatch => session;
@@ -137,7 +138,7 @@ namespace OpenZ.Multiplayer
         int QueuedReceiveBytes => peer is DuelRtcPeer rtc ? rtc.PendingReceiveBytes : peer is DuelTcpPeer tcp ? tcp.PendingReceiveBytes : 0;
         readonly DuelDeltaSender sender = new DuelDeltaSender();
         DuelDeltaReceiver receiver = new DuelDeltaReceiver();
-        DuelOrderReceiver guestOrders;
+        DuelOrderReceiver hostOrders, guestOrders;
         readonly List<ZEvent> pendingEvents = new List<ZEvent>();
         static double Now => Time.realtimeSinceStartupAsDouble;
 
@@ -163,11 +164,11 @@ namespace OpenZ.Multiplayer
         {
             var text = Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid");
             if (!text) throw new InvalidOperationException("Mission missing: " + map);
-            return new DuelRules { Map = map, Common = DuelMissionDefaults.Read(ZMapData.FromJson(text.text)) };
+            return new DuelRules { Map = map, Common = DuelMissionDefaults.Create() };
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-0.2-duel-6-proposals-fort-mounts\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-0.2-duel-7-opening-orders\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             foreach (string map in new[] { "L02", "L07", "L16", "L17" }.Concat(OzShittyMapCatalog.All.Where(m=>m.Duel).Select(m=>m.Id))) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
@@ -347,9 +348,34 @@ namespace OpenZ.Multiplayer
                 }
                 if (IsHost && lobby.Phase == DuelPhase.Loading && !loadStarted)
                 { loadStarted = true; session = true; LoadScene(); }
-                if (session && !Playing && startAt >= 0 && Now >= startAt)
+                if (session && Game && !Playing && startAt >= 0)
                 {
-                    Playing = true; BeginPerformance(); if (IsHost) lobby.Advance(Now); Menus.CloseOverlay();
+                    double now = Now;
+                    if (now >= startAt)
+                    {
+                        Playing = true;
+                        if (IsHost)
+                        {
+                            lobby.Advance(now);
+                            Game.World.DuelForward = null;
+                            hostOrders.ReleaseOpeningOrders();
+                            guestOrders.ReleaseOpeningOrders();
+                        }
+                        if (Planning) Menus.Refresh(); else Menus.CloseOverlay();
+                        Planning = false;
+                        BeginPerformance();
+                    }
+                    else if (!Planning && now >= startAt - View.PlanningSeconds)
+                    {
+                        Planning = true;
+                        if (IsHost)
+                            Game.World.DuelForward = order =>
+                            {
+                                order.Sequence = ++commandSequence;
+                                return hostOrders.QueueOpeningOrder(order);
+                            };
+                        Menus.CloseOverlay();
+                    }
                 }
                 if (Game && session && !IsHost)
                 {
@@ -429,12 +455,19 @@ namespace OpenZ.Multiplayer
                     lobby.MarkLoaded(1, View.Revision, Now); ScheduleStart(); break;
                 case DuelMessage.Start:
                     if (IsHost || !session || !Game || packet.Payload.Length != 8) throw new InvalidDataException("Unexpected start.");
-                    startAt = Now + Math.Max(0, BitConverter.ToDouble(packet.Payload, 0) - PingMs / 2000d); break;
+                    double delay = BitConverter.ToDouble(packet.Payload, 0);
+                    if (startAt >= 0 || double.IsNaN(delay) || delay < 0 || delay > 3 + View.PlanningSeconds)
+                        throw new InvalidDataException("Invalid match start time.");
+                    startAt = Now + Math.Max(0, delay - PingMs / 2000d); break;
                 case DuelMessage.Command:
-                    if (!IsHost || !Playing || !Game) break;
-                    guestOrders.Execute(ReadJson<DuelOrder>(packet)); break;
+                    if (!IsHost || !Game) break;
+                    if (Playing) guestOrders.Execute(ReadJson<DuelOrder>(packet));
+                    else if (startAt >= 0 && View.PlanningSeconds > 0) guestOrders.QueueOpeningOrder(ReadJson<DuelOrder>(packet));
+                    break;
                 case DuelMessage.Delta:
                     if (IsHost || !session || !Game) throw new InvalidDataException("Unexpected replica state.");
+                    // The first authoritative delta also closes the countdown if the guest's estimate ran late.
+                    if (!Playing && startAt >= 0) startAt = Math.Min(startAt, Now);
                     ReceiveState(packet); break;
                 case DuelMessage.MatchStats:
                     if (IsHost || !Game || !Game.World.GameOver) throw new InvalidDataException("Unexpected final statistics.");
@@ -516,13 +549,21 @@ namespace OpenZ.Multiplayer
             var runtime = I; runtime.Game = game; game.World.ConfigureDuel(runtime.Rules, !runtime.IsHost);
             if (runtime.IsHost)
             {
-                game.World.DuelApplyStartingArmies(); runtime.guestOrders = new DuelOrderReceiver(game.World, 1);
+                game.World.DuelApplyStartingArmies();
+                runtime.hostOrders = new DuelOrderReceiver(game.World, 0);
+                runtime.guestOrders = new DuelOrderReceiver(game.World, 1);
                 runtime.SendState(DuelMessage.Load, true);
             }
             else
             {
                 game.World.DuelResetReplica(); DuelReplica.Apply(game.World, runtime.receiver.Snapshot());
-                game.World.DuelForward = order => { if (!runtime.Playing) return false; order.Sequence = ++runtime.commandSequence; runtime.SendJson(DuelMessage.Command, order); return runtime.Connected; };
+                game.World.DuelForward = order =>
+                {
+                    if ((!runtime.Playing && !runtime.Planning) || !runtime.Connected) return false;
+                    order.Sequence = ++runtime.commandSequence;
+                    runtime.SendJson(DuelMessage.Command, order);
+                    return true;
+                };
             }
         }
         public static bool Drive(ZGame game)
@@ -683,7 +724,8 @@ namespace OpenZ.Multiplayer
         void ReturnToLobbyScene()
         {
             if (Playing) LogPerformance("lobby");
-            session = Playing = loadStarted = sentGameOver = restartPending = false; startAt = -1; Game = null;
+            session = Playing = Planning = loadStarted = sentGameOver = restartPending = false; startAt = -1; Game = null;
+            hostOrders = guestOrders = null;
             capture = new DuelReplica.CaptureBuffer();
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear();
@@ -725,7 +767,8 @@ namespace OpenZ.Multiplayer
         {
             if (Playing) LogPerformance("restart");
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
-            restartPending = false; Playing = false; loadStarted = true; sentGameOver = false; startAt = -1;
+            restartPending = false; Playing = Planning = false; loadStarted = true; sentGameOver = false; startAt = -1;
+            hostOrders = guestOrders = null;
             capture = new DuelReplica.CaptureBuffer();
             Game = null; commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); lastSnapshot = 0;
             Menus.CloseOverlay();
@@ -746,7 +789,8 @@ namespace OpenZ.Multiplayer
             lastProposalAt = -10;
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             restartPending = false;
-            session = Playing = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
+            session = Playing = Planning = loadStarted = sentGameOver = false; startAt = -1; Game = null; lobby = null; View = null;
+            hostOrders = guestOrders = null;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
             capture = new DuelReplica.CaptureBuffer();
         }

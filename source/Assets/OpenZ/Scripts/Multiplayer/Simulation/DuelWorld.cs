@@ -5,7 +5,7 @@ using OpenZ.Multiplayer;
 
 namespace OpenZ.Sim
 {
-    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick }
+    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild }
 
     [Serializable]
     public sealed class DuelOrder
@@ -22,8 +22,10 @@ namespace OpenZ.Sim
     /// <summary>Host-only command acceptance. A receiver is bound permanently to one player's seat.</summary>
     public sealed class DuelOrderReceiver
     {
+        const int OrdersPerSecond = 200;
         readonly ZWorld world;
         readonly Team team;
+        readonly List<DuelOrder> openingOrders = new List<DuelOrder>();
         long lastSequence;
         double windowStart;
         int windowCount;
@@ -34,17 +36,33 @@ namespace OpenZ.Sim
             team = slot == 0 ? Team.Red : Team.Blue;
         }
 
+        public bool QueueOpeningOrder(DuelOrder order)
+        {
+            if (openingOrders.Count >= OrdersPerSecond || !ValidPayload(order)) return false;
+            openingOrders.Add(order);
+            return true;
+        }
+
+        public void ReleaseOpeningOrders()
+        {
+            foreach (var order in openingOrders) Execute(order);
+            openingOrders.Clear();
+            windowCount = 0;
+        }
+
+        static bool ValidPayload(DuelOrder order) => order != null &&
+            Enum.IsDefined(typeof(DuelOrderKind), order.Kind) &&
+            order.Points != null && order.Points.Length <= 64 && (order.Unit == null || order.Unit.Length <= 64);
+
         public bool Execute(DuelOrder order)
         {
-            if (world.DuelIsReplica || world.GameOver || order == null || order.Sequence <= lastSequence ||
-                !Enum.IsDefined(typeof(DuelOrderKind), order.Kind)) return false;
+            if (world.DuelIsReplica || world.GameOver || !ValidPayload(order) || order.Sequence <= lastSequence) return false;
             // Server simulation clock; clients cannot reset their own rate limit.
             if (world.Time - windowStart >= 1) { windowStart = world.Time; windowCount = 0; }
-            if (++windowCount > 200) return false;
+            if (++windowCount > OrdersPerSecond) return false;
             lastSequence = order.Sequence;
             var o = world.Get(order.ObjectId);
             if (o == null || o.Owner != team || o.Destroyed || o.KillAt >= 0) return false;
-            if (order.Points == null || order.Points.Length > 64 || (order.Unit != null && order.Unit.Length > 64)) return false;
             foreach (var p in order.Points)
                 if (!Enum.IsDefined(typeof(WpMode), p.mode) || !OnMap(p.x, p.y)) return false;
             switch (order.Kind)
@@ -54,6 +72,7 @@ namespace OpenZ.Sim
                 case DuelOrderKind.Hold: return world.SendHold(team, o);
                 case DuelOrderKind.Patrol: return OnMap(order.X, order.Y) && world.SendPatrol(team, o, order.X, order.Y);
                 case DuelOrderKind.Build: return world.StartBuilding(team, o, order.Unit);
+                case DuelOrderKind.RestartBuild: return world.RestartBuilding(team, o, order.Unit);
                 case DuelOrderKind.StopBuild: return world.StopBuilding(team, o);
                 case DuelOrderKind.Queue: return world.AddBuildingQueue(team, o, order.Unit);
                 case DuelOrderKind.CancelQueue: return world.CancelBuildingQueue(team, o, order.Index, order.Unit);
@@ -78,9 +97,10 @@ namespace OpenZ.Sim
         readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
+        public bool DuelDefersOrders => DuelIsReplica || DuelForward != null;
         internal bool DuelSend(Team team, ZObject unit, DuelOrder order)
         {
-            if (!DuelIsReplica || unit == null || unit.Owner != team || unit.Destroyed || GameOver || DuelForward == null) return false;
+            if (unit == null || unit.Owner != team || unit.Destroyed || GameOver || DuelForward == null) return false;
             order.ObjectId = unit.Id; return DuelForward(order);
         }
         internal bool HasDuelRules => duelRules != null;

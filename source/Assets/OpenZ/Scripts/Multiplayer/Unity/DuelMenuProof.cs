@@ -16,6 +16,8 @@ namespace OpenZ.Multiplayer
         string folder;
         int step, preparation;
         double next;
+        string pendingMap;
+        int mapPickerStep;
         bool hadPlayerName;
         string savedPlayerName;
         string savedMicrophone;
@@ -150,6 +152,19 @@ namespace OpenZ.Multiplayer
                     }
                     return;
                 }
+                if (pendingMap != null)
+                {
+                    if (mapPickerStep++ == 0) Click("MAP " + pendingMap);
+                    else
+                    {
+                        var flyby = r.Menus.GetComponentsInChildren<RawImage>().Single(i => i.name == "OpenZ flyby");
+                        if (!flyby.texture) throw new Exception("Missing OpenZ preview for " + pendingMap);
+                        Click("APPLY MAP");
+                        if (r.Rules.Map != pendingMap) throw new Exception("Picker did not apply " + pendingMap);
+                        pendingMap = null;
+                    }
+                    return;
+                }
                 switch (step++)
                 {
                     case 0:
@@ -172,6 +187,8 @@ namespace OpenZ.Multiplayer
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
+                        if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "light", "heavy", "pyro", "laser" }))
+                            throw new Exception("Incorrect opening order or starting army defaults.");
                         var fortButton = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "FORT PLACEMENT · RED / BLUE");
                         var fortLabel = fortButton.transform.Find("Content/Label") as RectTransform;
                         var fortRect = fortButton.GetComponent<RectTransform>();
@@ -231,7 +248,7 @@ namespace OpenZ.Multiplayer
                     case 22: Click("BACK"); break;
                     case 23:
                         if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "Toggle microphone")) throw new Exception("Lobby microphone controls were not restored.");
-                        OzShittyMapGallery.Open(false, true, "SM09", _ => { }); break;
+                        Click("SHITTY MAPS"); break;
                     case 24:
                         CheckGallery(); Capture("shitty-maps-duel"); ClickGallery("ARCTIC"); break;
                     case 25:
@@ -279,12 +296,9 @@ namespace OpenZ.Multiplayer
         }
         void SelectMap(string id)
         {
-            Click("SELECT MAP · " + OzShittyMapGallery.Definition(DuelRuntime.I.Rules.Map).Name);
-            ClickGallery("MAP " + id);
-            // Selection rebuilds the cards; the prior hierarchy is destroyed at frame end.
-            FindFirstObjectByType<OzShittyMapGallery>().GetComponentsInChildren<Button>()
-                .Last(b => b.name == "APPLY MAP" && b.interactable).onClick.Invoke();
-            if (DuelRuntime.I.Rules.Map != id) throw new Exception("Gallery did not apply map " + id);
+            pendingMap = id;
+            mapPickerStep = 0;
+            Click("OPENZ MAPS");
         }
         void CheckGallery()
         {

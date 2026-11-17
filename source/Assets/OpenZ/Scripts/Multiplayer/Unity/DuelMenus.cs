@@ -33,7 +33,7 @@ namespace OpenZ.Multiplayer
         OzFactionPosters generals;
         readonly RawImage[] generalImages = new RawImage[2];
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
-        OzText ping, loading, voiceStatus;
+        OzText ping, loading, voiceStatus, planningTime;
         InputField chatField;
         bool bindingChat, bindingTalk;
         bool advanced, onlineSettings;
@@ -42,7 +42,7 @@ namespace OpenZ.Multiplayer
         double endedAt = -1;
         public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk || (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) || (EventSystem.current && EventSystem.current.currentSelectedGameObject && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>());
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
-        public bool CapturesInput => page != Page.Entry || (R.InMatch && !R.Playing);
+        public bool CapturesInput => page != Page.Entry || (R.InMatch && !R.Playing && !R.Planning);
         public void Refresh() { dirty = true; }
         public void ShowConnect() { page = Page.Connect; dirty = true; }
         public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
@@ -112,7 +112,14 @@ namespace OpenZ.Multiplayer
             if (inputMeter) { inputMeter.rectTransform.anchorMax = new Vector2(R.Voice.InputLevel, 1); inputMeter.color = R.Voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go; }
             meterValue?.Set("INPUT LEVEL: " + Mathf.RoundToInt(R.Voice.InputLevel * 100) + "%");
             gainValue?.Set("MICROPHONE GAIN: " + Mathf.RoundToInt(R.Voice.Gain * 100) + "%");
-            if (loading != null) loading.Set(R.Countdown >= 0 ? "STARTING IN " + Math.Ceiling(R.Countdown) : R.ConnectionStatus);
+            if (loading != null)
+            {
+                int seconds = R.View?.PlanningSeconds ?? 0;
+                loading.Set(R.Countdown < 0 ? R.ConnectionStatus : seconds == 0 ? "STARTING IN " + Math.Ceiling(R.Countdown)
+                    : "OPENING ORDERS IN " + Math.Ceiling(Math.Max(0, R.Countdown - seconds)));
+            }
+            planningTime?.Set("GIVE OPENING ORDERS · MATCH STARTS IN " + Math.Ceiling(R.Countdown));
+            TickOpenZMapPreview();
         }
         void Build()
         {
@@ -124,7 +131,9 @@ namespace OpenZ.Multiplayer
                 if (generals) { generals.Close(false); generals = null; }
             }
             if (root) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
-            ping = loading = voiceStatus = meterValue = gainValue = null; inputMeter = null; chatField = null;
+            if (lobbyDialog != LobbyDialog.OpenZMaps) ReleaseOpenZMapPreview();
+            openZMapImage = null;
+            ping = loading = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = null; chatField = null;
             R.Voice.Monitoring = page == Page.Microphone;
             if (!canvas)
             {
@@ -145,6 +154,14 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry)
             {
                 if (SceneManager.GetActiveScene().name != "MainMenu" && R.InMatch) ping = Label(root, "PING", 1370, 34, 180, 17, OzUi.Go);
+                if (R.Planning)
+                {
+                    var banner = Hud.Img(root, "Opening orders", OzUi.GM950);
+                    banner.rectTransform.TL(645, 84, 630, 46);
+                    banner.raycastTarget = false;
+                    planningTime = Hud.Label(banner.transform, "Countdown", "", 18, OzUi.Amber).FillParent(OzH.C);
+                    planningTime.graphic.raycastTarget = false;
+                }
                 if (R.Playing && !FindObjectsByType<OpenZPauseMenu>(FindObjectsSortMode.None).Any(p => p.IsOpen))
                     for (int i = 0; i < notices.Count; i++)
                     {
@@ -250,20 +267,25 @@ namespace OpenZ.Multiplayer
             var chosenMap=OzShittyMapGallery.Definition(rules.Map);
             int mapRevision = R.View.Revision;
             bool mapEditable = R.View.Phase == (int)DuelPhase.Lobby && (R.IsHost || lobbyDraft == null || editable);
-            var choose=Button(left, (R.IsHost ? "SELECT MAP · " : "PROPOSE MAP · ")+(chosenMap?.Name ?? rules.Map), 24, 65, 650, () =>
-                OzShittyMapGallery.Open(false, mapEditable, rules.Map, definition =>
-                {
-                    if (R.View == null || R.View.Revision != mapRevision) { dirty = true; return; }
-                    rules.Map=definition.Id; pickerGroup=-1;
-                    if (!R.IsHost && lobbyDraft == null) R.ProposeRules(rules, mapRevision); else EditLobbyRules(rules);
-                }));
-            if(OzShittyMapCatalog.Find(rules.Map)!=null)
+            Label(left, chosenMap?.Name ?? rules.Map, 24, 59, 650, 20, OzUi.Ink);
+            Button(left, "OPENZ MAPS", 24, 87, 315, () =>
             {
-                var poop=Hud.Img(choose.Find("Content"),"PoopEmoji",Color.white);poop.sprite=OzConvertedMapsScreen.PoopSprite();poop.rectTransform.TL(16,9,28,28);poop.raycastTarget=false;
-                var caption=choose.Find("Content/Label") as RectTransform;if(caption){caption.Fill(60,0,12,0);if(caption.GetComponent<TMPro.TMP_Text>() is TMPro.TMP_Text text)text.alignment=TMPro.TextAlignmentOptions.Left;}
-            }
+                openZMapId = OzLevelDef.All.FirstOrDefault(d => d.Id == rules.Map)?.Id ?? OzLevelDef.All[0].Id;
+                lobbyDialog = LobbyDialog.OpenZMaps;
+                dirty = true;
+            });
+            var choose = Button(left, "SHITTY MAPS", 359, 87, 315, () =>
+                OzShittyMapGallery.Open(false, mapEditable, rules.Map, definition => ApplyLobbyMap(rules, mapRevision, definition.Id)));
+            var poop = Hud.Img(choose.Find("Content"), "PoopEmoji", Color.white);
+            poop.sprite = OzConvertedMapsScreen.PoopSprite(); poop.rectTransform.TL(16, 9, 28, 28); poop.raycastTarget = false;
+            var caption = choose.Find("Content/Label") as RectTransform;
+            if (caption && caption.GetComponent<TMPro.TMP_Text>() is TMPro.TMP_Text text)
+            { caption.Fill(60, 0, 12, 0); text.alignment = TMPro.TextAlignmentOptions.Left; }
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
-            if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 125, 650, 195); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 195); }
+            if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 142, 650, 178); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 178); }
+            Label(left, "OPENING ORDERS · " + (rules.PlanningSeconds == 0 ? "OFF" : rules.PlanningSeconds + " s"), 24, 551, 445, 17, OzUi.Ink);
+            Button(left, "−", 505, 537, 78, () => { rules.PlanningSeconds--; EditLobbyRules(rules); }, false, editable && rules.PlanningSeconds > 0);
+            Button(left, "+", 593, 537, 78, () => { rules.PlanningSeconds++; EditLobbyRules(rules); }, false, editable && rules.PlanningSeconds < DuelRules.MaxPlanningSeconds);
             BuildMapPreview(left, rules);
             BuildArmy(rules, editable);
             BuildHandicap(rules, editable);
@@ -281,7 +303,8 @@ namespace OpenZ.Multiplayer
             Label(root, R.ReleaseWarning.Length > 0 ? R.ReleaseWarning : rules.HasStartingArmies ? R.Status : "Each team needs a starting squad, vehicle or turret before READY.", 360, 1020, 950, 16, OzUi.AlertText);
             Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected && official.HasStartingArmies && lobbyDraft == null);
             if (pickerGroup >= 0) BuildUnitPicker(rules, editable);
-            if (lobbyDialog != LobbyDialog.None) BuildLobbyRules(rules, editable);
+            if (lobbyDialog == LobbyDialog.OpenZMaps) BuildOpenZMapPicker(rules, mapEditable, mapRevision);
+            else if (lobbyDialog != LobbyDialog.None) BuildLobbyRules(rules, editable);
         }
         static double NextDuration(double current) => current > .9 ? .8 : current > .7 ? 2d / 3 : current > .55 ? .5 : 1;
         void BuildArmy(DuelRules rules, bool editable)
@@ -289,7 +312,8 @@ namespace OpenZ.Multiplayer
             var panel = Panel("STARTING ARMIES", 820, 190, 1010, 310);
             Label(panel, "FORT TURRETS · choose each mount for RED and BLUE", 24, 68, 950, 17, OzUi.Muted);
             Button(panel, "FORT PLACEMENT · RED / BLUE", 24, 95, 960, () => { lobbyDialog = LobbyDialog.Forts; pickerGroup = -1; dirty = true; }, false, true, 76, true);
-            Label(panel, "OUTSIDE THE FORT · same starting squads / vehicles for both teams", 24, 190, 950, 17, OzUi.Muted);
+            Label(panel, "OUTSIDE THE FORT · shared by both teams", 24, 190, 680, 17, OzUi.Muted);
+            Button(panel, "PRESETS", 760, 173, 224, () => { lobbyDialog = LobbyDialog.ArmyPresets; presetName = presetStatus = ""; dirty = true; }, false, true, 37);
             ArmySlots(panel, rules.Common.StartingUnits, 1, 24, 217, 960, editable);
         }
         void ArmySlots(Transform parent, IList<string> units, int group, float x, float y, float width, bool editable)
@@ -303,7 +327,7 @@ namespace OpenZ.Multiplayer
                 Portrait(button, type, (step - 54) / 2, 2, 44);
             }
         }
-        internal static string UnitName(string type) => string.IsNullOrEmpty(type) ? "EMPTY" : type == "light" ? "LIGHT TANK" : type == "medium" ? "MEDIUM MECH" : type == "mtank" ? "MEDIUM TANK" : type == "heavy" ? "HEAVY TANK" : type.Replace('_', ' ').ToUpperInvariant();
+        internal static string UnitName(string type) => string.IsNullOrEmpty(type) ? "EMPTY" : type == "light" ? "LIGHT TANK" : type == "medium" ? "MEDIUM MECH" : type == "mtank" ? "MEDIUM TANK" : type == "heavy" ? "HEAVY TANK" : type == "pyro" ? "PYROS" : type.Replace('_', ' ').ToUpperInvariant();
         void BuildHandicap(DuelRules rules, bool editable)
         {
             var panel = Panel("HANDICAP", 820, 520, 1010, 265);
@@ -340,7 +364,7 @@ namespace OpenZ.Multiplayer
             Label(parent, "TACTICAL MAP", 24, 370, 230, 19, OzUi.Ink);
             Label(parent, "Full map\nStarting positions\nBoth armies", 24, 415, 230, 17, OzUi.Muted);
             var raw = Hud.Node("TacticalMap", parent).gameObject.AddComponent<RawImage>(); raw.texture = mapPreview;
-            float scale = Math.Min(380f / mapPreview.width, 240f / mapPreview.height);
+            float scale = Math.Min(380f / mapPreview.width, 194f / mapPreview.height);
             raw.rectTransform.TL(285 + (380 - mapPreview.width * scale) / 2, 335, mapPreview.width * scale, mapPreview.height * scale); raw.raycastTarget = false;
         }
         void BuildUnitPicker(DuelRules rules, bool editable)
@@ -384,6 +408,7 @@ namespace OpenZ.Multiplayer
         }
         void OnDestroy()
         {
+            ReleaseOpenZMapPreview();
             if (mapPreview) Destroy(mapPreview);
             if (generals && generals.isActiveAndEnabled) generals.Close(false);
         }

@@ -95,6 +95,7 @@ namespace OpenZ
         /// <summary>FlybySky's level-load question: a blue level whose briefing will play (asked after every Awake of the new scene).</summary>
         static bool BlueBriefingExpected()
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return false;
             if (I) return I.phase == Phase.Pending || I.phase == Phase.Briefing;
             var g = ZGame.I;
             if (!g || !Application.isPlaying || !ZodBriefing.Enabled || !OzPlayBlue.NoStoryIn(g.gameObject.scene.name)) return false;
@@ -105,6 +106,7 @@ namespace OpenZ
 
         static void Install(Scene s, bool fromFlow)
         {
+            if (OpenZ.Multiplayer.DuelRuntime.Active) return;
             if (!Application.isPlaying || !s.IsValid() || !ZodBriefing.Enabled || !OzPlayBlue.NoStoryIn(s.name)) return;
             if (I && I.gameObject.scene == s) return;
             if (OzUeHooks.NoCameo(s)) return;

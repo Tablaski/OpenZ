@@ -256,6 +256,9 @@ namespace OpenZ
         }
 
         // ================================================================== input + gating
+        const float LongClickSeconds = .5f;
+        float leftPressedAt;
+
         // duel HUD input capture
             void Update()
         {
@@ -294,11 +297,14 @@ namespace OpenZ
                 for (int i = buttons.Count - 1; i >= 0; i--)
                     if (buttons[i].Priority >= minPriority && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
             if (over != HotButton) { if (HotButton != null) { HotButton.Hovered = false; HotButton.Refresh(); } HotButton = over; if (over != null) { over.Hovered = true; over.Refresh(); } }
+            if (!modal && over != null && over.Interactable && Production && OzBindings.Pressed(OzAction.RestartProduction))
+                Production.RestartHovered(over);
 
             bool lp = m.leftButton.wasPressedThisFrame, lr = m.leftButton.wasReleasedThisFrame;
             bool rp = m.rightButton.wasPressedThisFrame, rr = m.rightButton.wasReleasedThisFrame;
             if (lp)
             {
+                leftPressedAt = Time.unscaledTime;
                 PressPos = Pointer; PressBuilding = null;
                 if (PointerOverUi) PressCapture = Capture.Ui;
                 else if (input.Placing != null) PressCapture = Capture.None;                             // placement owns the mouse
@@ -312,7 +318,12 @@ namespace OpenZ
             if (lr && leftDown != null)
             {
                 var b = leftDown; leftDown = null; b.Pressed = false; b.Refresh();
-                if (b == over && b.Interactable && b.OnClick != null) { b.OnClick(Click(kb, false)); UiClickSound(); }
+                if (b == over && b.Interactable && b.OnClick != null)
+                {
+                    var click = Click(kb, false);
+                    click.longPress = Time.unscaledTime - leftPressedAt >= LongClickSeconds;
+                    b.OnClick(click); UiClickSound();
+                }
                 else if (b == over && !b.Interactable && b.OnClick != null) OzSfx.Ui("ui_disabled");        // sound_v3
             }
             if (rr && rightDown != null)

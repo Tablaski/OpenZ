@@ -318,21 +318,27 @@ namespace OpenZ.Sim
         public bool StartBuilding(Team team, ZObject b, string unit)
         {
             // OpenZ duel command: Build
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Build, Unit = unit });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Build, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = b.SetBuildingProduction(unit); if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
         }
         public bool StopBuilding(Team team, ZObject b)
         {
             // OpenZ duel command: StopBuild
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.StopBuild });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.StopBuild });
             if (!Owns(team, b)) return false;
             b.StopBuildingProduction(); Emit(ZEventType.ProductionChanged, b); return true;
+        }
+        public bool RestartBuilding(Team team, ZObject b, string unit)
+        {
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.RestartBuild, Unit = unit });
+            if (!Owns(team, b) || b.Destroyed || !ProductionUnits(b).Contains(unit)) return false;
+            return StopBuilding(team, b) && StartBuilding(team, b, unit);
         }
         public bool AddBuildingQueue(Team team, ZObject b, string unit)
         {
             // OpenZ duel command: Queue
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Queue, Unit = unit });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Queue, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = !b.Building ? b.SetBuildingProduction(unit) : b.AddBuildingQueue(unit);
             if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
@@ -341,21 +347,21 @@ namespace OpenZ.Sim
         public bool SetBuildingRepeat(Team team, ZObject b, bool repeat)
         {
             // OpenZ duel command: Repeat
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Repeat, Enabled = repeat });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Repeat, Enabled = repeat });
             if (!Owns(team, b) || !b.IsProducer) return false;
             b.RepeatProduction = repeat; Emit(ZEventType.ProductionChanged, b); return true;
         }
         public bool CancelBuildingQueue(Team team, ZObject b, int i, string unit)
         {
             // OpenZ duel command: CancelQueue
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.CancelQueue, Index = i, Unit = unit });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.CancelQueue, Index = i, Unit = unit });
             if (!Owns(team, b)) return false;
             bool ok = b.CancelBuildingQueue(i, unit); if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
         }
         public bool SetRallyPoints(Team team, ZObject b, IList<ZWaypoint> pts)
         {
             // OpenZ duel command: Rally
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Rally, Points = new List<ZWaypoint>(pts).ToArray() });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Rally, Points = new List<ZWaypoint>(pts).ToArray() });
             if (!Owns(team, b) || !b.IsProducer) return false;
             b.RallyPoints.Clear();
             foreach (var p in pts) b.RallyPoints.Add(new ZWaypoint { mode = WpMode.Move, refId = -1, x = p.x, y = p.y, attackTo = p.attackTo });   // MOVE only (zcore.cpp:189-194)
@@ -401,7 +407,7 @@ namespace OpenZ.Sim
         public ZObject PlaceCannon(Team team, ZObject b, int tx, int ty, int index = 0)
         {
             // OpenZ duel command: PlaceCannon
-            if (DuelIsReplica) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.PlaceCannon, X = tx, Y = ty, Index = index }) ? b : null;
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.PlaceCannon, X = tx, Y = ty, Index = index }) ? b : null;
             if (!Owns(team, b) || index < 0 || index >= b.StoredCannons.Count) return null;
             if (!DuelAllowsUnit(b.StoredCannons[index])) return null;
             if (!CannonPlacable(b, tx, ty)) return null;

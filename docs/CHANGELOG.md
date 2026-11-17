@@ -1,5 +1,13 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.24 (17 Nov 2026)
+
+- 1 vs 1 matches open directly on the battlefield without a briefing.
+- The lobby can give both players up to 10 seconds to issue opening orders. Units and the match clock wait for the countdown to finish. This option is off by default.
+- Browse OpenZ maps with the same flyby previews as solo, or open the separate Shitty Maps gallery to browse converted maps.
+- Save and load named presets for the four starting slots outside the fort. The default formation is Light Tank, Heavy Tank, Pyros and Laser.
+- In Controls, bind **Stop + produce hovered unit** to a key or enable **Hold L-click**. Use it over a unit in the production menu to clear the queue and start that unit from the beginning.
+
 ## OpenZ-VK 0.2.22 (17 Nov 2026)
 
 ### Install and update

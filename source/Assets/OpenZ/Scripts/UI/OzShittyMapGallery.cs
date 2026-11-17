@@ -30,8 +30,11 @@ namespace OpenZ
             IsOpen = true;
             var go = new GameObject("Shitty map gallery", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var gallery = go.AddComponent<OzShittyMapGallery>();
-            gallery.solo=solo; gallery.editable=editable; gallery.selected=selected; gallery.apply=apply; gallery.closed=closed;
-            gallery.group=solo ? "Z ORIGINAL" : OzShittyMapCatalog.Find(selected)?.Group ?? "OPENZ";
+            var entry = OzShittyMapCatalog.Find(selected);
+            gallery.solo=solo; gallery.editable=editable; gallery.apply=apply; gallery.closed=closed;
+            bool selectable = entry != null && (solo ? entry.Solo : entry.Duel);
+            gallery.selected = selectable ? selected : null;
+            gallery.group = selectable ? entry.Group : "Z ORIGINAL";
             var canvas=go.GetComponent<Canvas>(); canvas.renderMode=RenderMode.ScreenSpaceOverlay; // Above DuelCanvas (1000), including its full-screen input blocker.
             canvas.sortingOrder=1100;
             var scaler=go.GetComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(1920,1080); scaler.matchWidthOrHeight=0;
@@ -55,26 +58,19 @@ namespace OpenZ
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
             InlineTitle(panel,"Gallery title",solo ? "SHITTY MAPS · SOLO" : "SHITTY MAPS · 1 VS 1",24,65,1400,44,30,true);
             Button(panel,"CLOSE",1510,20,220,Close);
-            var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION"} : new[]{"OPENZ","Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
+            var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION"} : new[]{"Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
             for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*420,118,400,()=>{group=value;scrollPosition=1;Build();},group==value); }
             var worlds=new[]{"all","desert","volcanic","arctic","jungle","city"};
             for(int i=0;i<worlds.Length;i++) { string value=worlds[i]; Button(panel,value.ToUpperInvariant(),24+i*222,180,210,()=>{world=value;scrollPosition=1;Build();},world==value); }
             Button(panel,"SORT: "+new[]{"NUMBER","NAME","WORLD"}[sort],1380,180,350,()=>{sort=(sort+1)%3;scrollPosition=1;Build();});
-            Label(panel,solo ? "Original campaigns · levels 21 and 27 explicitly use FIXED files because their originals are absent." : editable ? "HOST SELECTION · applying a map clears both READY confirmations." : "READ ONLY · inspect every map; only the host can apply a selection.",24,240,1700,16,OzUi.Muted);
-            var maps=new List<OzLevelDef>();
-            if(group=="OPENZ")
-            {
-                maps.AddRange(OzLevelDef.All.Where(d=>world=="all" || World(d.Id)==world));
-                if(sort==1) maps=maps.OrderBy(d=>d.Name).ToList();
-                if(sort==2) maps=maps.OrderBy(d=>World(d.Id)).ThenBy(d=>d.Number).ToList();
-            }
-            else maps.AddRange(OzShittyMapCatalog.Select(solo,group,world,sort).Select(Definition));
-            Label(panel,maps.Count+" MAPS",24,278,800,15,OzUi.Muted);
+            Label(panel,solo ? "Original campaigns · levels 21 and 27 explicitly use FIXED files because their originals are absent." : editable ? "The host must approve any change to the official map selection." : "READ ONLY · browse the converted maps.",24,240,1700,16,OzUi.Muted);
+            var maps = OzShittyMapCatalog.Select(solo, group, world, sort).Select(Definition).ToArray();
+            Label(panel,maps.Length+" MAPS",24,278,800,15,OzUi.Muted);
             var viewport=Hud.Node("Map viewport",panel); viewport.TL(24,310,1120,570); viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>(); background.color=OzUi.GM950;
-            var grid=Hud.Node("Cards",viewport); grid.TL(0,0,1120,Mathf.Max(570,Mathf.Ceil(maps.Count/4f)*244));
+            var grid=Hud.Node("Cards",viewport); grid.TL(0,0,1120,Mathf.Max(570,Mathf.Ceil(maps.Length/4f)*244));
             var scroll=viewport.gameObject.AddComponent<ScrollRect>(); scroll.viewport=viewport; scroll.content=grid; scroll.horizontal=false; scroll.vertical=true; scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=40; scroll.verticalNormalizedPosition=scrollPosition; scroll.onValueChanged.AddListener(p=>scrollPosition=p.y);
-            for(int i=0;i<maps.Count;i++)
+            for(int i=0;i<maps.Length;i++)
             {
                 var map=maps[i]; var entry=OzShittyMapCatalog.Find(map.Id); bool active=selected==map.Id;
                 var card=Button(grid,"",i%4*280,i/4*244,266,()=>{selected=map.Id;Build();},active,true,230);
@@ -86,8 +82,8 @@ namespace OpenZ
                 if(entry!=null && !solo && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
                 if(entry?.SoloException==true && solo) Icon(card,WarningSprite(),10,10,28);
             }
-            if(maps.Count==0) Label(grid,"No maps in this filter.",24,40,1000,22,OzUi.Muted);
-            var chosen=Definition(selected);
+            if(maps.Length==0) Label(grid,"No maps in this filter.",24,40,1000,22,OzUi.Muted);
+            var chosen=maps.FirstOrDefault(map => map.Id == selected);
             if(chosen!=null)
             {
                 var entry=OzShittyMapCatalog.Find(selected);

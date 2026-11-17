@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,16 +9,145 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal }
+        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
         int dynamicsType;
         float allowedScroll = 1, dynamicsScroll = 1;
+        string openZMapId, presetName, presetStatus;
+        OzLevelPreview openZMapPreview;
+        RawImage openZMapImage;
+        public const string ArmyPresetsPreference = "oz_duel_outside_army_presets";
+
+        [Serializable] sealed class ArmyPreset { public string name; public string[] units; }
+        [Serializable] sealed class ArmyPresets { public List<ArmyPreset> entries = new List<ArmyPreset>(); }
+
+        void ApplyLobbyMap(DuelRules rules, int revision, string id)
+        {
+            if (R.View == null || R.View.Revision != revision || R.View.Phase != (int)DuelPhase.Lobby || rules.Map == id) return;
+            // Keep edits made to a guest draft while a separate map gallery was open.
+            rules = (lobbyDraft ?? rules).Copy();
+            rules.Map = id;
+            if (!R.IsHost && lobbyDraft == null) R.ProposeRules(rules, revision);
+            else EditLobbyRules(rules);
+        }
+
+        void BuildOpenZMapPicker(DuelRules rules, bool editable, int revision)
+        {
+            var shade = Hud.Img(root, "OpenZ maps shade", new Color(0, 0, 0, .94f));
+            shade.rectTransform.Fill(); shade.raycastTarget = true;
+            var panel = Panel("OPENZ MAPS", 180, 146, 1560, 788);
+            panel.name = "OpenZ map picker";
+            Button(panel, "CLOSE", 1325, 12, 210, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
+            for (int i = 0; i < OzLevelDef.All.Length; i++)
+            {
+                var level = OzLevelDef.All[i];
+                var card = Button(panel, level.Number + " · " + level.Name, 26, 102 + i * 134, 410,
+                    () => { openZMapId = level.Id; dirty = true; }, openZMapId == level.Id, true, 115, true);
+                card.name = "MAP " + level.Id;
+            }
+            var selected = OzLevelDef.All.First(d => d.Id == openZMapId);
+            if (openZMapPreview?.Level != selected.Id)
+            {
+                ReleaseOpenZMapPreview();
+                openZMapPreview = OzLevelPreview.Create(transform, selected.Id);
+                openZMapPreview.PlayFrom(OzLevelPreview.PosterTime, true);
+            }
+            openZMapImage = Hud.Node("OpenZ flyby", panel).gameObject.AddComponent<RawImage>();
+            openZMapImage.rectTransform.TL(466, 102, 1068, 600);
+            openZMapImage.raycastTarget = false;
+            Label(panel, selected.Name + " · " + selected.Mood, 466, 724, 735, 21, OzUi.Ink);
+            Button(panel, "APPLY MAP", 1224, 715, 310, () =>
+            {
+                ApplyLobbyMap(rules, revision, selected.Id);
+                lobbyDialog = LobbyDialog.None;
+                dirty = true;
+            }, true, editable);
+        }
+
+        void TickOpenZMapPreview()
+        {
+            if (!openZMapImage || openZMapPreview == null) return;
+            OzLevelPreview.PumpPrepares();
+            var texture = openZMapPreview.Sharp;
+            openZMapImage.texture = texture;
+            openZMapImage.enabled = texture;
+            if (!texture) return;
+            var cover = OzLevelPreview.Cover((float)texture.width / texture.height, 1068f / 600);
+            openZMapImage.uvRect = openZMapPreview.VideoOk ? cover : OzLevelPreview.KenBurns(cover, OzMotion.Now, 0);
+        }
+
+        void ReleaseOpenZMapPreview()
+        {
+            if (openZMapPreview == null) return;
+            var video = openZMapPreview.Player;
+            openZMapPreview.Release();
+            if (video) Destroy(video.gameObject);
+            openZMapPreview = null;
+        }
+
+        static ArmyPresets ReadArmyPresets()
+        {
+            var json = PlayerPrefs.GetString(ArmyPresetsPreference, "");
+            if (json.Length == 0) return new ArmyPresets();
+            try { return JsonUtility.FromJson<ArmyPresets>(json) ?? new ArmyPresets(); }
+            catch (ArgumentException) { return new ArmyPresets(); }
+        }
+
+        void BuildArmyPresets(DuelRules rules, bool editable)
+        {
+            var shade = Hud.Img(root, "Army presets shade", new Color(0, 0, 0, .94f));
+            shade.rectTransform.Fill(); shade.raycastTarget = true;
+            var panel = Panel("OUTSIDE THE FORT · PRESETS", 320, 165, 1280, 750);
+            Button(panel, "CLOSE", 1030, 12, 225, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
+            Label(panel, "Load a four-slot formation for both teams. Units disabled by the lobby roster leave their slots empty.", 24, 70, 1220, 17, OzUi.Muted);
+            Label(panel, "SAVE CURRENT FOUR SLOTS", 24, 123, 470, 17, OzUi.Ink);
+            Input(panel, "", 24, 155, 430, presetName, value => presetName = value, 32);
+            Button(panel, "SAVE AS", 474, 155, 175, () =>
+            {
+                string name = presetName.Trim();
+                var presets = ReadArmyPresets();
+                presets.entries ??= new List<ArmyPreset>();
+                if (name.Length == 0 || name.Any(char.IsControl) || name.Contains("<") || name.Contains(">"))
+                    presetStatus = "Enter a preset name without angle brackets.";
+                else if (presets.entries.Any(p => string.Equals(p?.name, name, StringComparison.OrdinalIgnoreCase)))
+                    presetStatus = "A preset with this name already exists.";
+                else
+                {
+                    var units = Enumerable.Range(0, 4).Select(i => rules.Common.StartingUnits.ElementAtOrDefault(i) ?? "").ToArray();
+                    presets.entries.Add(new ArmyPreset { name = name, units = units });
+                    PlayerPrefs.SetString(ArmyPresetsPreference, JsonUtility.ToJson(presets)); PlayerPrefs.Save();
+                    presetStatus = "Saved " + name;
+                    presetName = "";
+                }
+                dirty = true;
+            });
+            Label(panel, presetStatus ?? "", 680, 167, 570, 16, OzUi.Amber);
+            var saved = ReadArmyPresets().entries?.Where(p => p != null && !string.IsNullOrWhiteSpace(p.name) &&
+                !p.name.Contains("<") && !p.name.Contains(">") && DuelMissionDefaults.IsOutsidePreset(p.units)).ToList() ?? new List<ArmyPreset>();
+            saved.Insert(0, new ArmyPreset { name = "OpenZ-VK default", units = DuelMissionDefaults.OutsideUnits() });
+            var rows = Scroll(panel, 24, 230, 1232, 490, false, Math.Max(490, saved.Count * 64));
+            for (int i = 0; i < saved.Count; i++)
+            {
+                var preset = saved[i];
+                float y = i * 64;
+                Label(rows, preset.name, 8, y + 8, 380, 17, OzUi.Ink);
+                Label(rows, string.Join("  /  ", preset.units.Select(UnitName)), 8, y + 30, 920, 16, OzUi.Muted);
+                Button(rows, "LOAD", 990, y + 5, 205, () =>
+                {
+                    DuelMissionDefaults.ApplyOutsidePreset(rules, preset.units);
+                    EditLobbyRules(rules);
+                    lobbyDialog = LobbyDialog.None;
+                    dirty = true;
+                }, false, editable);
+            }
+        }
 
         void BuildLobbyRules(DuelRules rules, bool editable)
         {
             if (lobbyDialog == LobbyDialog.Forts) { BuildFortPlacement(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
+            if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
             var background = Hud.Img(panel, "LobbyRulesBackground", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;

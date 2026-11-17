@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 0.2.24 duel setup and production (awaiting compiled-game validation)
+
+- On both duel seats, confirm that the battlefield opens without a briefing. Check the default start, then set opening orders to 10 seconds. Issue and replace move orders on both seats. Confirm that units stand still and the match clock stays at zero until the countdown ends. Repeat after a restart.
+- In the lobby, browse all four OpenZ flybys and the separate Shitty Maps gallery. Apply a map as host and propose one as guest. Confirm the lobby only changes after host acceptance.
+- Save a named formation with an empty slot, restart the game and load it. Check the default formation and verify that loading a saved formation still respects Allowed units.
+- Bind the production shortcut to a key, then to Hold L-click. Try both on a factory with a partially produced unit and a queue. Confirm the chosen unit restarts from zero, the queue clears and a regular click keeps its usual behavior. Repeat as the duel guest.
+
 ## OpenZ-VK 0.2.23 duel diagnostics (awaiting compiled-game validation)
 
 - Pending on two PCs: play the same map over a direct connection and over

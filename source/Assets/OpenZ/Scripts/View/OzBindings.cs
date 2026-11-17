@@ -14,7 +14,7 @@ namespace OpenZ
         NextRobot, NextVehicle, NextGun, AllRobots, AllVehicles, AllCannons, AllUnits, NearestOnly,
         ScrollUp, ScrollDown, ScrollLeft, ScrollRight, FactoryList, PlaceCannon, ExitCrew, LastMessage, HideHud, MinimalUi,
         RepairVehicles,
-        Patrol, StopUnits, HoldPosition, HelpOverlay, ArrangeHud,
+        Patrol, StopUnits, HoldPosition, HelpOverlay, ArrangeHud, RestartProduction,
     }
 
     /// <summary>
@@ -35,6 +35,7 @@ namespace OpenZ
         }
 
         public const string SelectSection = "SELECT", CameraSection = "CAMERA", OrderSection = "ORDERS", UiSection = "INTERFACE";
+        public const Key LongLeftClick = (Key)(-1);
 
         /// <summary>In OzAction order (checked in the static constructor).</summary>
         public static readonly Def[] Defs =
@@ -63,6 +64,7 @@ namespace OpenZ
             D(OzAction.HoldPosition, "Hold position (fire, never chase)", OrderSection, Key.H),
             D(OzAction.HelpOverlay, "Controls help (this list)", UiSection, Key.F1),
             D(OzAction.ArrangeHud, "Arrange the interface (drag the panels)", UiSection, Key.F2),   // OpenZHud.Arrange.cs
+            D(OzAction.RestartProduction, OzForkOptions.RestartProductionLabel, OrderSection, Key.None),
         };
 
         static Def D(OzAction a, string label, string section, Key k, bool ctrl = false, bool hold = false)
@@ -86,14 +88,14 @@ namespace OpenZ
             for (int i = 0; i < Defs.Length; i++)
             {
                 int v = PlayerPrefs.GetInt(Defs[i].pref, 0);
-                cur[i] = v > 0 && Reserved((Key)v) == null ? (Key)v : Defs[i].key;                            // review fix: a saved debug / reserved key falls back
+                cur[i] = BindingError(Defs[i].action, (Key)v) == null ? (Key)v : Defs[i].key;
             }
             // a key map saved before the cannon key became C may hold a plain action the player moved onto C: for exactly that player
             // the cannon key stays on P (saved once, so it shows in CONTROLS and RESET TO DEFAULTS still gives C); 1.3 item 28: that P now places with the dev flag on too (the testing overlay is Alt+P)
             int pc = (int)OzAction.PlaceCannon;
             if (!PlayerPrefs.HasKey(Defs[pc].pref))
                 for (int i = 0; i < Defs.Length; i++)
-                    if (i != pc && !Defs[i].ctrl && cur[i] == Key.C && cur[i] != Defs[i].key)
+                    if (i != pc && Defs[i].action != OzAction.RestartProduction && !Defs[i].ctrl && cur[i] == Key.C && cur[i] != Defs[i].key)
                     { cur[pc] = Key.P; PlayerPrefs.SetInt(Defs[pc].pref, (int)Key.P); PlayerPrefs.Save(); break; }
         }
 
@@ -109,7 +111,7 @@ namespace OpenZ
         public static bool Set(OzAction a, Key k, out string why)
         {
             Load();
-            why = Reserved(k);
+            why = BindingError(a, k);
             if (why != null) return false;
             cur[(int)a] = k;
             if (k == Defs[(int)a].key) PlayerPrefs.DeleteKey(Defs[(int)a].pref); else PlayerPrefs.SetInt(Defs[(int)a].pref, (int)k);
@@ -118,6 +120,9 @@ namespace OpenZ
             Debug.Log($"[OzBindings] {a} = {Cap(k)}{(Defs[(int)a].ctrl ? " (with CTRL)" : "")}{(k == Defs[(int)a].key ? " (default)" : "")}, saved (oz_key_{a}); conflicts: {ConflictText()}");
             return true;
         }
+
+        static string BindingError(OzAction action, Key key) =>
+            action == OzAction.RestartProduction && (key == Key.None || key == LongLeftClick) ? null : Reserved(key);
 
         public static void ResetAll()
         {
@@ -138,7 +143,9 @@ namespace OpenZ
         {
             var kb = Keyboard.current; if (kb == null || OzUeHooks.SilenceAction(a)) return null;   // 1.2 item 6: the playground's silent actions, every key while typing or a dialog is open (View/OzUeHooks.cs)
             if (OzFpsView.On) return null;                                                   // 1.4 fps_view: no bound action while the first-person view is on (it reads its own W A S D; View/OzFpsView.cs)
-            try { return kb[KeyOf(a)]; } catch (ArgumentOutOfRangeException) { return null; }
+            var key = KeyOf(a);
+            if (key == Key.None || key == LongLeftClick) return null;
+            try { return kb[key]; } catch (ArgumentOutOfRangeException) { return null; }
         }
 
         // ------------------------------------------------------------------ rules
@@ -183,6 +190,7 @@ namespace OpenZ
         {
             Load();
             var d = Defs[(int)a]; Key k = cur[(int)a];
+            if (k == Key.None || k == LongLeftClick) return null;
             for (int i = 0; i < Defs.Length; i++)
                 if (i != (int)a && cur[i] == k && (Defs[i].ctrl == d.ctrl || ModifierBlind(a) || ModifierBlind(Defs[i].action)) && !SharedKey(a, Defs[i].action)) return Defs[i];
             return null;
@@ -223,6 +231,7 @@ namespace OpenZ
                 case Key.CapsLock: return "CAPS";
                 case Key.Escape: return "ESC";
                 case Key.None: return "-";
+                case LongLeftClick: return "HOLD L-CLICK";
             }
             if (k >= Key.F1 && k <= Key.F12) return "F" + (1 + (int)k - (int)Key.F1);
             if (k >= Key.Numpad0 && k <= Key.Numpad9) return "NUM " + ((int)k - (int)Key.Numpad0);

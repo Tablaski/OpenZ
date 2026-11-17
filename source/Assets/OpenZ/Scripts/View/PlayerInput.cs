@@ -754,7 +754,7 @@ namespace OpenZ
                 if (only == null || kv.Key == only)
                 {
                     int kept = kv.Key.CanOverwriteWP() || ZWorld.IsLavaWalk(kv.Key.Waypoints[0]) ? 0 : 1;
-                    if (W.SendWaypoints(SideOf(kv.Key), kv.Key, kv.Value)) { bool tookIt = kv.Key.Waypoints.Count > kept; if (tookIt && kv.Key.Kind == ZKind.Robot) robots = true; if (tookIt) took++; watched.Add(kv.Key); }   // 1.2 item 6: each unit's own team in the playground; 1.3 item 29: only a robot that took the order answers it
+                    if (W.SendWaypoints(SideOf(kv.Key), kv.Key, kv.Value)) { bool tookIt = W.DuelDefersOrders || kv.Key.Waypoints.Count > kept; if (tookIt && kv.Key.Kind == ZKind.Robot) robots = true; if (tookIt) took++; watched.Add(kv.Key); }   // 1.2 item 6: each unit's own team in the playground; 1.3 item 29: only a robot that took the order answers it
                 }
             OzOrderWatch.Watch(W, watched);                                                                // 1.3 item 29: looked at again 1 s of battle time later (View/OzOrderWatch.cs)
             if (took == 0 && pending.Count > 0) AudioDirector.UI("ui_order_invalid");                   // every waypoint refused (cannot attack / enter that)

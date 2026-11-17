@@ -32,7 +32,7 @@ static class ShittyMapChecks
             var world=ZWorld.Create(settings,json,1935);
             check(world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Red)==1&&world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Blue)==1,entry.Id+": two-team fort ownership");
             if(!entry.Duel) { reject(()=>new DuelRules{Map=entry.Id}.Validate(),entry.Id+": solo-only original cannot bypass duel selection"); continue; }
-            var rules=new DuelRules{Map=entry.Id,Common=DuelMissionDefaults.Read(map)}; rules.Validate();
+            var rules=new DuelRules{Map=entry.Id,Common=DuelMissionDefaults.Create()}; rules.Validate();
             world.ConfigureDuel(rules,false); world.DuelApplyStartingArmies();
             check(world.Objects.Any(o=>o.IsMobile&&o.Owner==Team.Red)&&world.Objects.Any(o=>o.IsMobile&&o.Owner==Team.Blue),entry.Id+": lobby armies spawn for both teams");
             var receiver=new DuelOrderReceiver(world,1); var red=world.Objects.First(o=>o.IsMobile&&o.Owner==Team.Red); var blue=world.Objects.First(o=>o.IsMobile&&o.Owner==Team.Blue);

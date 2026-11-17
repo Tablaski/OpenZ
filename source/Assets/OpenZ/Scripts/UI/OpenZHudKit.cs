@@ -299,7 +299,7 @@ namespace OpenZ
         }
     }
 
-    public struct HudClick { public bool shift, ctrl, alt, right; }
+    public struct HudClick { public bool shift, ctrl, alt, right, longPress; }
 
     public enum HudButtonKind { Small, Large, Key }
     public enum HudButtonStyle { Normal, Primary, Danger }

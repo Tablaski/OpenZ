@@ -16,6 +16,7 @@ namespace OpenZ.Multiplayer
                 if (!Equals(before, after)) changes.Add(name + ": " + Value(before) + " → " + Value(after));
             };
             add("Map", current.Map, next.Map);
+            add("Opening orders (seconds)", current.PlanningSeconds, next.PlanningSeconds);
             add("Territory bonus", current.TerritoryBonus, next.TerritoryBonus);
             add("Minimum build seconds", current.MinimumBuildSeconds, next.MinimumBuildSeconds);
             add("Territory cap", current.TerritoryReductionCap, next.TerritoryReductionCap);

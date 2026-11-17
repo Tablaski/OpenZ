@@ -291,31 +291,52 @@ namespace OpenZ
             OzUnitPopup.Note(btn, u, col, row);                                              // the unit card of this portrait (OzUnitPopup)
             if (ZWorld.FifoQueueDeviation)
             {
-                btn.OnClick = cl => { var bb = Building; if (bb != null && bb.Building) Queue(u); else Produce(u); };
+                btn.OnClick = cl =>
+                {
+                    if (RestartOnLongClick(cl)) Produce(u, true);
+                    else if (Building != null && Building.Building) Queue(u);
+                    else Produce(u);
+                };
                 btn.OnRightClick = cl => RemoveLast(u);
             }
             else
             {
-                btn.OnClick = cl => { if (cl.shift) Queue(u); else Produce(u); };
+                btn.OnClick = cl =>
+                {
+                    if (RestartOnLongClick(cl)) Produce(u, true);
+                    else if (cl.shift) Queue(u);
+                    else Produce(u);
+                };
                 btn.OnRightClick = cl => Queue(u);
             }
             return new Tile { unit = u, btn = btn, icon = icon, name = name, time = time, badge = badge, badgeBg = bb };
         }
 
-        void Produce(string unit)
+        static bool RestartOnLongClick(HudClick click) =>
+            click.longPress && OzBindings.KeyOf(OzAction.RestartProduction) == OzBindings.LongLeftClick;
+
+        public void RestartHovered(HudButton button)
+        {
+            if (!IsOpen) return;
+            foreach (var tile in tiles)
+                if (tile.btn == button) { Produce(tile.unit, true); return; }
+        }
+
+        void Produce(string unit, bool restart = false)
         {
             var b = Building; if (b == null) return;
             // gwproduction.cpp:478-503: OK is hidden in PLACE and only closes the window in PAUSED (destroyed / 70 units)
             var st = State(b, out _);
             if (st == "PLACE") { OzSfx.Ui("ui_error"); hud.Toast("PLACE THE STORED CANNON FIRST", HudStyle.Amber); return; }
             if (st == "PAUSED") { if (!b.Destroyed) AudioDirector.Announce("ann_production_paused"); hud.Toast(b.Destroyed ? "BUILDING DESTROYED: PRODUCTION PAUSED" : "UNIT LIMIT (70): PRODUCTION PAUSED", HudStyle.Danger); return; }
-            if (b.Building && b.CurUnit == unit) { OzSfx.Ui("ui_production_pick"); hud.Toast($"{UnitInfo.Name(unit)} IS ALREADY IN PRODUCTION", HudStyle.Muted); return; }
-            if (b.Building) W.StopBuilding(hud.Player, b);                                                 // Zod: Cancel ...
-            bool started = W.StartBuilding(hud.Player, b, unit);
+            if (!restart && b.Building && b.CurUnit == unit) { OzSfx.Ui("ui_production_pick"); hud.Toast($"{UnitInfo.Name(unit)} IS ALREADY IN PRODUCTION", HudStyle.Muted); return; }
+            if (!restart && b.Building) W.StopBuilding(hud.Player, b);
+            bool started = restart ? W.RestartBuilding(hud.Player, b, unit) : W.StartBuilding(hud.Player, b, unit);
             if (started) OzFactoryReminder.ProductionSet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): he set this factory's production himself
             if (started) { OzSfx.Ui("ui_production_ok"); AudioDirector.Announce("ann_starting_manufacture"); } else OzSfx.Ui("ui_error");
             if (started)                                                                                   // ... pick, OK
-                hud.Toast($"PRODUCING {UnitInfo.Name(unit)} · {UnitInfo.Mmss(b.BFinal - b.BInit)}", HudStyle.Amber);
+                hud.Toast(W.DuelDefersOrders ? $"PRODUCTION ORDER · {UnitInfo.Name(unit)}"
+                    : $"PRODUCING {UnitInfo.Name(unit)} · {UnitInfo.Mmss(b.BFinal - b.BInit)}", HudStyle.Amber);
         }
 
         void Queue(string unit)

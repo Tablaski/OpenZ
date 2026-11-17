@@ -9,6 +9,7 @@ namespace OpenZ
         public static readonly Color Accent = new Color32(213, 112, 255, 255);
         public static readonly Color Brand = new Color32(200, 90, 32, 255);
         public const string ChatLabel = "CHAT SHORTCUT";
+        public const string RestartProductionLabel = "Stop + produce hovered unit";
         public static bool BindingChat { get; private set; }
         static int bindingFrame = -1, closedFrame = -1;
         public static Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
@@ -35,7 +36,8 @@ namespace OpenZ
             return false;
         }
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
-            label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label || label == ChatLabel || label == OzSoloAllowedUnits.Label;
+            label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
+            label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel;
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

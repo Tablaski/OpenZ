@@ -24,7 +24,9 @@ namespace OpenZ.Multiplayer
     [Serializable]
     public sealed class DuelRules
     {
+        public const int MaxPlanningSeconds = 10;
         public string Map = "L02";
+        public int PlanningSeconds;
         public double TerritoryBonus = .5;
         public double MinimumBuildSeconds = 1;
         public double FortLoserMaximum;
@@ -110,7 +112,7 @@ namespace OpenZ.Multiplayer
 
         public DuelRules Copy() => new DuelRules
         {
-            Map = Map, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
+            Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
             RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
             BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
@@ -119,6 +121,7 @@ namespace OpenZ.Multiplayer
 
         public void Validate()
         {
+            if (PlanningSeconds < 0 || PlanningSeconds > MaxPlanningSeconds) throw new ArgumentException("Invalid opening order time.");
             if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17" && Map != "L19" && !OzShittyMapCatalog.IsDuelMap(Map))
                 throw new ArgumentException("Unknown duel map.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
@@ -264,7 +267,7 @@ namespace OpenZ.Multiplayer
             CheckSlot(slot); Require(DuelPhase.Loading); CheckTime(now);
             if (revision != Revision) throw new InvalidOperationException("Stale load acknowledgment.");
             loaded[slot] = true;
-            if (loaded[0] && loaded[1] && StartAt < 0) StartAt = now + 3;
+            if (loaded[0] && loaded[1] && StartAt < 0) StartAt = now + 3 + rules.PlanningSeconds;
         }
 
         public bool Advance(double now)

@@ -24,11 +24,11 @@ namespace OpenZ
         /// + 2 section heads) at 696 u; the foot rule sits at FullH - 76 and the RESET TO DEFAULTS button at FullH - 60, so the panel
         /// must be at least 702 + 12 + 76 = 790 u tall (720 u let the last two rows run over the rule, the button and the status
         /// line). BuildFull warns in the log if a column outgrows it.</summary>
-        public const float FullW = 1120, FullH = 790;
+        public const float FullW = 1120, FullH = 824;
         const float Pad = 32, ColGap = 40, HeadY = 22, RowsY = 84, RowStep = 32, RowH = 30, SecStep = 32, CapH = 24, CapText = 12, CapPad = 10, CapGap = 5, LabelSize = 14;
         const float CRowsY = 62, CRowStep = 30, CCapH = 18, CCapText = 10, CCapPad = 7, CKeyRight = 222, CLabelX = 232, CLabelSize = 11;
 
-        sealed class Part { public string text; public bool isAction, sep; public OzAction action; public RectTransform rt; public Image edgeImg; public Image[] edgeLines; public OzText label; public float w; public bool hover; }
+        sealed class Part { public string text; public bool isAction, sep, longClick; public OzAction action; public RectTransform rt; public Image edgeImg; public Image[] edgeLines; public OzText label; public float w; public bool hover; }
         sealed class Row { public string label, section; public Part[] parts; }
 
         static Part K(string t) => new Part { text = t };
@@ -81,6 +81,8 @@ namespace OpenZ
             R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),                                    // the MINIMAL UI key (OpenZHud.MinimalKey.cs)
             R("Hide the HUD · arrange its panels", A(OzAction.HideHud), S("·"), A(OzAction.ArrangeHud)),
             R("Controls help · pause menu", A(OzAction.HelpOverlay), S("·"), K("ESC")),
+            R(OzBindings.DefOf(OzAction.RestartProduction).label, A(OzAction.RestartProduction),
+                new Part { text = "HOLD L-CLICK", longClick = true }),
         };
 
         static Row[] Compact() => new[]
@@ -106,10 +108,12 @@ namespace OpenZ
             R("Game speed: slower / faster", K("-"), S("/"), K("+")),
             R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),
             R("Hide HUD / arrange it · help · menu", A(OzAction.HideHud), A(OzAction.ArrangeHud), S("·"), A(OzAction.HelpOverlay), S("·"), K("ESC")),
+            R(OzBindings.DefOf(OzAction.RestartProduction).label, A(OzAction.RestartProduction)),
         };
 
         // ------------------------------------------------------------------ state
         readonly List<Part> actionParts = new List<Part>();
+        Part longClickPart;
         readonly bool full;
         readonly Action<string> sfx;
         OzText status; float statusUntil; string statusMsg; Color statusColor;
@@ -153,7 +157,8 @@ namespace OpenZ
                 float y = CRowsY + i * step;
                 if ((i & 1) == 0) { var band = Hud.Img(p, "Band" + i, OzUi.A(OzUi.GM800, 0.42f)); band.rectTransform.TL(OzLayout.OptX - 8, y - 4, w - 2 * OzLayout.OptX + 16, step - 2); }
                 t.Caps(p, rows[i].parts, CKeyRight, y + (step - 2 - 8 - CCapH) * 0.5f, CCapH, CCapText, CCapPad, null);
-                OzFreeCam.ControlsRow(Hud.Label(p, "What" + i, rows[i].label, CLabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(CLabelX, y + (step - 10) * 0.5f, OzH.L, true, w - CLabelX - OzLayout.OptX + 4), rows[i].label);   // the scroll row names the free camera while it is on
+                Color textColor = OzForkOptions.IsFork(rows[i].label) ? OzForkOptions.Accent : (Color)OzUi.Ink2;
+                OzFreeCam.ControlsRow(Hud.Label(p, "What" + i, rows[i].label, CLabelSize, textColor, 0f, OzStyle.Plain).At(CLabelX, y + (step - 10) * 0.5f, OzH.L, true, w - CLabelX - OzLayout.OptX + 4), rows[i].label);   // the scroll row names the free camera while it is on
             }
             Hud.Label(p, "Foot", foot, 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.OptX, h - 30, OzH.L, false, w - 2 * OzLayout.OptX);
             t.Refresh(true);
@@ -175,7 +180,8 @@ namespace OpenZ
                 }
                 if ((band++ & 1) == 0) { var b = Hud.Img(p, "Band", OzUi.A(OzUi.GM800, 0.45f)); b.rectTransform.TL(x - 10, y, w + 20, RowH); }
                 float capsW = Caps(p, r.parts, x + w, y + (RowH - CapH) * 0.5f, CapH, CapText, CapPad, addHot);
-                OzFreeCam.ControlsRow(Hud.Label(p, "What", r.label, LabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(x, y + RowH * 0.5f, OzH.L, true, Mathf.Max(120f, w - capsW - 24f)), r.label);   // the camera row names the free camera while it is on
+                Color textColor = OzForkOptions.IsFork(r.label) ? OzForkOptions.Accent : (Color)OzUi.Ink2;
+                OzFreeCam.ControlsRow(Hud.Label(p, "What", r.label, LabelSize, textColor, 0f, OzStyle.Plain).At(x, y + RowH * 0.5f, OzH.L, true, Mathf.Max(120f, w - capsW - 24f)), r.label);   // the camera row names the free camera while it is on
                 y += RowStep;
             }
             return y - RowStep + RowH;
@@ -199,7 +205,7 @@ namespace OpenZ
                 var root = Hud.Node(part.isAction ? "Key_" + part.action : "Key", p);
                 var bg = Hud.Kit(root, "Bg", "Panels/keycap", new OzRect(0, 0, 14, h)); bg.rectTransform.Fill();
                 if (OzKit.GetSprite("Panels/keycap") == null) bg.color = OzUi.GM950;
-                string text = part.isAction ? OzBindings.Cap(part.action) : part.text;
+                string text = part.isAction ? BindingCap(part.action) : part.text;
                 var t = Hud.Label(root, "Key", text, size, part.isAction ? OzUi.Ink : OzUi.Ink2, 0.06f, OzStyle.Plain);
                 float w = Mathf.Max(h + 6f, TextWidth(t) + 2 * pad);
                 if (part.isAction) w = Mathf.Max(w, full ? 44f : 26f);                                             // one-letter keys still look like buttons
@@ -212,6 +218,12 @@ namespace OpenZ
                     else part.edgeLines = Hud.Border(root, OzUi.A(OzUi.Amber, 0f), 1f);
                     actionParts.Add(part);
                     if (full && addHot != null) { var pr = part; addHot(root, () => StartCapture(pr), hv => pr.hover = hv); }
+                }
+                else if (part.longClick)
+                {
+                    longClickPart = part;
+                    part.edgeLines = Hud.Border(root, OzForkOptions.Accent, 1f);
+                    addHot?.Invoke(root, ToggleLongClick, value => part.hover = value);
                 }
                 x -= w + CapGap; total += w + CapGap;
             }
@@ -256,6 +268,17 @@ namespace OpenZ
         }
 
         // ------------------------------------------------------------------ rebinding
+        string BindingCap(OzAction action) => full && action == OzAction.RestartProduction &&
+            (OzBindings.KeyOf(action) == Key.None || OzBindings.KeyOf(action) == OzBindings.LongLeftClick) ? "SET KEY" : OzBindings.Cap(action);
+
+        void ToggleLongClick()
+        {
+            if (capture != null) Cancel(false);
+            bool enable = OzBindings.KeyOf(OzAction.RestartProduction) != OzBindings.LongLeftClick;
+            OzBindings.Set(OzAction.RestartProduction, enable ? OzBindings.LongLeftClick : Key.None, out _);
+            Say(enable ? "SAVED · HOLD LEFT CLICK ON A PRODUCTION UNIT TO RESTART" : "PRODUCTION RESTART SHORTCUT OFF", OzUi.Go, 3f);
+        }
+
         void StartCapture(Part p)
         {
             if (!full) return;
@@ -342,7 +365,7 @@ namespace OpenZ
                 shownVersion = OzBindings.Version;
                 foreach (var ap in actionParts)
                 {
-                    ap.label.Set(OzBindings.Cap(ap.action));
+                    ap.label.Set(BindingCap(ap.action));
                     if (full)
                     {   // a longer key name widens the cap to the left (right edge fixed)
                         float w = Mathf.Max(Mathf.Max(CapH + 6f, 44f), TextWidth(ap.label) + 2 * CapPad);
@@ -356,11 +379,18 @@ namespace OpenZ
             {
                 bool conflict = OzBindings.ConflictOf(ap.action) != null, cap = ap == capture;
                 if (cap) ap.label.Set("PRESS A KEY");
-                else if (ap.label.text == "PRESS A KEY") { ap.label.Set(OzBindings.Cap(ap.action)); }
+                else if (ap.label.text == "PRESS A KEY") { ap.label.Set(BindingCap(ap.action)); }
                 Color edge = cap ? OzUi.A(OzUi.Amber, pulse) : conflict ? OzUi.A(OzUi.Alert, 0.95f) : ap.hover ? OzUi.A(OzUi.Amber, 0.85f) : OzUi.A(OzUi.Amber, full ? 0.28f : 0f);   // a faint amber keyline = "click to change"
                 if (ap.edgeImg) { if (ap.edgeImg.color != edge) ap.edgeImg.color = edge; }
                 else if (ap.edgeLines != null) foreach (var e in ap.edgeLines) if (e && e.color != edge) e.color = edge;
                 ap.label.color = cap ? (Color)OzUi.Amber : conflict ? (Color)OzUi.AlertText : ap.hover ? (Color)OzUi.AmberHi : (Color)OzUi.Ink;
+            }
+            if (longClickPart != null)
+            {
+                bool active = OzBindings.KeyOf(OzAction.RestartProduction) == OzBindings.LongLeftClick;
+                var color = active || longClickPart.hover ? OzForkOptions.Accent : (Color)OzUi.Ink2;
+                longClickPart.label.color = color;
+                foreach (var edge in longClickPart.edgeLines) edge.color = OzUi.A(color, active ? 1f : .4f);
             }
             FitCaptureCap(capture);
             if (status == null) return;

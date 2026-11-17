@@ -112,9 +112,16 @@ static class SimulationChecks
             check(replica.Get(fresh.Id) == null && replica.GetAny(fresh.Id) != null, map + ": deletion lost event graveyard");
             Console.WriteLine(map + ": " + host.Objects.Count + " objects; initial state " + initialPayload.Length + " bytes; schema " + DuelReplica.SchemaHash.Substring(0, 12));
             var duel = ZWorld.Create(settings, json);
-            var startingRules = new DuelRules { Map = map, Common = DuelMissionDefaults.Read(duel.Map) };
-            check(startingRules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" }) && startingRules.Common.StartingUnits.Count <= 4,
-                map + ": duel defaults do not fit the four-slot layout");
+            var startingRules = new DuelRules { Map = map, Common = DuelMissionDefaults.Create() };
+            check(startingRules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" }) &&
+                startingRules.Common.StartingUnits.SequenceEqual(new[] { "light", "heavy", "pyro", "laser" }), map + ": incorrect duel defaults");
+            var custom = startingRules.Copy();
+            var preset = new[] { "light", "", "electrobot", "laser" };
+            custom.SetUnitPreset(DuelUnitPreset.Z1996);
+            DuelMissionDefaults.ApplyOutsidePreset(custom, preset);
+            custom.Validate();
+            check(custom.Common.StartingUnits.SequenceEqual(new[] { "light", "", "", "laser" }) &&
+                preset[2] == "electrobot", map + ": applying a preset must preserve slot order and keep the saved preset independent");
             startingRules.EnableHandicap(1); startingRules.Handicap.StartingUnits.AddRange(new[] { "", "heavy", "", "" });
             duel.ConfigureDuel(startingRules, false);
             duel.DuelApplyStartingArmies();
@@ -125,6 +132,25 @@ static class SimulationChecks
                 check(duel.Objects.Count(o => o.Owner == team && o.Kind == ZKind.Cannon && !o.Ejectable &&
                     (o.Type == "howitzer" || o.Type == "missile_cannon")) == 2, map + ": shared fort cannons missing");
             }
+            var openingTank = duel.Objects.First(o => o.Type == "light" && o.Owner == Team.Blue);
+            var openingFort = duel.Objects.First(o => o.IsFort && o.Owner == Team.Blue);
+            var orders = new DuelOrderReceiver(duel, 1);
+            var move = ZWaypoint.Move(openingTank.LocX + 16, openingTank.LocY);
+            check(orders.QueueOpeningOrder(new DuelOrder { Sequence = 1, ObjectId = openingTank.Id, Kind = DuelOrderKind.Waypoints, Points = new[] { move } }),
+                map + ": opening move was refused");
+            string product = duel.ProductionUnits(openingFort).First();
+            check(duel.StopBuilding(Team.Blue, openingFort) && duel.StartBuilding(Team.Blue, openingFort, product)
+                && duel.AddBuildingQueue(Team.Blue, openingFort, product),
+                map + ": could not prepare a running production queue");
+            int repeatCopies = ZWorld.FifoQueueDeviation ? 0 : 1;
+            check(orders.QueueOpeningOrder(new DuelOrder { Sequence = 2, ObjectId = openingFort.Id, Kind = DuelOrderKind.RestartBuild, Unit = product }),
+                map + ": opening production restart was refused");
+            check(duel.Time == 0 && openingTank.Waypoints.Count == 0 && openingFort.Queue.Count == repeatCopies + 1,
+                map + ": an opening order ran before the match started");
+            orders.ReleaseOpeningOrders();
+            check(duel.Time == 0 && openingTank.Waypoints.Count == 1 && openingFort.CurUnit == product &&
+                openingFort.BInit == 0 && openingFort.Queue.Count == repeatCopies,
+                map + ": opening orders were not released before the first game tick");
             duel.DuelSurrender(0);
             check(duel.GameOver && duel.Winner == Team.Blue && duel.Objects.Where(o => o.IsFort && o.Owner == Team.Red).All(o => o.Destroyed), map + ": surrender did not destroy fort and award victory");
         }

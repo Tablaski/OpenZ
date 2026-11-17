@@ -53,7 +53,7 @@ namespace OpenZ.Sim
         public bool SendPatrol(Team team, ZObject o, int bx, int by)
         {
             // OpenZ duel command: Patrol
-            if (DuelIsReplica) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Patrol, X = bx, Y = by });
+            if (DuelDefersOrders) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Patrol, X = bx, Y = by });
             if (!PatrolDeviation || o == null || !o.CanMove) return false;
             int ax = o.CenterX, ay = o.CenterY;
             if (!SendWaypoints(team, o, new[] { ZWaypoint.Move(bx, by, true) })) return false;
@@ -69,7 +69,7 @@ namespace OpenZ.Sim
         public bool SendHold(Team team, ZObject o)
         {
             // OpenZ duel command: Hold
-            if (DuelIsReplica) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Hold });
+            if (DuelDefersOrders) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Hold });
             if (!PatrolDeviation || !SendWaypoints(team, o, new List<ZWaypoint>())) return false;
             o.HoldPosition = true; foreach (var m in o.Minions) if (m != null) m.HoldPosition = true;
             return true;

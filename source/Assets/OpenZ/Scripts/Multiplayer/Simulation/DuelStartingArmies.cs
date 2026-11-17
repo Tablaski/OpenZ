@@ -6,19 +6,23 @@ namespace OpenZ.Sim
 {
     public static class DuelMissionDefaults
     {
-        public static DuelArmySettings Read(ZMapData map)
+        public static string[] OutsideUnits() => new[] { "light", "heavy", "pyro", "laser" };
+
+        public static DuelArmySettings Create()
         {
             var army = new DuelArmySettings { FortTurrets = new[] { "howitzer", "missile_cannon", "", "" } };
-            var fort = map.objects.First(o => o.owner == "red" && o.kind.StartsWith("building:fort_", StringComparison.Ordinal));
-            foreach (var o in map.objects.Where(o => o.owner == "red"))
-            {
-                int dx = o.x - fort.x, dy = o.y - fort.y;
-                if (o.Category == "cannon" && (dx == 1 || dx == 7) && (dy == 0 || dy == 3))
-                    continue;
-                if (army.StartingUnits.Count < 4 && (o.Category == "robot" || o.Category == "vehicle"))
-                    army.StartingUnits.Add(o.Type);
-            }
+            army.StartingUnits.AddRange(OutsideUnits());
             return army;
+        }
+
+        public static bool IsOutsidePreset(string[] units) => units != null && units.Length == 4 &&
+            units.All(type => type == "" || Array.IndexOf(DuelRules.AllowedExtras, type) >= 0);
+
+        public static void ApplyOutsidePreset(DuelRules rules, string[] units)
+        {
+            if (!IsOutsidePreset(units)) throw new ArgumentException("Invalid four-slot starting army.");
+            rules.Common.StartingUnits.Clear();
+            rules.Common.StartingUnits.AddRange(units.Select(type => rules.Allows(type) ? type : ""));
         }
     }
 

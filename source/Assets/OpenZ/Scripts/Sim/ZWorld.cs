@@ -794,7 +794,7 @@ namespace OpenZ.Sim
         public bool SendWaypoints(Team team, ZObject o, IList<ZWaypoint> list)
         {
             // OpenZ duel command: Waypoints
-            if (DuelIsReplica) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Waypoints, Points = new List<ZWaypoint>(list).ToArray() });
+            if (DuelDefersOrders) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Waypoints, Points = new List<ZWaypoint>(list).ToArray() });
             if (o == null || o.Owner == Team.Neutral || o.Owner != team) return false;
             if (!CanSetWaypoints(o) || o.IsMinion || o.Destroyed) return false;
             if (o.IsShuttle) return ShuttleOrder(team, o, list);                                   // DV118: a move order is the shuttle's flight target; a CPU team's order is refused (Sim/ZWorld.Shuttle.cs)
@@ -824,7 +824,7 @@ namespace OpenZ.Sim
         public bool Eject(Team team, ZObject v)
         {
             // OpenZ duel command: Eject
-            if (DuelIsReplica) return DuelSend(team, v, new DuelOrder { Kind = DuelOrderKind.Eject });
+            if (DuelDefersOrders) return DuelSend(team, v, new DuelOrder { Kind = DuelOrderKind.Eject });
             if (v != null && !DuelAllowsUnit(v.IsApc || v.IsShuttle ? v.PassengerType : v.DriverType)) return false;
             if (v != null && v.IsShuttle) return EjectPassengers(team, v);                       // DV118: the shuttle's passengers leave by the APC's rules, only on the ground (Sim/ZWorld.Shuttle.cs)
             if (ApcCrewDeviation && v != null && v.IsApc) return EjectPassengers(team, v);   // apc_v1 DV15: only the passengers leave, the driver stays

@@ -127,7 +127,10 @@ namespace OpenZVK.Update
             if(workspace==null)return false;
             try{
                 string pointer=Path.Combine(workspace.Text,"SOURCE_RESOURCES.json"),package=Path.Combine(workspace.Text,"source/Assets/OpenZ/Resources/OpenZ/resource_package.json");
-                if(File.Exists(pointer)&&(!File.Exists(package)||(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(pointer))["version"]!=(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(package))["version"]))return false;
+                if(File.Exists(pointer)){
+                    var pin=Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(pointer));
+                    if(Convert.ToInt32(pin["schema"])>=2&&(!File.Exists(package)||(string)pin["version"]!=(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(package))["version"]))return false;
+                }
                 return File.Exists(Path.Combine(workspace.Text,".local/resources-ready.txt"))&&File.Exists(Path.Combine(workspace.Text,"source/Assets/OpenZ/Scenes/MainMenu.unity"))&&File.Exists(Path.Combine(workspace.Text,"source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"));
             }catch{return false;}
         }

@@ -13,7 +13,7 @@ namespace OpenZ.Multiplayer.Editor
     {
         public int callbackOrder => 10000;
         static OzForkVersion.BuildIdentity identity;
-        [Serializable] sealed class ResourceIdentity { public string version, resourcePackage, commit, builtUtc; public bool dirty; }
+        [Serializable] sealed class ResourceIdentity { public int schema; public string version, resourcePackage, commit, builtUtc; public bool dirty; }
         static ResourceIdentity resourceIdentity;
         static void PrepareResources(string root)
         {
@@ -21,6 +21,7 @@ namespace OpenZ.Multiplayer.Editor
             // Historical revisions predate resource identities and retain their original build path.
             if (!File.Exists(pointer)) { resourceIdentity = null; return; }
             var required = JsonUtility.FromJson<ResourceIdentity>(File.ReadAllText(pointer));
+            if (required.schema < 2) { resourceIdentity = null; return; }
             string assets = Path.Combine(Application.dataPath, "OpenZ/Resources/OpenZ");
             string marker = Path.Combine(assets, "resource_package.json");
             if (!File.Exists(marker) || JsonUtility.FromJson<ResourceIdentity>(File.ReadAllText(marker)).version != required.version)

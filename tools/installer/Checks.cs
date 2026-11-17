@@ -136,6 +136,19 @@ namespace OpenZVK.Update
                 Check(Directory.GetFiles(Path.Combine(resourceWorkspace,".local/resource-backups"),"user-edited.txt",SearchOption.AllDirectories).Any(f=>File.ReadAllText(f)=="personal change"),"Modified resource was not backed up.");
                 SourceManager.ApplyResources(resourceWorkspace,resourceV2,new Dictionary<string,string>(),CancellationToken.None);
                 Check(Format.Json().Deserialize<ResourceState>(File.ReadAllText(Path.Combine(resourceWorkspace,".local/resources-state.json"))).version=="epoch2","Unchanged resource epoch needed an archive or lost identity.");
+                string bundle=Path.Combine(root,"Bundle");Directory.CreateDirectory(bundle);
+                var pinned=ResourceFixture(bundle,"pinned",new Dictionary<string,string>{{"OpenZ/Scenes/MainMenu.unity","fixture scene"},{"source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll","fixture native dependency"}});
+                string bundleName="OpenZ-VK-UnityResources-part01.zip";File.Move(Path.Combine(bundle,"pinned.zip"),Path.Combine(bundle,bundleName));
+                pinned.archives[0].name=bundleName;pinned.archives[0].length=new FileInfo(Path.Combine(bundle,bundleName)).Length;pinned.archives[0].sha256=Format.FileHash(Path.Combine(bundle,bundleName));foreach(var file in pinned.files)file.archive=bundleName;
+                string bundleIndex=Path.Combine(bundle,"index.json");File.WriteAllText(bundleIndex,Format.Json().Serialize(pinned));
+                using(var network=new GitHub())foreach(bool legacy in new[]{false,true})
+                {
+                    string destination=Path.Combine(root,legacy?"LegacyResources":"PinnedResources");Directory.CreateDirectory(destination);File.WriteAllText(Path.Combine(destination,"FORK_SOURCE.json"),"{}");
+                    File.WriteAllText(Path.Combine(destination,"SOURCE_RESOURCES.json"),legacy?"{\"schema\":1,\"version\":\"1\"}":"{\"schema\":2,\"version\":\"pinned\"}");
+                    await new SourceManager(network).Resources(destination,null,s=>{},CancellationToken.None,bundleIndex);
+                    Check(File.Exists(Path.Combine(destination,".local/resources-ready.txt")),"Pinned or historical source resource preparation failed.");
+                    if(!legacy){File.WriteAllText(Path.Combine(destination,"SOURCE_RESOURCES.json"),"{\"schema\":2,\"version\":\"other-package\"}");bool mismatch=false;try{await new SourceManager(network).Resources(destination,null,s=>{},CancellationToken.None,bundleIndex);}catch(InvalidDataException){mismatch=true;}Check(mismatch,"A source revision accepted the wrong resource package.");}
+                }
                 Console.WriteLine("PASS: " + count + " installer checks: install, byte-range transport, SHA-256, shifted-resource reuse, zero-download reinstall, extracted-build seed, stable/dev switch, downgrade, failed/cancelled-update rollback, unsafe paths and unmanaged-folder protection.");
             }
             finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
@@ -145,7 +158,7 @@ namespace OpenZVK.Update
             var index=new ResourceIndex{schema=2,version=version,archives=new List<ResourceArchive>{new ResourceArchive{name=version+".zip"}},files=new List<ResourceFile>()};
             using(var zip=ZipFile.Open(Path.Combine(root,version+".zip"),ZipArchiveMode.Create))foreach(var item in entries)
             {
-                string path="source/Assets/"+item.Key;
+                string path=item.Key.StartsWith("source/",StringComparison.Ordinal)?item.Key:"source/Assets/"+item.Key;
                 using(var writer=new StreamWriter(zip.CreateEntry(path).Open(),new System.Text.UTF8Encoding(false)))writer.Write(item.Value);
                 string hashFile=Path.Combine(root,"hash-fixture");File.WriteAllText(hashFile,item.Value,new System.Text.UTF8Encoding(false));
                 index.files.Add(new ResourceFile{path=path,length=new FileInfo(hashFile).Length,sha256=Format.FileHash(hashFile),archive=version+".zip"});

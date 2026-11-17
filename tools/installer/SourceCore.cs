@@ -195,12 +195,13 @@ namespace OpenZVK.Update
             if (!File.Exists(Path.Combine(workspace, "FORK_SOURCE.json"))) throw new IOException("Retrieve a source revision first.");
             string marker = Path.Combine(workspace, ".local", "resources-ready.txt");
             string pointerPath = Path.Combine(workspace, "SOURCE_RESOURCES.json");
-            string wantedVersion = File.Exists(pointerPath) ? (string)Format.Json().Deserialize<Dictionary<string, object>>(File.ReadAllText(pointerPath))["version"] : null;
+            var pointerData=File.Exists(pointerPath)?Format.Json().Deserialize<Dictionary<string, object>>(File.ReadAllText(pointerPath)):null;
+            string wantedVersion = pointerData!=null&&Convert.ToInt32(pointerData["schema"])>=2 ? (string)pointerData["version"] : null;
             string statePath = Path.Combine(workspace, ".local", "resources-state.json");
             if (File.Exists(statePath))
             {
                 var state = Format.Json().Deserialize<ResourceState>(File.ReadAllText(statePath));
-                if (state.version == wantedVersion && state.files.Count > 0 && state.files.All(f => Matches(workspace,f)))
+                if ((wantedVersion==null||state.version == wantedVersion) && state.files.Count > 0 && state.files.All(f => Matches(workspace,f)))
                 { log("The required Unity resource package is already installed. No download needed."); return; }
             }
             if (!String.IsNullOrWhiteSpace(existingProject))
@@ -244,7 +245,9 @@ namespace OpenZVK.Update
                     if (release == null) throw new IOException("The source resource bundle is not published yet. Select an existing full Unity project or the local review bundle.");
                     index = Format.Json().Deserialize<ResourceIndex>(await github.Text(GitHub.AssetUrl(release.tag_name, "OpenZ-VK-source-resources.json"), 16 * 1024 * 1024, cancellation).ConfigureAwait(false));
                 }
-                if (index.schema != 2 || index.version != wantedVersion || (release != null && index.releaseTag != release.tag_name) || index.archives == null || index.archives.Count > 20 || index.files == null || index.files.Count == 0) throw new InvalidDataException("The resource bundle does not match the selected source version.");
+                if (index.schema != 2 || (wantedVersion!=null&&index.version != wantedVersion) || (release != null && index.releaseTag != release.tag_name) || index.archives == null || index.archives.Count > 20 || index.files == null || index.files.Count == 0) throw new InvalidDataException("The resource bundle does not match the selected source version.");
+                if(wantedVersion==null)log("This historical revision predates resource package pinning. Using the available base resources; older revisions may require their original assets.");
+                log("Checking the required resource package. Unchanged files will be reused.");
                 ValidateResources(workspace,index);
                 var archives = new Dictionary<string,string>(StringComparer.Ordinal);
                 foreach (var asset in index.archives)
@@ -341,9 +344,10 @@ namespace OpenZVK.Update
             string resourcePointer=Path.Combine(workspace,"SOURCE_RESOURCES.json");
             if(File.Exists(resourcePointer))
             {
-                string required=(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(resourcePointer))["version"];
+                var pin=Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(resourcePointer));
+                string required=Convert.ToInt32(pin["schema"])>=2?(string)pin["version"]:null;
                 string actual=Path.Combine(workspace,"source/Assets/OpenZ/Resources/OpenZ/resource_package.json");
-                if(!File.Exists(actual)||(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(actual))["version"]!=required)
+                if(required!=null&&(!File.Exists(actual)||(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(actual))["version"]!=required))
                     throw new IOException("This source revision needs a different Unity resource package. Return to Resources and prepare the required update before building.");
             }
             string project = Path.Combine(workspace, "source"), output = Path.Combine(workspace, "builds", "OpenZ-VK-Local"), buildLog = Path.Combine(workspace, ".local", "Unity-build.log");

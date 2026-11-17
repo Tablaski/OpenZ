@@ -105,7 +105,7 @@ namespace OpenZ.Multiplayer
             {
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
                 var menu = FindFirstObjectByType<OpenZMainMenu>();
-                if (preparation < 8)
+                if (preparation < 9)
                 {
                     next = Time.realtimeSinceStartupAsDouble + .6;
                     switch (preparation++)
@@ -119,19 +119,20 @@ namespace OpenZ.Multiplayer
                             if(OzResourcePackage.Validate(expected,package,embedded)==null||OzResourcePackage.Validate(expected,null,embedded)==null||OzResourcePackage.Validate(null,package,embedded)==null)throw new Exception("Mismatched resource identity accepted.");
                             menu.ProofOpenOptions(OzSettingTips.TabGame);
                             if (!menu.ProofOptTabRows.Contains(OzForceBarOption.Label) || !menu.ProofOptTabRows.Contains(OzMapReadabilityOptions.FlagLabel) || !menu.ProofOptTabRows.Contains(OzMapReadabilityOptions.BorderLabel)) throw new Exception("Fork options missing.");
-                            DuelOptionProof.SetEdgeScroll(menu, true); break;
-                        case 1:
+                            break;
+                        case 1: DuelOptionProof.SetEdgeScroll(menu, true); break;
+                        case 2:
                             DuelOptionProof.Check(menu); Capture("main-menu-options-on"); ScreenCapture.CaptureScreenshot(Path.Combine(folder,"main-menu-options-on-screen.png")); break;
-                        case 2: DuelOptionProof.SetEdgeScroll(menu, false); break;
-                        case 3:
-                            DuelOptionProof.Check(menu); Capture("main-menu-options-off"); ScreenCapture.CaptureScreenshot(Path.Combine(folder,"main-menu-options-off-screen.png")); break;
+                        case 3: DuelOptionProof.SetEdgeScroll(menu, false); break;
                         case 4:
-                            RestoreEdgeScroll(); menu.ProofOpen(""); break;
+                            DuelOptionProof.Check(menu); Capture("main-menu-options-off"); ScreenCapture.CaptureScreenshot(Path.Combine(folder,"main-menu-options-off-screen.png")); break;
                         case 5:
-                            Capture("main-menu"); menu.ProofSelect(); break;
+                            RestoreEdgeScroll(); menu.ProofOpen(""); break;
                         case 6:
+                            Capture("main-menu"); menu.ProofSelect(); break;
+                        case 7:
                             DuelOptionProof.CheckInlineBadges(menu.transform.root); Capture("solo-selection"); menu.ProofMain(); break;
-                        case 7: break;
+                        case 8: break;
                     }
                     return;
                 }
@@ -283,7 +284,15 @@ namespace OpenZ.Multiplayer
         {
             foreach(var item in Rows(menu))if((string)item.GetType().GetField("label").GetValue(item)=="EDGE SCROLL")
             {
-                var get=(Func<bool>)item.GetType().GetField("get").GetValue(item);if(get()!=desired)((HudButton)item.GetType().GetField("row").GetValue(item)).OnClick(new HudClick());return;
+                var get=(Func<bool>)item.GetType().GetField("get").GetValue(item);
+                if(get()!=desired)
+                {
+                    var row=(HudButton)item.GetType().GetField("row").GetValue(item);
+                    if(menu is OpenZMainMenu main)main.ProofClickAt(RectTransformUtility.WorldToScreenPoint(null,row.Rt.TransformPoint(row.Rt.rect.center)));
+                    else row.OnClick(new HudClick());
+                    if(get()!=desired)throw new Exception("Native edge-scroll click did not change its setting.");
+                }
+                return;
             }
             throw new Exception("Edge-scroll toggle missing.");
         }

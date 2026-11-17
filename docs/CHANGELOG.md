@@ -1,5 +1,10 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.27 (17 Nov 2026)
+
+- The host can swap the red and blue players in the 1 vs 1 lobby. Both players can correct their own name before marking themselves ready.
+- The hidden duel diagnostics let the host try binary events and state compression separately. Both start off, and the panel shows the amount of game-state data sent or received.
+
 ## OpenZ-VK 0.2.26 (17 Nov 2026)
 
 - The 1 vs 1 HUD shows **SYNC** next to ping. It counts the game-state updates per second sent by the host or received by the guest.

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,16 +9,21 @@ namespace OpenZ.Multiplayer
     public enum DuelMessage : ushort
     {
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
-        Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport
+        Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport,
+        DeltaBinaryEvents, DeltaCompressed, Rename
     }
 
     public sealed class DuelPacket
     {
         public readonly DuelMessage Kind;
         public readonly byte[] Payload;
+        internal readonly bool Compress;
+        internal int WirePayloadLength;
         // Local transport timestamp. It is set before publishing a received delta to the game thread.
         internal long ReceivedAtTicks;
-        public DuelPacket(DuelMessage kind, byte[] payload) { Kind = kind; Payload = payload; }
+        public DuelPacket(DuelMessage kind, byte[] payload) : this(kind, payload, false) { }
+        internal DuelPacket(DuelMessage kind, byte[] payload, bool compress)
+        { Kind = kind; Payload = payload; Compress = compress; WirePayloadLength = payload?.Length ?? 0; }
     }
 
     /// <summary>
@@ -29,6 +35,55 @@ namespace OpenZ.Multiplayer
     {
         public const int Version = 2, MaxPayload = 4 * 1024 * 1024;
         const uint Magic = 0x31445A4F; // OZ D1
+        const int MinCompressedDelta = 1024, MaxCompressedDelta = 128 * 1024;
+        const int CompressionHeader = 5, MinimumSavings = 32;
+
+        internal static bool IsDelta(DuelMessage kind) => kind == DuelMessage.Delta || kind == DuelMessage.DeltaBinaryEvents;
+
+        // Called from the ordered transport writers, outside the game thread.
+        internal static DuelPacket PackDelta(DuelPacket packet)
+        {
+            int size = packet.Payload.Length;
+            if (!packet.Compress || !IsDelta(packet.Kind) || size < MinCompressedDelta || size > MaxCompressedDelta) return packet;
+            using (var buffer = new MemoryStream())
+            using (var header = new BinaryWriter(buffer))
+            {
+                header.Write(packet.Kind == DuelMessage.DeltaBinaryEvents);
+                header.Write(size);
+                using (var compressor = new DeflateStream(buffer, CompressionLevel.Fastest, true))
+                    compressor.Write(packet.Payload, 0, size);
+                return buffer.Length <= size - MinimumSavings ? new DuelPacket(DuelMessage.DeltaCompressed, buffer.ToArray()) : packet;
+            }
+        }
+
+        internal static DuelPacket UnpackDelta(DuelPacket packet)
+        {
+            if (packet.Kind != DuelMessage.DeltaCompressed) return packet;
+            var body = packet.Payload;
+            if (body.Length <= CompressionHeader || body.Length > MaxCompressedDelta || body[0] > 1)
+                throw new InvalidDataException("Invalid compressed state header.");
+            using (var buffer = new MemoryStream(body, false))
+            using (var header = new BinaryReader(buffer))
+            {
+                var kind = header.ReadBoolean() ? DuelMessage.DeltaBinaryEvents : DuelMessage.Delta;
+                int size = header.ReadInt32();
+                if (size < MinCompressedDelta || size > MaxCompressedDelta || body.Length > size - MinimumSavings)
+                    throw new InvalidDataException("Invalid compressed state length.");
+                var payload = new byte[size];
+                using (var decompressor = new DeflateStream(buffer, CompressionMode.Decompress))
+                {
+                    int offset = 0;
+                    while (offset < size)
+                    {
+                        int count = decompressor.Read(payload, offset, size - offset);
+                        if (count == 0) throw new InvalidDataException("Truncated compressed state.");
+                        offset += count;
+                    }
+                    if (decompressor.ReadByte() != -1) throw new InvalidDataException("Oversized compressed state.");
+                }
+                return new DuelPacket(kind, payload) { WirePayloadLength = body.Length };
+            }
+        }
 
         public static async Task WriteAsync(Stream stream, DuelPacket packet, CancellationToken cancel)
         {

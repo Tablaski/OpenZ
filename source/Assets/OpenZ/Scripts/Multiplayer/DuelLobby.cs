@@ -201,6 +201,7 @@ namespace OpenZ.Multiplayer
         DuelRules rules = new DuelRules();
         public DuelPhase Phase { get; private set; } = DuelPhase.Lobby;
         public int Revision { get; private set; }
+        public bool TeamsSwapped { get; private set; }
         public double StartAt { get; private set; } = -1;
         public string CloseReason { get; private set; }
         DuelRules proposal;
@@ -235,14 +236,41 @@ namespace OpenZ.Multiplayer
         public DuelRules Rules => rules.Copy();
         public string Name(int slot) { CheckSlot(slot); return names[slot]; }
         public bool Ready(int slot) { CheckSlot(slot); return ready[slot]; }
+        internal static int TeamSlot(int seat, bool swapped)
+        { CheckSlot(seat); return swapped ? 1 - seat : seat; }
+
+        public void SwapTeams(int senderSlot)
+        {
+            Require(DuelPhase.Lobby);
+            if (senderSlot != 0 || names[0] == null || names[1] == null)
+                throw new InvalidOperationException("Only the host can swap teams once both players have joined.");
+            TeamsSwapped = !TeamsSwapped;
+            InvalidateReady();
+        }
 
         public void Join(int slot, string name)
         {
             CheckSlot(slot); Require(DuelPhase.Lobby);
             if (names[slot] != null) throw new InvalidOperationException("Seat occupied.");
+            names[slot] = NormalizeName(name); InvalidateReady();
+        }
+
+        public bool Rename(int senderSlot, string name)
+        {
+            CheckSlot(senderSlot); Require(DuelPhase.Lobby);
+            if (names[senderSlot] == null) throw new InvalidOperationException("Seat is empty.");
+            string next = NormalizeName(name);
+            if (names[senderSlot] == next) return false;
+            names[senderSlot] = next;
+            InvalidateReady();
+            return true;
+        }
+
+        internal static string NormalizeName(string name)
+        {
             if (string.IsNullOrWhiteSpace(name) || name.Length > 32) throw new ArgumentException("Invalid name.");
             foreach (char c in name) if (char.IsControl(c)) throw new ArgumentException("Invalid name.");
-            names[slot] = name.Trim(); InvalidateReady();
+            return name.Trim();
         }
 
         public void ChangeRules(int senderSlot, DuelRules next)

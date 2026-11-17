@@ -35,7 +35,7 @@ This is **work in progress**, not a claim of perfect Z fidelity. If you remember
 Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest).
 
 - **Compiled-game ZIPs:** ready to play, with no Unity or Git required. For manual installation, extract both ZIPs from the same release into one folder and run **openz-vk.exe**.
-- **Source code:** the editable code on stable **main** or development **dev**; it must be compiled before playing. Development versions are distributed as source code only.
+- **Source code:** the editable code on stable **main** or development **dev**. Development is normally distributed as source. Published development previews appear as [prereleases](https://github.com/Tablaski/OpenZ/releases).
 - **Unity:** the editor required to compile the source code; the installer helps you install the correct version.
 - **Resource ZIPs:** the OpenZ 1.4 base assets with required fork adaptations, needed for source compilation. They are reused across code updates and downloaded again only when required assets change.
 - **Installer:** installs and updates the compiled game, shows its changelog, or retrieves a chosen **main/dev** commit and builds it with Unity. It reuses unchanged data and uses Git when available, with optional Git installation and a Git-free fallback.

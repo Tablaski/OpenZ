@@ -9,12 +9,13 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets }
+        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
         int dynamicsType;
         float allowedScroll = 1, dynamicsScroll = 1;
         string openZMapId, presetName, presetStatus;
+        string nameDraft, renameStatus;
         OzLevelPreview openZMapPreview;
         RawImage openZMapImage;
         public const string ArmyPresetsPreference = "oz_duel_outside_army_presets";
@@ -145,6 +146,7 @@ namespace OpenZ.Multiplayer
 
         void BuildLobbyRules(DuelRules rules, bool editable)
         {
+            if (lobbyDialog == LobbyDialog.Rename) { BuildRename(); return; }
             if (lobbyDialog == LobbyDialog.Forts) { BuildFortPlacement(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
             if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
@@ -155,6 +157,32 @@ namespace OpenZ.Multiplayer
             Label(panel, editable ? R.IsHost ? "HOST RULES · changes clear both READY confirmations" : "YOUR PROPOSAL · edits stay local until you send them" : "CURRENT HOST RULES · use PREPARE SETTINGS to propose changes", 24, 58, 1390, 18, OzUi.Muted);
             if (lobbyDialog == LobbyDialog.Units) BuildAllowedUnits(panel, rules, editable);
             else BuildDynamics(panel, rules, editable);
+        }
+
+        void BuildRename()
+        {
+            var shade = Hud.Img(root, "Change name shade", new Color(0, 0, 0, .94f));
+            shade.rectTransform.Fill(); shade.raycastTarget = true;
+            var panel = Panel("CHANGE YOUR NAME", 630, 350, 660, 285);
+            Button(panel, "CANCEL", 428, 210, 202, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
+            Input(panel, "PLAYER NAME", 28, 119, 602, nameDraft, value => nameDraft = value, 32);
+            Label(panel, renameStatus, 28, 181, 602, 15, OzUi.AlertText);
+            Button(panel, "SAVE NAME", 28, 210, 245, () =>
+            {
+                try
+                {
+                    var next = DuelLobby.NormalizeName(nameDraft);
+                    if (R.RenameLocalPlayer(next))
+                    {
+                        name = next;
+                        SaveName();
+                        lobbyDialog = LobbyDialog.None;
+                    }
+                    else renameStatus = "You can change your name while the lobby is open.";
+                }
+                catch (ArgumentException) { renameStatus = "Enter a name with 1 to 32 characters."; }
+                dirty = true;
+            }, true);
         }
         void BuildAllowedUnits(RectTransform panel, DuelRules rules, bool editable)
         {

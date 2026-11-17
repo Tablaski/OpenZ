@@ -12,6 +12,7 @@ namespace OpenZ.Multiplayer
         static readonly int[] InterpolationDelays = { 70, 100, 130, 170, 220 };
         readonly DuelDiagnosticGraph[] diagnosticGraphs = new DuelDiagnosticGraph[4];
         OzText diagnosticsSummary, diagnosticsStatus, snapshotValue, budgetValue, interpolationValue, delayValue;
+        OzText binaryEventsValue, compressionValue;
         int diagnosticRevision;
         string diagnosticAction = "";
 
@@ -26,7 +27,7 @@ namespace OpenZ.Multiplayer
         }
         void BuildDiagnosticsPanel()
         {
-            snapshotValue = budgetValue = interpolationValue = delayValue = null;
+            snapshotValue = budgetValue = interpolationValue = delayValue = binaryEventsValue = compressionValue = null;
             var dim = Hud.Img(root, "Diagnostics backdrop", new Color32(12, 9, 16, 112));
             dim.rectTransform.Fill();
             dim.raycastTarget = true;
@@ -51,6 +52,11 @@ namespace OpenZ.Multiplayer
                 snapshotValue = DiagnosticControl(panel, OzForkOptions.DuelSnapshotRateLabel, 24, () =>
                     R.SetDiagnosticTuning(Next(SnapshotRates, R.SnapshotHz), R.ReceiveBudgetMs, 0));
                 Label(panel, "Host setting · affects both sides", 24, 694, 325, 15, OzUi.Muted);
+                binaryEventsValue = DiagnosticControl(panel, OzForkOptions.DuelBinaryEventsLabel, 704,
+                    () => R.SetStatePacking(!R.BinaryStateEvents, R.CompressStateUpdates), "TOGGLE");
+                compressionValue = DiagnosticControl(panel, OzForkOptions.DuelCompressionLabel, 980,
+                    () => R.SetStatePacking(R.BinaryStateEvents, !R.CompressStateUpdates), "TOGGLE");
+                Label(panel, "Applied to both players' game updates", 704, 694, 445, 15, OzUi.Muted);
             }
             else
             {
@@ -64,7 +70,7 @@ namespace OpenZ.Multiplayer
             budgetValue = DiagnosticControl(panel, OzForkOptions.DuelReceiveBudgetLabel, 364, () =>
                 R.SetDiagnosticTuning(R.SnapshotHz, Next(ReceiveBudgets, R.ReceiveBudgetMs), R.InterpolationMs));
             Label(panel, "Local processing limit between packets", 364, 694, 336, 15, OzUi.Muted);
-            Button(panel, "RESET TUNING", 1196, 625, 172, R.ResetDiagnosticTuning);
+            Button(panel, "RESET TUNING", 1196, 700, 172, R.ResetDiagnosticTuning, height: 37);
 
             Label(panel, "DUEL REPORTS", 24, 750, 500, 18, OzForkOptions.Accent);
             Button(panel, "COPY MINE", 24, 784, 202, () =>
@@ -108,11 +114,13 @@ namespace OpenZ.Multiplayer
             diagnosticRevision = R.DiagnosticRevision;
             var sample = R.DiagnosticCount == 0 ? default : R.GetDiagnostic(R.DiagnosticCount - 1);
             foreach (var graph in diagnosticGraphs) graph.Redraw();
-            diagnosticsSummary.Set($"{(R.IsHost ? "HOST" : "GUEST")}  ·  {R.TransportLabel}  ·  {sample.Fps:0} FPS  ·  {R.PingMs:0} ms PING  ·  {sample.QueueKiB:0.0} KiB QUEUED PEAK  ·  LAST 30 s");
+            diagnosticsSummary.Set($"{(R.IsHost ? "HOST" : "GUEST")}  ·  {R.TransportLabel}  ·  {sample.Fps:0} FPS  ·  {R.PingMs:0} ms PING  ·  STATE DATA {sample.PayloadKiBPerSecond:0.0} KiB/s · {R.MatchWireStateBytes / 1024.0:0.0} KiB TOTAL");
             snapshotValue?.Set($"{R.SnapshotHz} Hz");
             budgetValue?.Set($"{R.ReceiveBudgetMs} ms");
             interpolationValue?.Set(R.InterpolationMs == 0 ? "OFF" : "ON");
             delayValue?.Set($"{R.InterpolationDelayMs} ms");
+            binaryEventsValue?.Set(R.BinaryStateEvents ? "ON" : "OFF");
+            compressionValue?.Set(R.CompressStateUpdates ? "ON" : "OFF");
             string peerStatus = R.HasPeerDiagnosticReport ? "Peer report ready to save." : "";
             string status = diagnosticAction.Length > 0 ? diagnosticAction : "Send shares this duel's performance counters with your opponent.";
             diagnosticsStatus.Set(peerStatus.Length == 0 ? status : status + "  ·  " + peerStatus);

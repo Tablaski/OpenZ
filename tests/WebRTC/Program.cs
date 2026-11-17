@@ -62,6 +62,25 @@ while (!receivedLoad || !receivedOrder || receivedVoice == null)
 if (receivedVoice.Any(b => b != 42)) throw new Exception("Voice corrupted.");
 Console.WriteLine("PASS: native encrypted peer handshake, 1 MiB fragmented snapshot, reverse command and independent voice channel.");
 
+var stateDelta = new byte[8192];
+for (int i = 0; i < 3; i++)
+    if (!host.Send(new DuelPacket(i == 1 ? DuelMessage.DeltaBinaryEvents : DuelMessage.Delta, stateDelta, i == 1)))
+        throw new Exception("Failed to queue mixed state updates.");
+long statePayloadBytes = 0;
+for (int i = 0; i < 3; i++)
+{
+    DuelPacket delta;
+    while (!guest.TryReceive(out delta)) await Task.Delay(5, timeout.Token);
+    if (delta.Kind != (i == 1 ? DuelMessage.DeltaBinaryEvents : DuelMessage.Delta) ||
+        !stateDelta.SequenceEqual(delta.Payload) || delta.ReceivedAtTicks <= 0 ||
+        (i == 1 ? delta.WirePayloadLength >= stateDelta.Length : delta.WirePayloadLength != stateDelta.Length))
+        throw new Exception("Mixed native state updates were corrupted or compression did not switch.");
+    statePayloadBytes += delta.WirePayloadLength;
+}
+while (host.StatePayloadBytesSent < statePayloadBytes) await Task.Delay(5, timeout.Token);
+if (host.StatePayloadBytesSent != statePayloadBytes) throw new Exception("Native payload counters disagree.");
+Console.WriteLine("PASS: ordered raw, compressed and raw WebRTC state updates with matching payload counters.");
+
 byte[] report = System.Text.Encoding.UTF8.GetBytes("OpenZ-VK duel diagnostics v1\n" +
     string.Concat(Enumerable.Repeat("matchS=90.1 receiveMsPerUpdate=0.94 arrivalGapMaxMs=103.0\n", 900)));
 if (!guest.Send(new DuelPacket(DuelMessage.DiagnosticsReport, report))) throw new Exception("Failed to queue diagnostic report.");

@@ -194,7 +194,7 @@ namespace OpenZ.Multiplayer
             else if (page == Page.Microphone) BuildMicrophone();
             else if (page == Page.End)
             {
-                bool won = R.Game.World.Winner == (R.IsHost ? Team.Red : Team.Blue);
+                bool won = R.Game.World.Winner == R.LocalTeam;
                 Label(root, won ? "VICTORY" : "DEFEAT", 180, 300, 1400, 56, won ? OzUi.Go : OzUi.AlertText);
                 Label(root, "THE DUEL HAS ENDED", 180, 390, 1400, 24, OzUi.Ink);
                 Button(root, "BACK TO MENU", 180, 500, 600, Leave, true);
@@ -267,7 +267,20 @@ namespace OpenZ.Multiplayer
             bool editable = R.View.Phase == (int)DuelPhase.Lobby && (R.IsHost || lobbyDraft != null && draftRevision == R.View.Revision);
             Button(root, "Allowed units · " + DuelUnitRoster.Name(rules.UnitPreset), 470, 40, 355, () => { lobbyDialog = LobbyDialog.Units; pickerGroup = -1; dirty = true; });
             Button(root, "DYNAMICS", 845, 40, 350, () => { lobbyDialog = LobbyDialog.Dynamics; pickerGroup = -1; dirty = true; });
-            if (R.IsHost) Button(root, "COPY INVITATION", 1250, 40, 580, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
+            bool inLobby = R.View.Phase == (int)DuelPhase.Lobby;
+            if (R.IsHost)
+            {
+                Button(root, "SWAP RED / BLUE", 1210, 40, 216, R.SwapTeams, false, inLobby && R.Connected && R.View.GuestName != null);
+                Button(root, "COPY INVITATION", 1440, 40, 183, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
+            }
+            Button(root, "CHANGE NAME", 1635, 40, 195, () =>
+            {
+                nameDraft = R.LocalLobbyName;
+                renameStatus = "";
+                pickerGroup = -1;
+                lobbyDialog = LobbyDialog.Rename;
+                dirty = true;
+            }, false, inLobby && (R.IsHost || R.Connected));
             BuildProposalBar(official);
             var left = Panel("MAP", 80, 190, 700, 595);
             var chosenMap=OzShittyMapGallery.Definition(rules.Map);
@@ -303,8 +316,10 @@ namespace OpenZ.Multiplayer
             Label(construction, "Offensive value gap: starts at +30% enemy lead; full bonus at +90%. Fort only.", 24, 132, 760, 14, OzUi.Muted);
             Button(construction, "CHANGE", 810, 102, 155, () => { rules.FortLoserMaximum = rules.FortLoserMaximum == 0 ? .3 : rules.FortLoserMaximum < .4 ? .5 : rules.FortLoserMaximum < .6 ? .75 : 0; EditLobbyRules(rules); }, false, editable);
             BuildChatPanel(80, 800, 700, 180);
-            Label(root, "RED · " + R.View.HostName + " · " + (R.View.HostReady ? "READY" : "NOT READY"), 820, 967, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 0 ? OzUi.AlertText : OzUi.Ink);
-            Label(root, "BLUE · " + (R.View.GuestName ?? "WAITING") + " · " + (R.View.GuestReady ? "READY" : "NOT READY"), 820, 990, 540, 16, rules.HandicapEnabled && rules.HandicapSlot == 1 ? OzUi.AlertText : OzUi.Ink);
+            for (int team = 0; team < 2; team++)
+                Label(root, (team == 0 ? "RED" : "BLUE") + " · " + (R.View.NameForTeam(team) ?? "WAITING") + " · " +
+                    (R.View.ReadyForTeam(team) ? "READY" : "NOT READY"), 820, 967 + team * 23, 540, 16,
+                    rules.HandicapEnabled && rules.HandicapSlot == team ? OzUi.AlertText : OzUi.Ink);
             Button(root, "LEAVE", 80, 1000, 250, Leave);
             Label(root, R.ReleaseWarning.Length > 0 ? R.ReleaseWarning : rules.HasStartingArmies ? R.Status : "Each team needs a starting squad, vehicle or turret before READY.", 360, 1020, 950, 16, OzUi.AlertText);
             Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected && official.HasStartingArmies && lobbyDraft == null);
@@ -342,7 +357,7 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < 2; i++)
             {
                 int seat = i; float x = 24 + i * 230;
-                var b = Button(panel, (i == 0 ? R.View.HostName : R.View.GuestName ?? "WAITING FOR PLAYER"), x, 65, 215, () => { rules.EnableHandicap(seat); EditLobbyRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
+                var b = Button(panel, R.View.NameForTeam(i) ?? "WAITING FOR PLAYER", x, 65, 215, () => { rules.EnableHandicap(seat); EditLobbyRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
                 b.name = "HANDICAP PLAYER " + seat;
                 generalImages[i] = Hud.Node("GeneralPortrait", b).gameObject.AddComponent<RawImage>();
                 generalImages[i].rectTransform.TL(47, 0, 120, 118); generalImages[i].raycastTarget = false; generalImages[i].enabled = false;

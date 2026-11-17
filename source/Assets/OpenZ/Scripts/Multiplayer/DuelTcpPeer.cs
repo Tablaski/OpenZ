@@ -22,7 +22,7 @@ namespace OpenZ.Multiplayer
         readonly ConcurrentQueue<DuelPacket> incoming = new ConcurrentQueue<DuelPacket>(), outgoing = new ConcurrentQueue<DuelPacket>();
         readonly SemaphoreSlim wake = new SemaphoreSlim(0);
         int receivedBytes, queuedBytes, disposed;
-        long sentBytes, readBytes;
+        long sentBytes, readBytes, statePayloadBytesSent;
         public int PendingSendBytes => Volatile.Read(ref queuedBytes);
         public int PendingReceiveBytes => Volatile.Read(ref receivedBytes);
         public string RemoteName { get; private set; }
@@ -30,6 +30,7 @@ namespace OpenZ.Multiplayer
         public bool Closed => Volatile.Read(ref disposed) != 0;
         public long BytesSent => Interlocked.Read(ref sentBytes);
         public long BytesReceived => Interlocked.Read(ref readBytes);
+        public long StatePayloadBytesSent => Interlocked.Read(ref statePayloadBytesSent);
         public System.Net.IPAddress RemoteAddress => ((System.Net.IPEndPoint)socket.Client.RemoteEndPoint).Address;
 
         DuelTcpPeer(TcpClient socket)
@@ -104,7 +105,7 @@ namespace OpenZ.Multiplayer
             if (Interlocked.Add(ref queuedBytes, size) > QueueBudget)
             { Fail("Outgoing queue exceeded; peer is too slow."); return false; }
             // Ownership of payload stays with the caller, so take a stable copy before queuing.
-            outgoing.Enqueue(new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone())); wake.Release(); return true;
+            outgoing.Enqueue(new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone(), packet.Compress)); wake.Release(); return true;
         }
 
         public bool TryReceive(out DuelPacket packet)
@@ -119,11 +120,13 @@ namespace OpenZ.Multiplayer
             {
                 while (!Closed)
                 {
-                    var packet = await connection.ReceiveAsync(stop.Token).ConfigureAwait(false);
+                    var wirePacket = await connection.ReceiveAsync(stop.Token).ConfigureAwait(false);
+                    long arrival = System.Diagnostics.Stopwatch.GetTimestamp();
+                    var packet = DuelWire.UnpackDelta(wirePacket);
                     int size = packet.Payload.Length + 12;
                     if (Interlocked.Add(ref receivedBytes, size) > QueueBudget) throw new IOException("Incoming queue exceeded.");
-                    if (packet.Kind == DuelMessage.Delta) packet.ReceivedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
-                    Interlocked.Add(ref readBytes, size); incoming.Enqueue(packet);
+                    if (DuelWire.IsDelta(packet.Kind)) packet.ReceivedAtTicks = arrival;
+                    Interlocked.Add(ref readBytes, wirePacket.Payload.Length + 12); incoming.Enqueue(packet);
                 }
             }
             catch (Exception error) { if (!Closed) Fail(error.Message); }
@@ -136,9 +139,11 @@ namespace OpenZ.Multiplayer
                 {
                     await wake.WaitAsync(stop.Token).ConfigureAwait(false);
                     if (!outgoing.TryDequeue(out var packet)) continue;
-                    await connection.SendAsync(packet, stop.Token).ConfigureAwait(false);
+                    var wirePacket = DuelWire.PackDelta(packet);
+                    await connection.SendAsync(wirePacket, stop.Token).ConfigureAwait(false);
                     Interlocked.Add(ref queuedBytes, -packet.Payload.Length - 12);
-                    Interlocked.Add(ref sentBytes, packet.Payload.Length + 12);
+                    Interlocked.Add(ref sentBytes, wirePacket.Payload.Length + 12);
+                    if (DuelWire.IsDelta(packet.Kind)) Interlocked.Add(ref statePayloadBytesSent, wirePacket.Payload.Length);
                 }
             }
             catch (Exception error) { if (!Closed) Fail(error.Message); }

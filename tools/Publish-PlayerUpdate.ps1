@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$PlayerDirectory,
-    [ValidateSet('stable')][string]$Channel='stable',
+    [ValidateSet('stable','dev')][string]$Channel='stable',
     [string]$Tag='',
     [Parameter(Mandatory=$true)][string]$NotesFile,
     [string[]]$AdditionalAssets=@(),
@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw "Push the player source commit to origin/$branc
 $releaseDirectory=Join-Path $updateRoot ('builds/release-'+$stamp.version)
 $updateDirectory=Join-Path $releaseDirectory ('update-'+$Channel)
 $installerDirectory=Join-Path $updateRoot ('builds/installer-'+$stamp.version)
-& (Join-Path $PSScriptRoot 'Build-Installer.ps1') -OutputDirectory $installerDirectory
+& (Join-Path $PSScriptRoot 'Build-Installer.ps1') -OutputDirectory $installerDirectory -Channel $Channel
 if (-not (Test-Path -LiteralPath (Join-Path $updateDirectory 'OpenZ-VK-update.json'))) {
     & (Join-Path $installerDirectory 'OpenZ-VK-UpdateTools.exe') --pack $PlayerDirectory $updateDirectory $Channel $Tag $NotesFile
     if ($LASTEXITCODE -ne 0) { throw 'Update payload generation failed.' }

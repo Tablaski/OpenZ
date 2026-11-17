@@ -15,6 +15,8 @@ namespace OpenZ
         public const string DuelReceiveBudgetLabel = "Receive budget";
         public const string DuelInterpolationLabel = "Guest interpolation";
         public const string DuelInterpolationDelayLabel = "Interpolation delay";
+        public const string DuelBinaryEventsLabel = "Binary events";
+        public const string DuelCompressionLabel = "State compression";
         public static bool BindingChat { get; private set; }
         static int bindingFrame = -1, closedFrame = -1;
         public static Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
@@ -44,7 +46,8 @@ namespace OpenZ
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
             label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
-            label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel;
+            label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||
+            label == DuelBinaryEventsLabel || label == DuelCompressionLabel;
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

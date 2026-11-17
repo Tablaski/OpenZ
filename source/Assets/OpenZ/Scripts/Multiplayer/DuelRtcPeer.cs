@@ -25,8 +25,10 @@ namespace OpenZ.Multiplayer
         int pc = -1, game = -1, voice = -1, disposed, cleanupQueued, queuedBytes, receivedBytes, voiceInCount, voiceOutCount;
         Task pump;
         int nativeBuffered;
+        long statePayloadBytesSent;
         public int PendingSendBytes => Volatile.Read(ref queuedBytes) + Volatile.Read(ref nativeBuffered);
         public int PendingReceiveBytes => Volatile.Read(ref receivedBytes);
+        public long StatePayloadBytesSent => Interlocked.Read(ref statePayloadBytesSent);
         public string RemoteName { get; private set; }
         public string Failure { get; private set; }
         public bool UsesRelay { get; private set; }
@@ -78,7 +80,7 @@ namespace OpenZ.Multiplayer
         {
             if (Closed || packet?.Payload == null || packet.Payload.Length > DuelWire.MaxPayload) return false;
             if (Interlocked.Add(ref queuedBytes, packet.Payload.Length + 12) > Budget) { Fail("Your opponent's connection is too slow."); return false; }
-            outgoing.Enqueue(new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone())); return true;
+            outgoing.Enqueue(new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone(), packet.Compress)); return true;
         }
         public bool TryReceive(out DuelPacket packet)
         {
@@ -104,7 +106,7 @@ namespace OpenZ.Multiplayer
                 UsesRelay = localCandidate.ToString().Contains("typ relay") || remoteCandidate.ToString().Contains("typ relay");
                 if (relayOnly && !UsesRelay) throw new IOException("The relay check did not select a relay.");
                 Send(new DuelPacket(DuelMessage.Hello, DuelTcpPeer.EncodeHello(secret, fingerprint, name)));
-                byte[] sending = null; int offset = 0;
+                byte[] sending = null; int offset = 0, stateBytesInFlight = 0;
                 int voiceSequence = 0, receivedVoiceSequence = 0;
                 var receive = new byte[65536]; var decoder = new DuelRtcFrameDecoder();
                 while (!Closed)
@@ -113,16 +115,22 @@ namespace OpenZ.Multiplayer
                     if (DuelRtcNative.rtcIsClosed(game)) throw new IOException("Your opponent disconnected.");
                     if (sending == null && outgoing.TryDequeue(out var packet))
                     {
+                        var wirePacket = DuelWire.PackDelta(packet);
+                        stateBytesInFlight = DuelWire.IsDelta(packet.Kind) ? wirePacket.Payload.Length : 0;
                         using (var buffer = new MemoryStream())
-                        { await DuelWire.WriteAsync(buffer, packet, stop.Token).ConfigureAwait(false); sending = buffer.ToArray(); offset = 0; }
-                        Interlocked.Add(ref queuedBytes, -sending.Length);
+                        { await DuelWire.WriteAsync(buffer, wirePacket, stop.Token).ConfigureAwait(false); sending = buffer.ToArray(); offset = 0; }
+                        Interlocked.Add(ref queuedBytes, -packet.Payload.Length - 12);
                     }
                     Volatile.Write(ref nativeBuffered, DuelRtcNative.rtcGetBufferedAmount(game) + (sending == null ? 0 : sending.Length - offset));
                     if (sending != null && DuelRtcNative.rtcGetBufferedAmount(game) < 256 * 1024)
                     {
                         int size = Math.Min(ChunkSize, sending.Length - offset); var part = new byte[size]; Array.Copy(sending, offset, part, 0, size);
                         DuelRtcNative.Check(DuelRtcNative.rtcSendMessage(game, part, size)); offset += size;
-                        if (offset == sending.Length) sending = null;
+                        if (offset == sending.Length)
+                        {
+                            sending = null;
+                            if (stateBytesInFlight > 0) Interlocked.Add(ref statePayloadBytesSent, stateBytesInFlight);
+                        }
                     }
                     for (int i = 0; i < 64; i++)
                     {
@@ -141,9 +149,11 @@ namespace OpenZ.Multiplayer
                             }
                             else
                             {
-                                if (Interlocked.Add(ref receivedBytes, received.Payload.Length + 12) > Budget) throw new IOException("Incoming game queue exceeded.");
-                                if (received.Kind == DuelMessage.Delta) received.ReceivedAtTicks = System.Diagnostics.Stopwatch.GetTimestamp();
-                                incoming.Enqueue(received);
+                                long arrival = System.Diagnostics.Stopwatch.GetTimestamp();
+                                var decoded = DuelWire.UnpackDelta(received);
+                                if (Interlocked.Add(ref receivedBytes, decoded.Payload.Length + 12) > Budget) throw new IOException("Incoming game queue exceeded.");
+                                if (DuelWire.IsDelta(decoded.Kind)) decoded.ReceivedAtTicks = arrival;
+                                incoming.Enqueue(decoded);
                             }
                         }
                     }

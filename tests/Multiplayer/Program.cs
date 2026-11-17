@@ -71,6 +71,25 @@ static class Program
         Reject(lobby.Restart, "Restart allowed outside match");
         lobby.Disconnect("Guest left");
         Check(!lobby.Advance(200) && lobby.Phase == DuelPhase.Closed, "Closed session restarted");
+        var teams = new DuelLobby();
+        teams.Join(0, "Host"); teams.Join(1, "Guest");
+        teams.SetReady(1, teams.Revision, true);
+        Reject(() => teams.SwapTeams(1), "Guest swapped lobby teams");
+        teams.SwapTeams(0);
+        Check(teams.TeamsSwapped && DuelLobby.TeamSlot(0, teams.TeamsSwapped) == 1 &&
+            DuelLobby.TeamSlot(1, teams.TeamsSwapped) == 0 && !teams.Ready(1), "Team swap lost its roles or kept stale readiness");
+        Check(teams.Name(0) == "Host" && teams.Name(1) == "Guest", "Team swap must keep authenticated seats");
+        teams.SetReady(0, teams.Revision, true);
+        Check(teams.Rename(1, "  New Guest  ") && teams.Name(1) == "New Guest" && !teams.Ready(0),
+            "Guest rename was not trimmed, applied and propagated to readiness");
+        int namedRevision = teams.Revision;
+        Check(!teams.Rename(1, "New Guest") && teams.Revision == namedRevision, "An unchanged name invalidated readiness");
+        Reject(() => teams.Rename(0, "  "), "Empty lobby name accepted");
+        teams.SwapTeams(0);
+        Check(!teams.TeamsSwapped && teams.Name(1) == "New Guest", "Swap back lost the new name");
+        teams.SetReady(0, teams.Revision, true); teams.SetReady(1, teams.Revision, true);
+        Reject(() => teams.SwapTeams(0), "Team swap allowed during loading");
+        Reject(() => teams.Rename(1, "Other"), "Name change allowed during loading");
         var openingLobby = new DuelLobby();
         openingLobby.Join(0, "Host"); openingLobby.Join(1, "Guest");
         Check(openingLobby.Rules.PlanningSeconds == 0, "Opening orders must be off by default");

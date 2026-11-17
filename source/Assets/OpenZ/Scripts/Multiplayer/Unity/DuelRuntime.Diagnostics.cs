@@ -18,7 +18,7 @@ namespace OpenZ.Multiplayer
         static readonly UTF8Encoding ReportEncoding = new UTF8Encoding(false, true);
         internal struct DiagnosticSample
         {
-            public float MatchTime, WindowSeconds, Frame, Main, Gpu, Ping, StateCost, Rate, Gap, Wait, QueueKiB, Fps;
+            public float MatchTime, WindowSeconds, Frame, Main, Gpu, Ping, StateCost, Rate, Gap, Wait, QueueKiB, Fps, PayloadKiBPerSecond;
             public int TargetHz;
         }
         internal int SnapshotHz { get; private set; } = DefaultSnapshotHz;
@@ -29,12 +29,17 @@ namespace OpenZ.Multiplayer
         internal int DiagnosticCount { get; private set; }
         internal int DiagnosticRevision { get; private set; }
         internal float? SyncRateHz { get; private set; }
+        internal bool BinaryStateEvents { get; private set; }
+        internal bool CompressStateUpdates { get; private set; }
+        long matchStateReceived, wireSentAtMatchStart, wireSentAtWindowStart;
+        long WireStateSent => peer?.StatePayloadBytesSent ?? 0;
+        internal long MatchWireStateBytes => IsHost ? WireStateSent - wireSentAtMatchStart : matchStateReceived;
         internal bool HasPeerDiagnosticReport => peerDiagnosticReport != null;
         readonly DiagnosticSample[] diagnosticHistory = new DiagnosticSample[DiagnosticHistorySize];
         DiagnosticSample diagnosticPending;
         int diagnosticNext, diagnosticStates, diagnosticFrames;
         double diagnosticStart;
-        long diagnosticLastState;
+        long diagnosticLastState, diagnosticLastWireBytes;
         readonly DuelMotionBuffer motionHistory = new DuelMotionBuffer();
         int motionSelectedFrame = -1;
         readonly Queue<string> diagnosticSummaries = new Queue<string>(ReportLogLines);
@@ -46,6 +51,7 @@ namespace OpenZ.Multiplayer
 
         void ResetDiagnostics()
         {
+            BinaryStateEvents = CompressStateUpdates = false;
             InterpolationMs = 0;
             InterpolationDelayMs = DefaultInterpolationDelayMs;
             SnapshotHz = DefaultSnapshotHz;
@@ -57,6 +63,7 @@ namespace OpenZ.Multiplayer
             DiagnosticRevision++;
             diagnosticPending = default;
             diagnosticLastState = 0;
+            diagnosticLastWireBytes = MatchWireStateBytes;
             diagnosticStart = Now;
             diagnosticSummaries.Clear();
             peerDiagnosticReport = null;
@@ -72,6 +79,20 @@ namespace OpenZ.Multiplayer
         {
             InterpolationDelayMs = DefaultInterpolationDelayMs;
             SetDiagnosticTuning(DefaultSnapshotHz, DefaultReceiveBudgetMs, 0);
+            SetStatePacking(false, false);
+        }
+
+        internal void SetStatePacking(bool binaryEvents, bool compression)
+        {
+            if (!Playing || !IsHost || (BinaryStateEvents == binaryEvents && CompressStateUpdates == compression)) return;
+            LogPerformance("packing");
+            BinaryStateEvents = binaryEvents;
+            CompressStateUpdates = compression;
+            string line = FormattableString.Invariant(
+                $"[OpenZ Multiplayer Perf] tuning matchS={Now - perfMatchStart:F2} role=host binaryEvents={binaryEvents} compression={compression}");
+            Debug.Log(line);
+            RememberPerformanceLine(line);
+            DiagnosticRevision++;
         }
         internal void SetDiagnosticTuning(int snapshotHz, int receiveBudgetMs, int interpolationMs)
         {
@@ -99,6 +120,9 @@ namespace OpenZ.Multiplayer
             if (elapsed < .25) return;
             diagnosticPending.MatchTime = (float)(now - perfMatchStart);
             diagnosticPending.WindowSeconds = (float)elapsed;
+            long wireBytes = MatchWireStateBytes;
+            diagnosticPending.PayloadKiBPerSecond = (float)((wireBytes - diagnosticLastWireBytes) / (1024.0 * elapsed));
+            diagnosticLastWireBytes = wireBytes;
             diagnosticPending.Ping = PingMs;
             diagnosticPending.Rate = (float)(diagnosticStates / elapsed);
             diagnosticPending.Fps = (float)(diagnosticFrames / elapsed);
@@ -147,12 +171,12 @@ namespace OpenZ.Multiplayer
             foreach (var line in diagnosticSummaries) report.Append(line).Append('\n');
             string partial = BuildPerformanceLine("report");
             if (partial != null) report.Append(partial).Append('\n');
-            report.Append("matchS\tfps\tframePeakMs\tmainMs\tgpuMs\tpingMs\tstateCpuMs\tstateHz\tgapMs\tqueueWaitMs\tqueueKiB\ttargetHz\n");
+            report.Append("matchS\tfps\tframePeakMs\tmainMs\tgpuMs\tpingMs\tstateCpuMs\tstateHz\tgapMs\tqueueWaitMs\tqueueKiB\ttargetHz\twireStateKiBps\n");
             for (int i = 0; i < DiagnosticCount; i++)
             {
                 var s = GetDiagnostic(i);
-                report.AppendFormat(CultureInfo.InvariantCulture, "{0:F2}\t{1:F1}\t{2:F1}\t{3:F1}\t{4:F1}\t{5:F0}\t{6:F2}\t{7:F1}\t{8:F1}\t{9:F1}\t{10:F1}\t{11}\n",
-                    s.MatchTime, s.Fps, s.Frame, s.Main, s.Gpu, s.Ping, s.StateCost, s.Rate, s.Gap, s.Wait, s.QueueKiB, s.TargetHz);
+                report.AppendFormat(CultureInfo.InvariantCulture, "{0:F2}\t{1:F1}\t{2:F1}\t{3:F1}\t{4:F1}\t{5:F0}\t{6:F2}\t{7:F1}\t{8:F1}\t{9:F1}\t{10:F1}\t{11}\t{12:F1}\n",
+                    s.MatchTime, s.Fps, s.Frame, s.Main, s.Gpu, s.Ping, s.StateCost, s.Rate, s.Gap, s.Wait, s.QueueKiB, s.TargetHz, s.PayloadKiBPerSecond);
             }
             return report.ToString();
         }

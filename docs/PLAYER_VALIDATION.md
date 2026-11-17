@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 0.2.27 lobby teams and state packing (awaiting compiled-game validation)
+
+- On two PCs, have both players rename themselves and confirm both names update, then swap teams as host. Confirm readiness clears, the match opens on the assigned fort, each side controls its own army, surrender awards the opposite colour and returning to the lobby keeps the new assignments.
+- On the same map and TURN path, compare binary events and state compression separately and together. Record sent and received game-state KiB/s, SYNC, frame times and queues. Toggle mid-match and verify movement, sounds and combat effects continue. Check both options start off after restart.
+- State-data measurements include encoded game-state update payloads. Voice, commands and transport overhead are outside these counters.
+
 ## OpenZ-VK 0.2.26 live sync rate (awaiting compiled-game validation)
 
 - Confirm that SYNC fits beside ping and the TURN indicator at supported HUD sizes. Compare the host's send rate and the guest's receive rate in the HUD with the diagnostic graph. Check that a receive stall lowers the guest rate and a restart clears the previous match's samples.

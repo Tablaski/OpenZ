@@ -25,18 +25,27 @@ namespace OpenZVK.Update
     }
     public sealed class InstallerWindow : WizardForm
     {
+#if OPENZ_DEV_PRERELEASE
+        const string PublishedChannel = "dev", SettingsFile = "installer-dev.json", GameFolder = "Game-Dev";
+        const string InstallerTitle = "Install Development Preview";
+        const string Welcome = "Welcome to the OpenZ-VK development preview";
+#else
+        const string PublishedChannel = "stable", SettingsFile = "installer.json", GameFolder = "Game";
+        const string InstallerTitle = "Install & Update";
+        const string Welcome = "Welcome to OpenZ-VK";
+#endif
         readonly GitHub github=new GitHub();readonly ComboBox versions=new ComboBox();
         readonly TextBox destination=new TextBox(),seed=new TextBox(),notes;
         readonly Label installed,available,changesTitle,status,transfer,location;
         readonly Button refresh,play,editor,options,sources,manual;
         readonly ProgressBar progress=new ProgressBar();readonly NotifyIcon notification=new NotifyIcon{Icon=SystemIcons.Information,Text="OpenZ-VK updates"};
-        readonly string settingsPath=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OpenZ-VK","installer.json");
+        readonly string settingsPath=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OpenZ-VK",SettingsFile);
         CancellationTokenSource operation=new CancellationTokenSource();Manifest selected;bool loading,proofMode;string localResourceIndex,notifiedCommit;
         Func<Manifest,Chunk,CancellationToken,Task<byte[]>> localFetch;
-        public InstallerWindow(string[] args):base("Install & Update","Your game, ready to play. Updates keep your settings and saved profiles.",new[]{"Choose a version","Read what's new","Install & play"})
+        public InstallerWindow(string[] args):base(InstallerTitle,"Your game, ready to play. Updates keep your settings and saved profiles.",new[]{"Choose a version","Read what's new","Install & play"})
         {
             proofMode=args.Length>0&&args[0].StartsWith("--proof",StringComparison.Ordinal);
-            var choose=Pages[0];AddIcon(choose,WizardIcon.Game,0,5);WizardUi.Label(choose,"Welcome to OpenZ-VK",75,5,890,36,22,true);
+            var choose=Pages[0];AddIcon(choose,WizardIcon.Game,0,5);WizardUi.Label(choose,Welcome,75,5,890,36,22,true);
             WizardUi.Label(choose,"Install a published game, or keep the one you already have up to date.\nYou do not need Unity or Git to play.",75,52,890,65,12,false,WizardUi.Muted);
             installed=WizardUi.Label(choose,"Not installed on this PC yet.",0,135,980,32,13,true);
             available=WizardUi.Label(choose,"Checking for available versions…",0,176,980,30,11,false,WizardUi.Green);
@@ -55,7 +64,7 @@ namespace OpenZVK.Update
             play=WizardUi.Button(install,"Play",0,355,225,52,()=>Launch(false),true);editor=WizardUi.Button(install,"Unit Editor",250,355,225,52,()=>Launch(true));
             options=WizardUi.Button(install,"Installation options",510,355,300,52,OpenOptions);
             location=WizardUi.Label(install,"",0,445,980,55,10,false,WizardUi.Muted);
-            destination.Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","OpenZ-VK","Game");
+            destination.Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","OpenZ-VK",GameFolder);
             try{if(File.Exists(settingsPath)){var saved=Format.Json().Deserialize<Settings>(File.ReadAllText(settingsPath));if(!String.IsNullOrWhiteSpace(saved.directory))destination.Text=saved.directory;}}catch{}
             versions.SelectedIndexChanged+=async(s,e)=>{if(!loading)await LoadSelection();};destination.TextChanged+=(s,e)=>ReadInstalled();
             Shown+=async(s,e)=>
@@ -94,7 +103,7 @@ namespace OpenZVK.Update
         async Task LoadVersions()
         {
             if(Busy||loading)return;loading=true;selected=null;localFetch=null;versions.Items.Clear();notes.Clear();available.Text="Checking for updates…";RefreshNavigation();
-            try{var releases=await github.Releases("stable",operation.Token);foreach(var r in releases.OrderByDescending(r=>r.published_at,StringComparer.Ordinal))versions.Items.Add(r);if(versions.Items.Count>0){versions.SelectedIndex=0;await LoadSelection();}else{available.Text="No installer-ready release is published yet.";Footer.Text="Complete player ZIPs remain available under Manual ZIP download.";}}
+            try{var releases=await github.Releases(PublishedChannel,operation.Token);foreach(var r in releases.OrderByDescending(r=>r.published_at,StringComparer.Ordinal))versions.Items.Add(r);if(versions.Items.Count>0){versions.SelectedIndex=0;await LoadSelection();}else{available.Text="No installer-ready release is published yet.";Footer.Text="Complete game ZIPs remain available under Manual ZIP download.";}}
             catch(Exception error){available.Text="The update service could not be reached. Please try again.";Footer.Text=error.Message;}
             finally{loading=false;RefreshNavigation();}
         }
@@ -103,7 +112,7 @@ namespace OpenZVK.Update
             var release=versions.SelectedItem as Release;if(release==null||Busy)return;selected=null;RefreshNavigation();
             try
             {
-                var manifest=await github.Manifest(release,"stable",operation.Token);if(!Object.ReferenceEquals(versions.SelectedItem,release))return;selected=manifest;notes.Text=manifest.notes??release.body??"No changes supplied.";changesTitle.Text="What's new in OpenZ-VK "+manifest.version;
+                var manifest=await github.Manifest(release,PublishedChannel,operation.Token);if(!Object.ReferenceEquals(versions.SelectedItem,release))return;selected=manifest;notes.Text=manifest.notes??release.body??"No changes supplied.";changesTitle.Text="What's new in OpenZ-VK "+manifest.version;
                 var current=InstalledManifest();bool same=current!=null&&current.commit==manifest.commit;available.Text=same?"You're up to date. You can still check and repair game files.":"OpenZ-VK "+manifest.version+" is available. Read the changes before installing.";
                 Footer.Text="No automatic installation. You decide when to update.";
                 Version a,b;if(current!=null&&notifiedCommit!=manifest.commit&&Version.TryParse(manifest.version,out a)&&Version.TryParse(current.version,out b)&&a>b){notifiedCommit=manifest.commit;notification.Visible=true;notification.ShowBalloonTip(10000,"OpenZ-VK "+manifest.version+" is available","Open the installer to read what's new.",ToolTipIcon.Info);}
@@ -123,7 +132,7 @@ namespace OpenZVK.Update
                     transfer.Text=p.done>=p.total&&p.total>0?"Installation verified. Your settings and profiles were kept.":"Downloaded: "+Format.Size(p.downloaded)+"  ·  Existing files are reused automatically.";
                 });
                 await Task.Run(()=>new Installer(localFetch??github.Download).Install(selected,destination.Text,seed.Text,observer,operation.Token));
-                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath));var saved=File.Exists(settingsPath)?Format.Json().Deserialize<Settings>(File.ReadAllText(settingsPath)):new Settings();saved.directory=destination.Text;saved.channel="stable";File.WriteAllText(settingsPath,Format.Json().Serialize(saved));
+                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath));var saved=File.Exists(settingsPath)?Format.Json().Deserialize<Settings>(File.ReadAllText(settingsPath)):new Settings();saved.directory=destination.Text;saved.channel=PublishedChannel;File.WriteAllText(settingsPath,Format.Json().Serialize(saved));
                 ReadInstalled();Footer.Text="Ready. Choose Play or Unit Editor, or finish the wizard.";
             }
             catch(OperationCanceledException){status.Text="Update cancelled safely.";transfer.Text="Your previous game is unchanged. A retry can reuse files already downloaded.";}

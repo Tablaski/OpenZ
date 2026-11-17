@@ -25,11 +25,16 @@ namespace OpenZ.Multiplayer
             var previous = RenderTexture.active;
             float atmosphere = Shader.GetGlobalFloat("_AtmoEnabled");
             Texture2D image = null;
+            var uiLayers = canvases.SelectMany(c => c.GetComponentsInChildren<Transform>(true)).Distinct()
+                .Select(t => new { Transform = t, Layer = t.gameObject.layer }).ToArray();
             try
             {
                 // Overlay canvases normally render after atmosphere. The explicit UI-only
                 // camera must skip this world pass to preserve the actual overlay colours.
                 if (interfaceOnly) Shader.SetGlobalFloat("_AtmoEnabled", 0);
+                // Newly created modal canvases may start on Default. Capture all UI
+                // without making the UI-only camera draw the world's Default layer.
+                if (interfaceOnly) foreach (var item in uiLayers) item.Transform.gameObject.layer = 5;
                 foreach (var canvas in canvases) { canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = camera; canvas.planeDistance = camera.nearClipPlane + 1; }
                 Canvas.ForceUpdateCanvases();
                 RenderPipeline.SubmitRenderRequest(camera, new UniversalRenderPipeline.SingleCameraRequest { destination = rt });
@@ -43,6 +48,7 @@ namespace OpenZ.Multiplayer
             finally
             {
                 if (interfaceOnly) Shader.SetGlobalFloat("_AtmoEnabled", atmosphere);
+                if (interfaceOnly) foreach (var item in uiLayers) if (item.Transform) item.Transform.gameObject.layer = item.Layer;
                 RenderTexture.active = previous;
                 for (int i = 0; i < canvases.Length; i++) { canvases[i].renderMode = RenderMode.ScreenSpaceOverlay; canvases[i].worldCamera = null; canvases[i].planeDistance = planes[i]; }
                 camera.targetTexture = null;

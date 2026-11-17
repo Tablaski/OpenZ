@@ -20,9 +20,11 @@ An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan rem
 
 ## Download and play
 
-Get the Windows x64 build from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases). Download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
+Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest). Choose **Stable (main)** or **Dev (dev)**, select a published version and read its changelog before installing. The installer checks for updates and reuses unchanged resource blocks. **Git and Unity are not required.** You can reuse an existing extracted build too. See the short [installer guide](docs/INSTALLER.md).
 
-**Unit Editor:** open the **Unit Editor** folder inside the build and double-click **Open Unit Editor.bat**, or choose **UNIT EDITOR** in the main menu. No Unity installation is needed.
+For a manual installation, download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
+
+**Unit Editor:** click **UNIT EDITOR** in the installer, or open the build's **Unit Editor** folder and double-click **Open Unit Editor.bat**. It is also available in the game's main menu.
 
 Both multiplayer participants need the same version. Rejoining an interrupted match is not supported; some network connections may fail.
 

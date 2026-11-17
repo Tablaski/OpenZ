@@ -2,6 +2,13 @@
 
 ## OpenZ-VK 0.2.22 (Windows release, 17 Nov 2026)
 
+- Publish a standalone Windows installer with the supplied OpenZ-VK logo, stable
+  and dev channels, version selection, changelogs and update notifications.
+  Reuse content-defined resource blocks without requiring Git; verify partial
+  downloads and stage a complete installation before replacing the previous game.
+- Replace the legacy tank/robot profile popup with native OpenZ plates, fonts,
+  buttons, scrolling and violet fork-option accents. Preserve independent family
+  selections and host-owned multiplayer profiles.
 - Combine the accumulated converted maps, map galleries, transparent menu/HUD
   artwork, directional dodge circle, cumulative dodge/boost limits, replication
   improvements, grouped guest proposals and independent red/blue fort cannons.

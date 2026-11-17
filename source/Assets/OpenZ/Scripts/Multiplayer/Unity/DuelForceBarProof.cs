@@ -47,7 +47,7 @@ namespace OpenZ.Multiplayer
                 double end = fort.BFinal;
                 hud.SetFortProductionBoost(Team.Red, .2);
                 if (fort.BFinal != end) throw new Exception("Visual bonus hook changed production.");
-                yield return new WaitForSecondsRealtime(.2f);
+                typeof(OpenZHud).GetMethod("RefreshForceAppearance", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, null);
                 var bonus = (OzText)typeof(OpenZHud).GetField("forceRedBonus", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(hud);
                 if (!bonus.rectTransform.gameObject.activeInHierarchy || !bonus.text.Contains("20%")) throw new Exception("Bonus is not signaled within the force bar.");
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-bonus-display.png"), true);

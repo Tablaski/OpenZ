@@ -146,10 +146,25 @@ namespace OpenZ.Multiplayer
                 }
                 else if (step == 17)
                 {
-                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, "behavior-game-dropdown.png"));
+                    if (!OzBehaviorOptions.CapturesInput || !FindFirstObjectByType<OzBehaviorOptions>().GetComponent<Canvas>())
+                        throw new Exception("Profile selector is not using the OpenZ canvas.");
+                    DuelProofCapture.Save(Path.Combine(folder, "behavior-game-dropdown-tanks.png"), true);
+                    OzBehaviorOptions.Show(ZBehaviorFamily.Robots);
                     step = 18; readyAt = Time.realtimeSinceStartupAsDouble + 1;
                 }
                 else if (step == 18)
+                {
+                    DuelProofCapture.Save(Path.Combine(folder, "behavior-game-dropdown-robots.png"), true);
+                    var picker = FindFirstObjectByType<OzBehaviorOptions>();
+                    var choice = Array.Find(picker.GetComponentsInChildren<UnityEngine.UI.Button>(), b => b.name == "PROFILE zod-classic");
+                    if (!choice) throw new Exception("Profile selection row is missing.");
+                    string tank = OzBehaviorLibrary.SelectedId(ZBehaviorFamily.Tanks);
+                    choice.onClick.Invoke();
+                    if (OzBehaviorLibrary.SelectedId(ZBehaviorFamily.Robots) != "zod-classic" || OzBehaviorLibrary.SelectedId(ZBehaviorFamily.Tanks) != tank)
+                        throw new Exception("Profile picker changed the wrong family.");
+                    step = 19; readyAt = Time.realtimeSinceStartupAsDouble + .2;
+                }
+                else if (step == 19)
                 {
                     Finish("PASS: Unit Editor; clickable behavior/testing entries; twelve Dynamics pages in the shared right-hand tabbed panel; help/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
                 }

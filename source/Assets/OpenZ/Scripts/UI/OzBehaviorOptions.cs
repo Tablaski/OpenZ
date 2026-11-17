@@ -1,68 +1,94 @@
 using System;
 using OpenZ.Sim;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.UI;
 
 namespace OpenZ
 {
-    /// <summary>Legacy profile picker retained for standalone/editor tooling. Multiplayer selection belongs to the lobby.</summary>
+    /// <summary>OpenZ kit profile picker for standalone tools; multiplayer profiles remain lobby-owned.</summary>
     public sealed class OzBehaviorOptions : MonoBehaviour
     {
         static OzBehaviorOptions instance;
-        public static bool CapturesInput => instance && instance.open;
-        bool open;
-        ZBehaviorFamily family;
-        Vector2 scroll;
-        GUIStyle label, button, plate;
-        public static void Show(ZBehaviorFamily f)
+        static int closedFrame = -1;
+        public static bool CapturesInput => instance || closedFrame == Time.frameCount;
+        public static void Show(ZBehaviorFamily family)
         {
             if (Multiplayer.DuelRuntime.Active) return;
-            if (!instance)
-            {
-                var go = new GameObject("BehaviorProfileDropdown"); DontDestroyOnLoad(go);
-                instance = go.AddComponent<OzBehaviorOptions>();
-            }
-            instance.family = f; instance.open = true; instance.scroll = Vector2.zero;
+            Dismiss();
+            var go = new GameObject("OpenZ-VK profile picker", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) { layer = 5 };
+            instance = go.AddComponent<OzBehaviorOptions>();
+            DontDestroyOnLoad(go);
+            instance.Build(family);
+            OzSfx.Ui("ui_panel_open");
+        }
+        public static void Dismiss()
+        {
+            if (!instance) return;
+            closedFrame = Time.frameCount;
+            instance.gameObject.SetActive(false);
+            Destroy(instance.gameObject);
+            instance = null;
         }
         void Update()
         {
-            if (open && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) open = false;
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            { OzSfx.Ui("ui_cancel"); Dismiss(); }
         }
-        void OnGUI()
+        void OnDestroy() { if (instance == this) instance = null; }
+        void Build(ZBehaviorFamily family)
         {
-            if (!open) return;
-            if (label == null)
+            var canvas = GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 1150;
+            var scaler = GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080); scaler.matchWidthOrHeight = 1;
+            if (!EventSystem.current)
             {
-                label = new GUIStyle(GUI.skin.label) { fontSize = 15, wordWrap = true };
-                button = new GUIStyle(GUI.skin.button) { fontSize = 15, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(16, 8, 4, 4) };
-                plate = new GUIStyle(GUI.skin.box) { padding = new RectOffset(16, 16, 16, 16) };
+                var events = new GameObject("Profile picker input", typeof(EventSystem), typeof(InputSystemUIInputModule));
+                events.transform.SetParent(transform, false); events.GetComponent<InputSystemUIInputModule>().AssignDefaultActions();
             }
-            GUI.depth = -150;
-            float s = Mathf.Clamp(Screen.width / 1280f, .75f, 1.5f);
-            var matrix = GUI.matrix; GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1));
-            float w = Screen.width / s, h = Screen.height / s;
-            GUI.Box(new Rect(0, 0, w, h), GUIContent.none);
-            Rect r = new Rect((w - 600) / 2, Mathf.Max(15, (h - 480) / 2), 600, Mathf.Min(480, h - 30));
-            GUI.Box(r, GUIContent.none, plate);
-            GUI.Label(new Rect(r.x + 20, r.y + 16, 530, 30), family == ZBehaviorFamily.Tanks ? "TANK BEHAVIOR" : "ROBOT BEHAVIOR", label);
-            GUI.Label(new Rect(r.x + 20, r.y + 52, 550, 55), new GUIContent("Choose the behavior for your next match. Tank and robot choices are independent. Save more presets in Unit Editor > BEHAVIOR.", "The current match is unchanged. Both teams use the same profiles. In multiplayer the host's profiles are replicated to the guest."), label);
+            var scrim = Hud.Img(transform, "Scrim", OzUi.A(OzUi.GM950, .9f)); scrim.rectTransform.Fill(); scrim.raycastTarget = true;
+            var panel = Hud.Node("Profile panel", transform); panel.TL(410, 130, 1100, 820);
+            var back = Hud.Img(panel, "Background", OzUi.GM950); back.rectTransform.Fill(); back.raycastTarget = true;
+            Hud.Plate(panel, "md", 0, OzForkOptions.Brand);
+            var logo = Resources.Load<Sprite>("OpenZ/Kit/Wordmarks/wm_openz_vk_menu");
+            if (logo) { var image = Hud.Img(panel, "OpenZ-VK logo", Color.white); image.sprite = logo; image.preserveAspect = true; image.rectTransform.TL(26, 18, 220, 72); image.raycastTarget = false; }
+            Hud.Label(panel, "Title", family == ZBehaviorFamily.Tanks ? "TANK DYNAMICS" : "ROBOT DYNAMICS", 30, OzForkOptions.Accent).At(275, 35, OzH.L, false, 785);
+            Hud.Label(panel, "Help", "Choose a profile for the next solo match. Tanks and robots are independent.", 18, OzUi.Ink).At(28, 113, OzH.L, false, 1044);
+            Hud.Label(panel, "Lobby rule", "Multiplayer profiles are selected by the host in the lobby and stay fixed for the match.", 16, OzUi.Muted).At(28, 150, OzH.L, false, 1044);
+            var viewport = Hud.Node("Profiles viewport", panel); viewport.TL(28, 203, 1044, 495);
+            viewport.gameObject.AddComponent<RectMask2D>(); viewport.gameObject.AddComponent<Image>().color = OzUi.GM950;
             var choices = OzBehaviorLibrary.Choices(family);
-            Rect list = new Rect(r.x + 20, r.y + 116, 560, r.height - 180);
-            scroll = GUI.BeginScrollView(list, scroll, new Rect(0, 0, 535, choices.Count * 42));
+            var content = Hud.Node("Profiles", viewport); content.TL(0, 0, 1044, Mathf.Max(495, choices.Count * 102));
+            var scroll = viewport.gameObject.AddComponent<ScrollRect>(); scroll.viewport = viewport; scroll.content = content;
+            scroll.horizontal = false; scroll.vertical = true; scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 45;
             for (int i = 0; i < choices.Count; i++)
             {
-                var p = choices[i]; bool chosen = p.id == OzBehaviorLibrary.SelectedId(family);
-                if (GUI.Button(new Rect(0, i * 42, 530, 36), new GUIContent((chosen ? "SELECTED  " : "") + p.name,
-                    p.id == "native" ? "Use the unmodified native OpenZ code path, including its current dodge restrictions and 3D steering." :
-                    p.id == "zod-classic" ? "Classic dodge logic before fenio commit 37af18e. Tanks can interrupt attacks; engaged robots cannot dodge. Removes mechanical 3D following constraints. Does not enable global Zod exact mode." :
-                    p.id == "zod-local" ? "Reference for the current local fork's idle-only dodge restriction, with Zod movement presentation. Active move, attack and entry orders prevent dodging." :
-                    "Use the saved " + p.name + " profile for this family only, starting with the next match. The laboratory draft is not used."), button))
-                { OzBehaviorLibrary.Select(p); open = false; }
+                var profile = choices[i]; bool selected = profile.id == OzBehaviorLibrary.SelectedId(family);
+                var row = MakeButton(content, "PROFILE " + profile.id, (selected ? "SELECTED  ·  " : "") + profile.name, 0, i * 102, 1028, 62,
+                    () => { OzBehaviorLibrary.Select(profile); OzSfx.Ui("ui_confirm"); Dismiss(); });
+                OzForkOptions.Highlight(row, family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel);
+                Hud.Label(content, "Help " + profile.id, Description(profile), 15, OzUi.Muted).At(14, i * 102 + 72, OzH.L, false, 1000);
             }
-            GUI.EndScrollView();
-            if (GUI.Button(new Rect(r.x + 20, r.yMax - 48, 560, 30), new GUIContent("CLOSE", "Close the dropdown without changing your selection. Escape also closes it."), button)) open = false;
-            if (!string.IsNullOrEmpty(GUI.tooltip)) GUI.Label(new Rect(r.x + 10, r.yMax + 6, 580, 100), GUI.tooltip, label);
-            GUI.matrix = matrix;
+            Hud.Label(panel, "Save hint", "Create and save custom profiles in Unit Editor > Dynamics.", 16, OzUi.Muted).At(28, 718, OzH.L, false, 1044);
+            MakeButton(panel, "CLOSE", "CLOSE", 28, 757, 1044, 44, () => { OzSfx.Ui("ui_cancel"); Dismiss(); });
+        }
+        static string Description(ZBehaviorProfile profile)
+        {
+            if (profile.id == "native") return "Original OpenZ behavior and movement.";
+            if (profile.id == "zod-classic") return "Classic Zod dodge reference, with independent tank and robot rules.";
+            if (profile.id == "zod-local") return "Zod movement with dodging limited to idle units.";
+            if (profile.id == "retreat-dodge") return "Robots may dodge during retreat orders.";
+            return "Your saved profile. Laboratory drafts stay separate until saved.";
+        }
+        static HudButton MakeButton(Transform parent, string name, string label, float x, float y, float width, float height, Action action)
+        {
+            var kit = HudButton.Make(parent, name, label, new Vector2(width, height), HudButtonKind.Large, 19, .05f, HudButtonStyle.Normal);
+            kit.Rt.TL(x, y, width, height); kit.Bg.raycastTarget = true;
+            var button = kit.Rt.gameObject.AddComponent<Button>(); button.targetGraphic = kit.Bg;
+            button.onClick.AddListener(() => action());
+            return kit;
         }
     }
 }

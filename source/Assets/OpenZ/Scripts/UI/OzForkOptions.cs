@@ -10,6 +10,11 @@ namespace OpenZ
         public static readonly Color Brand = new Color32(200, 90, 32, 255);
         public const string ChatLabel = "CHAT SHORTCUT";
         public const string RestartProductionLabel = "Stop + produce hovered unit";
+        public const string DuelDiagnosticsLabel = "Diagnostics";
+        public const string DuelSnapshotRateLabel = "Snapshot target";
+        public const string DuelReceiveBudgetLabel = "Receive budget";
+        public const string DuelInterpolationLabel = "Guest interpolation";
+        public const string DuelInterpolationDelayLabel = "Interpolation delay";
         public static bool BindingChat { get; private set; }
         static int bindingFrame = -1, closedFrame = -1;
         public static Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
@@ -37,7 +42,9 @@ namespace OpenZ
         }
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
-            label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel;
+            label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel ||
+            label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
+            label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel;
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

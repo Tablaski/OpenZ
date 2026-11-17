@@ -470,7 +470,8 @@ namespace OpenZ
             if (Obj.Destroyed) return;
             if (towerState == 0 && Obj.Kind == ZKind.Cannon) ResolveTower();                          // crews_v1
             SetOwner(CaptureHold.Shown(Obj));                                                          // boarding_nb_v1 NB17: grey until the robot sits inside
-            var p = game.CenterWorldSmooth(Obj);                                                        // parity P4: Zod client SmoothMove, no tick judder
+            bool networkInterpolated = Multiplayer.DuelRuntime.TryVisualPosition(game, Obj, out var p);
+            if (!networkInterpolated) p = game.CenterWorldSmooth(Obj);
             // OpenZ pathing (Sim/ZPathing.cs): a unit held in a queue / at a lane keeps Zod's heading (Dx/Dy) but stands: no walk
             // cycle, dust, bounce or turning in place. With the layer on the squad keeps 14 px (1.75 m) in the sim: no view slots.
             bool physicalMotion = Obj.BehaviorUsesActualMotion;
@@ -512,7 +513,7 @@ namespace OpenZ
                     // clamped to ViewSpeedCap x max(own Zod speed, current sim speed) x gameSpeed (dt is real time; at 2x / 4x the sim
                     // covers 2x / 4x per real second): the drawn robot never outruns the sim and never falls behind into a 6 m snap
                     float cap = Mathf.Max(Obj.MoveSpeed / 8f, simSpeed) * Mathf.Max(0.25f, game.gameSpeed); var prev = disp;
-                    disp = Vector3.SmoothDamp(disp, p, ref dispVel, 0.16f, cap * 1.15f, dt);
+                    disp = Vector3.SmoothDamp(disp, p, ref dispVel, networkInterpolated ? 0.05f : 0.16f, cap * 1.15f, dt);
                     disp = prev + Vector3.ClampMagnitude(disp - prev, cap * ViewSpeedCap * dt);
                 }
                 p = disp;

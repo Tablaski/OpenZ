@@ -1,5 +1,22 @@
 # Player validation record
 
+## OpenZ-VK 0.2.25 duel tuning (awaiting compiled-game validation)
+
+- Source checks pass 5,486 core and real-map checks, including the motion
+  buffer regression cases. The native WebRTC harness transfers a fragmented
+  diagnostic report over a direct local connection.
+- Check the hidden upper-left Ctrl+Alt+Up gesture in windowed and fullscreen
+  modes, outside the corner, during chat, and after closing with Escape.
+  Exercise all controls while the duel continues, then confirm defaults on
+  restart. Inspect graph layout and timers at supported resolutions.
+- Compare the same robot and vehicle paths on direct and TURN connections,
+  with guest interpolation off and at 100 ms. Include turns, stops, unit
+  spawns, deaths and long receive gaps. Check that the host view and orders
+  behave consistently, then compare the new measurements from both PCs.
+- Send a report from each side and save it on the other before leaving the
+  match. Confirm that it opens as plain UTF-8 and contains that match's timing
+  data. Verify that saving and transferring reports under load preserves play.
+
 ## OpenZ-VK 0.2.24 duel setup and production (awaiting compiled-game validation)
 
 - On both duel seats, confirm that the battlefield opens without a briefing. Check the default start, then set opening orders to 10 seconds. Issue and replace move orders on both seats. Confirm that units stand still and the match clock stays at zero until the countdown ends. Repeat after a restart.

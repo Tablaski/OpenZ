@@ -36,6 +36,7 @@ static class Program
     }
     static async Task Run()
     {
+        MotionInterpolationChecks.Run(Check);
         var lobby = new DuelLobby();
         lobby.Join(0, "Host"); lobby.Join(1, "Guest");
         int originalRevision = lobby.Revision;

@@ -13,7 +13,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus : MonoBehaviour
     {
-        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End }
+        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics }
         Page page;
         Page microphoneReturn;
         bool deviceList;
@@ -82,6 +82,7 @@ namespace OpenZ.Multiplayer
                 // The standard end screen owns the statistics and return-to-lobby controls.
             }
             else endedAt = -1;
+            if (page == Page.Diagnostics && !R.Playing) { page = Page.Entry; dirty = true; }
             bool wasBinding = bindingChat || bindingTalk;
             if (wasBinding && Keyboard.current != null)
                 foreach (var key in Keyboard.current.allKeys)
@@ -93,11 +94,14 @@ namespace OpenZ.Multiplayer
             if (((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
                 var pause = FindFirstObjectByType<OpenZPauseMenu>();
-                if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
+                if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
+                { page = Page.Diagnostics; dirty = true; }
+                else if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
                 { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
             }
             if (dirty) { dirty = false; Build(); }
+            if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
             if (generals)
             {
                 generals.SetSize(120, 140);
@@ -173,6 +177,7 @@ namespace OpenZ.Multiplayer
                 return;
             }
             if (page == Page.Chat) { BuildChat(); return; }
+            if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
             var background = Hud.Img(root, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
             if (poster) { var raw = Hud.Node("MissionBackground", root).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; }

@@ -125,3 +125,34 @@ to collect the relevant summaries for sharing:
 Select-String -Path "$env:USERPROFILE\AppData\LocalLow\OpenZ\OpenZ\Player*.log" -SimpleMatch '[OpenZ Multiplayer Perf]' |
     Select-Object -ExpandProperty Line
 ```
+
+## In-match diagnostics and tuning (OpenZ-VK 0.2.25)
+
+In a duel, move the pointer into the upper-left area of the game window
+(leftmost 10% and top 12%), hold **Ctrl + Alt** and press **Up Arrow**.
+Escape closes the overlay. The match continues while the overlay is open.
+Use the same compiled-game version on both PCs for report exchange.
+
+- Each plot shows up to 30 seconds of local measurements. Samples are
+  collected roughly every 250 ms. Frame and processing curves show peaks
+  within a sample; state cadence uses the number of deltas in that interval.
+  The guest arrival gap is sampled at the network worker and the queue wait
+  ends at the start of decoding on the game thread.
+- The host can change the snapshot target (8–20 Hz, normally 15 Hz).
+  The actual rate depends on frame cadence and backpressure. Each PC can
+  set its receive-loop budget (1–8 ms, normally 3 ms). The budget is
+  checked between packets. All tuning resets when a new match starts.
+- The guest can toggle position interpolation and choose a 70–220 ms
+  visual buffer (100 ms selected by default). It uses the host simulation
+  clock and a bounded history of confirmed robot and vehicle positions.
+  A short buffer can run dry on delayed packets; a longer buffer delays
+  visible movement. Fresh identities and large discontinuities use the
+  latest confirmed state. Game rules and submitted orders are unaffected.
+  The periodic logs include buffer-starved frames and capture cost.
+- **Send Mine to Peer** sends up to 36 recent technical summaries and tuning
+  entries, the current partial window and the plot samples for the active match. Each
+  side sends its own report explicitly. **Save Peer Report** writes the
+  received report under `OpenZ-VK/diagnostics/` in the existing Unity
+  persistent-data directory. **Copy Mine** copies the local report. Reports
+  contain counters, match time, map and build identity. They exclude chat,
+  names, addresses, credentials and other sessions' logs.

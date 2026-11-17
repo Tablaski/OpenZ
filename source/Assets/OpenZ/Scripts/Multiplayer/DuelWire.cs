@@ -8,7 +8,7 @@ namespace OpenZ.Multiplayer
     public enum DuelMessage : ushort
     {
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
-        Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules
+        Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport
     }
 
     public sealed class DuelPacket

@@ -62,6 +62,22 @@ while (!receivedLoad || !receivedOrder || receivedVoice == null)
 if (receivedVoice.Any(b => b != 42)) throw new Exception("Voice corrupted.");
 Console.WriteLine("PASS: native encrypted peer handshake, 1 MiB fragmented snapshot, reverse command and independent voice channel.");
 
+byte[] report = System.Text.Encoding.UTF8.GetBytes("OpenZ-VK duel diagnostics v1\n" +
+    string.Concat(Enumerable.Repeat("matchS=90.1 receiveMsPerUpdate=0.94 arrivalGapMaxMs=103.0\n", 900)));
+if (!guest.Send(new DuelPacket(DuelMessage.DiagnosticsReport, report))) throw new Exception("Failed to queue diagnostic report.");
+while (true)
+{
+    timeout.Token.ThrowIfCancellationRequested();
+    if (host.TryReceive(out var packet))
+    {
+        if (packet.Kind != DuelMessage.DiagnosticsReport || !report.SequenceEqual(packet.Payload))
+            throw new Exception("Diagnostic report corrupted.");
+        break;
+    }
+    await Task.Delay(5, timeout.Token);
+}
+Console.WriteLine("PASS: guest diagnostic report delivered to host.");
+
 using var wrong = new DuelRtcPeer(Array.Empty<string>(), false, secret, "WRONG-BUILD", "WRONG");
 using var correct = new DuelRtcPeer(Array.Empty<string>(), false, secret, "TEST-BUILD", "CORRECT");
 wrong.SetRemoteDescription(await correct.DescriptionAsync("offer", timeout.Token), "offer");

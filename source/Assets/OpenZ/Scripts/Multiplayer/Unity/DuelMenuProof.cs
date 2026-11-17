@@ -273,6 +273,8 @@ namespace OpenZ.Multiplayer
         {
             var panel=FindFirstObjectByType<OzSoloAllowedUnits>();
             if(!panel||panel.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=22)throw new Exception("Solo unit catalogue is incomplete.");
+            var viewport=panel.GetComponentInChildren<RectMask2D>().GetComponent<RectTransform>();
+            foreach(var tile in panel.GetComponentsInChildren<Button>().Where(b=>b.name.StartsWith("ALLOWED UNIT "))){var rect=tile.GetComponent<RectTransform>();var bottom=viewport.InverseTransformPoint(rect.TransformPoint(rect.rect.min));if(bottom.y<viewport.rect.yMin-1)throw new Exception("Solo unit row is clipped.");}
             panel.GetComponentsInChildren<Button>().Single(b=>b.name==name&&b.interactable).onClick.Invoke();
         }
         void SelectMap(string id)

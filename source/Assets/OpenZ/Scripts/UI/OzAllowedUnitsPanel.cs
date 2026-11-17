@@ -20,13 +20,13 @@ namespace OpenZ
             Label(panel,rules.AllowedUnits.Count+"/"+DuelUnitRoster.All.Length+" allowed · Z 1996 excludes the additional medium tank, Electrobot, heroes and shuttle.",24,173,1410,14,OzUi.Muted);
             var viewport=Hud.Node("Allowed units viewport",panel);viewport.TL(24,205,1432,560);viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>();background.color=OzUi.GM950;
-            var content=Hud.Node("Allowed units",viewport);content.TL(0,0,1432,4*146);
+            var content=Hud.Node("Allowed units",viewport);content.TL(0,0,1432,4*140);
             var scroll=viewport.gameObject.AddComponent<ScrollRect>();scroll.viewport=viewport;scroll.content=content;scroll.horizontal=false;scroll.vertical=true;scroll.movementType=ScrollRect.MovementType.Clamped;scroll.scrollSensitivity=40;
             scroll.verticalNormalizedPosition=scrollPosition;scroll.onValueChanged.AddListener(p=>scrolled(p.y));
             for(index=0;index<DuelUnitRoster.All.Length;index++)
             {
                 string type=DuelUnitRoster.All[index];bool allowed=rules.Allows(type);
-                var tile=Button(content,DuelMenus.UnitName(type),index%6*238,index/6*146,224,136,()=>{rules.SetUnitAllowed(type,!allowed);changed();},false,editable,solo);
+                var tile=Button(content,DuelMenus.UnitName(type),index%6*238,index/6*140,224,130,()=>{rules.SetUnitAllowed(type,!allowed);changed();},false,editable,solo);
                 tile.name="ALLOWED UNIT "+type;DuelMenus.Portrait(tile,type,77,28,70);
                 Label(tile,allowed?"ALLOWED":"EXCLUDED",10,8,204,13,allowed?(Color)OzUi.Go:OzUi.Muted);
             }
@@ -39,6 +39,7 @@ namespace OpenZ
             if(kit.Label?.graphic is TMPro.TMP_Text fitted){fitted.enableAutoSizing=true;fitted.fontSizeMin=10;fitted.fontSizeMax=17;}
             if(height>70&&kit.Label!=null)kit.Label.rectTransform.TL(3,height-28,width-6,26);
             if(solo)OzForkOptions.Highlight(kit,OzSoloAllowedUnits.Label);
+            if(selected){kit.LabelColor=OzUi.GM950;kit.Refresh();}
             var button=kit.Rt.gameObject.AddComponent<Button>();button.targetGraphic=kit.Bg;button.interactable=editable;button.onClick.AddListener(()=>action());
             return kit.Rt;
         }

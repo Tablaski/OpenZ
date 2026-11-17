@@ -45,6 +45,13 @@ namespace OpenZ
     {
         public const string SceneName = "UE_Playground";
         public const string LevelId = "UE";
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void OpenFromCommandLine()
+        {
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-oz-unit-editor") >= 0 &&
+                SceneManager.GetActiveScene().name != SceneName)
+                SceneManager.LoadScene(SceneName);
+        }
         /// <summary>Log prefix of every editor line.</summary>
         public const string Tag = "[OpenZ UnitEditor]";
         /// <summary>Seconds a flag holds after it changed its owner in the playground (spec E111; 0 in every other world).</summary>

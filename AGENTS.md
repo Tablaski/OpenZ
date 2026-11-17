@@ -1,5 +1,14 @@
 # Contributor and agent instructions
 
+## Public presentation and build delivery
+
+- Always put the original OpenZ logo/banner at the very beginning of the public README, before notices and headings.
+- Keep the README short and focused on differences from original OpenZ, especially added gameplay options, multiplayer rules and converted Shitty Maps. Keep technical optimization details in the changelog or technical documentation.
+- Public README, release notes and player-facing presentation must not state or imply AI/Codex authorship.
+- Screenshots may illustrate substantially changed screens and key features; several Shitty Maps screenshots are useful. Do not add a screenshot just to showcase the original logo.
+- Every future Windows build must include a clearly named `Unit Editor/` directory with a direct editor launcher. Share the main player's runtime files rather than duplicating the entire game.
+- After a replacement release has been verified, remove obsolete local player builds and release ZIPs at the user's request. Keep the current release, source assets, map packages and backups of untracked resources.
+
 - Use `dev` for development and `main` for stable versions. Do not create extra branches unless requested.
 - The only Unity project is `source/`. Edit its files directly; do not create a second source tree or copy/patch installation step.
 - Write all new code, comments, documentation, commit messages and player-facing text in English.

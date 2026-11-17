@@ -44,6 +44,14 @@ namespace OpenZ.Multiplayer.Editor
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);
             string notices = Path.Combine(Application.dataPath, "../Packages/org.openz.datachannel/Third Party Notices.txt");
             File.Copy(notices, Path.Combine(Path.GetDirectoryName(output), "WebRTC Third Party Notices.txt"), true);
+            string editorFolder = Path.Combine(outputFolder, "Unit Editor");
+            Directory.CreateDirectory(editorFolder);
+            File.WriteAllText(Path.Combine(editorFolder, "Open Unit Editor.bat"),
+                "@echo off\r\nstart \"\" /D \"%~dp0..\" \"%~dp0..\\openz-vk.exe\" -oz-unit-editor %*\r\n");
+            File.WriteAllText(Path.Combine(editorFolder, "README.txt"),
+                "Double-click Open Unit Editor.bat to open the combat playground directly.\r\n" +
+                "Keep this folder inside the complete OpenZ-VK player folder; it shares the game runtime.\r\n" +
+                "The editor is also available as UNIT EDITOR in the game's main menu.\r\n");
             Debug.Log("[OpenZ Duel] Built " + output);
         }
         public static void ValidateScriptBindings()

@@ -34,6 +34,10 @@ switch the whole field between four sets of numbers: **OpenZ** (the game's own),
 
 ## How to open it
 
+In an OpenZ-VK Windows build, open the **Unit Editor** directory and double-click
+**Open Unit Editor.bat**. This opens the playground directly using the shared
+game runtime. Keep this directory inside the complete player folder.
+
 In the **main menu**, pick **UNIT EDITOR**, right under PLAY. A loading screen shows one of three battle pictures, then
 the playground opens with an empty field and the hint *DRAG UNITS UP FROM THE DOCK*.
 

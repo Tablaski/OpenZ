@@ -1,128 +1,33 @@
-> **Experimental fork — early beta stage.** OpenZ-VK is a work in progress. Multiplayer, interface changes and custom combat behavior may contain bugs or change between versions. Builds are shared for experimentation and feedback; they are not a stable replacement for OpenZ.
+<p align="center">
+  <img src="media/banner.jpg" alt="OpenZ — original project" width="100%">
+</p>
 
 # OpenZ-VK
 
-An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), focused on playing against a friend and exploring different ways for units to fight.
+An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan remake of **Z** by **The Bitmap Brothers**. Early beta: expect bugs and changing rules.
 
-## Main features
+## What changes from OpenZ?
 
-- **1 vs 1 multiplayer:** invite a friend, prepare a match together and play red against blue.
-- **More comfortable play:** clearer army comparison, adjustable flags and territory borders, and easier access to chat and voice controls.
-- **Custom combat dynamics:** experiment with tank and robot dodging, boosts, turning, acceleration and braking, with shared settings and exceptions for individual unit types.
-- **A combat testing playground:** stage repeatable fights, compare outcomes and save your own behavior profiles.
+- **1 vs 1 with a friend:** invitations, chat and voice, shared match setup, readiness, surrender, restart requests and end-of-match statistics.
+- **More match options:** choose allowed units with OpenZ, Z 1996 or Custom presets; configure starting armies, handicaps and each team's four fort cannons independently. The guest can send one grouped proposal for the host to review.
+- **Custom combat:** tune tank and robot dodging, directional probabilities, boost duration/distance, turning, acceleration and damage effects. Save profiles in the Unit Editor; the host selects the official profiles in the lobby and they stay fixed during the match.
+- **Optional balance:** cap the territorial production advantage or give the weaker army a separate fort-production bonus. Leaving the cap off preserves the original territorial advantage.
+- **Shitty Maps:** browse converted Z Original, Z Expansion and multiplayer maps with minimaps, terrain filters and sorting, including Arctic terrain. These conversions are experimental.
+- **Clearer battles:** compare army counts or offensive production value, resize flags and use dotted territory borders. Added options outside the lobby are highlighted in violet.
+- **A richer Unit Editor:** stage repeatable fights, tune both sides live, inspect damage and success counters, and use paired respawns.
 
-## Play 1 vs 1
-
-- Host a match and share an invitation link or code with a friend.
-- Choose Desert, Volcano, Jungle or Car Park, with a tactical preview of the starting armies.
-- Configure a common starting army and fort defenses for both sides. Optionally give one player extra starting units or a production handicap.
-- Review the shared rules, confirm readiness and enter the match together.
-- Open **DYNAMICS** in the lobby to select the server's tank and robot profiles. Both teams use those exact profiles for the whole match; they cannot be changed through the pause menu. The guest can inspect all values.
-- Open **Allowed units** beside the lobby logo. Choose **OpenZ** (all 22 game unit types), **Z 1996** (the 17 robot/vehicle/cannon types listed in The Zod Engine), or **Custom**. Any manual unit toggle switches to Custom. The guest sees the same thumbnails and selection in read-only mode.
-- Unit restrictions apply to shared/handicap starting slots, neutral map units and factory production, including server-side build/queue validation. Excluded starting slots become empty; ordinary technology requirements still apply to allowed units. A change clears both players' READY confirmations.
-- Use text chat and optional voice chat, including mute and speaking controls.
-- Surrender, request a restart that the opponent can accept, review end-of-match statistics, or return together to the lobby for another game.
-
-Both players need the same version. Rejoining an interrupted match is not currently supported, and some network connections may fail.
-
-## Interface and readability
-
-- Compare the two armies by unit count or offensive production value, displayed as a score.
-- Adjust flag size and use smaller, dotted territory borders to reduce visual clutter.
-- Configure the chat shortcut and access chat and microphone controls during a match.
-- Keep your existing game preferences across updates.
-- OpenZ-VK logos use dark orange. Violet identifies added game options outside the lobby; lobby controls use the ordinary orange and neutral colours.
-
-## Experiment with combat dynamics
-
-- Keep OpenZ behavior, try the Zod Classic reference, or build a custom profile between and beyond those starting points.
-- Tune tanks and robots independently. Apply common values to a family, then override individual unit types.
-- Control when units dodge, which threats they react to, their reaction timing, direction, distance and defensive boost.
-- Use **brake, pivot, then accelerate** to make the hull turn before the tank drives into a new direction. Adjust pivot speed, remaining movement during the turn, alignment, acceleration and braking.
-- Choose whether turning affects real movement or only the displayed model.
-- Tanks choose the front or rear hull axis requiring the shortest turn. With reversing enabled, rearward moves back up instead of making an unnecessary half-turn, including brake-pivot-accelerate dodges.
-- Open **CRIPPLING** to configure moving hull shake, retained speed, extra acceleration time, rear smoke and fading oil trails for each health colour. Green is above 50% HP, yellow is above 25% through 50%, and red is 25% or below, matching the Unit Editor hover card.
-- Enable **Movement penalty on damaging hits** for two independently configurable damage thresholds, speed caps and durations. A heavy hit can briefly stop a tank; smaller hits cannot weaken an active heavy penalty. These thresholds use actual HP lost per hit.
-- Save named profiles and export them to share. Select separate tank and robot profiles in the 1 vs 1 lobby before confirming READY.
-
-These settings are experiments, not a promise of identical behavior to the original Z or The Zod Engine.
-
-## Test and compare units
-
-- Place opposing units in the Unit Editor and tune their behavior live.
-- Follow damage, kills, deaths and success percentages, with optional automatic counter resets after relevant tuning changes.
-- Repeat fights using paired respawn points, including optional survival through otherwise lethal hits.
-- Drag units into position and inspect their movement targets, combat positions and visual lag.
-- Compare the normal movement model with custom physical constraints before saving a profile.
-
-## Optional balance rules
-
-- Limit the production advantage from territory control. Leaving the cap off preserves the original territorial advantage.
-- Give the weaker army an optional fort-production bonus based on the two sides' offensive army values.
-- Keep these optional rules separate from the original production rules and agree on them in the lobby.
+**Z 1996 is a unit-availability preset, not a complete historical rules mode.** Custom dynamics do not promise identical behavior to Z or The Zod Engine. Existing preferences and saved profiles are retained across updates.
 
 ## Download and play
 
-Download the Windows build from [OpenZ-VK releases](https://github.com/Tablaski/OpenZ/releases). Follow that release's extraction instructions, keep the complete game folder together, and run **openz-vk.exe**. Do not use GitHub's automatic source-code ZIP as a playable download.
+Get the Windows x64 build from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases). Download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
 
-To try the tank movement mode: open **Unit Editor > Dynamics > Tanks**, choose **ALL TANKS** or an individual type, then click **BRAKE > PIVOT > ACCELERATE** under **FEEL** or **MOVEMENT**. Set **Retained speed during pivot** to 0% for a full stop or a small value for a near-stop, then tune turning, acceleration and braking. Existing per-type overrides take priority over family values. Use **SAVE AS** to keep the result.
+**Unit Editor:** open the **Unit Editor** folder inside the build and double-click **Open Unit Editor.bat**, or choose **UNIT EDITOR** in the main menu. No Unity installation is needed.
 
-For damage behaviour, open **CRIPPLING**, turn on **Custom damage movement and trails**, then select **GREEN**, **YELLOW** or **RED**. Zero shake/smoke/oil disables that effect; oil fade duration is in simulation seconds. Retained speed replaces the native damage speed factor in that band; extra acceleration time also works with physical movement limits off. Hit penalties have their own enable switch. Both new switches default to off, preserving existing profiles and preferences. **Allow boost when badly damaged** has moved from BOOST to CRIPPLING with its saved key unchanged. Save the profile in the editor, then select it under **DYNAMICS** in the lobby for multiplayer.
+Both multiplayer participants need the same version. Rejoining an interrupted match is not supported; some network connections may fail.
 
-**Z 1996 is a unit availability preset, not a full historical rules mode.** The engine's `medium` ID is presented as **MEDIUM MECH** by OpenZ; the additional **MEDIUM TANK** (`mtank`), Electrobot, heroes, EvilZod and shuttle are excluded. Existing internal names and unit statistics are preserved.
+See the [changelog](docs/CHANGELOG.md), [combat profiles](docs/BEHAVIOR_PROFILES.md), [Unit Editor guide](docs/UNIT_EDITOR.md) and [build instructions](CONTRIBUTING.md). Development is on `dev`.
 
-New builds still need manual gameplay validation. Development and the latest fork documentation are on `dev`.
+## Credits and licenses
 
-## Changelog
-
-These are fork source versions. A playable build is identified separately by its release assets and `FORK_BUILD.json`; a source update alone is not a player release.
-
-### 0.2.7
-
-- Replace the initial 0.2.7 build at the user's request, keeping this version number once. Subsequent releases increment it.
-- Move tank/robot profile selection into the host-owned lobby; guests can inspect the settings, and profiles stay fixed through play and restarts. Remove the main/pause-menu selectors.
-- Add **Allowed units** with thumbnails and **OpenZ**, **Z 1996** and **Custom** presets. Apply the host's selection to starting armies, neutral units and production; reject excluded build/queue commands on the server.
-- Keep logos dark orange and remove violet fork highlighting from lobby controls, while preserving it for added game options elsewhere.
-- Choose the shortest tank hull rotation, including backing into rearward dodge directions. Respect reverse speed and delay, and brake before switching travel direction.
-- Add the OpenZ-VK **CRIPPLING** tab, three health bands, configurable movement shake, speed and acceleration loss, rear smoke and gradually fading oil trails.
-- Add two temporary hit penalties using actual HP loss, with independent thresholds, retained speeds and durations; allow a temporary complete stop without losing orders.
-- Move the existing damaged-boost option into CRIPPLING, preserve existing profile IDs and choices, and advance local preference history to schema 3.
-- Use actual accepted movement for custom-mode track animation and render extrapolation. Add regression coverage for all four travel quadrants, colour boundaries, impact recovery and multiplayer replication.
-
-### 0.2.6
-
-- Add tunable brake-pivot-accelerate movement, including pivot speed, alignment tolerance, acceleration and braking.
-- Preserve live physical hull heading and replicate movement phases. Publish a Windows x64 experimental player in two complementary ZIPs.
-
-### 0.2.5
-
-- Bound the testing movement arrows and clarify the markers for simulation position, movement targets and visual lag.
-
-### 0.2.4
-
-- Name new Windows players `openz-vk.exe`, while preserving the OpenZ preference storage identity and invitation registration.
-
-### 0.2.3
-
-- Present offensive production values as scores and reduce the size of dotted territory boundaries.
-
-### 0.2.2
-
-- Remove private relay access codes and add guarded universal TURN access with a shared usage cutoff. Preserve direct connections when relay access is unavailable.
-
-### 0.2.1
-
-- Add FEEL controls and Advanced sections to simplify combat tuning. Add simulation-position, target and visual-lag overlays.
-
-### 0.2.0
-
-- Introduce OpenZ-VK branding and fork version/build identity, grouped violet fork settings and local preference history.
-- Add multiplayer surrender, restart and end-screen flow controls, alongside the existing combat profile and testing playground work.
-
-## Original project and credits
-
-OpenZ-VK builds on the work of the [OpenZ project](https://github.com/playopenz/OpenZ), its contributors, and the simulation rules ported from The Zod Engine. OpenZ is a fan remake of **Z**, created by **The Bitmap Brothers**. This fork preserves the upstream credits and licenses.
-
-The [original OpenZ presentation](docs/UPSTREAM_README.md) is retained separately; its download links describe upstream OpenZ. For the original game, use [OpenZ's releases](https://github.com/playopenz/OpenZ/releases).
-
-Free and open source. See [LICENSE](LICENSE) and the [contributor guide](CONTRIBUTING.md).
+Built on [OpenZ](https://github.com/playopenz/OpenZ) and the simulation rules ported from The Zod Engine. Upstream names, credits and licenses are preserved. See the [original OpenZ presentation](docs/UPSTREAM_README.md), [LICENSE](LICENSE) and [asset credits](docs/LICENSE-ASSETS.md). For upstream OpenZ, use [its releases](https://github.com/playopenz/OpenZ/releases).

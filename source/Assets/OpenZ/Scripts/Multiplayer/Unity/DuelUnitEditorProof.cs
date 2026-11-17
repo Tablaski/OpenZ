@@ -53,6 +53,13 @@ namespace OpenZ.Multiplayer
                         previousFolder = OzUeFiles.FolderOverride; OzUeFiles.FolderOverride = folder;
                     }
                     var menu = FindFirstObjectByType<OpenZMainMenu>();
+                    if (Array.IndexOf(Environment.GetCommandLineArgs(), "-oz-unit-editor") >= 0)
+                    {
+                        if (SceneManager.GetActiveScene().name != OzUnitEditor.SceneName)
+                            throw new Exception("Direct launcher did not open the Unit Editor.");
+                        step = 1;
+                        return;
+                    }
                     if (!menu || !menu.ProofOnMainList) return;
                     if (!menu.ProofUnitEditorItem(out _, out _, out _, out _)) throw new Exception("UNIT EDITOR menu item is missing.");
                     if (!Application.CanStreamedLevelBeLoaded(OzUnitEditor.SceneName)) throw new Exception("Playground scene is absent from the player.");

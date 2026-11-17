@@ -1,5 +1,18 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.22 (Windows release, 17 Nov 2026)
+
+- Combine the accumulated converted maps, map galleries, transparent menu/HUD
+  artwork, directional dodge circle, cumulative dodge/boost limits, replication
+  improvements, grouped guest proposals and independent red/blue fort cannons.
+- Add a clearly named Unit Editor directory and direct launcher to every future
+  Windows build. The launcher opens the playground with -oz-unit-editor and
+  shares the complete game runtime without duplicating its assets.
+- Restore the original OpenZ banner to the beginning of the short public README.
+  Focus its feature list on gameplay differences and keep implementation detail
+  in the changelog and dedicated guides.
+- Release validation and remaining limitations are recorded in PLAYER_VALIDATION.md.
+
 ## OpenZ-VK 0.2.20 (source update, 17 Nov 2026)
 
 - Cache unchanged serialized object fields before preparing multiplayer updates.

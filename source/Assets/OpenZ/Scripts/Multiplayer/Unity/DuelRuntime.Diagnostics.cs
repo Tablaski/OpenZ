@@ -18,7 +18,7 @@ namespace OpenZ.Multiplayer
         static readonly UTF8Encoding ReportEncoding = new UTF8Encoding(false, true);
         internal struct DiagnosticSample
         {
-            public float MatchTime, Frame, Main, Gpu, Ping, StateCost, Rate, Gap, Wait, QueueKiB, Fps;
+            public float MatchTime, WindowSeconds, Frame, Main, Gpu, Ping, StateCost, Rate, Gap, Wait, QueueKiB, Fps;
             public int TargetHz;
         }
         internal int SnapshotHz { get; private set; } = DefaultSnapshotHz;
@@ -28,6 +28,7 @@ namespace OpenZ.Multiplayer
         internal string TransportLabel => OnlinePeer != null ? (OnlinePeer.UsesRelay ? "TURN" : "DIRECT") : "TCP";
         internal int DiagnosticCount { get; private set; }
         internal int DiagnosticRevision { get; private set; }
+        internal float? SyncRateHz { get; private set; }
         internal bool HasPeerDiagnosticReport => peerDiagnosticReport != null;
         readonly DiagnosticSample[] diagnosticHistory = new DiagnosticSample[DiagnosticHistorySize];
         DiagnosticSample diagnosticPending;
@@ -52,6 +53,7 @@ namespace OpenZ.Multiplayer
             motionHistory.Reset();
             motionSelectedFrame = -1;
             DiagnosticCount = diagnosticNext = diagnosticStates = diagnosticFrames = 0;
+            SyncRateHz = null;
             DiagnosticRevision++;
             diagnosticPending = default;
             diagnosticLastState = 0;
@@ -96,6 +98,7 @@ namespace OpenZ.Multiplayer
             double now = Now, elapsed = now - diagnosticStart;
             if (elapsed < .25) return;
             diagnosticPending.MatchTime = (float)(now - perfMatchStart);
+            diagnosticPending.WindowSeconds = (float)elapsed;
             diagnosticPending.Ping = PingMs;
             diagnosticPending.Rate = (float)(diagnosticStates / elapsed);
             diagnosticPending.Fps = (float)(diagnosticFrames / elapsed);
@@ -103,6 +106,15 @@ namespace OpenZ.Multiplayer
             diagnosticHistory[diagnosticNext] = diagnosticPending;
             diagnosticNext = (diagnosticNext + 1) % DiagnosticHistorySize;
             DiagnosticCount = Math.Min(DiagnosticCount + 1, DiagnosticHistorySize);
+            float remaining = 1f, states = 0f;
+            for (int i = DiagnosticCount - 1; i >= 0 && remaining > 0f; i--)
+            {
+                var sample = GetDiagnostic(i);
+                float seconds = Math.Min(sample.WindowSeconds, remaining);
+                states += sample.Rate * seconds;
+                remaining -= seconds;
+            }
+            SyncRateHz = states / (1f - remaining);
             DiagnosticRevision++;
             diagnosticPending = default;
             diagnosticStates = diagnosticFrames = 0;

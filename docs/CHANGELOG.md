@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.26 (17 Nov 2026)
+
+- The 1 vs 1 HUD shows **SYNC** next to ping. It counts the game-state updates per second sent by the host or received by the guest.
+
 ## OpenZ-VK 0.2.24 (17 Nov 2026)
 
 - 1 vs 1 matches open directly on the battlefield without a briefing.

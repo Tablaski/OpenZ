@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 0.2.26 live sync rate (awaiting compiled-game validation)
+
+- Confirm that SYNC fits beside ping and the TURN indicator at supported HUD sizes. Compare the host's send rate and the guest's receive rate in the HUD with the diagnostic graph. Check that a receive stall lowers the guest rate and a restart clears the previous match's samples.
+
 ## OpenZ-VK 0.2.25 duel tuning (awaiting compiled-game validation)
 
 - Source checks pass 5,486 core and real-map checks, including the motion

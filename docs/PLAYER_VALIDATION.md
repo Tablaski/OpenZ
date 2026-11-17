@@ -1,5 +1,17 @@
 # Player validation record
 
+## Multiplayer and map-gallery logos (0.2.17, source only)
+
+- Fit the existing transparent Wordmarks/wm_openz_vk_menu sprite into a 300 x 100
+  multiplayer header and 160 x 48 gallery header. Preserve aspect ratio, disable
+  raycast interception, and retain the text fallback if the local asset is absent.
+- Reuses the PNG and metadata in .local/OpenZ-VK-menu-logo-0.2.14.zip.
+- Completed: all runtime C# scripts compile using the Unity compiler and references,
+  with a separate output assembly to avoid another running source-check lock.
+- Pending manual player validation: logo visibility and clean transparency on all
+  multiplayer pages and solo/duel gallery tabs, with no subtitle/button overlap.
+- No player build or runtime test was requested for this source change.
+
 ## Small editor and HUD logos (0.2.15, source only)
 
 - Reuse Wordmarks/wm_openz_vk_menu in the Unit Editor top bar and in-game

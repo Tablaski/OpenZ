@@ -1,5 +1,12 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.17 (source update, 17 Nov 2026)
+
+- Replace the multiplayer screen and map-gallery text wordmarks with the shared
+  transparent logo, fitted to their existing headers without stretching.
+- Retain a text fallback if local artwork is unavailable. No new assets required.
+- Source only; player rendering checks remain pending a requested release build.
+
 ## OpenZ-VK 0.2.15 (source update, 17 Nov 2026)
 
 - Reuse the transparent main-menu logo at a smaller size in the Unit Editor

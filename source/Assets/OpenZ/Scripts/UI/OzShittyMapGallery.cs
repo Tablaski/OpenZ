@@ -50,7 +50,9 @@ namespace OpenZ
             var shade=Hud.Img(root,"Modal background",new Color(0,0,0,.94f)); shade.rectTransform.Fill(); shade.raycastTarget=true; content.Add(shade.gameObject);
             var panel=Hud.Node("Gallery",root); panel.TL(80,70,1760,940); content.Add(panel.gameObject);
             Hud.Img(panel,"Panel",OzUi.GM900).rectTransform.Fill();
-            Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
+            var wordmark=Hud.Kit(panel,"ForkWordmark","Wordmarks/wm_openz_vk_menu",new OzRect(24,8,160,48),null,Image.Type.Simple);
+            wordmark.preserveAspect=true; wordmark.enabled=wordmark.sprite!=null;
+            if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
             Label(panel,solo ? "SHITTY MAPS · SOLO" : "MAP GALLERY · 1 VS 1",24,65,1400,30,OzUi.Ink);
             Icon(panel,OzConvertedMapsScreen.PoopSprite(),330,16,38);
             Button(panel,"CLOSE",1510,20,220,Close);

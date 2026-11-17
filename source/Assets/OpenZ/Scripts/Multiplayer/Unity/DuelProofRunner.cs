@@ -20,6 +20,7 @@ namespace OpenZ.Multiplayer
         bool lobbyVoice, chatSent, chatOpened, chatClosed, chatExpired;
         bool microphoneCaptured, microphoneDevicesCaptured;
         bool forceProofStarted, forceProofDone;
+        bool proposalSent, proposalChecked;
         double noticeSeenAt = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -69,8 +70,34 @@ namespace OpenZ.Multiplayer
                     double elapsed = Time.realtimeSinceStartupAsDouble - connectedAt;
                     SendVoiceProof(r);
                     if (r.Voice.FramesReceived > 0) lobbyVoice = true;
+                    if (!proposalChecked && role == "guest" && !proposalSent && elapsed > 1)
+                    {
+                        var proposed = r.Rules;
+                        proposed.SetFortTurret(0, 0, "gatling"); proposed.SetFortTurret(1, 0, "gun");
+                        var profile = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, name = "Native circle transport proof", master = 0 };
+                        profile.Set("", ZBehaviorKey.Direction, 3); profile.Set("", ZBehaviorKey.DodgeWeight0, 17);
+                        profile.Set("", ZBehaviorKey.MaxDistance, 3); profile.Set("", ZBehaviorKey.BoostMaxDistance, 2);
+                        proposed.TankDynamics = profile.Encode();
+                        r.ProposeRules(proposed, r.View.Revision); proposalSent = true;
+                    }
+                    if (!proposalChecked && role == "host" && r.View.ProposedRules != null)
+                    {
+                        var proposed = r.View.ProposedRules;
+                        if (proposed.FortTurretsFor(0)[0] != "gatling" || proposed.FortTurretsFor(1)[0] != "gun")
+                            throw new Exception("Grouped proposal lost independent fort mounts in JSON transport.");
+                        DuelProofCapture.Save(Path.Combine(folder, "host-pending-proposal.png"), true);
+                        r.ResolveProposal(r.View.ProposalId, true);
+                    }
+                    if (!proposalChecked && r.Rules.FortTurretsFor(0)[0] == "gatling" && r.Rules.FortTurretsFor(1)[0] == "gun")
+                    {
+                        var profile = ZWorld.DuelProfile(r.Rules.TankDynamics, ZBehaviorFamily.Tanks);
+                        if (profile == null || profile.Get("", ZBehaviorKey.DodgeWeight0) != 17 || profile.Get("", ZBehaviorKey.MaxDistance) != 3 || profile.Get("", ZBehaviorKey.BoostMaxDistance) != 2)
+                            throw new Exception("Accepted profile lost dodge circle or travel budgets.");
+                        if (r.View.HostReady || r.View.GuestReady) throw new Exception("Accepted proposal did not clear readiness.");
+                        proposalChecked = true;
+                    }
                     if (!lobbyCaptured && elapsed > 1) { DuelProofCapture.Save(Path.Combine(folder, role + "-lobby.png"), true); lobbyCaptured = true; }
-                    if (elapsed > 4 && (role == "host" ? !r.View.HostReady : !r.View.GuestReady))
+                    if (proposalChecked && elapsed > 4 && (role == "host" ? !r.View.HostReady : !r.View.GuestReady))
                     { if (!lobbyVoice) throw new Exception("Voice was not received in the lobby."); r.Ready(); }
                 }
                 if (r.Playing && r.Game)
@@ -161,8 +188,8 @@ namespace OpenZ.Multiplayer
                     if (w.GameOver)
                     {
                         bool blueFortGone = w.Objects.Where(o => o.IsFort && o.Owner == Team.Blue).All(o => o.Destroyed);
-                        Finish(w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && microphoneCaptured && microphoneDevicesCaptured && lobbyVoice && chatOpened && chatClosed && chatExpired && forceProofDone && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
-                            "winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; lobbyVoice=" + lobbyVoice + "; chatClick=" + chatOpened + "; chatExpiry=" + chatExpired + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
+                        Finish(proposalChecked && w.Winner == Team.Red && blueFortGone && exceptions == 0 && damaged && microphoneCaptured && microphoneDevicesCaptured && lobbyVoice && chatOpened && chatClosed && chatExpired && forceProofDone && r.Voice.FramesReceived > 0 && (role == "host" || ordered),
+                            "proposal=" + proposalChecked + "; winner=" + w.Winner + "; blueFortDestroyed=" + blueFortGone + "; combatDamage=" + damaged + "; lobbyVoice=" + lobbyVoice + "; chatClick=" + chatOpened + "; chatExpiry=" + chatExpired + "; voiceFrames=" + r.Voice.FramesReceived + "; objects=" + w.Objects.Count + "; exceptions=" + exceptions + "; transport=" + (r.OnlineMode ? (r.OnlinePeer.UsesRelay ? "TURN" : "WebRTC direct") : "TCP"));
                     }
                 }
                 if (Time.realtimeSinceStartupAsDouble - began > 240) Finish(false, "Timeout; " + r.Status + "; exceptions=" + exceptions);

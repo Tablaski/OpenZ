@@ -72,7 +72,8 @@ namespace OpenZ.Multiplayer
         }
         void CheckPicker(bool fort)
         {
-            var choices = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("SELECT ")).ToArray();
+            var choices = DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Where(b => b.name.StartsWith("SELECT ") &&
+                (b.transform.parent.name == "TURRETS" || b.transform.parent.name == "ROBOTS" || b.transform.parent.name == "VEHICLES")).ToArray();
             string[] turrets = { "gun", "gatling", "howitzer", "missile_cannon" };
             string[] robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };
             string[] vehicles = { "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc" };
@@ -181,12 +182,43 @@ namespace OpenZ.Multiplayer
                     case 22: Click("BACK"); break;
                     case 23:
                         if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "Toggle microphone")) throw new Exception("Lobby microphone controls were not restored.");
-                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps, army pickers, additive handicap, unchanged construction times, lobby microphone controls, gain slider, local meter and complete microphone dropdown.");
+                        OzShittyMapGallery.Open(false, true, "SM09", _ => { }); break;
+                    case 24:
+                        CheckGallery(); Capture("shitty-maps-duel"); ClickGallery("ARCTIC"); break;
+                    case 25:
+                        CheckGallery(); Capture("shitty-maps-arctic"); ClickGallery("SORT: NUMBER"); break;
+                    case 26:
+                        CheckGallery(); ClickGallery("CITY"); break;
+                    case 27:
+                        CheckGallery(); Capture("shitty-maps-city"); ClickGallery("CLOSE"); break;
+                    case 28:
+                        if (OzShittyMapGallery.IsOpen) throw new Exception("Gallery did not close.");
+                        OzShittyMapGallery.Open(true, true, OzShittyMapCatalog.All.First(m => m.SoloException).Id, _ => { }); break;
+                    case 29:
+                        CheckGallery(); Capture("shitty-maps-solo"); ClickGallery("Z EXPANSION"); break;
+                    case 30:
+                        CheckGallery(); Capture("shitty-maps-expansion"); ClickGallery("CLOSE"); break;
+                    case 31:
+                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps, independent fort popup, army pickers, additive handicap, unchanged construction times, microphone controls and dropdown; solo/duel converted-map galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
             }
             catch (Exception error)
             { Directory.CreateDirectory(folder); File.WriteAllText(Path.Combine(folder, "result.txt"), "FAIL: " + error); step = -1; StartCoroutine(Exit(1)); }
+        }
+        void ClickGallery(string name)
+        {
+            var gallery = FindFirstObjectByType<OzShittyMapGallery>();
+            gallery.GetComponentsInChildren<Button>().Single(b => b.name == name && b.interactable).onClick.Invoke();
+        }
+        void CheckGallery()
+        {
+            var gallery = FindFirstObjectByType<OzShittyMapGallery>();
+            if (!gallery || !OzShittyMapGallery.IsOpen || gallery.GetComponent<Canvas>().sortingOrder <= 1000)
+                throw new Exception("Map gallery is not above the lobby.");
+            var images = gallery.GetComponentsInChildren<RawImage>();
+            if (!images.Any(i => i.name == "Minimap") || images.Any(i => !i.texture))
+                throw new Exception("Gallery contains missing minimaps.");
         }
         IEnumerator Exit(int code)
         {

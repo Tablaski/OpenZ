@@ -1,4 +1,4 @@
-param([ValidateSet('L02','L07','L16','L17')][string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly)
+param([string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly)
 $ErrorActionPreference='Stop'
 $duelExecutable=(Resolve-Path -LiteralPath $Executable).Path
 $proofPrefix = if ($Online) { 'proof-online-' } else { 'proof-' }

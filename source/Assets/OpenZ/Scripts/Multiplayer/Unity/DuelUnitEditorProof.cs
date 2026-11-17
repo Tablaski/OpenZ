@@ -101,17 +101,18 @@ namespace OpenZ.Multiplayer
                     if (OzUnitEditor.I.World.BehaviorProfile(ZBehaviorFamily.Robots).Get("grunt", ZBehaviorKey.Engaged) != 1)
                         throw new Exception("Live robot override did not reach the editor world.");
                     foreach (var d in ZBehaviorSchema.All)
-                        if (panel.Explain(d.Key).Length < 100) throw new Exception("Missing detailed behavior tooltip: " + d.Key);
+                        if (string.IsNullOrWhiteSpace(d.Tip) || !panel.Explain(d.Key).Contains(d.Tip) || !panel.Explain(d.Key).Contains("Defaults: OpenZ "))
+                            throw new Exception("Missing behavior help/reference: " + d.Key);
                     panel.ShowPage(ZBehaviorFamily.Tanks, 0);
                     step = 3; readyAt = Time.realtimeSinceStartupAsDouble + .8;
                 }
-                else if (step >= 3 && step <= 10)
+                else if (step >= 3 && step <= 14)
                 {
                     int shot = step - 3;
-                    DuelProofCapture.Save(Path.Combine(folder, "behavior-" + (shot < 4 ? "tanks-" : "robots-") + (shot % 4) + ".png"));
+                    DuelProofCapture.Save(Path.Combine(folder, "behavior-" + (shot < 6 ? "tanks-" : "robots-") + (shot % 6) + ".png"));
                     if (OzBehaviorPanel.I.PanelRect.x < OzUnitEditor.CanvasSize.x / 2 || OzBehaviorPanel.I.PanelRect.width < 640 || OzBehaviorPanel.I.PanelRect.width > 760)
                         throw new Exception("Dynamics is not hosted in the widened right-hand panel.");
-                    if (step < 10) OzBehaviorPanel.I.ShowPage(shot < 3 ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots, (shot + 1) % 4);
+                    if (step < 14) OzBehaviorPanel.I.ShowPage(shot < 5 ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots, (shot + 1) % 6);
                     else
                     {
                         OzBehaviorPanel.I.ShowTesting();
@@ -129,28 +130,28 @@ namespace OpenZ.Multiplayer
                     }
                     step++; readyAt = Time.realtimeSinceStartupAsDouble + .5;
                 }
-                else if (step == 11)
+                else if (step == 15)
                 {
                     if (!OzBehaviorPanel.I.TestingOpen) throw new Exception("Testing sidebar did not open.");
                     DuelProofCapture.Save(Path.Combine(folder, "unit-testing.png"));
                     SceneManager.LoadScene("MainMenu");
-                    step = 12;
+                    step = 16;
                     readyAt = Time.realtimeSinceStartupAsDouble + 3;
                 }
-                else if (step == 12 && FindFirstObjectByType<OpenZMainMenu>() && !OzUnitEditor.Active)
+                else if (step == 16 && FindFirstObjectByType<OpenZMainMenu>() && !OzUnitEditor.Active)
                 {
                     if (firstError != null) throw new Exception("Player logged an error: " + firstError);
                     OzBehaviorOptions.Show(ZBehaviorFamily.Tanks);
-                    step = 13; readyAt = Time.realtimeSinceStartupAsDouble + 1;
+                    step = 17; readyAt = Time.realtimeSinceStartupAsDouble + 1;
                 }
-                else if (step == 13)
+                else if (step == 17)
                 {
                     ScreenCapture.CaptureScreenshot(Path.Combine(folder, "behavior-game-dropdown.png"));
-                    step = 14; readyAt = Time.realtimeSinceStartupAsDouble + 1;
+                    step = 18; readyAt = Time.realtimeSinceStartupAsDouble + 1;
                 }
-                else if (step == 14)
+                else if (step == 18)
                 {
-                    Finish("PASS: Unit Editor; clickable behavior/testing entries; eight Dynamics pages in the shared right-hand tabbed panel; tooltips/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
+                    Finish("PASS: Unit Editor; clickable behavior/testing entries; twelve Dynamics pages in the shared right-hand tabbed panel; help/references; live independent family profiles; save/import/export; circular reference HP and virtual scores; pinned HP; testing sidebar; game dropdown; clean return to menu.", 0);
                 }
             }
             catch (Exception error) { Finish("FAIL: " + error, 1); }

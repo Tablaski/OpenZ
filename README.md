@@ -2,24 +2,27 @@
   <img src="media/openz-vk-logo.png" alt="OpenZ-VK" width="640">
 </p>
 
+[Join the OpenZ Discord (ZZone)](https://discord.gg/WjFqg35PsE) — talk about the original game, OpenZ and this fork.
+
 # OpenZ-VK
 
-An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan remake of **Z** by **The Bitmap Brothers**. Early beta: expect bugs and changing rules.
+**Old-school Z tactics. One-link duels. More ways to play.** An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan remake of **Z** by **The Bitmap Brothers**.
 
-## What changes from OpenZ?
+## Why this fork?
 
-- **1 vs 1 with a friend:** invitations, chat and voice, shared match setup, readiness, surrender, restart requests and end-of-match statistics.
-- **More match options:** choose allowed units with OpenZ, Z 1996 or Custom presets; configure starting armies, handicaps and each team's four fort cannons independently. The guest can send one grouped proposal for the host to review.
-- **Solo unit selection:** choose OpenZ, Z 1996 or Custom allowed units on the mission selection screen. Your selection applies to both sides for that mission.
-- **Custom combat:** tune tank and robot dodging, directional probabilities, boost duration/distance, turning, acceleration and damage effects. Save profiles in the Unit Editor; the host selects the official profiles in the lobby and they stay fixed during the match.
-- **Optional balance:** cap the territorial production advantage or give the weaker army a separate fort-production bonus. Leaving the cap off preserves the original territorial advantage.
-- **Shitty Maps:** browse converted Z Original, Z Expansion and multiplayer maps with minimaps, terrain filters and sorting, including Arctic terrain. These conversions are experimental.
-- **Clearer battles:** compare army counts or offensive production value, resize flags and use dotted territory borders. Added options outside the lobby are highlighted in violet.
-- **A richer Unit Editor:** stage repeatable fights, tune both sides live, inspect damage and success counters, and use paired respawns.
+I want to bring back the combat feel and advanced tactics that Z's 1996 veterans remember, while tackling its rough edges—especially the balance that can turn an early lead into an unstoppable snowball. OpenZ-VK is a place for multiplayer, fairer optional game modes and a laboratory for trying ideas. You can still play with normal OpenZ rules and leave the fork's optional changes off.
 
-Fresh installations supply **OpenZ** and **Z Classic** reference profiles only. Z Classic uses a defensive boost of **×5**, with boost and total dodge travel limited to **6.25 m** (1.25 times a common 5 m explosion radius). Personal profiles are never included in the downloads. The separate experimental map editor is not included in this release.
+This is **work in progress**, not a claim of perfect Z fidelity. If you remember the tricks, duels and hard-earned tactics of the original, come help: play matches, challenge the balance and tell us what feels right—or wrong.
 
-**Z 1996 is a unit-availability preset, not a complete historical rules mode.** Custom dynamics do not promise identical behavior to Z or The Zod Engine. Existing preferences and saved profiles are retained across updates.
+## What can you play with?
+
+- **1 vs 1: send a magic link and play.** Create an invitation and share it with a friend. No Hamachi, VPN, port forwarding or IP settings required. Chat and voice, a shared lobby, readiness, surrender, restart requests and match statistics are included. Some networks may still fail to connect; automatic relay depends on the shared service allowance.
+- **Your duel, your rules.** Choose allowed units with OpenZ, Z 1996 or Custom presets; set starting armies, handicaps and each team's four fort cannons. Your opponent can propose a complete setup for the host to accept. Optional production rules aim to keep matches competitive for longer.
+- **💩 Shitty Maps.** Low-cost AI reproductions of maps from Z Original, Z Expansion and multiplayer: **they suck visually, but work almost like the real ones!** Browse their minimaps and terrain filters—including Arctic—and rediscover familiar battlefields. These conversions are experimental, so expect rough edges.
+- **A combat laboratory for old Z hands.** Use the Unit Editor to stage repeatable fights, compare units and help us work toward the combat dynamics and advanced tactics of 1996. Feedback and contributions from experienced players are very welcome.
+- **More choice in solo, too.** Pick allowed units before a mission; the selection applies to both sides. Clearer army comparisons, adjustable flags and dotted territory borders help you read the battlefield. Fork-added options outside the lobby are marked in violet.
+
+**Early beta:** expect bugs and changing rules. Z 1996 is a unit-availability preset, not a complete historical rules mode. Existing preferences and personal combat profiles are retained across updates. The separate experimental map editor is not included.
 
 <table>
   <tr><td><img src="media/review-0.2.22/solo-selection.png" alt="Solo mission selection and Allowed units"></td><td><img src="media/review-0.2.22/shared-rules.png" alt="Shared lobby rules and centered fort placement"></td></tr>

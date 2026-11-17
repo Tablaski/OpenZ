@@ -215,7 +215,7 @@ namespace OpenZVK.Update
                 {
                     cancellation.ThrowIfCancellationRequested(); string relative = "source/" + file.Substring(project.Length + 1).Replace('\\', '/');
                     if (relative.StartsWith("source/Assets/OpenZ/Scripts/", StringComparison.Ordinal) || relative.StartsWith("source/Assets/OpenZ/Shaders/", StringComparison.Ordinal)) continue;
-                    if (relative.Contains("/fork_build_resources.json")) continue;
+                    if (relative.Contains("/fork_build_resources.json") || relative.Contains("/Menu/build_info.json")) continue;
                     reused.files.Add(new ResourceFile{path=relative,length=new FileInfo(file).Length,sha256=Format.FileHash(file)});
                     string output = Format.SafePath(workspace, relative); if (File.Exists(output) && Format.FileHash(output) == Format.FileHash(file)) continue;
                     BackupResource(workspace, relative); Directory.CreateDirectory(Path.GetDirectoryName(output)); File.Copy(file, output, true);

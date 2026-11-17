@@ -13,7 +13,7 @@ $archives=[Collections.Generic.List[object]]::new();$files=[Collections.Generic.
 foreach($archive in (Get-ChildItem -LiteralPath $Directory -Filter 'OpenZ-VK-UnityResources-part*.zip' -File|Sort-Object Name)){
     $archives.Add(@{name=$archive.Name;length=$archive.Length;sha256=(Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()})
     $zip=[IO.Compression.ZipFile]::OpenRead($archive.FullName)
-    try{foreach($entry in $zip.Entries){if($entry.Name -eq ''){continue};$input=$entry.Open();$sha=[Security.Cryptography.SHA256]::Create();try{$hash=[BitConverter]::ToString($sha.ComputeHash($input)).Replace('-','').ToLowerInvariant()}finally{$input.Dispose();$sha.Dispose()};$files.Add(@{path=$entry.FullName;length=$entry.Length;sha256=$hash;archive=$archive.Name})}}finally{$zip.Dispose()}
+    try{foreach($entry in $zip.Entries){if($entry.Name -eq '' -or $entry.FullName -match '/(fork_build_resources|Menu/build_info)\.json(\.meta)?$'){continue};$input=$entry.Open();$sha=[Security.Cryptography.SHA256]::Create();try{$hash=[BitConverter]::ToString($sha.ComputeHash($input)).Replace('-','').ToLowerInvariant()}finally{$input.Dispose();$sha.Dispose()};$files.Add(@{path=$entry.FullName;length=$entry.Length;sha256=$hash;archive=$archive.Name})}}finally{$zip.Dispose()}
     Write-Output ('Indexed '+$archive.Name)
 }
 $required=Get-Content -LiteralPath (Join-Path $repo 'SOURCE_RESOURCES.json') -Raw|ConvertFrom-Json

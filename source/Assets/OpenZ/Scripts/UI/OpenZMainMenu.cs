@@ -1021,6 +1021,7 @@ namespace OpenZ
         // ================================================================== per frame
         void Update()
         {
+            if (!OzResourcePackage.Compatible) return;
             if (!canvas) return;
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if ((Screen.width != builtW || Screen.height != builtH) && view != View.Loading) Build();

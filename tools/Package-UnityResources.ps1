@@ -6,7 +6,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $tracked=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 & git -C $resourceRoot ls-files | ForEach-Object {[void]$tracked.Add($_)}
 if($LASTEXITCODE -ne 0){throw 'Cannot identify tracked source files.'}
-$files=@(Get-ChildItem -LiteralPath (Join-Path $resourceRoot 'source/Assets') -Recurse -File | Where-Object { -not $tracked.Contains($_.FullName.Substring($resourceRoot.Length+1).Replace('\','/')) -and $_.Name -notlike 'fork_build_resources.json*' })
+$files=@(Get-ChildItem -LiteralPath (Join-Path $resourceRoot 'source/Assets') -Recurse -File | Where-Object { -not $tracked.Contains($_.FullName.Substring($resourceRoot.Length+1).Replace('\','/')) -and $_.Name -notlike 'fork_build_resources.json*' -and $_.FullName -notmatch '[\\/]Menu[\\/]build_info\.json(\.meta)?$' })
 $plugin=Get-Item -LiteralPath (Join-Path $resourceRoot 'source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll')
 $files+= $plugin
 $archives=@(); $manifestFiles=@(); $group=@(); $length=0L; $part=0

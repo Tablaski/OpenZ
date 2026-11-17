@@ -48,6 +48,7 @@ namespace OpenZ
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void OpenFromCommandLine()
         {
+            if (!OzResourcePackage.Compatible) return;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-oz-unit-editor") >= 0 &&
                 SceneManager.GetActiveScene().name != SceneName)
                 SceneManager.LoadScene(SceneName);

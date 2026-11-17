@@ -35,7 +35,7 @@ namespace OpenZVK.Update
             WizardUi.Label(version,"Specific commit ID (optional)",0,346,980,25,10,false,WizardUi.Muted);revision=WizardUi.Text(version,0,375,980,29);
             WizardUi.Label(version,"Working folder · choose an empty folder on first use",0,429,980,26,11,true);workspace=WizardUi.Text(version,0,467,735,29);workspace.Text=proofWorkspace??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"OpenZ-VK","Source");browseWorkspace=WizardUi.Button(version,"Choose folder",755,461,225,42,()=>Browse(workspace));
             var resources=Pages[2];AddIcon(resources,WizardIcon.Folder,0,0);WizardUi.Label(resources,"Keep the large files, change the sources",75,3,890,38,21,true);
-            WizardUi.Label(resources,"Models, textures, maps and sound are prepared once, then retained when you switch\nsource versions. You can also reuse a complete Unity project already on this PC.",0,72,980,70,12,false,WizardUi.Muted);
+            WizardUi.Label(resources,"Unchanged models, textures, maps and sound are reused. If a version needs new\nbase assets, this step prepares its matching package before you build.",0,72,980,70,12,false,WizardUi.Muted);
             resourceInfo=WizardUi.Label(resources,"",0,160,980,66,13,true,WizardUi.Green);
             WizardUi.Label(resources,"Optional: existing full Unity project to reuse",0,247,980,28,11,true);existing=WizardUi.Text(resources,0,286,735,29);browseExisting=WizardUi.Button(resources,"Choose project",755,281,225,42,()=>Browse(existing));
             WizardUi.Label(resources,"Leave this empty to use the published resource bundle. A local review package\nuses its bundled resources automatically. Existing projects are only read.",0,342,980,65,11,false,WizardUi.Muted);
@@ -131,7 +131,7 @@ namespace OpenZVK.Update
                 return File.Exists(Path.Combine(workspace.Text,".local/resources-ready.txt"))&&File.Exists(Path.Combine(workspace.Text,"source/Assets/OpenZ/Scenes/MainMenu.unity"))&&File.Exists(Path.Combine(workspace.Text,"source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"));
             }catch{return false;}
         }
-        void RefreshResourceState(){resourceInfo.Text=ResourcesReady()?"Your Unity resources are already available. No resource download is needed.":localResources!=null?"A local resource bundle is available for this review candidate.":"Resources will be downloaded once, unless you choose an existing project below.";}
+        void RefreshResourceState(){resourceInfo.Text=ResourcesReady()?"The matching resource package is ready. No resource download is needed.":localResources!=null?"The required resource package will be prepared from this local review bundle.":"Prepare the package required by this version. Unchanged resources are kept.";}
         void RefreshBuildState()
         {
             string result=Path.Combine(workspace.Text,"builds/OpenZ-VK-Local/BUILD_RESULT.txt");bool done=File.Exists(result)&&File.ReadAllText(result).StartsWith("Succeeded");

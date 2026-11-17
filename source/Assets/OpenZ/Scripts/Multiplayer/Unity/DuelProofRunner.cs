@@ -17,6 +17,7 @@ namespace OpenZ.Multiplayer
         bool joined, ordered, surrendered, finished, captured, lobbyCaptured, menuShown, menuCaptured, menuClosed, arenaMade, damaged;
         double connectedAt = -1, lastVoice;
         int exceptions;
+        string firstException;
         bool lobbyVoice, chatSent, chatOpened, chatClosed, chatExpired;
         bool microphoneCaptured, microphoneDevicesCaptured;
         bool forceProofStarted, forceProofDone;
@@ -33,11 +34,12 @@ namespace OpenZ.Multiplayer
             proof.began = Time.realtimeSinceStartupAsDouble;
             Application.logMessageReceived += proof.OnLog;
         }
-        void OnLog(string message, string stack, LogType type) { if (type == LogType.Exception) exceptions++; }
+        void OnLog(string message, string stack, LogType type) { if (type == LogType.Exception) { exceptions++; if (firstException == null) firstException = message; } }
         void OnDestroy() { Application.logMessageReceived -= OnLog; }
         void Update()
         {
             if (finished || string.IsNullOrEmpty(role)) return;
+            if (firstException != null) { Finish(false, firstException); return; }
             try
             {
                 var r = DuelRuntime.I; if (!r) return;

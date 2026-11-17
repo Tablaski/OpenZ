@@ -138,7 +138,7 @@ namespace OpenZ.Multiplayer
                     case 7: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;
                     case 8:
                         if (r.Rules.Common.StartingUnits[3] != "heavy") throw new Exception("Shared outside slot was not set.");
-                        Click("GENERAL ZOD · RED"); break;
+                        Click("HANDICAP PLAYER 0"); break;
                     case 9:
                         if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 0 || r.Rules.Handicap.StartingUnits.Count != 0) throw new Exception("Red handicap did not start with empty slots.");
                         Capture("handicap-active"); Click("ARMY SLOT 2:0"); break;
@@ -146,7 +146,7 @@ namespace OpenZ.Multiplayer
                     case 11:
                         if (r.Rules.Handicap.StartingUnits[0] != "jeep" || r.Rules.EffectiveFor(0).StartingUnits.Count != r.Rules.EffectiveFor(1).StartingUnits.Count + 1)
                             throw new Exception("Handicap units are not additive.");
-                        Capture("handicap-unit-added"); Click("EVIL ZOD · BLUE"); break;
+                        Capture("handicap-unit-added"); Click("HANDICAP PLAYER 1"); break;
                     case 12:
                         if (r.Rules.HandicapSlot != 1 || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Switching the beneficiary lost the extras.");
                         Click("ARMY SLOT 1:3"); break;
@@ -154,10 +154,10 @@ namespace OpenZ.Multiplayer
                     case 14:
                         if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.EffectiveFor(1).StartingUnits.Count != r.Rules.EffectiveFor(0).StartingUnits.Count + 1)
                             throw new Exception("Shared slot edit did not propagate to the handicap army.");
-                        Click("JUNGLE"); break;
-                    case 15: Capture("jungle-map"); Click("CAR PARK"); break;
-                    case 16: Capture("car-park-map"); Click("VOLCANO"); break;
-                    case 17: Capture("volcanic-map"); Click("DESERT"); break;
+                        SelectMap("L16"); break;
+                    case 15: Capture("jungle-map"); SelectMap("L17"); break;
+                    case 16: Capture("car-park-map"); SelectMap("L07"); break;
+                    case 17: Capture("volcanic-map"); SelectMap("L02"); break;
                     case 18:
                         if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Map selection reset the custom armies.");
                         Click("DISABLE"); break;
@@ -210,6 +210,15 @@ namespace OpenZ.Multiplayer
         {
             var gallery = FindFirstObjectByType<OzShittyMapGallery>();
             gallery.GetComponentsInChildren<Button>().Single(b => b.name == name && b.interactable).onClick.Invoke();
+        }
+        void SelectMap(string id)
+        {
+            Click("SELECT MAP · " + OzShittyMapGallery.Definition(DuelRuntime.I.Rules.Map).Name);
+            ClickGallery("MAP " + id);
+            // Selection rebuilds the cards; the prior hierarchy is destroyed at frame end.
+            FindFirstObjectByType<OzShittyMapGallery>().GetComponentsInChildren<Button>()
+                .Last(b => b.name == "APPLY MAP" && b.interactable).onClick.Invoke();
+            if (DuelRuntime.I.Rules.Map != id) throw new Exception("Gallery did not apply map " + id);
         }
         void CheckGallery()
         {

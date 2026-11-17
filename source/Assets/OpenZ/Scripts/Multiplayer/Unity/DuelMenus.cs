@@ -308,6 +308,7 @@ namespace OpenZ.Multiplayer
             {
                 int seat = i; float x = 24 + i * 230;
                 var b = Button(panel, (i == 0 ? R.View.HostName : R.View.GuestName ?? "WAITING FOR PLAYER"), x, 65, 215, () => { rules.EnableHandicap(seat); EditLobbyRules(rules); }, rules.HandicapEnabled && rules.HandicapSlot == i, editable, 150);
+                b.name = "HANDICAP PLAYER " + seat;
                 generalImages[i] = Hud.Node("GeneralPortrait", b).gameObject.AddComponent<RawImage>();
                 generalImages[i].rectTransform.TL(47, 0, 120, 118); generalImages[i].raycastTarget = false; generalImages[i].enabled = false;
             }

@@ -37,7 +37,10 @@ namespace OpenZ.Multiplayer
                 yield return new WaitForSecondsRealtime(.6f);
                 var red = (OzText)typeof(OpenZHud).GetField("redCount", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(hud);
                 var blue = (OzText)typeof(OpenZHud).GetField("blueCount", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(hud);
-                if (!red.text.Contains(":") || !blue.text.Contains(":")) throw new Exception("Military value is not displayed as cumulative time.");
+                if (red.text.Contains(":") || blue.text.Contains(":") ||
+                    !System.Text.RegularExpressions.Regex.IsMatch(red.text, @"\d") ||
+                    !System.Text.RegularExpressions.Regex.IsMatch(blue.text, @"\d"))
+                    throw new Exception("Offensive production value is not displayed as a numeric score.");
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-value.png"), true);
                 var world = DuelRuntime.I.Game.World;
                 var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);

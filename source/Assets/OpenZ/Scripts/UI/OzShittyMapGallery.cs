@@ -79,6 +79,7 @@ namespace OpenZ
             {
                 var map=maps[i]; var entry=OzShittyMapCatalog.Find(map.Id); bool active=selected==map.Id;
                 var card=Button(grid,"",i%4*280,i/4*244,266,()=>{selected=map.Id;Build();},active,true,230);
+                card.name = "MAP " + map.Id;
                 var mini=Hud.Node("Minimap",card).gameObject.AddComponent<RawImage>(); mini.texture=Preview(map.Id); float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float width=Mathf.Min(250,155*ratio),height=width/ratio; mini.rectTransform.TL(8+(250-width)/2,8+(155-height)/2,width,height); mini.raycastTarget=false;
                 if(mini.texture) mini.uvRect=new Rect(0,0,1,1);
                 Label(card,entry?.Title ?? map.Id+" · "+map.Name,10,174,246,17,OzUi.Ink);

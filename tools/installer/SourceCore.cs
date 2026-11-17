@@ -349,6 +349,9 @@ namespace OpenZVK.Update
                 string actual=Path.Combine(workspace,"source/Assets/OpenZ/Resources/OpenZ/resource_package.json");
                 if(required!=null&&(!File.Exists(actual)||(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(actual))["version"]!=required))
                     throw new IOException("This source revision needs a different Unity resource package. Return to Resources and prepare the required update before building.");
+                string completed=Path.Combine(workspace,".local/resources-state.json");
+                if(required!=null&&(!File.Exists(completed)||Format.Json().Deserialize<ResourceState>(File.ReadAllText(completed)).version!=required))
+                    throw new IOException("Resource preparation did not finish. Return to Resources and complete it before building.");
             }
             string project = Path.Combine(workspace, "source"), output = Path.Combine(workspace, "builds", "OpenZ-VK-Local"), buildLog = Path.Combine(workspace, ".local", "Unity-build.log");
             if (File.Exists(Path.Combine(project, "Temp/UnityLockfile")))

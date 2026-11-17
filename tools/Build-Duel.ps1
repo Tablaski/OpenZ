@@ -54,11 +54,10 @@ try {
     if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {
         throw "Unity did not report a successful player build. Read $duelLog"
     }
-    $duelSourceCommit = & git -c "safe.directory=$($duelRoot.Replace('\','/'))" -C $duelRoot rev-parse HEAD
-    if ($LASTEXITCODE -ne 0) { throw 'The player built, but its source commit could not be identified.' }
-    $duelSourceStatus = & git -c "safe.directory=$($duelRoot.Replace('\','/'))" -C $duelRoot status --porcelain
-    $duelSourceRecord = @('OpenZ Windows Release', ('Source commit: ' + $duelSourceCommit), ('Built UTC: ' + [DateTime]::UtcNow.ToString('o')), 'Development build: false', 'Script debugging: false', 'Profiler connection: false', ('Uncommitted tracked/untracked source changes: ' + [bool]$duelSourceStatus))
-    if ($duelSourceStatus) { $duelSourceRecord += $duelSourceStatus }
+    # Use the identity captured by Unity, rather than a tree that may have changed
+    # while the player was compiling (for example installer-only work).
+    $duelIdentity = Get-Content -LiteralPath (Join-Path (Split-Path $duelResult -Parent) 'FORK_BUILD.json') -Raw | ConvertFrom-Json
+    $duelSourceRecord = @('OpenZ Windows Release', ('Source commit: ' + $duelIdentity.commit), ('Built UTC: ' + $duelIdentity.builtUtc), 'Development build: false', 'Script debugging: false', 'Profiler connection: false', ('Source modified when stamped: ' + [bool]$duelIdentity.dirty), ('Resource package: ' + $duelIdentity.resourcePackage))
     $duelSourceRecord | Set-Content -LiteralPath (Join-Path (Split-Path $duelResult -Parent) 'SOURCE_VERSION.txt') -Encoding UTF8
     Write-Output ('Built ' + (Join-Path (Split-Path $duelResult -Parent) 'openz-vk.exe') + '. Keep the complete output folder together.')
 } finally {

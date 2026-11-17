@@ -130,6 +130,8 @@ namespace OpenZVK.Update
                 if(File.Exists(pointer)){
                     var pin=Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(pointer));
                     if(Convert.ToInt32(pin["schema"])>=2&&(!File.Exists(package)||(string)pin["version"]!=(string)Format.Json().Deserialize<Dictionary<string,object>>(File.ReadAllText(package))["version"]))return false;
+                    string completed=Path.Combine(workspace.Text,".local/resources-state.json");
+                    if(Convert.ToInt32(pin["schema"])>=2&&(!File.Exists(completed)||Format.Json().Deserialize<ResourceState>(File.ReadAllText(completed)).version!=(string)pin["version"]))return false;
                 }
                 return File.Exists(Path.Combine(workspace.Text,".local/resources-ready.txt"))&&File.Exists(Path.Combine(workspace.Text,"source/Assets/OpenZ/Scenes/MainMenu.unity"))&&File.Exists(Path.Combine(workspace.Text,"source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"));
             }catch{return false;}

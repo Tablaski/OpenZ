@@ -130,14 +130,17 @@ namespace OpenZVK.Update
             catch(Exception error){status.Text="Installation could not finish. Your previous game is preserved.";Footer.Text=error.Message;if(proofMode)throw;MessageBox.Show(this,error.Message,"OpenZ-VK installation",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
             finally{Busy=false;RefreshNavigation();}
         }
-        void OpenOptions()
+        void OpenOptions() { OpenOptions(null); }
+        void OpenOptions(string proofEvidence)
         {
             using(var dialog=new Form{Text="OpenZ-VK · Installation options",ClientSize=new Size(760,330),StartPosition=FormStartPosition.CenterParent,BackColor=WizardUi.Ground,ForeColor=WizardUi.Ink,Font=new Font("Segoe UI",11),MinimizeBox=false,MaximizeBox=false})
             {
                 WizardUi.Label(dialog,"Where should the game be installed?",25,20,710,30,17,true);var target=WizardUi.Text(dialog,25,65,560,28);target.Text=destination.Text;
                 WizardUi.Button(dialog,"Browse",605,60,130,38,()=>Browse(target));WizardUi.Label(dialog,"Optional: reuse files from an existing extracted game",25,120,710,28,11,true);var reuse=WizardUi.Text(dialog,25,157,560,28);reuse.Text=seed.Text;
                 WizardUi.Button(dialog,"Browse",605,152,130,38,()=>Browse(reuse));WizardUi.Label(dialog,"Use an empty destination, or a game folder managed by this installer.\nYour existing build is only read when used as a source of reusable files.",25,208,710,55,10,false,WizardUi.Muted);
-                WizardUi.Button(dialog,"Save options",535,280,200,38,()=>{destination.Text=target.Text;seed.Text=reuse.Text;dialog.DialogResult=DialogResult.OK;},true);dialog.ShowDialog(this);
+                WizardUi.Button(dialog,"Save options",535,280,200,38,()=>{destination.Text=target.Text;seed.Text=reuse.Text;dialog.DialogResult=DialogResult.OK;},true);
+                if(proofEvidence!=null)dialog.Shown+=async(s,e)=>{await Task.Delay(350);NativeCapture.Save(dialog,Path.Combine(proofEvidence,"installer-options.png"));dialog.DialogResult=DialogResult.Cancel;};
+                dialog.ShowDialog(this);
             }
         }
         static void Browse(TextBox field){using(var dialog=new FolderBrowserDialog{Description="Choose a game folder"})if(dialog.ShowDialog()==DialogResult.OK)field.Text=dialog.SelectedPath;}
@@ -156,7 +159,8 @@ namespace OpenZVK.Update
             Directory.CreateDirectory(evidence);
             try
             {
-                destination.Text=Path.GetFullPath(target);seed.Text=Path.GetFullPath(existing);LoadLocal(path);ShowPage(0);await Snapshot(evidence,"installer-player-menu.png");ShowPage(1);await Snapshot(evidence,"installer-changelog.png");ShowPage(2);await InstallSelected();await Snapshot(evidence,"installer-installed.png");
+                destination.Text=Path.GetFullPath(target);seed.Text=Path.GetFullPath(existing);LoadLocal(path);ShowPage(0);await Snapshot(evidence,"installer-player-menu.png");OpenOptions(evidence);ShowPage(1);await Snapshot(evidence,"installer-changelog.png");ShowPage(2);await Snapshot(evidence,"installer-ready.png");
+                var installation=InstallSelected();await Task.Delay(1000);if(Busy)await Snapshot(evidence,"installer-installing.png");await installation;await Snapshot(evidence,"installer-installed.png");
                 if(!File.Exists(Path.Combine(destination.Text,Format.InstalledName)))throw new IOException("Local candidate was not installed.");seed.Text="";string repair=Format.SafePath(destination.Text,"UnityCrashHandler64.exe");File.Delete(repair);await InstallSelected();
                 if(!File.Exists(repair)||Format.FileHash(repair)!=selected.files.Single(f=>f.path=="UnityCrashHandler64.exe").sha256)throw new IOException("Repair did not restore the release file.");await Snapshot(evidence,"installer-repaired.png");
                 File.WriteAllText(Path.Combine(evidence,"result.txt"),"PASS: real installation wizard; embedded logo; large changelog; verified complete local install and block-based repair; settings preserved; Play/Unit Editor available. No game launched and no GitHub mutation.");

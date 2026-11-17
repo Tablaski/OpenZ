@@ -2,7 +2,7 @@
 
 ## OpenZ-VK 0.2.22 (local Windows release candidate, 17 Nov 2026)
 
-- Await the user's final review before any GitHub push or publication.
+- Local release candidate; publication awaits final review.
 - Guide player installation and source compilation with separate wizards, pictograms,
   a large changelog reading area and dedicated tool setup. Disable Git/Unity setup
   buttons when the tools are already available.
@@ -22,8 +22,8 @@
   total dodge travel at 6.25 m: 1.25 times the common 40 px / 5 m splash radius.
   Replanning cannot replenish the limit; normal orders resume afterwards.
 - Keep the separate experimental map editor out of the distribution.
-- Publish a standalone Windows installer with the supplied OpenZ-VK logo, stable
-  and dev channels, version selection, changelogs and update notifications.
+- Add a standalone Windows installer with the supplied OpenZ-VK logo, published
+  player selection, main/dev source revisions, changelogs and update notifications.
   Reuse content-defined resource blocks without requiring Git; verify partial
   downloads and stage a complete installation before replacing the previous game.
 - Add a distinct source workflow: browse main/dev commits or enter a revision,

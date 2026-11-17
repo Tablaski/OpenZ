@@ -1,5 +1,65 @@
 # Player validation record
 
+## OpenZ-VK 0.2.22 local review candidate (17 Nov 2026)
+
+Release player: `builds/OpenZ-VK-0.2.22-Windows-x64/openz-vk.exe`.
+Unity stamped source `a4d87dad96076e746b6e8b9a71b47041a52c4c30`, clean,
+at `2026-11-17 13:21:25 UTC`, resource package `openz-1.4-vk-1`.
+Development builds, script debugging and profiler connections are disabled.
+Publication remains pending final review. Historical entries below retain the
+validation state of their original source revisions; these checks supersede
+their corresponding pending Windows player checks.
+
+Completed on this release player:
+
+- Actual startup mismatch: an incompatible required resource ID blocks play with
+  repair instructions. Restore FORK_BUILD.json byte-for-byte afterwards. Normal
+  launches confirm the matching package; menu checks also reject missing and
+  mixed embedded identities.
+- Native main menu and solo selection; ON/OFF option toggle geometry and actual
+  screen captures; fort placement caption and unit picker; army/handicap controls;
+  microphone devices; solo/duel map galleries, terrain filters and sorting.
+  Inline Shitty Map icons are vertically aligned with their labels.
+- Unit Editor through the menu and the exact `Unit Editor/Open Unit Editor.bat`
+  launcher; all twelve Dynamics pages, help, tests, counters, import/export,
+  independent tank/robot selections and returning to the main menu.
+- Clean factory-profile screenshots contain OpenZ and Z Classic only. A separate
+  saved example profile appears in the native selector. Tests restore existing
+  local profiles, selections and drafts afterwards; no personal profiles are
+  distributed.
+- Native host/guest matches on L02, L07, L16, L17, SM09 (Arctic), SM19F (City)
+  and SM05 (Volcanic). Both peers pass grouped proposal acceptance, independent
+  fort cannons/profiles, commands, combat damage, surrender/end state, chat and
+  synthetic voice. Both peers report zero exceptions. In-match ON/OFF toggle
+  screenshots and flag/border readability checks pass on the same player.
+
+Additional completed checks:
+
+- 5,416 simulation, real-map and loopback transport checks, including Classic
+  x5 boost and 6.25 m cumulative distance limits across replans.
+- 44 installer checks: byte-range transport, verified content reuse, installation,
+  repair/downgrade fixtures, cancellation/failure protection, unsafe paths,
+  resource epoch migration, modified-resource backups, unknown-file preservation,
+  historical unpinned resources and wrong-package rejection.
+- Real Git clone/fetch and repeated exact-revision checkout without pushing.
+- Real Git-free source import and Unity release compilation, followed by an
+  updated source revision and independently pinned resource package. After the
+  second build, resource preparation confirms no download is needed. The clean
+  source-build stamp identifies `2913ff6e`; this separately tests the installer
+  compilation mechanism, rather than replacing the reviewed player above.
+- Actual source wizard captures: tools, main/dev history, matching resources and
+  build result. Installed Git/Unity setup buttons are disabled.
+- Native WebRTC harness: handshake, a fragmented 1 MiB snapshot, reverse commands
+  and voice, incompatible-build and oversize rejection.
+
+Remaining manual coverage: two physical PCs over a real remote network,
+NAT/TURN combinations and slow links, real microphone/headset quality, other
+hardware/display configurations, and exhaustive playthroughs of every converted
+map. The experimental standalone map editor is excluded from this release.
+
+Local proof logs and original screenshots are retained under
+`tests/Multiplayer/.cli/` and `.local/release-0.2.22/`.
+
 ## Multiplayer field capture cache (0.2.20, source only)
 
 - Compare values before serializing object fields and reuse immutable field

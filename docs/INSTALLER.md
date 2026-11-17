@@ -20,6 +20,9 @@ Click **PLAY** or **UNIT EDITOR**. The editor's direct launcher is also in `Unit
 
 Compilation requires Unity even when Git is installed. Git-free source builds record the downloaded commit and source changes in `FORK_BUILD.json`. Historical fork revisions without Git-free provenance support receive an explicit build-only compatibility adaptation and are marked modified. Older upstream revisions use their enabled Build Settings scenes. Historical revisions may need their matching original assets if their asset layout differs.
 
+The first build can take substantially longer while Unity imports assets and
+compiles shaders. Later builds reuse the workspace's local Unity cache.
+
 Your existing OpenZ/OpenZ preferences, saved profiles and local preference history retain their established locations outside the player/source folders. Close the game before replacing its player. Source workspaces and player installations are distinct; use a new workspace when switching between an archive export and a Git checkout.
 
 The installer is not code-signed. If a network blocks partial player downloads, use the complete player ZIPs. Unity Hub licensing, authentication and editor installation remain user-controlled.

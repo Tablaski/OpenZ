@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)][string]$PlayerDirectory,
-    [ValidateSet('stable','dev')][string]$Channel='dev',
+    [ValidateSet('stable')][string]$Channel='stable',
     [string]$Tag='',
     [Parameter(Mandatory=$true)][string]$NotesFile,
     [string[]]$AdditionalAssets=@(),

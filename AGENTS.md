@@ -14,6 +14,7 @@
 - Name the converted-map gallery Shitty Maps with its aligned poop pictogram in both solo and multiplayer. Offer Allowed units on solo mission selection as well as in the lobby; keep solo choices separate from host-owned multiplayer rules.
 
 - Use `dev` for development and `main` for stable versions. Do not create extra branches unless requested.
+- Publish compiled ZIPs, installer payloads and official releases only for the latest stable version on `main`. Keep `dev` source-only: no compiled ZIPs or development releases unless the user explicitly requests an exception. Source builds from either branch reuse the independently versioned OpenZ 1.4 base resource package, including the required fork adaptations; do not describe that package as byte-identical to upstream or republish it for every source revision.
 - The only Unity project is `source/`. Edit its files directly; do not create a second source tree or copy/patch installation step.
 - Write all new code, comments, documentation, commit messages and player-facing text in English.
 - Preserve upstream OpenZ names, credits, licenses and existing content. Do not translate or rename upstream content as part of unrelated changes.

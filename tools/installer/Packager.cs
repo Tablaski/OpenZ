@@ -64,6 +64,42 @@ namespace OpenZVK.Update
             try
             {
                 if (args.Length == 1 && args[0] == "--test") { Checks.Run(); return 0; }
+                if (args.Length >= 5 && args[0] == "--source-local-check")
+                {
+                    string archive = args[1], workspace = args[2], commit = args[3], seed = args[4];
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(commit, "^[a-f0-9]{40}$")) throw new ArgumentException("Exact source commit required.");
+                    Directory.CreateDirectory(workspace);
+                    string marker = Path.Combine(workspace, "FORK_SOURCE.json");
+                    if (!File.Exists(marker))
+                    {
+                        var identity = new SourceIdentity { commit = commit, branch = "dev", mode = "archive" };
+                        SourceManager.ApplyArchive(workspace, archive, null, identity, CancellationToken.None);
+                        File.WriteAllText(marker, Format.Json().Serialize(identity), new UTF8Encoding(false));
+                    }
+                    if (Directory.Exists(Path.Combine(workspace, ".git"))) throw new IOException("The Git-free proof must not contain a Git repository.");
+                    using (var github = new GitHub())
+                    {
+                        var manager = new SourceManager(github); int index = Array.IndexOf(args, "--resources-index");
+                        manager.Resources(workspace, seed == "-" ? null : seed, Console.WriteLine, CancellationToken.None, index >= 0 ? args[index + 1] : null).GetAwaiter().GetResult();
+                        string editor = SourceManager.FindUnity(SourceManager.RequiredUnity(workspace)); if (editor == null) throw new IOException("Required Unity was not detected.");
+                        if (args.Contains("--build")) manager.Build(workspace, editor, Console.WriteLine, CancellationToken.None).GetAwaiter().GetResult();
+                        Console.WriteLine("PASS: exact local commit snapshot imported without Git; source resources prepared; required Unity detected" + (args.Contains("--build") ? "; release player compiled" : "") + "."); return 0;
+                    }
+                }
+                if (args.Length >= 5 && args[0] == "--source-check")
+                {
+                    using (var github = new GitHub())
+                    {
+                        var manager = new SourceManager(github);
+                        bool git = args.Contains("--git");
+                        var identity = manager.Retrieve(args[3], args[1], args[2], git, Console.WriteLine, CancellationToken.None).GetAwaiter().GetResult();
+                        manager.Resources(args[3], args[4], Console.WriteLine, CancellationToken.None).GetAwaiter().GetResult();
+                        string editor = SourceManager.FindUnity(SourceManager.RequiredUnity(args[3]));
+                        if (editor == null) throw new IOException("Required Unity editor was not detected.");
+                        if (args.Contains("--build")) manager.Build(args[3], editor, Console.WriteLine, CancellationToken.None).GetAwaiter().GetResult();
+                        Console.WriteLine("PASS: " + identity.mode + " source retrieval; exact commit " + identity.commit + "; retained Unity resources; required editor detected" + (args.Contains("--build") ? "; release player compiled" : "") + "."); return 0;
+                    }
+                }
                 if (args.Length == 6 && args[0] == "--pack")
                 {
                     var result = Packager.Build(args[1], args[2], args[3], args[4], File.ReadAllText(args[5]));

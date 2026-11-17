@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -103,6 +104,24 @@ namespace OpenZVK.Update
                 using (var network = new GitHub(new Ranges { Folder = firstPacks, Ignore = true }))
                     try { await network.Download(v1, sample, CancellationToken.None); } catch (IOException) { ignored = true; }
                 Check(ignored, "Server ignoring partial downloads was accepted.");
+                string sourceRoot = Path.Combine(root, "Source"), snapshot = Path.Combine(root, "snapshot.zip"); Directory.CreateDirectory(sourceRoot);
+                string old = "source/Assets/OpenZ/Scripts/Old.cs", current = "source/Assets/OpenZ/Scripts/Current.cs";
+                Directory.CreateDirectory(Path.GetDirectoryName(Format.SafePath(sourceRoot, old))); File.WriteAllText(Format.SafePath(sourceRoot, old), "old tracked source");
+                string asset = Format.SafePath(sourceRoot, "source/Assets/personal-local-resource.txt"); File.WriteAllText(asset, "retain ignored local assets");
+                var before = new SourceIdentity(); before.files.Add(new SourceFile { path = old, sha256 = Format.FileHash(Format.SafePath(sourceRoot, old)) });
+                using (var zip = ZipFile.Open(snapshot, ZipArchiveMode.Create))
+                {
+                    using (var writer = new StreamWriter(zip.CreateEntry("OpenZ-fixture/" + current).Open())) writer.Write("new tracked source");
+                    using (var writer = new StreamWriter(zip.CreateEntry("OpenZ-fixture/source/ProjectSettings/ProjectVersion.txt").Open())) writer.Write("m_EditorVersion: 6000.3.27f2\n");
+                }
+                var after = new SourceIdentity(); SourceManager.ApplyArchive(sourceRoot, snapshot, before, after, CancellationToken.None);
+                Check(!File.Exists(Format.SafePath(sourceRoot, old)) && File.ReadAllText(Format.SafePath(sourceRoot, current)) == "new tracked source", "Source snapshot did not remove obsolete tracked files or apply new ones.");
+                Check(File.ReadAllText(asset) == "retain ignored local assets", "Source update erased retained resources.");
+                Check(SourceManager.RequiredUnity(sourceRoot) == "6000.3.27f2", "Required Unity version detection failed.");
+                Check(after.files.All(f => Format.FileHash(Format.SafePath(sourceRoot, f.path)) == f.sha256), "Git-free source provenance differs from extracted files.");
+                using (var zip = ZipFile.Open(Path.Combine(root, "bad-source.zip"), ZipArchiveMode.Create)) using (var writer = new StreamWriter(zip.CreateEntry("OpenZ-fixture/../../outside.txt").Open())) writer.Write("invalid");
+                Reject(() => SourceManager.ReadArchive(Path.Combine(root, "bad-source.zip"), true), "Unsafe source archive path accepted.");
+                Check(SourceManager.FindGit() == null || File.Exists(SourceManager.FindGit()), "Git detection returned an invalid executable.");
                 Console.WriteLine("PASS: " + count + " installer checks: install, byte-range transport, SHA-256, shifted-resource reuse, zero-download reinstall, extracted-build seed, stable/dev switch, downgrade, failed/cancelled-update rollback, unsafe paths and unmanaged-folder protection.");
             }
             finally { if (Directory.Exists(root)) Directory.Delete(root, true); }

@@ -1,28 +1,35 @@
-# Install and update OpenZ-VK
+# Install, retrieve sources and build OpenZ-VK
 
-1. Download **OpenZ-VK-Installer.exe** from the [official release](https://github.com/Tablaski/OpenZ/releases/latest) and run it on Windows 10/11 x64. It uses the .NET Framework supplied with Windows; no Git, Unity or administrator installation is required.
-2. Choose **Stable · main** or **Dev · dev**, then a published version. Read its changes in the installer before clicking **INSTALL / UPDATE**.
-3. Choose an empty game folder, or keep the default under your local Programs directory. If you already have a complete extracted OpenZ-VK build, select it under **REUSE FILES** to avoid downloading matching resources again. That source folder is only read.
-4. Click **PLAY** or **UNIT EDITOR**. Keep the game folder complete. The direct editor launcher is also under `Unit Editor/Open Unit Editor.bat`.
+Download **OpenZ-VK-Installer.exe** from the [official release](https://github.com/Tablaski/OpenZ/releases/latest). It is a standalone Windows 10/11 x64 application using the .NET Framework included with Windows. It does not require administrator installation or Git. The supplied OpenZ-VK logo is embedded in it.
 
-The installer checks for newer versions when opened and every 30 minutes while it remains open. It displays the changelog and shows an update notification for a higher version; updates start only when you choose them. It does not run a background service when closed.
+## Play a published version
 
-Updates reuse unchanged blocks from the installed game, including matching content whose offset changed inside a large Unity data file. Only missing blocks are downloaded, with SHA-256 verification of every block and complete file. Download size depends on what Unity changed: a substantially changed asset may still require a large download. Downloaded blocks survive interrupted attempts and are removed after a successful installation.
+Choose a published player, read its changelog and click **INSTALL / UPDATE**. **Unity is not required.** The installer checks for updates when opened and every 30 minutes while open; installation starts only when requested. Unchanged resource blocks are reused and downloads/files are verified with SHA-256. The existing player is replaced only after the complete replacement is verified.
 
-The previous game remains available until the complete new version has been assembled and verified. Close the game and editor before updating. A failed download leaves the existing installation intact. Your OpenZ/OpenZ preferences, saved profiles and local preference history keep their established locations outside the player folder.
+Use **REUSE FILES** to seed the installation from an existing extracted build. **COMPLETE ZIPS** opens the GitHub releases for manual installation: extract both player ZIPs from the same version into one destination. GitHub's automatic source ZIP is not a playable download.
 
-Only **compiled, published builds** appear in the version list. Installer support starts with 0.2.22. Pushing source to `main` or `dev` alone does not compile a Unity player. Older releases remain available as complete ZIPs on GitHub.
+Click **PLAY** or **UNIT EDITOR**. The editor's direct launcher is also in `Unit Editor/Open Unit Editor.bat` inside every new player.
 
-If partial downloads are blocked by your network, retry later or use both complete player ZIPs from the release. The `.pack` payloads are managed by the installer; do not extract them manually. The downloadable installer is not code-signed.
+## Retrieve any main/dev source revision and compile it
 
-## Publish a future channel build
+1. Open **SOURCES & UNITY**. Choose stable **main** or development **dev**. Browse commits, use **OLDER COMMITS**, or paste a commit ID. This includes source revisions without a published player.
+2. Choose an empty **SOURCE WORKSPACE** initially, then **GET SOURCES**. Installed Git is detected and used for clone/fetch and a detached checkout of the selected revision. If Git is absent, the installer offers its optional installation and can use GitHub commit snapshots instead. Local source edits are protected rather than silently overwritten.
+3. Click **PREPARE RESOURCES**. Optionally select an existing complete Unity project to reuse its assets; otherwise the installer downloads the published Unity resource archives once. Resources stay in the workspace when switching commits; subsequent source updates do not download the large asset archives again. Source and map packages travel with the selected revision.
+4. The required Unity version is read from that revision's ProjectVersion.txt. Its installed editor is detected in standard locations; **BROWSE** supports another location. **GET UNITY** opens the matching Unity Hub editor installation, or the Hub download page. Install Windows Build Support and activate your Unity license in Hub yourself.
+5. Close this project's editor, then click **BUILD RELEASE**. The result is under the workspace's `builds/OpenZ-VK-Local/` folder. The installer reports the log path and does not launch the game automatically. Keep the complete player folder together.
 
-Build a release player with `tools/Build-Duel.ps1`. Commit and push the player sources first; retain its `FORK_BUILD.json`. Publish stable builds whose source commit is on `origin/main`, and dev builds whose source commit is on `origin/dev`:
+Compilation requires Unity even when Git is installed. Git-free source builds record the downloaded commit and source changes in `FORK_BUILD.json`. Historical fork revisions without Git-free provenance support receive an explicit build-only compatibility adaptation and are marked modified. Older upstream revisions use their enabled Build Settings scenes. Historical revisions may need their matching original assets if their asset layout differs.
+
+Your existing OpenZ/OpenZ preferences, saved profiles and local preference history retain their established locations outside the player/source folders. Close the game before replacing its player. Source workspaces and player installations are distinct; use a new workspace when switching between an archive export and a Git checkout.
+
+The installer is not code-signed. If a network blocks partial player downloads, use the complete player ZIPs. Unity Hub licensing, authentication and editor installation remain user-controlled.
+
+## Publish a future player or resource update
+
+Build and push the player source first. `tools/Publish-PlayerUpdate.ps1` prepares the installer and verified player payloads, uploads a draft, checks remote assets and publishes it. Pass the complete fallback ZIPs with `-AdditionalAssets`. Stable releases come from `origin/main` and become the official latest release:
 
 ```powershell
-./tools/Publish-PlayerUpdate.ps1 -PlayerDirectory 'D:/path/to/complete-player' -Channel stable -Tag v0.2.23 -NotesFile 'D:/path/to/release-notes.md' -AdditionalAssets 'D:/path/to/part1.zip','D:/path/to/part2.zip' -Publish
+./tools/Publish-PlayerUpdate.ps1 -PlayerDirectory 'D:/path/to/player' -Channel stable -Tag v0.2.23 -NotesFile 'D:/path/to/notes.md' -AdditionalAssets 'D:/path/to/part1.zip','D:/path/to/part2.zip' -Publish
 ```
 
-Use `-Channel dev` for a development channel build; omitting `-Tag` creates a commit-specific dev tag. Omitting `-Publish` prepares and verifies local assets without publishing. The publisher builds the installer, generates content-defined payload packs and a channel manifest, uploads a draft, verifies remote asset sizes/checksums, then publishes it. Stable releases become the official latest release; dev releases are marked prerelease.
-
-Every changed delivered build receives a new fork version. Commit the full source and preserve upstream licenses; publish the complete fallback ZIPs as well as the installer payloads. The supplied logo is embedded from the existing local Unity resource; restore the local resource backup before building the installer on another checkout. Do not commit large game resources or private configuration.
+Source mode follows main/dev commits directly and does not require a published player for every commit. Keep `SOURCE_RESOURCES.json` current when shared assets change; generate a new one-time bundle with `tools/Package-UnityResources.ps1` and include its index/archives in that release. Preserve resource archives required by existing source revisions on GitHub. Restore the existing local artwork backup before building the installer on another checkout; do not commit large base assets, private configuration or local resource archives.

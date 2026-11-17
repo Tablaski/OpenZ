@@ -211,6 +211,17 @@ namespace OpenZ.Sim
 
     [Serializable] public sealed class ZBehaviorProfile
     {
+        // Common light-tank and Tough explosions have a 40 px (5 m) radius.
+        public const double ClassicBlastRadiusPixels = 40;
+        public const double ClassicDodgeLimitMetres = ClassicBlastRadiusPixels * ZConst.PX_TO_M * 1.25;
+        public static ZBehaviorProfile Classic(ZBehaviorFamily family)
+        {
+            var profile = new ZBehaviorProfile { family = family, id = "zod-classic", name = "Z Classic", master = 100 };
+            profile.Set("", ZBehaviorKey.BoostSpeed, 5);
+            profile.Set("", ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres);
+            profile.Set("", ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres);
+            return profile;
+        }
         public string id = "", name = "Custom";
         public ZBehaviorFamily family;
         public double master;

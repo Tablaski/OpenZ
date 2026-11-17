@@ -140,7 +140,7 @@ namespace OpenZ
             foreach (var z in zones)
             {
                 var owner = game.World.Zones[z.zone].Owner;
-                var expected = owner == Team.Neutral ? new Color(.8f, .8f, .8f) : TeamColors.Paint(owner);
+                var expected = BorderColor(owner);
                 var actual = z.m.GetColor("_Color");
                 if (Mathf.Abs(actual.r - expected.r) + Mathf.Abs(actual.g - expected.g) + Mathf.Abs(actual.b - expected.b) > .01f) return false;
             }

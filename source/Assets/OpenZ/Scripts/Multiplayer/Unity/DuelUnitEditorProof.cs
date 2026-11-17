@@ -141,6 +141,13 @@ namespace OpenZ.Multiplayer
                 else if (step == 16 && FindFirstObjectByType<OpenZMainMenu>() && !OzUnitEditor.Active)
                 {
                     if (firstError != null) throw new Exception("Player logged an error: " + firstError);
+                    // Capture the real factory menu without exposing local profiles.
+                    // Finish restores every original profile preference.
+                    PlayerPrefs.SetString("oz_behavior_library_v1", "{}"); OzBehaviorLibrary.Reload();
+                    OzBehaviorLibrary.Select(OzBehaviorLibrary.Native(ZBehaviorFamily.Tanks));
+                    OzBehaviorLibrary.Select(OzBehaviorLibrary.Native(ZBehaviorFamily.Robots));
+                    if (OzBehaviorLibrary.Choices(ZBehaviorFamily.Tanks).Count != 2 || OzBehaviorLibrary.Choices(ZBehaviorFamily.Robots).Count != 2)
+                        throw new Exception("Factory profiles must be OpenZ and Z Classic only.");
                     OzBehaviorOptions.Show(ZBehaviorFamily.Tanks);
                     step = 17; readyAt = Time.realtimeSinceStartupAsDouble + 1;
                 }

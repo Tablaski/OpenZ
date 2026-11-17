@@ -33,15 +33,21 @@ namespace OpenZ
                 return saved;
             }
         }
-        public static ZBehaviorProfile Native(ZBehaviorFamily f) => new ZBehaviorProfile { family = f, id = "native", name = "OpenZ Native" };
-        public static ZBehaviorProfile Zod(ZBehaviorFamily f) => new ZBehaviorProfile { family = f, id = "zod-classic", name = "Zod Classic", master = 100 };
+        public static ZBehaviorProfile Native(ZBehaviorFamily f) => new ZBehaviorProfile { family = f, id = "native", name = "OpenZ" };
+        public static ZBehaviorProfile Zod(ZBehaviorFamily f) => ZBehaviorProfile.Classic(f);
         public static List<ZBehaviorProfile> Choices(ZBehaviorFamily f)
         {
             var list = new List<ZBehaviorProfile> { Native(f), Zod(f) };
-            var local = Zod(f); local.id = "zod-local"; local.name = "Zod Local (idle only)";
-            foreach (var k in new[] { ZBehaviorKey.Move, ZBehaviorKey.AttackOrder, ZBehaviorKey.Retreat, ZBehaviorKey.ForceMove, ZBehaviorKey.Approach }) local.Set("", k, 0);
-            list.Add(local);
-            if (f == ZBehaviorFamily.Robots)
+            // Retain a previously selected legacy reference locally, while fresh
+            // installations provide only the two published reference profiles.
+            string selected = SelectedId(f);
+            if (selected == "zod-local")
+            {
+                var local = new ZBehaviorProfile { family = f, id = selected, name = "Zod Local (legacy)", master = 100 };
+                foreach (var k in new[] { ZBehaviorKey.Move, ZBehaviorKey.AttackOrder, ZBehaviorKey.Retreat, ZBehaviorKey.ForceMove, ZBehaviorKey.Approach }) local.Set("", k, 0);
+                list.Add(local);
+            }
+            if (f == ZBehaviorFamily.Robots && selected == "retreat-dodge")
             {
                 var retreat = Native(f); retreat.id = "retreat-dodge"; retreat.name = "Retreat Dodge";
                 retreat.Set("", ZBehaviorKey.Retreat, 1); retreat.Set("", ZBehaviorKey.StandFirm, 0);
@@ -57,8 +63,8 @@ namespace OpenZ
         public static string SelectedName(ZBehaviorFamily f)
         {
             string id = SelectedId(f);
-            if (id == "native") return "OpenZ Native  v";
-            if (id == "zod-classic") return "Zod Classic  v";
+            if (id == "native") return "OpenZ  v";
+            if (id == "zod-classic") return "Z Classic  v";
             if (id == "zod-local") return "Zod Local (idle only)  v";
             if (id == "retreat-dodge" && f == ZBehaviorFamily.Robots) return "Retreat Dodge  v";
             return (SavedProfiles.Find(p => p.id == id && p.family == f)?.name ?? "OpenZ Native") + "  v";

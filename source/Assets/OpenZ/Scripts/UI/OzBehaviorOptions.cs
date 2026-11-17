@@ -77,7 +77,7 @@ namespace OpenZ
         static string Description(ZBehaviorProfile profile)
         {
             if (profile.id == "native") return "Original OpenZ behavior and movement.";
-            if (profile.id == "zod-classic") return "Classic Zod dodge reference, with independent tank and robot rules.";
+            if (profile.id == "zod-classic") return "VK reference: defensive boost x5; dodge and boost travel limited to 6.25 m.";
             if (profile.id == "zod-local") return "Zod movement with dodging limited to idle units.";
             if (profile.id == "retreat-dodge") return "Robots may dodge during retreat orders.";
             return "Your saved profile. Laboratory drafts stay separate until saved.";

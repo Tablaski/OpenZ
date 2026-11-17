@@ -52,6 +52,10 @@ namespace OpenZ.Multiplayer
                         else r.Host("HOST", 27889);
                         var args = Environment.GetCommandLineArgs(); int mapOption = Array.IndexOf(args, "-oz-duel-proof-map");
                         if (mapOption >= 0 && mapOption + 1 < args.Length) r.ChangeRules(DuelRuntime.Defaults(args[mapOption + 1]));
+                        var factoryRules = r.Rules;
+                        factoryRules.TankDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Tanks).Encode();
+                        factoryRules.RobotDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Robots).Encode();
+                        r.ChangeRules(factoryRules);
                         if (!r.OnlineMode) File.WriteAllText(Path.Combine(folder, "invitation.txt"), r.Invitation("127.0.0.1", 27889));
                         joined = true;
                     }

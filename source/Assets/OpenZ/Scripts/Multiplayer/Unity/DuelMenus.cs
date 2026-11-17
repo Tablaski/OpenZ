@@ -283,7 +283,7 @@ namespace OpenZ.Multiplayer
         {
             var panel = Panel("STARTING ARMIES", 820, 190, 1010, 310);
             Label(panel, "FORT TURRETS · choose each mount for RED and BLUE", 24, 68, 950, 17, OzUi.Muted);
-            Button(panel, "FORT PLACEMENT · RED / BLUE", 24, 95, 960, () => { lobbyDialog = LobbyDialog.Forts; pickerGroup = -1; dirty = true; }, false, true, 76);
+            Button(panel, "FORT PLACEMENT · RED / BLUE", 24, 95, 960, () => { lobbyDialog = LobbyDialog.Forts; pickerGroup = -1; dirty = true; }, false, true, 76, true);
             Label(panel, "OUTSIDE THE FORT · same starting squads / vehicles for both teams", 24, 190, 950, 17, OzUi.Muted);
             ArmySlots(panel, rules.Common.StartingUnits, 1, 24, 217, 960, editable);
         }
@@ -440,13 +440,13 @@ namespace OpenZ.Multiplayer
             Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : page == Page.Lobby ? (Color)OzUi.Amber : OzForkOptions.Accent); return panel;
         }
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
-        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46)
+        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46, bool centered = false)
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
             if (!primary) b.LabelColor = page == Page.Lobby ? (Color)OzUi.Ink : OzForkOptions.Accent;
             b.Rt.TL(x, y, w, height); b.Interactable = enabled; b.Refresh();
             if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
-            if (height > 70 && b.Label != null) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
+            if (height > 70 && b.Label != null && !centered) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
             b.Bg.raycastTarget = true;
             var ui = b.Rt.gameObject.AddComponent<Button>(); ui.targetGraphic = b.Bg; ui.interactable = enabled;
             ui.onClick.AddListener(() => { try { action(); } catch (Exception error) { Debug.LogException(error); R.ReportError(error.Message); } });

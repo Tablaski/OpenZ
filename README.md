@@ -16,11 +16,15 @@ An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan rem
 - **Clearer battles:** compare army counts or offensive production value, resize flags and use dotted territory borders. Added options outside the lobby are highlighted in violet.
 - **A richer Unit Editor:** stage repeatable fights, tune both sides live, inspect damage and success counters, and use paired respawns.
 
+Fresh installations supply **OpenZ** and **Z Classic** reference profiles only. Z Classic uses a defensive boost of **×5**, with boost and total dodge travel limited to **6.25 m** (1.25 times a common 5 m explosion radius). Personal profiles are never included in the downloads. The separate experimental map editor is not included in this release.
+
 **Z 1996 is a unit-availability preset, not a complete historical rules mode.** Custom dynamics do not promise identical behavior to Z or The Zod Engine. Existing preferences and saved profiles are retained across updates.
 
 ## Download and play
 
-Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest). Choose **Stable (main)** or **Dev (dev)**, select a published version and read its changelog before installing. The installer checks for updates and reuses unchanged resource blocks. **Git and Unity are not required.** You can reuse an existing extracted build too. See the short [installer guide](docs/INSTALLER.md).
+Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest). Install a published player and read its changelog, or open **SOURCES & UNITY** to select any commit from stable **main** or development **dev** and compile it. The installer detects Git and uses it when present; otherwise it retrieves source snapshots. Git installation is offered as an option.
+
+**Unity is required only for compiling sources.** The installer detects the required editor and guides its installation. Source resources are downloaded once or reused from an existing Unity project, then retained across source updates. Published players require neither Unity nor Git. See the short [installer guide](docs/INSTALLER.md).
 
 For a manual installation, download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
 

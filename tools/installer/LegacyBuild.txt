@@ -1,0 +1,28 @@
+using System;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
+
+// Local installer build entry point for historical source revisions.
+public static class OpenZVKInstallerBuild
+{
+    public static void Windows()
+    {
+        var args = Environment.GetCommandLineArgs(); int option = Array.IndexOf(args, "-oz-duel-output");
+        if (option < 0 || option + 1 >= args.Length) throw new Exception("Missing player output directory.");
+        string output = args[option + 1]; Directory.CreateDirectory(output);
+        EditorUserBuildSettings.development = false; EditorUserBuildSettings.allowDebugging = false;
+        EditorUserBuildSettings.connectProfiler = false; EditorUserBuildSettings.buildWithDeepProfilingSupport = false;
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var type = assembly.GetType("OpenZ.EditorTools.OpenZBuild");
+            if (type != null) { var shaders = type.GetMethod("IncludeRuntimeShaders"); if (shaders != null) shaders.Invoke(null, null); }
+        }
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
+            target = BuildTarget.StandaloneWindows64, locationPathName = Path.Combine(output, "openz-vk.exe"), options = BuildOptions.None });
+        File.WriteAllText(Path.Combine(output, "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors);
+        if (report.summary.result != BuildResult.Succeeded) throw new Exception("Historical player build failed.");
+    }
+}

@@ -128,6 +128,11 @@ namespace OpenZ.Multiplayer
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
+                        var fortButton = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "FORT PLACEMENT · RED / BLUE");
+                        var fortLabel = fortButton.transform.Find("Content/Label") as RectTransform;
+                        var fortRect = fortButton.GetComponent<RectTransform>();
+                        if (!fortLabel || Mathf.Abs(fortLabel.TransformPoint(fortLabel.rect.center).y - fortRect.TransformPoint(fortRect.rect.center).y) > 2)
+                            throw new Exception("Fort placement label is not vertically centered.");
                         Capture("shared-rules"); Click("FORT PLACEMENT · RED / BLUE"); break;
                     case 5:
                         if (r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("FORT MOUNT ")) != 8)

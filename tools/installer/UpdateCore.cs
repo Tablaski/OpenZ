@@ -155,7 +155,7 @@ namespace OpenZVK.Update
             http = new HttpClient(handler); http.Timeout = TimeSpan.FromMinutes(10);
             http.DefaultRequestHeaders.UserAgent.ParseAdd("OpenZ-VK-Installer/1.0");
         }
-        async Task<string> Text(string url, int maximum, CancellationToken cancellation)
+        public async Task<string> Text(string url, int maximum, CancellationToken cancellation)
         {
             using (var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false))
             {
@@ -173,6 +173,34 @@ namespace OpenZVK.Update
         {
             var all = Format.Json().Deserialize<List<Release>>(await Text("https://api.github.com/repos/" + Format.Repository + "/releases?per_page=100", 8 * 1024 * 1024, cancellation).ConfigureAwait(false));
             return all.Where(r => !r.draft && r.prerelease == (channel == "dev") && r.assets != null && r.assets.Any(a => a.name == Format.ManifestName)).ToList();
+        }
+        public async Task<T> Api<T>(string path, CancellationToken cancellation)
+        { return Format.Json().Deserialize<T>(await Text("https://api.github.com/repos/" + Format.Repository + "/" + path, 16 * 1024 * 1024, cancellation).ConfigureAwait(false)); }
+        public async Task DownloadFile(string url, string path, string sha256, Action<long, long> progress, CancellationToken cancellation)
+        {
+            if (File.Exists(path) && (sha256 == null || Format.FileHash(path) == sha256)) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            string partial = path + ".partial"; long offset = File.Exists(partial) ? new FileInfo(partial).Length : 0;
+            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+            {
+                if (offset > 0) request.Headers.Range = new RangeHeaderValue(offset, null);
+                using (var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    if (response.StatusCode != HttpStatusCode.PartialContent) offset = 0;
+                    else if (response.Content.Headers.ContentRange == null || response.Content.Headers.ContentRange.From != offset) throw new InvalidDataException("Invalid resumed download range.");
+                    long total = offset + (response.Content.Headers.ContentLength ?? 0);
+                    using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false)) using (var output = new FileStream(partial, offset > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[65536]; int read; long done = offset; DateTime nextReport = DateTime.MinValue;
+                        while ((read = await input.ReadAsync(buffer, 0, buffer.Length, cancellation).ConfigureAwait(false)) > 0)
+                        { output.Write(buffer, 0, read); done += read; if (DateTime.UtcNow >= nextReport) { progress(done, total); nextReport = DateTime.UtcNow.AddMilliseconds(250); } }
+                        progress(done, total);
+                    }
+                }
+            }
+            if (sha256 != null && Format.FileHash(partial) != sha256) { File.Delete(partial); throw new InvalidDataException("Downloaded archive checksum mismatch."); }
+            if (File.Exists(path)) File.Delete(path); File.Move(partial, path);
         }
         public async Task<Manifest> Manifest(Release release, string channel, CancellationToken cancellation)
         {

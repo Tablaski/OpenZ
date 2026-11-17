@@ -8,7 +8,7 @@
 - Screenshots may illustrate substantially changed screens and key features; several Shitty Maps screenshots are useful. Do not add a screenshot just to showcase the original logo.
 - Every future Windows build must include a clearly named `Unit Editor/` directory with a direct editor launcher. Share the main player's runtime files rather than duplicating the entire game.
 - Official Windows releases must include the standalone installer with the supplied OpenZ-VK logo, update manifest and range-download payload packs, alongside complete fallback player ZIPs. The installer requires no Git and preserves the OpenZ preferences directory.
-- Installer stable versions are compiled builds published from `main`; dev versions are compiled builds published from `dev`. Source-only pushes are not downloadable players. Maintain version selection, visible changelogs, update notifications and content-defined resource reuse when publishing future builds with `tools/Publish-PlayerUpdate.ps1`.
+- Keep two installer paths: published players without Unity, and source retrieval/builds from any selected `main` or `dev` commit with Unity. Detect and use installed Git; offer its optional installation initially, and use commit snapshots when Git is absent. Detect/guide the required Unity editor and retain source resources across revisions. Maintain changelogs, update notices and the one-time source resource bundle alongside player downloads.
 - After a replacement release has been verified, remove obsolete local player builds and release ZIPs at the user's request. Keep the current release, source assets, map packages and backups of untracked resources.
 
 - Use `dev` for development and `main` for stable versions. Do not create extra branches unless requested.

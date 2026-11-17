@@ -1,11 +1,24 @@
 # OpenZ change log
 
-## OpenZ-VK 0.2.22 (Windows release, 17 Nov 2026)
+## OpenZ-VK 0.2.22 (local Windows release candidate, 17 Nov 2026)
 
+- Await the user's final review before any GitHub push or publication.
+- Center the fort-placement button caption instead of using portrait-card layout.
+- Supply only OpenZ and Z Classic factory profiles. Preserve existing local
+  personal/legacy profiles without bundling them in downloadable files.
+- Set the supplied Z Classic defensive boost to x5 and cap both its boosted and
+  total dodge travel at 6.25 m: 1.25 times the common 40 px / 5 m splash radius.
+  Replanning cannot replenish the limit; normal orders resume afterwards.
+- Keep the separate experimental map editor out of the distribution.
 - Publish a standalone Windows installer with the supplied OpenZ-VK logo, stable
   and dev channels, version selection, changelogs and update notifications.
   Reuse content-defined resource blocks without requiring Git; verify partial
   downloads and stage a complete installation before replacing the previous game.
+- Add a distinct source workflow: browse main/dev commits or enter a revision,
+  use detected Git or retrieve snapshots without Git, reuse one-time Unity
+  resources, detect the required editor and compile a local release player.
+  Offer optional Git installation and Unity Hub/editor guidance. Record source
+  provenance for Git-free builds and compatibility changes for older revisions.
 - Replace the legacy tank/robot profile popup with native OpenZ plates, fonts,
   buttons, scrolling and violet fork-option accents. Preserve independent family
   selections and host-owned multiplayer profiles.

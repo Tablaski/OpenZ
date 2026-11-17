@@ -6,6 +6,26 @@ static class DodgeCircleChecks
 {
     public static void Run(string settings, string map, int x, int y, Action<bool, string> check)
     {
+        foreach (var family in new[] { ZBehaviorFamily.Tanks, ZBehaviorFamily.Robots })
+        {
+            var classic = ZBehaviorProfile.Classic(family);
+            string type = family == ZBehaviorFamily.Tanks ? "light" : "grunt";
+            check(classic.Get(type, ZBehaviorKey.BoostSpeed) == 5 && classic.Get(type, ZBehaviorKey.MaxDistance) == 6.25 &&
+                classic.Get(type, ZBehaviorKey.BoostMaxDistance) == 6.25, "Published Z Classic has a x5 burst bounded to 1.25 common blast radii: " + family);
+            var world = ZWorld.Create(settings, map, 173); world.Pathing.Enabled = false;
+            classic.Set("", ZBehaviorKey.BoostChance, 100); classic.Set("", ZBehaviorKey.Endurance, 0);
+            classic.Set("", ZBehaviorKey.MinDistance, 6.25); world.SetBehavior(classic);
+            var unit = world.CreateObject(family == ZBehaviorFamily.Tanks ? "vehicle" : "robot", type, x + 32, y + 32, Team.Red);
+            unit.Waypoints.Add(new ZWaypoint { mode = WpMode.Move, x = unit.CenterX + 160, y = unit.CenterY });
+            check(unit.DodgeMissile(unit.CenterX, unit.CenterY, 10), "Z Classic defensive step starts: " + family);
+            for (int tick = 1; tick <= 500; tick++)
+            {
+                world.Time = tick * .01; unit.ProcessServer(world.Time);
+                if (tick < 40 && unit.BehaviorDodging) unit.DodgeMissile(unit.CenterX, unit.CenterY, 10);
+            }
+            check(unit.BehaviorBoostDistance > 0 && unit.BehaviorBoostDistance <= 6.250001 && unit.BehaviorDodgeDistance <= 6.250001 && !unit.BehaviorDodging,
+                "Z Classic stops its burst and resumes the interrupted order without replenishing distance on replans: " + family);
+        }
         var p = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, master = 100 };
         var bins = new int[16];
         for (int k = 0; k < 1000; k++)

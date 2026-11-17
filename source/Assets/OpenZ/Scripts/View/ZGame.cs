@@ -207,7 +207,7 @@ namespace OpenZ
             OzLevelStatics.NewWorld();
             ZWorld.CustomStatsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzLevelStats.Wanted(level, demo); OzLevelStats.AtLevelStart(this, st.text);   // 1.2 item 60 DV142: UNIT STATS CUSTOM (the battlefield screen's choice, armed by the player's own DEPLOY; off in 'Zod exact', a bot match, the Unit editor): every unit of both teams is made from the Unit editor's Custom stats; OPENZ: nothing changes (View/OzLevelStats.cs, Sim/ZWorld.CustomStats.cs)
             // duel game creation
-            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
+            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this); OzSoloAllowedUnits.Apply(this);
             Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
             if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });   // same seeding as the headless bot match
             if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });
@@ -237,26 +237,26 @@ namespace OpenZ
             if (HeadStartRefusedMayhem) Debug.Log($"[ZGame] head start: none on MAYHEM ({level}; the saved HEAD START ON is kept for the other difficulties)");
             if (!(blueBot && redBot) && level == "L02" && headStartNow /* menu_exe_v1: the menu switch, every difficulty; 1.4 mayhem_headstart: none on MAYHEM */)   // L02 only: its map gives neither side a vehicle; L17 red already starts with 5
             {
-                var extra = World.AddHeadStart(player, HeadStartTypes); HeadStartMade += extra.Count;
+                var extra = World.AddHeadStart(player, HeadStartTypes.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
                 foreach (var v in extra) SpawnUnitView(v);
                 Debug.Log($"[ZGame] head start for {player}: {extra.Count} crewed vehicles at the fort");
             }
             // (Easy is an OpenZ deviation anyway; Medium / Hard keep Z's L17 start units)
             if (!(blueBot && redBot) && level == "L17" && headStartNow /* menu_exe_v1: the L17 head start (was Easy only); 1.4 mayhem_headstart: none on MAYHEM */)
             {
-                var extra = World.AddHeadStart(player, ParkedStartOn(level), EasyL17Types); HeadStartMade += extra.Count;
+                var extra = World.AddHeadStart(player, ParkedStartOn(level), EasyL17Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
                 foreach (var v in extra) { var hv = SpawnUnitView(v); if (hv && v.Owner == Team.Neutral) hv.FaceSide(); }   // 1.2 item 169: the parked empty ones face the screen's right, their barrels across the picture (View/UnitView.SideFacing.cs)
                 Debug.Log($"[ZGame] L17 head start for {player}: {extra.Count} {(ParkedStartOn(level) ? "parked empty (DV32)" : "crewed")} vehicles at the fort");
             }
             if (!(blueBot && redBot) && level == "L16" && headStartNow)
             {
-                var extra = World.AddHeadStart(player, HeadStartL16Types); HeadStartMade += extra.Count;
+                var extra = World.AddHeadStart(player, HeadStartL16Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
                 foreach (var v in extra) SpawnUnitView(v);
                 Debug.Log($"[ZGame] L16 head start for {player}: {extra.Count} crewed vehicles at the fort");
             }
             if (!(blueBot && redBot) && OzVolcanic.Is(level) && headStartNow)
             {
-                var extra = World.AddHeadStart(player, HeadStartL07Types); HeadStartMade += extra.Count;
+                var extra = World.AddHeadStart(player, HeadStartL07Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
                 foreach (var v in extra) SpawnUnitView(v);
                 Debug.Log($"[ZGame] L07 head start for {player}: {extra.Count} crewed vehicles at the fort");
             }

@@ -22,12 +22,14 @@ namespace OpenZ.Multiplayer
         bool hadMicrophone;
         bool hadEdgeScroll;
         int savedEdgeScroll;
+        string savedSoloUnits;bool hadSoloUnits;
         void Awake()
         {
             hadPlayerName = PlayerPrefs.HasKey("oz_duel_name");
             savedPlayerName = PlayerPrefs.GetString("oz_duel_name", "");
             hadMicrophone = PlayerPrefs.HasKey("oz_duel_mic_device"); savedMicrophone = PlayerPrefs.GetString("oz_duel_mic_device", "");
             hadEdgeScroll = PlayerPrefs.HasKey("oz_edge_scroll"); savedEdgeScroll = PlayerPrefs.GetInt("oz_edge_scroll", 1);
+            hadSoloUnits=PlayerPrefs.HasKey(OzSoloAllowedUnits.Preference);savedSoloUnits=PlayerPrefs.GetString(OzSoloAllowedUnits.Preference,"");
         }
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -105,7 +107,7 @@ namespace OpenZ.Multiplayer
             {
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
                 var menu = FindFirstObjectByType<OpenZMainMenu>();
-                if (preparation < 9)
+                if (preparation < 14)
                 {
                     next = Time.realtimeSinceStartupAsDouble + .6;
                     switch (preparation++)
@@ -131,8 +133,20 @@ namespace OpenZ.Multiplayer
                         case 6:
                             Capture("main-menu"); menu.ProofSelect(); break;
                         case 7:
-                            DuelOptionProof.CheckInlineBadges(menu.transform.root); Capture("solo-selection"); menu.ProofMain(); break;
-                        case 8: break;
+                            DuelOptionProof.CheckInlineBadges(menu.transform.root); Capture("solo-selection");menu.ProofOpenSoloAllowed();break;
+                        case 8:
+                            ClickSoloUnits("Z 1996");break;
+                        case 9:
+                            if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Z1996||OzSoloAllowedUnits.Read().Allows("electrobot"))throw new Exception("Solo Z 1996 preset not saved.");
+                            Capture("solo-allowed-z1996");ClickSoloUnits("ALLOWED UNIT heavy");break;
+                        case 10:
+                            if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Custom||OzSoloAllowedUnits.Read().Allows("heavy"))throw new Exception("Solo custom selection not saved.");
+                            Capture("solo-allowed-custom");ClickSoloUnits("OpenZ");break;
+                        case 11:
+                            if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.OpenZ||OzSoloAllowedUnits.Read().AllowedUnits.Count!=22)throw new Exception("Solo OpenZ preset not restored.");
+                            Capture("solo-allowed-openz");OzSoloAllowedUnits.Dismiss();RestoreSoloUnits();break;
+                        case 12:menu.ProofMain();break;
+                        case 13:break;
                     }
                     return;
                 }
@@ -234,6 +248,15 @@ namespace OpenZ.Multiplayer
                     case 30:
                         CheckGallery(); Capture("shitty-maps-expansion"); ClickGallery("CLOSE"); break;
                     case 31:
+                        Click("Allowed units · "+DuelUnitRoster.Name(r.Rules.UnitPreset));break;
+                    case 32:
+                        if(r.Menus.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=22)throw new Exception("Lobby unit catalogue changed.");
+                        Capture("lobby-allowed-openz");Click("Z 1996");break;
+                    case 33:
+                        if(r.Rules.UnitPreset!=DuelUnitPreset.Z1996||r.Rules.Allows("electrobot"))throw new Exception("Shared lobby preset does not apply.");
+                        Capture("lobby-allowed-z1996");Click("OpenZ");break;
+                    case 34:Click("CLOSE");break;
+                    case 35:
                         File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps, independent fort popup, army pickers, additive handicap, unchanged construction times, microphone controls and dropdown; solo/duel converted-map galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
@@ -245,6 +268,12 @@ namespace OpenZ.Multiplayer
         {
             var gallery = FindFirstObjectByType<OzShittyMapGallery>();
             gallery.GetComponentsInChildren<Button>().Single(b => b.name == name && b.interactable).onClick.Invoke();
+        }
+        void ClickSoloUnits(string name)
+        {
+            var panel=FindFirstObjectByType<OzSoloAllowedUnits>();
+            if(!panel||panel.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=22)throw new Exception("Solo unit catalogue is incomplete.");
+            panel.GetComponentsInChildren<Button>().Single(b=>b.name==name&&b.interactable).onClick.Invoke();
         }
         void SelectMap(string id)
         {
@@ -264,7 +293,10 @@ namespace OpenZ.Multiplayer
             if (!images.Any(i => i.name == "Minimap") || images.Any(i => !i.texture))
                 throw new Exception("Gallery contains missing minimaps.");
             DuelOptionProof.CheckInlineBadges(gallery.transform);
+            var heading=gallery.transform.Find("Gallery/Gallery title");
+            if(!heading||!heading.Find("Poop")||!heading.GetComponentInChildren<TMPro.TMP_Text>().text.StartsWith("SHITTY MAPS"))throw new Exception("Gallery is missing the Shitty Maps name or poop icon.");
         }
+        void RestoreSoloUnits(){if(hadSoloUnits)PlayerPrefs.SetString(OzSoloAllowedUnits.Preference,savedSoloUnits);else PlayerPrefs.DeleteKey(OzSoloAllowedUnits.Preference);PlayerPrefs.Save();}
         void RestoreEdgeScroll(){if(hadEdgeScroll)PlayerPrefs.SetInt("oz_edge_scroll",savedEdgeScroll);else PlayerPrefs.DeleteKey("oz_edge_scroll");PlayerPrefs.Save();}
         IEnumerator Exit(int code)
         {
@@ -273,6 +305,7 @@ namespace OpenZ.Multiplayer
             else PlayerPrefs.DeleteKey("oz_duel_name");
             if (hadMicrophone) PlayerPrefs.SetString("oz_duel_mic_device", savedMicrophone); else PlayerPrefs.DeleteKey("oz_duel_mic_device");
             RestoreEdgeScroll();
+            RestoreSoloUnits();
             PlayerPrefs.Save();
             Application.Quit(code);
         }

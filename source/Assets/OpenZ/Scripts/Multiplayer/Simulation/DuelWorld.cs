@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OpenZ.Multiplayer;
 
 namespace OpenZ.Sim
@@ -72,6 +73,8 @@ namespace OpenZ.Sim
     public sealed partial class ZWorld
     {
         DuelRules duelRules;
+        HashSet<string> soloAllowedUnits;
+        bool soloRosterConfigured;
         readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
@@ -82,7 +85,21 @@ namespace OpenZ.Sim
         }
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
-        public bool DuelAllowsUnit(string type) => duelRules == null || duelRules.Allows(type);
+        public bool DuelAllowsUnit(string type) => duelRules != null ? duelRules.Allows(type) : soloAllowedUnits == null || soloAllowedUnits.Contains(type);
+        /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>
+        public void ConfigureSoloUnits(IEnumerable<string> types)
+        {
+            if(Time != 0 || duelRules != null || soloRosterConfigured) throw new InvalidOperationException("Configure a fresh solo world only.");
+            var selection=new HashSet<string>(StringComparer.Ordinal);
+            foreach(string type in types ?? throw new ArgumentNullException(nameof(types)))
+                if(!DuelUnitRoster.Known(type) || !selection.Add(type))throw new ArgumentException("Unknown or duplicate solo unit.");
+            soloRosterConfigured=true;
+            if(selection.SetEquals(DuelUnitRoster.All))return;
+            soloAllowedUnits=selection;
+            foreach(var unit in Objects.ToArray())if(unit.IsUnit&&!DuelAllowsUnit(unit.IsHero?"heroes":unit.Type))DeleteObject(unit);
+            FortDoorGuns.RemoveAll(unit=>!DuelAllowsUnit(unit.Type));
+            FilterProductionRoster();
+        }
         public static ZBehaviorProfile DuelProfile(string encoded, ZBehaviorFamily family)
         {
             var profile = string.IsNullOrEmpty(encoded) ? new ZBehaviorProfile { family = family, name = "OpenZ Native", id = "native" } : ZBehaviorProfile.Decode(encoded);
@@ -92,8 +109,8 @@ namespace OpenZ.Sim
         public System.Collections.Generic.IReadOnlyList<string> ProductionUnits(ZObject building)
         {
             var list = ZBuildLists.For(building.Type, building.BuildLevel);
-            if (duelRules == null) return list;
-            var filtered = new List<string>(); foreach (string type in list) if (duelRules.Allows(type)) filtered.Add(type);
+            if (duelRules == null && soloAllowedUnits == null) return list;
+            var filtered = new List<string>(); foreach (string type in list) if (DuelAllowsUnit(type)) filtered.Add(type);
             return filtered;
         }
 
@@ -102,12 +119,16 @@ namespace OpenZ.Sim
         {
             if (rules == null) throw new ArgumentNullException(nameof(rules));
             rules.Validate();
-            if (Time != 0 || duelRules != null) throw new InvalidOperationException("Configure a fresh world only.");
+            if (Time != 0 || duelRules != null || soloRosterConfigured) throw new InvalidOperationException("Configure a fresh world only.");
             var tanks = DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks);
             var robots = DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots);
             SetBehavior(tanks); SetBehavior(robots);
             duelRules = rules.Copy(); DuelIsReplica = replica;
             Bots.Clear(); Array.Clear(TechBonus, 0, TechBonus.Length);
+            FilterProductionRoster();
+        }
+        void FilterProductionRoster()
+        {
             foreach (var b in Objects) b.StoredCannons.RemoveAll(t => !DuelAllowsUnit(t));
             // The same neutral technology policy applies to both human seats.
             foreach (var b in Objects) if (b.IsProducer)

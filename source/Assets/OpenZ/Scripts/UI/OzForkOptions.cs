@@ -35,7 +35,7 @@ namespace OpenZ
             return false;
         }
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
-            label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label || label == ChatLabel;
+            label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label || label == ChatLabel || label == OzSoloAllowedUnits.Label;
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

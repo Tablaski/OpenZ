@@ -302,7 +302,7 @@ namespace OpenZ.Multiplayer
                 Portrait(button, type, (step - 54) / 2, 2, 44);
             }
         }
-        static string UnitName(string type) => string.IsNullOrEmpty(type) ? "EMPTY" : type == "light" ? "LIGHT TANK" : type == "medium" ? "MEDIUM MECH" : type == "mtank" ? "MEDIUM TANK" : type == "heavy" ? "HEAVY TANK" : type.Replace('_', ' ').ToUpperInvariant();
+        internal static string UnitName(string type) => string.IsNullOrEmpty(type) ? "EMPTY" : type == "light" ? "LIGHT TANK" : type == "medium" ? "MEDIUM MECH" : type == "mtank" ? "MEDIUM TANK" : type == "heavy" ? "HEAVY TANK" : type.Replace('_', ' ').ToUpperInvariant();
         void BuildHandicap(DuelRules rules, bool editable)
         {
             var panel = Panel("HANDICAP", 820, 520, 1010, 265);
@@ -464,7 +464,7 @@ namespace OpenZ.Multiplayer
             var input = box.gameObject.AddComponent<InputField>(); input.textComponent = text; input.characterLimit = max; input.text = value; input.onValueChanged.AddListener(v => change(v));
             return input;
         }
-        static void Portrait(Transform parent, string type, float x, float y, float size, Team team = Team.Red)
+        internal static void Portrait(Transform parent, string type, float x, float y, float size, Team team = Team.Red)
         {
             if (string.IsNullOrEmpty(type)) return;
             var texture = OzUeArt.Picture(type, team);

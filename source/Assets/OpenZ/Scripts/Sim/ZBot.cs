@@ -434,12 +434,13 @@ namespace OpenZ.Sim
             {
                 if (b.Owner != Team || b.Kind != ZKind.Building || !b.IsProducer) continue;
                 string pick = null;
-                foreach (var p in Preferred) if (ZBuildLists.InList(b.Type, b.BuildLevel, p)) { pick = p; break; }
+                foreach (var p in Preferred) if (ZBuildLists.InList(b.Type, b.BuildLevel, p) && W.DuelAllowsUnit(p)) { pick = p; break; }
                 pick = LaserPick(b, pick);                                                          // DV71: a Laser squad now and then
                 string zodPick = pick;                                                              // DV145: the pick before DV115 (MTankPick reads it)
                 pick = RobotMixPick(b, HeavyPick(b, pick));                                         // DV115: heavy tanks / missile launchers from 8:00, the robot squads in turn (ZBot.HeavyMix.cs)
                 pick = MechMixPick(b, zodPick, pick);                                               // DV145 the medium tank beside the mech; DV148: mech or medium tank, whichever its team has built fewer of, a coin when even (Sim/ZBot.MechMix.cs; off: DV145's MTankPick)
                 pick = ElectrobotPick(b, pick);                                                     // electrobot_v1 DV46: Zod's pick unless claimed
+                if(pick != null && !W.DuelAllowsUnit(pick)) { pick=zodPick; if(pick==null||!W.DuelAllowsUnit(pick)){var permitted=W.ProductionUnits(b);pick=permitted.Count>0?permitted[0]:null;} }
                 if (pick == null || b.CurUnit == pick) continue;
                 if (b.Destroyed && ZWorld.RuinNoBuildDeviation) { RuinSkips++; continue; }         // DV155: no orders for a ruin (picked first, so every draw of the pick stays as before; Sim/ZWorld.RuinProduction.cs)
                 W.StopBuilding(Team, b);

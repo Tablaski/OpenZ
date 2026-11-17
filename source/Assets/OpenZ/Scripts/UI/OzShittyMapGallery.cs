@@ -53,7 +53,7 @@ namespace OpenZ
             var wordmark=Hud.Kit(panel,"ForkWordmark","Wordmarks/wm_openz_vk_menu",new OzRect(24,8,160,48),null,Image.Type.Simple);
             wordmark.preserveAspect=true; wordmark.enabled=wordmark.sprite!=null;
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
-            InlineTitle(panel,"Gallery title",solo ? "SHITTY MAPS · SOLO" : "MAP GALLERY · 1 VS 1",24,65,1400,44,30,solo || group!="OPENZ");
+            InlineTitle(panel,"Gallery title",solo ? "SHITTY MAPS · SOLO" : "SHITTY MAPS · 1 VS 1",24,65,1400,44,30,true);
             Button(panel,"CLOSE",1510,20,220,Close);
             var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION"} : new[]{"OPENZ","Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
             for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*420,118,400,()=>{group=value;scrollPosition=1;Build();},group==value); }

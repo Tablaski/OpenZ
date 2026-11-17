@@ -27,27 +27,7 @@ namespace OpenZ.Multiplayer
         }
         void BuildAllowedUnits(RectTransform panel, DuelRules rules, bool editable)
         {
-            int i = 0;
-            foreach (DuelUnitPreset preset in Enum.GetValues(typeof(DuelUnitPreset)))
-            {
-                var selected = preset;
-                Button(panel, DuelUnitRoster.Name(preset), 24 + i++ * 340, 92, 320,
-                    () => { rules.SetUnitPreset(selected); EditLobbyRules(rules); }, rules.UnitPreset == preset, editable);
-            }
-            Label(panel, "Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply.", 24, 146, 1410, 16, OzUi.Ink);
-            Label(panel, rules.AllowedUnits.Count + "/" + DuelUnitRoster.All.Length + " allowed · Z 1996 uses Zod's medium ID (shown here as MEDIUM MECH); it excludes OpenZ's additional MEDIUM TANK.", 24, 173, 1410, 14, OzUi.Muted);
-            var content = Scroll(panel, 24, 205, 1432, 560, false, 4 * 146);
-            var scroll = content.parent.GetComponent<ScrollRect>(); scroll.verticalNormalizedPosition = allowedScroll;
-            scroll.onValueChanged.AddListener(p => allowedScroll = p.y);
-            for (int index = 0; index < DuelUnitRoster.All.Length; index++)
-            {
-                string type = DuelUnitRoster.All[index]; bool allowed = rules.Allows(type);
-                var tile = Button(content, UnitName(type), index % 6 * 238, index / 6 * 146, 224,
-                    () => { rules.SetUnitAllowed(type, !allowed); EditLobbyRules(rules); }, false, editable, 136);
-                tile.name = "ALLOWED UNIT " + type;
-                Portrait(tile, type, 77, 28, 70);
-                Label(tile, allowed ? "ALLOWED" : "EXCLUDED", 10, 8, 204, 13, allowed ? (Color)OzUi.Go : OzUi.Muted);
-            }
+            OzAllowedUnitsPanel.Build(panel,rules,editable,()=>EditLobbyRules(rules),allowedScroll,p=>allowedScroll=p,false);
         }
         void BuildDynamics(RectTransform panel, DuelRules rules, bool editable)
         {

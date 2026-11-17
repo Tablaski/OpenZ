@@ -1,168 +1,90 @@
 # OpenZ change log
 
-## OpenZ-VK 0.2.22 (local Windows release candidate, 17 Nov 2026)
+## OpenZ-VK 0.2.22 (17 Nov 2026)
 
-- Local release candidate; publication awaits final review.
-- Guide player installation and source compilation with separate wizards, pictograms,
-  a large changelog reading area and dedicated tool setup. Disable Git/Unity setup
-  buttons when the tools are already available.
-- Initialize option toggles in their correct right-hand positions immediately,
-  including main-menu and in-match options. Align Shitty Map icons with their labels.
-- Pin an independent resource package in every source revision. Verify resource
-  hashes, reuse unchanged files, replace changed managed files, remove obsolete
-  managed files and back up local modifications before replacement. Preserve unknown
-  assets and personal preferences. This supports future upstream resource upgrades.
-- Verify the base resource package and embedded build identity at player startup.
-  Block incompatible or mixed installations with repair/update guidance; refuse
-  source builds using a mismatched package.
-- Center the fort-placement button caption instead of using portrait-card layout.
-- Supply only OpenZ and Z Classic factory profiles. Preserve existing local
-  personal/legacy profiles without bundling them in downloadable files.
-- Set the supplied Z Classic defensive boost to x5 and cap both its boosted and
-  total dodge travel at 6.25 m: 1.25 times the common 40 px / 5 m splash radius.
-  Replanning cannot replenish the limit; normal orders resume afterwards.
-- Keep the separate experimental map editor out of the distribution.
-- Add a standalone Windows installer with the supplied OpenZ-VK logo, published
-  player selection, main/dev source revisions, changelogs and update notifications.
-  Reuse content-defined resource blocks without requiring Git; verify partial
-  downloads and stage a complete installation before replacing the previous game.
-- Add a distinct source workflow: browse main/dev commits or enter a revision,
-  use detected Git or retrieve snapshots without Git, reuse one-time Unity
-  resources, detect the required editor and compile a local release player.
-  Offer optional Git installation and Unity Hub/editor guidance. Record source
-  provenance for Git-free builds and compatibility changes for older revisions.
-- Replace the legacy tank/robot profile popup with native OpenZ plates, fonts,
-  buttons, scrolling and violet fork-option accents. Preserve independent family
-  selections and host-owned multiplayer profiles.
-- Combine the accumulated converted maps, map galleries, transparent menu/HUD
-  artwork, directional dodge circle, cumulative dodge/boost limits, replication
-  improvements, grouped guest proposals and independent red/blue fort cannons.
-- Add a clearly named Unit Editor directory and direct launcher to every future
-  Windows build. The launcher opens the playground with -oz-unit-editor and
-  shares the complete game runtime without duplicating its assets.
-- Restore the original OpenZ banner to the beginning of the short public README.
-  Focus its feature list on gameplay differences and keep implementation detail
-  in the changelog and dedicated guides.
-- Release validation and remaining limitations are recorded in PLAYER_VALIDATION.md.
+### Install and update
 
-## OpenZ-VK 0.2.20 (source update, 17 Nov 2026)
+- A new OpenZ-VK installer guides you through choosing a version, reading its changelog and installing or updating the game. Published players need neither Unity nor Git.
+- Updates reuse game files already on your PC instead of downloading everything again. Your settings and saved combat profiles are kept, and damaged or missing game files can be repaired.
+- You can also choose a stable main or development dev source version and build it yourself. This requires Unity; the installer helps you find or install the right editor. Git is optional and is used automatically when available.
+- When a version needs different game resources, the installer helps prepare the matching package. The game now warns you and prevents play if incompatible resources are installed, with instructions to repair the installation.
 
-- Cache unchanged serialized object fields before preparing multiplayer updates.
-  Check current values and collection contents without relying on mutation flags.
-- Preserve exact packet contents, destruction/repair, ownership, production,
-  obstacle changes and retained dead objects. Keep simulation, projectile/debris
-  updates, snapshot frequency and saved preferences unchanged.
-- Clear field history when objects expire, a match changes or capture fails;
-  release the capture buffer on return to the lobby.
-- Add cached/uncached packet equivalence checks and repeatable paired benchmarks.
-  See MULTIPLAYER_CAPTURE_CACHE.md for measured costs and pending player checks.
-- Source only; a fresh release player is recommended for manual two-PC validation
-  when requested. No player was built or launched.
+### Set up your match
 
-## OpenZ-VK 0.2.21 (source update, 17 Nov 2026)
+- Choose Allowed units on the solo mission selection screen, using OpenZ, Z 1996 or Custom. Your choice applies to both your army and the computer, including starting units and production.
 
-- Let the guest prepare lobby settings locally and send one grouped proposal.
-  The host can review differences, accept or decline without a blocking prompt.
-  New submissions replace the pending proposal; the guest can withdraw it.
-- Keep map suggestions available directly from the map gallery. Official host
-  edits expire pending proposals and require a draft refresh. Only accepted
-  changes reset readiness; proposals cannot change a match after loading starts.
-- Add a dedicated top-view popup for the red and blue forts. Select any of the
-  four real mounts and choose its cannon independently for each team.
-- Update lobby compatibility so both peers must support proposals and team
-  mounts. Existing solo settings and saved preferences are preserved.
-- Source only; lobby rendering, two-PC interaction and gameplay await a newly
-  requested release build and the user's manual testing.
+- Choose allowed units with OpenZ, Z 1996 or Custom presets, adjust starting armies and handicaps, and choose each of the four fort cannons separately for the red and blue teams.
+- The guest can prepare several lobby changes together and send one proposal for the host to accept or decline. The host remains in control of the match rules.
+- Choose tank and robot combat profiles independently. Multiplayer profiles are agreed in the lobby and remain fixed during the match.
+- Optional balance settings let you limit the territorial production advantage or give the weaker army a separate fort-production bonus. Leaving the territory cap off keeps the original territorial advantage.
 
-## OpenZ-VK 0.2.18 (source update, 17 Nov 2026)
+### Combat and Unit Editor
 
-- Put maximum dodge/boost time and travel distance directly in FEEL. Zero keeps
-  an unlimited budget; replanning does not replenish a running dodge or boost.
-- Add a 16-direction probability circle to FEEL and DODGING, with editable
-  relative weights, normalized percentages and a scoped RESET ZOD button.
-- Derive reference weights from all 1,000 native Zod angle draws. Exact classic
-  mode retains continuous world angles; custom circle mode uses headings at
-  22.5-degree intervals relative to forward. Reset restores exact classic mode.
-- Keep settings in existing saved/exported profiles and host-owned lobby rules.
-  Existing preset key numbers and preferences remain compatible.
-- Replace generic hover prompts with short inline explanations and shorten
-  dynamics/testing tooltips. Register dynamics fields for the shared violet accent.
-- Source only; player UI and gameplay validation remain pending.
+- Tank and robot profile selection now matches the game's menus and includes your saved custom profiles.
+- Fresh installations offer OpenZ and Z Classic reference profiles. Z Classic uses a x5 defensive boost, with both boost travel and the whole dodge limited to 6.25 m. Your personal profiles are preserved across updates and are never included in the downloads.
+- The Unit Editor offers more control over dodging, turning, acceleration and damage effects, plus repeatable fights, damage and success counters, and paired respawns.
+- Open the Unit Editor directly from the installer or from the build's Unit Editor folder.
 
-## OpenZ-VK 0.2.17 (source update, 17 Nov 2026)
+### Maps and interface
 
-- Replace the multiplayer screen and map-gallery text wordmarks with the shared
-  transparent logo, fitted to their existing headers without stretching.
-- Retain a text fallback if local artwork is unavailable. No new assets required.
-- Source only; player rendering checks remain pending a requested release build.
+- The solo and multiplayer map galleries are named Shitty Maps and marked with the poop icon.
 
-## OpenZ-VK 0.2.15 (source update, 17 Nov 2026)
+- Browse experimental Shitty Maps from Z Original, Z Expansion and multiplayer collections, with minimaps, terrain filters and sorting, including Arctic, City and Volcanic maps.
+- Choose whether the force bar shows unit counts or offensive production value. Resize flags and use dotted territory borders to make battles easier to read.
+- Fixed option switches appearing on the far left in the main menu and during matches.
+- Centered the fort-placement button label and aligned Shitty Map icons with their text.
+- Added options outside the lobby are highlighted in violet.
 
-- Reuse the transparent main-menu logo at a smaller size in the Unit Editor
-  top bar and the in-game top-left badge, preserving aspect ratio and UI spacing.
-- Keep a text fallback when local image resources are missing.
-- Source only; manual player rendering validation remains pending.
+Converted maps remain experimental. The separate experimental Map Editor is not included in this release.
 
-## OpenZ-VK 0.2.14 (source update, 17 Nov 2026)
+## OpenZ-VK 0.2.21 (17 Nov 2026)
 
-- Replace the large main-menu text logo with the user-provided gold/pink logo
-  and tank character, with the baked checkerboard removed to actual transparency.
-- Preserve image proportions and move menu entries below the taller logo.
-- Local image resources are backed up separately; see PLAYER_VALIDATION.md.
-- Source only; manual player rendering validation remains pending.
+- Guests can send a grouped proposal for lobby settings. The host can review, accept or decline it; guests can replace or withdraw their proposal.
+- Changing the official lobby rules clears outdated proposals. Accepted changes require both players to confirm readiness again.
+- A top-down fort view lets you choose each cannon independently for the red and blue teams.
 
-## OpenZ-VK 0.2.13 (source update, 17 Nov 2026)
+## OpenZ-VK 0.2.20 (17 Nov 2026)
 
-- Display the map gallery above the 1v1 lobby and its full-screen input blocker.
-  The previous gallery layer was below DuelCanvas, hiding the popup and routing
-  clicks to the lobby instead of the map cards, tabs and filters.
-- Source only; player menu validation remains pending a requested release build.
+- Improved multiplayer performance while units move and fight.
 
+## OpenZ-VK 0.2.18 (17 Nov 2026)
 
-## OpenZ-VK 0.2.12 (source update, 16 Nov 2026)
+- Set maximum dodge and boost durations and travel distances in the Unit Editor. Zero keeps the selected limit unlimited.
+- A direction circle lets you adjust how likely units are to dodge in each direction, with percentages and a reset to the reference behavior.
+- Saved combat profiles keep these choices. Shorter explanations make the Dynamics and Testing panels easier to use.
 
-- Add the local p02 Zod catalog: 31 solo missions and 44 converted 1v1 choices,
-  excluding the four levels already restored in OpenZ. Separate original Z and
-  expansion missions; label approved fixed-file solo exceptions 21 and 27.
-- Prefer balanced fixed/FDL variants in duel and warn when none was provided.
-- Add world-filtered, sortable minimap galleries and font-independent poop icons.
-  Guests can inspect maps; selection remains a host-owned lobby rule.
-- Add lightweight Arctic terrain and palettes without original Zod artwork.
-- Track map data, small converted scenes and previews in shittymaps/, connected
-  as a local Unity package; reuse base game assets and generate terrain meshes
-  at load time so map updates travel through Git without another large ZIP.
-- Preserve bridge material/model families after damage and rebuild on new worlds.
-- Brighten blue territory border LEDs on gray City terrain, respecting team swaps.
-- Source only. Player rendering, navigation and full matches remain pending manual
-  testing on a newly requested release build; see PLAYER_VALIDATION.md.
+## OpenZ-VK 0.2.17 (17 Nov 2026)
 
+- Updated the OpenZ-VK logo in multiplayer menus and map galleries.
 
-## OpenZ-VK 0.2.11 (source update, 16 Nov 2026)
+## OpenZ-VK 0.2.15 (17 Nov 2026)
 
-- Raise converted Mayhem rock obstacles to 4.1 m, comparable to the map cliffs,
-  preserving their horizontal footprints and original gameplay objects.
-- Add repeating concrete and asphalt textures to its ground and roads.
-- Keep the blue force percentage inside the gauge, clear of the team badge.
-- Enable Level 19 Mayhem in the host-controlled 1v1 map selector, with a visible
-  poop pictogram independent of font emoji support; include its data in peer compatibility.
-- Source and local scene resources only; player rendering and remote-match
-  validation remain pending a requested release build.
+- Added the OpenZ-VK logo to the Unit Editor and in-game display.
 
-## OpenZ-VK 0.2.9 (source update, 16 Nov 2026)
+## OpenZ-VK 0.2.14 (17 Nov 2026)
 
-- Reduce host replication allocations with reusable capture buffers, immutable
-  unchanged records, typed scalar writers and cached map-item field selection.
-- Reduce client copying and temporary lists; apply changed fields directly.
-- Preserve the existing field-level wire schema and authority model. Validate
-  outgoing deltas without allocating a second decoded copy.
-- Limit receive bursts between packets and postpone new snapshots during send
-  congestion while retaining ordered baselines and events.
-- Correct multiplayer simulation timing and add passive ten-second performance
-  logs identifying the build, peer role, direct/TURN/TCP path, processing costs,
-  rates, queues, FPS and collections.
-- Source only: no new player release. Manual validation remains pending in
-  PLAYER_VALIDATION.md.
+- Updated the main-menu logo and adjusted menu spacing around it.
 
+## OpenZ-VK 0.2.13 (17 Nov 2026)
+
+- Fixed the map gallery opening behind the multiplayer lobby and clicks reaching the wrong menu.
+
+## OpenZ-VK 0.2.12 (16 Nov 2026)
+
+- Added converted Z Original, Z Expansion and multiplayer maps, including Arctic terrain.
+- Browse minimaps by terrain and sort the map list. Multiplayer offers balanced variants where available and warns when a map has no balanced version.
+- Guests can inspect maps while the host chooses the battlefield.
+- Improved the appearance of damaged bridges and made blue territory borders easier to see on City terrain.
+
+## OpenZ-VK 0.2.11 (16 Nov 2026)
+
+- Added converted Mayhem to the multiplayer map selector.
+- Raised its rock obstacles to match the surrounding cliffs and improved its concrete ground and roads.
+- Fixed the blue army percentage overlapping the team badge.
+
+## OpenZ-VK 0.2.9 (16 Nov 2026)
+
+- Improved multiplayer performance and match timing during busy battles and on congested connections.
 
 ## OpenZ 1.4 (7 Nov 2026)
 

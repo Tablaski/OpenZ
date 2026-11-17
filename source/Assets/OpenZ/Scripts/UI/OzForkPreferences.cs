@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 3;
+        public const int Schema = 4;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -78,6 +78,7 @@ namespace OpenZ
                 Add("oz_dusttrails", "Int");
                 Add("oz_ebproof_auto", "String");
                 Add("oz_edge_scroll", "Int");
+                Add(OzSoloAllowedUnits.Preference, "String");
                 Add("oz_eject_lock", "Int");
                 Add("oz_electrobot", "Int");
                 Add("oz_electrobot_cpu", "Int");

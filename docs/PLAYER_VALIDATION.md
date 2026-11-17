@@ -1,5 +1,20 @@
 # Player validation record
 
+## Current local review adjustments
+
+- Player changelogs now describe features, gameplay changes and visible fixes.
+  Development details remain in commits and technical records. Upstream history
+  is preserved unchanged.
+- The supplied OpenZ-VK logo is the README's opening image.
+- Solo and multiplayer galleries use Shitty Maps with the aligned poop pictogram.
+- Solo mission selection has Allowed units with the shared OpenZ/Z 1996/Custom
+  catalogue. Its saved selection is separate from multiplayer, preserves campaign
+  difficulty/production bonuses and applies to starting units and production for
+  both sides. Preferences schema 4 adds one optional key without resetting settings.
+- Completed: 5,440 simulation checks, including the solo roster on four real maps;
+  Unity runtime source compilation. Updated player/menu/solo captures and packaging
+  remain pending the requested release build below. Previous evidence is historical.
+
 ## OpenZ-VK 0.2.22 local review candidate (17 Nov 2026)
 
 Release player: `builds/OpenZ-VK-0.2.22-Windows-x64/openz-vk.exe`.

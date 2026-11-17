@@ -31,7 +31,7 @@ namespace OpenZ.Sim
         /// <summary>DV46, start of ChooseBuildOrders: keep, end or make the claim.</summary>
         void ElectrobotRound()
         {
-            if (!ZWorld.ElectrobotDeviation || !ZWorld.ElectrobotBotDeviation || TeamHasElectrobot()) { elbProducer = -1; elbWaitBInit = -1; return; }
+            if (!ZWorld.ElectrobotDeviation || !ZWorld.ElectrobotBotDeviation || !W.DuelAllowsUnit(ZElectro.Type) || TeamHasElectrobot()) { elbProducer = -1; elbWaitBInit = -1; return; }
             if (elbProducer >= 0)
             {
                 var c = W.Get(elbProducer);

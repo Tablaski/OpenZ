@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/banner.jpg" alt="OpenZ — original project" width="100%">
+  <img src="media/openz-vk-logo.png" alt="OpenZ-VK" width="640">
 </p>
 
 # OpenZ-VK
@@ -10,6 +10,7 @@ An experimental fork of [OpenZ](https://github.com/playopenz/OpenZ), the fan rem
 
 - **1 vs 1 with a friend:** invitations, chat and voice, shared match setup, readiness, surrender, restart requests and end-of-match statistics.
 - **More match options:** choose allowed units with OpenZ, Z 1996 or Custom presets; configure starting armies, handicaps and each team's four fort cannons independently. The guest can send one grouped proposal for the host to review.
+- **Solo unit selection:** choose OpenZ, Z 1996 or Custom allowed units on the mission selection screen. Your selection applies to both sides for that mission.
 - **Custom combat:** tune tank and robot dodging, directional probabilities, boost duration/distance, turning, acceleration and damage effects. Save profiles in the Unit Editor; the host selects the official profiles in the lobby and they stay fixed during the match.
 - **Optional balance:** cap the territorial production advantage or give the weaker army a separate fort-production bonus. Leaving the cap off preserves the original territorial advantage.
 - **Shitty Maps:** browse converted Z Original, Z Expansion and multiplayer maps with minimaps, terrain filters and sorting, including Arctic terrain. These conversions are experimental.

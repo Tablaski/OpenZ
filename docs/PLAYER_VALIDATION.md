@@ -1,5 +1,29 @@
 # Player validation record
 
+## Dodge/boost budgets and directional circle (0.2.18, source only)
+
+- FEEL exposes both maximum durations and both maximum travel distances.
+  Distances count actual accepted movement across replans. Exhausting boost
+  restores normal speed; exhausting dodge resumes the interrupted order.
+- FEEL and DODGING show 16 clockwise directions: forward 0 degrees, right 90,
+  back 180, left 270. Select a direction and edit its weight; percentages
+  normalize across permitted directions. All-zero weights refuse dodging.
+- Default weights group the 1,000 native Zod angle draws into the nearest
+  16 sectors. Native Zod uses world angles, not heading-relative sectors.
+  Editing weights enables relative circle mode; RESET ZOD restores the exact
+  original continuous angle strategy and default direction permissions.
+  Reset affects the selected scope and preserves other dynamics settings.
+- Save the profile in the editor, then select it under lobby DYNAMICS. Host
+  rules remain frozen during multiplayer matches; clients cannot edit them.
+- Pending user validation on a requested release player: circle readability,
+  clipping/scrolling/input at supported scales; select/edit/reset each direction;
+  0-degree continuation and 45-degree advance; saved profile selection in the
+  lobby; duration/distance endpoints and normal-speed continuation after boost.
+- Completed: all Unity runtime scripts compile with existing warnings only;
+  2,070 core, simulation and loopback transport checks pass, including 435
+  focused behavior/movement checks and all 16 relative angles.
+- No player build, gameplay automation or rendering test was requested.
+
 ## Multiplayer and map-gallery logos (0.2.17, source only)
 
 - Fit the existing transparent Wordmarks/wm_openz_vk_menu sprite into a 300 x 100

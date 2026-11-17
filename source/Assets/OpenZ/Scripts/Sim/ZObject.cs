@@ -317,6 +317,7 @@ namespace OpenZ.Sim
             if (IsZ(Dx) && IsZ(Dy)) return true;
             double vx = Dx, vy = Dy;
             BehaviorVelocity(dt, ref vx, ref vy);
+            BehaviorLimitStep(dt, ref vx, ref vy);
             double nx = LocX + (vx * dt) + XOver, ny = LocY + (vy * dt) + YOver;
             var pathing = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;                // OpenZ pathing layer
             bool guardMinion = pathing != null && IsMinion && stoppable;
@@ -331,6 +332,7 @@ namespace OpenZ.Sim
             if (IsRobot) WalkDisengage();                                              // robots don't attack while moving (DV57: grunt / psycho / laser keep firing, ZObject.FireOnMove.cs)
             if (dt > 0)
             { BehaviorStepDx = (float)((nx - PosX) / dt); BehaviorStepDy = (float)((ny - PosY) / dt); }
+            if (BehaviorDodging && Behavior != null) BehaviorRecordTravel(Math.Sqrt((nx - PosX) * (nx - PosX) + (ny - PosY) * (ny - PosY)));
             XOver = nx - inx; YOver = ny - iny;
             LocX = inx; LocY = iny;
             CenterX = LocX + (WidthPix >> 1); CenterY = LocY + (HeightPix >> 1);

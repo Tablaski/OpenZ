@@ -23,10 +23,11 @@ namespace OpenZ
         readonly List<Action> refresh = new List<Action>();
         readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT", "CRIPPLING" };
         readonly bool[] advanced = new bool[6];
-        int healthBand = 1;
+        int healthBand = 1, selectedDirection;
         public bool SimulationDebug { get; private set; }
         public bool RouteDebug { get; private set; }
-        static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.Physical, ZBehaviorKey.TurnFirst,
+        static readonly ZBehaviorKey[] essentials = { ZBehaviorKey.MaxDuration, ZBehaviorKey.MaxDistance,
+            ZBehaviorKey.BoostDuration, ZBehaviorKey.BoostMaxDistance, ZBehaviorKey.Physical, ZBehaviorKey.TurnFirst,
             ZBehaviorKey.PivotSpeed, ZBehaviorKey.AlignmentTolerance, ZBehaviorKey.TurnRate,
             ZBehaviorKey.TurnAcceleration, ZBehaviorKey.Acceleration, ZBehaviorKey.Braking,
             ZBehaviorKey.DirectView, ZBehaviorKey.Distance, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown };
@@ -129,7 +130,7 @@ namespace OpenZ
         void BuildBehavior()
         {
             float w = layout.w, inner = w - 24;
-            for (int i = 0; i < 2; i++) { int f = i; Button(box, "Family" + i, i == 0 ? "TANKS" : "ROBOTS", new Rect(12 + i * (inner + 6) / 2, 42, (inner - 6) / 2, 28), "Change the edited family; the other family's values are preserved.", () => { family = f; scope = 0; presetName = P.name; profiles = imports = false; rebuild = true; }); }
+            for (int i = 0; i < 2; i++) { int f = i; Button(box, "Family" + i, i == 0 ? "TANKS" : "ROBOTS", new Rect(12 + i * (inner + 6) / 2, 42, (inner - 6) / 2, 28), "Edit tanks or robots independently.", () => { family = f; scope = 0; presetName = P.name; profiles = imports = false; rebuild = true; }); }
             var preset = Button(box, "Presets", "", new Rect(12, 76, inner, 26), "Load a reference or named preset into the playground. This does not change the profiles selected for your next match.", () => { profiles = !profiles; imports = false; rebuild = true; });
             refresh.Add(() => preset.Label.Set((dirty ? "CUSTOM: " : "") + P.name + "  v"));
             Input(box, "PresetName", new Rect(12, 107, inner - 78, 26), () => presetName, s => presetName = s, "Name used by SAVE / SAVE AS. Enter commits; Escape cancels. Existing named presets can be updated; built-in references remain protected.");
@@ -141,8 +142,8 @@ namespace OpenZ
             Text(box, "OPENZ", 12, 179, 70, 11, OzUi.Amber); Text(box, "ZOD CLASSIC", w - 108, 179, 96, 11, OzUi.Amber);
             var master = Text(box, "", inner / 2 - 20, 179, 84, 12);
             refresh.Add(() => master.Set(P.master.ToString("0.#", CultureInfo.InvariantCulture) + "%"));
-            Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Master: OpenZ at 0%, classic Zod dodge/movement at 100%. Numeric values interpolate; switches change at 50%. Manual fields stay overridden. This is not a success percentage. Normal speed, weapon statistics and damage rules remain separate.");
-            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Cycle family defaults and per-type exceptions. Per-type overrides win; inherited fields follow the master.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
+            Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Blend OpenZ (0%) with classic Zod movement (100%). Manual overrides keep their values. This is not dodge success chance.");
+            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Choose all units or one type. Type-specific values override family settings.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
             Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 219, inner * .45f - 6, 26), "Release every manual override in this family. Keep the master position.", () => { P.overrides.Clear(); Apply(family); dirty = true; rebuild = true; });
             for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 3 * (inner + 4) / 3, 251 + i / 3 * 29, (inner - 8) / 3, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); if (i == 5) tab.Label.color = OzForkOptions.Accent; }
             MakeList(312);
@@ -167,7 +168,7 @@ namespace OpenZ
             {
                 var setup = Row("TurnFirstSetup", y, 44);
                 Button(setup, "Apply", "BRAKE > PIVOT > ACCELERATE", new Rect(9, 5, layout.w - 58, 30),
-                    "Apply a movement-only starting point to the selected scope: physical mode ON, brake-pivot-accelerate ON, pivot speed 0%, alignment 5 deg, turn rate 720 deg/s, angular acceleration instant, acceleration 0.25 s, braking 0.15 s. Dodge rules and master remain unchanged. Existing per-type exceptions still win over family values. Tune the fields below; SAVE AS keeps a named profile.",
+                    "Apply stop-then-turn movement: pivot speed 0%, alignment 5 deg, turn 720 deg/s, acceleration 0.25 s, braking 0.15 s. Keeps dodge settings and type exceptions.",
                     () => { FinishFields(); P.ConfigureTurnFirst(Type); Apply(family); dirty = true; });
                 y += 44;
             }
@@ -182,7 +183,7 @@ namespace OpenZ
                 if (OzForkOptions.IsFork(d.Label)) label.color = OzForkOptions.Accent;
                 var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the family/master again.", () => { P.Reset(Type, def.Key); Apply(family); });
                 refresh.Add(() => reset.Label.Set(P.Has(Type, def.Key) ? "OVERRIDE" : "INHERITED"));
-                var refs = Text(row, "OpenZ: " + Reference(d, false) + "  |  Zod: " + Reference(d, true), 9, 39, rw - 18, 10, OzUi.Muted); Tip(refs.rectTransform, tip);
+                var refs = Text(row, Brief(d.Tip), 9, 39, rw - 18, 10, OzUi.Muted); Tip(refs.rectTransform, tip);
                 if (d.Choices != null)
                 {
                     var choice = Button(row, "Choice", "", new Rect(9, 57, rw - 18, 28), tip, () => Edit((ZBehaviorFamily)family, def.Key, ((int)P.Get(Type, def.Key) + 1) % def.Choices.Length, Type));
@@ -190,19 +191,21 @@ namespace OpenZ
                 }
                 else
                 {
-                    Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => Edit((ZBehaviorFamily)family, def.Key, OzUeLabInput.Number(s), Type), tip + "\nType any finite value, including scientific notation. Enter or clicking elsewhere applies it; Escape cancels. There is no gameplay slider maximum.");
-                    Text(row, d.Unit + "  /  free numeric input", 169, 71, rw - 178, 10, OzUi.Ink2);
+                    Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => Edit((ZBehaviorFamily)family, def.Key, OzUeLabInput.Number(s), Type), tip + "\nEnter applies. Escape cancels.");
+                    Text(row, d.Unit + (d.Label.Contains("unlimited") ? " | 0: unlimited" : d.Label.Contains("instant") ? " | 0: instant" : ""), 169, 71, rw - 178, 10, OzUi.Ink2);
                 }
                 y += 100;
+                if (page == 0 && d.Key == ZBehaviorKey.BoostMaxDistance) BuildDirectionCircle(ref y);
             }
+            if (page == 1) BuildDirectionCircle(ref y);
             if (page != 0 && page != 5)
             {
                 var more = Row("Advanced", y, 38);
                 Button(more, "Advanced", advanced[page] ? "ADVANCED - HIDE" : "ADVANCED - SHOW FINE TUNING", new Rect(9, 4, layout.w - 58, 26), "Extra rules and visual fine tuning. Hidden values remain active; saved profiles are preserved.", () => { advanced[page] = !advanced[page]; rebuild = true; });
                 y += 38;
             }
-            ToggleRow("Debug: combat position + visual lag", () => SimulationDebug, v => SimulationDebug = v, ref y, "Cyan cross = position used by combat rules. Violet cross and line = displayed model's horizontal lag (above 5 cm). Only cyan is normal when they coincide. This diagnoses visual following, not dodge decisions. Overlays never change combat.");
-            ToggleRow("Debug: movement target + velocity", () => RouteDebug, v => RouteDebug = v, ref y, "Yellow arrow = current movement target, including a dodge destination; hidden at rest. Green arrow = one second of commanded simulation velocity, before physical steering. Both are capped at 6 m and 100 UI pixels. Direction hints, not a full route or predicted trajectory. Use DEBUG ON for dodge reasons.");
+            ToggleRow("Debug: combat position + visual lag", () => SimulationDebug, v => SimulationDebug = v, ref y, "Cyan marks the combat position. Violet shows model lag above 5 cm. Display only; combat is unchanged.");
+            ToggleRow("Debug: movement target + velocity", () => RouteDebug, v => RouteDebug = v, ref y, "Yellow points to the movement target; green shows commanded velocity before physical steering. Display only; arrows are capped at 6 m.");
             var actionsRow = Row("Actions", y, 38);
             Button(actionsRow, "Native", "RESTORE OPENZ", new Rect(9, 4, (layout.w - 64) * .65f, 26), "Restore exact native behavior in this family; named presets remain saved.", () => { drafts[family] = OzBehaviorLibrary.Native((ZBehaviorFamily)family); presetName = P.name; dirty = true; Apply(family); rebuild = true; });
             var debug = Button(actionsRow, "Debug", "", new Rect(15 + (layout.w - 64) * .65f, 4, (layout.w - 64) * .35f, 26), "Show the last dodge reason above units. Useful to distinguish a committed dodge, exhausted sprint, blocked path and a forbidden reaction.", () => DebugEnabled = !DebugEnabled);
@@ -217,9 +220,9 @@ namespace OpenZ
                 Team side = team; string word = team == Team.Red ? "RED" : "BLUE";
                 var heading = Row(word, y, 30); Text(heading, word + " UNITS", 10, 15, layout.w - 60, 13, team == Team.Red ? OzUi.RedHi : OzUi.BlueHi); y += 30;
                 ToggleRow("Immortal " + word.ToLowerInvariant() + " units", () => t.Immortal(side), v => t.Configure(side, v, t.Circular(side)), ref y,
-                    "Playground only. Units never enter destruction/removal, lose their drivers or abandon orders because of death. With circular damage OFF, actual HP stay at the reference percentage; a hidden HP pool still counts theoretical deaths. With circular damage ON, real HP decrease and reset at a virtual death.");
+                    "Prevent destruction and crew loss. OFF for circular damage keeps HP fixed and counts virtual defeats; ON lowers HP and refills it at defeat.");
                 ToggleRow("Circular damage " + word.ToLowerInvariant() + " units", () => t.Circular(side), v => t.Configure(side, t.Immortal(side), v), ref y,
-                    "Only has an effect while this team's immortality is enabled. Damage lowers HP normally. A lethal hit records one death and one attacker kill, then restores exactly the reference HP percentage without moving the unit or clearing its orders. Excess damage does not kill several lives at once.");
+                    "Requires immortality. HP decrease on hits, then refill to Reference HP at defeat. Count one death and attacker kill; keep position and orders.");
                 var row = Row(word + " HP", y, 87); float rw = layout.w - 40;
                 string hpTip = "Reference HP for " + word + ": 1-100% of each unit's own maximum health. Applies immediately to current units and new spawns. Invulnerable units remain at this level. Circular units restart at this level after every virtual death. Changing the percentage resets their current HP and hidden damage pool, but keeps kill/death counts.";
                 Text(row, "REFERENCE HP", 10, 16, rw - 120, 12); Input(row, word + "Hp", new Rect(rw - 98, 3, 88, 26), () => t.HpPercent(side).ToString("0.#", CultureInfo.InvariantCulture), s => t.SetHpPercent(side, OzUeLabInput.Number(s)), hpTip);
@@ -228,16 +231,16 @@ namespace OpenZ
             }
             ToggleRow("Show damage", () => t.ShowDamage, v => t.ShowDamage = v, ref y, "Floating HP lost above the unit for each landed hit. Invulnerable units display the HP they would have lost, marked as theoretical. Misses display no damage. Driver damage is identified separately.");
             var scores = Row("Scores", y, 94); float sw = layout.w - 40;
-            const string scoreTip = "Trophy = kills, skull = deaths. Success above them = kills / (kills + deaths) x 100; no recorded fights = 0%. Immortals count virtual defeats too. Counts accumulate while hidden. Reset counters clears every unit's kills, deaths and success, without changing HP, orders or partial damage pools.";
+            const string scoreTip = "Trophy: kills. Skull: deaths. Success: kills / total defeats. Immortals count virtual defeats. Reset clears scores only, including hidden scores.";
             var scoreLabel = Text(scores, "Show kill and death counts", 10, 16, sw - 20, 12); Tip(scoreLabel.rectTransform, scoreTip);
             var countsToggle = Button(scores, "ShowCounts", "", new Rect(10, 33, 70, 27), scoreTip, () => t.ShowCounts = !t.ShowCounts);
             refresh.Add(() => { countsToggle.Label.Set(t.ShowCounts ? "ON" : "OFF"); countsToggle.Selected = t.ShowCounts; countsToggle.Refresh(); });
             Button(scores, "ResetCounters", "RESET COUNTERS", new Rect(88, 33, sw - 98, 27), scoreTip, t.ResetCounters);
             Text(scores, "Success = kills / (kills + deaths)", 10, 78, sw - 20, 10, OzUi.Muted); y += 94;
             ToggleRow("Reset automatically on parameters change", () => t.ResetAutomaticallyOnParametersChange, v => t.ResetAutomaticallyOnParametersChange = v, ref y,
-                "Reset ALL units' kills, deaths and success whenever a changed effective combat-dynamics value affects at least one living unit fighting in this playground (target/order, dodge, incoming attack or hit in the last 3 seconds). Covers master, fields, presets, import and restoring defaults. Changing a name, saving, reapplying identical values or editing an absent/non-fighting type does not reset. Enabling this option alone does not reset counters. HP and orders remain unchanged.");
+                "Clear scores when a dynamics change affects units currently fighting. Saving, renaming and changes to inactive types keep scores. HP and orders stay unchanged.");
             ToggleRow("Respawning", () => t.Respawning, v => t.Respawning = v, ref y,
-                "After a real or virtual defeat, reset both opponents to their team points, restore reference HP and crew, clear old projectiles and attack again. Set both points first. Works with or without immortality and cycling damage.");
+                "After defeat, return both opponents to their team points, refill HP and crew, clear projectiles and restart combat. Set both points first.");
             foreach (Team side in new[] { Team.Red, Team.Blue })
             {
                 Team team = side; var row = Row("RespawnPoint" + team, y, 42);
@@ -258,7 +261,7 @@ namespace OpenZ
             Text(row, label, 10, 18, rw - 95, 12);
             var b = Button(row, "Toggle", "", new Rect(rw - 80, 6, 70, 27), tip, () => set(!get()));
             refresh.Add(() => { b.Label.Set(get() ? "ON" : "OFF"); b.Selected = get(); b.Refresh(); });
-            Text(row, "Hover for detailed rules", 10, 43, rw - 20, 10, OzUi.Muted); Tip(row, tip); y += 58;
+            Text(row, ToggleSummary(label), 10, 43, rw - 20, 10, OzUi.Muted); Tip(row, tip); y += 58;
         }
         void BuildPresetList()
         {
@@ -285,6 +288,77 @@ namespace OpenZ
             }
             list.SetContentHeight(y);
         }
+        static string ToggleSummary(string label)
+        {
+            if (label.StartsWith("Immortal", StringComparison.Ordinal)) return "Keep units alive after defeat.";
+            if (label.StartsWith("Circular", StringComparison.Ordinal)) return "Cycle HP back to full after defeat.";
+            if (label.StartsWith("Reset automatically", StringComparison.Ordinal)) return "Clear scores when active combat settings change.";
+            if (label == "Respawning") return "Return opponents to their starting points after defeat.";
+            if (label.Contains("visual lag")) return "Compare combat position with the displayed model.";
+            if (label.Contains("velocity")) return "Show destination and commanded movement arrows.";
+            if (label.Contains("damage")) return "Show recent damage above each unit.";
+            return "Playground display and testing setting.";
+        }
+        static string Brief(string tip)
+        { int stop = tip.IndexOf(". ", StringComparison.Ordinal); string first = stop < 0 ? tip : tip.Substring(0, stop); return first.Length <= 74 ? first : first.Substring(0, first.LastIndexOf(' ', 70)) + "..."; }
+        void BuildDirectionCircle(ref float y)
+        {
+            float rw = layout.w - 40, cx = rw / 2, radius = Mathf.Min(155, (rw - 90) / 2);
+            float cy = 66 + radius, bottom = cy + radius + 27;
+            var row = Row("DodgeCircle", y, bottom + 146);
+            Text(row, "OpenZ-VK | DODGE DIRECTIONS", 9, 17, rw - 18, 12, OzForkOptions.Accent);
+            Text(row, "0 deg: forward | clockwise | 180 deg: back", 9, 38, rw - 18, 10, OzUi.Muted);
+            var nativeCircleValues = new ZBehaviorProfile { family = (ZBehaviorFamily)family, master = 100 }.Resolve(Type);
+            var circleValues = P.Resolve(Type) ?? nativeCircleValues;
+            int circleRevision = World.BehaviorRevision;
+            refresh.Add(() => { if (circleRevision != World.BehaviorRevision) { circleRevision = World.BehaviorRevision; circleValues = P.Resolve(Type) ?? nativeCircleValues; } });
+            for (int segment = 0; segment < 64; segment++)
+            {
+                float a = segment * Mathf.PI / 32, c = (segment + 1) * Mathf.PI / 32;
+                float x1 = cx + Mathf.Sin(a) * radius, y1 = cy - Mathf.Cos(a) * radius;
+                float x2 = cx + Mathf.Sin(c) * radius, y2 = cy - Mathf.Cos(c) * radius;
+                float length = Vector2.Distance(new Vector2(x1, y1), new Vector2(x2, y2));
+                var line = OzUeGfx.Rect(row, "Ring" + segment, OzUi.A(OzForkOptions.Accent, .45f), (x1 + x2 - length) / 2, (y1 + y2) / 2 - .5f, length, 1).rectTransform;
+                line.localRotation = Quaternion.Euler(0, 0, -Mathf.Atan2(y2 - y1, x2 - x1) * Mathf.Rad2Deg);
+            }
+            for (int i = 0; i < 16; i++)
+            {
+                int index = i; float angle = i * Mathf.PI / 8;
+                float x = cx + Mathf.Sin(angle) * radius, yy = cy - Mathf.Cos(angle) * radius;
+                var spoke = OzUeGfx.Rect(row, "Spoke" + i, OzUi.A(OzForkOptions.Accent, .3f), cx, cy, 1, radius - 22).rectTransform;
+                spoke.pivot = new Vector2(.5f, 0); spoke.localRotation = Quaternion.Euler(0, 0, -i * 22.5f);
+                var button = Button(row, "Direction" + i, "", new Rect(x - Mathf.Min(27, radius * .185f), yy - 16, Mathf.Min(54, radius * .37f), 32),
+                    (i * 22.5).ToString("0.#", CultureInfo.InvariantCulture) + " deg clockwise from forward. Select to edit its weight.",
+                    () => { FinishFields(); selectedDirection = index; });
+                refresh.Add(() => {
+                    var v = circleValues;
+                    button.Label.Set((index * 22.5).ToString("0.#", CultureInfo.InvariantCulture) + "\n" + (100 * ZObject.BehaviorDirectionProbability(v, index)).ToString("0.#", CultureInfo.InvariantCulture) + "%");
+                    button.Label.color = index == selectedDirection ? OzForkOptions.Accent : OzUi.Ink;
+                });
+            }
+            var mode = Button(row, "Mode", "", new Rect(cx - 64, cy - 18, 128, 36),
+                "Classic: exact continuous Zod angles. Circle: 16 relative directions. Editing a weight enables the circle.",
+                () => Edit((ZBehaviorFamily)family, ZBehaviorKey.Direction, P.Get(Type, ZBehaviorKey.Direction) == 3 ? 0 : 3, Type));
+            refresh.Add(() => mode.Label.Set(P.Get(Type, ZBehaviorKey.Direction) == 3 ? "CIRCLE ACTIVE" : P.Get(Type, ZBehaviorKey.Direction) == 0 ? "ZOD CLASSIC" : "USE CIRCLE"));
+            var selected = Text(row, "", 9, bottom + 8, rw - 18, 11, OzForkOptions.Accent);
+            refresh.Add(() => selected.Set("Direction " + (selectedDirection * 22.5).ToString("0.#", CultureInfo.InvariantCulture) + " deg | weight"));
+            Input(row, "DirectionWeight", new Rect(9, bottom + 22, 110, 28),
+                () => P.Get(Type, (ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + selectedDirection)).ToString("G12", CultureInfo.InvariantCulture),
+                value => { Edit((ZBehaviorFamily)family, (ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + selectedDirection), OzUeLabInput.Number(value), Type); Edit((ZBehaviorFamily)family, ZBehaviorKey.Direction, 3, Type); },
+                "Chance = weight / total enabled weights. Zero excludes a direction; all zero prevents dodging. Blocked directions are refused.");
+            Button(row, "ResetZod", "RESET ZOD", new Rect(128, bottom + 22, rw - 137, 28),
+                "Restore exact Zod angles, reference weights and direction permissions for this scope. Other settings stay unchanged.", () => {
+                    FinishFields();
+                    for (int i = 0; i < 16; i++) { var key = (ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + i); P.Set(Type, key, ZBehaviorSchema.Def(key).Zod); }
+                    P.Set(Type, ZBehaviorKey.Direction, 0);
+                    P.Set(Type, ZBehaviorKey.Forward, 1); P.Set(Type, ZBehaviorKey.Backward, 1); P.Set(Type, ZBehaviorKey.Sideways, 1);
+                    Apply(family); dirty = true;
+                });
+            Text(row, "Zod reference: 1,000 native draws grouped into 16 bins.", 9, bottom + 70, rw - 18, 10, OzUi.Muted);
+            Text(row, "Classic: world angles. Circle: relative to forward.", 9, bottom + 89, rw - 18, 10, OzUi.Muted);
+            Text(row, "Reset restores exact classic angles, without bin rounding.", 9, bottom + 108, rw - 18, 10, OzUi.Muted);
+            y += bottom + 146;
+        }
         string Reference(ZBehaviorDef d, bool zod)
         {
             if (Type != "") return d.Format(P.Reference(Type, d.Key, zod));
@@ -294,10 +368,9 @@ namespace OpenZ
         }
         public string Explain(ZBehaviorKey key)
         {
-            var d = ZBehaviorSchema.Def(key); string refs = "";
-            foreach (var type in family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)
-                if (Type == "" || Type == type) refs += DisplayType(type) + ": OpenZ " + d.Format(P.Reference(type, key, false)) + "; Zod " + d.Format(P.Reference(type, key, true)) + ".\n";
-            return d.Label + "\n" + d.Tip + "\n" + refs + "Zod Classic is the pre-#103 dodge/stop-and-fire behavior; Zod Local is idle-only. It does not replace projectile speeds, armor, range, collision, or weapon stats. Manual values override the master; numeric values are not limited by a slider. Physical movement limits affect real positions only when enabled; visual settings affect the model. Zero means instant/unlimited only where the label explicitly says so.";
+            var d = ZBehaviorSchema.Def(key);
+            return d.Tip + "\nDefaults: OpenZ " + Reference(d, false) + " | Zod " + Reference(d, true) + "." + (d.Unit.Length == 0 ? "" : "\nUnit: " + d.Unit + ".") +
+                (d.Label.Contains("0 = unlimited") ? " Zero removes this limit." : d.Label.Contains("0 = instant") ? " Zero applies instantly." : "");
         }
         void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it under DYNAMICS in the lobby."; }
         void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Laboratory] " + e.Message); } }

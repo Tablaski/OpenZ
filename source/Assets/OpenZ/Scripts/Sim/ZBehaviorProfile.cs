@@ -23,7 +23,7 @@ namespace OpenZ.Sim
         Crippling, GreenShake, GreenSpeed, GreenAcceleration, GreenSmoke, GreenOil, GreenOilLife,
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
-        Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, Count
+        Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -81,8 +81,8 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.MinDamage,"Minimum incoming damage","DODGING","HP",0,10000,0,0,"Ignore threats below this raw damage, before armor and distance falloff."),
             N(ZBehaviorKey.Distance,"Dodge distance multiplier","DODGING","x",0.1,4,1,1,"Multiplies the native time-to-impact times speed distance, including its random extension."),
             N(ZBehaviorKey.MinDistance,"Minimum dodge distance","DODGING","m",0,20,0,0,"Lower limit for a defensive step."),
-            N(ZBehaviorKey.MaxDistance,"Maximum dodge distance (0 = unlimited)","DODGING","m",0,40,0,0,"Upper limit; also respects maximum deviation from the interrupted order."),
-            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,2,0,0,"Predictive samples reachable, unblocked trajectories against the predicted explosion.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE"}),
+            N(ZBehaviorKey.MaxDistance,"Maximum dodge distance (0 = unlimited)","DODGING","m",0,40,0,0,"Total actual dodge travel, including replans. Stops the dodge and resumes the interrupted order."),
+            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,3,0,0,"Weighted circle draws one of 16 headings. Predictive samples reachable, unblocked trajectories against the predicted explosion.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE","WEIGHTED CIRCLE"}),
             B(ZBehaviorKey.Forward,"Allow forward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Backward,"Allow backward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Sideways,"Allow sideways dodge","DODGING",true,true,"Allow directions predominantly across the current heading."),
@@ -113,7 +113,7 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.Boost,"Defensive boost enabled","BOOST",true,true,"Allow sprint during a dodge."),
             N(ZBehaviorKey.BoostSpeed,"Defensive boost speed","BOOST","x",1,5,1.8,1.8,"Replaces the defensive sprint multiplier; existing speed bonuses use the strongest factor."),
             N(ZBehaviorKey.BoostChance,"Boost activation chance","BOOST","%",0,100,80,80,"Native Zod attempts start a run 80 percent of the time."),
-            N(ZBehaviorKey.BoostDuration,"Maximum boost duration (0 = unlimited)","BOOST","s",0,20,0,0,"Maximum defensive sprint duration, still bounded by endurance when enabled."),
+            N(ZBehaviorKey.BoostDuration,"Maximum boost duration (0 = unlimited)","BOOST","s",0,20,0,0,"Time from the first boost activation in a dodge. Replanning does not restart it. Endurance can stop boost earlier."),
             B(ZBehaviorKey.Endurance,"Boost consumes endurance","BOOST",true,true,"Disable for unlimited arcade sprint; does not refill the current reserve."),
             N(ZBehaviorKey.Drain,"Endurance consumption","BOOST","x",0,5,1,1,"Defensive boost consumption relative to native running."),
             N(ZBehaviorKey.Recharge,"Endurance recharge","BOOST","x",0,5,1,1,"Recharge multiplier. Reserve capacity still comes from unit statistics."),
@@ -130,8 +130,8 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Cohesion,"Maximum squad separation (0 = unlimited)","COMBAT","m",0,30,0,0,"Reject dodge endpoints farther than this from the squad leader."),
             N(ZBehaviorKey.RegroupDelay,"Delay before post-dodge regroup","COMBAT","s",0,5,0,0,"Delay autonomous minion movement after a dodge; direct orders still resume immediately."),
             B(ZBehaviorKey.CombatManoeuvres,"OpenZ offensive combat manoeuvres","COMBAT",true,false,"OpenZ's flanks, arcs and reverses while attacking. OFF uses Zod's stop-and-fire behavior once in range. Defensive dodges remain separate."),
-            B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Custom combat safeguard: end the dodge 0.1 s after the first triggering blast and resume the interrupted attack. Later shots can change the direction but cannot postpone this return indefinitely. Stops long boosted dodge endpoints from behaving like a retreat. Enabled automatically when you manually tune a profile; turn it off to reproduce Zod's full random step. New player orders always take precedence."),
-            B(ZBehaviorKey.TurnFirst,"Brake, pivot, then accelerate","MOVEMENT",false,false,"Requires physical movement limits. Brake along the current travel axis, pivot once slow enough, then accelerate once aligned. With reversing allowed, choose the front or rear axis requiring the shortest turn (at most 90 degrees). Applies to orders and dodges; overrides lateral movement and legacy pivot switches."),
+            B(ZBehaviorKey.ResumeAttack,"Resume attack after the threat passes","DODGING",false,false,"Resume the interrupted attack 0.1 s after the first blast. Later shots cannot postpone it. Enabled when manually tuning a profile; OFF keeps the full Zod step. Player orders take priority."),
+            B(ZBehaviorKey.TurnFirst,"Brake, pivot, then accelerate","MOVEMENT",false,false,"Physical mode: brake, pivot, then accelerate once aligned. Reverse is used when allowed and quicker to align. Replaces lateral movement and the older pivot switches."),
             N(ZBehaviorKey.PivotSpeed,"Retained speed during pivot","MOVEMENT","%",0,100,0,0,"Brake to this fraction of commanded speed before pivoting. 0 = stop completely; 5 = almost stop. Effective range 0-100%. Requires brake-pivot-accelerate mode."),
             N(ZBehaviorKey.AlignmentTolerance,"Alignment before acceleration","MOVEMENT","deg",0,45,5,5,"Start accelerating when the chosen front or rear hull axis is within this angle of travel. Effective maximum 45 degrees. Requires brake-pivot-accelerate mode."),
             B(ZBehaviorKey.Crippling,"Custom damage movement and trails","CRIPPLING",false,false,"Enable per-health-band movement and visual effects. OFF retains native damage speed and existing effects. Bands match the editor hover bar: GREEN above 50%, YELLOW above 25% through 50%, RED at or below 25%. Tank family and per-type overrides are saved with the profile."),
@@ -159,7 +159,24 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.ImpactDuration,"Light hit: penalty duration","CRIPPLING","s",0,5,.2,.2,"Simulation seconds of light impact speed cap. 0 disables this tier. Acceleration settings determine recovery afterwards."),
             N(ZBehaviorKey.HeavyImpactMin,"Heavy hit: minimum HP lost","CRIPPLING","HP",0,10000,1000,1000,"Minimum actual HP lost in one hit for the heavy tier, independent of the light threshold. Heavy tier wins if both qualify."),
             N(ZBehaviorKey.HeavyImpactSpeed,"Heavy hit: retained speed","CRIPPLING","%",0,100,2,2,"Speed cap during a heavy impact. 2% almost stops the unit; 0 fully stops travel temporarily."),
-            N(ZBehaviorKey.HeavyImpactDuration,"Heavy hit: penalty duration","CRIPPLING","s",0,5,.6,.6,"Simulation seconds of heavy impact speed cap. 0 disables this tier. Subsequent weaker hits cannot shorten or weaken it.")
+            N(ZBehaviorKey.HeavyImpactDuration,"Heavy hit: penalty duration","CRIPPLING","s",0,5,.6,.6,"Simulation seconds of heavy impact speed cap. 0 disables this tier. Subsequent weaker hits cannot shorten or weaken it."),
+            N(ZBehaviorKey.BoostMaxDistance,"Maximum boost distance (0 = unlimited)","BOOST","m",0,40,0,0,"Total boosted travel per dodge. Replanning does not reset it."),
+            N(ZBehaviorKey.DodgeWeight0,"Dodge 0 deg weight","DIRECTION WEIGHTS","",0,100,78,78,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight1,"Dodge 22.5 deg weight","DIRECTION WEIGHTS","",0,100,90,90,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight2,"Dodge 45 deg weight","DIRECTION WEIGHTS","",0,100,87,87,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight3,"Dodge 67.5 deg weight","DIRECTION WEIGHTS","",0,100,77,77,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight4,"Dodge 90 deg weight","DIRECTION WEIGHTS","",0,100,76,76,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight5,"Dodge 112.5 deg weight","DIRECTION WEIGHTS","",0,100,70,70,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight6,"Dodge 135 deg weight","DIRECTION WEIGHTS","",0,100,66,66,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight7,"Dodge 157.5 deg weight","DIRECTION WEIGHTS","",0,100,62,62,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight8,"Dodge 180 deg weight","DIRECTION WEIGHTS","",0,100,60,60,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight9,"Dodge 202.5 deg weight","DIRECTION WEIGHTS","",0,100,53,53,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight10,"Dodge 225 deg weight","DIRECTION WEIGHTS","",0,100,54,54,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight11,"Dodge 247.5 deg weight","DIRECTION WEIGHTS","",0,100,54,54,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight12,"Dodge 270 deg weight","DIRECTION WEIGHTS","",0,100,44,44,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight13,"Dodge 292.5 deg weight","DIRECTION WEIGHTS","",0,100,42,42,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight14,"Dodge 315 deg weight","DIRECTION WEIGHTS","",0,100,47,47,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeWeight15,"Dodge 337.5 deg weight","DIRECTION WEIGHTS","",0,100,40,40,"Relative chance. Zero excludes this direction."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium" };

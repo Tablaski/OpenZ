@@ -96,6 +96,7 @@ static class BehaviorChecks
         check(moving.LocX - initialX < moving.RealMoveSpeed * .1, "Acceleration limits actual displacement");
         for (int i = 2; i < 150; i++) moving.ProcessServer(i * .1);
         check(moving.LocX > initialX + 20 && moving.LocX <= initialX + 73, "Physical controller approaches the real target without overshoot");
+        DodgeCircleChecks.Run(settings, map, openX, openY, check);
         TurnFirstChecks(settings, map, openX, openY, check);
         CripplingChecks.Run(settings, map, openX, openY, check);
     }

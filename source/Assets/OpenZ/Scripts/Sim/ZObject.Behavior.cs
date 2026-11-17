@@ -8,6 +8,8 @@ namespace OpenZ.Sim
         public ZBehaviorValues Behavior => World?.BehaviorFor(this);
         public bool BehaviorDodging => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.Dodge;
         public string BehaviorDodgeReason = "No threat";
+        public double BehaviorDodgeDistance => behaviorDodgeTravel * ZConst.PX_TO_M;
+        public double BehaviorBoostDistance => behaviorBoostTravel * ZConst.PX_TO_M;
         public int BehaviorAlerts, BehaviorAttempts, BehaviorRefusals, BehaviorReplans;
         public double BehaviorHeading, BehaviorActualSpeed;
         public bool BehaviorHeadingSet;
@@ -18,6 +20,8 @@ namespace OpenZ.Sim
         internal bool BehaviorRocketWeapon => Type == "tough" || Type == "medium" || Type == "missile_launcher" || Type == "missile_cannon";
         double behaviorTurnSpeed, behaviorReverseUntil, behaviorDodgeStart = -100, behaviorBlastAt,
             behaviorLastDodge = -100, behaviorFireUntil, behaviorRegroupUntil;
+        double behaviorDodgeTravel, behaviorBoostTravel, behaviorBoostStart;
+        bool behaviorBoostStarted, behaviorBoostSettled;
         bool behaviorReversing, behaviorWasDodging, behaviorPending;
         int behaviorTravelSign = 1;
         double behaviorReactAt, behaviorPendingBlast, behaviorAttackReturnAt;
@@ -135,16 +139,18 @@ namespace OpenZ.Sim
             int k = World.Rng.Next(1000); if (k == 0) k = 1000;
             double random = 2 * 3.14159 * (1000.0 / k);
             double heading = BehaviorHeadingSet ? BehaviorHeading : p.On(ZBehaviorKey.TurnFirst) ?
-                (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : Math.Atan2(Dy, Dx);
+                (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : (Dx != 0 || Dy != 0 ? Math.Atan2(Dy, Dx) : FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2);
             int bestX = CenterX, bestY = CenterY; double best = double.NegativeInfinity;
             int strategy = (int)p[ZBehaviorKey.Direction];
-            int samples = strategy == 0 ? 1 : strategy == 1 ? 9 : 24;
+            int direction = strategy == 3 ? BehaviorWeightedDirection(p, World.Rng.Next(1000000) / 1000000.0) : -1;
+            if (strategy == 3 && direction < 0) return BehaviorRefuse("No enabled direction weight");
+            int samples = strategy == 0 || strategy == 3 ? 1 : strategy == 1 ? 9 : 24;
             for (int i = 0; i < samples; i++)
             {
-                double angle = strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
+                double angle = strategy == 3 ? heading + direction * Math.PI / 8 : strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
                 double off = WrapRadians(angle - heading), abs = Math.Abs(off);
                 var allow = abs < Math.PI / 4 ? ZBehaviorKey.Forward : abs > 3 * Math.PI / 4 ? ZBehaviorKey.Backward : ZBehaviorKey.Sideways;
-                if (!p.On(allow)) continue;
+                if (strategy == 3 ? !BehaviorDirectionAllowed(p, direction) : !p.On(allow)) continue;
                 int x = (int)Math.Max(WidthPix / 2, Math.Min(World.Map.WidthPix - WidthPix / 2, CenterX + Math.Cos(angle) * length));
                 int y = (int)Math.Max(HeightPix / 2, Math.Min(World.Map.HeightPix - HeightPix / 2, CenterY + Math.Sin(angle) * length));
                 int ox = BehaviorDodging ? behaviorOriginX : CenterX, oy = BehaviorDodging ? behaviorOriginY : CenterY;
@@ -172,6 +178,7 @@ namespace OpenZ.Sim
             else
             {
                 behaviorOriginX = CenterX; behaviorOriginY = CenterY; behaviorDodgeStart = World.Time;
+                behaviorDodgeTravel = behaviorBoostTravel = 0; behaviorBoostStarted = behaviorBoostSettled = false;
                 // Replanning a volley must not keep postponing the interrupted attack forever.
                 behaviorAttackReturnAt = World.Time + time + .1;
                 behaviorLastDodge = World.Time; behaviorShots = 0;
@@ -209,9 +216,20 @@ namespace OpenZ.Sim
                 if (Waypoints.Count != behaviorPendingOrderCount || Waypoints.Count > 0 && !Waypoints[0].Equals(behaviorPendingOrder)) BehaviorRefuse("Order changed during reaction");
                 else BehaviorDodge(behaviorPendingX, behaviorPendingY, behaviorPendingBlast - World.Time, behaviorPendingKind, behaviorPendingDamage, behaviorPendingAttacker, behaviorPendingNearby, true);
             }
+            if (BehaviorDodging && BehaviorBoostExhausted && !behaviorBoostSettled)
+            {
+                behaviorBoostSettled = true; IsRunning = false;
+                double previous = RealMoveSpeed;
+                double tile = World.Map.TileWalkSpeed(CenterX, CenterY);
+                if (World.Pathing != null && World.Pathing.Enabled) tile = World.Pathing.SafeTileSpeed(this, tile);
+                RealMoveSpeed = MoveSpeed * tile * DamagedSpeed() * RunSpeed();
+                if (strikePace < 1.0) RealMoveSpeed *= StrikePaceNow;
+                if (previous > 0) { Dx = (float)(Dx / previous * RealMoveSpeed); Dy = (float)(Dy / previous * RealMoveSpeed); UpdatedVelocity = true; }
+            }
             bool returnToAttack = p.On(ZBehaviorKey.ResumeAttack) && Waypoints.Count > 1 &&
                 (Waypoints[1].mode == WpMode.Attack || Waypoints[1].mode == WpMode.Agro);
             if (BehaviorDodging && ((p[ZBehaviorKey.MaxDuration] > 0 && World.Time - behaviorDodgeStart >= p[ZBehaviorKey.MaxDuration]) ||
+                (p[ZBehaviorKey.MaxDistance] > 0 && behaviorDodgeTravel * ZConst.PX_TO_M >= p[ZBehaviorKey.MaxDistance] - 1e-8) ||
                 (p.On(ZBehaviorKey.EndAfterBlast) && World.Time > behaviorBlastAt + .1) ||
                 (returnToAttack && World.Time > behaviorAttackReturnAt))) KillWP();
         }
@@ -230,10 +248,10 @@ namespace OpenZ.Sim
         bool BehaviorStartRun()
         {
             var p = Behavior; if (p == null || !BehaviorDodging) return false;
-            if (IsRunning || !p.On(ZBehaviorKey.Boost)) return true;
+            if (IsRunning || !p.On(ZBehaviorKey.Boost) || BehaviorBoostExhausted) return true;
             if (p.On(ZBehaviorKey.Endurance) && Stamina < p[ZBehaviorKey.MinStamina]) return true;
             if (ShowDamaged && !p.On(ZBehaviorKey.DamagedBoost)) return true;
-            if (p[ZBehaviorKey.BoostChance] == 80 ? World.Rng.Next(5) != 0 : World.Rng.Next(10000) < p[ZBehaviorKey.BoostChance] * 100) IsRunning = true;
+            if (p[ZBehaviorKey.BoostChance] == 80 ? World.Rng.Next(5) != 0 : World.Rng.Next(10000) < p[ZBehaviorKey.BoostChance] * 100) { IsRunning = true; if (!behaviorBoostStarted) { behaviorBoostStarted = true; behaviorBoostStart = World.Time; } }
             return true;
         }
         bool BehaviorStamina(double dt)
@@ -243,7 +261,7 @@ namespace OpenZ.Sim
             {
                 if (!BehaviorDodging || p.On(ZBehaviorKey.Endurance)) Stamina = Math.Max(0, Stamina - dt * (BehaviorDodging ? p[ZBehaviorKey.Drain] : 1));
                 if ((Stamina <= 0 && (!BehaviorDodging || p.On(ZBehaviorKey.Endurance))) ||
-                    BehaviorDodging && p[ZBehaviorKey.BoostDuration] > 0 && World.Time - behaviorDodgeStart >= p[ZBehaviorKey.BoostDuration]) IsRunning = false;
+                    BehaviorDodging && BehaviorBoostExhausted) IsRunning = false;
             }
             else Stamina = Math.Min(MaxStamina, Stamina + dt * World.S.run_recharge_rate * p[ZBehaviorKey.Recharge]);
             return true;
@@ -252,8 +270,68 @@ namespace OpenZ.Sim
         {
             var p = Behavior; if (p == null || !BehaviorDodging) return -1;
             double run = p.On(ZBehaviorKey.Boost) && (Leader != null ? Leader.IsRunning : IsRunning) && (!ShowDamaged || p.On(ZBehaviorKey.DamagedBoost)) ? p[ZBehaviorKey.BoostSpeed] : 1;
-            if (p.On(ZBehaviorKey.PremiumBoost) && PremiumDriven) run = Math.Max(run, ZWorld.PremiumDodgeSpeedMul);
+            if (BehaviorBoostExhausted) run = 1;
+            if (!BehaviorBoostExhausted && p.On(ZBehaviorKey.PremiumBoost) && PremiumDriven) run = Math.Max(run, ZWorld.PremiumDodgeSpeedMul);
             return Math.Min(run, BehaviorMapSpan / Math.Max(1, MoveSpeed) / ZConst.TICK);
+        }
+        bool BehaviorBoostExhausted => Behavior != null &&
+            ((Behavior[ZBehaviorKey.BoostDuration] > 0 && behaviorBoostStarted && World.Time - behaviorBoostStart >= Behavior[ZBehaviorKey.BoostDuration]) ||
+             (Behavior[ZBehaviorKey.BoostMaxDistance] > 0 && behaviorBoostTravel * ZConst.PX_TO_M >= Behavior[ZBehaviorKey.BoostMaxDistance] - 1e-8));
+        public static bool BehaviorDirectionAllowed(ZBehaviorValues p, int i)
+        {
+            int offset = Math.Min(i, 16 - i);
+            return p.On(offset < 2 ? ZBehaviorKey.Forward : offset > 6 ? ZBehaviorKey.Backward : ZBehaviorKey.Sideways);
+        }
+        static double BehaviorDirectionScale(ZBehaviorValues p)
+        {
+            double scale = 0;
+            for (int i = 0; i < 16; i++) if (BehaviorDirectionAllowed(p, i)) scale = Math.Max(scale, p[(ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + i)]);
+            return scale;
+        }
+        public static double BehaviorDirectionProbability(ZBehaviorValues p, int direction)
+        {
+            double scale = BehaviorDirectionScale(p), total = 0;
+            if (scale <= 0 || !BehaviorDirectionAllowed(p, direction)) return 0;
+            for (int i = 0; i < 16; i++) if (BehaviorDirectionAllowed(p, i)) total += p[(ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + i)] / scale;
+            return p[(ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + direction)] / scale / total;
+        }
+        public static int BehaviorWeightedDirection(ZBehaviorValues p, double draw)
+        {
+            double scale = BehaviorDirectionScale(p), total = 0;
+            if (scale <= 0) return -1;
+            for (int i = 0; i < 16; i++) if (BehaviorDirectionAllowed(p, i)) total += p[(ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + i)] / scale;
+            if (total <= 0) return -1;
+            double target = Math.Max(0, Math.Min(.999999999, draw)) * total;
+            for (int i = 0; i < 16; i++) if (BehaviorDirectionAllowed(p, i))
+            { target -= p[(ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + i)] / scale; if (target < 0) return i; }
+            return -1;
+        }
+        // Count accepted travel across turns and replans.
+        void BehaviorRecordTravel(double distance)
+        {
+            if (!BehaviorDodging || Behavior == null) return;
+            behaviorDodgeTravel += distance;
+            if (BehaviorRunSpeed() > 1)
+            {
+                if (!behaviorBoostStarted) { behaviorBoostStarted = true; behaviorBoostStart = World.Time; }
+                behaviorBoostTravel += distance;
+            }
+        }
+        void BehaviorLimitStep(double dt, ref double vx, ref double vy)
+        {
+            var p = Behavior;
+            if (p == null || !BehaviorDodging || dt <= 0) return;
+            double length = Math.Sqrt(vx * vx + vy * vy) * dt, allowed = length;
+            if (p[ZBehaviorKey.MaxDistance] > 0) allowed = Math.Min(allowed, Math.Max(0, p[ZBehaviorKey.MaxDistance] / ZConst.PX_TO_M - behaviorDodgeTravel));
+            if (p[ZBehaviorKey.MaxDuration] > 0) allowed = Math.Min(allowed, length * Math.Max(0, Math.Min(1, (behaviorDodgeStart + p[ZBehaviorKey.MaxDuration] - World.Time) / dt)));
+            if (BehaviorRunSpeed() > 1)
+            {
+                double fraction = 1;
+                if (p[ZBehaviorKey.BoostMaxDistance] > 0) fraction = Math.Min(fraction, Math.Max(0, (p[ZBehaviorKey.BoostMaxDistance] / ZConst.PX_TO_M - behaviorBoostTravel) / Math.Max(1e-12, length)));
+                if (p[ZBehaviorKey.BoostDuration] > 0 && behaviorBoostStarted) fraction = Math.Min(fraction, Math.Max(0, (behaviorBoostStart + p[ZBehaviorKey.BoostDuration] - World.Time) / dt));
+                allowed = Math.Min(allowed, length * fraction);
+            }
+            if (length > 0 && allowed < length) { vx *= allowed / length; vy *= allowed / length; }
         }
         double BehaviorMapSpan => World.Map.WidthPix + (double)World.Map.HeightPix;
         double BehaviorBaseMoveSpeed => MoveSpeed * World.Map.TileWalkSpeed(CenterX, CenterY) * DamagedSpeed();

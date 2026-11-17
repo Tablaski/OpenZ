@@ -29,7 +29,9 @@ static class Program
     static async Task<int> Main()
     {
         if (Environment.GetEnvironmentVariable("OZ_DUEL_BENCH") == "1") { ReplicationPerformance.Run(); return 0; }
-        try { await Run(); return 0; }
+        try {
+            if (Environment.GetEnvironmentVariable("OZ_BEHAVIOR_CHECKS") == "1") { BehaviorChecks.Run(Check, Reject); Console.WriteLine("PASS: " + checks + " behavior and movement checks (no player)."); return 0; }
+            await Run(); return 0; }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
     static async Task Run()

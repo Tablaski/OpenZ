@@ -1,5 +1,20 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.18 (source update, 17 Nov 2026)
+
+- Put maximum dodge/boost time and travel distance directly in FEEL. Zero keeps
+  an unlimited budget; replanning does not replenish a running dodge or boost.
+- Add a 16-direction probability circle to FEEL and DODGING, with editable
+  relative weights, normalized percentages and a scoped RESET ZOD button.
+- Derive reference weights from all 1,000 native Zod angle draws. Exact classic
+  mode retains continuous world angles; custom circle mode uses headings at
+  22.5-degree intervals relative to forward. Reset restores exact classic mode.
+- Keep settings in existing saved/exported profiles and host-owned lobby rules.
+  Existing preset key numbers and preferences remain compatible.
+- Replace generic hover prompts with short inline explanations and shorten
+  dynamics/testing tooltips. Register dynamics fields for the shared violet accent.
+- Source only; player UI and gameplay validation remain pending.
+
 ## OpenZ-VK 0.2.17 (source update, 17 Nov 2026)
 
 - Replace the multiplayer screen and map-gallery text wordmarks with the shared

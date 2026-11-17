@@ -38,7 +38,7 @@ namespace OpenZ
         partial void Lv4Boot()
         {
             if (OzLavaFx.Off) return;
-            gameObject.AddComponent<OzVolcano>().Boot(this, game, map);
+            if (OzVolcanic.Is(game.level)) gameObject.AddComponent<OzVolcano>().Boot(this, game, map);
             gameObject.AddComponent<OzLavaPrewarm>();
         }
         partial void Lv4Tick(float dt, float t) { var v = OzVolcano.I; if (v) v.Tick(dt); }

@@ -1,5 +1,13 @@
 # Player validation record
 
+## OpenZ-VK 0.2.28 volcanic V2 maps (awaiting compiled-game validation)
+
+- Deploy both V2 maps from the solo Shitty Maps gallery and confirm that the ordinary Volcano mission and the V1 Molten Kombat card still open their own scenes.
+- Check the terrain and road edges from the ordinary RTS camera and at low zoom. Verify the starting armies, flags and grenade crate pickups and destruction, including the crate by the bridge on Molten Kombat.
+- Cross both Molten Kombat bridges, destroy and repair them, and confirm their crossing routes close and reopen. Destroy rocks in a wall and confirm the newly cleared tiles match the visible gap.
+- Try lava orders with the optional OpenZ lava rules on and off. Check that the lava is distinct from solid walls and ravines, and that neither the terrain nor the water or lava views change native path classes.
+- The two recordings cover the game renderer in Unity Play Mode. They cover several camera angles with the maps running. Compiled-game menus and full matches are pending.
+
 ## OpenZ-VK 0.2.27 lobby teams and state packing (awaiting compiled-game validation)
 
 - On two PCs, have both players rename themselves and confirm both names update, then swap teams as host. Confirm readiness clears, the match opens on the assigned fort, each side controls its own army, surrender awards the opposite colour and returning to the lobby keeps the new assignments.

@@ -62,6 +62,13 @@ namespace OpenZ.EditorTools
         public static string RockHeights()
         {
             var root = GameObject.Find("ZodObjects"); if (!root) return "; heights NOT set: no ZodObjects";
+            var result = ApplyRockHeights(root.transform);
+            var scene = EditorSceneManager.GetActiveScene(); EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveOpenScenes();
+            return result;
+        }
+
+        internal static string ApplyRockHeights(Transform root)
+        {
             var rocks = new Dictionary<(int, int), RockPillar>();
             foreach (var rp in root.GetComponentsInChildren<RockPillar>(true))
             {
@@ -70,7 +77,7 @@ namespace OpenZ.EditorTools
             var meshes = new Dictionary<char, Mesh>();
             foreach (char c in RockMeshOrder)
             {
-                var m = AssetDatabase.LoadAllAssetsAtPath($"{RocksDst}/RockZ_Volcanic_Pillar_{c}.fbx").OfType<Mesh>().FirstOrDefault(); if (!m) return "; heights NOT set: Pillar_" + c + " missing";
+                var m = AssetDatabase.LoadAllAssetsAtPath($"{RocksDst}/RockZ_Volcanic_Pillar_{c}.fbx").OfType<Mesh>().FirstOrDefault(); if (!m) throw new System.InvalidOperationException("Volcanic Pillar_" + c + " missing");
                 meshes[c] = m;
             }
             double lo = 99, hi = 0;
@@ -80,7 +87,6 @@ namespace OpenZ.EditorTools
                 rp.pillar.GetComponent<MeshFilter>().sharedMesh = meshes[mesh]; SetY(rp.pillar.transform, (float)sy);
                 Round(rp.pillar.transform); Round(rp.damaged.transform); SetY(rp.damaged.transform, (float)(RockStumpTop(h) / rp.damaged.GetComponent<MeshFilter>().sharedMesh.bounds.max.y));
             }
-            var scene = EditorSceneManager.GetActiveScene(); EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveOpenScenes();
             return $"; heights {lo:0.00} to {hi:0.00} m on {rocks.Count} rocks";
         }
 

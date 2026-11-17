@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.28 (18 Nov 2026)
+
+- The solo Shitty Maps gallery now includes V2 versions of **07 Pyro Technics** and **08 Molten Kombat**. They use textured volcanic ground and roads, animated lava, taller destructible rock formations and the detailed grenade crates. The original OpenZ Volcano and the V1 Molten Kombat remain available in their usual menus.
+
 ## OpenZ-VK 0.2.27 (17 Nov 2026)
 
 - The host can swap the red and blue players in the 1 vs 1 lobby. Both players can correct their own name before marking themselves ready.

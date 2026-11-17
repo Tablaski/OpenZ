@@ -15,7 +15,7 @@ namespace OpenZ.Multiplayer.Editor
         {
             ValidateScriptBindings();
             ValidateWire();
-            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity").Concat(OzShittyMapCatalog.All.Select(m=>m.ScenePath)).ToArray();
+            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity").Concat(OzShittyMapCatalog.Playable.Select(m=>m.ScenePath)).ToArray();
             foreach (string scene in scenes)
                 if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(scene))
                     throw new InvalidOperationException("Required player scene is missing: " + scene);

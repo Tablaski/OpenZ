@@ -33,6 +33,8 @@ namespace OpenZ
         public const int MaxLights = 10;
         /// <summary>The lava material (Resources), made once by the editor menu OpenZ/L07 Lava/Make lava material.</summary>
         public const string MaterialRes = "OpenZ/Lava/M_L07_Lava";
+        Material convertedMaterial;
+        Texture2D convertedField;
 
         public const string SndPopSmall = "lava_pop_small", SndPopBig = "lava_pop_big", SndEnter = "lava_sizzle_enter", SndTick = "lava_burn_tick",
             SndCritical = "lava_critical", SndOut = "lava_steam_out", SndMelt = "lava_melt", SndBed = "amb_l07_lava_bed",
@@ -58,6 +60,8 @@ namespace OpenZ
         {
             if (map != null) { Lv4Down(); Lv3Down(); Lv2Down(); Lv1Down(); }
             if (I == this) I = null; if (sheet) Destroy(sheet); foreach (var x in lights) if (x.l) Destroy(x.l.gameObject);
+            if (convertedMaterial) Destroy(convertedMaterial);
+            if (convertedField) Destroy(convertedField);
             if (AudioDirector.I) for (int i = 0; i < bedCount; i++) AudioDirector.I.StopLoop(BedKey + i);
         }
         const string BedKey = "l07_lava_bed_";
@@ -88,6 +92,8 @@ namespace OpenZ
         void BuildSheet()
         {
             int W = map.width, H = map.height; TilesDrawn = 0;                                             // (a static: a second level start counts afresh)
+            // Generated slopes reach further into their basins than the authored L07 banks.
+            float shoreOverlap = OzVolcanic.Is(game.level) ? edgeGrow : .85f;
             var index = new Dictionary<int, int>(); var verts = new List<Vector3>(); var cols = new List<Color>(); var tris = new List<int>();
             int Corner(int cx, int cy)
             {
@@ -104,7 +110,7 @@ namespace OpenZ
                         if (k == 2) hot++;
                     }
                 var p = new Vector3(cx * 2f, lavaY, -cy * 2f);
-                if (lava < 4 && away.sqrMagnitude > 1e-4f) { away.Normalize(); p.x += away.x * edgeGrow; p.z -= away.y * edgeGrow; }
+                if (lava < 4 && away.sqrMagnitude > 1e-4f) { away.Normalize(); p.x += away.x * shoreOverlap; p.z -= away.y * shoreOverlap; }
                 vi = verts.Count; verts.Add(p); cols.Add(new Color(lava == 4 ? 1f : 0f, hot > 0 ? Mathf.Clamp01(hot / 2f) : 0f, CornerField(cx, cy), 1f));   // b = field id, a = reads the wake
                 index[key] = vi; return vi;
             }
@@ -132,8 +138,41 @@ namespace OpenZ
                 if (!sh) { Debug.LogWarning("[OpenZ] lava: shader OpenZ/Lava missing (run OpenZ/L07 Lava/Make lava material)"); sh = Shader.Find("Universal Render Pipeline/Unlit"); }
                 mat = new Material(sh) { name = "M_L07_Lava" };
             }
-            mr.sharedMaterial = mat;
+            mr.sharedMaterial = OzVolcanic.Is(game.level) ? mat : MaterialForGrid(mat);
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = true;
+        }
+
+        Material MaterialForGrid(Material baseMaterial)
+        {
+            // Preserve the real lava textures and derive flow and bank distance from this map.
+            const int pixelsPerTile = 4;
+            int w = map.width * pixelsPerTile, h = map.height * pixelsPerTile;
+            var pixels = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float tx = (x + .5f) / pixelsPerTile, ty = (h - y - .5f) / pixelsPerTile;
+                int ix = (int)tx, iy = (int)ty;
+                float bank = 1;
+                for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (map.LavaAt(ix + dx, iy + dy)) continue;
+                    float a = Mathf.Max(0, Mathf.Abs(tx - (ix + dx + .5f)) - .5f);
+                    float b = Mathf.Max(0, Mathf.Abs(ty - (iy + dy + .5f)) - .5f);
+                    bank = Mathf.Min(bank, Mathf.Sqrt(a * a + b * b) * 2);
+                }
+                float flow = Mathf.PerlinNoise(tx * .17f, ty * .17f);
+                pixels[y * w + x] = new Color(.31f + flow * .27f, .65f - flow * .21f, bank, .28f);
+            }
+            convertedField = new Texture2D(w, h, TextureFormat.RGBA32, false, true)
+                { name = "Converted lava field", wrapMode = TextureWrapMode.Clamp };
+            convertedField.SetPixels32(pixels);
+            convertedField.Apply(false, true);
+            convertedMaterial = new Material(baseMaterial);
+            convertedMaterial.SetTexture("_FieldMap", convertedField);
+            convertedMaterial.SetVector("_FieldRect", new Vector4(0, -map.height * 2, .5f / map.width, .5f / map.height));
+            return convertedMaterial;
         }
 
         // ------------------------------------------------------------------ the glow lights (one per lava field)

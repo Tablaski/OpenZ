@@ -23,6 +23,7 @@ static class ShittyMapChecks
             check(group.Count(m=>m.Solo)==1,"One solo variant for campaign "+group.Key);
         }
         reject(()=>new DuelRules{Map="SM99"}.Validate(),"Unknown converted map rejected");
+        CheckVolcanicV2(root, settings, check, reject);
         foreach(var entry in OzShittyMapCatalog.All)
         {
             var mapFile=Path.Combine(root,"shittymaps/Resources/OpenZ/Maps",entry.Id+"_grid.json");
@@ -39,6 +40,33 @@ static class ShittyMapChecks
             check(!receiver.Execute(new DuelOrder{Sequence=1,ObjectId=red.Id,Kind=DuelOrderKind.Stop})&&receiver.Execute(new DuelOrder{Sequence=2,ObjectId=blue.Id,Kind=DuelOrderKind.Stop}),entry.Id+": authoritative orders preserve team control");
             var state=DuelReplica.Capture(world); var client=ZWorld.Create(settings,json,1935); client.ConfigureDuel(rules,true); DuelReplica.Apply(client,state);
             check(client.Objects.Count==world.Objects.Count,entry.Id+": initial replica object count");
+        }
+    }
+
+    static void CheckVolcanicV2(string root, string settings, Action<bool, string> check, Action<Action, string> reject)
+    {
+        check(OzShittyMapCatalog.Select(true, world: "volcanic").Count(m => m.Number == 8) == 2,
+            "Both versions of Molten Kombat are available in solo");
+        foreach (var entry in OzShittyMapCatalog.VolcanicV2)
+        {
+            reject(() => new DuelRules { Map = entry.Id }.Validate(), entry.Id + ": the prototype is solo only");
+            string json = File.ReadAllText(Path.Combine(root, "shittymaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+            var map = ZMapData.FromJson(json);
+            var world = ZWorld.Create(settings, json, 1935);
+            int lava = map.lava.Count(k => k > 0);
+            check(map.HasLava && lava == (entry.Number == 7 ? 332 : 717)
+                && map.lava.Select((kind, tile) => kind == 0 || map.classes[tile] == (int)ZClass.Impassable).All(ok => ok),
+                entry.Id + ": lava drawn on impassable native tiles");
+            var bridges = world.Objects.Where(obj => obj.IsBridge).ToArray();
+            check(bridges.Length == (entry.Number == 7 ? 0 : 2), entry.Id + ": native bridge count");
+            foreach (var bridge in bridges)
+            {
+                int x = bridge.CenterX / 16, y = bridge.CenterY / 16;
+                bool intact = world.Path.TilePassable(x, y, false);
+                bridge.SetHealth(0);
+                world.UpdateObjectHealth(bridge);
+                check(intact && !world.Path.TilePassable(x, y, false), entry.Id + ": destroying " + bridge.Type + " closes the crossing");
+            }
         }
     }
 }

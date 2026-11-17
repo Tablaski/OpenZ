@@ -102,16 +102,22 @@ namespace OpenZ.EditorTools
             var scene = EditorSceneManager.GetActiveScene();
             string lv = scene.name.StartsWith("L17") ? "L17" : scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
             string biome = lv == "L17" ? "City" : OzVolcanic.Is(lv) ? "Volcanic" : "Desert";
-            var mat = Mat(biome);
+            var w = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, Resources.Load<TextAsset>($"OpenZ/Maps/{lv}_grid").text, 1);
+            var root = GameObject.Find("ZodObjects").transform;
+            var ground = GameObject.Find("COL_Terrain")?.GetComponent<Collider>();
+            var result = Build(w, root, ground, biome, Mat(biome));
+            EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveOpenScenes(); AssetDatabase.SaveAssets();
+            return $"{lv}: {result}";
+        }
+
+        internal static string Build(ZWorld w, Transform root, Collider ground, string biome, Material mat)
+        {
             var pillars = "ABCD".Select(c => MeshOf($"RockZ_{biome}_Pillar_{c}")).ToArray();
             var dmg = MeshOf($"RockZ_{biome}_Damaged"); var rub = MeshOf($"RockZ_{biome}_Rubble");
             var chunks = Enumerable.Range(0, 8).Select(i => MeshOf($"RockZ_{biome}_Chunk_{i}")).Where(x => x).ToArray();
-            if (pillars.Any(x => !x) || !dmg || !rub) return "kit meshes missing: run Import first";
+            if (!mat || pillars.Any(x => !x) || !dmg || !rub) throw new System.InvalidOperationException("Incomplete RockZ kit for " + biome);
 
-            var w = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, Resources.Load<TextAsset>($"OpenZ/Maps/{lv}_grid").text, 1);
-            var root = GameObject.Find("ZodObjects");
-            var byName = new Dictionary<string, Transform>(); foreach (Transform t in root.transform) byName[t.name] = t;
-            var ground = GameObject.Find("COL_Terrain")?.GetComponent<Collider>();
+            var byName = new Dictionary<string, Transform>(); foreach (Transform t in root) byName[t.name] = t;
             // tiles a pillar must not spill into: roads, water and building footprints
             var blocked = new HashSet<(int, int)>();
             for (int x = 0; x < w.Map.WidthPix / 16; x++) for (int y = 0; y < w.Map.HeightPix / 16; y++) { var c = w.Map.ClassAt(x, y); if (c == ZClass.Road || c == ZClass.Water || c == ZClass.DeepWater) blocked.Add((x, y)); }
@@ -123,7 +129,7 @@ namespace OpenZ.EditorTools
             {
                 if (o.Source == null || !byName.TryGetValue($"rock_{o.Source.x}_{o.Source.y}", out var t)) continue;
                 int tx = o.LocX / 16, ty = o.LocY / 16 + 2;                               // the bottom (blocking) tile
-                var rng = new System.Random(tx * 7919 + ty * 104729 + (lv == "L17" ? 17 : OzVolcanic.Is(lv) ? 7 : 2));
+                var rng = new System.Random(tx * 7919 + ty * 104729 + (biome == "City" ? 17 : biome == "Volcanic" ? 7 : 2));
                 var avoid = new HashSet<int>();
                 if (placed.TryGetValue((tx - 1, ty), out var l)) avoid.Add(l);
                 if (placed.TryGetValue((tx, ty - 1), out var u)) avoid.Add(u);
@@ -144,12 +150,11 @@ namespace OpenZ.EditorTools
                 var rp = t.gameObject.AddComponent<RockPillar>();
                 rp.pillar = Part(t, "Pillar", pillars[variant], mat, yaw, sx, s, sz, true);
                 rp.damaged = Part(t, "Damaged", dmg, mat, yaw, sx, s, sz, false);
-                rp.rubble = OzVolcanic.Is(lv) ? null : Part(t, "Rubble", rub, mat, yaw, sx, s, sz, false);   // level 7: 877 rocks, the rubble is never drawn (BUDGETS.md finding 2)
+                rp.rubble = biome == "Volcanic" ? null : Part(t, "Rubble", rub, mat, yaw, sx, s, sz, false);   // level 7: 877 rocks, the rubble is never drawn (BUDGETS.md finding 2)
                 rp.chunks = chunks; rp.chunkMaterial = mat;
                 count++;
             }
-            EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveOpenScenes(); AssetDatabase.SaveAssets();
-            return $"{lv}: {count} rocks rebuilt as {biome} pillars ({squashed} sides squashed next to roads/water/buildings)";
+            return $"{count} rocks rebuilt as {biome} pillars ({squashed} sides squashed next to roads/water/buildings)";
         }
 
         static GameObject Part(Transform parent, string name, Mesh mesh, Material mat, float yaw, float sx, float sy, float sz, bool active)

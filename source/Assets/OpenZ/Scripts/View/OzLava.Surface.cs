@@ -57,7 +57,7 @@ namespace OpenZ
             Shader.SetGlobalFloat(OzLavaIds.Lite, OzLavaFx.Lite ? 1f : 0f);
             FloodFields();
             BuildGrid();
-            if (OzLavaFx.Off) return;
+            if (OzLavaFx.Off || !OzVolcanic.Is(game.level)) return;
             BuildBorders();
         }
 
@@ -122,14 +122,15 @@ namespace OpenZ
         // ------------------------------------------------------------------ the drawn grid: the pockets file, then the map's tiles over it
         void BuildGrid()
         {
-            gx0 = -24f; gz1 = 24f; gRcp = 2f; gw = 432; gh = 536; gLavaY = lavaY;
-            var ta = Resources.Load<TextAsset>(PocketsRes); byte[] bits = null;
+            gx0 = -24f; gz1 = 24f; gRcp = 2f; gw = (map.width * 2 + 48) * 2; gh = (map.height * 2 + 48) * 2; gLavaY = lavaY;
+            bool authoredLayout = OzVolcanic.Is(game.level);
+            var ta = authoredLayout ? Resources.Load<TextAsset>(PocketsRes) : null; byte[] bits = null;
             if (ta != null && ta.bytes.Length > 20)
             {
                 var b = ta.bytes; gw = System.BitConverter.ToInt32(b, 0); gh = System.BitConverter.ToInt32(b, 4); gx0 = System.BitConverter.ToSingle(b, 8); gz1 = System.BitConverter.ToSingle(b, 12);
                 gRcp = 1f / System.BitConverter.ToSingle(b, 16); bits = b;
             }
-            else Debug.LogWarning("[OpenZ] lava: " + PocketsRes + " missing, no border lava");
+            else if (authoredLayout) Debug.LogWarning("[OpenZ] lava: " + PocketsRes + " missing, no border lava");
             var g = new sbyte[gw * gh];
             for (int i = 0; i < g.Length; i++) g[i] = -1;
             float[] sum = new float[8]; int[] count = new int[4];                                         // x and z sums per border side, for FieldCentre

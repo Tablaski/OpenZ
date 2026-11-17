@@ -110,7 +110,7 @@ namespace OpenZ.EditorTools
 
         /// <summary>Seat every tower cannon under zroot with TowerMounts.ApplySeat (the run-time rule) and (re)bake the plinths. Also
         /// called by OpenZSetup.BuildLevel. Returns a log line per cannon (before -> after, cm / deg).</summary>
-        public static string SeatAll(Transform zroot)
+        public static string SeatAll(Transform zroot, bool bakePlinths = true)
         {
             var sb = new StringBuilder("[TowerGunSeat] tower guns seated (tower_gun_fix):");
             if (!zroot) return sb.Append(" no ZodObjects").ToString();
@@ -130,7 +130,7 @@ namespace OpenZ.EditorTools
                 }
                 sb.Append($"\n  {g.t.name} on {g.fort.t.name} pad {g.pad}: {before} -> {Off()}");
             }
-            sb.Append("\n  ").Append(BakePlinths(zroot.gameObject.scene, forts));
+            if (bakePlinths) sb.Append("\n  ").Append(BakePlinths(zroot.gameObject.scene, forts));
             return sb.ToString();
         }
 

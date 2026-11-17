@@ -2,6 +2,8 @@
 
 ## Public presentation and build delivery
 
+- Call the runnable game a "compiled game", never a "player", in documentation and user-facing explanations. Reserve "player" for a person playing the game; internal Unity API identifiers may retain their technical names. Briefly distinguish source code, compiled-game ZIPs, Unity, resource ZIPs and the installer in the README.
+
 - Always put the supplied OpenZ-VK logo at the very beginning of the public README, before notices and headings. Do not use the original OpenZ banner as the opening image. Preserve the supplied logo's artwork and colors.
 - Keep the README short and focused on differences from original OpenZ, especially added gameplay options, multiplayer rules and converted Shitty Maps. Technical implementation and optimization details belong in commits, commit descriptions or technical documentation.
 - The public changelog and installer release notes are always for players, never a developer changelog. Describe new features, gameplay and rule changes, installation/update improvements and visible fixes in plain language. Keep implementation details, internal identifiers, tests, benchmarks, source-only delivery notes and publication/review procedures in commits and their descriptions or private validation records. Apply this rule to future entries and revisions of existing fork entries.

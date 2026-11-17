@@ -29,11 +29,15 @@ Fresh installations supply **OpenZ** and **Z Classic** reference profiles only. 
 
 ## Download and play
 
-Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest). Install a published player and read its changelog, or choose **Build from sources** to select any commit from stable **main** or development **dev** and compile it. The installer detects Git and uses it when present; otherwise it retrieves source snapshots. Git installation is offered as an option.
+Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest).
 
-**Unity is required only for compiling sources.** The installer detects the required editor and guides its installation. It reuses unchanged source resources and prepares a new package when a selected version needs updated assets. Published players require neither Unity nor Git. A startup check detects incompatible resource packages. See the short [installer guide](docs/INSTALLER.md).
+- **Compiled-game ZIPs:** ready to play, with no Unity or Git required. For manual installation, extract both ZIPs from the same release into one folder and run **openz-vk.exe**.
+- **Source code:** the editable code on stable **main** or development **dev**; it must be compiled before playing. Development versions are distributed as source code only.
+- **Unity:** the editor required to compile the source code; the installer helps you install the correct version.
+- **Resource ZIPs:** the OpenZ 1.4 base assets with required fork adaptations, needed for source compilation. They are reused across code updates and downloaded again only when required assets change.
+- **Installer:** installs and updates the compiled game, shows its changelog, or retrieves a chosen **main/dev** commit and builds it with Unity. It reuses unchanged data and uses Git when available, with optional Git installation and a Git-free fallback.
 
-For a manual installation, download **both player ZIPs** from the same release and extract both into the same destination. Keep the complete resulting folder together and run **openz-vk.exe**. GitHub's automatic source-code ZIP is not a playable download.
+GitHub's automatic source-code ZIP is not a ready-to-play compiled game. A startup check detects incompatible resource packages. See the short [installer guide](docs/INSTALLER.md).
 
 **Unit Editor:** click **UNIT EDITOR** in the installer, or open the build's **Unit Editor** folder and double-click **Open Unit Editor.bat**. It is also available in the game's main menu.
 

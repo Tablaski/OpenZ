@@ -18,7 +18,12 @@ namespace OpenZ.Multiplayer
             var rt = new RenderTexture(1280, 720, 24, RenderTextureFormat.ARGB32); rt.Create();
             var go = new GameObject("DuelProofCamera"); var camera = go.AddComponent<Camera>();
             var main = Camera.main;
-            if (main && !interfaceOnly) { camera.CopyFrom(main); camera.transform.SetPositionAndRotation(main.transform.position, main.transform.rotation); }
+            if (main && !interfaceOnly)
+            {
+                camera.CopyFrom(main);
+                camera.cullingMask |= 1 << 5;
+                camera.transform.SetPositionAndRotation(main.transform.position, main.transform.rotation);
+            }
             else { camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.black; camera.cullingMask = 1 << 5; }
             camera.enabled = false; camera.targetTexture = rt; camera.aspect = 16f / 9f;
             go.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = false;
@@ -43,7 +48,7 @@ namespace OpenZ.Multiplayer
                 image.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); image.Apply();
                 var pixels = image.GetPixels32();
                 if (pixels.All(p => p.r < 2 && p.g < 2 && p.b < 2)) throw new InvalidOperationException("Proof rendering produced a black image.");
-                File.WriteAllBytes(path, image.EncodeToPNG());
+                File.WriteAllBytes(path, path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? image.EncodeToJPG(88) : image.EncodeToPNG());
             }
             finally
             {

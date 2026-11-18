@@ -193,6 +193,13 @@ namespace OpenZ
             _ => "desert"
         };
 
+        GameObject BridgePrefab(string biome, string stage)
+        {
+            string name = $"Z_bridge_{biome}_{stage}";
+            var prefab = game.Prefab(name);
+            return prefab || !game.World.Map.aiMap ? prefab : Experimental.OzAiBridgeKit.Find(name);
+        }
+
         GameObject[] Variants(ZObject o)
         {
             if (bridgeVariants.TryGetValue(o.Id, out var v)) return v;
@@ -203,7 +210,7 @@ namespace OpenZ
             for (int st = 0; st < 3; st++)
             {
                 if (v[st]) continue;
-                var pf = game.Prefab($"Z_bridge_{biome}_{BridgeStates[st]}"); if (!pf) continue;
+                var pf = BridgePrefab(biome, BridgeStates[st]); if (!pf) continue;
                 var go = Instantiate(pf, cur.transform.parent); go.name = cur.name + "_" + BridgeStates[st];
                 go.transform.SetLocalPositionAndRotation(cur.transform.localPosition, cur.transform.localRotation); go.transform.localScale = cur.transform.localScale;
                 go.SetActive(false); v[st] = go;
@@ -232,7 +239,7 @@ namespace OpenZ
         /// <summary>Kit chunks (8 per biome) thrown from the middle third of the deck: real physics, bounce, settle, sink.</summary>
         void BridgeChunks(ZObject o, int n, bool small)
         {
-            var set = game.Prefab($"Z_bridge_{BridgeBiome}_chunks"); if (!set) return;
+            var set = BridgePrefab(BridgeBiome, "chunks"); if (!set) return;
             var parts = new List<Transform>(); foreach (Transform t in set.transform) parts.Add(t);
             if (parts.Count == 0) return;
             var c = game.CenterWorld(o); var deck = c.y + (game.level == "L02" ? 1.2f : 0.3f);

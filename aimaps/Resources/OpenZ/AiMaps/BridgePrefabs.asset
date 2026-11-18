@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11637bb4571645f29cd2cb25cf54ca99, type: 3}
+  m_Name: BridgePrefabs
+  m_EditorClassIdentifier:
+  prefabs:
+  - {fileID: 1668450080880143815, guid: a62587cd6cb2dc9429791038cc23f499, type: 3}
+  - {fileID: 5255441783922446604, guid: d9b1fff3e09cd644ca8d83e617b3d5be, type: 3}
+  - {fileID: 8924973184859044920, guid: 0ff8bc47727c12540a74ff7ae82e71d8, type: 3}
+  - {fileID: 3196877775117149361, guid: 53f8157cc0b402c4cb792e2b41b7fc87, type: 3}
+  - {fileID: 7735111546857225496, guid: 32a750a938fc8d34d8f0f08bc7bcc67c, type: 3}
+  - {fileID: 1189590241368683697, guid: 95e51dbd4278797439d7c6a0253a842b, type: 3}
+  - {fileID: 7630417620658930635, guid: 2946db8a583a8814fb69823057d5ac1f, type: 3}
+  - {fileID: 5256012625614460301, guid: f2587e92008d4cd4c9aa3913b7801e66, type: 3}
+  - {fileID: 235175977382109862, guid: 6fe0b407bb77260429edc2bfeae67f54, type: 3}
+  - {fileID: 2182202423310008489, guid: ea90da19b1040e5438cab815824797da, type: 3}
+  - {fileID: 2653206294672765324, guid: 36f0a3f2935715c408850da89ec6c3e6, type: 3}
+  - {fileID: 5509972569081553312, guid: 64003890b60fbb647a97e4e02e59c886, type: 3}

@@ -154,7 +154,7 @@ namespace OpenZ.Multiplayer
                         case 13:
                             if (!menu.ProofAiPreviewPlaying || menu.ProofCardCount != OzAiMapCatalog.Select(true).Length)
                                 throw new Exception("The solo AI Maps carousel is missing its looping video or stamp.");
-                            ScreenCapture.CaptureScreenshot(Path.Combine(folder, "ai-maps-solo-full.png"));
+                            Capture("ai-maps-solo-full");
                             break;
                         case 14:
                             menu.ProofSwitchMapCatalog();
@@ -277,7 +277,7 @@ namespace OpenZ.Multiplayer
                         if (!decoder || !decoder.isLooping || !decoder.isPlaying || !(video.texture is RenderTexture)
                             || mini.rectTransform.rect.height <= video.rectTransform.rect.height)
                             throw new Exception("The duel AI Maps gallery must show a looping preview and a larger minimap.");
-                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "ai-maps-1v1-full.png"));
+                        Capture("ai-maps-1v1-full");
                         break;
                     case 27:
                         ClickGallery("SORT: NUMBER"); ClickGallery("CITY"); CheckGallery(); Capture("ai-maps-city"); ClickGallery("CLOSE"); break;

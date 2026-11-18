@@ -47,12 +47,10 @@ namespace OpenZ.Multiplayer
                 if (bridge == null) continue;
                 var original = game.StaticViews[bridge.Id];
                 SetHealth(game, bridge, Math.Max(1, bridge.MaxHealth / 4));
-                yield return null;
-                yield return null;
+                yield return new WaitForSecondsRealtime(.75f);
                 if (!RunSafe(() => CheckStage(original, "_damaged", true))) break;
                 SetHealth(game, bridge, 0);
-                yield return null;
-                yield return null;
+                yield return new WaitForSecondsRealtime(.75f);
                 if (!RunSafe(() =>
                 {
                     CheckStage(original, "_destroyed", false);
@@ -60,8 +58,7 @@ namespace OpenZ.Multiplayer
                     Require(!game.World.Path.TilePassable(x, y, false), "A destroyed crossing still admits a tank");
                 })) break;
                 SetHealth(game, bridge, bridge.MaxHealth);
-                yield return null;
-                yield return null;
+                yield return new WaitForSecondsRealtime(.75f);
                 if (!RunSafe(() => Require(original.activeInHierarchy && original.transform.Find("WalkDeck"),
                     "Repaired bridge did not recover its walking surface"))) break;
                 bridges++;
@@ -117,9 +114,7 @@ namespace OpenZ.Multiplayer
                 camera.transform.position = center + new Vector3(Mathf.Sin(yaw) * 22, 27, -Mathf.Cos(yaw) * 22);
                 camera.transform.LookAt(center);
                 yield return new WaitForEndOfFrame();
-                var image = ScreenCapture.CaptureScreenshotAsTexture();
-                File.WriteAllBytes(Path.Combine(recordingDirectory, $"frame-{frame:D3}.jpg"), image.EncodeToJPG(88));
-                Destroy(image);
+                DuelProofCapture.Save(Path.Combine(recordingDirectory, $"frame-{frame:D3}.jpg"));
             }
             Time.captureFramerate = 0;
             RunSafe(() => Require(ordered.Any(o => Vector2.Distance(o.start,
@@ -191,6 +186,8 @@ namespace OpenZ.Multiplayer
             var mesh = deck.GetComponent<MeshCollider>().sharedMesh;
             var vertices = mesh.vertices.Select(v => deck.TransformPoint(v)).ToArray();
             Require(vertices.Length == 8, bridge.name + ": deck or ramp geometry is missing");
+            Require(vertices[2].y > -.30f && vertices[4].y > -.30f,
+                bridge.name + ": the deck is below the water surface");
             var previous = (vertices[0] + vertices[1]) * .5f;
             float last = game.GroundY(previous.x, previous.z);
             for (int i = 2; i < vertices.Length; i += 2)

@@ -472,8 +472,30 @@ namespace OpenZ
             foreach (var kv in StaticViews)
             {
                 var o = World.Get(kv.Key);
-                if (o != null && o.IsBridge && !o.Destroyed) MakeWalkable(kv.Value);
+                if (o == null || !o.IsBridge) continue;
+                if (World.Map.aiMap) SeatAiBridge(o, kv.Value);
+                if (!o.Destroyed) MakeWalkable(kv.Value);
             }
+        }
+
+        void SeatAiBridge(ZObject bridge, GameObject art)
+        {
+            if (!ground || !art) return;
+            bool vertical = bridge.Type == "bridge_vert";
+            var center = PxToWorld(bridge.CenterX, bridge.CenterY);
+            var axis = vertical ? Vector3.forward : Vector3.right;
+            float halfSpan = (vertical ? bridge.HeightPix : bridge.WidthPix) / 16f;
+            float Bank(Vector3 position)
+            {
+                return ground.Raycast(new Ray(position + Vector3.up * 200, Vector3.down), out var hit, 400)
+                    ? hit.point.y : 0;
+            }
+            float near = Bank(center + axis * (halfSpan + .5f));
+            float far = Bank(center - axis * (halfSpan + .5f));
+            var p = art.transform.position;
+            p.y = Mathf.Max(-.08f, (near + far) * .5f);
+            art.transform.position = p;
+            Physics.SyncTransforms();
         }
         const int BuildingBreakerDebrisLayerHint = 31;                                       // BuildingBreaker takes the highest free layer
 

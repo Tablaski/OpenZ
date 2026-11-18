@@ -9,7 +9,9 @@ static class PlaygroundChecks
     public static void Run(Action<bool, string> check, Action<Action, string> reject)
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Assets/OpenZ/Resources/OpenZ"));
-        var w = ZWorld.Create(File.ReadAllText(Path.Combine(root, "default_settings.txt")), File.ReadAllText(Path.Combine(root, "Maps/L02_grid.json")), 817);
+        string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
+        CheckTestingControls(settings, check);
+        var w = ZWorld.Create(settings, File.ReadAllText(Path.Combine(root, "Maps/L02_grid.json")), 817);
         check(w.UnitTesting == null, "Ordinary matches have no testing rules");
         reject(w.EnableUnitTesting, "Testing requires a playground");
         w.NoGameEnd = true; w.EnableUnitTesting(); var t = w.UnitTesting;
@@ -140,5 +142,101 @@ static class PlaygroundChecks
             "The world tick completes deferred respawns and restarts both attacks");
         t.Respawning = false; red.DamageHealth(int.MaxValue, blue.Id);
         check(red.Destroyed, "Disabling respawning restores ordinary mortal death");
+    }
+
+    static void CheckTestingControls(string settings, Action<bool, string> check)
+    {
+        const int width = 40, height = 30;
+        string tiles = string.Join(",", Enumerable.Repeat("0", width * height));
+        string map = $"{{\"file\":\"playground\",\"planet\":\"city\",\"width\":{width},\"height\":{height}," +
+            $"\"classes\":[{tiles}],\"tiles\":[{tiles}],\"zones\":[],\"objects\":[]}}";
+        var w = ZWorld.Create(settings, map, 818);
+        w.NoGameEnd = true;
+        w.EnableUnitTesting();
+        var t = w.UnitTesting;
+        var target = w.CreateObject("vehicle", "light", 224, 224, Team.Red);
+        var attacker = w.CreateObject("vehicle", "heavy", 592, 224, Team.Blue);
+        var score = t.For(target.Id);
+        t.Configure(Team.Red, true, false);
+        t.SetHpPercent(Team.Red, 80);
+        t.ShowDamage = true;
+        t.SetRespawnPoint(Team.Blue, 400, 224);
+        check(t.SetInfiniteCombatTesting(true, 4, 4) && t.InfiniteCombatTesting, "Infinite testing finds clear ground near the playground edge");
+        check(t.Immortal(Team.Red) && t.Circular(Team.Red) && t.Immortal(Team.Blue) && t.Circular(Team.Blue) &&
+            t.ShowDamage && t.ShowCounts && t.ResetAutomaticallyOnParametersChange && t.Respawning &&
+            !t.MeasureProjectileAvoidance && t.HpPercent(Team.Red) == 80, "Infinite testing enables the requested controls and retains reference HP");
+        check(t.TryGetRespawnPoint(Team.Red, out int rx, out int ry) &&
+            t.TryGetRespawnPoint(Team.Blue, out int bx, out int by) && t.CanPlace(target, rx, ry) && t.CanPlace(attacker, bx, by) &&
+            Math.Sqrt((rx - bx) * (rx - bx) + (ry - by) * (ry - by)) * ZConst.PX_TO_M == 19, "Infinite combat points accept tanks exactly 19 m apart");
+        t.SetInfiniteCombatTesting(false, 0, 0);
+        check(!t.InfiniteCombatTesting && t.Immortal(Team.Red) && !t.Circular(Team.Red) && !t.Immortal(Team.Blue) &&
+            !t.Circular(Team.Blue) && t.ShowDamage && !t.ShowCounts && !t.ResetAutomaticallyOnParametersChange && !t.Respawning &&
+            !t.HasRespawnPoint(Team.Red) && t.TryGetRespawnPoint(Team.Blue, out bx, out by) && bx == 400 && by == 224,
+            "Disabling infinite testing restores individual settings and original respawn points");
+
+        void Fire(int radius, int damage = 100, int offset = 0, double flight = 0)
+        {
+            w.AddMissile(new ZMissile { x = target.CenterX + offset, y = target.CenterY, team = Team.Blue,
+                attackerId = attacker.Id, targetId = target.Id, radius = radius, damage = damage, explodeTime = w.Time + flight });
+        }
+        void Resolve()
+        {
+            for (int i = 0; i < 2 / ZConst.TICK; i++)
+            {
+                w.Tick(ZConst.TICK);
+                if (w.PendingMissiles.Count == 0 && w.QueuedMissiles.Count == 0) return;
+            }
+            throw new InvalidOperationException("Testing projectiles did not resolve.");
+        }
+        void Move(WpMode mode)
+        {
+            target.Waypoints.Add(new ZWaypoint { mode = mode, x = target.CenterX + 64, y = target.CenterY, playerGiven = true });
+        }
+
+        Fire(40);
+        t.MeasureProjectileAvoidance = true;
+        Resolve();
+        check(!score.HasProjectileSamples, "Shots fired before enabling the meter are ignored");
+        Fire(40, offset: -60);
+        Resolve();
+        check(!score.HasProjectileSamples, "A natural miss does not dilute the avoidance score");
+        Fire(40);
+        Resolve();
+        check(score.HasProjectileSamples && score.ProjectileAvoidancePercent == 0 && target.Health == t.ReferenceHp(target),
+            "A stationary immortal records zero avoidance without relying on its displayed HP");
+        Fire(1, damage: 300, flight: .75);
+        Move(WpMode.Dodge);
+        Resolve();
+        check(score.ProjectileAvoidancePercent == 75, $"A full dodge avoids 300 of 400 total potential damage (observed {score.ProjectileAvoidancePercent}%, target at {target.CenterX})");
+        target.TestingStop();
+        t.ResetCounters();
+        Fire(160, flight: .75);
+        int startX = target.CenterX;
+        Move(WpMode.Dodge);
+        Resolve();
+        double avoidance = score.ProjectileAvoidancePercent;
+        check(target.CenterX > startX && avoidance > 0 && avoidance < 100, "Actual defensive movement can avoid part of a projectile's damage");
+        target.TestingStop();
+        t.ResetCounters();
+        Fire(160, flight: .75);
+        Move(WpMode.Move);
+        Resolve();
+        check(score.HasProjectileSamples && score.ProjectileAvoidancePercent == 0, "Ordinary movement does not receive credit for an evasion");
+        target.TestingStop();
+        Fire(50);
+        score.Kills = 2;
+        t.ResetProjectileAvoidance();
+        Resolve();
+        check(!score.HasProjectileSamples && score.Kills == 2, "A manual avoidance reset discards already airborne shots and preserves kills");
+        Fire(50);
+        Resolve();
+        t.ResetAutomaticallyOnParametersChange = true;
+        target.Waypoints.Add(new ZWaypoint { mode = WpMode.Attack, refId = attacker.Id, playerGiven = true });
+        var profile = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks);
+        Fire(50);
+        w.SetBehavior(profile);
+        target.TestingStop();
+        Resolve();
+        check(!score.HasProjectileSamples, "An effective combat parameter change resets avoidance and discards earlier shots");
     }
 }

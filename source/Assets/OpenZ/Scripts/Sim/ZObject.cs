@@ -332,7 +332,11 @@ namespace OpenZ.Sim
             if (IsRobot) WalkDisengage();                                              // robots don't attack while moving (DV57: grunt / psycho / laser keep firing, ZObject.FireOnMove.cs)
             if (dt > 0)
             { BehaviorStepDx = (float)((nx - PosX) / dt); BehaviorStepDy = (float)((ny - PosY) / dt); }
-            if (BehaviorDodging && Behavior != null) BehaviorRecordTravel(Math.Sqrt((nx - PosX) * (nx - PosX) + (ny - PosY) * (ny - PosY)));
+            if (BehaviorDodging)
+            {
+                if (Behavior != null) BehaviorRecordTravel(Math.Sqrt((nx - PosX) * (nx - PosX) + (ny - PosY) * (ny - PosY)));
+                World.UnitTesting?.RecordDodgeStep(this, inx - LocX, iny - LocY);
+            }
             XOver = nx - inx; YOver = ny - iny;
             LocX = inx; LocY = iny;
             CenterX = LocX + (WidthPix >> 1); CenterY = LocY + (HeightPix >> 1);
@@ -978,6 +982,7 @@ namespace OpenZ.Sim
         public int onlyId = -1;                     // DV164: the one object this blast hurts, -1 = all it reaches (Sim/ZObject.HeavyRock.cs)
         public bool nuke;                           // 1.3 item 2: the Unit editor's NUKE (Sim/ZWorld.Playground.cs PlaygroundNuke): all the HP of everything inside its radius; never made in a level
         public double explodeTime;
+        internal ZPlaygroundTesting.ProjectileSample testingSample;
         public void CalcExplodeTime(int fx, int fy, int speed, double now) =>
             explodeTime = now + Math.Sqrt((double)(x - fx) * (x - fx) + (double)(y - fy) * (y - fy)) / Math.Max(1, speed);
     }

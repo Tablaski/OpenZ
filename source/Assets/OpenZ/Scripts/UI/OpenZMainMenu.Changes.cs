@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -29,13 +30,30 @@ namespace OpenZ
         [Serializable] public sealed class ChangesDoc { public string title, intro; public ChangesSection[] sections; }
 
         public const string ChangesResource = "OpenZ/Text/changes_updates";
-        const float CuW = 1100f, CuH = 864f, CuPad = 36f, CuHeadY = 22f, CuRuleY = 64f, CuFoot = 76f, CuGutter = 18f, CuFade = 30f;
+        public const string ForkChangesFile = "OpenZ-VK-Changelog.md";
+        public static string ForkChangesSource => Path.GetFullPath(Path.Combine(Application.dataPath, "../../docs/CHANGELOG.md"));
+        const float CuW = 1100f, CuH = 864f, CuPad = 36f, CuHeadY = 22f, CuRuleY = 99f, CuFoot = 76f, CuGutter = 18f, CuFade = 30f;
         const float CuTextSize = 15f, CuTitleSize = 18f, CuLabelW = 52f, CuTextX = 88f, CuCardPad = 24f, CuCapMid = 0.605f;
 
-        RectTransform changesRt, cuView, cuContent, cuTrack, cuTrackHit; CanvasGroup changesCg; Image cuThumb; OzText cuWhere;
-        float cuScroll, cuTarget, cuDragY0, cuDragS0, cuTickAt; int cuDrag, cuSec = -2, cuEntries, cuOverlaps, cuOverflow;
-        readonly List<float> cuSectionY = new List<float>(); readonly List<string> cuSectionName = new List<string>();
-        readonly List<OzText> cuTexts = new List<OzText>(); readonly List<Rect> cuRects = new List<Rect>();
+        sealed class ChangesPage
+        {
+            public RectTransform Content;
+            public readonly List<float> SectionY = new List<float>();
+            public readonly List<string> SectionNames = new List<string>();
+            public readonly List<OzText> Texts = new List<OzText>();
+            public readonly List<Rect> Rects = new List<Rect>();
+            public int Entries, Overlaps, Overflow;
+        }
+        RectTransform changesRt, cuView, cuTrack, cuTrackHit; CanvasGroup changesCg; Image cuThumb; OzText cuWhere, cuSubtitle;
+        float cuScroll, cuTarget, cuDragY0, cuDragS0, cuTickAt; int cuDrag, cuSec = -2, cuTab;
+        readonly ChangesPage[] cuPages = { new ChangesPage(), new ChangesPage() };
+        readonly HudButton[] cuTabs = new HudButton[2];
+        ChangesPage CuPage => cuPages[cuTab];
+        RectTransform cuContent => CuPage.Content;
+        List<float> cuSectionY => CuPage.SectionY;
+        List<string> cuSectionName => CuPage.SectionNames;
+        List<OzText> cuTexts => CuPage.Texts;
+        List<Rect> cuRects => CuPage.Rects;
         string cuLoadError;
 
         ChangesDoc LoadChanges()
@@ -52,18 +70,86 @@ namespace OpenZ
             catch (Exception e) { cuLoadError = e.Message; return null; }
         }
 
+        ChangesDoc LoadForkChanges()
+        {
+            cuLoadError = null;
+            try
+            {
+                string path = Application.isEditor ? ForkChangesSource : Path.Combine(Application.streamingAssetsPath, ForkChangesFile);
+                return ParseForkChanges(File.ReadLines(path));
+            }
+            catch (Exception e) { cuLoadError = e.Message; return null; }
+        }
+
+        static ChangesDoc ParseForkChanges(IEnumerable<string> lines)
+        {
+            var intro = new List<string>();
+            var sections = new List<ChangesSection>();
+            var entries = new List<ChangesEntry>();
+            var notes = new List<string>();
+            string version = null, group = null;
+            void EndGroup()
+            {
+                if (notes.Count == 0) return;
+                entries.Add(new ChangesEntry { title = group, now = string.Join("\n", notes) });
+                notes.Clear();
+            }
+            void EndVersion()
+            {
+                EndGroup();
+                if (version != null && entries.Count > 0)
+                    sections.Add(new ChangesSection { heading = version, entries = entries.ToArray() });
+                entries.Clear();
+                group = null;
+            }
+            foreach (var raw in lines)
+            {
+                string line = raw.Trim().Replace("**", "").Replace("`", "");
+                if (line.StartsWith("## ", StringComparison.Ordinal))
+                {
+                    EndVersion();
+                    version = null;
+                    if (!line.StartsWith("## OpenZ-VK ", StringComparison.Ordinal)) break;
+                    version = line.Substring(3);
+                }
+                else if (version == null)
+                {
+                    if (!line.StartsWith("# ", StringComparison.Ordinal)) intro.Add(line);
+                }
+                else if (line.StartsWith("### ", StringComparison.Ordinal))
+                {
+                    EndGroup();
+                    group = line.Substring(4);
+                }
+                else if (line.Length > 0)
+                {
+                    notes.Add(line.StartsWith("- ", StringComparison.Ordinal) ? "• " + line.Substring(2) : line);
+                }
+            }
+            EndVersion();
+            return new ChangesDoc { intro = string.Join("\n", intro).Trim(), sections = sections.ToArray() };
+        }
+
         void BuildChanges()
         {
+            for (int i = 0; i < cuPages.Length; i++) cuPages[i] = new ChangesPage();
             changesRt = SidePanel("Changes", "Panels/options_panel", out changesCg);
             Modal(changesRt, CuW, CuH, Side.Changes, true);
             changesRt.gameObject.SetActive(true);        // built while active: TMP under an inactive parent never wakes, so wrapped text measured one line tall
             var p = changesRt;
             var doc = LoadChanges();
-            cuEntries = 0;
-            if (doc?.sections != null) foreach (var s in doc.sections) cuEntries += s?.entries?.Length ?? 0;
 
             Hud.Label(p, "Title", string.IsNullOrEmpty(doc?.title) ? "CHANGES & UPDATES" : doc.title.ToUpperInvariant(), 20, OzUi.Ink, 0.16f).At(CuPad, CuHeadY);
-            Hud.Label(p, "Sub", $"OPENZ VS THE 1996 ORIGINAL · {cuEntries} CHANGES", 10, OzUi.Muted, 0.2f, OzStyle.Plain).At(CuW - CuPad, CuHeadY + 6, OzH.R, false, 520);
+            cuSubtitle = Hud.Label(p, "Sub", "", 10, OzUi.Muted, 0.2f, OzStyle.Plain).At(CuW - CuPad, CuHeadY + 6, OzH.R, false, 520);
+            for (int i = 0; i < cuTabs.Length; i++)
+            {
+                int tab = i;
+                const float tw = 145, th = 30;
+                var button = HudButton.Make(p, "ChangesTab" + i, i == 0 ? "OpenZ" : "OpenZ-VK", new Vector2(tw, th), HudButtonKind.Small, 13, .08f);
+                button.Rt.TL(CuPad + i * (tw + 8), 59, tw, th);
+                AddHot(button.Rt, View.Main, () => SelectChangesTab(tab), null, button, "ui_tab_switch", Side.Changes);
+                cuTabs[i] = button;
+            }
             Hud.Img(p, "HeadRule", OzUi.A(OzUi.Khaki, 0.18f)).rectTransform.TL(CuPad, CuRuleY, CuW - 2 * CuPad, 1);
             Hud.Img(p, "FootRule", OzUi.A(OzUi.Khaki, 0.18f)).rectTransform.TL(CuPad, CuH - CuFoot, CuW - 2 * CuPad, 1);
 
@@ -72,13 +158,51 @@ namespace OpenZ
             cuView = Hud.Node("View", p).Place(new OzRect(vx, vy, vw, vh));
             var mask = cuView.gameObject.AddComponent<RectMask2D>();
             mask.softness = new Vector2Int(0, Mathf.Max(1, Mathf.RoundToInt(CuFade * Screen.height / OzLayout.RefH)));
-            cuContent = Hud.Node("Content", cuView);
+
+            // Keep the scroll controls shared while each tab owns its measured content.
+            float tx = CuW - CuPad - 4f, ty = vy + 16f, thTrack = vh - 32f;
+            cuTrack = Hud.Node("Track", p).Place(new OzRect(tx, ty, 4f, thTrack));
+            Hud.Img(cuTrack, "Bg", OzUi.A(OzUi.GM950, 0.9f)).rectTransform.Fill();
+            cuThumb = Hud.Img(cuTrack, "Thumb", OzUi.Amber);
+            cuThumb.rectTransform.anchorMin = new Vector2(0, 1); cuThumb.rectTransform.anchorMax = new Vector2(1, 1); cuThumb.rectTransform.pivot = new Vector2(0.5f, 1);
+            cuTrackHit = Hud.Node("TrackHit", p).Place(new OzRect(tx - 7f, ty - 6f, 18f, thTrack + 12f));
+
+            const float bw = 150f, bh = 38f;
+            var back = HudButton.Make(p, "Back", "BACK", new Vector2(bw, bh), HudButtonKind.Small, 12, 0.16f, HudButtonStyle.Normal, false, OzH.L);
+            back.Rt.Place(new OzRect(CuPad, CuH - CuFoot + (CuFoot - bh) * 0.5f, bw, bh));
+            Hud.Keycap(back.Content, "Esc", "ESC", bw - 10, (bh - 14) * 0.5f);
+            AddHot(back.Rt, View.Main, CloseSide, null, back, null, Side.Changes);
+            cuWhere = Hud.Label(p, "Where", "", 11, OzUi.Amber, 0.2f, OzStyle.Plain).At(CuPad + bw + 26f, CuH - CuFoot * 0.5f, OzH.L, true, 370);
+            Hud.Label(p, "Keys", "WHEEL · DRAG · ↑ ↓ · PGUP / PGDN · HOME / END · ESC CLOSE", 10, OzUi.Muted, 0.2f, OzStyle.Plain)
+                .At(CuW - CuPad, CuH - CuFoot * 0.5f, OzH.R, true, 450);
+
+            cuTab = 0;
+            BuildChangesPage(doc);
+            SelectChangesTab(0);
+            changesRt.gameObject.SetActive(false);
+        }
+
+        void SelectChangesTab(int tab)
+        {
+            if (cuContent) cuContent.gameObject.SetActive(false);
+            cuTab = tab;
+            if (!cuContent) BuildChangesPage(LoadForkChanges());
+            cuContent.gameObject.SetActive(true);
+            cuContent.anchoredPosition = Vector2.zero;
+            cuScroll = cuTarget = 0f; cuDrag = 0; cuSec = -2;
+            cuSubtitle.Set(tab == 0 ? $"OPENZ VS THE 1996 ORIGINAL · {CuPage.Entries} CHANGES" : "FORK RELEASE NOTES");
+            for (int i = 0; i < cuTabs.Length; i++) SetSelected(cuTabs[i], i == tab);
+        }
+
+        void BuildChangesPage(ChangesDoc doc)
+        {
+            bool fork = cuTab == 1;
+            CuPage.Content = Hud.Node(fork ? "OpenZ-VK" : "OpenZ", cuView);
             cuContent.anchorMin = new Vector2(0, 1); cuContent.anchorMax = new Vector2(1, 1); cuContent.pivot = new Vector2(0.5f, 1);
             cuContent.offsetMin = cuContent.offsetMax = Vector2.zero;
 
-            cuTexts.Clear(); cuRects.Clear(); cuSectionY.Clear(); cuSectionName.Clear(); cuSec = -2;
-            float cw = vw, y = CuFade + 10f;
-            if (doc == null || doc.sections == null)
+            float cw = cuView.rect.width, y = CuFade + 10f;
+            if (doc?.sections == null || doc.sections.Length == 0)
             {
                 y += CuBlock("Missing", "The change list could not be loaded (" + Esc(cuLoadError ?? "no sections") + ").", 16, OzUi.Muted, 28, y, cw - 56) + 20f;
                 Debug.LogWarning("[OpenZ Menu] CHANGES & UPDATES: " + (cuLoadError ?? "no sections in the JSON"));
@@ -88,18 +212,29 @@ namespace OpenZ
                 var paras = (doc.intro ?? "").Replace("\r", "").Split(new[] { "\n\n" }, StringSplitOptions.RemoveEmptyEntries);
                 for (int i = 0; i < paras.Length; i++)
                     y += CuBlock("Intro" + i, Esc(paras[i].Trim()), 16, i == 0 ? OzUi.Ink : OzUi.Ink2, 28, y, cw - 56) + (i < paras.Length - 1 ? 14f : 0f);
+                if (fork)
+                {
+                    const float bw = 280, bh = 38;
+                    var discord = HudButton.Make(cuContent, "ForkDiscord", "OPENZ / ZZONE DISCORD  ↗", new Vector2(bw, bh), HudButtonKind.Small, 12, .08f);
+                    discord.Rt.TL(28, y + 16, bw, bh);
+                    AddHot(discord.Rt, View.Main, () => OzLinks.Open("zzone_discord", "OpenZ-VK changes"), null, discord, "ui_click", Side.Changes);
+                    discordHots.Add(new FeedbackHot { hot = discord.Rt, view = cuView, btn = discord, from = "OpenZ-VK changes" });
+                    y += 16 + bh;
+                }
                 y += 34f;
                 for (int si = 0; si < doc.sections.Length; si++)
                 {
                     var s = doc.sections[si]; if (s == null) continue;
                     cuSectionY.Add(y); cuSectionName.Add((s.heading ?? "").ToUpperInvariant());
-                    y += CuBand(s, si, y, cw) + 14f;
+                    int n = fork ? s.entries.Sum(e => e.now.Split('\n').Length) : s.entries?.Length ?? 0;
+                    CuPage.Entries += n;
+                    y += CuBand(s, si, y, cw, n) + 14f;
                     if (s.entries != null)
                         for (int ei = 0; ei < s.entries.Length; ei++)
-                            if (s.entries[ei] != null) y += CuCard(s.entries[ei], si + "_" + ei, y, cw) + 12f;
+                            if (s.entries[ei] != null) y += CuCard(s.entries[ei], si + "_" + ei, y, cw, fork) + 12f;
                     y += 22f;
                 }
-                y += FeedbackBlock(cuContent, cuView, y, cw, Side.Changes, "changes & updates") + 26f;
+                if (!fork) y += FeedbackBlock(cuContent, cuView, y, cw, Side.Changes, "changes & updates") + 26f;
                 Hud.Img(cuContent, "EndRule", OzUi.A(OzUi.Amber, 0.55f)).rectTransform.TL(cw * 0.5f - 48f, y + 4f, 96f, 2f);
                 y += 22f;
                 CuTrackRect(Hud.Label(cuContent, "End", "END OF THE LIST", 11, OzUi.Muted, 0.24f, OzStyle.Plain).At(cw * 0.5f, y, OzH.C, false, 400));
@@ -108,29 +243,8 @@ namespace OpenZ
             y += CuFade + 16f;
             cuContent.sizeDelta = new Vector2(0, y);
 
-            // slim scrollbar in the gutter (a wider invisible hit strip for the drag)
-            float tx = CuW - CuPad - 4f, ty = vy + 16f, th = vh - 32f;
-            cuTrack = Hud.Node("Track", p).Place(new OzRect(tx, ty, 4f, th));
-            Hud.Img(cuTrack, "Bg", OzUi.A(OzUi.GM950, 0.9f)).rectTransform.Fill();
-            cuThumb = Hud.Img(cuTrack, "Thumb", OzUi.Amber);
-            cuThumb.rectTransform.anchorMin = new Vector2(0, 1); cuThumb.rectTransform.anchorMax = new Vector2(1, 1); cuThumb.rectTransform.pivot = new Vector2(0.5f, 1);
-            cuTrackHit = Hud.Node("TrackHit", p).Place(new OzRect(tx - 7f, ty - 6f, 18f, th + 12f));
-
-            // footer: BACK (hover sound; the close plays the panel sound), where you are, the keys
-            const float bw = 150f, bh = 38f;
-            var back = HudButton.Make(p, "Back", "BACK", new Vector2(bw, bh), HudButtonKind.Small, 12, 0.16f, HudButtonStyle.Normal, false, OzH.L);
-            back.Rt.Place(new OzRect(CuPad, CuH - CuFoot + (CuFoot - bh) * 0.5f, bw, bh));
-            Hud.Keycap(back.Content, "Esc", "ESC", bw - 10, (bh - 14) * 0.5f);
-            AddHot(back.Rt, View.Main, CloseSide, null, back, null, Side.Changes);
-            cuWhere = Hud.Label(p, "Where", "", 11, OzUi.Amber, 0.2f, OzStyle.Plain).At(CuPad + bw + 26f, CuH - CuFoot * 0.5f, OzH.L, true, 280);
-            Hud.Label(p, "Keys", "WHEEL · DRAG · ↑ ↓ · PGUP / PGDN · HOME / END · ESC CLOSE", 10, OzUi.Muted, 0.2f, OzStyle.Plain)
-                .At(CuW - CuPad, CuH - CuFoot * 0.5f, OzH.R, true, 560);
-
-            changesRt.gameObject.SetActive(false);
-            cuScroll = cuTarget = 0f; cuDrag = 0;
             CuCheck();
-            Debug.Log($"[OpenZ Menu] CHANGES & UPDATES built: {cuSectionY.Count} sections, {cuEntries} entries, {cuTexts.Count} text blocks measured, content {y:0} u, view {vh:0} u, "
-                      + $"overlaps {cuOverlaps}, overflow {cuOverflow}, not_in_yet / source never read");
+            Debug.Log($"[OpenZ Menu] CHANGES & UPDATES: {ProofChangesInfo}");
         }
 
         /// <summary>A wrapped text block at (x, y) in the content, w wide; its measured height (TMP preferred size).</summary>
@@ -149,27 +263,36 @@ namespace OpenZ
             cuTexts.Add(t); cuRects.Add(new Rect(rt.anchoredPosition.x, -rt.anchoredPosition.y, rt.sizeDelta.x, rt.sizeDelta.y));
         }
 
-        float CuBand(ChangesSection s, int si, float y, float cw)
+        float CuBand(ChangesSection s, int si, float y, float cw, int n)
         {
             const float bh = 40f;
             Hud.Img(cuContent, "Band" + si, OzUi.A(OzUi.Amber, 0.94f)).rectTransform.TL(0, y, cw, bh);
             Hud.Img(cuContent, "BandEdge" + si, OzUi.AmberHi).rectTransform.TL(0, y, 5f, bh);
             CuTrackRect(Hud.Label(cuContent, "Heading" + si, "<b>" + Esc((s.heading ?? "").ToUpperInvariant()) + "</b>", 15, OzUi.GM950, 0.22f, OzStyle.Plain)
                 .At(22f, y + bh * 0.5f, OzH.L, true, cw - 240f));
-            int n = s.entries?.Length ?? 0;
             CuTrackRect(Hud.Label(cuContent, "Count" + si, n + (n == 1 ? " CHANGE" : " CHANGES"), 11, OzUi.A(OzUi.GM950, 0.72f), 0.2f, OzStyle.Plain)
                 .At(cw - 20f, y + bh * 0.5f, OzH.R, true, 170f));
             return bh;
         }
 
-        float CuCard(ChangesEntry e, string id, float y, float cw)
+        float CuCard(ChangesEntry e, string id, float y, float cw, bool fork)
         {
             var bg = Hud.Img(cuContent, "Card" + id, OzUi.A(OzUi.GM800, 0.62f)).rectTransform;
             var edge = Hud.Img(cuContent, "CardEdge" + id, OzUi.A(OzUi.Khaki, 0.22f)).rectTransform;
             float y0 = y; y += 16f;
-            y += CuBlock("Title" + id, "<b>" + Esc(e.title ?? "") + "</b>", CuTitleSize, OzUi.Ink, CuCardPad, y, cw - 2 * CuCardPad) + 9f;
-            y += CuRow(id + "Z", "IN Z", OzUi.Muted, Esc(e.in_z ?? ""), OzUi.Ink2, false, y, cw) + 6f;
-            y += CuRow(id + "N", "NOW", OzUi.Ink, Esc(e.now ?? ""), OzUi.Ink, false, y, cw);
+            if (!fork || !string.IsNullOrEmpty(e.title))
+                y += CuBlock("Title" + id, "<b>" + Esc(e.title ?? "") + "</b>", CuTitleSize, OzUi.Ink, CuCardPad, y, cw - 2 * CuCardPad) + 9f;
+            if (fork)
+            {
+                var notes = e.now.Split('\n');
+                for (int i = 0; i < notes.Length; i++)
+                    y += CuBlock("Note" + id + "_" + i, Esc(notes[i]), CuTextSize, OzUi.Ink, CuCardPad, y, cw - 2 * CuCardPad) + (i < notes.Length - 1 ? 6f : 0f);
+            }
+            else
+            {
+                y += CuRow(id + "Z", "IN Z", OzUi.Muted, Esc(e.in_z ?? ""), OzUi.Ink2, false, y, cw) + 6f;
+                y += CuRow(id + "N", "NOW", OzUi.Ink, Esc(e.now ?? ""), OzUi.Ink, false, y, cw);
+            }
             y += 17f;
             bg.TL(0, y0, cw, y - y0); edge.TL(0, y0, 3f, y - y0);
             return y - y0;
@@ -186,7 +309,7 @@ namespace OpenZ
         /// <summary>Every text block: no two boxes overlap, and no text is wider / taller than its box (TMP preferred size).</summary>
         void CuCheck()
         {
-            cuOverlaps = cuOverflow = 0;
+            CuPage.Overlaps = CuPage.Overflow = 0;
             for (int i = 0; i < cuRects.Count; i++)
             {
                 var a = cuRects[i];
@@ -194,13 +317,13 @@ namespace OpenZ
                 {
                     var b = cuRects[j];
                     if (a.xMin < b.xMax - 0.5f && b.xMin < a.xMax - 0.5f && a.yMin < b.yMax - 0.5f && b.yMin < a.yMax - 0.5f)
-                    { cuOverlaps++; if (cuOverlaps <= 3) Debug.LogWarning($"[OpenZ Menu] CHANGES overlap: {cuTexts[i].gameObject.name} / {cuTexts[j].gameObject.name}"); }
+                    { CuPage.Overlaps++; if (CuPage.Overlaps <= 3) Debug.LogWarning($"[OpenZ Menu] CHANGES overlap: {cuTexts[i].gameObject.name} / {cuTexts[j].gameObject.name}"); }
                 }
                 if (cuTexts[i].graphic is TMPro.TMP_Text tm)
                 {
                     var pv = tm.GetPreferredValues(tm.text, a.width, 0f);
                     if (pv.x > a.width + 0.5f || pv.y > a.height + 0.5f || tm.overflowMode == TMPro.TextOverflowModes.Ellipsis)
-                    { cuOverflow++; if (cuOverflow <= 3) Debug.LogWarning($"[OpenZ Menu] CHANGES overflow: {tm.gameObject.name} {pv.x:0}x{pv.y:0} in {a.width:0}x{a.height:0}"); }
+                    { CuPage.Overflow++; if (CuPage.Overflow <= 3) Debug.LogWarning($"[OpenZ Menu] CHANGES overflow: {tm.gameObject.name} {pv.x:0}x{pv.y:0} in {a.width:0}x{a.height:0}"); }
                 }
             }
         }
@@ -257,6 +380,9 @@ namespace OpenZ
                 var kb = Keyboard.current;
                 if (kb != null && !OzControlsTable.Capturing)
                 {
+                    if (kb.leftArrowKey.wasPressedThisFrame && cuTab == 1) SelectChangesTab(0);
+                    if (kb.rightArrowKey.wasPressedThisFrame && cuTab == 0) SelectChangesTab(1);
+                    max = ProofChangesMax;
                     float page = Mathf.Max(72f, cuView.rect.height - 72f);
                     if (kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame) CuScrollBy(-72f, true);
                     if (kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame) CuScrollBy(72f, true);
@@ -291,7 +417,7 @@ namespace OpenZ
 
         // ---------------------------------------------------------------- proof hook (Play only): frames at the current resolution
         public float ProofChangesMax => cuContent == null ? 0f : Mathf.Max(0f, cuContent.sizeDelta.y - cuView.rect.height);
-        public string ProofChangesInfo => $"sections {cuSectionY.Count}, entries {cuEntries}, texts {cuTexts.Count}, overlaps {cuOverlaps}, overflow {cuOverflow}, scroll {cuScroll:0} / {ProofChangesMax:0} u, side {side}";
+        public string ProofChangesInfo => $"sections {cuSectionY.Count}, entries {CuPage.Entries}, texts {cuTexts.Count}, overlaps {CuPage.Overlaps}, overflow {CuPage.Overflow}, scroll {cuScroll:0} / {ProofChangesMax:0} u, side {side}";
         public void ProofChanges(string dir) => StartCoroutine(CuProof(dir));
 
         IEnumerator CuProof(string dir)

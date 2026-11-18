@@ -10,7 +10,16 @@ namespace OpenZ.Sim
         {
             public long Kills, Deaths;
             public double SuccessPercent => Kills == 0 && Deaths == 0 ? 0 : 100.0 * Kills / ((double)Kills + Deaths);
+            public bool HasProjectileSamples => projectedDamage > 0;
+            public double ProjectileAvoidancePercent => HasProjectileSamples ? 100 * avoidedDamage / projectedDamage : 0;
+            internal double projectedDamage, avoidedDamage;
+            internal int dodgeX, dodgeY;
             internal int virtualHp = -1, driverHp = -1, maxHp;
+        }
+        internal sealed class ProjectileSample
+        {
+            public int Epoch, DodgeX, DodgeY;
+            public Team TargetTeam;
         }
         public struct Hit { public int Victim, Attacker, Damage, X, Y; public long Deaths; public bool Theoretical, Driver; }
         readonly ZWorld world;
@@ -19,7 +28,26 @@ namespace OpenZ.Sim
         readonly bool[] immortal = new bool[3], circular = new bool[3];
         readonly double[] hpPercent = { 100, 100, 100 };
         public bool ShowDamage, ShowCounts, ResetAutomaticallyOnParametersChange;
+        bool measureProjectileAvoidance;
+        int projectileEpoch;
+        public bool MeasureProjectileAvoidance
+        {
+            get => measureProjectileAvoidance;
+            set
+            {
+                if (measureProjectileAvoidance == value) return;
+                measureProjectileAvoidance = value;
+                projectileEpoch++;
+            }
+        }
         public bool Respawning;
+        sealed class CombatSetup
+        {
+            public bool RedImmortal, RedCircular, BlueImmortal, BlueCircular, Damage, Counts, AutoReset, Respawn;
+            public (int x, int y)? RedPoint, BluePoint;
+        }
+        CombatSetup previousCombatSetup;
+        public bool InfiniteCombatTesting => previousCombatSetup != null;
         readonly Dictionary<Team, (int x, int y)> respawnPoints = new Dictionary<Team, (int x, int y)>();
         readonly Dictionary<int, int> respawns = new Dictionary<int, int>();
         readonly HashSet<int> held = new HashSet<int>();
@@ -28,14 +56,84 @@ namespace OpenZ.Sim
         {
             bool found = respawnPoints.TryGetValue(team, out var p); x = p.x; y = p.y; return found;
         }
-        public bool CanPlace(ZObject o, int x, int y)
+        public bool CanPlace(ZObject o, int x, int y) => CanPlace(x, y, o.WidthPix, o.HeightPix, o.IsRobot);
+        bool CanPlace(int x, int y, int width, int height, bool robot)
         {
-            int left = x - o.WidthPix / 2, top = y - o.HeightPix / 2;
-            if (left < 0 || top < 0 || left + o.WidthPix >= world.Map.WidthPix || top + o.HeightPix >= world.Map.HeightPix) return false;
-            for (int ty = top / 16; ty <= (top + o.HeightPix - 1) / 16; ty++)
-                for (int tx = left / 16; tx <= (left + o.WidthPix - 1) / 16; tx++)
-                    if (!world.Path.TilePassable(tx, ty, o.Kind == ZKind.Robot)) return false;
+            int left = x - width / 2, top = y - height / 2;
+            if (left < 0 || top < 0 || left + width >= world.Map.WidthPix || top + height >= world.Map.HeightPix) return false;
+            for (int ty = top / 16; ty <= (top + height - 1) / 16; ty++)
+                for (int tx = left / 16; tx <= (left + width - 1) / 16; tx++)
+                    if (!world.Path.TilePassable(tx, ty, robot)) return false;
             return true;
+        }
+        public bool SetInfiniteCombatTesting(bool enabled, int centerX, int centerY)
+        {
+            if (enabled == InfiniteCombatTesting) return true;
+            if (!enabled)
+            {
+                var setup = previousCombatSetup;
+                previousCombatSetup = null;
+                SetTeams(setup.RedImmortal, setup.RedCircular, setup.BlueImmortal, setup.BlueCircular);
+                ShowDamage = setup.Damage;
+                ShowCounts = setup.Counts;
+                ResetAutomaticallyOnParametersChange = setup.AutoReset;
+                Respawning = setup.Respawn;
+                RestoreRespawnPoint(Team.Red, setup.RedPoint);
+                RestoreRespawnPoint(Team.Blue, setup.BluePoint);
+                return true;
+            }
+            if (!FindCombatPoints(centerX, centerY, out var red, out var blue)) return false;
+            previousCombatSetup = new CombatSetup
+            {
+                RedImmortal = Immortal(Team.Red), RedCircular = Circular(Team.Red),
+                BlueImmortal = Immortal(Team.Blue), BlueCircular = Circular(Team.Blue),
+                Damage = ShowDamage, Counts = ShowCounts, AutoReset = ResetAutomaticallyOnParametersChange, Respawn = Respawning,
+                RedPoint = respawnPoints.TryGetValue(Team.Red, out var oldRed) ? oldRed : ((int, int)?)null,
+                BluePoint = respawnPoints.TryGetValue(Team.Blue, out var oldBlue) ? oldBlue : ((int, int)?)null
+            };
+            SetTeams(true, true, true, true);
+            ShowDamage = ShowCounts = ResetAutomaticallyOnParametersChange = Respawning = true;
+            respawnPoints[Team.Red] = red;
+            respawnPoints[Team.Blue] = blue;
+            return true;
+        }
+        void SetTeams(bool redImmortal, bool redCircular, bool blueImmortal, bool blueCircular)
+        {
+            if (Immortal(Team.Red) != redImmortal || Circular(Team.Red) != redCircular) Configure(Team.Red, redImmortal, redCircular);
+            if (Immortal(Team.Blue) != blueImmortal || Circular(Team.Blue) != blueCircular) Configure(Team.Blue, blueImmortal, blueCircular);
+        }
+        void RestoreRespawnPoint(Team team, (int x, int y)? point)
+        {
+            if (point.HasValue) respawnPoints[team] = point.Value;
+            else respawnPoints.Remove(team);
+        }
+        bool FindCombatPoints(int centerX, int centerY, out (int x, int y) red, out (int x, int y) blue)
+        {
+            const int halfDistance = (int)(19 / ZConst.PX_TO_M) / 2;
+            int tile = ZConst.TILE;
+            red = blue = default;
+            long nearest = long.MaxValue;
+            for (int y = tile / 2; y < world.Map.HeightPix; y += tile)
+                for (int x = tile / 2; x < world.Map.WidthPix; x += tile)
+                {
+                    long dx = (long)x - centerX, dy = (long)y - centerY;
+                    long distance = dx * dx + dy * dy;
+                    if (distance >= nearest) continue;
+                    if (ClearCombatLane(x, y, halfDistance, 0))
+                    { red = (x - halfDistance, y); blue = (x + halfDistance, y); nearest = distance; }
+                    else if (ClearCombatLane(x, y, 0, halfDistance))
+                    { red = (x, y - halfDistance); blue = (x, y + halfDistance); nearest = distance; }
+                }
+            return nearest != long.MaxValue;
+        }
+        bool ClearCombatLane(int x, int y, int dx, int dy)
+        {
+            // Use the ordinary two-tile vehicle footprint for both points and the ground between them.
+            int size = 2 * ZConst.TILE;
+            int length = dx + dy;
+            for (int offset = -length; offset < length; offset += ZConst.TILE / 2)
+                if (!CanPlace(x + (dx == 0 ? 0 : offset), y + (dy == 0 ? 0 : offset), size, size, false)) return false;
+            return CanPlace(x + dx, y + dy, size, size, false);
         }
         public bool SetRespawnPoint(Team team, int x, int y)
         {
@@ -89,7 +187,52 @@ namespace OpenZ.Sim
             respawns.Clear();
         }
         public void ResetCounters()
-        { foreach (var s in scores.Values) { s.Kills = 0; s.Deaths = 0; } }
+        {
+            foreach (var s in scores.Values) s.Kills = s.Deaths = 0;
+            ResetProjectileAvoidance();
+        }
+        public void ResetProjectileAvoidance()
+        {
+            projectileEpoch++;
+            foreach (var s in scores.Values)
+            {
+                s.projectedDamage = s.avoidedDamage = 0;
+                s.dodgeX = s.dodgeY = 0;
+            }
+        }
+        internal void TrackProjectile(ZMissile missile)
+        {
+            if (!MeasureProjectileAvoidance || missile.team == Team.Neutral || missile.debris || missile.nuke ||
+                missile.damage <= 0 || missile.radius <= 0 || missile.onlyId >= 0 && missile.onlyId != missile.targetId) return;
+            var target = world.Get(missile.targetId);
+            if (!Eligible(target) || target.Destroyed || Held(target) || target.Owner == missile.team) return;
+            var score = For(target.Id);
+            missile.testingSample = new ProjectileSample
+            {
+                Epoch = projectileEpoch, TargetTeam = target.Owner, DodgeX = score.dodgeX, DodgeY = score.dodgeY
+            };
+        }
+        internal void RecordDodgeStep(ZObject unit, int dx, int dy)
+        {
+            if (!MeasureProjectileAvoidance || (dx == 0 && dy == 0) || !Eligible(unit)) return;
+            var score = For(unit.Id);
+            score.dodgeX += dx;
+            score.dodgeY += dy;
+        }
+        internal void ScoreProjectile(ZMissile missile, ZObject target)
+        {
+            var sample = missile.testingSample;
+            if (!MeasureProjectileAvoidance || sample.Epoch != projectileEpoch ||
+                !Eligible(target) || target.Destroyed || Held(target) || target.ShuttleAirborne || target.Owner != sample.TargetTeam) return;
+            var score = For(target.Id);
+            // Remove only the actual dodge steps taken during this projectile's flight.
+            int dodgeX = score.dodgeX - sample.DodgeX, dodgeY = score.dodgeY - sample.DodgeY;
+            int projected = world.TestingProjectileDamage(missile, target, dodgeX, dodgeY);
+            if (projected <= 0) return;
+            int actual = dodgeX == 0 && dodgeY == 0 ? projected : world.TestingProjectileDamage(missile, target, 0, 0);
+            score.projectedDamage += projected;
+            score.avoidedDamage += Math.Max(0, projected - actual);
+        }
         internal void BehaviorChanging(ZBehaviorProfile before, ZBehaviorProfile after)
         {
             if (!ResetAutomaticallyOnParametersChange) return;

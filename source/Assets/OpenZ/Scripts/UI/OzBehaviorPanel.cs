@@ -267,6 +267,13 @@ namespace OpenZ
         void BuildTesting()
         {
             MakeList(42); var t = World.UnitTesting; float y = 0;
+            ToggleRow(OzForkOptions.InfiniteCombatTestingLabel, () => t.InfiniteCombatTesting, enabled =>
+            {
+                var camera = OzUnitEditor.I.Rts;
+                var center = camera ? ZGame.WorldToPx(camera.focus) : new Vector2Int(World.Map.WidthPix / 2, World.Map.HeightPix / 2);
+                if (!t.SetInfiniteCombatTesting(enabled, center.x, center.y))
+                    OzUeToast.Show("NO CLEAR GROUND FOR TWO RESPAWN POINTS 19 M APART");
+            }, ref y, "Enable immortality and circular damage for both teams, damage and scores, automatic score resets and respawning. Place both points 19 m apart near the camera. Turn off to restore the previous setup.");
             foreach (Team team in new[] { Team.Red, Team.Blue })
             {
                 Team side = team; string word = team == Team.Red ? "RED" : "BLUE";
@@ -283,12 +290,17 @@ namespace OpenZ
             }
             ToggleRow("Show damage", () => t.ShowDamage, v => t.ShowDamage = v, ref y, "Floating HP lost above the unit for each landed hit. Invulnerable units display the HP they would have lost, marked as theoretical. Misses display no damage. Driver damage is identified separately.");
             var scores = Row("Scores", y, 94); float sw = layout.w - 40;
-            const string scoreTip = "Trophy: kills. Skull: deaths. Success: kills / total defeats. Immortals count virtual defeats. Reset clears scores only, including hidden scores.";
+            const string scoreTip = "Trophy: kills. Skull: deaths. Success: kills / total defeats. Immortals count virtual defeats. Reset clears all scores, including projectile avoidance.";
             var scoreLabel = Text(scores, "Show kill and death counts", 10, 16, sw - 20, 12); Tip(scoreLabel.rectTransform, scoreTip);
             var countsToggle = Button(scores, "ShowCounts", "", new Rect(10, 33, 70, 27), scoreTip, () => t.ShowCounts = !t.ShowCounts);
             refresh.Add(() => { countsToggle.Label.Set(t.ShowCounts ? "ON" : "OFF"); countsToggle.Selected = t.ShowCounts; countsToggle.Refresh(); });
-            Button(scores, "ResetCounters", "RESET COUNTERS", new Rect(88, 33, sw - 98, 27), scoreTip, t.ResetCounters);
+            float resetWidth = (sw - 106) * .5f;
+            Button(scores, "ResetCounters", "RESET COUNTERS", new Rect(88, 33, resetWidth, 27), scoreTip, t.ResetCounters);
+            Button(scores, "ResetAvoidance", "RESET AVOIDANCE", new Rect(96 + resetWidth, 33, resetWidth, 27),
+                "Clear projectile avoidance for all units. Kill and death counts are preserved.", t.ResetProjectileAvoidance);
             Text(scores, "Success = kills / (kills + deaths)", 10, 78, sw - 20, 10, OzUi.Muted); y += 94;
+            ToggleRow(OzForkOptions.ProjectileAvoidanceLabel, () => t.MeasureProjectileAvoidance, v => t.MeasureProjectileAvoidance = v, ref y,
+                "Shows the share of potential damage avoided by each unit's dodge movement. Counts resolved enemy projectiles aimed at that unit that would have hit without the dodge. Turning this off pauses measurement. Reset Avoidance and Reset Counters both clear the samples.");
             ToggleRow("Reset automatically on parameters change", () => t.ResetAutomaticallyOnParametersChange, v => t.ResetAutomaticallyOnParametersChange = v, ref y,
                 "Clear scores when a dynamics change affects units currently fighting. Saving, renaming and changes to inactive types keep scores. HP and orders stay unchanged.");
             ToggleRow("Respawning", () => t.Respawning, v => t.Respawning = v, ref y,
@@ -310,7 +322,7 @@ namespace OpenZ
         void ToggleRow(string label, Func<bool> get, Action<bool> set, ref float y, string tip)
         {
             var row = Row(label, y, 58); float rw = layout.w - 40;
-            Text(row, label, 10, 18, rw - 95, 12);
+            Text(row, label, 10, 18, rw - 95, 12, OzForkOptions.IsFork(label) ? OzForkOptions.Accent : (Color?)null);
             var b = Button(row, "Toggle", "", new Rect(rw - 80, 6, 70, 27), tip, () => set(!get()));
             refresh.Add(() => { b.Label.Set(get() ? "ON" : "OFF"); b.Selected = get(); b.Refresh(); });
             Text(row, ToggleSummary(label), 10, 43, rw - 20, 10, OzUi.Muted); Tip(row, tip); y += 58;
@@ -353,6 +365,8 @@ namespace OpenZ
         }
         static string ToggleSummary(string label)
         {
+            if (label == OzForkOptions.InfiniteCombatTestingLabel) return "Set up continuous combat with respawn points 19 m apart.";
+            if (label == OzForkOptions.ProjectileAvoidanceLabel) return "Show the percentage of projectile damage avoided by dodging.";
             if (label.StartsWith("Immortal", StringComparison.Ordinal)) return "Keep units alive after defeat.";
             if (label.StartsWith("Circular", StringComparison.Ordinal)) return "Cycle HP back to full after defeat.";
             if (label.StartsWith("Reset automatically", StringComparison.Ordinal)) return "Clear scores when active combat settings change.";

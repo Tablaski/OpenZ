@@ -1,10 +1,23 @@
 using System.IO;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
 namespace OpenZ.EditorTools
 {
+    public sealed class ForkChangelogBuild : BuildPlayerProcessor
+    {
+        public override int callbackOrder => 0;
+
+        public override void PrepareForBuild(BuildPlayerContext context)
+        {
+            string source = OpenZMainMenu.ForkChangesSource;
+            if (!File.Exists(source)) throw new BuildFailedException("Missing OpenZ-VK changelog: " + source);
+            context.AddAdditionalPathToStreamingAssets(source, OpenZMainMenu.ForkChangesFile);
+        }
+    }
+
     /// <summary>
     /// "OpenZ/Build Windows": the enabled Build Settings scenes (Intro = index 0, MainMenu, L02, L17) into builds/OpenZ/OpenZ.exe (repo root)
     /// (x64, windowed 1920x1080 default). Writes builds/OpenZ/BUILD_INFO.txt (time, size, result) and logs the report summary.

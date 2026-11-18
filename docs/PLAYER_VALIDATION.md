@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 0.2.39 Unit Editor testing
+
+- Enable projectile avoidance and compare tanks that stand still, partly escape blasts, and completely escape blasts. Check the per-unit label with kill and death counts on and off. Use Reset Avoidance on its own, then use Reset Counters and change an active combat parameter with automatic reset enabled.
+- Enable VK Infinite Combat Testing Mode over open ground and near the edge of the field. Check both sides' immortality and circular damage, floating damage, kill and death counts, automatic reset and respawning. Confirm the markers are 19 metres apart and the duel restarts from them. Disable the mode and check that the prior settings and markers return.
+- In solo and on both 1 vs 1 seats, open Options, then Build Keys from the pause menu. Bind a letter, cancel with Escape and clear with Backspace. Resume and try the changed binding at a factory. Confirm local bindings carry over to the main menu and the online match keeps running.
+- In Changes & Updates, open both tabs using the mouse and Left/Right. Check the OpenZ comparison cards, the OpenZ-VK introduction and credit, the Discord link and the version notes from the most recent entry through the oldest fork entry. Verify scrolling and that the changelog is available in an offline compiled game.
+
 ## OpenZ-VK 0.2.38 Easy Tuning
 
 - In the Unit Editor, open Easy Tuning under OpenZ, change one agility field, and load Z Classic from the profile menu while staying on the same page. Confirm Jeep 115%, Light 100%, APC 85%, Medium Tank 70%, Mech 60%, Heavy 50%, Missile Launcher 30% and Crane 45%. Load OpenZ again and confirm every field returns to 100%.

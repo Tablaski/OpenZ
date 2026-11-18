@@ -9,6 +9,8 @@ namespace OpenZ
         public static readonly Color Accent = new Color32(213, 112, 255, 255);
         public static readonly Color Brand = new Color32(200, 90, 32, 255);
         public const string ChatLabel = "CHAT SHORTCUT";
+        internal const string ProjectileAvoidanceLabel = "Measure projectile avoidance";
+        internal const string InfiniteCombatTestingLabel = "VK Infinite Combat Testing Mode";
         public const string RestartProductionLabel = "Stop + produce hovered unit";
         public const string DuelDiagnosticsLabel = "Diagnostics";
         public const string DuelSnapshotRateLabel = "Snapshot target";
@@ -45,7 +47,7 @@ namespace OpenZ
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
             label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel || label == OzBuildKeys.Label ||
-            label == OzBattleOptions.DamageLabel ||
+            label == OzBattleOptions.DamageLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
             label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||
             label == DuelBinaryEventsLabel || label == DuelCompressionLabel;

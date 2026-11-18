@@ -273,13 +273,13 @@ namespace OpenZ.Sim
 
         /// <summary>DV122, ProcessMissileDamage: the HP a blast takes from o (a kneeling / lying sniper: KneelBlastPct / ProneBlastPct % of
         /// it, rounded); every other body and the switch off: unchanged.</summary>
-        internal int CoverBlast(ZObject o, int dmg)
+        internal int CoverBlast(ZObject o, int dmg, bool count = true)
         {
             if (!ProneTargetDeviation || dmg <= 0 || o == null) return dmg;
             var c = o.CoverStance;
             if (c == ZStance.Stand) return dmg;
             int k = (int)(((long)dmg * (c == ZStance.Prone ? ProneBlastPct : KneelBlastPct) + 50) / 100);
-            BlastsAtCover++; BlastHpSaved += dmg - k;
+            if (count) { BlastsAtCover++; BlastHpSaved += dmg - k; }
             return k;
         }
 

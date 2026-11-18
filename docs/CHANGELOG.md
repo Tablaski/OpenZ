@@ -1,5 +1,16 @@
 # OpenZ change log
 
+OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring back the combat feel and advanced tactics of the original 1996 Z with help from experienced players.
+
+Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
+
+## OpenZ-VK 0.2.39 (18 Nov 2026)
+
+- In the Unit Editor, turn on projectile avoidance to see how much incoming damage each unit dodges. Reset the score at any time or clear it automatically when combat tuning changes.
+- Turn on VK Infinite Combat Testing Mode to set up automatic rematches with damage, scores and respawn points 19 metres apart. Turn it off to return to your previous testing setup.
+- Change build keys from the pause menu during solo games and 1 vs 1 matches. The chat shortcut appears in duel settings.
+- Changes & Updates has separate OpenZ and OpenZ-VK tabs. The fork tab explains the project, links to the OpenZ / ZZone Discord and lists changes by version.
+
 ## OpenZ-VK 0.2.38 (18 Nov 2026)
 
 - Easy Tuning refreshes each vehicle's agility when you load, import or reset a profile in the Unit Editor.

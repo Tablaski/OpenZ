@@ -428,7 +428,12 @@ namespace OpenZ.Sim
         }
 
         internal void QueuePathResult(ZObject o, int id, List<(int x, int y)> pts) => pathResults.Add((o, id, pts));
-        internal void AddMissile(ZMissile m) { newMissiles.Add(m); NoteIncoming(m); }   // DV150: a shell aimed at a medium tank is noted on it (Sim/ZObject.MTankHurry.cs)
+        internal void AddMissile(ZMissile m)
+        {
+            newMissiles.Add(m);
+            UnitTesting?.TrackProjectile(m);
+            NoteIncoming(m); // DV150: note shells aimed at a medium tank.
+        }
         public void AddMissileForTest(ZMissile m) => newMissiles.Add(m);
 
         /// <summary>zserver.cpp:974-1041, every 1 s: idle same-team units whose centres are within 6 px get a random nudge.</summary>
@@ -471,6 +476,7 @@ namespace OpenZ.Sim
             HeavyFallTurret(m);                                                     // DV124: a blown-off turret lands here now and fells the trees it lies on (Sim/ZWorld.HeavyFall.cs)
             if (!m.nuke)                                                            // 1.3 item 2: the Unit editor's NUKE is drawn by its own strike (View/OzUeNuke.cs), not as a shell's blast
                 Events.Add(new ZEvent { type = ZEventType.MissileExploded, objId = m.attackerId, otherId = m.targetId, x = m.x, y = m.y, radius = m.radius, flag = m.grenade, flag2 = m.debris, value = m.damage, driver = m.driver });   // driver: DV87, a hatch driver's rocket
+            if (m.testingSample != null) UnitTesting?.ScoreProjectile(m, Get(m.targetId));
             int n = Objects.Count;
             for (int i = 0; i < n && i < Objects.Count; i++)
             {
@@ -489,8 +495,9 @@ namespace OpenZ.Sim
                 // double. The explicit cast rounds the ratio to float on every JIT / AOT (Mono kept it in double: 1000 HP r50 at 30 px gave
                 // 400 instead of Zod's 399, 18 of 50 distances off by 1 HP, and the editor could disagree with a build).
                 float ratio = (float)(mag / m.radius);
-                int dmg = m.nuke ? PlaygroundNukeDamage(m, o, mag) : CoverBlast(o, BlastHit(m, o, ratio)), hp0 = o.Health;     // 1.3 item 2: the Unit editor's NUKE takes all of it inside its inner ring, a share in its outer band (1.3 final, Sim/ZWorld.Playground.cs); DV104: a thrown grenade on the target's body = its own damage, only in its area = Zod's less one tenth; every other blast and the rule off: Zod's line (ZWorld.GrenadeBoost.cs); DV122: a kneeling / lying sniper takes less of it (Sim/ZObject.ProneTarget.cs)
-                if (o.IsFortDefender && o.FortDefenderInNest && mag > ZWorld.FortDefenderNestPx) dmg /= ZWorld.FortDefenderNestCover;
+                int dmg = m.nuke ? NestBlastCover(o, mag, PlaygroundNukeDamage(m, o, mag)) :
+                    ProjectileBlastDamage(m, o, mag, ratio);
+                int hp0 = o.Health;
                 o.DamageHealth(dmg, m.attackerId);
                 if (m.nuke) PlaygroundNukeNote(m, o, mag, hp0);                      // 1.3 item 2: the check's record of the NUKE's wave (rule time, distance)
                 if (m.team != Team.Neutral && o.Health < hp0) { o.LastEnemyHit = Time; if (o.IsFort) { o.FortGunTakeHit(dmg); o.NoteFortAttack(m.attackerId, m.x, m.y); } }   // combat_nb_v1: NB31 hit time, DV25 the gun shares the fort's hits; fort_defender_v1 DV41: the attack's side
@@ -500,6 +507,26 @@ namespace OpenZ.Sim
                 if (m.team != Team.Neutral && o.Health < hp0) HelpCall(o, Get(m.attackerId));   // DV53: squad help
                 KnockOnBlast(o, m, ratio);
             }
+        }
+
+        int ProjectileBlastDamage(ZMissile missile, ZObject target, float distance, float ratio,
+            int dodgeX = 0, int dodgeY = 0, bool countCover = true)
+        {
+            int damage = CoverBlast(target, BlastHit(missile, target, ratio, dodgeX, dodgeY), countCover);
+            return NestBlastCover(target, distance, damage);
+        }
+
+        static int NestBlastCover(ZObject target, float distance, int damage) =>
+            target.IsFortDefender && target.FortDefenderInNest && distance > FortDefenderNestPx ? damage / FortDefenderNestCover : damage;
+
+        internal int TestingProjectileDamage(ZMissile missile, ZObject target, int dodgeX, int dodgeY)
+        {
+            // Shift the blast relative to the target for both falloff and direct grenade hits.
+            int dx = missile.x - target.CenterX + dodgeX, dy = missile.y - target.CenterY + dodgeY;
+            if (Math.Abs(dx) >= missile.radius || Math.Abs(dy) >= missile.radius) return 0;
+            float distance = (float)Math.Sqrt((float)(dx * dx + dy * dy));
+            return distance >= missile.radius ? 0 :
+                ProjectileBlastDamage(missile, target, distance, (float)(distance / missile.radius), dodgeX, dodgeY, false);
         }
 
         public bool EngageBarrierBetween(int x1, int y1, int x2, int y2)          // zmap.cpp:2266-2295

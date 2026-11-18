@@ -235,7 +235,7 @@ namespace OpenZ
             AddItem("UNIT EDITOR", "PLAYGROUND · ALL UNITS · STATS", () => GoUnitEditor());              // 1.2 item 6: the unit editor's playground (UI/OpenZMainMenu.UnitEditor.cs, View/OzUnitEditor.cs)
             AddItem("OPTIONS", "AUDIO · SCROLL · HUD", () => ToggleSide(Side.Options));
             AddItem("CONTROLS", "THE ZOD KEY MAP", () => ToggleSide(Side.Controls));
-            AddItem("CHANGES & UPDATES", "WHAT'S NEW SINCE 1996", () => ToggleSide(Side.Changes));
+            AddItem("CHANGES & UPDATES", "OPENZ AND OPENZ-VK", () => ToggleSide(Side.Changes));
             AddItem("ROADMAP", "WHERE OPENZ IS HEADED", () => ToggleSide(Side.Roadmap));
             AddItem("CREDITS", "TRIBUTE · ORIGINAL CONTENT", () => ToggleSide(Side.Credits));
             AddItem(OzFeedback.Button, "IDEAS · BUGS · FEATURES  ↗", () => OzFeedback.Open("main menu"));
@@ -909,6 +909,7 @@ namespace OpenZ
         void CloseSide()
         {
             if (side == Side.None) return;
+            buildKeyOptions?.Cancel();
             sideClosing = side; side = Side.None; sideAt = OzMotion.Now; dragging = null;
             Sfx("ui_panel_close");
             PlayerPrefs.Save();
@@ -1101,7 +1102,7 @@ namespace OpenZ
 
         void Keys()
         {
-            if (OzForkOptions.CaptureChatBinding() || CaptureBuildBinding()) return;
+            if (OzForkOptions.CaptureChatBinding() || (side == Side.Options && buildKeyOptions?.Capture() == true)) return;
             var kb = Keyboard.current; if (kb == null || OzControlsTable.Capturing) return;   // menu_exe_v1: a key being bound is no menu key
             bool up = kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame, down = kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame;
             bool left = kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame, right = kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame;

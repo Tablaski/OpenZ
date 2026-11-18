@@ -66,9 +66,7 @@ namespace OpenZ
             optTab = tab; dragging = null;
             foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab);
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
-            if (buildKeysPage) buildKeysPage.gameObject.SetActiveFast(tab == OzSettingTips.TabNames.Length);
-            bindingBuildUnit = null;
-            RefreshBuildKeys();
+            buildKeyOptions?.Show(tab == OzSettingTips.TabNames.Length);
             for (int i = 0; i < optTabBtns.Count; i++) SetSelected(optTabBtns[i], i == tab);
         }
 

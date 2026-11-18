@@ -41,45 +41,56 @@ namespace OpenZ
         }
     }
 
-    public partial class OpenZMainMenu
+    internal sealed class OzBuildKeyOptions
     {
-        RectTransform buildKeysPage;
+        readonly RectTransform page;
         string bindingBuildUnit;
         int buildBindingFrame;
-        OzText buildKeyHelp;
+        readonly OzText help;
         readonly System.Collections.Generic.List<(string type, HudButton button)> buildKeyButtons = new();
 
-        void BuildConstructionOptions(RectTransform panel)
+        public OzBuildKeyOptions(RectTransform panel, float panelWidth, Func<RectTransform, string, OzRect, Action, HudButton> makeButton)
         {
-            buildKeyButtons.Clear();
-            buildKeysPage = Hud.Node("Build Keys", panel);
-            buildKeysPage.Fill();
-            float width = (OptW - 3 * OzLayout.OptX) / 2;
+            page = Hud.Node("Build Keys", panel);
+            page.Fill();
+            float width = (panelWidth - 3 * OzLayout.OptX) / 2;
             for (int i = 0; i < OzBuildKeys.Units.Length; i++)
             {
                 string type = OzBuildKeys.Units[i];
                 float x = OzLayout.OptX + i / 10 * (width + OzLayout.OptX);
-                var row = SmallButton(buildKeysPage, "Build " + type, "", new OzRect(x, 110 + i % 10 * 37, width, 32),
-                    View.Main, Side.Options, () => { bindingBuildUnit = type; buildBindingFrame = Time.frameCount; RefreshBuildKeys(); }, 11, .02f);
+                var row = makeButton(page, "Build " + type, new OzRect(x, 110 + i % 10 * 37, width, 32),
+                    () => { bindingBuildUnit = type; buildBindingFrame = Time.frameCount; Refresh(); });
                 OzForkOptions.Highlight(row, OzBuildKeys.Label);
                 buildKeyButtons.Add((type, row));
             }
-            buildKeyHelp = Hud.Label(buildKeysPage, "Help", "", 13, OzUi.Muted, .02f).At(OzLayout.OptX, 492, OzH.L, false, OptW - 2 * OzLayout.OptX);
-            RefreshBuildKeys();
+            help = Hud.Label(page, "Help", "", 12, OzUi.Muted, .02f).Body(OzLayout.OptX, 487, panelWidth - 2 * OzLayout.OptX);
+            Refresh();
         }
 
-        void RefreshBuildKeys()
+        public void Show(bool visible)
+        {
+            Cancel();
+            page.gameObject.SetActiveFast(visible);
+            if (visible) Refresh();
+        }
+        public void Cancel()
+        {
+            if (bindingBuildUnit == null) return;
+            bindingBuildUnit = null;
+            Refresh();
+        }
+        public void Refresh()
         {
             foreach (var (type, button) in buildKeyButtons)
             {
                 var key = OzBuildKeys.Get(type);
                 button.Label.Set(UnitInfo.Name(type) + "   ·   " + (key == Key.None ? "NONE" : "SHIFT + " + OzBindings.Cap(key)));
             }
-            buildKeyHelp?.Set(bindingBuildUnit == null ? "Open a factory to use its build keys." :
+            help.Set(bindingBuildUnit == null ? "Open a factory to use its build keys." :
                 UnitInfo.Name(bindingBuildUnit) + " · press a letter, Backspace to clear, or Esc to cancel.");
         }
 
-        bool CaptureBuildBinding()
+        public bool Capture()
         {
             if (bindingBuildUnit == null) return false;
             var keyboard = Keyboard.current;
@@ -90,11 +101,21 @@ namespace OpenZ
                 var key = control.keyCode;
                 if (key != Key.Escape && key != Key.Backspace && !OzBuildKeys.IsLetter(key)) continue;
                 if (key != Key.Escape) OzBuildKeys.Set(bindingBuildUnit, key == Key.Backspace ? Key.None : key);
-                bindingBuildUnit = null;
-                RefreshBuildKeys();
+                Cancel();
                 break;
             }
             return true;
+        }
+    }
+
+    public partial class OpenZMainMenu
+    {
+        OzBuildKeyOptions buildKeyOptions;
+
+        void BuildConstructionOptions(RectTransform panel)
+        {
+            buildKeyOptions = new OzBuildKeyOptions(panel, OptW, (page, name, rect, action) =>
+                SmallButton(page, name, "", rect, View.Main, Side.Options, action, 11, .02f));
         }
     }
 }

@@ -16,10 +16,13 @@ namespace OpenZ
     {
         void AddBehaviorOptions(RectTransform p)
         {
-            AddToggle(p, toggles.Count, OzForkOptions.ChatLabel, null, null, true);
-            var chatKey = toggles[toggles.Count - 1];
-            chatKey.row.OnClick = c => OzForkOptions.BindChat();
-            chatKey.row.OnRightClick = c => OzForkOptions.BindChat();
+            if (Multiplayer.DuelRuntime.Active)
+            {
+                AddToggle(p, toggles.Count, OzForkOptions.ChatLabel, null, null, true);
+                var chatKey = toggles[toggles.Count - 1];
+                chatKey.row.OnClick = c => OzForkOptions.BindChat();
+                chatKey.row.OnRightClick = c => OzForkOptions.BindChat();
+            }
             AddToggle(p, toggles.Count, OzMapReadabilityOptions.FlagLabel, null, null, true);
             var flagSize = toggles[toggles.Count - 1];
             flagSize.row.OnClick = c => OzMapReadabilityOptions.StepFlag(c.right || c.shift ? -1 : Arrow(flagSize));

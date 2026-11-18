@@ -59,11 +59,11 @@ namespace OpenZ.Sim
 
         /// <summary>The HP one blast takes from o, ratio = its distance / the radius (ProcessMissileDamage). Zod's line
         /// (damage x (1 - ratio)) for every blast that is not a thrown grenade and for every blast while the rule is off.</summary>
-        internal int BlastHit(ZMissile m, ZObject o, float ratio)
+        internal int BlastHit(ZMissile m, ZObject o, float ratio, int offsetX = 0, int offsetY = 0)
         {
             if (!GrenadeBoostDeviation || !m.grenade) return (int)(m.damage * (1.0 - ratio));
-            if (m.areaDamage > 0) return GrenadeHit(m.damage, m.areaDamage, m.x, m.y, o, ratio);   // DV112 (item 257): a hero's grenade carries its own area hit (Sim/ZHeroSquad.Kh4.cs)
-            return GrenadeHit(m.damage, ThrownGrenadeAreaDamage, m.x, m.y, o, ratio);
+            int areaDamage = m.areaDamage > 0 ? m.areaDamage : ThrownGrenadeAreaDamage; // DV112: a hero's grenade carries its own area hit.
+            return GrenadeHit(m.damage, areaDamage, m.x + offsetX, m.y + offsetY, o, ratio);
         }
 
         /// <summary>The rule for one thrown grenade and one target (also used by the counted check): direct hit = the grenade's own

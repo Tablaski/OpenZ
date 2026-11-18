@@ -150,6 +150,7 @@ namespace OpenZ.Multiplayer
             foreach (var step in WaitFor(() => r.Playing && r.Game && r.View.Map == "L16" && r.Game.World.Time > 1, "replacement map", 70)) yield return step;
             Check(r.Rules.TankDamageEffects && r.Rules.RadarLoss == RadarLossRule.FogAndZoom &&
                 r.Rules.FortTurretsFor(0).Length == 4, "Frozen rules changed during map replacement.");
+            int borderX = 0, borderY = 0;
             if (host)
             {
                 var world = r.Game.World;
@@ -182,9 +183,11 @@ namespace OpenZ.Multiplayer
                 r.Game.GetComponent<OpenZHud>()?.Toast("RED HEALTH · SMOKE AND OIL", OzUi.Amber, 2f);
                 yield return null;
                 WorldShot("damaged-tanks");
-                camera.focus = Vector3.Lerp(r.Game.CenterWorld(fort), ZGame.PxToWorld(world.Map.WidthPix / 2, world.Map.HeightPix / 2), .6f);
-                camera.SetHeightImmediate(70);
-                WorldShot("radar-ground-before");
+                var owned = world.Zones.Single(zone => zone.Owner == Team.Red && zone.Contains(fort.CenterX, fort.CenterY));
+                var unowned = world.Zones.Single(zone => zone.Owner == Team.Neutral && zone.Y + zone.H == owned.Y &&
+                    zone.X < fort.CenterX && fort.CenterX < zone.X + zone.W);
+                borderX = (Math.Max(owned.X, unowned.X) + Math.Min(owned.X + owned.W, unowned.X + unowned.W)) / 2;
+                borderY = owned.Y;
             }
             yield return new WaitForSecondsRealtime(1.2f);
             Shot("replacement-map");
@@ -192,13 +195,23 @@ namespace OpenZ.Multiplayer
             if (host)
             {
                 var world = r.Game.World;
+                var camera = Camera.main.GetComponent<RtsCamera>();
+                camera.focus = ZGame.PxToWorld(borderX, borderY);
+                camera.pitch = 89;
+                camera.SetHeightImmediate(70);
+                WorldShot("radar-frontier-before");
                 foreach (var radar in world.Objects.Where(o => o.Type == "radar" && o.Owner == Team.Red && !o.Destroyed).ToArray())
                 { radar.SetHealth(0); world.UpdateObjectHealth(radar); }
                 yield return null;
                 WorldShot("radar-static");
                 yield return new WaitForSecondsRealtime(1f);
                 WorldShot("radar-fog-zoom");
-                WorldShot("radar-ground-after");
+                var loss = OzRadarLoss.I;
+                Check(loss && loss.Fog && loss.Visible(borderX, borderY + 112) && !loss.Visible(borderX, borderY - 112),
+                    "Owned ground and neutral ground were not on opposite sides of the fog frontier.");
+                camera.focus = ZGame.PxToWorld(borderX, borderY);
+                camera.SetHeightImmediate(70);
+                WorldShot("radar-frontier-after");
                 yield return null;
                 r.ProofInterruptMatch();
             }

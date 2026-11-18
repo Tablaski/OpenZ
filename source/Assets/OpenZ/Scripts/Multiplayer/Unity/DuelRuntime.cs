@@ -311,7 +311,7 @@ namespace OpenZ.Multiplayer
             if (message.Length == 0 || !Connected) return;
             AddChat(localName + " : " + message); peer.Send(new DuelPacket(DuelMessage.Chat, Encoding.UTF8.GetBytes(message)));
         }
-        void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.Refresh(); }
+        void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.RefreshChatHistory(); }
         void PublishLobby()
         {
             View = DuelLobbyData.From(lobby); View.HostRelease = LocalRelease; View.GuestRelease = guestRelease;

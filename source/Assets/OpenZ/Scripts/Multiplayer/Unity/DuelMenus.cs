@@ -14,7 +14,7 @@ namespace OpenZ.Multiplayer
     public sealed partial class DuelMenus : MonoBehaviour
     {
         enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics, MatchRequest, Reconnect }
-        Page page;
+        Page page, builtPage;
         Page microphoneReturn;
         bool deviceList;
         bool pauseWasOpen;
@@ -35,6 +35,9 @@ namespace OpenZ.Multiplayer
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
         OzText ping, loading, voiceStatus, planningTime;
         InputField chatField;
+        OzText chatHistory;
+        int chatHistoryLines;
+        Image chatMicrophoneCapsule, chatMicrophoneMuted;
         bool bindingChat, bindingTalk;
         bool advanced, onlineSettings;
         string serviceUrl, setupStatus = "";
@@ -57,7 +60,7 @@ namespace OpenZ.Multiplayer
             if (!R.Playing) return;
             notices.Add((message, Time.realtimeSinceStartupAsDouble + 10));
             if (notices.Count > 4) notices.RemoveAt(0);
-            dirty = true;
+            if (page == Page.Entry) dirty = true;
         }
         public void OpenChat() { if (R.MatchSuspended) return; FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
         void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
@@ -130,6 +133,13 @@ namespace OpenZ.Multiplayer
         }
         void Build()
         {
+            // Keep the active chat field, including its caret and selection, through refreshes.
+            if (page == Page.Chat && builtPage == Page.Chat && chatField)
+            {
+                UpdateChatMicrophone();
+                return;
+            }
+            builtPage = page;
             if (page != Page.Lobby)
             {
                 lobbyDraft = null;
@@ -141,6 +151,8 @@ namespace OpenZ.Multiplayer
             if (lobbyDialog != LobbyDialog.OpenZMaps) ReleaseOpenZMapPreview();
             openZMapImage = null;
             ping = loading = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = null; chatField = null;
+            chatHistory = null;
+            chatMicrophoneCapsule = chatMicrophoneMuted = null;
             R.Voice.Monitoring = page == Page.Microphone;
             if (!canvas)
             {
@@ -464,24 +476,52 @@ namespace OpenZ.Multiplayer
                 }
             }
         }
-        void BuildChat() { BuildChatPanel(70, 750, 920, 290); Button(root, "CLOSE CHAT", 1020, 960, 240, CloseOverlay); if (chatField) { chatField.ActivateInputField(); EventSystem.current.SetSelectedGameObject(chatField.gameObject); } }
+        void BuildChat()
+        {
+            BuildChatPanel(70, 750, 920, 290);
+            Button(root, "CLOSE CHAT", 1020, 960, 240, CloseOverlay);
+            FocusChatField();
+        }
+        void FocusChatField()
+        {
+            EventSystem.current.SetSelectedGameObject(chatField.gameObject);
+            chatField.ActivateInputField();
+        }
         void BuildChatPanel(float x, float y, float w, float h)
         {
             var panel = Panel("TEXT CHAT", x, y, w, h);
-            var mic = Button(panel, "", w - 170, 5, 65, () => { R.Voice.ToggleMicrophone(); dirty = true; });
+            var mic = Button(panel, "", w - 170, 5, 65, () => { R.Voice.ToggleMicrophone(); UpdateChatMicrophone(); });
             mic.name = "Toggle microphone";
             // A microphone silhouette uses UI primitives so it needs no external font or texture.
-            var capsule = Hud.Img(mic, "Microphone capsule", R.Voice.MicrophoneEnabled ? OzUi.Go : OzUi.Muted); capsule.rectTransform.TL(27, 8, 10, 18); capsule.raycastTarget = false;
+            chatMicrophoneCapsule = Hud.Img(mic, "Microphone capsule", OzUi.Muted); chatMicrophoneCapsule.rectTransform.TL(27, 8, 10, 18); chatMicrophoneCapsule.raycastTarget = false;
             var baseLine = Hud.Img(mic, "Microphone base", OzUi.Ink); baseLine.rectTransform.TL(21, 33, 22, 3); baseLine.raycastTarget = false;
             var stem = Hud.Img(mic, "Microphone stem", OzUi.Ink); stem.rectTransform.TL(30, 26, 4, 9); stem.raycastTarget = false;
-            if (!R.Voice.MicrophoneEnabled) { var slash = Hud.Img(mic, "Muted", OzUi.AlertText); slash.rectTransform.TL(15, 22, 35, 3); slash.rectTransform.localRotation = Quaternion.Euler(0, 0, 45); slash.raycastTarget = false; }
+            chatMicrophoneMuted = Hud.Img(mic, "Muted", OzUi.AlertText); chatMicrophoneMuted.rectTransform.TL(15, 22, 35, 3); chatMicrophoneMuted.rectTransform.localRotation = Quaternion.Euler(0, 0, 45); chatMicrophoneMuted.raycastTarget = false;
+            UpdateChatMicrophone();
             Button(panel, "SETUP", w - 95, 5, 80, OpenMicrophone);
-            Label(panel, string.Join("\n", R.Chat.Skip(Math.Max(0, R.Chat.Count - (h > 200 ? 5 : 2)))), 20, 48, w - 40, 17, OzUi.Ink);
+            chatHistoryLines = h > 200 ? 5 : 2;
+            chatHistory = Label(panel, "", 20, 48, w - 40, 17, OzUi.Ink);
+            RefreshChatHistory();
             chatField = Input(panel, "", 20, h - 62, w - 210, chat, v => chat = v, 240);
-            chatField.onEndEdit.AddListener(_ => { if (Keyboard.current != null && Keyboard.current.enterKey.wasPressedThisFrame) SendChat(); });
+            chatField.onSubmit.AddListener(_ => SendChat());
             Button(panel, "SEND", w - 175, h - 62, 150, SendChat);
         }
-        void SendChat() { R.SendChat(chat); chat = ""; dirty = true; }
+        void UpdateChatMicrophone()
+        {
+            bool enabled = R.Voice.MicrophoneEnabled;
+            chatMicrophoneCapsule.color = enabled ? OzUi.Go : OzUi.Muted;
+            chatMicrophoneMuted.enabled = !enabled;
+        }
+
+        internal void RefreshChatHistory() => chatHistory?.Set(string.Join("\n", R.Chat.Skip(Math.Max(0, R.Chat.Count - chatHistoryLines))));
+
+        void SendChat()
+        {
+            R.SendChat(chat);
+            chat = "";
+            chatField.SetTextWithoutNotify(chat);
+            if (page == Page.Chat) FocusChatField();
+        }
         void Leave() { R.Close(); CloseOverlay(); if (SceneManager.GetActiveScene().name != "MainMenu") SceneManager.LoadSceneAsync("MainMenu"); }
         public void LeaveMatch() { Leave(); }
         RectTransform Panel(string title, float x, float y, float w, float h)

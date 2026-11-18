@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 0.2.40 duel chat
+
+- In a 1 vs 1 match, type a draft, move the caret into the middle and keep typing while the opponent sends several messages and earlier chat notifications expire. Verify the draft and caret stay in place, selected text stays selected, and new messages appear in the history.
+- Send with Enter and with the Send button. Verify each message appears once on both sides, the draft clears, and typing can resume immediately. Close the chat and verify incoming notifications still appear and open it when clicked.
+- In the lobby and while choosing a new map mid-match, verify that incoming messages update the history while the chat field stays focused.
+
 ## OpenZ-VK 0.2.39 Unit Editor testing
 
 - Enable projectile avoidance and compare tanks that stand still, partly escape blasts, and completely escape blasts. Check the per-unit label with kill and death counts on and off. Use Reset Avoidance on its own, then use Reset Counters and change an active combat parameter with automatic reset enabled.

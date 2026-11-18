@@ -232,7 +232,7 @@ namespace OpenZ.Multiplayer
                 {
                     camera.focus = ZGame.PxToWorld(borderX, borderY - 3 * ZConst.TILE);
                     camera.SetHeightImmediate(70);
-                    foreach (var frame in CaptureRadarReveal(world, scout, enemy, loss)) yield return frame;
+                    foreach (var frame in CaptureRadarReveal(world, scout, enemy, loss, camera)) yield return frame;
                 }
                 yield return null;
                 r.ProofInterruptMatch();
@@ -282,7 +282,7 @@ namespace OpenZ.Multiplayer
             return unit;
         }
         static void RadarCaption(string text) => OpenZHud.I.Toast(text, OzUi.Amber, 4f);
-        IEnumerable CaptureRadarReveal(ZWorld world, ZObject scout, ZObject[] enemies, OzRadarLoss loss)
+        IEnumerable CaptureRadarReveal(ZWorld world, ZObject scout, ZObject[] enemies, OzRadarLoss loss, RtsCamera camera)
         {
             Check(enemies.All(o => OzRadarLoss.Covers(o) && loss.Contacts.ContainsKey(o.Id)), "Enemy robots have no last known contacts.");
             var remembered = enemies.Select(o => loss.Contacts[o.Id].Y).ToArray();
@@ -298,20 +298,29 @@ namespace OpenZ.Multiplayer
             }
             RadarCaption("ALLY ADVANCING · VISION BEYOND THE BORDER");
             Check(world.SendWaypoints(Team.Red, scout, new[] { ZWaypoint.Move(scout.CenterX, 89 * ZConst.TILE) }), "Scout movement refused.");
-            foreach (var frame in CaptureRadarFrames(11, () => enemies.All(o => !OzRadarLoss.Covers(o)))) yield return frame;
-            Check(enemies.All(o => !OzRadarLoss.Covers(o)), "The scout did not reveal the enemy robots.");
+            var startingFocus = camera.focus;
+            var cameraTravel = ZGame.PxToWorld(0, -3 * ZConst.TILE);
+            void FollowScout()
+            {
+                float advance = Mathf.InverseLerp(104 * ZConst.TILE, 99 * ZConst.TILE, scout.CenterY);
+                camera.focus = startingFocus + cameraTravel * Mathf.SmoothStep(0, 1, advance);
+            }
+            bool EnemiesRevealed() => enemies.All(o => !o.Destroyed && !OzRadarLoss.Covers(o));
+            foreach (var frame in CaptureRadarFrames(11, EnemiesRevealed, FollowScout)) yield return frame;
+            Check(EnemiesRevealed(), "The scout did not reveal the enemy robots.");
             RadarCaption("ENEMY ROBOTS REVEALED");
-            WorldShot("radar-robots-revealed");
             foreach (var frame in CaptureRadarFrames(3.2)) yield return frame;
+            WorldShot("radar-robots-revealed");
             File.WriteAllText(Path.Combine(folder, "radar-video-proof.txt"), "PASS: hidden robots moved without updating their last known positions; the allied scout revealed all three.");
         }
-        IEnumerable CaptureRadarFrames(double duration, Func<bool> stop = null)
+        IEnumerable CaptureRadarFrames(double duration, Func<bool> stop = null, Action beforeFrame = null)
         {
             var destination = Path.Combine(folder, "radar-video-frames");
             Directory.CreateDirectory(destination);
             double end = Time.realtimeSinceStartupAsDouble + duration;
             do
             {
+                beforeFrame?.Invoke();
                 DuelProofCapture.Save(Path.Combine(destination, $"frame-{videoFrame++:D4}.jpg"));
                 yield return new WaitForSecondsRealtime(.065f);
             } while (Time.realtimeSinceStartupAsDouble < end && (stop == null || !stop()));

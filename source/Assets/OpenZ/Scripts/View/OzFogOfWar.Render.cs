@@ -604,6 +604,23 @@ namespace OpenZ
                 }
                 nv++;
             }
+            if (radarFog)
+                foreach (var entry in game.StaticViews)
+                {
+                    var sceneObject = entry.Value;
+                    var obj = W.GetAny(entry.Key);
+                    if (!sceneObject || !OzRadarLoss.Covers(obj)) continue;
+                    int id = sceneObject.GetInstanceID();
+                    if (!rcache.TryGetValue(id, out var cache)) rcache[id] = cache = new RCache();
+                    if (cache.at < 0 || now - cache.at > 1f && refreshed < 3)
+                    {
+                        sceneObject.GetComponentsInChildren(true, cache.list);
+                        cache.at = now;
+                        refreshed++;
+                    }
+                    foreach (var renderer in cache.list)
+                        if (renderer && !renderer.forceRenderingOff) { renderer.forceRenderingOff = true; hiddenNow.Add(renderer); }
+                }
             HiddenViews = nv; HiddenRenderers = hiddenNow.Count; HiddenSkippedOutside = outside;
             EarlyViews = ne; EarlyShadowsHeld = earlyNow.Count;
         }
@@ -625,7 +642,7 @@ namespace OpenZ
         void PruneRendererCache()
         {
             if (!game) return;
-            if (rcache.Count > 2 * game.LiveViewValues.Count + 64) rcache.Clear();
+            if (rcache.Count > 2 * game.LiveViewValues.Count + game.StaticViews.Count + 64) rcache.Clear();
         }
 
         // ---------------------------------------------------------------- the render graph pass

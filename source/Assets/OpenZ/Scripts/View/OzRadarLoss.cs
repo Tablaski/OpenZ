@@ -155,24 +155,15 @@ namespace OpenZ
             liveViews.Clear();
             foreach (var view in game.LiveViewValues)
             {
-                if (!view || view.Obj == null) continue;
-                var obj = view.Obj;
-                bool fixedObject = obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag";
-                if (!fixedObject && (obj.Owner == seat || obj.Owner == Team.Neutral || !obj.IsUnit)) continue;
-                liveViews.Add(obj.Id);
-                if (!Visible(obj.CenterX, obj.CenterY)) continue;
-                if (obj.Destroyed && !fixedObject) { Contacts.Remove(obj.Id); continue; }
-                if (!Contacts.TryGetValue(obj.Id, out var contact)) Contacts[obj.Id] = contact = new Contact();
-                if (fixedObject && contact.Parts.Count > 0 && contact.Destroyed == obj.Destroyed && contact.Team == obj.Owner) continue;
-                contact.X = obj.CenterX; contact.Y = obj.CenterY;
-                contact.Left = obj.LocX; contact.Top = obj.LocY; contact.Width = obj.WidthPix; contact.Height = obj.HeightPix;
-                contact.Type = obj.Type;
-                contact.Team = obj.Owner; contact.Kind = obj.Kind; contact.Destroyed = obj.Destroyed; contact.Fixed = fixedObject;
-                contact.Parts.Clear();
-                if (!meshCache.TryGetValue(obj.Id, out var filters) || fixedObject) meshCache[obj.Id] = filters = view.GetComponentsInChildren<MeshFilter>(true);
-                foreach (var filter in filters)
-                    if (filter && filter.sharedMesh && filter.gameObject.activeInHierarchy && filter.TryGetComponent<MeshRenderer>(out var renderer) && renderer.enabled)
-                        contact.Parts.Add(new Part(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials));
+                if (!view || view.Obj == null || view.Obj.Owner == seat || view.Obj.Owner == Team.Neutral || !view.Obj.IsUnit) continue;
+                RecordContact(view.Obj, view.gameObject, false);
+            }
+            foreach (var entry in game.StaticViews)
+            {
+                if (!entry.Value) continue;
+                var obj = world.Get(entry.Key);
+                if (obj != null && (obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag"))
+                    RecordContact(obj, entry.Value, true);
             }
             forgotten.Clear();
             foreach (var pair in Contacts)
@@ -186,6 +177,24 @@ namespace OpenZ
                 }
             }
             foreach (int id in forgotten) { Contacts.Remove(id); meshCache.Remove(id); }
+        }
+
+        void RecordContact(ZObject obj, GameObject view, bool fixedObject)
+        {
+            liveViews.Add(obj.Id);
+            if (!Visible(obj.CenterX, obj.CenterY)) return;
+            if (!fixedObject && obj.Destroyed) { Contacts.Remove(obj.Id); return; }
+            if (!Contacts.TryGetValue(obj.Id, out var contact)) Contacts[obj.Id] = contact = new Contact();
+            if (fixedObject && contact.Parts.Count > 0 && contact.Destroyed == obj.Destroyed && contact.Team == obj.Owner) return;
+            contact.X = obj.CenterX; contact.Y = obj.CenterY;
+            contact.Left = obj.LocX; contact.Top = obj.LocY; contact.Width = obj.WidthPix; contact.Height = obj.HeightPix;
+            contact.Type = obj.Type;
+            contact.Team = obj.Owner; contact.Kind = obj.Kind; contact.Destroyed = obj.Destroyed; contact.Fixed = fixedObject;
+            contact.Parts.Clear();
+            if (!meshCache.TryGetValue(obj.Id, out var filters) || fixedObject) meshCache[obj.Id] = filters = view.GetComponentsInChildren<MeshFilter>(true);
+            foreach (var filter in filters)
+                if (filter && filter.sharedMesh && filter.gameObject.activeInHierarchy && filter.TryGetComponent<MeshRenderer>(out var renderer) && renderer.enabled)
+                    contact.Parts.Add(new Part(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials));
         }
 
         internal void DrawMemory(Camera cam)

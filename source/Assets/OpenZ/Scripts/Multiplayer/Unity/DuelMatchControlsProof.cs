@@ -159,6 +159,7 @@ namespace OpenZ.Multiplayer
                 Check(radar != null, "No radar for the loss demonstration.");
                 radar.Owner = Team.Red;
                 var tank = world.AddHeadStart(Team.Red, "light").Single();
+                r.Game.SpawnUnitView(tank);
                 tank.SetHealth(Math.Max(1, tank.MaxHealth / 8));
                 int tx = tank.CenterX / ZConst.TILE, ty = tank.CenterY / ZConst.TILE;
                 var directions = new[] { (x: 1, y: 0), (x: -1, y: 0), (x: 0, y: 1), (x: 0, y: -1) };

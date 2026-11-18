@@ -1,5 +1,13 @@
 # Player validation record
 
+## OpenZ-VK 0.2.30 Chilly Willy V2 (awaiting compiled-game validation)
+
+- The 5,555 simulation checks pass. They cover the vehicle route closing and reopening, robot access to meltwater, and removal of the blocking tile after a rock is destroyed.
+- Unity Play Mode rendered the map from three camera angles and verified the west bridge's ruined model and the repaired east bridge's intact model and walk deck.
+- Deploy Chilly Willy from Shitty Maps → OpenZ-VK → Arctic and check the snow, cliff edges and water at RTS zoom levels.
+- Cross both intact bridges with vehicles. Destroy the western crossing, repair the eastern crossing with the neutral crane after capturing it, and confirm the route changes match the visible bridge stages.
+- Wade with robots away from the bridges, clear a breakable slate ridge and collect a grenade crate. Check the base approaches and flags in a full solo match.
+
 ## OpenZ-VK 0.2.29 Jungle, Car Park and Desert V2 (awaiting compiled-game validation)
 
 - Native tile, class, territory and object records match the decoded Zod files for all three maps. The 5,546 simulation checks pass, including the starting bridge states, route closure after destruction and robot access to water.

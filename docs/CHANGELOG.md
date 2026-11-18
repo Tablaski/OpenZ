@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.30 (18 Nov 2026)
+
+- **Chilly Willy V2** adds an original Arctic layout to the solo Shitty Maps gallery under OpenZ-VK. Fight across a snowy relay island with breakable slate ridges, blue meltwater and three steel bridges. The east crossing starts in ruins and can be reopened by repair.
+
 ## OpenZ-VK 0.2.29 (18 Nov 2026)
 
 - The solo Shitty Maps gallery adds V2 versions of **16 Jungle**, **17 Car Park** and **02 Desert**, with textured roads and terrain, scenery and animated water drawn from each planet's OpenZ assets. Car Park starts with two ruined bridges, as in the original layout.

@@ -31,6 +31,9 @@ namespace OpenZ.EditorTools
             foreach (var entry in OzShittyMapCatalog.V2) Bake(entry.Id);
         }
 
+        [MenuItem("OpenZ/Shitty Maps/Bake Chilly Willy")]
+        public static void Arctic() => Bake(OzShittyMapCatalog.ChillyWillyV2.Id);
+
         // A custom V2 grid can be baked without adding it to either game menu.
         public static void Bake(string id)
         {
@@ -40,6 +43,8 @@ namespace OpenZ.EditorTools
             if (!asset) throw new InvalidOperationException("Missing converted grid " + id);
             var map = ZMapData.FromJson(asset.text);
             var profile = Profile.For(map.planet);
+            bool arctic = map.planet == "arctic";
+            if (arctic) OzArcticArt.Ensure();
             var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
 
             var scene = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/" + profile.Scene + ".unity", OpenSceneMode.Single);
@@ -52,10 +57,11 @@ namespace OpenZ.EditorTools
             var terrain = map.planet == "volcanic" ? environment.AddComponent<OzVolcanicConversionTerrain>()
                 : environment.AddComponent<OzConversionTerrainV2>();
             terrain.mapId = id;
-            terrain.ground = Material("Materials/Env/" + profile.Ground + ".mat");
-            terrain.cliff = Material("Materials/Env/" + profile.Cliff + ".mat");
-            terrain.pit = Material("Materials/Env/" + profile.Bed + ".mat");
-            terrain.water = Material("Materials/Env/" + profile.Water + ".mat");
+            Material Surface(string name) => arctic ? OzArcticArt.Mat(name) : Material("Materials/Env/" + name + ".mat");
+            terrain.ground = Surface(profile.Ground);
+            terrain.cliff = Surface(profile.Cliff);
+            terrain.pit = Surface(profile.Bed);
+            terrain.water = Surface(profile.Water);
             terrain.Build(map, false);
             var collider = environment.GetComponentInChildren<MeshCollider>();
             Physics.SyncTransforms();
@@ -88,12 +94,14 @@ namespace OpenZ.EditorTools
             Physics.SyncTransforms();
 
             OpenZSetup.SpawnConversion(map, views.transform, profile.Level, obj => obj.Type != "rock" && !templates.ContainsKey(obj.Type));
-            var rocks = jungle ? views.GetComponentsInChildren<RockPillar>(true).Length + " textured jungle rock slices"
+            var rocks = arctic ? OzArcticArt.DressRocks(views.transform) + " snow-capped Arctic rock stages"
+                : jungle ? views.GetComponentsInChildren<RockPillar>(true).Length + " textured jungle rock slices"
                 : OpenZRocks.Build(world, views.transform, collider, profile.RockKit,
                     Material("Models/RocksZ/M_RockZ_" + profile.RockKit + ".mat"));
             if (map.planet == "volcanic") rocks += OzL07Scene.ApplyRockHeights(views.transform);
             TowerGunSeat.SeatAll(views.transform, bakePlinths: false);
             if (map.planet == "volcanic") DressRim(map, environment.transform);
+            else if (arctic) OzArcticArt.Snowfall(environment.transform, map.width, map.height);
             else DressLand(map, environment.transform, collider, scenery);
 
             var game = Object.FindFirstObjectByType<ZGame>();
@@ -107,7 +115,15 @@ namespace OpenZ.EditorTools
             atmosphere.lampRoot = views.transform;
             // The original ground is reused as a material input, and the generated copy owns its look.
             atmosphere.groundMaterial = null;
-            Object.FindFirstObjectByType<DayNight>().lampRoot = views.transform;
+            var dayNight = Object.FindFirstObjectByType<DayNight>();
+            dayNight.lampRoot = views.transform;
+            if (arctic)
+            {
+                game.unitPrefabs = game.unitPrefabs.Concat(OzArcticArt.BridgeKit()).ToArray();
+                atmosphere.preset = Atmosphere.Preset.Arctic;
+                dayNight.warmth = .14f;
+                dayNight.arcticLight = true;
+            }
 
             VerifyViews(map, views.transform);
             var preview = OzLevelInfo.Bake(world, id, true);

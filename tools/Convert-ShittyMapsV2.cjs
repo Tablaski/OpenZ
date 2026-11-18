@@ -5,7 +5,7 @@ const { decode, sha } = require('./Convert-ShittyMaps.cjs');
 
 const packageRoot = path.resolve(__dirname, '../shittymaps');
 const palettes = ['desert', 'volcanic', 'arctic', 'jungle', 'city'];
-const supported = new Set(['desert', 'volcanic', 'jungle', 'city']);
+const supported = new Set(['desert', 'volcanic', 'jungle', 'city', 'arctic']);
 
 // Static lava IDs reconciled against L07_grid and the Zod editor palette.
 const crust = new Set([5, 6, 25, 26, 46, 66, 86, 97, 98, 99, 106, 119, 141, 142, 160, 161, 162, 181, 182]);

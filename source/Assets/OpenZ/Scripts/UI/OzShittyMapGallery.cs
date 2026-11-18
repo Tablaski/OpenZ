@@ -45,7 +45,7 @@ namespace OpenZ
             }
             gallery.root=go.GetComponent<RectTransform>(); gallery.Build();
         }
-        public static OzLevelDef Definition(OzShittyMap map) => new OzLevelDef(map.Id,map.Scene,map.Number > 0 ? map.Number.ToString("00") : "MP",map.Name.ToUpperInvariant(),map.World.ToUpperInvariant()+" · SHITTY MAP","", "Capture the flags. Break into the enemy fort.","Capture the flags. Break into the enemy fort.",new[]{map.Group,map.World.ToUpperInvariant(),map.Variant});
+        public static OzLevelDef Definition(OzShittyMap map) => new OzLevelDef(map.Id,map.Scene,map.ForkOriginal ? "VK" : map.Number > 0 ? map.Number.ToString("00") : "MP",map.Name.ToUpperInvariant(),map.World.ToUpperInvariant()+" · SHITTY MAP","", "Capture the flags. Break into the enemy fort.","Capture the flags. Break into the enemy fort.",new[]{map.Group,map.World.ToUpperInvariant(),map.Variant});
         public static OzLevelDef Definition(string id) => OzShittyMapCatalog.Find(id) is OzShittyMap map ? Definition(map) : OzLevelDef.All.FirstOrDefault(d=>d.Id==id);
         void Build()
         {
@@ -58,12 +58,12 @@ namespace OpenZ
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
             InlineTitle(panel,"Gallery title",solo ? "SHITTY MAPS · SOLO" : "SHITTY MAPS · 1 VS 1",24,65,1400,44,30,true);
             Button(panel,"CLOSE",1510,20,220,Close);
-            var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION"} : new[]{"Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
+            var groups=solo ? new[]{"Z ORIGINAL","Z EXPANSION","OPENZ-VK"} : new[]{"Z ORIGINAL","Z EXPANSION","MULTIPLAYER"};
             for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*420,118,400,()=>{group=value;scrollPosition=1;Build();},group==value); }
             var worlds=new[]{"all","desert","volcanic","arctic","jungle","city"};
             for(int i=0;i<worlds.Length;i++) { string value=worlds[i]; Button(panel,value.ToUpperInvariant(),24+i*222,180,210,()=>{world=value;scrollPosition=1;Build();},world==value); }
             Button(panel,"SORT: "+new[]{"NUMBER","NAME","WORLD"}[sort],1380,180,350,()=>{sort=(sort+1)%3;scrollPosition=1;Build();});
-            Label(panel,solo ? "Original campaigns · levels 21 and 27 explicitly use FIXED files because their originals are absent." : editable ? "The host must approve any change to the official map selection." : "READ ONLY · browse the converted maps.",24,240,1700,16,OzUi.Muted);
+            Label(panel,solo ? "Solo campaigns and OpenZ-VK maps · levels 21 and 27 use their FIXED layouts." : editable ? "The host must approve any change to the official map selection." : "READ ONLY · browse the converted maps.",24,240,1700,16,OzUi.Muted);
             var maps = OzShittyMapCatalog.Select(solo, group, world, sort).Select(Definition).ToArray();
             Label(panel,maps.Length+" MAPS",24,278,800,15,OzUi.Muted);
             var viewport=Hud.Node("Map viewport",panel); viewport.TL(24,310,1120,570); viewport.gameObject.AddComponent<RectMask2D>();

@@ -14,7 +14,7 @@ namespace OpenZ
     [ExecuteAlways]
     public class Atmosphere : MonoBehaviour
     {
-        public enum Preset { Desert, City, Jungle, Volcanic }
+        public enum Preset { Desert, City, Jungle, Volcanic, Arctic }
         public Preset preset = Preset.Desert;
         public DayNight dayNight;
         [Tooltip("Parent of DEC_*lamp* objects (the environment root)")] public Transform lampRoot;
@@ -155,6 +155,23 @@ namespace OpenZ
             }
             else if (preset == Preset.Volcanic) lampK = OzVolcanicAir.Apply(t, night, golden, blue);   // level 7: its own air (OzVolcanicAir.cs)
             else if (preset == Preset.Jungle) lampK = OzJungleAir.Apply(this, t, night, golden, blue);   // level 16: its own air (OzJungleAir.cs)
+            else if (preset == Preset.Arctic)
+            {
+                Shader.SetGlobalColor(IdColor, Color.Lerp(new Color(.72f, .86f, .94f), new Color(.40f, .56f, .76f), night));
+                Shader.SetGlobalFloat(IdDensity, .00145f);
+                Shader.SetGlobalFloat(IdFalloff, 31f);
+                Shader.SetGlobalFloat(IdNoiseScale, .024f);
+                Shader.SetGlobalFloat(IdNoiseAmount, .46f);
+                Shader.SetGlobalVector(IdWind, new Vector4(2.2f, 0, .9f, 0));
+                Shader.SetGlobalFloat(IdSun, .82f);
+                Shader.SetGlobalFloat(IdG, .36f);
+                Shader.SetGlobalFloat(IdLow, .009f + .014f * night);
+                Shader.SetGlobalFloat(IdLowH, 2.8f);
+                Shader.SetGlobalFloat(IdLowW, 2.2f);
+                Shader.SetGlobalFloat(IdLowMode, 0);
+                Shader.SetGlobalFloat(IdShimmer, 0);
+                lampK = night;
+            }
             else
             {
                 Shader.SetGlobalColor(IdColor, Color.Lerp(new Color(0.86f, 0.88f, 0.9f), new Color(0.62f, 0.68f, 0.8f), night));

@@ -13,6 +13,7 @@ The solo gallery also includes V2 trials for **02 Desert**, **07 Pyro
 Technics**, **08 Molten Kombat**, **16 Jungle** and **17 Car Park**. The
 original 60 entries are the V1 catalog. Both versions of Molten Kombat can be
 selected independently.
+**Chilly Willy V2** is an original Arctic layout in the OpenZ-VK solo group.
 
 - Solo: original numbered maps, split into **Z Original** (01–20) and
   **Z Expansion** (21–35). The absent originals for 21 and 27 use the user's
@@ -80,6 +81,7 @@ lookup also uses the animation links to identify the hot pool frames.
 | City | L17 street detail and road markings shader, concrete and cliff materials, harbour water, street furniture, city RockZ and bridge stages |
 | Desert | L02 sand and asphalt details, sandstone, river material, palms, desert RockZ, grenade crates and bridges |
 | Volcanic | L07 ash and asphalt details, triplanar cliffs, animated lava, volcanoes, volcanic RockZ and crystals |
+| Arctic | Original snow, slate textures, destructible rock meshes, frost-covered steel bridge stages and cold lighting, plus OpenZ water ripples |
 
 The same authoring code derives roads, banks, water surfaces, bridge spans
 and collider geometry from each supplied layout. The scenes reference the
@@ -88,6 +90,18 @@ installed OpenZ assets and fit authored scenery to each converted layout.
 To try another layout on a supported planet, use a new `SM...V2` ID and
 call `OzVolcanicConversionBake.Bake(id)` in the editor. The current catalog
 registers the reference maps and the additional Molten Kombat trial.
+
+## Chilly Willy V2
+
+`node tools/Make-ChillyWillyV2.cjs` writes the original `vk_chilly_willy.map`
+and its decoded grid. Its two channels, bridge sites, territories and starting
+armies are authored in the generator. Chilly Willy (level 11) informed the choice
+of terrain roles. The Arctic palette metadata provides native tile semantics.
+
+The **Bake Chilly Willy** editor command generates the scene and preview.
+The **Rebuild original Arctic art** command recreates the Arctic materials,
+textures, rock meshes and bridge prefabs stored in `Art/Arctic/`. A normal
+checkout has the generated assets ready for Unity.
 
 ## Names and provenance
 

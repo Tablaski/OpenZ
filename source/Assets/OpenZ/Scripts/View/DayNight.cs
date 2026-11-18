@@ -22,6 +22,7 @@ namespace OpenZ
         Vector2 sunShown; bool sunStepInit;
         [Range(0, 1), Tooltip("0 = noon, 0.3 = golden sunset, 0.4 = blue hour, 0.55 = night, 0.9 = dawn")]
         public float timeOfDay = 0.08f;
+        public bool arcticLight;
         /// <summary>
         /// fading out); ZGame sets it in Awake. Noon follows ~1 min later, sunset ~5 min in, night ~7 min in (12 min cycle).</summary>
         /// 0.915 -> 0.935 (+29 game minutes: the key light
@@ -115,7 +116,8 @@ namespace OpenZ
         Color Cool(Color c)
         {
             float g = c.grayscale; var cool = new Color(g * 0.96f, g * 1.0f, g * 1.06f);
-            return Color.Lerp(cool, c, warmthNow);
+            var tint = Color.Lerp(cool, c, warmthNow);
+            return arcticLight ? new Color(tint.r * .83f, tint.g * .96f, tint.b * 1.12f, tint.a) : tint;
         }
 
         float warmthNow = 1f;

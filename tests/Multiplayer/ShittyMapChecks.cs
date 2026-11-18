@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OpenZ;
@@ -25,6 +26,7 @@ static class ShittyMapChecks
         reject(()=>new DuelRules{Map="SM99"}.Validate(),"Unknown converted map rejected");
         CheckVolcanicV2(root, settings, check, reject);
         CheckLandV2(root, settings, check, reject);
+        CheckArctic(root, settings, check, reject);
         foreach(var entry in OzShittyMapCatalog.All)
         {
             var mapFile=Path.Combine(root,"shittymaps/Resources/OpenZ/Maps",entry.Id+"_grid.json");
@@ -102,5 +104,64 @@ static class ShittyMapChecks
             check(water.Any(i => !world.Path.TilePassable(i % map.width, i / map.width, false)),
                 entry.Id + ": robots can wade where vehicles cannot");
         }
+    }
+
+    static void CheckArctic(string root, string settings, Action<bool, string> check, Action<Action, string> reject)
+    {
+        var entry = OzShittyMapCatalog.ChillyWillyV2;
+        check(OzShittyMapCatalog.Select(true, "OPENZ-VK", "arctic").Contains(entry),
+            "Chilly Willy is selectable as an original solo Arctic map");
+        reject(() => new DuelRules { Map = entry.Id }.Validate(), "Chilly Willy V2 is a solo prototype");
+        var json = File.ReadAllText(Path.Combine(root, "shittymaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+        var native = File.ReadAllBytes(Path.Combine(root, "shittymaps/Sources~/maps", entry.File));
+        var world = ZWorld.Create(settings, json, 19);
+        var map = world.Map;
+        check(map.planet == "arctic" && map.objects.Count == BitConverter.ToUInt16(native, 56) &&
+            map.zones.Count == 9 && map.zones.Count == BitConverter.ToUInt16(native, 60), "Arctic prototype native objects and territory count");
+        var bridges = world.Objects.Where(o => o.IsBridge).ToArray();
+        check(bridges.Length == 3 && bridges.Count(o => o.Destroyed) == 1, "Chilly Willy V2 starts with two intact bridges and one ruin");
+        bool Passes(ZObject o) => world.Path.TilePassable(o.CenterX / 16, o.CenterY / 16, false);
+        bool Connected()
+        {
+            var seen = new HashSet<(int, int)>();
+            var queue = new Queue<(int x, int y)>();
+            void Add(int x, int y)
+            {
+                if (x < 0 || y < 0 || x + 1 >= map.width || y + 1 >= map.height) return;
+                if (!world.Path.TilePassable(x, y, false) || !world.Path.TilePassable(x + 1, y, false) ||
+                    !world.Path.TilePassable(x, y + 1, false) || !world.Path.TilePassable(x + 1, y + 1, false)) return;
+                if (seen.Add((x, y))) queue.Enqueue((x, y));
+            }
+            Add(64, 25);
+            while (queue.Count > 0)
+            {
+                var (x, y) = queue.Dequeue();
+                if (x == 24 && y == 76) return true;
+                Add(x - 1, y);
+                Add(x + 1, y);
+                Add(x, y - 1);
+                Add(x, y + 1);
+            }
+            return false;
+        }
+        check(Connected(), "Chilly Willy V2 has a continuous vehicle route between the bases");
+        var west = bridges.Single(o => o.Source.x == 23);
+        var east = bridges.Single(o => o.Destroyed);
+        west.SetHealth(0);
+        world.UpdateObjectHealth(west);
+        check(!Passes(west) && !Connected(), "Losing the west bridge cuts the vehicle route");
+        east.SetHealth(east.MaxHealth);
+        check(Passes(east) && Connected(), "Restoring the east bridge reopens a vehicle route");
+
+        var water = Enumerable.Range(0, map.width * map.height).Where(i => map.classes[i] == (int)ZClass.Water);
+        check(water.Any(i => world.Path.TilePassable(i % map.width, i / map.width, true) &&
+            !world.Path.TilePassable(i % map.width, i / map.width, false)), "Arctic meltwater admits robots and blocks vehicles");
+        var rock = world.Objects.First(o => o.Type == "rock");
+        int xRock = rock.LocX / 16, yRock = rock.LocY / 16 + 2;
+        bool blocked = !world.Path.TilePassable(xRock, yRock, true);
+        rock.SetHealth(0);
+        world.UpdateObjectHealth(rock);
+        world.Tick(ZConst.TICK);
+        check(blocked && world.Path.TilePassable(xRock, yRock, true), "Blasting an Arctic rock opens its blocking tile");
     }
 }

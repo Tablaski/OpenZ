@@ -221,6 +221,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Packages/org.openz.shittymaps/Scenes/SM02V2_Converted.unity
     guid: a95ff3c7048972c4c96cf8a0c6551812
+  - enabled: 1
+    path: Packages/org.openz.shittymaps/Scenes/SMChillyWillyV2_Converted.unity
+    guid: 5750836eec8b52846ac6a7d9455fe848
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

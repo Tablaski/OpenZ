@@ -1,0 +1,125 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Arctic meltwater
+  m_Shader: {fileID: 4800000, guid: 7e82d9ae7e8330f41997d20d77a3632b, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _WATER_FLOWMAP
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _FlowMap:
+        m_Texture: {fileID: 2800000, guid: f4f1edd3d4e25e3580e76a65ed128d55, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _RippleNormal:
+        m_Texture: {fileID: 2800000, guid: 24054a69f4e7525ebc2088e05a1976f3, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AbsorbDepth: 0.9
+    - _AddLightStrength: 1
+    - _AdditionalLights: 1
+    - _AmbientStrength: 0.6
+    - _BedTintDepth: 0.32
+    - _CausticsFadeIn: 0.08
+    - _CausticsFadeOut: 1.6
+    - _CausticsFocus: 0.24
+    - _CausticsScale: 1
+    - _CausticsSpeed: 0.6
+    - _CausticsSplit: 0.06
+    - _CausticsStrength: 0.27
+    - _DeepDepth: 0.62
+    - _DepthDistance: 0.8
+    - _EdgeFade: 0.02
+    - _FallbackDepth: 0.6
+    - _FlowCycle: 8
+    - _FlowDirection: 90
+    - _FoamBreakup: 0.75
+    - _FoamPulse: 0.15
+    - _FoamScale: 0.9
+    - _FoamSoftness: 0.08
+    - _FoamSpeed: 0.05
+    - _FoamTiling: 1.6
+    - _FoamWidth: 0.06
+    - _FresnelPower: 5
+    - _FresnelStrength: 0.5
+    - _GlintFadeHeight: 150
+    - _GlintIntensity: 1
+    - _GlintPower: 900
+    - _GlintSoftness: 0.08
+    - _GlintSparsity: 0.55
+    - _GlintThreshold: 0.45
+    - _GlintViewBias: 0.3
+    - _LineStrength: 0.012
+    - _LineWidth: 0.05
+    - _MidDepth: 0.19
+    - _NightDarken: 0.675
+    - _NightDesaturate: 1
+    - _NoDepth: 0
+    - _NoOpaque: 0
+    - _OpacityDeep: 0.577
+    - _OpacityDepth: 0.1
+    - _OpacityShallow: 0.2
+    - _ReflectionF0: 0.06
+    - _ReflectionStrength: 0.6
+    - _Refraction: 0.1
+    - _RippleContrast: 0
+    - _RippleDirection: 90
+    - _RippleScaleA: 6
+    - _RippleScaleB: 2.6
+    - _RippleShade: 0.8
+    - _RippleShading: 0.4
+    - _RippleSlope: 0.35
+    - _RippleSpeed: 0.12
+    - _RippleStrengthA: 0.27
+    - _RippleStrengthB: 0.16
+    - _RippleTiling1: 0.45
+    - _RippleTiling2: 1.1
+    - _SandDepth: 0.35
+    - _SandLift: 0.3
+    - _ShadowStrength: 0.75
+    - _SunGlintIntensity: 0.9
+    - _SunGlintPower: 300
+    - _SunGlintSoftness: 0.06
+    - _SunGlintThreshold: 0.86
+    - _SunGlintViewBias: 0.45
+    - _SurfaceFoam: 0.004
+    - _UseFlowMap: 1
+    - _VertexWaves: 0
+    - _WaveHeight: 0.03
+    - _WaveLength: 6
+    - _WaveSpeed: 0.8
+    m_Colors:
+    - _AbsorbColor: {r: 0.3, g: 0.8, b: 0.84, a: 1}
+    - _BedTint: {r: 0.561, g: 0.96, b: 1, a: 1}
+    - _ColorDeep: {r: 0.02, g: 0.4, b: 0.5, a: 0.88}
+    - _ColorFoam: {r: 0.8, g: 0.74, b: 0.6, a: 0.28}
+    - _ColorShallow: {r: 0.46, g: 0.78, b: 0.7, a: 0.22}
+    - _ColorSky: {r: 0.78, g: 0.9, b: 0.92, a: 1}
+    - _DeepColor: {r: 0.045, g: 0.18, b: 0.35, a: 1}
+    - _FlowRect: {r: -24, g: -204, b: 192, a: 228}
+    - _FoamColor: {r: 0.72, g: 0.87, b: 0.94, a: 0.55}
+    - _MidColor: {r: 0.14, g: 0.39, b: 0.62, a: 1}
+    - _SandColor: {r: 0.9, g: 0.8, b: 0.6, a: 1}
+    - _ShallowColor: {r: 0.38, g: 0.68, b: 0.82, a: 1}
+    - _SkyColor: {r: 0.85, g: 0.94, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

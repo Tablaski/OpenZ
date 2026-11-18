@@ -61,7 +61,12 @@ namespace OpenZ.Experimental
             terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
             if (!render) return;
 
-            var surfaceGround = map.planet == "volcanic" ? VolcanicGround(map) : LandGround(map);
+            var surfaceGround = map.planet switch
+            {
+                "volcanic" => VolcanicGround(map),
+                "arctic" => ArcticGround(map),
+                _ => LandGround(map)
+            };
             var rockFace = map.planet == "jungle" ? surfaceGround
                 : map.planet == "volcanic" ? cliff : TiledRock(cliff);
             var floor = map.planet == "jungle" ? surfaceGround
@@ -96,7 +101,7 @@ namespace OpenZ.Experimental
         {
             float warpX = (Mathf.PerlinNoise(x * .27f, z * .27f) - .5f) * .7f;
             float warpZ = (Mathf.PerlinNoise(z * .29f + 7, x * .29f) - .5f) * .7f;
-            bool city = map.planet == "city", jungle = map.planet == "jungle";
+            bool city = map.planet == "city", jungle = map.planet == "jungle", arctic = map.planet == "arctic";
             float wet = Mask(map, x + warpX, z + warpZ, Wet);
             float solid = Mask(map, x + warpX, z + warpZ, Solid);
             float road = Mask(map, x, z, Road);
@@ -115,6 +120,14 @@ namespace OpenZ.Experimental
             float ravine = Mathf.SmoothStep(0, 1, (Mathf.Max(wet, span) - .20f) / .65f)
                 * Mathf.Lerp(city ? 1.18f : jungle ? .88f : .65f, 2.5f, deep);
             float elevation = city ? 2.75f + hummock * 1.7f : (jungle ? 3.1f : 2.2f) + hummock * 3.4f;
+            if (arctic)
+            {
+                float drift = Mathf.PerlinNoise((x + z * .52f) * .16f, z * .049f);
+                baseHeight += drift * drift * .52f * (1 - road) * (1 - wet);
+                elevation = Mathf.Lerp(3.6f, 6.4f, hummock);
+                elevation += Mathf.SmoothStep(0, 1, (outside - 5) / 18)
+                    * (2 + Mathf.PerlinNoise(x * .034f + 57, z * .046f) * 13);
+            }
             return baseHeight + relief * elevation * (1 - Mathf.SmoothStep(0, 1, span * 2)) - ravine;
         }
 

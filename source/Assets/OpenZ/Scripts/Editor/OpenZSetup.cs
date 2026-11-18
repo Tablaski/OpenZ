@@ -807,7 +807,7 @@ namespace OpenZ.EditorTools
                 Forts = objects.Where(o => o.view.kind.StartsWith("building:fort")).Select(o => o.view).ToList();
                 foreach (var obj in objects.Where(o => usePrefab(o.source))
                     .OrderBy(o => o.view.kind.StartsWith("building:fort") ? 0 : 1))
-                    if (Spawn(obj.view, map.planet == "city", parent, random) == 0)
+                    if (Spawn(obj.view, map.planet == "city", parent, random, map.planet == "arctic") == 0)
                         throw new InvalidOperationException($"No OpenZ view for {obj.view.kind} at {obj.view.x},{obj.view.y}");
             }
             finally
@@ -817,7 +817,7 @@ namespace OpenZ.EditorTools
             }
         }
 
-        static int Spawn(ZObj o, bool city, Transform parent, System.Random rng)
+        static int Spawn(ZObj o, bool city, Transform parent, System.Random rng, bool arctic = false)
         {
             string[] k = o.kind.Split(':'); string cat = k[0], type = k[1];
             Team team = TeamColors.Parse(o.owner);
@@ -837,8 +837,9 @@ namespace OpenZ.EditorTools
                     bool vert = type == "bridge_vert"; int len = 5 + (o.extra_links < 100 ? o.extra_links : 0);
                     w = vert ? 4 : len; h = vert ? len : 4;
                     bool plank = SpawnLv == "L16";
-                    key = $"bridge_{(city ? "city" : plank ? "jungle" : "desert")}_{(o.health_percent <= 0 ? "destroyed" : "intact")}";
-                    float mw = city || plank ? 8f : 7.8f, ml = city ? 12f : plank ? 22f : 20.6f;
+                    key = $"bridge_{(arctic ? "arctic" : city ? "city" : plank ? "jungle" : "desert")}_{(o.health_percent <= 0 ? "destroyed" : "intact")}";
+                    float mw = arctic ? OzArcticArt.BridgeWidth : city || plank ? 8f : 7.8f;
+                    float ml = arctic ? OzArcticArt.BridgeLength : city ? 12f : plank ? 22f : 20.6f;
                     yaw = vert ? 0 : 90; scale = new Vector3((vert ? w : h) * 2 / mw, 1, (vert ? h : w) * 2 / ml);
                     team = Team.Neutral; break;
                 }
@@ -863,7 +864,8 @@ namespace OpenZ.EditorTools
                     if (key == "stop_sign") yaw = 0;                                   // 1.3 item 10: the sign's face (-z) looks at the RTS camera (south); the draw above stays, so every later prop keeps its old random yaw
                 }
             }
-            var prefab = key != null ? Pf(key) : null;
+            var prefab = arctic && key != null && key.StartsWith("bridge_arctic_") ? OzArcticArt.Bridge(key)
+                : key != null ? Pf(key) : null;
             if (!prefab) { if (key != null) Debug.LogWarning("no prefab " + key); return 0; }
             // Zod anchor = top-left tile; rocks block only their bottom tile (1x3 sprite)
             int ty = type == "rock" ? o.y + 2 : o.y;

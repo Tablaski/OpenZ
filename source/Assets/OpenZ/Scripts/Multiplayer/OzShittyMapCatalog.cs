@@ -9,14 +9,14 @@ namespace OpenZ
     {
         public readonly string Id, Name, World, File;
         public readonly int Number;
-        public readonly bool Solo, Duel, Balanced, SoloException;
+        public readonly bool Solo, Duel, Balanced, SoloException, ForkOriginal;
         public string Scene => Id + "_Converted";
         public string ScenePath => "Packages/org.openz.shittymaps/Scenes/" + Scene + ".unity";
-        public string Group => Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
+        public string Group => ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
         public string Title => (Number > 0 ? Number.ToString("00") + " · " : "") + Name;
         public string Variant => Id.EndsWith("V2", StringComparison.Ordinal) ? "V2" : Balanced ? File.Contains("remixFDL") ? "FDL REMIX" : "FIXED" : "ORIGINAL";
-        public OzShittyMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException)
-        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; }
+        public OzShittyMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false)
+        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; }
     }
 
     public static partial class OzShittyMapCatalog
@@ -32,7 +32,9 @@ namespace OpenZ
             new OzShittyMap("SM17V2", "Car Park", "city", "p02_bb_orig17.map", 17, true, false, false, false),
             new OzShittyMap("SM02V2", "Desert", "desert", "p02_bb_orig02.map", 2, true, false, false, false)
         };
-        public static IEnumerable<OzShittyMap> V2 => LandV2.Concat(VolcanicV2);
+        public static readonly OzShittyMap ChillyWillyV2 = new OzShittyMap(
+            "SMChillyWillyV2", "Chilly Willy", "arctic", "vk_chilly_willy.map", 0, true, false, false, false, forkOriginal: true);
+        public static IEnumerable<OzShittyMap> V2 => LandV2.Concat(VolcanicV2).Append(ChillyWillyV2);
         public static IEnumerable<OzShittyMap> Playable => All.Concat(V2);
 
         public static OzShittyMap Find(string id) => Playable.FirstOrDefault(m => m.Id == id);

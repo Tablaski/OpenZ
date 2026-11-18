@@ -37,6 +37,7 @@ namespace OpenZ.EditorTools
                     "M_Cliff_Sandstone", "WaterV4/M_Water_v3_backup", "Desert"),
                 "volcanic" => new Profile("L07_Volcanic", "M_L07_Ground", "M_Cliff_VolcanicRock",
                     "M_L07_PitBed", "M_Water", "Volcanic"),
+                "arctic" => new Profile("L02_Desert", "Snow", "Slate", "Shoal", "Meltwater", null),
                 _ => throw new InvalidOperationException("No V2 asset mapping for " + world)
             };
         }

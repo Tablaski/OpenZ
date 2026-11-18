@@ -1,5 +1,6 @@
 const STUN = [{ urls: ["stun:stun.cloudflare.com:3478"], username: "", credential: "" }];
 const ROOM_LIFETIME = 30 * 60 * 1000;
+const CONNECTED_ROOM_LIFETIME = 6 * 60 * 60 * 1000;
 const MAX_BODY = 65536;
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
@@ -8,7 +9,7 @@ export function randomToken(bytes = 24) {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(bytes)))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 export function validRoom(room) { return /^OPNZ-[A-F0-9]{24}$/.test(room); }
-// All rooms share one guard. Its response contains no account or usage details.
+// All rooms share one guard. Only the remaining allowance is exposed to authenticated seats.
 export function billingPeriod(day, now = Date.now()) {
   if (!/^([1-9]|[12][0-9]|3[01])$/.test(String(day))) throw new Error("Missing billing day.");
   const date = new Date(now);
@@ -36,7 +37,7 @@ export class RelayBudget {
       const identity = `${env.CF_ACCOUNT_ID}:${period.start}:${limit}`;
       let state = await this.ctx.storage.get("budget");
       if (!state || state.identity !== identity) state = { identity, peak: 0, grants: [] };
-      if (state.peak >= limit) return json({ allowed: false, reason: "budget" });
+      if (state.peak >= limit) return json({ allowed: false, reason: "budget", relayRemainingBytes: "0" });
       if (!(state.checkedAt <= now && now - state.checkedAt < 60000)) {
         // Account-wide TURN plus SFU: both consume the shared free allowance.
         // No dimensions means one total, rather than a truncated list of users/keys.
@@ -74,7 +75,7 @@ export class RelayBudget {
       if (!reason) state.grants.push(now);
       await this.ctx.storage.put("budget", state);
       await this.ctx.storage.setAlarm(period.end);
-      return json({ allowed: !reason, reason });
+      return json({ allowed: !reason, reason, relayRemainingBytes: String(Math.max(0, limit - state.peak)) });
     } catch { return json(unavailable); }
   }
   async alarm() { await this.ctx.storage.deleteAll(); }
@@ -167,14 +168,20 @@ export class DuelRoom {
       const role = seat === room.host.seat ? "host" : seat === room.guest?.seat ? "guest" : null;
       if (!role) return json({ error: "Invalid room access." }, 403);
       if (path === "/ice") {
-        const direct = reason => json({ iceServers: STUN, relay: false, relayReason: reason });
+        if (room.guest && !room.reconnectEnabled) {
+          room.reconnectEnabled = true;
+          room.expires = Date.now() + CONNECTED_ROOM_LIFETIME;
+          await this.ctx.storage.put("room", room);
+          await this.ctx.storage.setAlarm(room.expires);
+        }
+        let budget;
+        const direct = reason => json({ iceServers: STUN, relay: false, relayReason: reason, relayRemainingBytes: budget?.relayRemainingBytes });
         if (this.env.TURN_ENABLED !== "true") return direct("disabled");
         if (!room.guest) return direct("waiting");
         const player = room[role];
         if (!this.env.TURN_KEY_ID || !this.env.TURN_API_TOKEN) return direct("unavailable");
         // Expired credentials are never reused. Cached credentials do not authorize
         // a new allocation after the budget has closed.
-        let budget;
         try {
           const response = await this.env.RELAY_BUDGET.get(this.env.RELAY_BUDGET.idFromName("account")).fetch(new Request("https://internal/check"));
           if (!response.ok) return direct("unavailable");
@@ -199,7 +206,7 @@ export class DuelRoom {
           await this.ctx.storage.put("room", room);
           } catch { return direct("unavailable"); }
         }
-        return json({ iceServers: [...STUN, ...player.ice], relay: true });
+        return json({ iceServers: [...STUN, ...player.ice], relay: true, relayRemainingBytes: budget.relayRemainingBytes });
       }
       if (path !== "/socket" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return json({ error: "Expected a connection upgrade." }, 400);
       if (this.ctx.getWebSockets(role).length) return json({ error: "This player is already connected." }, 409);

@@ -114,7 +114,7 @@ static class SimulationChecks
             var duel = ZWorld.Create(settings, json);
             var startingRules = new DuelRules { Map = map, Common = DuelMissionDefaults.Create() };
             check(startingRules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" }) &&
-                startingRules.Common.StartingUnits.SequenceEqual(new[] { "light", "heavy", "pyro", "laser" }), map + ": incorrect duel defaults");
+                startingRules.Common.StartingUnits.SequenceEqual(new[] { "", "", "", "" }), map + ": incorrect duel defaults");
             var custom = startingRules.Copy();
             var preset = new[] { "light", "", "electrobot", "laser" };
             custom.SetUnitPreset(DuelUnitPreset.Z1996);
@@ -122,6 +122,7 @@ static class SimulationChecks
             custom.Validate();
             check(custom.Common.StartingUnits.SequenceEqual(new[] { "light", "", "", "laser" }) &&
                 preset[2] == "electrobot", map + ": applying a preset must preserve slot order and keep the saved preset independent");
+            DuelMissionDefaults.ApplyOutsidePreset(startingRules, new[] { "light", "", "", "" });
             startingRules.EnableHandicap(1); startingRules.Handicap.StartingUnits.AddRange(new[] { "", "heavy", "", "" });
             duel.ConfigureDuel(startingRules, false);
             duel.DuelApplyStartingArmies();
@@ -151,6 +152,12 @@ static class SimulationChecks
             check(duel.Time == 0 && openingTank.Waypoints.Count == 1 && openingFort.CurUnit == product &&
                 openingFort.BInit == 0 && openingFort.Queue.Count == repeatCopies,
                 map + ": opening orders were not released before the first game tick");
+            string nextProduct = duel.ProductionUnits(openingFort).First(t => t != product);
+            check(orders.Execute(new DuelOrder { Sequence = 3, ObjectId = openingFort.Id, Kind = DuelOrderKind.BuildShortcut, Unit = nextProduct }) &&
+                openingFort.CurUnit == nextProduct, map + ": build shortcut switches the authoritative production");
+            int queueAfterSwitch = openingFort.Queue.Count;
+            check(orders.Execute(new DuelOrder { Sequence = 4, ObjectId = openingFort.Id, Kind = DuelOrderKind.BuildShortcut, Unit = nextProduct }) &&
+                openingFort.CurUnit == nextProduct && openingFort.Queue.Count == queueAfterSwitch + 1, map + ": next shortcut queues the current unit");
             duel.DuelSurrender(0);
             check(duel.GameOver && duel.Winner == Team.Blue && duel.Objects.Where(o => o.IsFort && o.Owner == Team.Red).All(o => o.Destroyed), map + ": surrender did not destroy fort and award victory");
         }

@@ -19,7 +19,7 @@ namespace OpenZ
 
         void MinimapStep()
         {
-            bool want = wanted && mask != null;
+            bool want = (wanted || radarFog) && mask != null;
             if (!miniImg) { if (!want || !MinimapBuild()) return; }
             bool show = want && strength > 0.001f;
             if (miniImg.enabled != show) miniImg.enabled = show;
@@ -48,9 +48,9 @@ namespace OpenZ
         void MinimapPaint()
         {
             if (!miniTex || mask == null) return;
-            var k = MiniOf[PlanetIndex]; byte r = (byte)(k.r * 255f), g = (byte)(k.g * 255f), b = (byte)(k.b * 255f);
+            var k = radarFog ? Color.gray : MiniOf[PlanetIndex]; byte r = (byte)(k.r * 255f), g = (byte)(k.g * 255f), b = (byte)(k.b * 255f);
             var s = mask.Shown;
-            for (int i = 0; i < s.Length; i++) miniBuf[i] = new Color32(r, g, b, (byte)(255 - s[i]));
+            for (int i = 0; i < s.Length; i++) miniBuf[i] = new Color32(r, g, b, (byte)((255 - s[i]) * (radarFog ? .42f : 1)));
             miniTex.SetPixels32(miniBuf); miniTex.Apply(false, false);
             miniDirty = false; miniLook = look * 8 + PlanetIndex; MinimapPaints++;
         }

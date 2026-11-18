@@ -23,7 +23,8 @@ namespace OpenZ.Sim
         Crippling, GreenShake, GreenSpeed, GreenAcceleration, GreenSmoke, GreenOil, GreenOilLife,
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
-        Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15, Count
+        Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -42,7 +43,8 @@ namespace OpenZ.Sim
             if (double.IsNaN(value) || double.IsInfinity(value)) throw new ArgumentException("Non-finite behavior value: " + Key);
             // Max describes the suggested UI scale, not a cap on custom numeric values.
             // Probabilities and discrete choices retain their mathematical bounds.
-            value = Math.Max(Min, Choices != null || Key == ZBehaviorKey.Chance || Key == ZBehaviorKey.BoostChance ? Math.Min(Max, value) : value);
+            value = Math.Max(Min, Choices != null || Key == ZBehaviorKey.Chance || Key == ZBehaviorKey.BoostChance ||
+                Key >= ZBehaviorKey.DistanceVariance && Key <= ZBehaviorKey.PivotVariance ? Math.Min(Max, value) : value);
             return Choices == null ? value : Math.Round(value, MidpointRounding.AwayFromZero);
         }
         public string Format(double value) => Choices != null ? Choices[(int)Clamp(value)] :
@@ -177,9 +179,17 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.DodgeWeight13,"Dodge 292.5 deg weight","DIRECTION WEIGHTS","",0,100,42,42,"Relative chance. Zero excludes this direction."),
             N(ZBehaviorKey.DodgeWeight14,"Dodge 315 deg weight","DIRECTION WEIGHTS","",0,100,47,47,"Relative chance. Zero excludes this direction."),
             N(ZBehaviorKey.DodgeWeight15,"Dodge 337.5 deg weight","DIRECTION WEIGHTS","",0,100,40,40,"Relative chance. Zero excludes this direction."),
+            N(ZBehaviorKey.DodgeSpeed,"Dodge movement speed","DODGING","x",.1,4,1,1,"Movement speed multiplier while dodging."),
+            N(ZBehaviorKey.DistanceVariance,"Dodge distance variance","","",0,1,.2,.2,"Total variation around the dodge distance."),
+            N(ZBehaviorKey.SpeedVariance,"Dodge speed variance","","",0,1,.2,.2,"Total variation around dodge speed."),
+            N(ZBehaviorKey.AccelerationVariance,"Dodge acceleration variance","","",0,1,.2,.2,"Total variation around the time to accelerate while dodging."),
+            N(ZBehaviorKey.BoostVariance,"Dodge boost variance","","",0,1,.2,.2,"Total variation around the extra dodge boost speed."),
+            N(ZBehaviorKey.Agility,"Tank agility","","%",10,125,100,100,"Easy tuning percentage last applied to this tank."),
+            N(ZBehaviorKey.PivotVariance,"Dodge pivot variance","","",0,1,.2,.2,"Total variation in hull pivot speed and turning acceleration during each dodge."),
+            B(ZBehaviorKey.DodgePhysical,"Pivot before moving during a dodge","DODGING",false,false,"Apply the vehicle's turn rate and acceleration to the defensive step."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
-        public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium" };
+        public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
         public static readonly string[] RobotTypes = { "grunt", "psycho", "tough", "sniper", "pyro", "laser", "electrobot" };
         public static bool IsTank(string type) => Array.IndexOf(TankTypes, type) >= 0;
         public static bool IsRobot(string type) => Array.IndexOf(RobotTypes, type) >= 0;
@@ -220,7 +230,29 @@ namespace OpenZ.Sim
             profile.Set("", ZBehaviorKey.BoostSpeed, 5);
             profile.Set("", ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres);
             profile.Set("", ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres);
+            if (family == ZBehaviorFamily.Tanks)
+                foreach (string type in ZBehaviorSchema.TankTypes) profile.ApplyTankAgility(type, ClassicTankAgility(type));
             return profile;
+        }
+        public static double ClassicTankAgility(string type) => type switch
+        {
+            "jeep" => 115, "apc" => 85, ZMTank.Type => 70, "medium" => 60, "heavy" => 50,
+            "missile_launcher" => 30, "crane" => 45, _ => 100
+        };
+        public void ApplyTankAgility(string type, double percent)
+        {
+            percent = ZBehaviorSchema.Def(ZBehaviorKey.Agility).Clamp(percent);
+            double factor = percent / 100;
+            Set(type, ZBehaviorKey.Agility, percent);
+            Set(type, ZBehaviorKey.Distance, factor);
+            Set(type, ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres * factor);
+            Set(type, ZBehaviorKey.DodgeSpeed, factor);
+            Set(type, ZBehaviorKey.BoostSpeed, 1 + 4 * factor);
+            Set(type, ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres * factor);
+            Set(type, ZBehaviorKey.DodgePhysical, 1);
+            Set(type, ZBehaviorKey.TurnRate, 360 * factor);
+            Set(type, ZBehaviorKey.TurnAcceleration, 3000 * factor);
+            Set(type, ZBehaviorKey.Acceleration, .12 / factor);
         }
         public string id = "", name = "Custom";
         public ZBehaviorFamily family;

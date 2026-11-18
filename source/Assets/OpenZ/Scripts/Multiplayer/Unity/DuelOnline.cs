@@ -33,7 +33,7 @@ namespace OpenZ.Multiplayer
     [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint; }
     [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; }
     [Serializable] sealed class DuelIceServer { public string[] urls; public string username, credential; }
-    [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, error; }
+    [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, relayRemainingBytes, error; }
     [Serializable] sealed class DuelSignal { public string type, sdp; }
 
     /// <summary>Small HTTPS/WebSocket signaling client. Game and voice never pass through the lobby.</summary>
@@ -44,10 +44,14 @@ namespace OpenZ.Multiplayer
         ClientWebSocket socket;
         DuelRtcPeer peer;
         bool transferred;
+        string serviceUrl, seatToken, versionFingerprint, localName;
+        bool hostSeat, forceRelay;
+        DuelIceResponse cachedIce;
         public string RoomCode { get; private set; }
         public string Secret { get; private set; }
         public string Status { get; private set; } = "Creating invitation…";
         public bool RelayAvailable { get; private set; }
+        public long? RelayRemainingBytes { get; private set; }
         public string RelayNotice { get; private set; } = "";
         public DuelOnline(CancellationToken cancel) { stop = CancellationTokenSource.CreateLinkedTokenSource(cancel); }
         public static string ReadCode(string invitation)
@@ -93,45 +97,63 @@ namespace OpenZ.Multiplayer
         }
         public async Task<IDuelPeer> ConnectAsync(string service, bool host, string invitation, string fingerprint, string name, bool relayOnly)
         {
+            serviceUrl = DuelOnlineSettings.ValidateService(service);
+            hostSeat = host; versionFingerprint = fingerprint; localName = name; forceRelay = relayOnly;
+            var room = await Post<DuelRoomResponse>(host ? serviceUrl + "/rooms" : serviceUrl + "/rooms/" + ReadCode(invitation) + "/join",
+                new DuelOnlineRequest { name = name, fingerprint = fingerprint }).ConfigureAwait(false);
+            RoomCode = room.room; Secret = room.secret; seatToken = room.seat;
+            return await ConnectTransport(false).ConfigureAwait(false);
+        }
+
+        internal Task<IDuelPeer> ReconnectAsync() => ConnectTransport(true);
+
+        async Task<IDuelPeer> ConnectTransport(bool reconnect)
+        {
+            transferred = false;
+            peer = null;
             try
             {
-                service = DuelOnlineSettings.ValidateService(service);
-                var room = await Post<DuelRoomResponse>(host ? service + "/rooms" : service + "/rooms/" + ReadCode(invitation) + "/join",
-                    new DuelOnlineRequest { name = name, fingerprint = fingerprint }).ConfigureAwait(false);
-                RoomCode = room.room; Secret = room.secret;
-                Status = host ? "Waiting for your opponent… Copy the invitation above." : "Joining your opponent…";
-                socket = new ClientWebSocket(); socket.Options.SetRequestHeader("Authorization", "Bearer " + room.seat);
-                var socketUri = new Uri(service.Replace("https://", "wss://").Replace("http://", "ws://") + "/rooms/" + RoomCode + "/socket");
+                if (reconnect && string.IsNullOrEmpty(seatToken)) throw new IOException("The invitation has no reconnect seat.");
+                Status = reconnect ? "Reconnecting…" : hostSeat ? "Waiting for your opponent… Copy the invitation above." : "Joining your opponent…";
+                socket = new ClientWebSocket(); socket.Options.SetRequestHeader("Authorization", "Bearer " + seatToken);
+                var socketUri = new Uri(serviceUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/rooms/" + RoomCode + "/socket");
                 await socket.ConnectAsync(socketUri, stop.Token).ConfigureAwait(false);
-                // The room expires server-side after 30 minutes. Joining has a shorter local deadline.
-                stop.CancelAfter(host ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(90));
+                if (!reconnect) stop.CancelAfter(hostSeat ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(90));
                 while ((await Receive().ConfigureAwait(false)).type != "ready") { }
-                stop.CancelAfter(TimeSpan.FromSeconds(90)); Status = "Preparing your connection…";
-                var ice = await Post<DuelIceResponse>(service + "/rooms/" + RoomCode + "/ice", new DuelOnlineRequest(), room.seat).ConfigureAwait(false);
+                if (!reconnect) stop.CancelAfter(TimeSpan.FromSeconds(90));
+                Status = "Preparing your connection…";
+                var ice = reconnect ? cachedIce : await Post<DuelIceResponse>(serviceUrl + "/rooms/" + RoomCode + "/ice",
+                    new DuelOnlineRequest(), seatToken).ConfigureAwait(false);
+                cachedIce = ice;
                 RelayAvailable = ice.relay;
+                if (long.TryParse(ice.relayRemainingBytes, out long remaining) && remaining >= 0) RelayRemainingBytes = remaining;
                 if (!ice.relay) RelayNotice = ice.relayReason == "budget"
                     ? "Relay allowance reserved for this billing period. Trying a direct connection."
                     : "Relay temporarily unavailable. Trying a direct connection.";
-                if (relayOnly && !ice.relay) throw new IOException(RelayNotice + " Relay-only testing cannot continue.");
+                if (forceRelay && !ice.relay) throw new IOException(RelayNotice + " Relay-only testing cannot continue.");
                 string[] servers = ice.iceServers.SelectMany(server => server.urls.Select(url => IceUrl(url, server.username, server.credential))).ToArray();
-                peer = new DuelRtcPeer(servers, relayOnly, room.secret, fingerprint, name);
+                peer = new DuelRtcPeer(servers, forceRelay, Secret, versionFingerprint, localName);
                 Status = ice.relay ? "Finding a connection that works for you both…" : RelayNotice;
-                if (host) await Send(new DuelSignal { type = "offer", sdp = await peer.DescriptionAsync("offer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
+                if (hostSeat) await Send(new DuelSignal { type = "offer", sdp = await peer.DescriptionAsync("offer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
                 var description = await Receive().ConfigureAwait(false);
-                if (description.type != (host ? "answer" : "offer")) throw new IOException("Your opponent left. Ask for a new invitation.");
+                if (description.type != (hostSeat ? "answer" : "offer")) throw new IOException("Your opponent left. Ask for a new invitation.");
                 peer.SetRemoteDescription(description.sdp, description.type);
-                if (!host) await Send(new DuelSignal { type = "answer", sdp = await peer.DescriptionAsync("answer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
+                if (!hostSeat) await Send(new DuelSignal { type = "answer", sdp = await peer.DescriptionAsync("answer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
                 peer.Start();
                 Status = ice.relay ? "Finishing your connection…" : RelayNotice;
                 using (stop.Token.Register(() => peer.Dispose())) await peer.Ready.ConfigureAwait(false);
                 transferred = true; stop.CancelAfter(Timeout.InfiniteTimeSpan); Status = "Connected";
                 // Signaling is no longer needed; closing it does not close the peer connection.
-                socket.Abort(); socket.Dispose(); socket = null;
                 return peer;
             }
             catch (DllNotFoundException) { throw new IOException("The WebRTC library is missing. Reinstall the complete player folder or use Advanced TCP/IP."); }
             catch (OperationCanceledException) { throw new IOException("Connection cancelled or timed out. " + RelayNotice + " Try a new invitation or Advanced TCP/IP."); }
-            finally { if (!transferred) peer?.Dispose(); }
+            finally
+            {
+                var signaling = socket; socket = null;
+                signaling?.Dispose();
+                if (!transferred) peer?.Dispose();
+            }
         }
         static string IceUrl(string url, string username, string credential)
         {

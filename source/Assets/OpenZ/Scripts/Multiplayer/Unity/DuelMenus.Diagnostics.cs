@@ -7,6 +7,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
+        internal void ShowDiagnosticsProof() { page = Page.Diagnostics; dirty = true; }
         static readonly int[] SnapshotRates = { 8, 10, 12, 15, 18, 20 };
         static readonly int[] ReceiveBudgets = { 1, 2, 3, 5, 8 };
         static readonly int[] InterpolationDelays = { 70, 100, 130, 170, 220 };
@@ -39,6 +40,8 @@ namespace OpenZ.Multiplayer
             if (scale > 0) panel.localScale = new Vector3(scale, scale, 1);
             Button(panel, "CLOSE  [ESC]", 1196, 14, 172, CloseOverlay, height: 37);
             diagnosticsSummary = Label(panel, "", 24, 58, 1328, 19, OzUi.Ink);
+            string allowance = R.RelayRemainingBytes is long bytes ? $"{bytes / 1e9:0.###} GB" : "Unavailable";
+            Label(panel, "TURN REMAINING AT CONNECTION · " + allowance, 704, 546, 500, 16, OzUi.Muted);
 
             AddDiagnosticGraph(panel, 0, 24, 98, "FRAME TIME", "Frame peak", "Main thread", "GPU", "ms");
             AddDiagnosticGraph(panel, 1, 704, 98, "NETWORK TIMING", "Ping", R.IsHost ? "Send gap" : "Arrival gap", R.IsHost ? null : "Queue wait", "ms");

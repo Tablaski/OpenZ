@@ -13,7 +13,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus : MonoBehaviour
     {
-        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics }
+        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics, MatchRequest, Reconnect }
         Page page;
         Page microphoneReturn;
         bool deviceList;
@@ -49,7 +49,7 @@ namespace OpenZ.Multiplayer
         public void ShowLobby() { page = Page.Lobby; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
-        public void ShowInGameMenu() { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
+        public void ShowInGameMenu() { if (R.MatchSuspended) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
         public void ShowCommunications() { OpenChat(); }
         public void CloseOverlay() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Entry; dirty = true; }
         public void NotifyChat(string message)
@@ -59,7 +59,7 @@ namespace OpenZ.Multiplayer
             if (notices.Count > 4) notices.RemoveAt(0);
             dirty = true;
         }
-        public void OpenChat() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
+        public void OpenChat() { if (R.MatchSuspended) return; FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
         void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
@@ -91,7 +91,7 @@ namespace OpenZ.Multiplayer
                         if (key.keyCode != Key.Escape) PlayerPrefs.SetInt(bindingTalk ? "oz_duel_talk_key" : "oz_duel_chat_key", (int)key.keyCode);
                         bindingChat = bindingTalk = false; PlayerPrefs.Save(); dirty = true; break;
                     }
-            if (((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
+            if (!R.MatchSuspended && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
                 var pause = FindFirstObjectByType<OpenZPauseMenu>();
                 if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
@@ -102,6 +102,8 @@ namespace OpenZ.Multiplayer
             }
             if (dirty) { dirty = false; Build(); }
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
+            if (page == Page.MatchRequest) requestTime?.Set(Math.Ceiling(R.MatchRequestSeconds) + " s");
+            if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             if (generals)
             {
                 generals.SetSize(120, 140);
@@ -179,6 +181,7 @@ namespace OpenZ.Multiplayer
             }
             if (page == Page.Chat) { BuildChat(); return; }
             if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
+            if (page == Page.MatchRequest || page == Page.Reconnect) { BuildMatchRequestPage(); return; }
             var background = Hud.Img(root, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
             if (poster) { var raw = Hud.Node("MissionBackground", root).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; }
@@ -266,7 +269,7 @@ namespace OpenZ.Multiplayer
             var rules = lobbyDraft ?? official;
             bool editable = R.View.Phase == (int)DuelPhase.Lobby && (R.IsHost || lobbyDraft != null && draftRevision == R.View.Revision);
             Button(root, "Allowed units · " + DuelUnitRoster.Name(rules.UnitPreset), 470, 40, 355, () => { lobbyDialog = LobbyDialog.Units; pickerGroup = -1; dirty = true; });
-            Button(root, "DYNAMICS", 845, 40, 350, () => { lobbyDialog = LobbyDialog.Dynamics; pickerGroup = -1; dirty = true; });
+            BuildLobbyDynamics(rules, editable);
             bool inLobby = R.View.Phase == (int)DuelPhase.Lobby;
             if (R.IsHost)
             {
@@ -282,6 +285,7 @@ namespace OpenZ.Multiplayer
                 dirty = true;
             }, false, inLobby && (R.IsHost || R.Connected));
             BuildProposalBar(official);
+            Button(root, "BATTLE OPTIONS", 1345, 91, 235, () => { lobbyDialog = LobbyDialog.BattleOptions; dirty = true; }, false, true, 37);
             var left = Panel("MAP", 80, 190, 700, 595);
             var chosenMap=OzAiMapGallery.Definition(rules.Map);
             int mapRevision = R.View.Revision;
@@ -326,7 +330,7 @@ namespace OpenZ.Multiplayer
         void BuildArmy(DuelRules rules, bool editable)
         {
             var panel = Panel("STARTING ARMIES", 820, 190, 1010, 310);
-            Label(panel, "FORT TURRETS · choose each mount for RED and BLUE", 24, 68, 950, 17, OzUi.Muted);
+            Label(panel, "FORT TURRETS · four slots per team, placed automatically", 24, 68, 950, 17, OzUi.Muted);
             Button(panel, "FORT PLACEMENT · RED / BLUE", 24, 95, 960, () => { lobbyDialog = LobbyDialog.Forts; pickerGroup = -1; dirty = true; }, false, true, 76, true);
             Label(panel, "OUTSIDE THE FORT · shared by both teams", 24, 190, 680, 17, OzUi.Muted);
             Button(panel, "PRESETS", 760, 173, 224, () => { lobbyDialog = LobbyDialog.ArmyPresets; presetName = presetStatus = ""; dirty = true; }, false, true, 37);

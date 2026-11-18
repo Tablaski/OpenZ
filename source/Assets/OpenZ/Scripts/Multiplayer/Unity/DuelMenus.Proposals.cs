@@ -55,10 +55,10 @@ namespace OpenZ.Multiplayer
             }, true, stale || count > 0 && R.ProposalWait <= 0);
             Button(root, "CANCEL", 1600, 130, 230, () => { lobbyDraft = null; pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; });
         }
-        RectTransform LobbyPopup(string title)
+        RectTransform LobbyPopup(string title, float height = 790)
         {
             var shade = Hud.Img(root, title + " Shade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
-            var panel = Panel(title, 220, 155, 1480, 790);
+            var panel = Panel(title, 220, (1100 - height) * .5f, 1480, height);
             var background = Hud.Img(panel, "Background", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;
             Button(panel, "CLOSE", 1260, 12, 190, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
             return panel;
@@ -81,17 +81,14 @@ namespace OpenZ.Multiplayer
         }
         void BuildFortPlacement(DuelRules rules, bool editable)
         {
-            var panel = LobbyPopup("FORT TURRET PLACEMENT");
-            Label(panel, "TOP VIEW · NORTH ↑ · Select a mount, then choose its cannon. Each team has its own four mounts.", 24, 72, 1420, 18, OzUi.Ink);
+            var panel = LobbyPopup("FORT TURRETS");
+            Label(panel, "Choose up to four turrets for each team. The strongest cover the fort entrance.", 24, 72, 1420, 18, OzUi.Ink);
             Label(panel, editable ? R.IsHost ? "Host changes apply immediately to both lobby previews." : "Your draft only. Send your grouped proposal when finished." : "Current settings. Use PREPARE SETTINGS in the lobby to propose changes.", 24, 104, 1420, 16, OzUi.Muted);
             for (int seat = 0; seat < 2; seat++)
             {
                 float x = 30 + seat * 730;
                 Color color = seat == 0 ? new Color(.8f, .24f, .18f) : new Color(.2f, .5f, .9f);
                 Label(panel, seat == 0 ? "RED FORT · HOST" : "BLUE FORT · CLIENT", x, 150, 680, 23, color);
-                var body = Hud.Img(panel, "Fort " + seat, new Color(color.r * .3f, color.g * .3f, color.b * .3f));
-                body.rectTransform.TL(x + 18, 205, 644, 275); body.raycastTarget = false;
-                Label(panel, "FORT", x + 280, 325, 150, 22, color);
                 var mounts = rules.FortTurretsFor(seat);
                 for (int mount = 0; mount < 4; mount++)
                 {
@@ -111,7 +108,7 @@ namespace OpenZ.Multiplayer
                 button.name = "FORT CANNON " + type;
                 Portrait(button, type, 102, 8, 62);
             }
-            Label(panel, "Mount positions match the starting simulation. Outside squads and vehicles are configured in the lobby.", 30, 738, 1400, 16, OzUi.Muted);
+            Label(panel, "The next strongest turret covers the nearest road or bridge from the available rear slots.", 30, 738, 1400, 16, OzUi.Muted);
         }
     }
 }

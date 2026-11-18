@@ -503,6 +503,7 @@ namespace OpenZ
             {
                 var e = ev[i];
                 Stats.OnEvent(W, e);
+                if (OzRadarLoss.I && OzRadarLoss.I.Jammed) continue;
                 switch (e.type)
                 {
                     case ZEventType.UnitBuilt:
@@ -547,6 +548,25 @@ namespace OpenZ
             Stats.Tick(W);
             CheckFortDanger();
         }
+
+        const string LastRadarText = "LAST RADAR DESTROYED · COMMUNICATIONS LOST";
+        internal void ClearRadarCommunications()
+        {
+            recentEvents.Clear();
+            toastQueue.RemoveAll(t => t.action != null);
+            foreach (var toast in toasts) toast.action = null;
+            lastAction = null;
+        }
+        internal void RadarDestroyed(int x, int y, bool last)
+        {
+            if (last)
+            {
+                Toast(LastRadarText, "radar", true, null);
+                lastRadarAction = () => { if (rts) rts.FlyTo(ZGame.PxToWorld(x, y)); };
+            }
+            else Toast("RADAR DESTROYED", "radar", true, () => { if (rts) rts.FlyTo(ZGame.PxToWorld(x, y)); });
+        }
+        System.Action lastRadarAction;
 
         void SelectAndFly(ZObject u)
         {
@@ -1798,6 +1818,7 @@ namespace OpenZ
         public void Toast(string text, string glyph, bool alert, System.Action action, bool feedback = false, float hold = 5f)
         {
             if (!hudVisible || exited) return;
+            if (action != null && OzRadarLoss.I && OzRadarLoss.I.Jammed) return;
             if (BuildMenuShowing)
             {   // the build menu is open: no plate over it and none waiting for it to close; the event is still known to the last-message key
                 OzSoundLog.Add("hud", "toast", text, "held back (build menu open)"); PlatesHeldBack++;
@@ -1876,6 +1897,8 @@ namespace OpenZ
 
         void SpaceEvent()
         {
+            if (OzRadarLoss.I && OzRadarLoss.I.Jammed) { lastRadarAction?.Invoke(); return; }
+            lastRadarAction = null;
             if (recentEvents.Count == 0) { lastAction?.Invoke(); return; }
             float now = OzMotion.Now;
             spaceIdx = spaceIdx >= 0 && now - spaceAt < SpaceChain ? (spaceIdx + 1) % recentEvents.Count : 0;

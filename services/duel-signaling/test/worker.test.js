@@ -54,7 +54,7 @@ test("account-wide TURN and SFU totals close the budget at the threshold", async
   }, async () => {
     const budget = new RelayBudget(context(), config);
     const result = await (await budget.fetch()).json();
-    assert.deepEqual(result, { allowed: false, reason: "budget" });
+    assert.deepEqual(result, { allowed: false, reason: "budget", relayRemainingBytes: "0" });
     assert.equal(JSON.stringify(result).includes(config.CF_ACCOUNT_ID), false);
   });
 });

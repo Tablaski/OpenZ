@@ -121,6 +121,7 @@ static class CaptureCacheChecks
         {
             string json = File.ReadAllText(Path.Combine(maps, entry.Id + "_grid.json"));
             var host = ZWorld.Create(settings, json, 1935); var rules = new DuelRules { Map = entry.Id, Common = DuelMissionDefaults.Create() };
+            DuelMissionDefaults.ApplyOutsidePreset(rules, new[] { "light", "", "", "" });
             host.ConfigureDuel(rules, false); host.DuelApplyStartingArmies();
             var guest = ZWorld.Create(settings, json, 1935); guest.ConfigureDuel(rules, true);
             var cache = new DuelReplica.CaptureBuffer(); var sender = new DuelDeltaSender(); var reference = new DuelDeltaSender();

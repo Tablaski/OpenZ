@@ -31,13 +31,16 @@ namespace OpenZ
         /// Returns the plate height: the tallest tab.</summary>
         float BuildOptTabs(RectTransform p)
         {
-            float x = OzLayout.OptX, w = OptW - 2 * OzLayout.OptX, tallest = 0f; int n = OzSettingTips.TabNames.Length;
+            float x = OzLayout.OptX, w = OptW - 2 * OzLayout.OptX, tallest = 530f; int n = OzSettingTips.TabNames.Length + 1;
+            BuildConstructionOptions(p);
             float bw = (w - OzLayout.OptTabGap * (n - 1)) / n;
             optTabBtns.Clear();
             for (int i = 0; i < n; i++)
             {
                 int id = i;
-                var b = HudButton.Make(p, "Tab" + i, OzSettingTips.TabNames[i], new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.14f);
+                string label = i == OzSettingTips.TabNames.Length ? OzBuildKeys.Label : OzSettingTips.TabNames[i];
+                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.14f);
+                OzForkOptions.Highlight(b, label);
                 b.Rt.Place(new OzRect(x + i * (bw + OzLayout.OptTabGap), OzLayout.OptTabY, bw, OzLayout.OptTabH));
                 AddHot(b.Rt, View.Main, () => ShowOptTab(id), null, b, "ui_tab_switch", Side.Options);
                 optTabBtns.Add(b);
@@ -63,6 +66,9 @@ namespace OpenZ
             optTab = tab; dragging = null;
             foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab);
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
+            if (buildKeysPage) buildKeysPage.gameObject.SetActiveFast(tab == OzSettingTips.TabNames.Length);
+            bindingBuildUnit = null;
+            RefreshBuildKeys();
             for (int i = 0; i < optTabBtns.Count; i++) SetSelected(optTabBtns[i], i == tab);
         }
 

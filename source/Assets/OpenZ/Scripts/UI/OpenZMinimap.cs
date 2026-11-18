@@ -223,6 +223,7 @@ namespace OpenZ
             // texture layer: bridges, rocks, grenade crates (buildings, flags and units are crisp markers on top)
             foreach (var o in W.Objects)
             {
+                if (OzRadarLoss.Covers(o)) continue;
                 if (o.Kind == ZKind.Building)
                 {
                     if (o.IsBridge && !o.Destroyed) Rect(o.LocX, o.LocY, o.WidthPix, o.HeightPix, new Color32(132, 118, 96, 255), 1f, 0);
@@ -232,13 +233,23 @@ namespace OpenZ
                 if (o.Type == "grenades") Rect(o.LocX, o.LocY, o.WidthPix, o.HeightPix, OzUi.AmberHi, 0.7f, 1, OzUi.GM950);
                 else if (o.IsDestroyableImpass) Rect(o.LocX, o.LocY, o.WidthPix, o.HeightPix, Mul(Palette().ground, 0.72f), 0.9f, 0);   // rock cell = ground x 0.72
             }
+            var loss = OzRadarLoss.I;
+            if (loss && loss.Fog)
+                foreach (var contact in loss.Contacts.Values)
+                {
+                    if (!contact.Fixed || contact.Destroyed || loss.Visible(contact.X, contact.Y)) continue;
+                    if (contact.Type == "bridge_vert" || contact.Type == "bridge_horz")
+                        Rect(contact.Left, contact.Top, contact.Width, contact.Height, new Color32(132, 118, 96, 255), 1f, 0);
+                    else if (contact.Type == "grenades")
+                        Rect(contact.Left, contact.Top, contact.Width, contact.Height, OzUi.AmberHi, .7f, 1, OzUi.GM950);
+                }
             tex.SetPixels32(buf); tex.Apply(false);
 
             // marker layer (guide 9.5): buildings in the owner colour, flags, then every unit (Zod draws every object)
             bldUsed = unitUsed = 0;
             foreach (var o in W.Objects)
             {
-                if (o.Kind == ZKind.Building && !o.IsBridge)
+                if (o.Kind == ZKind.Building && !o.IsBridge && !OzRadarLoss.Covers(o))
                 {
                     var im = NextPooled(bldPool, ref bldUsed, "Building", "Minimap/mm_building", Image.Type.Sliced);
                     var c = o.Destroyed ? new Color32(58, 56, 52, 255) : (Color32)(o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner));
@@ -257,7 +268,7 @@ namespace OpenZ
             }
             // Zod the radar has no effect, bradar.cpp: a view-only rule, listed in the parity report). Buildings, flags and zones
             // stay (map knowledge); enemy robots, vehicles and cannons need an intact radar of ours.
-            bool radar = !RadarRule;
+            bool radar = !RadarRule || loss && loss.Fog;
             if (!radar) foreach (var b in W.Objects) if (b.Kind == ZKind.Building && b.Type == "radar" && !b.Destroyed && b.Owner == hud.Player) { radar = true; break; }
             HasRadar = radar;
             foreach (var o in W.Objects)
@@ -278,6 +289,28 @@ namespace OpenZ
                 var c = OzUi.Mark(o.Owner); if (im.color != c) im.color = c;
                 im.rectTransform.anchoredPosition = p; im.rectTransform.sizeDelta = new Vector2(sz, sz);
             }
+            if (loss && loss.Fog)
+                foreach (var contact in loss.Contacts.Values)
+                {
+                    if (loss.Visible(contact.X, contact.Y) || contact.Team == hud.Player) continue;
+                    if (contact.Fixed && contact.Kind == ZKind.Building && contact.Type != "bridge_vert" && contact.Type != "bridge_horz")
+                    {
+                        var im = NextPooled(bldPool, ref bldUsed, "Last known building", "Minimap/mm_building", Image.Type.Sliced);
+                        im.color = contact.Destroyed ? new Color32(58, 56, 52, 255) : OzUi.Mark(contact.Team);
+                        var a = PxToLocal(contact.Left + contact.Width * .1f, contact.Top + contact.Height * .1f);
+                        var b = PxToLocal(contact.Left + contact.Width * .9f, contact.Top + contact.Height * .9f);
+                        im.rectTransform.anchoredPosition = new Vector2(a.x, b.y);
+                        im.rectTransform.sizeDelta = new Vector2(Mathf.Max(4, b.x - a.x), Mathf.Max(4, a.y - b.y));
+                    }
+                    else if (!contact.Fixed)
+                    {
+                        string marker = contact.Kind == ZKind.Robot ? "Minimap/mm_unit" : contact.Kind == ZKind.Vehicle ? "Minimap/mm_vehicle" : "Minimap/mm_cannon";
+                        var im = NextPooled(unitPool, ref unitUsed, "Last known contact", marker, Image.Type.Simple);
+                        im.color = OzUi.A(OzUi.Mark(contact.Team), .66f);
+                        im.rectTransform.anchoredPosition = PxToLocal(contact.X, contact.Y);
+                        im.rectTransform.sizeDelta = new Vector2(5, 5);
+                    }
+                }
             for (int i = bldUsed; i < bldPool.Count; i++) bldPool[i].gameObject.SetActiveFast(false);
             for (int i = unitUsed; i < unitPool.Count; i++) unitPool[i].gameObject.SetActiveFast(false);
         }

@@ -10,7 +10,7 @@ namespace OpenZ.Multiplayer
     {
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
         Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport,
-        DeltaBinaryEvents, DeltaCompressed, Rename
+        DeltaBinaryEvents, DeltaCompressed, Rename, MatchRequest, MatchRequestState, MatchReconnectState, MatchReconnectReady
     }
 
     public sealed class DuelPacket
@@ -33,7 +33,7 @@ namespace OpenZ.Multiplayer
     /// </summary>
     public static class DuelWire
     {
-        public const int Version = 2, MaxPayload = 4 * 1024 * 1024;
+        public const int Version = 3, MaxPayload = 4 * 1024 * 1024;
         const uint Magic = 0x31445A4F; // OZ D1
         const int MinCompressedDelta = 1024, MaxCompressedDelta = 128 * 1024;
         const int CompressionHeader = 5, MinimumSavings = 32;

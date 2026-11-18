@@ -5,6 +5,7 @@ namespace OpenZ.Multiplayer
 {
     // Pure C#: no scene, PlayerPrefs, renderer or transport dependencies.
     public enum DuelPhase { Lobby, Loading, Playing, Closed }
+    public enum RadarLossRule { Off, Fog, Zoom, FogAndZoom }
 
     [Serializable]
     public sealed class DuelArmySettings
@@ -31,6 +32,8 @@ namespace OpenZ.Multiplayer
         public double MinimumBuildSeconds = 1;
         public double FortLoserMaximum;
         public double TerritoryReductionCap = 1;
+        public bool TankDamageEffects;
+        public RadarLossRule RadarLoss;
         public DuelArmySettings Common = new DuelArmySettings();
         // Null keeps the legacy shared mounts until a team is edited independently.
         public string[] RedFortTurrets, BlueFortTurrets;
@@ -113,6 +116,7 @@ namespace OpenZ.Multiplayer
         public DuelRules Copy() => new DuelRules
         {
             Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
+            TankDamageEffects = TankDamageEffects, RadarLoss = RadarLoss,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
             RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
             BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
@@ -122,8 +126,9 @@ namespace OpenZ.Multiplayer
         public void Validate()
         {
             if (PlanningSeconds < 0 || PlanningSeconds > MaxPlanningSeconds) throw new ArgumentException("Invalid opening order time.");
-            if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17" && Map != "L19" && !OzAiMapCatalog.IsDuelMap(Map))
+            if (!IsMapAllowed(Map))
                 throw new ArgumentException("Unknown duel map.");
+            if (!Enum.IsDefined(typeof(RadarLossRule), RadarLoss)) throw new ArgumentException("Invalid radar loss rule.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
                 throw new ArgumentException("Invalid territory rule.");
             if (!InRange(TerritoryReductionCap, 0, 1)) throw new ArgumentException("Invalid territory cap.");
@@ -152,6 +157,8 @@ namespace OpenZ.Multiplayer
                 foreach (string type in army.FortTurrets) if (type != "" && !Allows(type)) throw new ArgumentException("Fort cannon is disabled: " + type);
             }
         }
+        public static bool IsMapAllowed(string map) => map == "L02" || map == "L07" || map == "L16" ||
+            map == "L17" || map == "L19" || OzAiMapCatalog.IsDuelMap(map);
 
         static bool InRange(double v, double min, double max) => !double.IsNaN(v) && v >= min && v <= max;
         static void CheckArmy(DuelArmySettings h)
@@ -311,9 +318,19 @@ namespace OpenZ.Multiplayer
             Array.Clear(ready, 0, 2); Array.Clear(loaded, 0, 2); StartAt = -1; Phase = DuelPhase.Lobby; Revision++;
         }
 
-        public void Restart()
+        public void Restart() => Restart(null);
+
+        public void Restart(string map)
         {
             Require(DuelPhase.Playing);
+            if (map != null)
+            {
+                var next = rules.Copy();
+                next.Map = map;
+                next.Validate();
+                rules = next;
+                Revision++;
+            }
             Array.Clear(loaded, 0, 2); StartAt = -1; Phase = DuelPhase.Loading;
         }
 

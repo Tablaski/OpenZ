@@ -62,11 +62,26 @@ static class ProposalChecks
             {
                 var team = seat == 0 ? Team.Red : Team.Blue;
                 var fort = world.Objects.First(o => o.IsFort && o.Owner == team);
-                for (int i = 0; i < 4; i++)
+                var guns = world.Objects.Where(o => o.Owner == team && o.Kind == ZKind.Cannon && !o.Ejectable &&
+                    (o.LocX == fort.LocX + 16 || o.LocX == fort.LocX + 112) &&
+                    (o.LocY == fort.LocY || o.LocY == fort.LocY + 48)).ToDictionary(o => o.Type);
+                check(guns.Count == 4 && configured.FortTurretsFor(seat).All(guns.ContainsKey), map + ": all configured slots are mounted");
+                fort.GetCreationMovePoint(out _, out int gateY);
+                int entrance = gateY < fort.LocY ? fort.LocY : fort.LocY + 48;
+                check(guns["missile_cannon"].LocY == entrance && guns["howitzer"].LocY == entrance &&
+                    guns["gun"].LocY != entrance && guns["gatling"].LocY != entrance, map + ": strongest pair covers the entrance");
+                var roadsAndBridges = world.Objects.Where(o => o.IsBridge && !o.Destroyed)
+                    .Select(o => (o.LocX, o.LocY, o.WidthPix, o.HeightPix)).ToList();
+                for (int y = 0; y < world.Map.height; y++)
+                    for (int x = 0; x < world.Map.width; x++)
+                        if (world.Map.ClassAt(x, y) == ZClass.Road) roadsAndBridges.Add((16 * x, 16 * y, 16, 16));
+                double NearestRoad(ZObject turret) => roadsAndBridges.Select(r =>
                 {
-                    int x = fort.LocX + (i % 2 == 0 ? 16 : 112), y = fort.LocY + (i < 2 ? 0 : 48);
-                    check(world.Objects.Any(o => o.Owner == team && o.Type == configured.FortTurretsFor(seat)[i] && o.LocX == x && o.LocY == y && !o.Ejectable), map + ": exact team-specific mount " + seat + ":" + i);
-                }
+                    double dx = turret.CenterX - Math.Clamp(turret.CenterX, r.LocX, r.LocX + r.WidthPix);
+                    double dy = turret.CenterY - Math.Clamp(turret.CenterY, r.LocY, r.LocY + r.HeightPix);
+                    return dx * dx + dy * dy;
+                }).DefaultIfEmpty(double.PositiveInfinity).Min();
+                check(NearestRoad(guns["gun"]) <= NearestRoad(guns["gatling"]), map + ": next turret takes the rear slot closest to an approach");
             }
         }
     }

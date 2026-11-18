@@ -9,9 +9,10 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename }
+        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename, BattleOptions }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
+        bool customDynamicsOnly;
         int dynamicsType;
         float allowedScroll = 1, dynamicsScroll = 1;
         string openZMapId, presetName, presetStatus;
@@ -132,6 +133,7 @@ namespace OpenZ.Multiplayer
             var saved = ReadArmyPresets().entries?.Where(p => p != null && !string.IsNullOrWhiteSpace(p.name) &&
                 !p.name.Contains("<") && !p.name.Contains(">") && DuelMissionDefaults.IsOutsidePreset(p.units)).ToList() ?? new List<ArmyPreset>();
             saved.Insert(0, new ArmyPreset { name = "OpenZ-VK default", units = DuelMissionDefaults.OutsideUnits() });
+            saved.Insert(1, new ArmyPreset { name = "Light and heavy assault", units = new[] { "light", "heavy", "pyro", "laser" } });
             var rows = Scroll(panel, 24, 230, 1232, 490, false, Math.Max(490, saved.Count * 64));
             for (int i = 0; i < saved.Count; i++)
             {
@@ -155,6 +157,7 @@ namespace OpenZ.Multiplayer
             if (lobbyDialog == LobbyDialog.Forts) { BuildFortPlacement(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
             if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
+            if (lobbyDialog == LobbyDialog.BattleOptions) { BuildBattleOptions(rules, editable); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
             var background = Hud.Img(panel, "LobbyRulesBackground", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;
@@ -162,6 +165,30 @@ namespace OpenZ.Multiplayer
             Label(panel, editable ? R.IsHost ? "HOST RULES · changes clear both READY confirmations" : "YOUR PROPOSAL · edits stay local until you send them" : "CURRENT HOST RULES · use PREPARE SETTINGS to propose changes", 24, 58, 1390, 18, OzUi.Muted);
             if (lobbyDialog == LobbyDialog.Units) BuildAllowedUnits(panel, rules, editable);
             else BuildDynamics(panel, rules, editable);
+        }
+
+        void BuildBattleOptions(DuelRules rules, bool editable)
+        {
+            var panel = LobbyPopup("BATTLE OPTIONS", 340);
+            var smoke = Button(panel, "DAMAGED TANK SMOKE & OIL · " + (rules.TankDamageEffects ? "ON" : "OFF"), 30, 110, 860,
+                () => { rules.TankDamageEffects = !rules.TankDamageEffects; EditLobbyRules(rules); }, rules.TankDamageEffects, editable);
+            var help = Label(panel, "", 30, 270, 1380, 19, OzUi.Muted);
+            AddLobbyTip(smoke, help, "Damaged tanks smoke at yellow health and leak oil at red health while moving.");
+            Label(panel, "WHEN YOUR LAST RADAR IS LOST", 30, 179, 1350, 21, OzUi.Ink);
+            string[] tips =
+            {
+                "Keep standard OpenZ radar rules.",
+                "Hide enemy movements outside your territory and units' sight.",
+                "Return to the starting zoom and limit how far the camera can tilt.",
+                "Hide unseen enemies and lock the camera to the starting zoom."
+            };
+            for (int i = 0; i < tips.Length; i++)
+            {
+                var option = (RadarLossRule)i;
+                var choice = Button(panel, OzBattleOptions.RadarName(option), 30 + i * 350, 210, 335,
+                    () => { rules.RadarLoss = option; EditLobbyRules(rules); }, rules.RadarLoss == option, editable);
+                AddLobbyTip(choice, help, tips[i]);
+            }
         }
 
         void BuildRename()
@@ -193,6 +220,50 @@ namespace OpenZ.Multiplayer
         {
             OzAllowedUnitsPanel.Build(panel,rules,editable,()=>EditLobbyRules(rules),allowedScroll,p=>allowedScroll=p,false);
         }
+        void BuildLobbyDynamics(DuelRules rules, bool editable)
+        {
+            var tanks = ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks);
+            var robots = ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots);
+            bool classic = tanks.id == "zod-classic" && robots.id == "zod-classic";
+            bool native = tanks.id == "native" && robots.id == "native";
+            var toggle = Button(root, classic ? "Z CLASSIC DYNAMICS" : native ? "OPENZ DYNAMICS" : "CUSTOM DYNAMICS", 845, 40, 235, () =>
+            {
+                rules.TankDynamics = classic ? "" : ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();
+                rules.RobotDynamics = classic ? "" : ZBehaviorProfile.Classic(ZBehaviorFamily.Robots).Encode();
+                EditLobbyRules(rules);
+            }, classic, editable);
+            var help = Label(root, "", 845, 173, 980, 15, OzUi.Muted);
+            AddLobbyTip(toggle, help, "OpenZ uses its standard combat. Z Classic brings back classic dodges and gives lighter vehicles quicker escapes.");
+            var custom = Button(root, "CUSTOM", 1090, 40, 105, () =>
+            {
+                dynamicsFamily = OzBehaviorLibrary.SavedProfiles.Any(p => p.family == ZBehaviorFamily.Tanks) ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots;
+                dynamicsType = 0;
+                customDynamicsOnly = true;
+                lobbyDialog = LobbyDialog.Dynamics;
+                pickerGroup = -1;
+                dirty = true;
+            }, !native && !classic, editable && OzBehaviorLibrary.SavedProfiles.Count > 0);
+            AddLobbyTip(custom, help, "Choose saved tank and robot profiles from the Unit Editor.");
+            Button(root, "DYNAMICS", 1595, 91, 235, () =>
+            {
+                customDynamicsOnly = false;
+                lobbyDialog = LobbyDialog.Dynamics;
+                pickerGroup = -1;
+                dirty = true;
+            }, false, true, 37);
+        }
+
+        static void AddLobbyTip(RectTransform target, OzText label, string text)
+        {
+            var trigger = target.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            var enter = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter };
+            enter.callback.AddListener(_ => label.Set(text));
+            trigger.triggers.Add(enter);
+            var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
+            exit.callback.AddListener(_ => label.Set(""));
+            trigger.triggers.Add(exit);
+        }
+
         void BuildDynamics(RectTransform panel, DuelRules rules, bool editable)
         {
             Button(panel, "TANKS", 24, 92, 340, () => { dynamicsFamily = ZBehaviorFamily.Tanks; dynamicsType = 0; dynamicsScroll = 1; dirty = true; }, dynamicsFamily == ZBehaviorFamily.Tanks);
@@ -202,7 +273,10 @@ namespace OpenZ.Multiplayer
             Label(panel, "Prepare custom profiles in Unit Editor > Dynamics and SAVE AS. Choose them here before READY. The pause menu cannot change them.", 24, 188, 1400, 16, OzUi.Muted);
             if (editable)
             {
-                var choices = OzBehaviorLibrary.Choices(dynamicsFamily);
+                var choices = customDynamicsOnly
+                    ? OzBehaviorLibrary.SavedProfiles.Where(p => p.family == dynamicsFamily).ToList()
+                    : OzBehaviorLibrary.Choices(dynamicsFamily);
+                if (choices.Count == 0) Label(panel, "No custom profiles for this group.", 24, 250, 440, 17, OzUi.Muted);
                 var content = Scroll(panel, 24, 235, 440, 520, false, Math.Max(520, choices.Count * 58));
                 for (int index = 0; index < choices.Count; index++)
                 {

@@ -170,7 +170,7 @@ namespace OpenZ
 
         void LateUpdate()
         {
-            if (!decided || !wanted || mask == null || !gateClock.Seen) return;
+            if (!decided || (!wanted && !radarFog) || mask == null || !gateClock.Seen) return;
             GateRecheck(false);                                                           // a scene a coroutine or an earlier LateUpdate began (the flyover ticks there)
         }
 

@@ -236,8 +236,30 @@ namespace OpenZ
                 return;
             }
             Refresh();
+            if (kb != null && OzBuildKeys.Modifier(kb))
+                foreach (var tile in tiles)
+                {
+                    Key key = OzBuildKeys.Get(tile.unit);
+                    if (!UsesBuildKey(key) || !kb[key].wasPressedThisFrame) continue;
+                    if (!W.DuelDefersOrders)
+                    {
+                        if (Building.Building && Building.CurUnit == tile.unit) Queue(tile.unit);
+                        else Produce(tile.unit);
+                    }
+                    else if (W.BuildShortcut(hud.Player, Building, tile.unit))
+                    {
+                        OzFactoryReminder.ProductionSet(Building);
+                        OzSfx.Ui("ui_production_pick");
+                    }
+                    break;
+                }
             Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
         }
+
+        internal bool UsesBuildKey(Key key) => key >= Key.A && key <= Key.Z && Building != null && Building.Owner == hud.Player &&
+            !Building.Destroyed && !W.GameOver && !hud.Modal && !CaptureKit.DemoRun && !OzUnitEditor.I &&
+            !OzFpsView.On && !OzBehaviorOptions.CapturesInput && !OpenZ.Multiplayer.DuelRuntime.CapturesInput &&
+            tiles.Exists(tile => OzBuildKeys.Get(tile.unit) == key);
 
         // ------------------------------------------------------------------ content
         static readonly string[] ClassNames = { "ROBOTS", "VEHICLES", "CANNONS" };

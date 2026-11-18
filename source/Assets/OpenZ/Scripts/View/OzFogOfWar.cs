@@ -65,6 +65,9 @@ namespace OpenZ
         bool wanted, decided; string why = "not decided yet";
         int forceSession;                                                        // the testing panel: +1 on, -1 off, 0 the OPTIONS row (this match only)
         OzFowMask mask; Texture2D tex;
+        OzFowMask campaignMask;
+        bool radarFog;
+        int radarSightRevision = -1;
         float strength, floorY, blanketY, nextPrune, nextAmbient, nextLog;
         int frame, uploads;
         readonly Dictionary<int, int> lastStamp = new Dictionary<int, int>(256);
@@ -97,6 +100,7 @@ namespace OpenZ
             if (!Application.isPlaying) return;
             var g = FindFirstObjectByType<ZGame>();
             if (g && !g.GetComponent<OzFogOfWar>()) g.gameObject.AddComponent<OzFogOfWar>();
+            OzRadarLoss.Install(g);
         }
 
         void Awake() { I = this; game = GetComponent<ZGame>(); }
@@ -157,7 +161,7 @@ namespace OpenZ
                 StampRound(true);
                 RadarStart();                                                       // 1.4 radar circle: radars held at the start open at once (View/OzFogOfWar.Radar.cs)
                 mask.ShowAll();                                                     // the start area is open on the first frame
-                tex = new Texture2D(mask.W, mask.H, TextureFormat.R8, false, true) { name = "OZ_FogOfWarMask", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0, hideFlags = HideFlags.DontSave };
+                if (!tex) tex = new Texture2D(mask.W, mask.H, TextureFormat.R8, false, true) { name = "OZ_FogOfWarMask", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0, hideFlags = HideFlags.DontSave };
                 Upload();
                 floorY = FloorAtCentre();
                 blanketY = BlanketBase(floorY);
@@ -275,18 +279,32 @@ namespace OpenZ
         {
             if (hiddenNow.Count > 0) RestoreHidden();                                   // a camera that never reached its end
             if (!decided) { if (game && game.World != null) Decide(); else return; }
-            if (!wanted || mask == null)
+            var loss = OzRadarLoss.I;
+            bool radarNow = loss && loss.Fog;
+            if (radarNow != radarFog)
+            {
+                if (radarNow) { campaignMask = mask; StartFog(); mask = loss.Sight; }
+                else { mask = campaignMask; campaignMask = null; lastStamp.Clear(); }
+                radarFog = radarNow;
+                radarSightRevision = -1;
+                if (mask != null) Upload();
+            }
+            if ((!wanted && !radarFog) || mask == null)
             {
                 strength = 0f; hidingNow = false; RestoreDither();
                 MinimapStep(); PanelStep();
                 return;
             }
             long t0 = Stopwatch.GetTimestamp();
-            if (++frame % StampEvery == 0) StampRound(false);
-            RadarStep();                                                                // 1.4 radar circle: every frame (View/OzFogOfWar.Radar.cs)
+            if (!radarFog)
+            {
+                if (++frame % StampEvery == 0) StampRound(false);
+                RadarStep();
+            }
             long t1 = Stopwatch.GetTimestamp();
             int step = Mathf.Clamp(Mathf.CeilToInt(255f * FowDt / RevealSeconds), 1, 255);          // round 4: the fog's step (the capture step while a clip records)
-            bool changed = mask.Ease(step);
+            bool changed = radarFog ? radarSightRevision != loss.SightRevision : mask.Ease(step);
+            if (radarFog) radarSightRevision = loss.SightRevision;
             long t2 = Stopwatch.GetTimestamp();
             if (changed) Upload();
             GateStep();                                                                                 // 1.4 fog_gameplay_only (View/OzFogOfWar.Gate.cs): the one gate sets strength (a 0.4 s smootherstep fade, 0 at once on a cut), Covers and the units held off
@@ -314,6 +332,7 @@ namespace OpenZ
         /// Always false when the fog is not on screen (off, the briefing, a flyover, the ending).</summary>
         public static bool Covers(ZObject o)
         {
+            if (I && I.radarFog) return OzRadarLoss.Covers(o);
             if (!hidingNow || o == null || o.Owner == playerNow) return false;
             var m = maskNow; if (m == null) return false;
             if (m.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) return false;

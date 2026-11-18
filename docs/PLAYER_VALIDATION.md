@@ -1,5 +1,15 @@
 # Player validation record
 
+## OpenZ-VK 0.2.35 combat and duel controls
+
+- Verify both fort orientations and the closest road or bridge with four different turrets.
+- In two connected compiled games, check both request roles, map-gallery navigation and chat, accept, decline, expiry, frozen lobby rules, and lobby return without mission results. Interrupt the route, verify the countdown on both sides, and verify recovery, abandonment, and timeout.
+- Host a duel, change its map by agreement, then create a new lobby and verify that the last played map and all game rules are restored.
+- In solo and 1 vs 1, open different factories and check eligibility, custom or cleared build keys, switching production and queueing the current unit.
+- In the Unit Editor, check the Z Classic settings, variance fields, per-vehicle reset and apply, and saved custom profiles from the lobby.
+- Inspect stationary smoke, trails deposited below red health, and the trail fade. On both sides, check radar static, last-seen unit and structure states, minimap markers, radar repair and camera recovery.
+- Online TURN allowance and internet reconnection require the corresponding invitation service revision and a live relay account.
+
 ## OpenZ-VK 0.2.33 AI Maps
 
 - The 6,601 simulation checks cover the full catalog, including both lava option states, water and ravine access, original flag and building coordinates, bridge damage and repair, rock clearance, and crocodile placement in native water.

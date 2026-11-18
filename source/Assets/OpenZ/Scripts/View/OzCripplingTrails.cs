@@ -7,13 +7,13 @@ namespace OpenZ
     /// <summary>Bounded, scene-owned oil ribbons. No assets or local configuration are written.</summary>
     public sealed class OzCripplingTrails : MonoBehaviour
     {
-        const int Capacity = 512;
-        sealed class Mark { public LineRenderer line; public double born, life; }
+        const int Capacity = 4096;
+        sealed class Mark { public LineRenderer line; public double born, life, hold, fade; }
         readonly List<Mark> marks = new List<Mark>();
         int cursor;
         Material material;
         ZGame game;
-        public void Add(ZGame owner, Vector3 from, Vector3 to, float width, double life)
+        public void Add(ZGame owner, Vector3 from, Vector3 to, float width, double life, double fade = 0)
         {
             game = owner;
             if (!material)
@@ -36,7 +36,9 @@ namespace OpenZ
             else { mark = marks[cursor]; cursor = (cursor + 1) % Capacity; }
             from.y = game.GroundY(from.x, from.z) + .025f;
             to.y = game.GroundY(to.x, to.z) + .025f;
-            mark.born = game.World.Time; mark.life = life;
+            mark.born = game.World.Time; mark.life = life + fade;
+            mark.hold = fade > 0 ? life : 0;
+            mark.fade = fade > 0 ? fade : life;
             mark.line.SetPosition(0, from); mark.line.SetPosition(1, to);
             mark.line.startWidth = mark.line.endWidth = width; mark.line.enabled = true;
             Tint(mark, .6f);
@@ -49,9 +51,9 @@ namespace OpenZ
             foreach (var mark in marks)
             {
                 if (!mark.line.enabled) continue;
-                float age = (float)((game.World.Time - mark.born) / mark.life);
-                if (age >= 1) mark.line.enabled = false;
-                else Tint(mark, .6f * Mathf.Clamp01(1 - age));
+                double age = game.World.Time - mark.born;
+                if (age >= mark.life) mark.line.enabled = false;
+                else if (age >= mark.hold) Tint(mark, .6f * Mathf.Clamp01(1 - (float)((age - mark.hold) / mark.fade)));
             }
         }
         void OnDestroy() { if (material) Destroy(material); }

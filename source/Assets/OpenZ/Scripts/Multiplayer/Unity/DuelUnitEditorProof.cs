@@ -134,6 +134,20 @@ namespace OpenZ.Multiplayer
                 {
                     if (!OzBehaviorPanel.I.TestingOpen) throw new Exception("Testing sidebar did not open.");
                     DuelProofCapture.Save(Path.Combine(folder, "unit-testing.png"));
+                    OzBehaviorPanel.I.ShowPage(ZBehaviorFamily.Tanks, 0);
+                    step = 101;
+                    readyAt = Time.realtimeSinceStartupAsDouble + .5;
+                }
+                else if (step == 101)
+                {
+                    DuelProofCapture.Save(Path.Combine(folder, "dodge-variance.png"));
+                    OzBehaviorPanel.I.ShowEasyTuning(ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks));
+                    step = 102;
+                    readyAt = Time.realtimeSinceStartupAsDouble + .5;
+                }
+                else if (step == 102)
+                {
+                    DuelProofCapture.Save(Path.Combine(folder, "tank-agility.png"));
                     SceneManager.LoadScene("MainMenu");
                     step = 16;
                     readyAt = Time.realtimeSinceStartupAsDouble + 3;

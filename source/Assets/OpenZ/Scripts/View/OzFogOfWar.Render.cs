@@ -186,7 +186,7 @@ namespace OpenZ
             if (Time.unscaledTime >= nextRebind) { nextRebind = Time.unscaledTime + 0.5f; matLook = -1; mat.SetTexture(IdMask, tex); matTex = tex; MaterialBind(); FieldUniforms(); }
 #endif
             if (matLook != ver || matY0 != blanketY) { ApplyLook(mat, look, planet, blanketY); matLook = ver; matY0 = blanketY; }
-            mat.SetFloat(IdSee, 1f - CoverNow);                                                              // 1.4 fog_biome_looks: the cover on screen every frame (MAYHEM eases it; else the session's, as before)
+            mat.SetFloat(IdSee, radarFog ? .88f : 1f - CoverNow);
             float wm = mask.W * OzFowMask.CellPx / 8f, hm = mask.H * OzFowMask.CellPx / 8f;                 // 8 Zod px = 1 m (ZGame.PxToWorld: x = px / 8, z = -py / 8)
             mat.SetVector(IdMap, new Vector4(0f, 0f, 1f / wm, -1f / hm));                                   // u = x / width, v = -z / height (v grows to the south, the mask's rows)
             mat.SetFloat(IdOn, strength);
@@ -464,11 +464,12 @@ namespace OpenZ
 
         /// <summary>A camera the player plays through: a game camera with an enabled RtsCamera, drawing to the screen or the main camera.</summary>
         static bool PlayerView(Camera c) =>
-            c && c.cameraType == CameraType.Game && (c.targetTexture == null || c.CompareTag("MainCamera")) && c.TryGetComponent<RtsCamera>(out var r) && r.enabled;
+            c && (c == Multiplayer.DuelProofCapture.WorldCapture ||
+                c.cameraType == CameraType.Game && (c.targetTexture == null || c.CompareTag("MainCamera")) && c.TryGetComponent<RtsCamera>(out var r) && r.enabled);
 
         void BeginCamera(ScriptableRenderContext ctx, Camera cam)
         {
-            if (!wanted || mask == null || !PlayerView(cam) || !GateCamera(cam)) return;              // 1.4 fog_gameplay_only: the gate read again at the camera (a scene begun later in the frame: no cloud, nothing held off on its first picture)
+            if ((!wanted && !radarFog) || mask == null || !PlayerView(cam) || !GateCamera(cam)) return;
             if (mat && pass != null && fieldA && cam.TryGetComponent<UniversalAdditionalCameraData>(out var d) && d.scriptableRenderer != null)
             {
                 if (!BenchNoPass) { d.scriptableRenderer.EnqueuePass(pass); PassesQueued++; }
@@ -528,9 +529,9 @@ namespace OpenZ
             for (int i = 0; i < views.Count; i++)
             {
                 var v = views[i]; if (!v) continue;
-                var o = v.Obj; if (o == null || o.Owner == player || !o.IsUnit) continue;
-                if (mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) continue;
-                bool early = band > 0 && NearRevealed(mask, o.CenterX, o.CenterY, band);                          // 1.4 mayhem_headstart: under the fog's soft edge: drawn, shadows held off
+                var o = v.Obj;
+                if (radarFog ? !OzRadarLoss.Covers(o) : o == null || o.Owner == player || !o.IsUnit || mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) continue;
+                bool early = !radarFog && band > 0 && NearRevealed(mask, o.CenterX, o.CenterY, band);
                 float wx = o.CenterX / 8f, wz = -o.CenterY / 8f;                                                // 8 Zod px = 1 m (ZGame.PxToWorld)
                 if (boxed && (wx < box.x || wx > box.z || wz < box.y || wz > box.w)) { if (!early) outside++; continue; }   // 1.4 mayhem_headstart: early units are not held units
                 int id = v.GetInstanceID();

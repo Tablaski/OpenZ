@@ -6,7 +6,7 @@ namespace OpenZ.Sim
 {
     public static class DuelMissionDefaults
     {
-        public static string[] OutsideUnits() => new[] { "light", "heavy", "pyro", "laser" };
+        public static string[] OutsideUnits() => new[] { "", "", "", "" };
 
         public static DuelArmySettings Create()
         {
@@ -38,10 +38,11 @@ namespace OpenZ.Sim
                 Team team = seat == 0 ? Team.Red : Team.Blue;
                 var army = duelRules.EffectiveFor(seat);
                 var fort = Objects.First(o => o.IsFort && o.Owner == team);
-                for (int i = 0; i < 4; i++)
+                var turrets = army.FortTurrets.Where(t => !string.IsNullOrEmpty(t)).OrderByDescending(FortTurretPower).ToArray();
+                var mounts = DuelFortMounts(fort);
+                for (int i = 0; i < turrets.Length; i++)
                 {
-                    string type = army.FortTurrets[i]; if (string.IsNullOrEmpty(type)) continue;
-                    var gun = CreateObject("cannon", type, fort.LocX + (i % 2 == 0 ? 16 : 112), fort.LocY + (i < 2 ? 0 : 48), team);
+                    var gun = CreateObject("cannon", turrets[i], mounts[i].x, mounts[i].y, team);
                     gun.Ejectable = false;
                 }
                 int budget = army.StartingUnits.Sum(t => ZBuildLists.IsRobot(t) ? Math.Max(1, S.Unit(t)?.group_amount ?? 1) : 1);
@@ -59,6 +60,37 @@ namespace OpenZ.Sim
                 }
             }
             Events.Clear();
+        }
+
+        static int FortTurretPower(string type) => type == "missile_cannon" ? 4 :
+            type == "howitzer" ? 3 : type == "gun" ? 2 : 1;
+
+        (int x, int y)[] DuelFortMounts(ZObject fort)
+        {
+            fort.GetCreationMovePoint(out _, out int gateY);
+            int frontY = gateY < fort.LocY ? fort.LocY : fort.LocY + 48;
+            int rearY = frontY == fort.LocY ? fort.LocY + 48 : fort.LocY;
+            int left = fort.LocX + 16, right = fort.LocX + 112;
+            var mounts = new[] { (x: left, y: frontY), (x: right, y: frontY), (x: left, y: rearY), (x: right, y: rearY) };
+            var distances = Enumerable.Repeat(long.MaxValue, mounts.Length).ToArray();
+            void Compare(int x, int y, int width, int height)
+            {
+                for (int i = 0; i < mounts.Length; i++)
+                {
+                    long cx = mounts[i].x + 16, cy = mounts[i].y + 16;
+                    long dx = Math.Max(0, Math.Max(x - cx, cx - (x + width)));
+                    long dy = Math.Max(0, Math.Max(y - cy, cy - (y + height)));
+                    distances[i] = Math.Min(distances[i], dx * dx + dy * dy);
+                }
+            }
+            for (int y = 0; y < Map.height; y++)
+                for (int x = 0; x < Map.width; x++)
+                    if (Map.ClassAt(x, y) == ZClass.Road) Compare(x * ZConst.TILE, y * ZConst.TILE, ZConst.TILE, ZConst.TILE);
+            foreach (var bridge in Objects)
+                if (bridge.IsBridge && !bridge.Destroyed) Compare(bridge.LocX, bridge.LocY, bridge.WidthPix, bridge.HeightPix);
+            if (distances[1] < distances[0]) (mounts[0], mounts[1]) = (mounts[1], mounts[0]);
+            if (distances[3] < distances[2]) (mounts[2], mounts[3]) = (mounts[3], mounts[2]);
+            return mounts;
         }
 
         public void DuelResetReplica()

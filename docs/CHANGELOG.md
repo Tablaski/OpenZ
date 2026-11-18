@@ -1,5 +1,15 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.35 (18 Nov 2026)
+
+- Choose four fort turret slots per team. The strongest guns cover the entrance, with the next strongest covering the closest road or bridge. The default starts each fort with a howitzer and a missile cannon, and leaves the outside slots empty.
+- New lobbies open with the map and game options from your last hosted duel.
+- Pause a duel to suggest a new map or ask to return to the lobby. You can chat while choosing a map, and an accepted map change keeps the current rules.
+- A connection interruption pauses the duel while the game tries to reconnect. Wait up to 30 seconds or leave early. The network menu shows the TURN allowance at the last connection.
+- Set optional build keys in the main menu. Use them from an open factory to switch production or queue another copy of the current unit.
+- Choose OpenZ or Z Classic dynamics in the lobby, or select a saved custom profile. In the Unit Editor, tune vehicle dodge agility, including hull pivot speed, and vary each dodge and boost.
+- Damaged tanks can leave smoke and oil trails. The 1 vs 1 lobby offers fog of war, a zoom lock, or both when a side loses its last radar.
+
 ## OpenZ-VK 0.2.34 (18 Nov 2026)
 
 - Choose allowed units and switch tank and robot dynamics from the solo battlefield selector, in both the OpenZ campaign and AI Maps.

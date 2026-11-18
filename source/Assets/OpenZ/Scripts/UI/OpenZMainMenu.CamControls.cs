@@ -27,7 +27,7 @@ namespace OpenZ
 
         // ---------------------------------------------------------------- proof hooks (Play only; Editor/OzV14CamControlsCheck.cs)
         /// <summary>OPTIONS open on a tab (the GAME tab holds the camera rows).</summary>
-        public void ProofOpenOptions(int tab) { if (side != Side.Options) OpenSide(Side.Options); ShowOptTab(Mathf.Clamp(tab, 0, OzSettingTips.TabNames.Length - 1)); }
+        public void ProofOpenOptions(int tab) { if (side != Side.Options) OpenSide(Side.Options); ShowOptTab(Mathf.Clamp(tab, 0, optTabBtns.Count - 1)); }
         /// <summary>The open side panel closes.</summary>
         public void ProofCloseSide() { if (side != Side.None) CloseSide(); }
     }

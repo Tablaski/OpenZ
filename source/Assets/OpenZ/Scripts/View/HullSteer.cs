@@ -89,7 +89,7 @@ namespace OpenZ
             behaviorDead = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.DeadZone] : DeadZone;
             behaviorHold = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.HeadingHold] : HoldMin;
             behaviorCommit = behavior != null ? (float)behavior[OpenZ.Sim.ZBehaviorKey.HeadingCommit] : Commit;
-            if (behavior != null && behavior.On(OpenZ.Sim.ZBehaviorKey.Physical))
+            if (o.BehaviorSteersHull)
             {
                 if (o.BehaviorHeadingSet) hull = (float)(o.BehaviorHeading * Mathf.Rad2Deg) + 90f;
                 reverse = ZBehaviorSchema.IsTank(o.Type) && ZObject.NearestHullReverse((hull - 90f) * Mathf.Deg2Rad, Mathf.Atan2(o.Dy, o.Dx));

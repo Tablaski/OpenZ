@@ -216,7 +216,7 @@ namespace OpenZ.Multiplayer
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
-                        if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "light", "heavy", "pyro", "laser" }))
+                        if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "", "", "", "" }))
                             throw new Exception("Incorrect opening order or starting army defaults.");
                         var fortButton = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "FORT PLACEMENT · RED / BLUE");
                         var fortLabel = fortButton.transform.Find("Content/Label") as RectTransform;

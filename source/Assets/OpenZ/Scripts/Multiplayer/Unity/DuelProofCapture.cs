@@ -10,6 +10,7 @@ namespace OpenZ.Multiplayer
     // Explicit rendering lets the opt-in proof capture a hidden window too.
     internal static class DuelProofCapture
     {
+        internal static Camera WorldCapture { get; private set; }
         internal static void Save(string path, bool interfaceOnly = false)
         {
             var canvases = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None)
@@ -40,6 +41,11 @@ namespace OpenZ.Multiplayer
                 // Newly created modal canvases may start on Default. Capture all UI
                 // without making the UI-only camera draw the world's Default layer.
                 if (interfaceOnly) foreach (var item in uiLayers) item.Transform.gameObject.layer = 5;
+                else
+                {
+                    WorldCapture = camera;
+                    if (OzRadarLoss.I && OzRadarLoss.I.Fog) OzRadarLoss.I.DrawMemory(camera);
+                }
                 foreach (var canvas in canvases) { canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = camera; canvas.planeDistance = camera.nearClipPlane + 1; }
                 Canvas.ForceUpdateCanvases();
                 RenderPipeline.SubmitRenderRequest(camera, new UniversalRenderPipeline.SingleCameraRequest { destination = rt });
@@ -52,6 +58,7 @@ namespace OpenZ.Multiplayer
             }
             finally
             {
+                WorldCapture = null;
                 if (interfaceOnly) Shader.SetGlobalFloat("_AtmoEnabled", atmosphere);
                 if (interfaceOnly) foreach (var item in uiLayers) if (item.Transform) item.Transform.gameObject.layer = item.Layer;
                 RenderTexture.active = previous;

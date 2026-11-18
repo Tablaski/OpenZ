@@ -333,6 +333,7 @@ namespace OpenZ
             AddCycle(p, toggles.Count, NightShadows.Label, () => NightShadows.Name, NightShadows.Step);
             AddCycle(p, toggles.Count, OzForceBarOption.Label, () => OzForceBarOption.Name, OzForceBarOption.Step);
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OptW - 2 * OzLayout.OptX - 130);
+            AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, value => OzBattleOptions.SoloDamage = value);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
             AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
@@ -1091,7 +1092,7 @@ namespace OpenZ
 
         void Keys()
         {
-            if (OzForkOptions.CaptureChatBinding()) return;
+            if (OzForkOptions.CaptureChatBinding() || CaptureBuildBinding()) return;
             var kb = Keyboard.current; if (kb == null || OzControlsTable.Capturing) return;   // menu_exe_v1: a key being bound is no menu key
             bool up = kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame, down = kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame;
             bool left = kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame, right = kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame;

@@ -12,7 +12,7 @@ namespace OpenZ.Sim
         public bool CripplingActive => Kind == ZKind.Vehicle && ZBehaviorSchema.IsTank(Type) && Behavior != null && Behavior.On(ZBehaviorKey.Crippling);
         public double CripplingImpactUntil, CripplingImpactFactor = 1, CripplingActualSpeed;
         public bool CripplingHitActive => Behavior != null && Behavior.On(ZBehaviorKey.Impact) && World.Time < CripplingImpactUntil;
-        public bool BehaviorUsesActualMotion => Behavior != null && (Behavior.On(ZBehaviorKey.Physical) || CripplingActive || Behavior.On(ZBehaviorKey.Impact));
+        public bool BehaviorUsesActualMotion => Behavior != null && (BehaviorSteersHull || CripplingActive || Behavior.On(ZBehaviorKey.Impact));
         public double CripplingValue(ZBehaviorKey greenKey) => !CripplingActive ? 0 :
             Behavior[(ZBehaviorKey)((int)greenKey + (int)HealthBand * 6)];
         double CripplingAcceleration => CripplingValue(ZBehaviorKey.GreenAcceleration);

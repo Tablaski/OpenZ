@@ -21,7 +21,8 @@ namespace OpenZ
         readonly List<OzUeLabSlider> sliders = new List<OzUeLabSlider>();
         readonly List<RectTransform> rows = new List<RectTransform>();
         readonly List<Action> refresh = new List<Action>();
-        readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT", "CRIPPLING" };
+        readonly string[] pages = { "FEEL", "DODGING", "MOVEMENT", "BOOST", "COMBAT", "CRIPPLING", "EASY TUNING" };
+        readonly Dictionary<string, double> agilityDraft = new Dictionary<string, double>();
         readonly bool[] advanced = new bool[6];
         int healthBand = 1, selectedDirection;
         public bool SimulationDebug { get; private set; }
@@ -30,7 +31,7 @@ namespace OpenZ
             ZBehaviorKey.BoostDuration, ZBehaviorKey.BoostMaxDistance, ZBehaviorKey.Physical, ZBehaviorKey.TurnFirst,
             ZBehaviorKey.PivotSpeed, ZBehaviorKey.AlignmentTolerance, ZBehaviorKey.TurnRate,
             ZBehaviorKey.TurnAcceleration, ZBehaviorKey.Acceleration, ZBehaviorKey.Braking,
-            ZBehaviorKey.DirectView, ZBehaviorKey.Distance, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown };
+            ZBehaviorKey.DirectView, ZBehaviorKey.Distance, ZBehaviorKey.DodgeSpeed, ZBehaviorKey.BoostSpeed, ZBehaviorKey.Cooldown, ZBehaviorKey.DodgePhysical };
         static bool Primary(ZBehaviorKey k) => Array.IndexOf(essentials, k) >= 0 || k == ZBehaviorKey.Enabled || k == ZBehaviorKey.Boost || k == ZBehaviorKey.CombatManoeuvres || k == ZBehaviorKey.Physical;
         public Team RespawnPointTeam { get; private set; }
         bool builtTesting;
@@ -85,6 +86,12 @@ namespace OpenZ
         public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("COMBAT DYNAMICS is not clickable."); OzUeStats.SetTab(OzUeStats.Tab.Dynamics); }
         public void ShowPage(ZBehaviorFamily f, int tab)
         { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 4) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
+        internal void ShowEasyTuning(ZBehaviorProfile reference)
+        {
+            FinishFields(); family = 0; page = 6; scope = 0; agilityDraft.Clear();
+            LoadProfile(reference);
+            OzUeStats.SetTab(OzUeStats.Tab.Dynamics);
+        }
         public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
@@ -139,15 +146,12 @@ namespace OpenZ
             Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.ExportJson(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
             string[] tips = { "Save a new independently named copy.", "Export a readable .json combat profile with the master, overrides and reference endpoints.", "Load a local .json or legacy .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .json and legacy .ozbehavior preset files. Nothing is uploaded." };
             for (int i = 0; i < 4; i++) { int k = i; Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 139, (inner - 12) / 4, 24), tips[i], callbacks[k]); }
-            Text(box, "OPENZ", 12, 179, 70, 11, OzUi.Amber); Text(box, "ZOD CLASSIC", w - 108, 179, 96, 11, OzUi.Amber);
-            var master = Text(box, "", inner / 2 - 20, 179, 84, 12);
-            refresh.Add(() => master.Set(P.master.ToString("0.#", CultureInfo.InvariantCulture) + "%"));
-            Slider(box, "Master", new Rect(12, 193, inner, 20), 0, 100, () => P.master, n => SetMaster((ZBehaviorFamily)family, Math.Round(n, 1)), "Blend OpenZ (0%) with classic Zod movement (100%). Manual overrides keep their values. This is not dodge success chance.");
-            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 219, inner * .55f, 26), "Choose all units or one type. Type-specific values override family settings.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
-            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 219, inner * .45f - 6, 26), "Release every manual override in this family. Keep the master position.", () => { P.overrides.Clear(); Apply(family); dirty = true; rebuild = true; });
-            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 3 * (inner + 4) / 3, 251 + i / 3 * 29, (inner - 8) / 3, 25), "Edit " + pages[i].ToLowerInvariant() + ". Every field has reference values and detailed help.", () => { page = k; profiles = imports = false; rebuild = true; }); if (i == 5) tab.Label.color = OzForkOptions.Accent; }
-            MakeList(312);
+            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 173, inner * .55f, 26), "Choose all units or one type. Type-specific values override family settings.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
+            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 173, inner * .45f - 6, 26), "Release every manual override in this family.", () => { P.overrides = P.id == "zod-classic" ? ZBehaviorProfile.Classic((ZBehaviorFamily)family).overrides : new List<ZBehaviorOverride>(); Apply(family); dirty = true; rebuild = true; });
+            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 4 * (inner + 4) / 4, 205 + i / 4 * 29, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ".", () => { page = k; profiles = imports = false; agilityDraft.Clear(); rebuild = true; }); if (i >= 5) tab.Label.color = OzForkOptions.Accent; }
+            MakeList(264);
             if (profiles || imports) { BuildPresetList(); return; }
+            if (page == 6) { BuildEasyTuning(); return; }
             float y = 0;
             var intro = Row("Guide", y, 72);
             Text(intro, "OpenZ-VK | " + (page == 0 ? "MOVEMENT AND DODGE FEEL" : pages[page]), 9, 16, layout.w - 58, 12, OzForkOptions.Accent);
@@ -192,7 +196,23 @@ namespace OpenZ
                 else
                 {
                     Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => Edit((ZBehaviorFamily)family, def.Key, OzUeLabInput.Number(s), Type), tip + "\nEnter applies. Escape cancels.");
-                    Text(row, d.Unit + (d.Label.Contains("unlimited") ? " | 0: unlimited" : d.Label.Contains("instant") ? " | 0: instant" : ""), 169, 71, rw - 178, 10, OzUi.Ink2);
+                    var variance = def.Key switch
+                    {
+                        ZBehaviorKey.Distance => ZBehaviorKey.DistanceVariance,
+                        ZBehaviorKey.DodgeSpeed => ZBehaviorKey.SpeedVariance,
+                        ZBehaviorKey.Acceleration => ZBehaviorKey.AccelerationVariance,
+                        ZBehaviorKey.BoostSpeed => ZBehaviorKey.BoostVariance,
+                        ZBehaviorKey.TurnRate => ZBehaviorKey.PivotVariance,
+                        _ => ZBehaviorKey.Count
+                    };
+                    if (variance != ZBehaviorKey.Count)
+                    {
+                        Text(row, "VARIANCE", 170, 71, 90, 10, OzForkOptions.Accent);
+                        Input(row, "Variance", new Rect(250, 57, rw - 262, 28),
+                            () => P.Get(Type, variance).ToString("G12", CultureInfo.InvariantCulture),
+                            s => Edit((ZBehaviorFamily)family, variance, OzUeLabInput.Number(s), Type), "Total variance. 0.2 gives a range of −10% to +10%.");
+                    }
+                    else Text(row, d.Unit + (d.Label.Contains("unlimited") ? " | 0: unlimited" : d.Label.Contains("instant") ? " | 0: instant" : ""), 169, 71, rw - 178, 10, OzUi.Ink2);
                 }
                 y += 100;
                 if (page == 0 && d.Key == ZBehaviorKey.BoostMaxDistance) BuildDirectionCircle(ref y);
@@ -211,6 +231,32 @@ namespace OpenZ
             var debug = Button(actionsRow, "Debug", "", new Rect(15 + (layout.w - 64) * .65f, 4, (layout.w - 64) * .35f, 26), "Show the last dodge reason above units. Useful to distinguish a committed dodge, exhausted sprint, blocked path and a forbidden reaction.", () => DebugEnabled = !DebugEnabled);
             refresh.Add(() => debug.Label.Set(DebugEnabled ? "DEBUG ON" : "DEBUG OFF"));
             list.SetContentHeight(y + 38);
+        }
+        void BuildEasyTuning()
+        {
+            float y = 0, width = layout.w - 40;
+            if (family != 0)
+            {
+                Text(Row("Easy tuning", 0, 48), "Select TANKS to adjust dodge agility.", 9, 22, width - 18, 11, OzForkOptions.Accent);
+                list.SetContentHeight(48);
+                return;
+            }
+            foreach (string type in ZBehaviorSchema.TankTypes)
+            {
+                var row = Row("Agility " + type, y, 44);
+                if (!agilityDraft.ContainsKey(type)) agilityDraft[type] = P.Get(type, ZBehaviorKey.Agility);
+                Text(row, DisplayType(type), 9, 20, width - 365, 11, OzForkOptions.Accent);
+                Input(row, "Agility", new Rect(width - 341, 6, 65, 28),
+                    () => agilityDraft[type].ToString("0.#", CultureInfo.InvariantCulture),
+                    s => agilityDraft[type] = ZBehaviorSchema.Def(ZBehaviorKey.Agility).Clamp(OzUeLabInput.Number(s)), "Percentage of the light tank's dodge tuning.");
+                Text(row, "%", width - 268, 20, 18, 11);
+                Button(row, "Reset agility", "RESET TO DEFAULT", new Rect(width - 246, 6, 153, 28),
+                    "Restore the Z Classic percentage for this tank.", () => agilityDraft[type] = ZBehaviorProfile.ClassicTankAgility(type));
+                Button(row, "Apply agility", "APPLY", new Rect(width - 84, 6, 75, 28),
+                    "Apply dodge distance, acceleration, boost and hull pivot for this tank.", () => { P.ApplyTankAgility(type, agilityDraft[type]); Apply(family); dirty = true; });
+                y += 44;
+            }
+            list.SetContentHeight(y);
         }
         void BuildTesting()
         {
@@ -271,7 +317,7 @@ namespace OpenZ
                 foreach (var choice in OzBehaviorLibrary.Choices((ZBehaviorFamily)family))
                 {
                     var p = choice; var row = Row(p.name, y, 36);
-                    Button(row, "Load", p.name, new Rect(6, 2, layout.w - 52, 29), "Load this preset into the playground. Unsaved edits are replaced; match selection stays unchanged.", () => { drafts[family] = p.Clone(); presetName = p.name; profiles = false; dirty = false; Apply(family); rebuild = true; }); y += 36;
+                    Button(row, "Load", p.name, new Rect(6, 2, layout.w - 52, 29), "Load this preset into the playground. Unsaved edits are replaced; match selection stays unchanged.", () => LoadProfile(p)); y += 36;
                 }
                 var del = Row("Delete", y, 40);
                 Button(del, "DeletePreset", "DELETE CURRENT SAVED PRESET", new Rect(6, 3, layout.w - 52, 28), "Delete the current named preset; protected built-in references cannot be deleted.", () => { if (!OzBehaviorLibrary.SavedProfiles.Exists(p => p.id == P.id)) throw new InvalidOperationException("Built-in presets are protected."); OzBehaviorLibrary.Delete(P); rebuild = true; }); y += 40;
@@ -287,6 +333,14 @@ namespace OpenZ
                 }
             }
             list.SetContentHeight(y);
+        }
+        void LoadProfile(ZBehaviorProfile profile)
+        {
+            drafts[family] = profile.Clone();
+            presetName = profile.name;
+            profiles = dirty = false;
+            Apply(family);
+            rebuild = true;
         }
         static string ToggleSummary(string label)
         {

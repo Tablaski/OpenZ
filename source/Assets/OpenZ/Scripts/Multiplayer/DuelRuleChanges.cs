@@ -7,7 +7,7 @@ namespace OpenZ.Multiplayer
 {
     public static class DuelRuleChanges
     {
-        public static string MountName(int mount) => new[] { "NORTH WEST", "NORTH EAST", "SOUTH WEST", "SOUTH EAST" }[mount];
+        public static string MountName(int mount) => "SLOT " + (mount + 1);
         public static List<string> Describe(DuelRules current, DuelRules next)
         {
             var changes = new List<string>();
@@ -21,6 +21,8 @@ namespace OpenZ.Multiplayer
             add("Minimum build seconds", current.MinimumBuildSeconds, next.MinimumBuildSeconds);
             add("Territory cap", current.TerritoryReductionCap, next.TerritoryReductionCap);
             add("Fort loser bonus", current.FortLoserMaximum, next.FortLoserMaximum);
+            add("Damaged tank smoke and oil", current.TankDamageEffects, next.TankDamageEffects);
+            add("Radar loss", current.RadarLoss, next.RadarLoss);
             add("Shared build duration", current.Common.BuildDuration, next.Common.BuildDuration);
             add("Handicap enabled", current.HandicapEnabled, next.HandicapEnabled);
             add("Handicap team", current.HandicapSlot == 0 ? "RED" : "BLUE", next.HandicapSlot == 0 ? "RED" : "BLUE");

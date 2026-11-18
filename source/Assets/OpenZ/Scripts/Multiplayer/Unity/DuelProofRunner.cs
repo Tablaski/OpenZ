@@ -30,6 +30,11 @@ namespace OpenZ.Multiplayer
             int option = Array.IndexOf(args, "-oz-duel-proof");
             if (option < 0 || option + 2 >= args.Length) return;
             var go = new GameObject("DuelProof"); DontDestroyOnLoad(go);
+            if (args.Contains("-oz-duel-match-controls"))
+            {
+                go.AddComponent<DuelMatchControlsProof>().Begin(args[option + 1], args[option + 2], args.Contains("-oz-duel-online-proof"));
+                return;
+            }
             var proof = go.AddComponent<DuelProofRunner>(); proof.role = args[option + 1]; proof.folder = args[option + 2];
             proof.began = Time.realtimeSinceStartupAsDouble;
             Application.logMessageReceived += proof.OnLog;
@@ -53,6 +58,7 @@ namespace OpenZ.Multiplayer
                         var args = Environment.GetCommandLineArgs(); int mapOption = Array.IndexOf(args, "-oz-duel-proof-map");
                         if (mapOption >= 0 && mapOption + 1 < args.Length) r.ChangeRules(DuelRuntime.Defaults(args[mapOption + 1]));
                         var factoryRules = r.Rules;
+                        DuelMissionDefaults.ApplyOutsidePreset(factoryRules, new[] { "light", "heavy", "pyro", "laser" });
                         factoryRules.TankDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Tanks).Encode();
                         factoryRules.RobotDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Robots).Encode();
                         r.ChangeRules(factoryRules);

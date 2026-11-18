@@ -5,7 +5,7 @@ using OpenZ.Multiplayer;
 
 namespace OpenZ.Sim
 {
-    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild }
+    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild, BuildShortcut }
 
     [Serializable]
     public sealed class DuelOrder
@@ -73,6 +73,7 @@ namespace OpenZ.Sim
                 case DuelOrderKind.Patrol: return OnMap(order.X, order.Y) && world.SendPatrol(team, o, order.X, order.Y);
                 case DuelOrderKind.Build: return world.StartBuilding(team, o, order.Unit);
                 case DuelOrderKind.RestartBuild: return world.RestartBuilding(team, o, order.Unit);
+                case DuelOrderKind.BuildShortcut: return world.BuildShortcut(team, o, order.Unit);
                 case DuelOrderKind.StopBuild: return world.StopBuilding(team, o);
                 case DuelOrderKind.Queue: return world.AddBuildingQueue(team, o, order.Unit);
                 case DuelOrderKind.CancelQueue: return world.CancelBuildingQueue(team, o, order.Index, order.Unit);
@@ -105,6 +106,8 @@ namespace OpenZ.Sim
         }
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
+        public bool DuelTankDamageEffects => duelRules?.TankDamageEffects == true;
+        public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAllowsUnit(string type) => duelRules != null ? duelRules.Allows(type) : soloAllowedUnits == null || soloAllowedUnits.Contains(type);
         /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>
         public void ConfigureSoloUnits(IEnumerable<string> types)

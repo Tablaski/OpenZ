@@ -154,7 +154,9 @@ namespace OpenZ
         public static float FreeFloorEaseSeconds = 0.15f, FreeFloorDiscM = 4f;
         float floorEased, floorVel; int floorFrame = -10;
 
-        void Start() { targetHeight = height; Place(); }
+        float startingRadarHeight, startingRadarPitch;
+        bool radarZoomWasLocked;
+        void Start() { startingRadarHeight = targetHeight = height; startingRadarPitch = pitch; Place(); }
         void OnValidate() { targetHeight = height; Place(); }
 
         // duel camera input capture
@@ -206,6 +208,17 @@ namespace OpenZ
                 WheelInput(wheel, Time.unscaledDeltaTime);                                                   // v1.3 item 35: the same lines, in WheelInput (+ the notch limit per second)
             }
             UpdateConfine(kb);
+            bool radarZoom = OzRadarLoss.I && OzRadarLoss.I.Zoom;
+            if (radarZoom || radarZoomWasLocked)
+            {
+                pitch = Mathf.MoveTowards(pitch, radarZoom ? 89 : startingRadarPitch, 150 * Time.unscaledDeltaTime);
+                if (radarZoom)
+                {
+                    targetHeight = Mathf.Clamp(startingRadarHeight, minHeight, maxHeight);
+                    freeTilt = Mathf.Clamp(freeTilt, 63 - pitch, 89 - pitch);
+                }
+                radarZoomWasLocked = radarZoom || !Mathf.Approximately(pitch, startingRadarPitch);
+            }
             FeelStep(Time.unscaledDeltaTime, dir, kb != null && kb.shiftKey.isPressed);                 // v1.3 item 35: the same lines, in FeelStep (pan, zoom ease, free look back, yaw ease)
             Place();
         }

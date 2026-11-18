@@ -335,6 +335,14 @@ namespace OpenZ.Sim
             if (!Owns(team, b) || b.Destroyed || !ProductionUnits(b).Contains(unit)) return false;
             return StopBuilding(team, b) && StartBuilding(team, b, unit);
         }
+        public bool BuildShortcut(Team team, ZObject b, string unit)
+        {
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.BuildShortcut, Unit = unit });
+            if (!Owns(team, b) || b.Destroyed || !b.IsProducer || UnitLimitReached(team) || !ProductionUnits(b).Contains(unit)) return false;
+            if (b.Building && b.CurUnit == unit) return AddBuildingQueue(team, b, unit);
+            if (b.StoredCannons.Count > 0) return false;
+            return b.Building ? RestartBuilding(team, b, unit) : StartBuilding(team, b, unit);
+        }
         public bool AddBuildingQueue(Team team, ZObject b, string unit)
         {
             // OpenZ duel command: Queue

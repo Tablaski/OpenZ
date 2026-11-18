@@ -13564,7 +13564,7 @@ Transform:
   m_GameObject: {fileID: 710690434}
   serializedVersion: 2
   m_LocalRotation: {x: 0.46174863, y: 0, z: 0, w: 0.8870109}
-  m_LocalPosition: {x: 106, y: 70, z: -199.61453}
+  m_LocalPosition: {x: 28, y: 70, z: -207.01453}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -22880,6 +22880,7 @@ MonoBehaviour:
   cliff: {fileID: 2100000, guid: a613e6871d7f87c4785d124edf4865db, type: 2}
   pit: {fileID: 2100000, guid: 838469000e9f8e24f96a0230f93cddd6, type: 2}
   water: {fileID: 2100000, guid: cc80ac2849eae9a4686ceca1a915b1be, type: 2}
+  bakeWithPaletteV3: 1
 --- !u!4 &994733186
 Transform:
   m_ObjectHideFlags: 0

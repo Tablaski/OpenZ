@@ -14,10 +14,6 @@ namespace OpenZ.Experimental
         public Material ground, cliff, pit, water;
         public bool bakeWithPaletteV3;
 
-        static string paletteV3Map;
-        public static void SelectPaletteV3(string id) => paletteV3Map = id;
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetPaletteSelection() => SelectPaletteV3(null);
         public bool IsPaletteV3 { get; private set; }
 
         const int Apron = 24;
@@ -68,9 +64,9 @@ namespace OpenZ.Experimental
             terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
             if (!render) return;
 
-            var palette = (bakeWithPaletteV3 || paletteV3Map != null && mapId == paletteV3Map) && PaletteV3.Supports(map.planet) &&
+            var palette = bakeWithPaletteV3 && PaletteV3.Supports(map.planet) &&
                 map.tiles?.Length == map.width * map.height ? new PaletteV3(map) : null;
-            IsPaletteV3 = palette != null;
+            IsPaletteV3 = palette != null || (bakeWithPaletteV3 && map.planet == "arctic");
             var surfaceGround = map.planet switch
             {
                 "volcanic" => VolcanicGround(map, palette),

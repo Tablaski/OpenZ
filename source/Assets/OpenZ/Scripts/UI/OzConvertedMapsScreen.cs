@@ -23,8 +23,7 @@ namespace OpenZ
         public static void Open(OpenZMainMenu owner)
         {
             owner.enabled=false;
-            OzShittyMapGallery.Open(true,true,null,d=>owner.DeployConvertedMap(d),()=>{if(owner)owner.enabled=true;},
-                d => owner.DeployConvertedMap(d, paletteV3: true));
+            OzShittyMapGallery.Open(true,true,null,owner.DeployConvertedMap,()=>{if(owner)owner.enabled=true;});
         }
     }
 }

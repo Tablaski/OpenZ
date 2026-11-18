@@ -34071,7 +34071,7 @@ MonoBehaviour:
   height: 70
   wheelStep: 0.15
   zoomSmooth: 0.18
-  focus: {x: 106, y: 0, z: -156}
+  focus: {x: 106, y: 0, z: -150.6}
   autoDrift: {x: 0, y: 0}
   holdRampDelay: 0.35
   holdRampRate: 1.25
@@ -41587,6 +41587,7 @@ MonoBehaviour:
   cliff: {fileID: 2100000, guid: 5bfb960e2a920d547afe66f85ecd7e04, type: 2}
   pit: {fileID: 2100000, guid: bafbe7fe655c72c449ff8cce7312dd0c, type: 2}
   water: {fileID: 2100000, guid: a61630c5632c72f43a9886990bc3de55, type: 2}
+  bakeWithPaletteV3: 1
 --- !u!4 &876537083
 Transform:
   m_ObjectHideFlags: 0
@@ -80495,6 +80496,7 @@ MonoBehaviour:
   sun: {fileID: 543116865}
   cycleSeconds: 720
   timeOfDay: 0.08
+  arcticLight: 0
   running: 1
   lampRoot: {fileID: 608182066}
   lampIntensity: 6

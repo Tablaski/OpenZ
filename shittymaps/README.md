@@ -93,9 +93,17 @@ registers the reference maps and the additional Molten Kombat trial.
 
 ## V3 palette pass
 
-Select **Deploy V2** or **Deploy V3** on any of the five non-Arctic trial cards.
-Both choices load the same converted scene and gameplay data. A restart keeps
-the chosen look. Chilly Willy uses its dedicated Arctic art.
+The playable catalog uses V3. The Arctic maps use the original Arctic art kit.
+The shared Molten Kombat entry covers both solo and 1v1.
+
+```powershell
+node tools/Convert-ShittyMapsV2.cjs --upgrade-catalog
+```
+
+Then run **OpenZ → Shitty Maps → Upgrade the existing catalog to V3**.
+The batch command matches the existing scenes by ID and verifies the recorded
+source hashes and native records before updating the volcanic lava fields.
+The editor upgrades the art in each existing scene in place.
 
 V3 reads the decoded palette tile IDs and blends additional material roles into
 the OpenZ ground shaders. The Fenio atlas was a visual reference. The conversion

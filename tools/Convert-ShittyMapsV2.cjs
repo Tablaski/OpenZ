@@ -33,7 +33,6 @@ function run(source, id) {
     const bytes = fs.readFileSync(source);
     const world = palettes[bytes[58]];
     if (!supported.has(world)) throw Error('No V2 asset mapping for ' + (world ?? filename));
-    if (id.endsWith('V3') && world === 'arctic') throw Error('The Arctic art profile uses V2');
     const palette = fs.readFileSync(path.join(packageRoot, 'Sources~/palettes', world + '.tileinfo'));
     const map = convert(bytes, filename, palette);
     const grid = path.join(packageRoot, 'Resources/OpenZ/Maps', id + '_grid.json');
@@ -45,5 +44,29 @@ function run(source, id) {
     console.log(`${id}: ${map.width} x ${map.height}, ${map.objects.length} objects, ${map.lava?.filter(Boolean).length ?? 0} lava tiles, SHA-256 ${sha(bytes)}`);
 }
 
+function upgradeCatalog() {
+    const { maps } = JSON.parse(fs.readFileSync(path.join(packageRoot, 'catalog.json')));
+    const updates = [];
+    for (const entry of maps) {
+        const source = path.join(packageRoot, 'Sources~/maps', entry.file);
+        const bytes = fs.readFileSync(source);
+        if (sha(bytes) !== entry.sha256) throw Error('Source identity mismatch: ' + entry.file);
+        const palette = fs.readFileSync(path.join(packageRoot, 'Sources~/palettes', entry.world + '.tileinfo'));
+        const destination = path.join(packageRoot, 'Resources/OpenZ/Maps', entry.id + '_grid.json');
+        const current = JSON.parse(fs.readFileSync(destination));
+        const next = convert(bytes, entry.file, palette);
+        const { lava: currentLava, ...currentLayout } = current;
+        const { lava: nextLava, ...nextLayout } = next;
+        if (JSON.stringify(currentLayout) !== JSON.stringify(nextLayout))
+            throw Error('Native layout differs from the existing conversion: ' + entry.id);
+        if (JSON.stringify(currentLava) !== JSON.stringify(nextLava)) updates.push({ destination, next });
+    }
+    for (const { destination, next } of updates) fs.writeFileSync(destination, JSON.stringify(next) + '\n');
+    console.log('Verified ' + maps.length + ' catalog layouts; updated ' + updates.length + ' volcanic render grids.');
+}
+
 module.exports = { convert };
-if (require.main === module) run(process.argv[2], process.argv[3]);
+if (require.main === module) {
+    if (process.argv[2] === '--upgrade-catalog') upgradeCatalog();
+    else run(process.argv[2], process.argv[3]);
+}

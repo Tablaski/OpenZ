@@ -48,8 +48,8 @@ static class ShittyMapChecks
 
     static void CheckVolcanicV2(string root, string settings, Action<bool, string> check, Action<Action, string> reject)
     {
-        check(OzShittyMapCatalog.Select(true, world: "volcanic").Count(m => m.Number == 8) == 2,
-            "Both versions of Molten Kombat are available in solo");
+        check(OzShittyMapCatalog.Select(true, world: "volcanic").Single(m => m.Number == 8).Id == "SM08",
+            "Molten Kombat has a single shared catalog entry");
         foreach (var entry in OzShittyMapCatalog.VolcanicV2)
         {
             reject(() => new DuelRules { Map = entry.Id }.Validate(), entry.Id + ": the prototype is solo only");

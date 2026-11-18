@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 0.2.32 catalog terrain upgrade (awaiting compiled-game validation)
+
+- All 65 existing scenes passed the catalog authoring pass. The converter verified the layout and recorded source hash for each of the 60 historical entries. The 5,555 simulation checks passed.
+- In the compiled game, verify the V3 gallery entries, the walk decks on intact bridges, bridge repair and destruction, grenade crates, and the existing solo and 1v1 map selection rules.
+
 ## OpenZ-VK 0.2.31 V3 terrain palettes (awaiting compiled-game validation)
 
 - The 5,555 simulation checks pass. The converter produced byte-identical V2 and V3 grids for Desert, Pyro Technics, Molten Kombat, Jungle and Car Park.

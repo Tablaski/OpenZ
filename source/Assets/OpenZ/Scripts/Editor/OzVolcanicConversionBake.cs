@@ -34,6 +34,124 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/Shitty Maps/Bake Chilly Willy")]
         public static void Arctic() => Bake(OzShittyMapCatalog.ChillyWillyV2.Id);
 
+        [MenuItem("OpenZ/Shitty Maps/Upgrade the existing catalog to V3")]
+        public static void UpgradeCatalog()
+        {
+            OzArcticArt.Ensure();
+            foreach (var group in OzShittyMapCatalog.Playable.GroupBy(entry => entry.World))
+            {
+                var profile = Profile.For(group.Key);
+                var reference = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/" + profile.Scene + ".unity");
+                var scenery = ExtractScenery(group.Key, reference);
+                var templates = reference.GetRootGameObjects().First(root => root.name == "ZodObjects").transform;
+                var jungleRocks = group.Key == "jungle"
+                    ? templates.Cast<Transform>().Where(t => t.GetComponent<RockPillar>()).ToArray() : Array.Empty<Transform>();
+                foreach (var entry in group)
+                {
+                    var scene = EditorSceneManager.OpenScene(entry.ScenePath, OpenSceneMode.Additive);
+                    UnityEngine.SceneManagement.SceneManager.SetActiveScene(scene);
+                    UpgradeScene(entry, scene, reference, scenery, jungleRocks);
+                    if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save " + entry.ScenePath);
+                    EditorSceneManager.CloseScene(scene, true);
+                    Debug.Log("[Catalog V3] " + entry.Id + " | " + entry.File);
+                }
+            }
+        }
+
+        static void UpgradeScene(OzShittyMap entry, UnityEngine.SceneManagement.Scene scene,
+            UnityEngine.SceneManagement.Scene reference, Scenery[] scenery, Transform[] jungleRocks)
+        {
+            var roots = scene.GetRootGameObjects();
+            var environment = roots.Single(root => root.name == "Environment");
+            var terrain = environment.GetComponent<OzConversionTerrainV2>();
+            if (terrain)
+            {
+                terrain.bakeWithPaletteV3 = true;
+                return;
+            }
+
+            var asset = Resources.Load<TextAsset>("OpenZ/Maps/" + entry.Id + "_grid");
+            var map = ZMapData.FromJson(asset.text);
+            var profile = Profile.For(map.planet);
+            bool arctic = map.planet == "arctic";
+            var oldTerrain = environment.GetComponent<OzShittyTerrain>();
+            if (!oldTerrain) throw new InvalidOperationException("Missing original terrain in " + entry.Id);
+            Object.DestroyImmediate(oldTerrain);
+            terrain = environment.AddComponent<OzConversionTerrainV2>();
+            terrain.mapId = entry.Id;
+            terrain.bakeWithPaletteV3 = true;
+            Material Surface(string name) => arctic ? OzArcticArt.Mat(name) : Material("Materials/Env/" + name + ".mat");
+            terrain.ground = Surface(profile.Ground);
+            terrain.cliff = Surface(profile.Cliff);
+            terrain.pit = Surface(profile.Bed);
+            terrain.water = Surface(profile.Water);
+            terrain.Build(map, false);
+            var collider = environment.GetComponentInChildren<MeshCollider>();
+            Physics.SyncTransforms();
+
+            var views = roots.Single(root => root.name == "ZodObjects").transform;
+            foreach (Transform view in views)
+            {
+                var pos = view.position;
+                if (collider.Raycast(new Ray(pos + Vector3.up * 200, Vector3.down), out var hit, 400))
+                    view.position = new Vector3(pos.x, hit.point.y, pos.z);
+            }
+            var rocks = views.Cast<Transform>().Where(t => t.name.StartsWith("rock_", StringComparison.Ordinal)).ToArray();
+            if (arctic || map.planet == "jungle")
+            {
+                foreach (var rock in rocks)
+                {
+                    if (arctic)
+                    {
+                        foreach (Transform part in rock.Cast<Transform>().ToArray()) Object.DestroyImmediate(part.gameObject);
+                        foreach (var component in rock.GetComponents<Component>())
+                            if (!(component is Transform)) Object.DestroyImmediate(component);
+                        rock.localScale = Vector3.one;
+                    }
+                    else
+                    {
+                        if (jungleRocks.Length == 0) throw new InvalidOperationException("Missing OpenZ jungle rock kit.");
+                        int variant = (int)(Math.Abs(rock.position.x * 31 + rock.position.z * 47) % jungleRocks.Length);
+                        var copy = Object.Instantiate(jungleRocks[variant].gameObject, views);
+                        copy.name = rock.name;
+                        copy.transform.position = rock.position;
+                        Object.DestroyImmediate(rock.gameObject);
+                    }
+                }
+                if (arctic) OzArcticArt.DressRocks(views);
+            }
+            else
+            {
+                var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
+                OpenZRocks.Build(world, views, collider, profile.RockKit, Material("Models/RocksZ/M_RockZ_" + profile.RockKit + ".mat"));
+            }
+            if (map.planet == "volcanic")
+            {
+                OzL07Scene.ApplyRockHeights(views);
+                DressRim(map, environment.transform);
+            }
+            else if (arctic)
+            {
+                OzArcticArt.Snowfall(environment.transform, map.width, map.height);
+                var game = roots.SelectMany(root => root.GetComponentsInChildren<ZGame>()).Single();
+                game.unitPrefabs = game.unitPrefabs.Concat(OzArcticArt.BridgeKit()).ToArray();
+                var day = roots.SelectMany(root => root.GetComponentsInChildren<DayNight>()).Single();
+                day.warmth = .14f;
+                day.arcticLight = true;
+            }
+            else
+            {
+                if (map.planet == "city") AddCityOutskirts(reference, map, environment.transform);
+                DressLand(map, environment.transform, collider, scenery);
+            }
+            var atmosphere = roots.SelectMany(root => root.GetComponentsInChildren<Atmosphere>()).Single();
+            atmosphere.groundMaterial = null;
+            if (arctic) atmosphere.preset = Atmosphere.Preset.Arctic;
+            VerifyViews(map, views);
+            Object.DestroyImmediate(collider.gameObject);
+            terrain.Clear();
+        }
+
         // Custom V2 and V3 grids can be baked without adding them to either game menu.
         public static void Bake(string id)
         {
@@ -45,7 +163,6 @@ namespace OpenZ.EditorTools
             var profile = Profile.For(map.planet);
             bool arctic = map.planet == "arctic";
             bool paletteV3 = id.EndsWith("V3", StringComparison.Ordinal);
-            if (arctic && paletteV3) throw new InvalidOperationException("The Arctic art profile uses V2.");
             if (arctic) OzArcticArt.Ensure();
             var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
 
@@ -179,12 +296,13 @@ namespace OpenZ.EditorTools
 
         static void VerifyViews(ZMapData map, Transform root)
         {
-            var views = root.Cast<Transform>().ToDictionary(view => view.name);
+            var views = root.Cast<Transform>().ToLookup(view => view.name);
             foreach (var obj in map.objects)
             {
                 string name = $"{obj.Type}_{obj.x}_{obj.y}";
                 if (obj.Category == "robot") name += "_0";
-                if (!views.TryGetValue(name, out var view) || !view.GetComponentInChildren<Renderer>())
+                var view = views[name].FirstOrDefault(item => item.GetComponentInChildren<Renderer>());
+                if (!view)
                     throw new InvalidOperationException("Missing rendered view " + name);
                 if (obj.Type == "rock" && !view.GetComponent<RockPillar>())
                     throw new InvalidOperationException("Missing destruction stages for " + name);

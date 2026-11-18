@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.32 (18 Nov 2026)
+
+- All 65 converted maps now use detailed planet terrain in the solo and 1v1 galleries. Arctic uses the snowy rock and steel bridge art from the OpenZ-VK Chilly Willy trial. Molten Kombat has one gallery entry across solo and 1v1.
+
 ## OpenZ-VK 0.2.31 (18 Nov 2026)
 
 - The Shitty Maps solo gallery offers V2 and V3 terrain for **Desert**, **Pyro Technics**, **Molten Kombat**, **Jungle** and **Car Park**. V3 adds windblown sand and gravel shoulders, ashy basalt and scorched lava banks, moss and mud around jungle crossings, and patched concrete around the city streets.

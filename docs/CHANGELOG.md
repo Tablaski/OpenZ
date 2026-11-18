@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.38 (18 Nov 2026)
+
+- Easy Tuning refreshes each vehicle's agility when you load, import or reset a profile in the Unit Editor.
+
 ## OpenZ-VK 0.2.37 (18 Nov 2026)
 
 - Radar fog turns terrain outside your vision monochrome, with occasional brief signal interference. Last known enemy positions stay marked until your units can check them.

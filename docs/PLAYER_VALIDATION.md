@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 0.2.38 Easy Tuning
+
+- In the Unit Editor, open Easy Tuning under OpenZ, change one agility field, and load Z Classic from the profile menu while staying on the same page. Confirm Jeep 115%, Light 100%, APC 85%, Medium Tank 70%, Mech 60%, Heavy 50%, Missile Launcher 30% and Crane 45%. Load OpenZ again and confirm every field returns to 100%.
+- Import a profile with a different agility value while on Easy Tuning, then reset its overrides. Confirm the displayed values follow the active profile after both actions.
+
 ## OpenZ-VK 0.2.37 radar interference
 
 - In a 1 vs 1 with Radar Loss set to Fog of War, check the boundary between controlled and neutral territory. Check that signal interference is brief and stays within obscured ground.

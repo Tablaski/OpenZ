@@ -88,7 +88,7 @@ namespace OpenZ
         { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 4) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
         internal void ShowEasyTuning(ZBehaviorProfile reference)
         {
-            FinishFields(); family = 0; page = 6; scope = 0; agilityDraft.Clear();
+            family = 0; page = 6; scope = 0;
             LoadProfile(reference);
             OzUeStats.SetTab(OzUeStats.Tab.Dynamics);
         }
@@ -147,8 +147,14 @@ namespace OpenZ
             string[] tips = { "Save a new independently named copy.", "Export a readable .json combat profile with the master, overrides and reference endpoints.", "Load a local .json or legacy .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .json and legacy .ozbehavior preset files. Nothing is uploaded." };
             for (int i = 0; i < 4; i++) { int k = i; Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 139, (inner - 12) / 4, 24), tips[i], callbacks[k]); }
             Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 173, inner * .55f, 26), "Choose all units or one type. Type-specific values override family settings.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
-            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 173, inner * .45f - 6, 26), "Release every manual override in this family.", () => { P.overrides = P.id == "zod-classic" ? ZBehaviorProfile.Classic((ZBehaviorFamily)family).overrides : new List<ZBehaviorOverride>(); Apply(family); dirty = true; rebuild = true; });
-            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 4 * (inner + 4) / 4, 205 + i / 4 * 29, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ".", () => { page = k; profiles = imports = false; agilityDraft.Clear(); rebuild = true; }); if (i >= 5) tab.Label.color = OzForkOptions.Accent; }
+            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 173, inner * .45f - 6, 26), "Release every manual override in this family.", () =>
+            {
+                FinishFields();
+                agilityDraft.Clear();
+                P.overrides = P.id == "zod-classic" ? ZBehaviorProfile.Classic((ZBehaviorFamily)family).overrides : new List<ZBehaviorOverride>();
+                Apply(family); dirty = true; rebuild = true;
+            });
+            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 4 * (inner + 4) / 4, 205 + i / 4 * 29, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ".", () => { FinishFields(); page = k; profiles = imports = false; agilityDraft.Clear(); rebuild = true; }); if (i >= 5) tab.Label.color = OzForkOptions.Accent; }
             MakeList(264);
             if (profiles || imports) { BuildPresetList(); return; }
             if (page == 6) { BuildEasyTuning(); return; }
@@ -329,16 +335,19 @@ namespace OpenZ
                 foreach (string path in files)
                 {
                     string file = path; var row = Row(Path.GetFileName(file), y, 36);
-                    Button(row, "Import", Path.GetFileName(file), new Rect(6, 2, layout.w - 52, 29), "Import this preset as a draft, then save it to use it in matches.", () => { var p = OzBehaviorLibrary.Import(file); family = (int)p.family; scope = 0; drafts[family] = p; presetName = p.name; imports = false; dirty = true; Apply(family); rebuild = true; }); y += 36;
+                    Button(row, "Import", Path.GetFileName(file), new Rect(6, 2, layout.w - 52, 29), "Import this preset as a draft, then save it to use it in matches.", () => { var p = OzBehaviorLibrary.Import(file); LoadProfile(p); scope = 0; dirty = true; }); y += 36;
                 }
             }
             list.SetContentHeight(y);
         }
         void LoadProfile(ZBehaviorProfile profile)
         {
+            FinishFields();
+            agilityDraft.Clear();
+            family = (int)profile.family;
             drafts[family] = profile.Clone();
             presetName = profile.name;
-            profiles = dirty = false;
+            profiles = imports = dirty = false;
             Apply(family);
             rebuild = true;
         }

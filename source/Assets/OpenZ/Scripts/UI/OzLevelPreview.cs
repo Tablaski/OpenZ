@@ -279,7 +279,7 @@ namespace OpenZ
         /// <summary>Checks only (Editor/OzV13MenuPerfCheck.cs P9): a first prepare counts as running at least this long, a slow first open
         /// emulated (0 = off, never saved).</summary>
         public static float ProofOpenDelaySec;
-        bool queued, wantPlay, wantLoop, firstRunning; double wantT; float queuedAt;
+        bool deferred, queued, wantPlay, wantLoop, firstRunning; double wantT; float queuedAt;
         /// <summary>A first prepare still waits or runs (View/OzMenuPerf.cs holds the shader warm-up meanwhile; the checks).</summary>
         public static bool PreparesPending { get { Prune(); return waiting.Count > 0 || preparing != null; } }
         /// <summary>Checks: the most first prepares that ran at the same time in this menu (1 = one at a time).</summary>
@@ -430,8 +430,10 @@ namespace OpenZ
             // the level card / select still = the first of the level's chosen loading stills (L02: sunrise canyon red fort, L17: car park
             // war machines at dusk), which replaced the old posters; the old poster is the fallback
             p.Poster = Resources.Load<Texture2D>($"OpenZ/Loading/{level}_loading_1") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_preview") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_poster");
+            bool aiMap = OzAiMapCatalog.Find(level) != null;
+            if (aiMap) p.Poster = Resources.Load<Texture2D>($"OpenZ/AiMaps/Posters/{level}_poster");
             bool light = OzMenuVideo.UseLight;                                                                // item 23: the light twins on a PC that needs them (a missing twin = its full clip)
-            var clip = LoadClip($"{level}_preview", light);
+            var clip = aiMap ? Resources.Load<VideoClip>($"OpenZ/AiMaps/Videos/{level}_preview") : LoadClip($"{level}_preview", light);
             if (clip != null) { p.clips.Add(clip); for (int k = 2; k <= 9; k++) { var more = LoadClip($"{level}_preview_{k}", light); if (more == null) break; p.clips.Add(more); } p.Shuffle(null); clip = p.clips[0]; }
             p.IsLight = clip != null && (clip.name.EndsWith(OzMenuVideo.Suffix) || clip.name.EndsWith(OzMenuVideo.LinuxSuffix));   // item 31: the Linux copies are light too (ToLight then does nothing)
             string url = null;
@@ -463,7 +465,8 @@ namespace OpenZ
                 vp.errorReceived += (v, msg) => p.OnVideoError(v, msg);                                          // item 31: one fixed line, never prepared again
                 vp.errorReceived += (v, msg) => PumpPrepares();                                                // item 23: a failed flyby lets the next one prepare
                 p.Player = vp; p.HasVideo = true; p.ApplyAudio();
-                p.queued = true; p.queuedAt = Time.unscaledTime; waiting.Add(p);                                // item 23: prepared one at a time (PumpPrepares), the level the menu shows first going first
+                p.deferred = aiMap;
+                if (!p.deferred) { p.queued = true; p.queuedAt = Time.unscaledTime; waiting.Add(p); }                                // item 23: prepared one at a time (PumpPrepares), the level the menu shows first going first
                 live.Add(p);                                                                                  // item 23: the AUTO pick sees it
             }
             Debug.Log($"[OpenZ Menu] preview {level}: video {(clip != null ? "Resources clip x" + p.clips.Count + " in the order " + p.ClipOrder + " (" + clip.width + "x" + clip.height + (p.IsLight ? ", light copies: " + OzMenuVideo.Why : "") + ")" : url != null ? "StreamingAssets" : "none")}, still {(p.Poster != null ? p.Poster.width + "x" + p.Poster.height : "none")}");
@@ -485,6 +488,7 @@ namespace OpenZ
         public void PlayFrom(double t, bool loop)
         {
             if (!VideoOk) return;
+            if (deferred) { deferred = false; queued = true; queuedAt = Time.unscaledTime; }
             if (queued)                                                                                       // item 23 (first start): its first prepare still waits
             {
                 waiting.Remove(this); waiting.Insert(0, this);                                                // the flyby the menu wants now goes first

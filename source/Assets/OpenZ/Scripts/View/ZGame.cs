@@ -284,7 +284,8 @@ namespace OpenZ
             if (level == "L16" && !FindFirstObjectByType<OzBridgeWobble>()) new GameObject("OzBridgeWobble").AddComponent<OzBridgeWobble>();   // level 16: the plank bridge gives a little under a vehicle (view only)
             if (level == "L16" && !FindFirstObjectByType<OzTreeFall>()) new GameObject("OzTreeFall").AddComponent<OzTreeFall>();   // DV88: the trees that close a tile get their props here (before the first DetailPropHub.Update binds them) and fall when the rules destroy them (view only)
             if (level == "L17" && !FindFirstObjectByType<OzWeather>()) new GameObject("OzWeather").AddComponent<OzWeather>();   // weather_l17_v1: night rain showers + thunder (view only, no sim change)
-            if (level == "L16" && !FindFirstObjectByType<OzJungleWeather>()) new GameObject("OzJungleWeather").AddComponent<OzJungleWeather>();   // level 16: tropical rain by day with wind (view only, no rule is touched)
+            if ((level == "L16" || World.Map.aiMap && World.Map.planet == "jungle") && !FindFirstObjectByType<OzJungleWeather>())
+                new GameObject("OzJungleWeather").AddComponent<OzJungleWeather>();
             if (World.Map.HasLava && !FindFirstObjectByType<OzLava>()) new GameObject("OzLava").AddComponent<OzLava>();   // level 7: the lava surface, pops, glow light, robots' heat (View/OzLava.cs; view only)
         }
 

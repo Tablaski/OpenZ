@@ -87,7 +87,7 @@ namespace OpenZ
 
         public static void TryAttach()
         {
-            if (!AutoBoot || !ZGame.I || ZGame.I.level != "L16" || FindFirstObjectByType<CrocodileView>()) return;
+            if (!AutoBoot || !ZGame.I || ZGame.I.World?.CrocMap != true || FindFirstObjectByType<CrocodileView>()) return;
             new GameObject("CrocodileView").AddComponent<CrocodileView>();
         }
 
@@ -96,10 +96,10 @@ namespace OpenZ
         void Start()
         {
             game = ZGame.I ? ZGame.I : FindFirstObjectByType<ZGame>();
-            if (!game || game.World == null || game.level != "L16") { enabled = false; return; }
+            if (!game || game.World?.CrocMap != true) { enabled = false; return; }
             W = game.World; cam = Camera.main; mpb = new MaterialPropertyBlock();
             L16AnimalKit.NewLevel(); Shown = BitesSeen = PartsFloated = 0; LeastDrawnBank = 99f; BankSamples = BankNear = 0;
-            flatWater = DetailKit.WaterY(game.level);
+            flatWater = W.Map.aiMap ? -.33f : DetailKit.WaterY(game.level);
             seen = W.CrocNoteCount;
             if (W.Crocs.Count == 0) { Debug.Log("[OpenZ] CrocodileView L16: the rule has no crocodile (switch off): nothing to draw"); enabled = false; return; }
             bodyMat = L16AnimalKit.Mat("L16_Croc_Body", "croc_basecolor", 0.32f);

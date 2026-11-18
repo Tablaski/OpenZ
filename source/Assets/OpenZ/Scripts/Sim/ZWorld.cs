@@ -332,12 +332,30 @@ namespace OpenZ.Sim
                 case "bridge_horz": for (int i = tx; i < tx + w; i++) { Path.SetImpassable(i, ty); Path.SetImpassable(i, ty + 3); } break;
                 case WreckType: WreckImpassables(o, set); break;                   // l17_details_v1 DV39: the whole footprint, destroyable like a rock
                 case DetailPropType: DetailPropImpassables(o, set); break;
-                case "rock": Path.SetImpassable(tx, ty + 2, set, true); break;
-                case "hut": Path.SetImpassable(tx, ty, set, true); break;
+                case "rock": SetObstacleTile(o, tx, ty + 2, set); break;
+                case "hut": SetObstacleTile(o, tx, ty, set); break;
                 default:
-                    if (o.Type.StartsWith("map_object")) Path.SetImpassable(tx, ty, set, true);
+                    if (o.Type.StartsWith("map_object")) SetObstacleTile(o, tx, ty, set);
                     break;
             }
+        }
+
+        void SetObstacleTile(ZObject obj, int x, int y, bool blocked)
+        {
+            if (blocked || !Map.aiMap)
+            {
+                Path.SetImpassable(x, y, blocked, true);
+                return;
+            }
+            foreach (var other in Objects)
+            {
+                if (other == obj || other.Destroyed || !other.IsDestroyableImpass || other.LocX / 16 != x) continue;
+                if ((other.Type == "rock" || other.Type == "hut" || other.Type.StartsWith("map_object")) &&
+                    other.LocY / 16 + (other.Type == "rock" ? 2 : 0) == y) return;
+            }
+            var terrain = Map.ClassAt(x, y);
+            bool land = terrain == ZClass.Ground || terrain == ZClass.Road;
+            Path.RestoreTerrainPassability(x, y, land || terrain == ZClass.Water, land);
         }
 
         /// <summary>bbridge.cpp:196-232: a destroyed bridge also blocks its centre.</summary>

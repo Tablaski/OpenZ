@@ -13,7 +13,7 @@ static class SimulationChecks
         string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
         foreach (string map in new[] { "L02", "L07", "L16", "L17", "SM19F" })
         {
-            string json = File.ReadAllText(Path.Combine(root, map.StartsWith("SM", StringComparison.Ordinal) ? "../../../../../shittymaps/Resources/OpenZ/Maps" : "Maps", map + "_grid.json"));
+            string json = File.ReadAllText(Path.Combine(root, map.StartsWith("SM", StringComparison.Ordinal) ? "../../../../../aimaps/Resources/OpenZ/Maps" : "Maps", map + "_grid.json"));
             var military = ZWorld.Create(settings, json);
             military.Objects.RemoveAll(o => o.IsUnit);
             var heavy = military.CreateObject("vehicle", "heavy", 160, 160, Team.Red);

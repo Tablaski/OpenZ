@@ -27,202 +27,187 @@ EditorBuildSettings:
     path: Assets/OpenZ/Scenes/UE_Playground.unity
     guid: b9f9b474c843a704cbc4bac4c841a94e
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM01_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM01_Converted.unity
     guid: 6c8093bfd4326dc45b6eff960a972490
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM03_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM03_Converted.unity
     guid: 4dbef34ebc2b0ec4cb42607778ba20ff
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM04_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM04_Converted.unity
     guid: 6ca9f4b1ddf35594c9604f53f49c26df
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM05_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM05_Converted.unity
     guid: 979f321513c6c584aa0c3a13ca415221
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM06_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM06_Converted.unity
     guid: 3a0affd83c1d3c240b0b47c49b5217af
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM08_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM08_Converted.unity
     guid: d6b196da6bf9d6749aef0a7e68f9786b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM09_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM09_Converted.unity
     guid: 92f3073d850aa7f43bc026036e27985b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM10_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM10_Converted.unity
     guid: 3e3e4355dcd90c54cad5c53ceaa55687
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM11_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM11_Converted.unity
     guid: 9acf749b9d468ce4690cfae26f460816
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM12_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM12_Converted.unity
     guid: dc4c98148d2eb7f46bfef04ac1b8d664
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM13_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM13_Converted.unity
     guid: 7e3e4ba982ca6d144b15c10a42013b45
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM14_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM14_Converted.unity
     guid: f1438ba2fac86c44ab8b4b6eca5a329b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM15_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM15_Converted.unity
     guid: 2505b79310aae8a40820485baf235874
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM18_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM18_Converted.unity
     guid: 1ef4dc7e3dfdbc941b78da6e49d73eb2
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM18F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM18F_Converted.unity
     guid: 3f594e81ac309c64cb6c5158850b6b50
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM19_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM19_Converted.unity
     guid: c3d1cf2eed93a9446983dcbf8eee8e74
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM19F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM19F_Converted.unity
     guid: 5fcdf55623983904db072af609a8a891
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM20_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM20_Converted.unity
     guid: 4457428e4a7c0ad45806fb4cd10a8e76
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM20F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM20F_Converted.unity
     guid: e84936ad8b45cb54aaee555fd16aa475
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM21F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM21F_Converted.unity
     guid: 04143fc058479df46a9cf66941d07890
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM22_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM22_Converted.unity
     guid: 54e7316be6d59434296a12aa44087817
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM22F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM22F_Converted.unity
     guid: 790072db4d28fba43865487c35a78e6e
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM23_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM23_Converted.unity
     guid: b6d6786198954334196a0c48f7667dab
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM23F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM23F_Converted.unity
     guid: 9011d18daeeb79443a7b5afabcff614a
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM24_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM24_Converted.unity
     guid: dd669a461b1bee84dbbfcc11ff5aebcb
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM24F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM24F_Converted.unity
     guid: accdf3f42b4b04d41963974f00f58229
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM25_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM25_Converted.unity
     guid: 8b6ed3ab5de9e624c8555a7d31e2c102
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM25F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM25F_Converted.unity
     guid: c27cab59fb3afcc458a05cb177b4cc19
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM26_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM26_Converted.unity
     guid: 98463d080945e4d4da11d647d8c1d2ca
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM26F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM26F_Converted.unity
     guid: b8c71e51fdd7a7849981be4fc2521f84
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM27F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM27F_Converted.unity
     guid: d79b1d5695899054e8794fd3021002b3
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM28_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM28_Converted.unity
     guid: fc41d73f0df31bf4e82bd98d8d8328ba
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM28F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM28F_Converted.unity
     guid: 6d8f00f3dd47ab244862eb203284917f
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM29_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM29_Converted.unity
     guid: 9024c312907bc1f4c80883644725ee54
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM29F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM29F_Converted.unity
     guid: 16532fe4f742f6d4383b1346244ec75b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM30_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM30_Converted.unity
     guid: 0257338c4b3687c439168a8df1cf6b09
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM30F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM30F_Converted.unity
     guid: c731f69ee32e78e46beb65c0bcef83e1
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM31_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM31_Converted.unity
     guid: ec8fcc5b344619344a12e709298366de
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM31F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM31F_Converted.unity
     guid: a73ed8d64fe652b429851eaa9cda4e1a
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM32_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM32_Converted.unity
     guid: 3d94391796679314d96c0f1b197e71d8
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM32F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM32F_Converted.unity
     guid: e1e794a13028d2f468fd20e547a3edae
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM33_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM33_Converted.unity
     guid: a8caa6e34d4b02141863e94039efe710
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM33F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM33F_Converted.unity
     guid: 082c490e6c13dec4ab51e8e913439465
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM34_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM34_Converted.unity
     guid: a9bedc5679c07b749953cbcde1107f1d
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM34F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM34F_Converted.unity
     guid: 38f6cba93732abb45a3d63f75dd5f57b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM35_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM35_Converted.unity
     guid: a7e3d07bdb43e08408c2b4645eb04ced
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM35F_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SM35F_Converted.unity
     guid: baa39ad0bddb9904aab993e70aa5152b
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Artic_1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Artic_1_Converted.unity
     guid: aab1f2d83f259af4088d23fa0abc92f1
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_ArticWarfare_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_ArticWarfare_Converted.unity
     guid: 5cd789764df94354b9b4b8c4c0732e9c
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_BeatenEggs_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_BeatenEggs_Converted.unity
     guid: 4bf41e604c951304c9925f86131f48e6
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_city_1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_city_1_Converted.unity
     guid: f493c05af67e419429c555caf3db1199
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Desert_1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Desert_1_Converted.unity
     guid: ce23eb1483c2ea543a08ba42e4ecbcb5
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Freeze_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Freeze_Converted.unity
     guid: 4963c2fa2710f304dafa190737e0afbd
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Happy_New_Year_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Happy_New_Year_Converted.unity
     guid: 046c353ab2b9f0948a1f4039ffde3bff
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Jungle_1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Jungle_1_Converted.unity
     guid: 7370b11531b0f82479d00cc52e858498
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Jungle1vs1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Jungle1vs1_Converted.unity
     guid: 8596d6c42c90e75489dad0a490c0202c
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_JustDeserts_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_JustDeserts_Converted.unity
     guid: 335297da737e23e4cbf7969a79ecd393
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Plains_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Plains_Converted.unity
     guid: 5659606c0de6287488fe274dc788f855
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Sandy_Shore_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Sandy_Shore_Converted.unity
     guid: b6e642725aef0c646b0d4b7eac896f47
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMMP_Volcanic_1_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMMP_Volcanic_1_Converted.unity
     guid: 66a06d6121ffc4c4090da027218e625e
   - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM07V2_Converted.unity
-    guid: 8920ff2c2a9aeac48a791e9b5e060d52
-  - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM08V2_Converted.unity
-    guid: 1e797ef4c1ba836489f0c775ee688aa3
-  - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM16V2_Converted.unity
-    guid: e546a748df91d4a48b587256bd95e1bf
-  - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM17V2_Converted.unity
-    guid: 7925a1fee8cc7144bb6da83efea5ed74
-  - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SM02V2_Converted.unity
-    guid: a95ff3c7048972c4c96cf8a0c6551812
-  - enabled: 1
-    path: Packages/org.openz.shittymaps/Scenes/SMChillyWillyV2_Converted.unity
+    path: Packages/org.openz.aimaps/Scenes/SMChillyWillyV2_Converted.unity
     guid: 5750836eec8b52846ac6a7d9455fe848
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

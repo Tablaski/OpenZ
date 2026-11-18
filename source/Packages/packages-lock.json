@@ -238,8 +238,8 @@
       "source": "embedded",
       "dependencies": {}
     },
-    "org.openz.shittymaps": {
-      "version": "file:../../shittymaps",
+    "org.openz.aimaps": {
+      "version": "file:../../aimaps",
       "depth": 0,
       "source": "local",
       "dependencies": {}

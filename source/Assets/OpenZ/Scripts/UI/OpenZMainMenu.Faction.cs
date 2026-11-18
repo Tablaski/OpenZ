@@ -160,6 +160,7 @@ namespace OpenZ
         /// <summary>The level selection's BACK / ESC: back to the faction screen (the side can be changed there).</summary>
         void BackFromSelect()
         {
+            if (aiCampaign) { SwitchCampaign(false); return; }
             if (view != View.Select) return;
             view = View.Faction; viewAt = OzMotion.Now; selectFrom = selectK; selectTo = 1f;
             Sfx("ui_menu_back");

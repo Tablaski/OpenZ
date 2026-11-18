@@ -1,7 +1,0 @@
-{
-  "name": "org.openz.shittymaps",
-  "version": "0.2.12",
-  "displayName": "OpenZ-VK Shitty Maps",
-  "description": "Local Zod map data and lightweight converted scenes. Requires the shared OpenZ resources.",
-  "unity": "6000.3"
-}

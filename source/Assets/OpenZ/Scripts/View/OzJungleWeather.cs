@@ -251,7 +251,7 @@ namespace OpenZ
 
             ApplyLighting();
             ApplyGlobals();
-            LowPuddles(dt);                                                           // rain puddles on the low grass (OzJungleWeather.LowPuddles.cs)
+            if (game && game.level == "L16") LowPuddles(dt);                            // the authored puddle mask belongs to the official scene
             UpdateParticles(dt);
             UpdateAudio(dt);
         }

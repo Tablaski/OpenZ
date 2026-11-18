@@ -1,14 +1,14 @@
 // OpenZ-VK (GPL-3.0). Original scenario, authored in native Zod map units.
 const fs = require('node:fs');
 const path = require('node:path');
-const { convert } = require('./Convert-ShittyMapsV2.cjs');
+const { convert } = require('./Convert-AiMapsV2.cjs');
 
 const width = 84;
 const height = 96;
 const name = 'Chilly Willy';
 const filename = 'vk_chilly_willy.map';
 const id = 'SMChillyWillyV2';
-const root = path.resolve(__dirname, '../shittymaps');
+const root = path.resolve(__dirname, '../aimaps');
 const palette = fs.readFileSync(path.join(root, 'Sources~/palettes/arctic.tileinfo'));
 const tilesByClass = [[0, 1, 2, 3, 4, 5], [118, 138], [154, 155], [46, 47, 50]];
 const ground = 0, road = 1, water = 2, cliff = 3;
@@ -168,6 +168,7 @@ for (let i = 0; i < classes.length; i++, offset += 2) {
 }
 
 const decoded = convert(bytes, filename, palette);
+decoded.aiMap = true;
 if (decoded.classes.some((c, i) => c !== classes[i])) throw Error('Arctic palette no longer matches the scenario terrain roles');
 fs.writeFileSync(path.join(root, 'Sources~/maps', filename), bytes);
 fs.writeFileSync(path.join(root, 'Resources/OpenZ/Maps', id + '_grid.json'), JSON.stringify(decoded) + '\n');

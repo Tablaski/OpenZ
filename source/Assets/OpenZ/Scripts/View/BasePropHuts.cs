@@ -141,7 +141,7 @@ namespace OpenZ
             foreach (var g in s.GetRootGameObjects()) if (g.name == "ZodObjects") { root = g.transform; break; }
             if (!root) return 0;
             string level = LevelOf(s);
-            if (OzShittyMapCatalog.Find(level) != null) return 0; // Preserve the converted map's own simple props.
+            if (OzAiMapCatalog.Find(level) != null) return 0; // Preserve the converted map's own simple props.
             if (level == "L16" || OzVolcanic.Is(level)) return 0;                                                 // level 16: its huts are the jungle huts placed in the scene (L16Hut): no installation, no base decor
             int n = 0;
             foreach (Transform hut in root)

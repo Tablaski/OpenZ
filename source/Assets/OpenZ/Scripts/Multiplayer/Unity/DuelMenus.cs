@@ -72,7 +72,7 @@ namespace OpenZ.Multiplayer
             if (microphoneWasEnabled != R.Voice.MicrophoneEnabled) { microphoneWasEnabled = R.Voice.MicrophoneEnabled; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
-            if (!OzShittyMapGallery.IsOpen && page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            if (!OzAiMapGallery.IsOpen && page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             { pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; }
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
@@ -283,7 +283,7 @@ namespace OpenZ.Multiplayer
             }, false, inLobby && (R.IsHost || R.Connected));
             BuildProposalBar(official);
             var left = Panel("MAP", 80, 190, 700, 595);
-            var chosenMap=OzShittyMapGallery.Definition(rules.Map);
+            var chosenMap=OzAiMapGallery.Definition(rules.Map);
             int mapRevision = R.View.Revision;
             bool mapEditable = R.View.Phase == (int)DuelPhase.Lobby && (R.IsHost || lobbyDraft == null || editable);
             Label(left, chosenMap?.Name ?? rules.Map, 24, 59, 650, 20, OzUi.Ink);
@@ -293,13 +293,8 @@ namespace OpenZ.Multiplayer
                 lobbyDialog = LobbyDialog.OpenZMaps;
                 dirty = true;
             });
-            var choose = Button(left, "SHITTY MAPS", 359, 87, 315, () =>
-                OzShittyMapGallery.Open(false, mapEditable, rules.Map, definition => ApplyLobbyMap(rules, mapRevision, definition.Id)));
-            var poop = Hud.Img(choose.Find("Content"), "PoopEmoji", Color.white);
-            poop.sprite = OzConvertedMapsScreen.PoopSprite(); poop.rectTransform.TL(16, 9, 28, 28); poop.raycastTarget = false;
-            var caption = choose.Find("Content/Label") as RectTransform;
-            if (caption && caption.GetComponent<TMPro.TMP_Text>() is TMPro.TMP_Text text)
-            { caption.Fill(60, 0, 12, 0); text.alignment = TMPro.TextAlignmentOptions.Left; }
+            Button(left, "AI MAPS", 359, 87, 315, () =>
+                OzAiMapGallery.Open(false, mapEditable, rules.Map, definition => ApplyLobbyMap(rules, mapRevision, definition.Id)));
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
             if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 142, 650, 178); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 178); }
             Label(left, "OPENING ORDERS · " + (rules.PlanningSeconds == 0 ? "OFF" : rules.PlanningSeconds + " s"), 24, 551, 445, 17, OzUi.Ink);

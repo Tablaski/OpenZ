@@ -10,7 +10,7 @@ namespace OpenZ.EditorTools
 {
     internal static class OzArcticArt
     {
-        internal const string Folder = "Packages/org.openz.shittymaps/Art/Arctic/";
+        internal const string Folder = "Packages/org.openz.aimaps/Art/Arctic/";
         internal const float BridgeWidth = 7.6f, BridgeLength = 18f;
         static readonly string[] BridgeStages = { "intact", "damaged", "destroyed", "chunks" };
 
@@ -25,10 +25,10 @@ namespace OpenZ.EditorTools
             return asset;
         }
 
-        [MenuItem("OpenZ/Shitty Maps/Rebuild original Arctic art")]
+        [MenuItem("OpenZ/AI Maps/Rebuild original Arctic art")]
         public static void Generate()
         {
-            Directory.CreateDirectory("../shittymaps/Art/Arctic");
+            Directory.CreateDirectory("../aimaps/Art/Arctic");
             AssetDatabase.Refresh();
             var detail = Texture("SnowGrain", false);
             var strata = Texture("SlateStrata", true);

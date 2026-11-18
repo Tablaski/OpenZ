@@ -116,8 +116,8 @@ static class CaptureCacheChecks
     }
     static void ConvertedMaps(string resourceRoot, string settings, Action<bool, string> check)
     {
-        string maps = Path.GetFullPath(Path.Combine(resourceRoot, "../../../../../shittymaps/Resources/OpenZ/Maps"));
-        foreach (var entry in OzShittyMapCatalog.All.Where(m => m.Duel))
+        string maps = Path.GetFullPath(Path.Combine(resourceRoot, "../../../../../aimaps/Resources/OpenZ/Maps"));
+        foreach (var entry in OzAiMapCatalog.All.Where(m => m.Duel))
         {
             string json = File.ReadAllText(Path.Combine(maps, entry.Id + "_grid.json"));
             var host = ZWorld.Create(settings, json, 1935); var rules = new DuelRules { Map = entry.Id, Common = DuelMissionDefaults.Create() };

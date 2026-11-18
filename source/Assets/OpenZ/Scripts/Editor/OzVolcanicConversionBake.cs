@@ -15,30 +15,30 @@ namespace OpenZ.EditorTools
     public static partial class OzVolcanicConversionBake
     {
         const string OpenZAssets = "Assets/OpenZ/";
-        const string Package = "Packages/org.openz.shittymaps/";
-        const string PackageDisk = "../shittymaps/";
+        const string Package = "Packages/org.openz.aimaps/";
+        const string PackageDisk = "../aimaps/";
         static readonly string[] ReusableViews = { "grenades", "hut", "flag", "map_object15", "map_object16" };
 
-        [MenuItem("OpenZ/Shitty Maps/Bake volcanic V2 maps")]
+        [MenuItem("OpenZ/AI Maps/Bake volcanic V2 maps")]
         public static void All()
         {
-            foreach (var entry in OzShittyMapCatalog.VolcanicV2) Bake(entry.Id);
+            foreach (var entry in OzAiMapCatalog.VolcanicV2) Bake(entry.Id);
         }
 
-        [MenuItem("OpenZ/Shitty Maps/Bake V2 reference maps")]
+        [MenuItem("OpenZ/AI Maps/Bake V2 reference maps")]
         public static void ReferenceMaps()
         {
-            foreach (var entry in OzShittyMapCatalog.V2) Bake(entry.Id);
+            foreach (var entry in OzAiMapCatalog.V2) Bake(entry.Id);
         }
 
-        [MenuItem("OpenZ/Shitty Maps/Bake Chilly Willy")]
-        public static void Arctic() => Bake(OzShittyMapCatalog.ChillyWillyV2.Id);
+        [MenuItem("OpenZ/AI Maps/Bake Chilly Willy")]
+        public static void Arctic() => Bake(OzAiMapCatalog.ChillyWillyV2.Id);
 
-        [MenuItem("OpenZ/Shitty Maps/Upgrade the existing catalog to V3")]
+        [MenuItem("OpenZ/AI Maps/Upgrade the existing catalog to V3")]
         public static void UpgradeCatalog()
         {
             OzArcticArt.Ensure();
-            foreach (var group in OzShittyMapCatalog.Playable.GroupBy(entry => entry.World))
+            foreach (var group in OzAiMapCatalog.Playable.GroupBy(entry => entry.World))
             {
                 var profile = Profile.For(group.Key);
                 var reference = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/" + profile.Scene + ".unity");
@@ -58,7 +58,7 @@ namespace OpenZ.EditorTools
             }
         }
 
-        static void UpgradeScene(OzShittyMap entry, UnityEngine.SceneManagement.Scene scene,
+        static void UpgradeScene(OzAiMap entry, UnityEngine.SceneManagement.Scene scene,
             UnityEngine.SceneManagement.Scene reference, Scenery[] scenery, Transform[] jungleRocks)
         {
             var roots = scene.GetRootGameObjects();
@@ -74,7 +74,7 @@ namespace OpenZ.EditorTools
             var map = ZMapData.FromJson(asset.text);
             var profile = Profile.For(map.planet);
             bool arctic = map.planet == "arctic";
-            var oldTerrain = environment.GetComponent<OzShittyTerrain>();
+            var oldTerrain = environment.GetComponent<OzLegacyAiTerrain>();
             if (!oldTerrain) throw new InvalidOperationException("Missing original terrain in " + entry.Id);
             Object.DestroyImmediate(oldTerrain);
             terrain = environment.AddComponent<OzConversionTerrainV2>();
@@ -247,7 +247,7 @@ namespace OpenZ.EditorTools
 
             VerifyViews(map, views.transform);
             var preview = OzLevelInfo.Bake(world, id, true);
-            File.WriteAllBytes(PackageDisk + "Resources/OpenZ/ShittyMaps/Previews/" + id + ".png", preview.EncodeToPNG());
+            File.WriteAllBytes(PackageDisk + "Resources/OpenZ/AiMaps/Previews/" + id + ".png", preview.EncodeToPNG());
             Object.DestroyImmediate(preview);
             Object.DestroyImmediate(collider.gameObject);
             terrain.Clear();
@@ -256,12 +256,12 @@ namespace OpenZ.EditorTools
             if (!EditorSceneManager.SaveScene(scene, scenePath))
                 throw new IOException("Could not save " + scenePath);
             AssetDatabase.Refresh();
-            if (OzShittyMapCatalog.Find(id) != null && !EditorBuildSettings.scenes.Any(s => s.path == scenePath))
+            if (OzAiMapCatalog.Find(id) != null && !EditorBuildSettings.scenes.Any(s => s.path == scenePath))
             {
                 EditorBuildSettings.scenes = EditorBuildSettings.scenes.Append(new EditorBuildSettingsScene(scenePath, true)).ToArray();
                 AssetDatabase.SaveAssets();
             }
-            Debug.Log($"[Shitty Maps] {id}: {map.width} x {map.height}, {map.objects.Count} native records, {rocks}");
+            Debug.Log($"[AI Maps] {id}: {map.width} x {map.height}, {map.objects.Count} native records, {rocks}");
         }
 
         static Material Material(string path)

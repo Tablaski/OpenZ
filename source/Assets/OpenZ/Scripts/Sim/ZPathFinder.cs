@@ -95,6 +95,13 @@ namespace OpenZ.Sim
         }
 
         public bool TileOnMap(int tx, int ty) => tx >= 0 && ty >= 0 && tx < W && ty < H;
+        public void RestoreTerrainPassability(int x, int y, bool robots, bool vehicles)
+        {
+            if (!TileOnMap(x, y)) return;
+            Version++;
+            robot[x, y].passable = robotNoRocks[x, y].passable = robots;
+            vehicle[x, y].passable = vehicleNoRocks[x, y].passable = vehicles;
+        }
         public bool TilePassable(int tx, int ty, bool isRobot) =>
             TileOnMap(tx, ty) && (isRobot ? robot[tx, ty].passable : vehicle[tx, ty].passable);
         /// <summary>OpenZ pathing layer: passability on one of the four grids (with / without destroyable rocks).</summary>

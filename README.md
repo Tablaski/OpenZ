@@ -18,16 +18,15 @@ This is **work in progress**, not a claim of perfect Z fidelity. If you remember
 
 - **1 vs 1: send a magic link and play.** Create an invitation and share it with a friend. No Hamachi, VPN, port forwarding or IP settings required. Chat and voice, a shared lobby, readiness, surrender, restart requests and match statistics are included. Some networks may still fail to connect; automatic relay depends on the shared service allowance.
 - **Your duel, your rules.** Choose allowed units with OpenZ, Z 1996 or Custom presets; set starting armies, handicaps and each team's four fort cannons. Your opponent can propose a complete setup for the host to accept. Optional production rules aim to keep matches competitive for longer.
-- **💩 Shitty Maps.** Low-cost AI reproductions of maps from Z Original, Z Expansion and multiplayer: **they suck visually, but work almost like the real ones!** Browse their minimaps and terrain filters—including Arctic—and rediscover familiar battlefields. These conversions are experimental, so expect rough edges.
+- **AI Maps.** Rediscover 61 battlefields across five planets, from volcanic lava fields to Arctic steel crossings. Browse animated 3D previews in solo, or read the battlefield in the 1 vs 1 gallery with large minimaps and terrain filters. The collection includes low-cost AI reproductions of Z Original, Z Expansion and multiplayer maps, plus an original Arctic layout.
 - **A combat laboratory for old Z hands.** Use the Unit Editor to stage repeatable fights, compare units and help us work toward the combat dynamics and advanced tactics of 1996. Feedback and contributions from experienced players are very welcome.
 - **More choice in solo, too.** Pick allowed units before a mission; the selection applies to both sides. Clearer army comparisons, adjustable flags and dotted territory borders help you read the battlefield. Fork-added options outside the lobby are marked in violet.
 
 **Early beta:** expect bugs and changing rules. Z 1996 is a unit-availability preset, not a complete historical rules mode. Existing preferences and personal combat profiles are retained across updates. The separate experimental map editor is not included.
 
 <table>
-  <tr><td><img src="media/review-0.2.22/solo-selection.png" alt="Solo mission selection and Allowed units"></td><td><img src="media/review-0.2.22/shared-rules.png" alt="Shared lobby rules and centered fort placement"></td></tr>
+  <tr><td colspan="2"><img src="media/review-0.2.22/shared-rules.png" alt="Shared lobby rules and centered fort placement"></td></tr>
   <tr><td><img src="media/review-0.2.22/solo-allowed-z1996.png" alt="Solo allowed-unit selection"></td><td><img src="media/review-0.2.22/behavior-tanks-0.png" alt="Unit Editor dynamics"></td></tr>
-  <tr><td><img src="media/review-0.2.22/shitty-maps-arctic.png" alt="Shitty Maps Arctic gallery"></td><td><img src="media/review-0.2.22/shitty-maps-expansion.png" alt="Shitty Maps Z Expansion gallery"></td></tr>
 </table>
 
 ## Download and play

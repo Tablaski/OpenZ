@@ -1,24 +1,29 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.33 (18 Nov 2026)
+
+- **AI Maps** brings 61 V3 battlefields to the solo selection and 1 vs 1 lobby, with looping previews. The lobby gallery pairs each preview with a larger tactical minimap and keeps its world and sort filters.
+- The original **Lava Burns Robots** option also controls lava on AI Maps. Jungle rain and crocodile encounters use the terrain of each map.
+
 ## OpenZ-VK 0.2.32 (18 Nov 2026)
 
 - All 65 converted maps now use detailed planet terrain in the solo and 1v1 galleries. Arctic uses the snowy rock and steel bridge art from the OpenZ-VK Chilly Willy trial. Molten Kombat has one gallery entry across solo and 1v1.
 
 ## OpenZ-VK 0.2.31 (18 Nov 2026)
 
-- The Shitty Maps solo gallery offers V2 and V3 terrain for **Desert**, **Pyro Technics**, **Molten Kombat**, **Jungle** and **Car Park**. V3 adds windblown sand and gravel shoulders, ashy basalt and scorched lava banks, moss and mud around jungle crossings, and patched concrete around the city streets.
+- The AI Maps solo gallery offers V2 and V3 terrain for **Desert**, **Pyro Technics**, **Molten Kombat**, **Jungle** and **Car Park**. V3 adds windblown sand and gravel shoulders, ashy basalt and scorched lava banks, moss and mud around jungle crossings, and patched concrete around the city streets.
 
 ## OpenZ-VK 0.2.30 (18 Nov 2026)
 
-- **Chilly Willy V2** adds an original Arctic layout to the solo Shitty Maps gallery under OpenZ-VK. Fight across a snowy relay island with breakable slate ridges, blue meltwater and three steel bridges. The east crossing starts in ruins and can be reopened by repair.
+- **Chilly Willy V2** adds an original Arctic layout to the solo AI Maps gallery under OpenZ-VK. Fight across a snowy relay island with breakable slate ridges, blue meltwater and three steel bridges. The east crossing starts in ruins and can be reopened by repair.
 
 ## OpenZ-VK 0.2.29 (18 Nov 2026)
 
-- The solo Shitty Maps gallery adds V2 versions of **16 Jungle**, **17 Car Park** and **02 Desert**, with textured roads and terrain, scenery and animated water drawn from each planet's OpenZ assets. Car Park starts with two ruined bridges, as in the original layout.
+- The solo AI Maps gallery adds V2 versions of **16 Jungle**, **17 Car Park** and **02 Desert**, with textured roads and terrain, scenery and animated water drawn from each planet's OpenZ assets. Car Park starts with two ruined bridges, as in the original layout.
 
 ## OpenZ-VK 0.2.28 (18 Nov 2026)
 
-- The solo Shitty Maps gallery now includes V2 versions of **07 Pyro Technics** and **08 Molten Kombat**. They use textured volcanic ground and roads, animated lava, taller destructible rock formations and the detailed grenade crates. The original OpenZ Volcano and the V1 Molten Kombat remain available in their usual menus.
+- The solo AI Maps gallery now includes V2 versions of **07 Pyro Technics** and **08 Molten Kombat**. They use textured volcanic ground and roads, animated lava, taller destructible rock formations and the detailed grenade crates. The original OpenZ Volcano and the V1 Molten Kombat remain available in their usual menus.
 
 ## OpenZ-VK 0.2.27 (17 Nov 2026)
 
@@ -33,7 +38,7 @@
 
 - 1 vs 1 matches open directly on the battlefield without a briefing.
 - The lobby can give both players up to 10 seconds to issue opening orders. Units and the match clock wait for the countdown to finish. This option is off by default.
-- Browse OpenZ maps with the same flyby previews as solo, or open the separate Shitty Maps gallery to browse converted maps.
+- Browse OpenZ maps with the same flyby previews as solo, or open the separate AI Maps gallery to browse converted maps.
 - Save and load named presets for the four starting slots outside the fort. The default formation is Light Tank, Heavy Tank, Pyros and Laser.
 - In Controls, bind **Stop + produce hovered unit** to a key or enable **Hold L-click**. Use it over a unit in the production menu to clear the queue and start that unit from the beginning.
 
@@ -64,12 +69,12 @@
 
 ### Maps and interface
 
-- The solo and multiplayer map galleries are named Shitty Maps and marked with the poop icon.
+- The solo and multiplayer map galleries are named AI Maps and marked with the poop icon.
 
-- Browse experimental Shitty Maps from Z Original, Z Expansion and multiplayer collections, with minimaps, terrain filters and sorting, including Arctic, City and Volcanic maps.
+- Browse experimental AI Maps from Z Original, Z Expansion and multiplayer collections, with minimaps, terrain filters and sorting, including Arctic, City and Volcanic maps.
 - Choose whether the force bar shows unit counts or offensive production value. Resize flags and use dotted territory borders to make battles easier to read.
 - Fixed option switches appearing on the far left in the main menu and during matches.
-- Centered the fort-placement button label and aligned Shitty Map icons with their text.
+- Centered the fort-placement button label and aligned AI Map icons with their text.
 - Added options outside the lobby are highlighted in violet.
 
 Converted maps remain experimental. The separate experimental Map Editor is not included in this release.

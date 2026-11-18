@@ -23,6 +23,7 @@ namespace OpenZ.Sim
         }
 
         public string file, planet;
+        public bool aiMap;
         public int width, height;
         public int[] classes, tiles;
         public List<Zone> zones;

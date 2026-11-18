@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 0.2.33 AI Maps
+
+- The 6,601 simulation checks cover the full catalog, including both lava option states, water and ravine access, original flag and building coordinates, bridge damage and repair, rock clearance, and crocodile placement in native water.
+- The Windows release-format build and executable checks are local while the source is on `dev`. The public release on `main` awaits the user's approval.
+
 ## OpenZ-VK 0.2.32 catalog terrain upgrade (awaiting compiled-game validation)
 
 - All 65 existing scenes passed the catalog authoring pass. The converter verified the layout and recorded source hash for each of the 60 historical entries. The 5,555 simulation checks passed.
@@ -15,7 +20,7 @@
 
 - The 5,555 simulation checks pass. They cover the vehicle route closing and reopening, robot access to meltwater, and removal of the blocking tile after a rock is destroyed.
 - Unity Play Mode rendered the map from three camera angles and verified the west bridge's ruined model and the repaired east bridge's intact model and walk deck.
-- Deploy Chilly Willy from Shitty Maps → OpenZ-VK → Arctic and check the snow, cliff edges and water at RTS zoom levels.
+- Deploy Chilly Willy from AI Maps → OpenZ-VK → Arctic and check the snow, cliff edges and water at RTS zoom levels.
 - Cross both intact bridges with vehicles. Destroy the western crossing, repair the eastern crossing with the neutral crane after capturing it, and confirm the route changes match the visible bridge stages.
 - Wade with robots away from the bridges, clear a breakable slate ridge and collect a grenade crate. Check the base approaches and flags in a full solo match.
 
@@ -23,14 +28,14 @@
 
 - Native tile, class, territory and object records match the decoded Zod files for all three maps. The 5,546 simulation checks pass, including the starting bridge states, route closure after destruction and robot access to water.
 - All three maps ran in Unity Play Mode and were recorded from three camera angles each. All five intact bridge views registered a walk deck. The capture camera used reduced post-processing so the terrain detail stays visible.
-- Open all three V2 maps in the solo Shitty Maps gallery and check their textures and silhouettes from the RTS camera. Verify that the original OpenZ missions and existing converted maps remain available.
+- Open all three V2 maps in the solo AI Maps gallery and check their textures and silhouettes from the RTS camera. Verify that the original OpenZ missions and existing converted maps remain available.
 - In Jungle and Desert, send robots into water and vehicles along the roads and bridge decks. Destroy and repair a bridge and a rock wall. Check that the opened or closed route matches the picture.
 - In Car Park, verify that both canal bridges start ruined. Repair them and cross with units, then destroy one and confirm that the route closes. Compare the native starting units, flags and factory placement against the source.
 - In Desert, collect and destroy a grenade crate. In Jungle, check the rock slices and scenery for gaps or clipping as the camera rotates.
 
 ## OpenZ-VK 0.2.28 volcanic V2 maps (awaiting compiled-game validation)
 
-- Deploy both V2 maps from the solo Shitty Maps gallery and confirm that the ordinary Volcano mission and the V1 Molten Kombat card still open their own scenes.
+- Deploy both V2 maps from the solo AI Maps gallery and confirm that the ordinary Volcano mission and the V1 Molten Kombat card still open their own scenes.
 - Check the terrain and road edges from the ordinary RTS camera and at low zoom. Verify the starting armies, flags and grenade crate pickups and destruction, including the crate by the bridge on Molten Kombat.
 - Cross both Molten Kombat bridges, destroy and repair them, and confirm their crossing routes close and reopen. Destroy rocks in a wall and confirm the newly cleared tiles match the visible gap.
 - Try lava orders with the optional OpenZ lava rules on and off. Check that the lava is distinct from solid walls and ravines, and that neither the terrain nor the water or lava views change native path classes.
@@ -66,7 +71,7 @@
 ## OpenZ-VK 0.2.24 duel setup and production (awaiting compiled-game validation)
 
 - On both duel seats, confirm that the battlefield opens without a briefing. Check the default start, then set opening orders to 10 seconds. Issue and replace move orders on both seats. Confirm that units stand still and the match clock stays at zero until the countdown ends. Repeat after a restart.
-- In the lobby, browse all four OpenZ flybys and the separate Shitty Maps gallery. Apply a map as host and propose one as guest. Confirm the lobby only changes after host acceptance.
+- In the lobby, browse all four OpenZ flybys and the separate AI Maps gallery. Apply a map as host and propose one as guest. Confirm the lobby only changes after host acceptance.
 - Save a named formation with an empty slot, restart the game and load it. Check the default formation and verify that loading a saved formation still respects Allowed units.
 - Bind the production shortcut to a key, then to Hold L-click. Try both on a factory with a partially produced unit and a queue. Confirm the chosen unit restarts from zero, the queue clears and a regular click keeps its usual behavior. Repeat as the duel guest.
 
@@ -90,7 +95,7 @@
   Development details remain in commits and technical records. Upstream history
   is preserved unchanged.
 - The supplied OpenZ-VK logo is the README's opening image.
-- Solo and multiplayer galleries use Shitty Maps with the aligned poop pictogram.
+- Solo and multiplayer galleries use AI Maps with the aligned poop pictogram.
 - Solo mission selection has Allowed units with the shared OpenZ/Z 1996/Custom
   catalogue. Its saved selection is separate from multiplayer, preserves campaign
   difficulty/production bonuses and applies to starting units and production for
@@ -102,7 +107,7 @@
 Current player: clean source f3b889745daaab362c066d444264eab7354a62a7,
 built 2026-11-17 17:07:01 UTC, resource package openz-1.4-vk-1.
 The final menu proof passes all 22 tile bounds, solo OpenZ/Z 1996/Custom selection,
-saved choices and restoration, lobby OpenZ/Z 1996 controls, and both Shitty Maps
+saved choices and restoration, lobby OpenZ/Z 1996 controls, and both AI Maps
 gallery titles/icons. Native captures are from menus-20261117-180956.
 The final solo mission also passes on source f3b88974 (solo-units-final-20261117-182113). The Unit Editor and host/guest L02 pass on source 450350cd;
 the final change only adjusts picker layout and its rendering check. The solo
@@ -128,7 +133,7 @@ Completed on this release player:
 - Native main menu and solo selection; ON/OFF option toggle geometry and actual
   screen captures; fort placement caption and unit picker; army/handicap controls;
   microphone devices; solo/duel map galleries, terrain filters and sorting.
-  Inline Shitty Map icons are vertically aligned with their labels.
+  Inline AI Map icons are vertically aligned with their labels.
 - Unit Editor through the menu and the exact `Unit Editor/Open Unit Editor.bat`
   launcher; all twelve Dynamics pages, help, tests, counters, import/export,
   independent tank/robot selections and returning to the main menu.
@@ -274,9 +279,9 @@ Local proof logs and original screenshots are retained under
 - No game player was built or launched. The fix requires a fresh release player.
 
 
-## Complete p02 Shitty Maps catalog and blue borders (0.2.12, source only)
+## Complete p02 AI Maps catalog and blue borders (0.2.12, source only)
 
-- Added the tracked shittymaps/ Unity local package: 60 selected native-source
+- Added the tracked aimaps/ Unity local package: 60 selected native-source
   variants, 31 solo choices, 44 converted duel choices, plus the four normal OpenZ
   maps. Campaign levels 02, 07, 16 and 17 are excluded from converted choices.
 - Solo separates Z Original (01–20) and Z Expansion (21–35), using original files.
@@ -366,7 +371,7 @@ Local proof logs and original screenshots are retained under
 
 ## Converted maps (0.2.8)
 
-- Added a separate converted-map browser under PLAY: Load Shitty maps, with a
+- Added a separate converted-map browser under PLAY: Load AI maps, with a
   minimap card for Level 19 - Mayhem (City).
 - Baked the original Zod Engine p02_bb_orig19_fixed.map with City resources and
   ordinary game object prefabs. The 128 x 116 map retains all 453 source objects.

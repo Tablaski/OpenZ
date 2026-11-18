@@ -122,7 +122,7 @@ namespace OpenZ.Multiplayer
         public void Validate()
         {
             if (PlanningSeconds < 0 || PlanningSeconds > MaxPlanningSeconds) throw new ArgumentException("Invalid opening order time.");
-            if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17" && Map != "L19" && !OzShittyMapCatalog.IsDuelMap(Map))
+            if (Map != "L02" && Map != "L07" && Map != "L16" && Map != "L17" && Map != "L19" && !OzAiMapCatalog.IsDuelMap(Map))
                 throw new ArgumentException("Unknown duel map.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
                 throw new ArgumentException("Invalid territory rule.");

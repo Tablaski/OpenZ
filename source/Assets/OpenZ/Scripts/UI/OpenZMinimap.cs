@@ -80,7 +80,7 @@ namespace OpenZ
             }
             else Hud.Plate(panel, "lg", 28f, OzUi.Amber);
             panel.gameObject.AddComponent<Canvas>();                                                   // nested canvas: per-frame frustum updates rebuild only this panel
-            string lvl = OzShittyMapCatalog.Find(game.level) is OzShittyMap converted ? converted.Title : game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
+            string lvl = OzAiMapCatalog.Find(game.level) is OzAiMap converted ? converted.Title : game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             Hud.Label(panel, "Level", lvl, 10, OzUi.Muted, 0.16f, OzStyle.Plain).At(OzLayout.MinimapTitleX, OzLayout.MinimapLevelY, OzH.L, false, 200);
 
             // well: the map fitted keeping its aspect (zmini_map.cpp:24-59), letterbox bands hatched with coordinate ticks

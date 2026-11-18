@@ -109,7 +109,7 @@ namespace OpenZ.Multiplayer
             {
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
                 var menu = FindFirstObjectByType<OpenZMainMenu>();
-                if (preparation < 14)
+                if (preparation < 16)
                 {
                     next = Time.realtimeSinceStartupAsDouble + .6;
                     switch (preparation++)
@@ -135,7 +135,7 @@ namespace OpenZ.Multiplayer
                         case 6:
                             Capture("main-menu"); menu.ProofSelect(); break;
                         case 7:
-                            DuelOptionProof.CheckInlineBadges(menu.transform.root); Capture("solo-selection");menu.ProofOpenSoloAllowed();break;
+                            Capture("solo-selection");menu.ProofOpenSoloAllowed();break;
                         case 8:
                             ClickSoloUnits("Z 1996");break;
                         case 9:
@@ -147,8 +147,22 @@ namespace OpenZ.Multiplayer
                         case 11:
                             if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.OpenZ||OzSoloAllowedUnits.Read().AllowedUnits.Count!=22)throw new Exception("Solo OpenZ preset not restored.");
                             Capture("solo-allowed-openz");OzSoloAllowedUnits.Dismiss();RestoreSoloUnits();break;
-                        case 12:menu.ProofMain();break;
-                        case 13:break;
+                        case 12:
+                            menu.ProofSwitchMapCatalog();
+                            next = Time.realtimeSinceStartupAsDouble + 2.5;
+                            break;
+                        case 13:
+                            if (!menu.ProofAiPreviewPlaying || menu.ProofCardCount != OzAiMapCatalog.Select(true).Length)
+                                throw new Exception("The solo AI Maps carousel is missing its looping video or stamp.");
+                            ScreenCapture.CaptureScreenshot(Path.Combine(folder, "ai-maps-solo-full.png"));
+                            break;
+                        case 14:
+                            menu.ProofSwitchMapCatalog();
+                            if (menu.ProofCardCount != OzLevelDef.All.Length)
+                                throw new Exception("The official carousel did not return.");
+                            menu.ProofMain();
+                            break;
+                        case 15:break;
                     }
                     return;
                 }
@@ -248,22 +262,32 @@ namespace OpenZ.Multiplayer
                     case 22: Click("BACK"); break;
                     case 23:
                         if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "Toggle microphone")) throw new Exception("Lobby microphone controls were not restored.");
-                        Click("SHITTY MAPS"); break;
+                        Click("AI MAPS"); break;
                     case 24:
-                        CheckGallery(); Capture("shitty-maps-duel"); ClickGallery("ARCTIC"); break;
+                        CheckGallery(); Capture("ai-maps-duel"); ClickGallery("ARCTIC"); break;
                     case 25:
-                        CheckGallery(); Capture("shitty-maps-arctic"); ClickGallery("SORT: NUMBER"); break;
+                        CheckGallery(); ClickGallery("MAP SM09");
+                        next = Time.realtimeSinceStartupAsDouble + 2.5; break;
                     case 26:
-                        CheckGallery(); ClickGallery("CITY"); break;
+                        CheckGallery();
+                        var gallery = FindFirstObjectByType<OzAiMapGallery>();
+                        var mini = gallery.GetComponentsInChildren<RawImage>().Single(i => i.name == "Selected minimap");
+                        var video = gallery.GetComponentsInChildren<RawImage>().Single(i => i.name == "Map video");
+                        var decoder = gallery.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
+                        if (!decoder || !decoder.isLooping || !decoder.isPlaying || !(video.texture is RenderTexture)
+                            || mini.rectTransform.rect.height <= video.rectTransform.rect.height)
+                            throw new Exception("The duel AI Maps gallery must show a looping preview and a larger minimap.");
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "ai-maps-1v1-full.png"));
+                        break;
                     case 27:
-                        CheckGallery(); Capture("shitty-maps-city"); ClickGallery("CLOSE"); break;
+                        ClickGallery("SORT: NUMBER"); ClickGallery("CITY"); CheckGallery(); Capture("ai-maps-city"); ClickGallery("CLOSE"); break;
                     case 28:
-                        if (OzShittyMapGallery.IsOpen) throw new Exception("Gallery did not close.");
-                        OzShittyMapGallery.Open(true, true, OzShittyMapCatalog.All.First(m => m.SoloException).Id, _ => { }); break;
+                        if (OzAiMapGallery.IsOpen) throw new Exception("Gallery did not close.");
+                        OzAiMapGallery.Open(true, true, OzAiMapCatalog.All.First(m => m.SoloException).Id, _ => { }); break;
                     case 29:
-                        CheckGallery(); Capture("shitty-maps-solo"); ClickGallery("Z EXPANSION"); break;
+                        CheckGallery(); Capture("ai-maps-solo"); ClickGallery("Z EXPANSION"); break;
                     case 30:
-                        CheckGallery(); Capture("shitty-maps-expansion"); ClickGallery("CLOSE"); break;
+                        CheckGallery(); Capture("ai-maps-expansion"); ClickGallery("CLOSE"); break;
                     case 31:
                         Click("Allowed units · "+DuelUnitRoster.Name(r.Rules.UnitPreset));break;
                     case 32:
@@ -283,7 +307,7 @@ namespace OpenZ.Multiplayer
         }
         void ClickGallery(string name)
         {
-            var gallery = FindFirstObjectByType<OzShittyMapGallery>();
+            var gallery = FindFirstObjectByType<OzAiMapGallery>();
             gallery.GetComponentsInChildren<Button>().Single(b => b.name == name && b.interactable).onClick.Invoke();
         }
         void ClickSoloUnits(string name)
@@ -302,15 +326,15 @@ namespace OpenZ.Multiplayer
         }
         void CheckGallery()
         {
-            var gallery = FindFirstObjectByType<OzShittyMapGallery>();
-            if (!gallery || !OzShittyMapGallery.IsOpen || gallery.GetComponent<Canvas>().sortingOrder <= 1000)
+            var gallery = FindFirstObjectByType<OzAiMapGallery>();
+            if (!gallery || !OzAiMapGallery.IsOpen || gallery.GetComponent<Canvas>().sortingOrder <= 1000)
                 throw new Exception("Map gallery is not above the lobby.");
             var images = gallery.GetComponentsInChildren<RawImage>();
             if (!images.Any(i => i.name == "Minimap") || images.Any(i => !i.texture))
                 throw new Exception("Gallery contains missing minimaps.");
-            DuelOptionProof.CheckInlineBadges(gallery.transform);
             var heading=gallery.transform.Find("Gallery/Gallery title");
-            if(!heading||!heading.Find("Poop")||!heading.GetComponentInChildren<TMPro.TMP_Text>().text.StartsWith("SHITTY MAPS"))throw new Exception("Gallery is missing the Shitty Maps name or poop icon.");
+            if (!heading || !heading.GetComponentInChildren<TMPro.TMP_Text>().text.StartsWith("AI MAPS"))
+                throw new Exception("Gallery is missing the AI Maps name.");
         }
         void RestoreSoloUnits(){if(hadSoloUnits)PlayerPrefs.SetString(OzSoloAllowedUnits.Preference,savedSoloUnits);else PlayerPrefs.DeleteKey(OzSoloAllowedUnits.Preference);PlayerPrefs.Save();}
         void RestoreEdgeScroll(){if(hadEdgeScroll)PlayerPrefs.SetInt("oz_edge_scroll",savedEdgeScroll);else PlayerPrefs.DeleteKey("oz_edge_scroll");PlayerPrefs.Save();}
@@ -356,16 +380,6 @@ namespace OpenZ.Multiplayer
                 if(point.x < row.Rt.rect.xMin+row.Rt.rect.width*.75f || point.x>row.Rt.rect.xMax)throw new Exception("Toggle thumb is outside the right-hand control: "+item.GetType().GetField("label").GetValue(item));
             }
             if(visible==0)throw new Exception("No visible boolean options were checked.");
-        }
-        internal static void CheckInlineBadges(Transform root)
-        {
-            foreach(var icon in root.GetComponentsInChildren<Image>())if(icon.name=="Poop"&&icon.gameObject.activeInHierarchy)
-            {
-                var label=icon.transform.parent.Find("Title") as RectTransform ?? icon.transform.parent.Find("Label") as RectTransform;
-                if(!label)continue;var image=icon.rectTransform;
-                float y=image.TransformPoint(image.rect.center).y,ty=label.TransformPoint(label.rect.center).y;
-                if(Mathf.Abs(y-ty)>2)throw new Exception("Shitty Map icon is not aligned with its text.");
-            }
         }
     }
 }

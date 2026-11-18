@@ -109,16 +109,19 @@ namespace OpenZ
 
         public static void TryAttach()
         {
-            if (!AutoBoot || !ZGame.I || ZGame.I.level != "L16" || FindFirstObjectByType<JungleFauna>()) return;
+            if (!AutoBoot || !UsesJungleFauna(ZGame.I) || FindFirstObjectByType<JungleFauna>()) return;
             new GameObject("JungleFauna").AddComponent<JungleFauna>();
         }
 
         void Awake() { I = this; }
 
+        static bool UsesJungleFauna(ZGame game) => game && game.World != null
+            && (game.level == "L16" || game.World.Map.aiMap && game.World.Map.planet == "jungle");
+
         void Start()
         {
             game = ZGame.I ? ZGame.I : FindFirstObjectByType<ZGame>();
-            if (!game || game.World == null || game.level != "L16") { enabled = false; return; }
+            if (!UsesJungleFauna(game)) { enabled = false; return; }
             W = game.World; cam = Camera.main; rts = cam ? cam.GetComponent<RtsCamera>() : FindFirstObjectByType<RtsCamera>(); mpb = new MaterialPropertyBlock();
             FlyingParrots = GroupsAlive = BirdObjects = TakeOffs = Landings = MonkeysTotal = MonkeysSitting = MonkeyRuns = MonkeyReturns = SnakesTotal = SnakesOut = SnakesSwimming = MaxSnakesSwimming = Hisses = 0;
             TakeOffLog.Clear(); ReturnAfter.Clear();
@@ -128,10 +131,13 @@ namespace OpenZ
             var ov = Shader.Find("OpenZ/Overlay");
             if (ov) { shadowMat = DetailKit.Track(new Material(ov) { name = "L16_BirdShadow" }); shadowMesh = DetailKit.Track(ShadowMesh()); }
             if (parrots) MakeFlyers();
-            if (perched) MakeGroups();
-            if (monkeys) MakeTroops();
-            if (monkeys) MakeTempleApes();                                                     // the monkeys on the pyramids (JungleFauna.Temple.cs)
-            if (snakes) MakeSnakes();
+            if (!W.Map.aiMap)
+            {
+                if (perched) MakeGroups();
+                if (monkeys) MakeTroops();
+                if (monkeys) MakeTempleApes();
+                if (snakes) MakeSnakes();
+            }
             FxManager.Exploded += OnExplosion; subscribed = true;
             Debug.Log($"[OpenZ] JungleFauna L16: {flyers.Count} parrots in the air, {groups.Count} parrot groups ({groups.FindAll(g => g.tree).Count} in trees) on {JungleFaunaData.GroundSpots.Length} + {JungleFaunaData.TreeSpots.Length} spots, {apes.Count} monkeys in {JungleFaunaData.TroopTrees.Length} troops, {snks.Count} snakes");
         }
@@ -210,17 +216,29 @@ namespace OpenZ
 
         void MakeFlyers()
         {
-            for (int i = 0; i < JungleFaunaData.ParrotRoutes.Length; i++)
+            var routes = W.Map.aiMap ? AiFlyerRoutes(W.Map.width * 2, W.Map.height * 2) : JungleFaunaData.ParrotRoutes;
+            for (int i = 0; i < routes.Length; i++)
             {
                 var rig = L16AnimalKit.Rig.Make("Parrot_perched", "ParrotAir" + i, transform, new[] { parrotMat }, 1f, false);
                 if (rig == null) return;
                 rig.FaceAhead("head", "tail_2");
-                var f = new Flyer { rig = rig, rng = new System.Random(seed * 31 + i * 7919 + 2), route = JungleFaunaData.ParrotRoutes[i], alt = JungleFaunaData.ParrotAlt[i], dir = i % 2 == 0 ? 1f : -1f };
+                var f = new Flyer { rig = rig, rng = new System.Random(seed * 31 + i * 7919 + 2), route = routes[i], alt = JungleFaunaData.ParrotAlt[i], dir = i % 2 == 0 ? 1f : -1f };
                 f.centre = new Vector2(f.route[0].x, f.route[0].y); f.radius = f.route[0].z; f.ang = R(f.rng, 0f, Mathf.PI * 2f); f.hold = R(f.rng, 25f, 60f);
                 f.speed = 7.4f + R(f.rng, -0.6f, 0.6f); f.burstT = R(f.rng, 1f, 5f); f.callT = 3f + R(f.rng, 0f, 5f);
                 flyers.Add(f);
             }
             FlyingParrots = flyers.Count;
+        }
+
+        static Vector3[][] AiFlyerRoutes(float width, float height)
+        {
+            float r = Mathf.Min(17f, Mathf.Min(width, height) * .12f);
+            return new[]
+            {
+                new[] { new Vector3(width * .27f, -height * .28f, r), new Vector3(width * .68f, -height * .23f, r) },
+                new[] { new Vector3(width * .76f, -height * .55f, r), new Vector3(width * .52f, -height * .71f, r) },
+                new[] { new Vector3(width * .36f, -height * .82f, r), new Vector3(width * .19f, -height * .61f, r) }
+            };
         }
 
         void StepFlyers(float dt)

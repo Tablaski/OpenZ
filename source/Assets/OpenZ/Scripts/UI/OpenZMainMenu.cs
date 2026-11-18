@@ -51,17 +51,17 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ state
         View view = View.Main; Side side = Side.None, sideClosing = Side.None;
-        int focusItem, focusCard, hoverCard = -1; const float HoverCardK = 0.3f; readonly float[] cardPeekK = new float[OzLevelDef.All.Length];
+        int focusItem, focusCard, hoverCard = -1; const float HoverCardK = 0.3f; float[] cardPeekK;
         float introAt = -10f, viewAt = -10f, sideAt = -10f, selectK, selectFrom, selectTo;
         bool kbMode, openedWithSelect;
         OzLevelDef[] levels; OzLevelInfo[] infos; OzLevelPreview[] previews;
         int bgLevel = -1, bgFrom = -1; float bgFadeAt = -10f, bgFadeDur = 1f, bgShownAt; bool bgWaitFrame;
-        readonly float[] liveK = new float[OzLevelDef.All.Length], cardHoverK = new float[OzLevelDef.All.Length], cardLiveK = new float[OzLevelDef.All.Length], lw = new float[OzLevelDef.All.Length];
+        float[] liveK, cardHoverK, cardLiveK, lw;
 
         // ------------------------------------------------------------------ UI
         Canvas canvas; CanvasScaler scaler; RectTransform root; float CW = 1920; int builtW, builtH;
         Image blackFade, backdrop, vignette, selectWash; RawImage gradLeft, gradBottom;
-        readonly RawImage[] bgPoster = new RawImage[OzLevelDef.All.Length], bgLive = new RawImage[OzLevelDef.All.Length], bgBlur = new RawImage[OzLevelDef.All.Length];
+        RawImage[] bgPoster, bgLive, bgBlur;
         RectTransform mainRoot, selectRoot, loadingRoot; CanvasGroup mainCg, selectCg, loadingCg;
         Image logo; OzText eyebrow, footer, footer2; Image underline, rail; OzAnniversaryBadge badge30;
         RectTransform caption; CanvasGroup captionCg; OzText captionTitle, captionSub; (Image bg, Image edge, OzText text) captionChip; OzText testChipText;
@@ -77,7 +77,7 @@ namespace OpenZ
             public RectTransform rt, imgRt; public CanvasGroup cg; public RawImage poster, live, mini; public Image glow, frameN, frameH, desat, progTrack, progFill; public CanvasGroup previewChip;
             public float x, y, w, imgH; public int index;
         }
-        readonly Card[] cards = new Card[OzLevelDef.All.Length];
+        Card[] cards;
         HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, cpuMayhem, optNormal, optEasy, optMedium, optMayhem, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine;   // K347: the HEAD START chip "L02 ONLY" (headChipText) went with the old deploy bar
         float errorUntil;
 
@@ -101,9 +101,9 @@ namespace OpenZ
             Time.timeScale = 1f;                                                                            // the pause menu may have left it at 0
             OzPlayBlue.Disarm("the main menu");                                                            // 1.2 item 11: back on the menu no level is played as blue (the box stays as it is)
             OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
-            levels = OzLevelDef.All;
             string last = PlayerPrefs.GetString(PrefLevel, "L02");
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
+            SetCampaignLevels(openedWithSelect && OzAiMapCatalog.Find(last)?.Solo == true);
             focusCard = openedWithSelect ? Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last)) : 0;   // a fresh menu opens the battlefield row at the left, on its first card; back from a level it stays on that level
             if (openedWithSelect) { PlayerPrefs.DeleteKey(PrefOpenSelect); PlayerPrefs.Save(); }
         }
@@ -113,8 +113,7 @@ namespace OpenZ
             Cursor.visible = true; Cursor.lockState = CursorLockMode.None;
             OzKit.SetCursor("arrow");
             float t0 = Time.realtimeSinceStartup;
-            infos = new OzLevelInfo[levels.Length]; previews = new OzLevelPreview[levels.Length];
-            for (int i = 0; i < levels.Length; i++) { infos[i] = OzLevelInfo.Load(levels[i].Id); previews[i] = OzLevelPreview.Create(transform, levels[i].Id); }
+            InitializeCampaignPreviews();
             var cgo = new GameObject("OpenZ_MainMenu_UI", typeof(RectTransform)) { layer = 5 };
             cgo.transform.SetParent(transform, false);
             canvas = cgo.AddComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = sortingOrder; canvas.pixelPerfect = true;
@@ -132,8 +131,7 @@ namespace OpenZ
 
         void OnDestroy()
         {
-            if (previews != null) foreach (var p in previews) p?.Release();
-            if (infos != null) foreach (var i in infos) if (i != null && i.Mini) Destroy(i.Mini);
+            ReleaseCampaignPreviews();
             PlayerPrefs.Save();
         }
 
@@ -720,7 +718,7 @@ namespace OpenZ
         {
             var p = selectRoot;
             Hud.Label(p, "Eyebrow", "SELECT OPERATION", 12, OzUi.Amber, 0.3f).At(OzMenuLayout.SelEyebrowX, OzMenuLayout.SelEyebrowY);
-            Hud.Label(p, "Title", "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
+            Hud.Label(p, "Title", aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
             var br = OzMenuLayout.Back;
             backBtn = HudButton.Make(p, "Back", "BACK", new Vector2(br.w, br.h), HudButtonKind.Large, 13, 0.16f, HudButtonStyle.Normal, true, OzH.L);
             backBtn.Rt.Place(br);
@@ -787,6 +785,7 @@ namespace OpenZ
                 var ov = Hud.Kit(c.rt, "MiniGlass", "Minimap/mm_screen_overlay", new OzRect(w - mm - mw + mi, 22 + mi, side, side), null, Image.Type.Simple);
                 ov.enabled = OzKit.GetSprite("Minimap/mm_screen_overlay") != null;
             }
+            if (aiCampaign) OzAiMapBadge.Stamp(c.rt, w);
             // meta bar
             Hud.Label(c.rt, "Level", "LEVEL " + d.Number, 11, OzUi.Amber, 0.3f, OzStyle.Plain).At(OzMenuLayout.CardLevelX, ih + OzMenuLayout.CardLevelY);
             var name = Hud.Label(c.rt, "Name", d.Name, w >= OzMenuLayout.CardNameFullW ? OzMenuLayout.CardNameSize : OzMenuLayout.CardNameSmall, OzUi.Ink, 0f).At(OzMenuLayout.CardNameX, ih + OzMenuLayout.CardNameY, OzH.L, false, w * 0.6f);

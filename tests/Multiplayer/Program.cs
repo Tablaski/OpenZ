@@ -221,7 +221,7 @@ static class Program
         await RejectFrame(corrupt, "Unbounded allocation accepted");
         await RejectFrame(new byte[] { 1, 2 }, "Truncated header accepted");
         Array.Resize(ref encoded, 13); await RejectFrame(encoded, "Truncated payload accepted");
-        ShittyMapChecks.Run(Check, Reject);
+        AiMapChecks.Run(Check, Reject);
         BalanceChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
         ReplicationChecks.Run(Check);

@@ -38,7 +38,7 @@ namespace OpenZ
         partial void Lv4Boot()
         {
             if (OzLavaFx.Off) return;
-            if (OzVolcanic.Is(game.level)) gameObject.AddComponent<OzVolcano>().Boot(this, game, map);
+            if (OzVolcanic.Is(game.level) || map.aiMap) gameObject.AddComponent<OzVolcano>().Boot(this, game, map);
             gameObject.AddComponent<OzLavaPrewarm>();
         }
         partial void Lv4Tick(float dt, float t) { var v = OzVolcano.I; if (v) v.Tick(dt); }
@@ -122,10 +122,10 @@ namespace OpenZ
             SpitsStarted = BigsStarted = BombsLaunched = BombsOnLava = BombsOnRim = BombsBad = MostAtOnceBig = MostAtOnceSpit = BigsInView = ChunksMade = 0; FirstStartAt = -1f; HighestAsh = 0f;
             plan = new OzVolcanoPlan(lava.seed * 31 + 7);
             lite = OzLavaFx.Lite; calm = OzLavaFx.Calm;
-            var ta = Resources.Load<TextAsset>(ListRes);
-            if (!ta) { Debug.LogWarning("[OpenZ] volcano: " + ListRes + " missing, no eruptions"); enabled = false; return; }
-            var list = JsonUtility.FromJson<OzVolcanoList>(ta.text);
-            if (list == null || list.rows == null || list.rows.Length == 0) { enabled = false; return; }
+            var ta = map.aiMap ? null : Resources.Load<TextAsset>(ListRes);
+            if (!map.aiMap && !ta) { Debug.LogWarning("[OpenZ] volcano: " + ListRes + " missing, no eruptions"); enabled = false; return; }
+            var rows = map.aiMap ? ConvertedVents() : JsonUtility.FromJson<OzVolcanoList>(ta.text)?.rows;
+            if (rows == null || rows.Length == 0) { enabled = false; return; }
             if (fx) fx.EnsureVolcanoChannels();
             flowMat = Resources.Load<Material>(FlowRes); bombMat = Resources.Load<Material>(BombRes);
             volFlow = Resources.Load<Texture2D>(VolFlowRes); decorFlow = Resources.Load<Texture2D>(DecorFlowRes);
@@ -141,7 +141,7 @@ namespace OpenZ
             for (int i = 0; i < rocks.Length; i++) { rocks[i] = MakeRock(1907 + i * 13); drawB[i] = new MaterialPropertyBlock(); drawB[i].SetFloatArray(BombT, drawT[i]); }
             var rim = GameObject.Find("L07_Rim");
             int matched = 0;
-            foreach (var r in list.rows)
+            foreach (var r in rows)
             {
                 var s = new Site { row = r, index = sites.Count, sizeK = r.kind == 1 ? 1.15f : r.kind == 2 ? 0.7f : 1f, mouth = Mathf.Max(r.rad * 0.6f, 0.22f) };
                 s.fountKey = "vol_fount_" + s.index; s.ventKey = "vol_vent_" + s.index;
@@ -164,6 +164,21 @@ namespace OpenZ
             }
             windGoal = wind = new Vector2(0.7f, -0.3f);
             Debug.Log($"[OpenZ] volcano: {sites.Count} eruptors, {matched} on their models, flow {(flowMat && volFlow && decorFlow ? "on" : "OFF (run OpenZ/L07 Lava/LV4 Make volcano materials)")}, bombs {(bombMat ? "on" : "OFF")}, flame {(flameMat ? "on" : "OFF")}");
+        }
+
+        OzVolcanoRow[] ConvertedVents()
+        {
+            var rows = new List<OzVolcanoRow>(6);
+            for (int y = 1; y < map.height - 1 && rows.Count < 6; y++)
+            for (int x = 1; x < map.width - 1 && rows.Count < 6; x++)
+            {
+                if (map.LavaKind(x, y) != 2) continue;
+                float wx = x * 2 + 1, wz = -y * 2 - 1;
+                if (rows.Exists(r => (wx - r.x) * (wx - r.x) + (wz - r.z) * (wz - r.z) < 18 * 18)) continue;
+                rows.Add(new OzVolcanoRow { id = "vent_" + rows.Count, kind = 2, x = wx,
+                    y = lava.lavaY + .09f, z = wz, scale = 1, rad = .75f, run = .4f, smoke = true });
+            }
+            return rows.ToArray();
         }
 
         static Transform FindModel(GameObject rim, OzVolcanoRow r)

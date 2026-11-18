@@ -130,7 +130,20 @@ namespace OpenZ.Sim
         double nextCrocCheck, nextCrocBeat; bool crocMapKnown, crocMap;
 
         /// <summary>This map has a crocodile table (level 16), whatever the switches say.</summary>
-        public bool CrocMap { get { if (!crocMapKnown) { crocMapKnown = true; crocMap = Map != null && ZCrocData.For(Map.file) != null; } return crocMap; } }
+        public bool CrocMap
+        {
+            get
+            {
+                if (!crocMapKnown)
+                {
+                    crocMapKnown = true;
+                    crocMap = Map != null && (Map.aiMap
+                        ? Map.planet == "jungle" && Array.IndexOf(Map.classes, (int)ZClass.Water) >= 0
+                        : ZCrocData.For(Map.file) != null);
+                }
+                return crocMap;
+            }
+        }
         /// <summary>DV94: the weight of a swamp tile in the robots' path search on this map (ZWorld.InitPathfinding).</summary>
         float CrocPathWaterCost() => CrocWaterCostDeviation && CrocMap ? CrocWaterCost : 1f;
         /// <summary>DV94: robots do not wade round a bridge while a way over it exists (ZPathing.BridgePath).</summary>
@@ -172,7 +185,7 @@ namespace OpenZ.Sim
             int w = Map.width, h = Map.height; cw = w * 4; ch = h * 4;
             var water = new bool[w * h];
             for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) water[j * w + i] = Map.ClassAt(i, j) == ZClass.Water && Path.TilePassable(i, j, true);
-            var drawn = ZCrocData.DrawnWater(cw, ch);
+            var drawn = Map.aiMap ? null : ZCrocData.DrawnWater(cw, ch);
             crocFree = new float[cw * ch];
             for (int k = 0; k < crocFree.Length; k++) crocFree[k] = -100f;
             const int reach = 5, dreach = 8;
@@ -262,7 +275,8 @@ namespace OpenZ.Sim
                 }
             for (int k = 0; k < crocAttack.Length; k++)
                 if (crocAttack[k]) crocPoolAttackM2[crocPoolOfTile[((k / cw) >> 2) * w + ((k % cw) >> 2)]] += 0.25;
-            // the animals of the table: each at its place when it may turn there, else at the nearest such place of the same pool
+            if (Map.aiMap) places = ConvertedCrocPlaces();
+            // Each animal starts where it can turn, or at the nearest safe spot in the same pool.
             for (int i = 0; i < places.Length; i++)
             {
                 double x = places[i].x, y = places[i].y;
@@ -278,6 +292,28 @@ namespace OpenZ.Sim
                 c.Until = Time + CrocRest(c, 0) * 0.5;
                 crocs.Add(c);
             }
+        }
+
+        ZCrocData.Place[] ConvertedCrocPlaces()
+        {
+            var places = new List<ZCrocData.Place>();
+            for (int pool = 0; pool < crocPools; pool++)
+            {
+                var cells = crocPoolTurnCells[pool];
+                if (cells == null || crocPoolAttackM2[pool] < 8) continue;
+                int best = cells[0];
+                foreach (int cell in cells)
+                    if (crocFree[cell] > crocFree[best]) best = cell;
+                float x = (best % cw) * 4 + 2, y = (best / cw) * 4 + 2;
+                for (int heading = 0; heading < 16; heading++)
+                {
+                    float radians = (float)(heading * Math.PI / 8);
+                    if (!CrocBoxFits(x, y, radians)) continue;
+                    places.Add(new ZCrocData.Place { x = x, y = y, heading = radians, kind = 1 });
+                    break;
+                }
+            }
+            return places.ToArray();
         }
 
         /// <summary>Free water (m) at a map px point, never more than it really is: the value of its 0.5 m cell less the point's distance
@@ -392,7 +428,7 @@ namespace OpenZ.Sim
                     best = Math.Min(best, Math.Sqrt(ddx * ddx + ddy * ddy));
                 }
             double f = best - CrocWobbleM;
-            var drawn = ZCrocData.DrawnWater(cw, ch);
+            var drawn = Map.aiMap ? null : ZCrocData.DrawnWater(cw, ch);
             if (drawn != null)
             {
                 int ci = (int)Math.Floor(xm / 0.5), cj = (int)Math.Floor(ym / 0.5);

@@ -1,4 +1,4 @@
-param([string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly, [switch]$MatchControls)
+param([string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly, [switch]$MatchControls, [switch]$RadarVideo)
 $ErrorActionPreference='Stop'
 $duelExecutable=(Resolve-Path -LiteralPath $Executable).Path
 $proofPrefix = if ($Online) { 'proof-online-' } else { 'proof-' }
@@ -22,7 +22,8 @@ foreach ($role in @('host','guest')) {
     $duelArguments=@('-screen-fullscreen','0','-screen-width','1280','-screen-height','720','-force-d3d11','-oz-duel-proof',$role,('"'+$proofFolder+'"'),'-oz-duel-proof-map',$Map,'-logFile',('"'+(Join-Path $proofFolder ($role+'.log'))+'"'))
     if ($Online) { $duelArguments += '-oz-duel-online-proof' }
     if ($RelayOnly) { $duelArguments += '-oz-duel-relay-only' }
-    if ($MatchControls) { $duelArguments += '-oz-duel-match-controls' }
+    if ($MatchControls -or $RadarVideo) { $duelArguments += '-oz-duel-match-controls' }
+    if ($RadarVideo) { $duelArguments += '-oz-duel-radar-video' }
     $players+=Start-Process -FilePath $duelExecutable -ArgumentList $duelArguments -WindowStyle Hidden -PassThru
 }
 Write-Output $proofFolder

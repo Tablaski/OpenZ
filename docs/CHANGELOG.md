@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.37 (18 Nov 2026)
+
+- Radar fog turns terrain outside your vision monochrome, with occasional brief signal interference. Last known enemy positions stay marked until your units can check them.
+
 ## OpenZ-VK 0.2.36 (18 Nov 2026)
 
 - **Ballerman's map** is available under **AI Maps → Experimental** in solo and 1 vs 1. Fight through a City battlefield with two forts, six bridges and roads winding around the canals.

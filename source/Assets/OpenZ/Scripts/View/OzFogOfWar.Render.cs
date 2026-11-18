@@ -476,7 +476,9 @@ namespace OpenZ
                 {
                     radarGroundMaterial.SetTexture(RadarGroundPass.Sight, tex);
                     radarGroundMaterial.SetVector(RadarGroundPass.MapScale, new Vector4(8f / W.Map.WidthPix, -8f / W.Map.HeightPix, 0, 0));
-                    radarGroundMaterial.SetFloat(RadarGroundPass.Opacity, .52f * strength);
+                    radarGroundMaterial.SetFloat(RadarGroundPass.Strength, strength);
+                    radarGroundMaterial.SetVector(RadarGroundPass.Interference,
+                        new Vector4(Time.unscaledTime, OzMotion.Reduced ? .25f : 1f, 0, 0));
                     d.scriptableRenderer.EnqueuePass(radarGroundPass);
                 }
                 else if (!radarFog && mat && pass != null && fieldA)
@@ -507,29 +509,37 @@ namespace OpenZ
         sealed class RadarGroundPass : ScriptableRenderPass
         {
             internal static readonly int Sight = Shader.PropertyToID("_RadarSight"), MapScale = Shader.PropertyToID("_RadarMapScale"),
-                Opacity = Shader.PropertyToID("_RadarFogOpacity");
+                Strength = Shader.PropertyToID("_RadarSignalStrength"), Interference = Shader.PropertyToID("_RadarInterference");
             static readonly ProfilingSampler Sampler = new ProfilingSampler("OpenZ Radar Ground Fog");
-            static readonly MaterialPropertyBlock DrawProperties = new MaterialPropertyBlock();
             readonly Material material;
-            sealed class PassData { public Material Material; }
+            sealed class PassData { public Material Material; public TextureHandle Source; }
             internal RadarGroundPass(Material material)
             {
                 this.material = material;
                 renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing + 2;
                 requiresIntermediateTexture = true;
                 ConfigureInput(ScriptableRenderPassInput.Depth);
-                DrawProperties.SetVector(IdBlitScaleBias, new Vector4(1, 1, 0, 0));
             }
             public override void RecordRenderGraph(RenderGraph graph, ContextContainer context)
             {
                 var resources = context.Get<UniversalResourceData>();
                 if (resources.isActiveTargetBackBuffer || !resources.cameraDepthTexture.IsValid()) return;
+                var source = resources.activeColorTexture;
+                var description = graph.GetTextureDesc(source);
+                description.name = "Radar interference color";
+                description.clearBuffer = false;
+                description.msaaSamples = MSAASamples.None;
+                description.bindTextureMS = false;
+                var result = graph.CreateTexture(description);
                 using var builder = graph.AddRasterRenderPass<PassData>("OpenZ Radar Ground Fog", out var data, Sampler, file: "OzFogOfWar.Render.cs");
                 data.Material = material;
+                data.Source = source;
                 builder.UseTexture(resources.cameraDepthTexture, AccessFlags.Read);
-                builder.SetRenderAttachment(resources.activeColorTexture, 0, AccessFlags.ReadWrite);
+                builder.UseTexture(source, AccessFlags.Read);
+                builder.SetRenderAttachment(result, 0, AccessFlags.Write);
                 builder.SetRenderFunc((PassData pass, RasterGraphContext drawing) =>
-                    drawing.cmd.DrawProcedural(Matrix4x4.identity, pass.Material, 0, MeshTopology.Triangles, 3, 1, DrawProperties));
+                    Blitter.BlitTexture(drawing.cmd, (RTHandle)pass.Source, new Vector4(1, 1, 0, 0), pass.Material, 0));
+                resources.cameraColor = result;
             }
         }
 

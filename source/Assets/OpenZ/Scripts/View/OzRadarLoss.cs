@@ -52,6 +52,8 @@ namespace OpenZ
         Texture2D staticPixels;
         AudioClip staticAudio;
         AudioSource staticSource;
+        Material contactMaterial;
+        Mesh contactRing;
         readonly Color32[] pixels = new Color32[96 * 54];
         readonly System.Random noise = new();
 
@@ -67,6 +69,8 @@ namespace OpenZ
             if (staticImage) Destroy(staticImage.gameObject);
             if (staticPixels) Destroy(staticPixels);
             if (staticAudio) Destroy(staticAudio);
+            if (contactMaterial) Destroy(contactMaterial);
+            if (contactRing) Destroy(contactRing);
         }
         internal static bool Covers(ZObject obj) => I && I.Fog && obj != null && obj.Owner != I.seat &&
             (obj.IsUnit || obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag") &&
@@ -210,7 +214,40 @@ namespace OpenZ
                         if (part.Materials[i]) Graphics.DrawMesh(part.Mesh, part.Transform, part.Materials[i], 0, cam,
                             i, null, ShadowCastingMode.Off, false);
                 }
+                if (!item.Fixed) DrawContactMarker(item, cam);
             }
+        }
+
+        void DrawContactMarker(Contact item, Camera cam)
+        {
+            if (!contactMaterial)
+            {
+                var shader = Shader.Find("OpenZ/Overlay");
+                if (!shader) return;
+                contactMaterial = new Material(shader) { color = new Color(.9f, .9f, .9f, .8f), hideFlags = HideFlags.DontSave };
+                const int sides = 24;
+                var vertices = new Vector3[sides * 2];
+                var colors = new Color32[vertices.Length];
+                var triangles = new List<int>(sides * 6);
+                for (int i = 0; i < sides; i++)
+                {
+                    float angle = Mathf.PI * 2 * i / sides;
+                    var direction = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                    int a = i * 2, b = (a + 2) % vertices.Length;
+                    vertices[a] = direction;
+                    vertices[a + 1] = direction * .72f;
+                    colors[a] = colors[a + 1] = new Color32(255, 255, 255, 255);
+                    if (i % 3 == 2) continue;
+                    triangles.Add(a); triangles.Add(b); triangles.Add(a + 1);
+                    triangles.Add(b); triangles.Add(b + 1); triangles.Add(a + 1);
+                }
+                contactRing = new Mesh { name = "Last known position", vertices = vertices, colors32 = colors, triangles = triangles.ToArray() };
+            }
+            var position = ZGame.PxToWorld(item.X, item.Y);
+            position.y = game.GroundY(position.x, position.z) + .09f;
+            float size = item.Kind == ZKind.Robot ? 1.1f : 1.8f;
+            Graphics.DrawMesh(contactRing, Matrix4x4.TRS(position, Quaternion.identity, Vector3.one * size), contactMaterial, 0,
+                cam, 0, null, ShadowCastingMode.Off, false);
         }
 
         void LateUpdate()

@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 0.2.37 radar interference
+
+- In a 1 vs 1 with Radar Loss set to Fog of War, check the boundary between controlled and neutral territory. Check that signal interference is brief and stays within obscured ground.
+- Watch hidden robots move beyond their last known positions. Advance an allied scout and verify that the old marks disappear when inspected and the robots appear again when they come into range.
+
 ## OpenZ-VK 0.2.36 Ballerman's map
 
 - The 6,680 simulation checks passed, including both starting forts, the neutral territory flags and bridge damage and repair. Unity Play Mode verified the Experimental selectors and the scene registration.

@@ -13,12 +13,15 @@ namespace OpenZ.Multiplayer
     {
         string folder, role, firstException;
         bool host, online, done;
+        bool radarVideo;
+        int videoFrame;
         DuelRuntime Runtime => DuelRuntime.I;
         string Other => host ? "guest" : "host";
         string FileFor(string owner, string name, string ext) => Path.Combine(folder, owner + "-" + name + ext);
         internal void Begin(string roleName, string directory, bool useOnline)
         {
             folder = directory; role = roleName; host = role == "host"; online = useOnline;
+            radarVideo = Environment.GetCommandLineArgs().Contains("-oz-duel-radar-video");
             Directory.CreateDirectory(folder);
             Application.logMessageReceived += OnLog;
             StartCoroutine(Drive());
@@ -188,6 +191,7 @@ namespace OpenZ.Multiplayer
                     zone.X < fort.CenterX && fort.CenterX < zone.X + zone.W);
                 borderX = (Math.Max(owned.X, unowned.X) + Math.Min(owned.X + owned.W, unowned.X + unowned.W)) / 2;
                 borderY = owned.Y;
+                if (radarVideo) { world.SendStop(Team.Red, tank); tank.Owner = Team.Neutral; }
             }
             yield return new WaitForSecondsRealtime(1.2f);
             Shot("replacement-map");
@@ -200,22 +204,40 @@ namespace OpenZ.Multiplayer
                 camera.pitch = 89;
                 camera.SetHeightImmediate(70);
                 WorldShot("radar-frontier-before");
+                ZObject[] enemy = null;
+                ZObject scout = null;
+                if (radarVideo)
+                {
+                    camera.focus = ZGame.PxToWorld(borderX, borderY - 3 * ZConst.TILE);
+                    camera.SetHeightImmediate(70);
+                    scout = DemoUnit(r.Game, "vehicle", "jeep", 51, 105, Team.Red);
+                    enemy = Enumerable.Range(50, 3).Select(x => DemoUnit(r.Game, "robot", "grunt", x, 93, Team.Blue)).ToArray();
+                    RadarCaption("RADAR ACTIVE · ENEMY CONTACTS");
+                    foreach (var frame in CaptureRadarFrames(2.1)) yield return frame;
+                }
                 foreach (var radar in world.Objects.Where(o => o.Type == "radar" && o.Owner == Team.Red && !o.Destroyed).ToArray())
                 { radar.SetHealth(0); world.UpdateObjectHealth(radar); }
                 yield return null;
                 WorldShot("radar-static");
-                yield return new WaitForSecondsRealtime(1f);
+                if (radarVideo) { foreach (var frame in CaptureRadarFrames(1.3)) yield return frame; }
+                else yield return new WaitForSecondsRealtime(1f);
                 WorldShot("radar-fog-zoom");
                 var loss = OzRadarLoss.I;
-                Check(loss && loss.Fog && loss.Visible(borderX, borderY + 112) && !loss.Visible(borderX, borderY - 112),
+                Check(loss && loss.Fog && loss.Visible(borderX, borderY + 112) && !loss.Visible(borderX, borderY - 176),
                     "Owned ground and neutral ground were not on opposite sides of the fog frontier.");
                 camera.focus = ZGame.PxToWorld(borderX, borderY);
                 camera.SetHeightImmediate(70);
                 WorldShot("radar-frontier-after");
+                if (radarVideo)
+                {
+                    camera.focus = ZGame.PxToWorld(borderX, borderY - 3 * ZConst.TILE);
+                    camera.SetHeightImmediate(70);
+                    foreach (var frame in CaptureRadarReveal(world, scout, enemy, loss)) yield return frame;
+                }
                 yield return null;
                 r.ProofInterruptMatch();
             }
-            foreach (var step in WaitFor(() => r.ConnectionInterrupted, "connection interruption", 13)) yield return step;
+            foreach (var step in WaitFor(() => r.ConnectionInterrupted, "connection interruption", radarVideo ? 85 : 13)) yield return step;
             yield return null;
             Shot("reconnect-countdown");
             foreach (var step in WaitFor(() => r.Playing && r.Connected && !r.MatchSuspended, "reconnection and full state sync", 34)) yield return step;
@@ -251,5 +273,48 @@ namespace OpenZ.Multiplayer
         }
         void Shot(string name) => DuelProofCapture.Save(FileFor(role, name, ".png"), !Runtime.Playing || name != "replacement-map");
         void WorldShot(string name) => DuelProofCapture.Save(FileFor(role, name, ".png"));
+
+        static ZObject DemoUnit(ZGame game, string kind, string type, int x, int y, Team team)
+        {
+            var unit = game.World.CreateObject(kind, type, x * ZConst.TILE, y * ZConst.TILE, team);
+            unit.Damage = 0;
+            game.SpawnUnitView(unit);
+            return unit;
+        }
+        static void RadarCaption(string text) => OpenZHud.I.Toast(text, OzUi.Amber, 4f);
+        IEnumerable CaptureRadarReveal(ZWorld world, ZObject scout, ZObject[] enemies, OzRadarLoss loss)
+        {
+            Check(enemies.All(o => OzRadarLoss.Covers(o) && loss.Contacts.ContainsKey(o.Id)), "Enemy robots have no last known contacts.");
+            var remembered = enemies.Select(o => loss.Contacts[o.Id].Y).ToArray();
+            RadarCaption("ENEMY ROBOTS · LAST KNOWN POSITIONS");
+            foreach (var enemy in enemies)
+                Check(world.SendWaypoints(Team.Blue, enemy, new[] { ZWaypoint.Move(enemy.CenterX, 88 * ZConst.TILE) }), "Robot movement refused.");
+            foreach (var frame in CaptureRadarFrames(4.5)) yield return frame;
+            for (int i = 0; i < enemies.Length; i++)
+            {
+                var enemy = enemies[i];
+                Check(OzRadarLoss.Covers(enemy) && Math.Abs(enemy.CenterY - remembered[i]) >= ZConst.TILE &&
+                    loss.Contacts.TryGetValue(enemy.Id, out var contact) && contact.Y == remembered[i], "A hidden robot exposed its live position.");
+            }
+            RadarCaption("ALLY ADVANCING · VISION BEYOND THE BORDER");
+            Check(world.SendWaypoints(Team.Red, scout, new[] { ZWaypoint.Move(scout.CenterX, 89 * ZConst.TILE) }), "Scout movement refused.");
+            foreach (var frame in CaptureRadarFrames(11, () => enemies.All(o => !OzRadarLoss.Covers(o)))) yield return frame;
+            Check(enemies.All(o => !OzRadarLoss.Covers(o)), "The scout did not reveal the enemy robots.");
+            RadarCaption("ENEMY ROBOTS REVEALED");
+            WorldShot("radar-robots-revealed");
+            foreach (var frame in CaptureRadarFrames(3.2)) yield return frame;
+            File.WriteAllText(Path.Combine(folder, "radar-video-proof.txt"), "PASS: hidden robots moved without updating their last known positions; the allied scout revealed all three.");
+        }
+        IEnumerable CaptureRadarFrames(double duration, Func<bool> stop = null)
+        {
+            var destination = Path.Combine(folder, "radar-video-frames");
+            Directory.CreateDirectory(destination);
+            double end = Time.realtimeSinceStartupAsDouble + duration;
+            do
+            {
+                DuelProofCapture.Save(Path.Combine(destination, $"frame-{videoFrame++:D4}.jpg"));
+                yield return new WaitForSecondsRealtime(.065f);
+            } while (Time.realtimeSinceStartupAsDouble < end && (stop == null || !stop()));
+        }
     }
 }

@@ -91,6 +91,28 @@ To try another layout on a supported planet, use a new `SM...V2` ID and
 call `OzVolcanicConversionBake.Bake(id)` in the editor. The current catalog
 registers the reference maps and the additional Molten Kombat trial.
 
+## V3 palette pass
+
+Select **Deploy V2** or **Deploy V3** on any of the five non-Arctic trial cards.
+Both choices load the same converted scene and gameplay data. A restart keeps
+the chosen look. Chilly Willy uses its dedicated Arctic art.
+
+V3 reads the decoded palette tile IDs and blends additional material roles into
+the OpenZ ground shaders. The Fenio atlas was a visual reference. The conversion
+uses identifiers and class metadata, with new procedural paint and the installed
+OpenZ detail textures. No atlas pixels are included in the map package.
+
+| Profile | Additional material roles |
+| --- | --- |
+| Desert | Gravel fans, dry scrub, windblown shoulders and silt |
+| Volcanic | Basalt shelves, rusty scoria, ash and scorched lava edges |
+| Jungle | Mossy verges, exposed mud and darker wet beds |
+| City | Concrete service yards with staggered joints, rubble and graphite asphalt |
+
+For a custom layout, pass a new `SM...V3` ID to `Convert-ShittyMapsV2.cjs` and
+then to `OzVolcanicConversionBake.Bake(id)`. Use a separate `SM...V2` ID for the
+V2 look. The two identifiers decode identical native gameplay data.
+
 ## Chilly Willy V2
 
 `node tools/Make-ChillyWillyV2.cjs` writes the original `vk_chilly_willy.map`

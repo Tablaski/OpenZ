@@ -98,6 +98,7 @@ namespace OpenZ
         // ================================================================== lifecycle
         void Awake()
         {
+            Experimental.OzConversionTerrainV2.SelectPaletteV3(null);
             Time.timeScale = 1f;                                                                            // the pause menu may have left it at 0
             OzPlayBlue.Disarm("the main menu");                                                            // 1.2 item 11: back on the menu no level is played as blue (the box stays as it is)
             OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
@@ -1294,9 +1295,9 @@ namespace OpenZ
 
         // ================================================================== deploy + loading (guide 9.16)
         OzLevelDef deployingOperation;
-        internal void DeployConvertedMap(OzLevelDef operation) => DeployOperation(operation);
+        internal void DeployConvertedMap(OzLevelDef operation, bool paletteV3 = false) => DeployOperation(operation, paletteV3);
         void Deploy() => DeployOperation(levels[focusCard]);
-        void DeployOperation(OzLevelDef d)
+        void DeployOperation(OzLevelDef d, bool paletteV3 = false)
         {
             if (view != View.Select) return;
             deployingOperation = d;
@@ -1308,6 +1309,7 @@ namespace OpenZ
                 Debug.LogError($"[OpenZ Menu] scene {d.Scene} is not in the build settings (menu OpenZ/Menu/Set Build Order)");
                 return;
             }
+            Experimental.OzConversionTerrainV2.SelectPaletteV3(paletteV3 ? d.Id : null);
             if (PlayerPrefs.GetInt("oz_botmatch", 0) == 1) { PlayerPrefs.SetInt("oz_botmatch", 0); Debug.Log("[OpenZ Menu] oz_botmatch was left on by a test: cleared, DEPLOY starts a human vs CPU match"); }
             PlayerPrefs.SetString(PrefLevel, d.Id);
             PlayerPrefs.Save();

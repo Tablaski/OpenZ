@@ -15,6 +15,7 @@ namespace OpenZ
         public string Group => ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
         public string Title => (Number > 0 ? Number.ToString("00") + " · " : "") + Name;
         public string Variant => Id.EndsWith("V2", StringComparison.Ordinal) ? "V2" : Balanced ? File.Contains("remixFDL") ? "FDL REMIX" : "FIXED" : "ORIGINAL";
+        public bool HasPaletteV3 => Solo && Variant == "V2" && World != "arctic";
         public OzShittyMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false)
         { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; }
     }

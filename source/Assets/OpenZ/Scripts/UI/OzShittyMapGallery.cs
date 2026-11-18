@@ -21,10 +21,12 @@ namespace OpenZ
         readonly List<Texture> generatedPreviews=new List<Texture>();
         RectTransform root;
         Action<OzLevelDef> apply;
+        Action<OzLevelDef> applyPaletteV3;
         Action closed;
         static Sprite warning;
         readonly List<GameObject> content = new List<GameObject>();
-        public static void Open(bool solo, bool editable, string selected, Action<OzLevelDef> apply, Action closed = null)
+        public static void Open(bool solo, bool editable, string selected, Action<OzLevelDef> apply, Action closed = null,
+            Action<OzLevelDef> applyPaletteV3 = null)
         {
             if (IsOpen) return;
             IsOpen = true;
@@ -32,6 +34,7 @@ namespace OpenZ
             var gallery = go.AddComponent<OzShittyMapGallery>();
             var entry = OzShittyMapCatalog.Find(selected);
             gallery.solo=solo; gallery.editable=editable; gallery.apply=apply; gallery.closed=closed;
+            gallery.applyPaletteV3 = applyPaletteV3;
             bool selectable = entry != null && (solo ? entry.Solo : entry.Duel);
             gallery.selected = selectable ? selected : null;
             gallery.group = selectable ? entry.Group : "Z ORIGINAL";
@@ -78,7 +81,8 @@ namespace OpenZ
                 var mini=Hud.Node("Minimap",card).gameObject.AddComponent<RawImage>(); mini.texture=Preview(map.Id); float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float width=Mathf.Min(250,155*ratio),height=width/ratio; mini.rectTransform.TL(8+(250-width)/2,8+(155-height)/2,width,height); mini.raycastTarget=false;
                 if(mini.texture) mini.uvRect=new Rect(0,0,1,1);
                 InlineTitle(card,"Map title",entry?.Title ?? map.Id+" · "+map.Name,10,166,246,32,17,entry!=null);
-                Label(card,World(map.Id).ToUpperInvariant()+" · "+(entry?.Variant ?? "OPENZ"),10,204,246,12,OzUi.Muted);
+                string variant = entry?.HasPaletteV3 == true && applyPaletteV3 != null ? "V2 / V3" : entry?.Variant ?? "OPENZ";
+                Label(card,World(map.Id).ToUpperInvariant()+" · "+variant,10,204,246,12,OzUi.Muted);
                 if(entry!=null && !solo && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
                 if(entry?.SoloException==true && solo) Icon(card,WarningSprite(),10,10,28);
             }
@@ -94,10 +98,20 @@ namespace OpenZ
                 Label(panel,entry==null ? "Original OpenZ scene" : entry.File,1180,791,550,14,OzUi.Muted);
                 string note=entry?.SoloException==true && solo ? "FIXED SOLO EXCEPTION · original file unavailable" : entry!=null && !solo && !entry.Balanced ? "WARNING · no FIXED / FDL balancing variant available" : entry?.Balanced==true ? "FIXED · user-balanced map variant" : "Original source layout and starting armies";
                 Label(panel,note,1180,824,550,14,OzUi.Amber);
-                Button(panel,solo ? "DEPLOY" : "APPLY MAP",1180,875,550,()=>{var callback=apply;Close();callback(chosen);},true,editable);
+                if (entry?.HasPaletteV3 == true && applyPaletteV3 != null)
+                {
+                    Button(panel, "DEPLOY V2", 1180, 875, 266, () => Deploy(chosen, apply), enabled: editable);
+                    Button(panel, "DEPLOY V3", 1464, 875, 266, () => Deploy(chosen, applyPaletteV3), true, editable);
+                }
+                else Button(panel, solo ? "DEPLOY" : "APPLY MAP", 1180, 875, 550, () => Deploy(chosen, apply), true, editable);
             }
             else Label(panel,"Select a map to inspect its layout.",1180,355,550,22,OzUi.Muted);
             Label(panel,"Source layout preview · lobby army rules apply in 1v1",24,902,1120,14,OzUi.Muted);
+        }
+        void Deploy(OzLevelDef map, Action<OzLevelDef> deploy)
+        {
+            Close();
+            deploy(map);
         }
         static string World(string id) => OzShittyMapCatalog.Find(id)?.World ?? (id=="L07" ? "volcanic" : id=="L16" ? "jungle" : id=="L17" || id=="L19" ? "city" : "desert");
         static void InlineTitle(Transform parent,string name,string text,float x,float y,float width,float height,float fontSize,bool poop)

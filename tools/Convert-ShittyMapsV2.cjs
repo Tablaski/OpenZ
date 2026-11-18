@@ -27,12 +27,13 @@ function convert(bytes, filename, palette) {
 }
 
 function run(source, id) {
-    if (!source || !/^SM[A-Za-z0-9_]+V2$/.test(id ?? ''))
-        throw Error('Usage: node tools/Convert-ShittyMapsV2.cjs <native.map> <SM...V2>');
+    if (!source || !/^SM[A-Za-z0-9_]+V[23]$/.test(id ?? ''))
+        throw Error('Usage: node tools/Convert-ShittyMapsV2.cjs <native.map> <SM...V2|SM...V3>');
     const filename = path.basename(source);
     const bytes = fs.readFileSync(source);
     const world = palettes[bytes[58]];
     if (!supported.has(world)) throw Error('No V2 asset mapping for ' + (world ?? filename));
+    if (id.endsWith('V3') && world === 'arctic') throw Error('The Arctic art profile uses V2');
     const palette = fs.readFileSync(path.join(packageRoot, 'Sources~/palettes', world + '.tileinfo'));
     const map = convert(bytes, filename, palette);
     const grid = path.join(packageRoot, 'Resources/OpenZ/Maps', id + '_grid.json');

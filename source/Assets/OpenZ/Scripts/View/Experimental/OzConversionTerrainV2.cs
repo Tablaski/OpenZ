@@ -12,6 +12,13 @@ namespace OpenZ.Experimental
     {
         public string mapId;
         public Material ground, cliff, pit, water;
+        public bool bakeWithPaletteV3;
+
+        static string paletteV3Map;
+        public static void SelectPaletteV3(string id) => paletteV3Map = id;
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetPaletteSelection() => SelectPaletteV3(null);
+        public bool IsPaletteV3 { get; private set; }
 
         const int Apron = 24;
         readonly List<Object> generated = new List<Object>();
@@ -61,11 +68,14 @@ namespace OpenZ.Experimental
             terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
             if (!render) return;
 
+            var palette = (bakeWithPaletteV3 || paletteV3Map != null && mapId == paletteV3Map) && PaletteV3.Supports(map.planet) &&
+                map.tiles?.Length == map.width * map.height ? new PaletteV3(map) : null;
+            IsPaletteV3 = palette != null;
             var surfaceGround = map.planet switch
             {
-                "volcanic" => VolcanicGround(map),
+                "volcanic" => VolcanicGround(map, palette),
                 "arctic" => ArcticGround(map),
-                _ => LandGround(map)
+                _ => LandGround(map, palette)
             };
             var rockFace = map.planet == "jungle" ? surfaceGround
                 : map.planet == "volcanic" ? cliff : TiledRock(cliff);
@@ -167,7 +177,7 @@ namespace OpenZ.Experimental
                 Mathf.Lerp(Cell(ix, iy + 1), Cell(ix + 1, iy + 1), tx - ix), ty - iy);
         }
 
-        Material VolcanicGround(ZMapData map)
+        Material VolcanicGround(ZMapData map, PaletteV3 palette)
         {
             // L07's detail albedo and normals are tileable. Its full-map paint and field are rebuilt
             // here from this layout's road and shore masks, so the original map cannot bleed through.
@@ -188,17 +198,24 @@ namespace OpenZ.Experimental
                 Color baseColor = Color.Lerp(ash, asphalt, road);
                 var shadeColor = baseColor * shade;
                 shadeColor = Color.Lerp(shadeColor, new Color(.25f, .115f, .065f), Mathf.Clamp01(heat * 1.6f));
+                if (palette != null)
+                    shadeColor = palette.VolcanicPaint(map, x, z, road, heat, mottle);
                 shadeColor.a = Mathf.Clamp01(heat * 1.15f);
                 int index = row * w + col;
                 paint[index] = shadeColor;
                 field[index] = new Color(road, 1, 0, 0);
             }
-            var material = new Material(ground) { name = "Converted volcanic ground" };
+            var material = new Material(ground) { name = palette == null ? "Converted volcanic ground" : "Volcanic palette V3" };
             generated.Add(material);
             material.SetTexture("_BaseMap", NewTexture(w, h, paint, false, "Converted ash and asphalt"));
             material.SetTexture("_GroundSdf", NewTexture(w, h, field, true, "Converted road mask"));
             material.SetVector("_GroundSize", new Vector4(map.width * 2, map.height * 2));
             material.SetVector("_DetailStr", new Vector4(.95f, 1.55f, .4f, .2f));
+            if (palette != null)
+            {
+                material.SetVector("_DetailStr", new Vector4(1.15f, 1.75f, .4f, .29f));
+                material.SetFloat("_DetailNormalStr", 1.28f);
+            }
             return material;
         }
 

@@ -6,15 +6,17 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        Material LandGround(ZMapData map)
+        Material LandGround(ZMapData map, PaletteV3 palette)
         {
             bool jungle = map.planet == "jungle", city = map.planet == "city";
             int resolution = city ? 12 : 6;
+            if (palette != null) resolution = Mathf.Min(resolution, 1536 / Mathf.Max(map.width, map.height));
             int w = map.width * resolution, h = map.height * resolution;
             var paint = new Color32[w * h];
             var weightsA = new Color32[w * h];
             var weightsB = jungle ? new Color32[w * h] : null;
             var weightsC = jungle ? new Color32[w * h] : null;
+            var leaves = jungle && palette != null ? new Color32[w * h] : null;
             var roadEdges = RoadEdges(map);
             var groundColor = jungle ? new Color32(71, 105, 45, 255)
                 : city ? new Color32(141, 139, 130, 255) : new Color32(212, 158, 100, 255);
@@ -35,6 +37,7 @@ namespace OpenZ.Experimental
                 float solid = Mask(map, x, z, Solid);
                 float bank = Mathf.Clamp01(wet * 2.15f);
                 int index = row * w + col;
+                var terrainRoles = palette?.Sample(map, x, z, noise) ?? Vector2.zero;
                 Color color = Color.Lerp(Color.Lerp(groundColor, bankColor, bank), roadColor, road);
                 float shade = .89f + noise * .12f + coarse * .13f;
                 if (city)
@@ -45,6 +48,8 @@ namespace OpenZ.Experimental
                     shade *= Mathf.Lerp(.82f, 1, Mathf.Lerp(Mathf.SmoothStep(0, 1, joints / .12f), 1, road));
                 }
                 color *= shade;
+                if (palette != null)
+                    color = PaletteV3.LandPaint(map.planet, terrainRoles, wet, solid, rawRoad, road, noise, coarse, x, z);
                 float mark = !jungle && road > .65f ? RoadMark(map, roadEdges, x, z, city) : -.5f;
                 color = Color.Lerp(color, city ? new Color(.73f, .67f, .43f) : new Color(.84f, .76f, .56f),
                     Mathf.SmoothStep(0, 1, (mark + .035f) * 12) * .8f);
@@ -57,12 +62,23 @@ namespace OpenZ.Experimental
                     weightsA[index] = new Color(grass, verge, bank * (1 - road) * .55f, solid * (1 - road));
                     weightsB[index] = new Color(wet * .30f, road, wet, solid * (1 - road) * .45f);
                     weightsC[index] = new Color(0, Mathf.Lerp(.84f, 1, coarse), wet * .34f, 0);
+                    if (leaves != null)
+                    {
+                        float mud = Mathf.Max(bank * .86f, terrainRoles.y * (.72f + noise * .28f)) * (1 - road) * (1 - solid);
+                        float moss = terrainRoles.x * (.57f + coarse * .4f);
+                        float vergeBlend = Mathf.Max(verge, moss * grass * .66f);
+                        weightsA[index] = new Color(grass * (1 - mud) * (1 - moss * .58f), vergeBlend * (1 - mud * .68f),
+                            mud, solid * (1 - road));
+                        weightsB[index] = new Color(wet * .4f, road, wet * 1.1f, solid * (1 - road) * (.45f + moss * .55f));
+                        weightsC[index] = new Color(0, Mathf.Lerp(.78f, 1, coarse), Mathf.Max(wet, mud * .6f) * .5f, 0);
+                        leaves[index] = new Color(moss, 0, 0, 1);
+                    }
                 }
                 else weightsA[index] = new Color(rawRoad, city ? 0 : .5f + mark * .5f,
                     city ? .5f + mark * .5f : 0, 0);
             }
 
-            var look = new Material(ground) { name = "Converted " + map.planet + " ground" };
+            var look = new Material(ground) { name = palette == null ? "Converted " + map.planet + " ground" : map.planet + " palette V3" };
             generated.Add(look);
             look.SetTexture("_BaseMap", NewTexture(w, h, paint, false, "Converted ground albedo"));
             if (jungle)
@@ -78,7 +94,8 @@ namespace OpenZ.Experimental
                 look.SetVector("_FarPx", new Vector4(.16f, .34f));
                 look.SetVector("_StudRule", new Vector4(.22f, .37f, 1.333f, .85f));
                 look.SetFloat("_RimCutOn", 0);
-                look.SetTexture("_LeafyMask", Texture2D.blackTexture);
+                look.SetTexture("_LeafyMask", leaves == null ? Texture2D.blackTexture
+                    : NewTexture(w, h, leaves, true, "Jungle moss and foliage cover"));
                 look.SetVector("_CrackRule", Vector4.zero);
             }
             else
@@ -86,6 +103,12 @@ namespace OpenZ.Experimental
                 look.SetTexture("_GroundSdf", NewTexture(w, h, weightsA, true, "Converted road field"));
                 look.SetVector("_GroundSize", new Vector4(map.width * 2, map.height * 2));
                 look.SetVector("_DetailStr", city ? new Vector4(.76f, .60f, .4f, .42f) : new Vector4(.7f, .62f, .56f, .34f));
+                if (palette != null)
+                {
+                    look.SetVector("_DetailStr", city ? new Vector4(.93f, .69f, .4f, .53f) : new Vector4(.88f, .7f, .74f, .4f));
+                    look.SetFloat("_DetailNormalStr", city ? 1.05f : 1.22f);
+                    if (!city) look.SetFloat("_Grade", .32f);
+                }
             }
             return look;
         }

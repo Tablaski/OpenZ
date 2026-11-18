@@ -34,16 +34,18 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/Shitty Maps/Bake Chilly Willy")]
         public static void Arctic() => Bake(OzShittyMapCatalog.ChillyWillyV2.Id);
 
-        // A custom V2 grid can be baked without adding it to either game menu.
+        // Custom V2 and V3 grids can be baked without adding them to either game menu.
         public static void Bake(string id)
         {
-            if (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Za-z0-9_]+V2$"))
-                throw new ArgumentException("Expected a separate SM...V2 map ID.", nameof(id));
+            if (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Za-z0-9_]+V[23]$"))
+                throw new ArgumentException("Expected a separate SM...V2 or SM...V3 map ID.", nameof(id));
             var asset = Resources.Load<TextAsset>("OpenZ/Maps/" + id + "_grid");
             if (!asset) throw new InvalidOperationException("Missing converted grid " + id);
             var map = ZMapData.FromJson(asset.text);
             var profile = Profile.For(map.planet);
             bool arctic = map.planet == "arctic";
+            bool paletteV3 = id.EndsWith("V3", StringComparison.Ordinal);
+            if (arctic && paletteV3) throw new InvalidOperationException("The Arctic art profile uses V2.");
             if (arctic) OzArcticArt.Ensure();
             var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
 
@@ -57,6 +59,7 @@ namespace OpenZ.EditorTools
             var terrain = map.planet == "volcanic" ? environment.AddComponent<OzVolcanicConversionTerrain>()
                 : environment.AddComponent<OzConversionTerrainV2>();
             terrain.mapId = id;
+            terrain.bakeWithPaletteV3 = paletteV3;
             Material Surface(string name) => arctic ? OzArcticArt.Mat(name) : Material("Materials/Env/" + name + ".mat");
             terrain.ground = Surface(profile.Ground);
             terrain.cliff = Surface(profile.Cliff);
@@ -141,7 +144,7 @@ namespace OpenZ.EditorTools
                 EditorBuildSettings.scenes = EditorBuildSettings.scenes.Append(new EditorBuildSettingsScene(scenePath, true)).ToArray();
                 AssetDatabase.SaveAssets();
             }
-            Debug.Log($"[Shitty Maps V2] {id}: {map.width} x {map.height}, {map.objects.Count} native records, {rocks}");
+            Debug.Log($"[Shitty Maps] {id}: {map.width} x {map.height}, {map.objects.Count} native records, {rocks}");
         }
 
         static Material Material(string path)

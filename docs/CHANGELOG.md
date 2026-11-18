@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.31 (18 Nov 2026)
+
+- The Shitty Maps solo gallery offers V2 and V3 terrain for **Desert**, **Pyro Technics**, **Molten Kombat**, **Jungle** and **Car Park**. V3 adds windblown sand and gravel shoulders, ashy basalt and scorched lava banks, moss and mud around jungle crossings, and patched concrete around the city streets.
+
 ## OpenZ-VK 0.2.30 (18 Nov 2026)
 
 - **Chilly Willy V2** adds an original Arctic layout to the solo Shitty Maps gallery under OpenZ-VK. Fight across a snowy relay island with breakable slate ridges, blue meltwater and three steel bridges. The east crossing starts in ruins and can be reopened by repair.

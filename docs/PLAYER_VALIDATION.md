@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 0.2.31 V3 terrain palettes (awaiting compiled-game validation)
+
+- The 5,555 simulation checks pass. The converter produced byte-identical V2 and V3 grids for Desert, Pyro Technics, Molten Kombat, Jungle and Car Park.
+- Unity Play Mode rendered both modes for all five missions at matching camera positions. The terrain collider vertices, loaded object counts and lava tile counts matched, and every intact bridge had a walk deck. The solo gallery dispatched both Jungle edition callbacks and showed a single deploy button for Chilly Willy.
+- In the compiled game, deploy a trial in V3, restart it, return to the gallery and deploy it in V2. Verify the selected terrain through both flows at normal RTS zoom. Check Chilly Willy, the V1 cards and the official OpenZ missions from their existing menus.
+
 ## OpenZ-VK 0.2.30 Chilly Willy V2 (awaiting compiled-game validation)
 
 - The 5,555 simulation checks pass. They cover the vehicle route closing and reopening, robot access to meltwater, and removal of the blocking tile after a rock is destroyed.

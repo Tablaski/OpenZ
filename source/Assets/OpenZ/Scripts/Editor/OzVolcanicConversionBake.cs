@@ -12,7 +12,7 @@ using Object = UnityEngine.Object;
 
 namespace OpenZ.EditorTools
 {
-    public static class OzVolcanicConversionBake
+    public static partial class OzVolcanicConversionBake
     {
         const string OpenZAssets = "Assets/OpenZ/";
         const string Package = "Packages/org.openz.shittymaps/";
@@ -25,57 +25,76 @@ namespace OpenZ.EditorTools
             foreach (var entry in OzShittyMapCatalog.VolcanicV2) Bake(entry.Id);
         }
 
+        [MenuItem("OpenZ/Shitty Maps/Bake V2 reference maps")]
+        public static void ReferenceMaps()
+        {
+            foreach (var entry in OzShittyMapCatalog.V2) Bake(entry.Id);
+        }
+
         // A custom V2 grid can be baked without adding it to either game menu.
         public static void Bake(string id)
         {
-            if (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Z0-9]+V2$"))
+            if (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Za-z0-9_]+V2$"))
                 throw new ArgumentException("Expected a separate SM...V2 map ID.", nameof(id));
             var asset = Resources.Load<TextAsset>("OpenZ/Maps/" + id + "_grid");
             if (!asset) throw new InvalidOperationException("Missing converted grid " + id);
             var map = ZMapData.FromJson(asset.text);
-            if (map.planet != OzVolcanic.Planet) throw new InvalidOperationException("No V2 asset mapping for " + map.planet);
+            var profile = Profile.For(map.planet);
             var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
 
-            var scene = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/L07_Volcanic.unity", OpenSceneMode.Single);
+            var scene = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/" + profile.Scene + ".unity", OpenSceneMode.Single);
             var originals = GameObject.Find("ZodObjects");
-            var templates = ReusableViews.ToDictionary(type => type, type => originals.transform.Cast<Transform>()
-                .First(t => t.name.StartsWith(type + "_", StringComparison.Ordinal)));
-            foreach (var name in new[] { "Environment", "SKIRT", "L07_Rim", "OZ_TowerMounts_Baked" })
-            {
-                var old = GameObject.Find(name);
-                if (old) Object.DestroyImmediate(old);
-            }
+            var templates = SelectTemplates(map, originals.transform);
+            var scenery = ExtractScenery(map.planet, scene);
 
-            var environment = new GameObject("Environment");
-            var terrain = environment.AddComponent<OzVolcanicConversionTerrain>();
+            var environment = new GameObject("Converted environment");
+            if (map.planet == "city") AddCityOutskirts(scene, map, environment.transform);
+            var terrain = map.planet == "volcanic" ? environment.AddComponent<OzVolcanicConversionTerrain>()
+                : environment.AddComponent<OzConversionTerrainV2>();
             terrain.mapId = id;
-            terrain.ground = Material("Materials/Env/M_L07_Ground.mat");
-            terrain.cliff = Material("Materials/Env/M_Cliff_VolcanicRock.mat");
-            terrain.pit = Material("Materials/Env/M_L07_PitBed.mat");
-            terrain.water = Material("Materials/Env/M_Water.mat");
+            terrain.ground = Material("Materials/Env/" + profile.Ground + ".mat");
+            terrain.cliff = Material("Materials/Env/" + profile.Cliff + ".mat");
+            terrain.pit = Material("Materials/Env/" + profile.Bed + ".mat");
+            terrain.water = Material("Materials/Env/" + profile.Water + ".mat");
             terrain.Build(map, false);
             var collider = environment.GetComponentInChildren<MeshCollider>();
             Physics.SyncTransforms();
 
             var views = new GameObject("Converted objects");
+            bool jungle = map.planet == "jungle";
             foreach (var obj in map.objects)
             {
-                if (obj.Type != "rock" && !templates.ContainsKey(obj.Type)) continue;
-                var go = obj.Type == "rock" ? new GameObject() : Object.Instantiate(templates[obj.Type].gameObject);
+                bool rock = obj.Type == "rock";
+                if (!rock && !templates.ContainsKey(obj.Type)) continue;
+                var go = rock && !jungle ? new GameObject()
+                    : Object.Instantiate(PickTemplate(templates[obj.Type], obj).gameObject);
                 go.name = $"{obj.Type}_{obj.x}_{obj.y}";
                 go.transform.SetParent(views.transform, false);
-                var p = new Vector3(obj.x * 2 + 1, 0, -(obj.y * 2 + 1));
+                int row = obj.y + (rock ? 2 : 0);
+                var p = new Vector3(obj.x * 2 + 1, 0, -(row * 2 + 1));
                 if (collider.Raycast(new Ray(p + Vector3.up * 200, Vector3.down), out var hit, 400)) p.y = hit.point.y;
                 go.transform.position = p;
             }
             Object.DestroyImmediate(originals);
             views.name = "ZodObjects";
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                if (root.name == "Environment" || root.name == "SKIRT" || root.name == "L07_Rim" ||
+                    root.name == "OZ_TowerMounts_Baked" || root.name == "L02_ShoreWetBand" ||
+                    root.name.StartsWith("DetailsV2_", StringComparison.Ordinal))
+                    Object.DestroyImmediate(root);
+            }
+            environment.name = "Environment";
+            Physics.SyncTransforms();
 
-            OpenZSetup.SpawnVolcanicConversion(map, views.transform, obj => obj.Type != "rock" && !templates.ContainsKey(obj.Type));
-            var rocks = OpenZRocks.Build(world, views.transform, collider, "Volcanic",
-                Material("Models/RocksZ/M_RockZ_Volcanic.mat")) + OzL07Scene.ApplyRockHeights(views.transform);
+            OpenZSetup.SpawnConversion(map, views.transform, profile.Level, obj => obj.Type != "rock" && !templates.ContainsKey(obj.Type));
+            var rocks = jungle ? views.GetComponentsInChildren<RockPillar>(true).Length + " textured jungle rock slices"
+                : OpenZRocks.Build(world, views.transform, collider, profile.RockKit,
+                    Material("Models/RocksZ/M_RockZ_" + profile.RockKit + ".mat"));
+            if (map.planet == "volcanic") rocks += OzL07Scene.ApplyRockHeights(views.transform);
             TowerGunSeat.SeatAll(views.transform, bakePlinths: false);
-            DressRim(map, environment.transform);
+            if (map.planet == "volcanic") DressRim(map, environment.transform);
+            else DressLand(map, environment.transform, collider, scenery);
 
             var game = Object.FindFirstObjectByType<ZGame>();
             game.level = id;
@@ -86,6 +105,8 @@ namespace OpenZ.EditorTools
             var atmosphere = Object.FindFirstObjectByType<Atmosphere>();
             atmosphere.level = id;
             atmosphere.lampRoot = views.transform;
+            // The original ground is reused as a material input, and the generated copy owns its look.
+            atmosphere.groundMaterial = null;
             Object.FindFirstObjectByType<DayNight>().lampRoot = views.transform;
 
             VerifyViews(map, views.transform);

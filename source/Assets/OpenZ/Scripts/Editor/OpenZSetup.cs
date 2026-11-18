@@ -795,7 +795,7 @@ namespace OpenZ.EditorTools
 
         static GameObject Pf(string key) => AssetDatabase.LoadAssetAtPath<GameObject>($"{Pref}/Z_{key}.prefab");
 
-        internal static void SpawnVolcanicConversion(ZMapData map, Transform parent, Func<ZMapData.Obj, bool> usePrefab)
+        internal static void SpawnConversion(ZMapData map, Transform parent, string referenceLevel, Func<ZMapData.Obj, bool> usePrefab)
         {
             var oldLevel = SpawnLv;
             var oldForts = Forts;
@@ -803,11 +803,11 @@ namespace OpenZ.EditorTools
             var objects = map.objects.Select(o => (source: o, view: JsonUtility.FromJson<ZObj>(JsonUtility.ToJson(o)))).ToArray();
             try
             {
-                SpawnLv = OzVolcanic.Level;
+                SpawnLv = referenceLevel;
                 Forts = objects.Where(o => o.view.kind.StartsWith("building:fort")).Select(o => o.view).ToList();
                 foreach (var obj in objects.Where(o => usePrefab(o.source))
                     .OrderBy(o => o.view.kind.StartsWith("building:fort") ? 0 : 1))
-                    if (Spawn(obj.view, false, parent, random) == 0)
+                    if (Spawn(obj.view, map.planet == "city", parent, random) == 0)
                         throw new InvalidOperationException($"No OpenZ view for {obj.view.kind} at {obj.view.x},{obj.view.y}");
             }
             finally

@@ -24,6 +24,7 @@ static class ShittyMapChecks
         }
         reject(()=>new DuelRules{Map="SM99"}.Validate(),"Unknown converted map rejected");
         CheckVolcanicV2(root, settings, check, reject);
+        CheckLandV2(root, settings, check, reject);
         foreach(var entry in OzShittyMapCatalog.All)
         {
             var mapFile=Path.Combine(root,"shittymaps/Resources/OpenZ/Maps",entry.Id+"_grid.json");
@@ -67,6 +68,39 @@ static class ShittyMapChecks
                 world.UpdateObjectHealth(bridge);
                 check(intact && !world.Path.TilePassable(x, y, false), entry.Id + ": destroying " + bridge.Type + " closes the crossing");
             }
+        }
+    }
+
+    static void CheckLandV2(string root, string settings, Action<bool, string> check, Action<Action, string> reject)
+    {
+        foreach (var entry in OzShittyMapCatalog.LandV2)
+        {
+            check(OzShittyMapCatalog.Select(true, world: entry.World).Contains(entry), entry.Id + ": selectable in the solo gallery");
+            reject(() => new DuelRules { Map = entry.Id }.Validate(), entry.Id + ": the prototype is solo only");
+            string json = File.ReadAllText(Path.Combine(root, "shittymaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+            byte[] native = File.ReadAllBytes(Path.Combine(root, "shittymaps/Sources~/maps", entry.File));
+            var map = ZMapData.FromJson(json);
+            var world = ZWorld.Create(settings, json, 1935);
+            check(map.planet == entry.World && map.objects.Count == BitConverter.ToUInt16(native, 56) &&
+                map.zones.Count == BitConverter.ToUInt16(native, 60), entry.Id + ": native objects and territories");
+            var bridges = world.Objects.Where(obj => obj.IsBridge).ToArray();
+            int expectedBridges = entry.Number == 16 ? 1 : entry.Number == 17 ? 2 : 4;
+            check(bridges.Length == expectedBridges, entry.Id + ": native bridge count");
+            foreach (var bridge in bridges)
+            {
+                int x = bridge.CenterX / 16, y = bridge.CenterY / 16;
+                bool intact = entry.Number != 17;
+                check(bridge.Destroyed != intact && world.Path.TilePassable(x, y, false) == intact,
+                    entry.Id + ": " + bridge.Type + " retains its native starting state");
+                if (!intact) continue;
+                bridge.SetHealth(0);
+                world.UpdateObjectHealth(bridge);
+                check(!world.Path.TilePassable(x, y, false), entry.Id + ": destroying " + bridge.Type + " closes the route");
+            }
+            var water = Enumerable.Range(0, map.width * map.height)
+                .Where(i => map.classes[i] == (int)ZClass.Water && world.Path.TilePassable(i % map.width, i / map.width, true));
+            check(water.Any(i => !world.Path.TilePassable(i % map.width, i / map.width, false)),
+                entry.Id + ": robots can wade where vehicles cannot");
         }
     }
 }

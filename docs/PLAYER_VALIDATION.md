@@ -1,5 +1,14 @@
 # Player validation record
 
+## OpenZ-VK 0.2.29 Jungle, Car Park and Desert V2 (awaiting compiled-game validation)
+
+- Native tile, class, territory and object records match the decoded Zod files for all three maps. The 5,546 simulation checks pass, including the starting bridge states, route closure after destruction and robot access to water.
+- All three maps ran in Unity Play Mode and were recorded from three camera angles each. All five intact bridge views registered a walk deck. The capture camera used reduced post-processing so the terrain detail stays visible.
+- Open all three V2 maps in the solo Shitty Maps gallery and check their textures and silhouettes from the RTS camera. Verify that the original OpenZ missions and existing converted maps remain available.
+- In Jungle and Desert, send robots into water and vehicles along the roads and bridge decks. Destroy and repair a bridge and a rock wall. Check that the opened or closed route matches the picture.
+- In Car Park, verify that both canal bridges start ruined. Repair them and cross with units, then destroy one and confirm that the route closes. Compare the native starting units, flags and factory placement against the source.
+- In Desert, collect and destroy a grenade crate. In Jungle, check the rock slices and scenery for gaps or clipping as the camera rotates.
+
 ## OpenZ-VK 0.2.28 volcanic V2 maps (awaiting compiled-game validation)
 
 - Deploy both V2 maps from the solo Shitty Maps gallery and confirm that the ordinary Volcano mission and the V1 Molten Kombat card still open their own scenes.

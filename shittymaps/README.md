@@ -9,9 +9,10 @@ It contains 60 converted variants from `D:\Zod Engine\p02*.map`, exposing 31 sol
 choices and 44 converted 1v1 choices. The existing OpenZ levels 02, 07, 16 and 17
 remain in the ordinary menu and are excluded from the V1 catalog.
 
-The solo gallery also includes two volcanic V2 trials, **07 Pyro Technics**
-and **08 Molten Kombat**. The original 60 entries are the V1 catalog. Both
-versions of Molten Kombat can be selected independently.
+The solo gallery also includes V2 trials for **02 Desert**, **07 Pyro
+Technics**, **08 Molten Kombat**, **16 Jungle** and **17 Car Park**. The
+original 60 entries are the V1 catalog. Both versions of Molten Kombat can be
+selected independently.
 
 - Solo: original numbered maps, split into **Z Original** (01–20) and
   **Z Expansion** (21–35). The absent originals for 21 and 27 use the user's
@@ -54,37 +55,39 @@ Then run `OpenZ.EditorTools.OzShittyMapBake.All` in the project's Unity editor
 checks. It does not build or launch a game player. Existing generated scenes and
 grids are tracked, so recipients do not need to regenerate them.
 
-## Volcanic V2
+## V2 planet profiles
 
-Run the V2 converter on native volcanic maps, then run **OpenZ → Shitty
-Maps → Bake volcanic V2 maps**. The editor method is
-`OpenZ.EditorTools.OzVolcanicConversionBake.All`.
+Run the V2 converter on the native maps, then run **OpenZ → Shitty
+Maps → Bake V2 reference maps**. The editor method is
+`OpenZ.EditorTools.OzVolcanicConversionBake.ReferenceMaps`.
 
 ```powershell
+node tools/Convert-ShittyMapsV2.cjs 'D:\Zod Engine\p02_bb_orig16.map' SM16V2
+node tools/Convert-ShittyMapsV2.cjs 'D:\Zod Engine\p02_bb_orig17.map' SM17V2
+node tools/Convert-ShittyMapsV2.cjs 'D:\Zod Engine\p02_bb_orig02.map' SM02V2
 node tools/Convert-ShittyMapsV2.cjs 'D:\Zod Engine\p02_bb_orig07.map' SM07V2
 node tools/Convert-ShittyMapsV2.cjs 'D:\Zod Engine\p02_bb_orig08.map' SM08V2
 ```
 
-The supported profile was reconciled with the OpenZ L07 grid, the Zod editor's
-volcanic palette and the Fenio fork's `palette_tile_info` and animation links.
-It keeps native tiles, travel classes, zone rectangles and object records. The
-lava lookup separates crust and animated pools from other impassable tiles.
-The original L07 scene's adjusted travel classes, widened side zones and
-hand-placed terrain stay specific to that scene.
+Each profile was reconciled with its OpenZ reference grid, the Zod editor
+palette and the Fenio fork's `palette_tile_info`. The converter keeps native
+tiles, travel classes, zone rectangles and object records. The volcanic lava
+lookup also uses the animation links to identify the hot pool frames.
 
-The baker reuses L07's detail albedo and normal maps for ground and roads, its
-triplanar cliff texture, its animated lava material and its rim volcano
-prefabs. It applies the volcanic RockZ meshes and height plan to each map's rock
-rows, takes the crate, crystal, hut and flag models from the L07 scene, and
-uses OpenZ's building and bridge prefabs. The runtime makes its own roads,
-banks, bridge ravines, lava fields and collider using the converted grid. The
-two scenes reference the installed base assets and carry no copied models or
-texture atlases.
+| Profile | Reusable OpenZ art |
+| --- | --- |
+| Jungle | L16 grass, mud, road and moss layers, swamp material, rock slices, trees and plank bridge |
+| City | L17 street detail and road markings shader, concrete and cliff materials, harbour water, street furniture, city RockZ and bridge stages |
+| Desert | L02 sand and asphalt details, sandstone, river material, palms, desert RockZ, grenade crates and bridges |
+| Volcanic | L07 ash and asphalt details, triplanar cliffs, animated lava, volcanoes, volcanic RockZ and crystals |
 
-For another volcanic layout, use a new `SM...V2` ID and call
-`OzVolcanicConversionBake.Bake(id)` in the editor. Register a tested ID in
-`OzShittyMapCatalog.VolcanicV2` to include the scene in the game menus.
-The tile mapping and art kit currently cover the volcanic world.
+The same authoring code derives roads, banks, water surfaces, bridge spans
+and collider geometry from each supplied layout. The scenes reference the
+installed OpenZ assets and fit authored scenery to each converted layout.
+
+To try another layout on a supported planet, use a new `SM...V2` ID and
+call `OzVolcanicConversionBake.Bake(id)` in the editor. The current catalog
+registers the reference maps and the additional Molten Kombat trial.
 
 ## Names and provenance
 

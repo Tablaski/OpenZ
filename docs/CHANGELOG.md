@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.29 (18 Nov 2026)
+
+- The solo Shitty Maps gallery adds V2 versions of **16 Jungle**, **17 Car Park** and **02 Desert**, with textured roads and terrain, scenery and animated water drawn from each planet's OpenZ assets. Car Park starts with two ruined bridges, as in the original layout.
+
 ## OpenZ-VK 0.2.28 (18 Nov 2026)
 
 - The solo Shitty Maps gallery now includes V2 versions of **07 Pyro Technics** and **08 Molten Kombat**. They use textured volcanic ground and roads, animated lava, taller destructible rock formations and the detailed grenade crates. The original OpenZ Volcano and the V1 Molten Kombat remain available in their usual menus.

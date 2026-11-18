@@ -26,9 +26,16 @@ namespace OpenZ
             new OzShittyMap("SM07V2", "Pyro Technics", "volcanic", "p02_bb_orig07.map", 7, true, false, false, false),
             new OzShittyMap("SM08V2", "Molten Kombat", "volcanic", "p02_bb_orig08.map", 8, true, false, false, false)
         };
-        public static IEnumerable<OzShittyMap> Playable => All.Concat(VolcanicV2);
+        public static readonly OzShittyMap[] LandV2 =
+        {
+            new OzShittyMap("SM16V2", "Jungle", "jungle", "p02_bb_orig16.map", 16, true, false, false, false),
+            new OzShittyMap("SM17V2", "Car Park", "city", "p02_bb_orig17.map", 17, true, false, false, false),
+            new OzShittyMap("SM02V2", "Desert", "desert", "p02_bb_orig02.map", 2, true, false, false, false)
+        };
+        public static IEnumerable<OzShittyMap> V2 => LandV2.Concat(VolcanicV2);
+        public static IEnumerable<OzShittyMap> Playable => All.Concat(V2);
 
-        public static OzShittyMap Find(string id) => Array.Find(All, m => m.Id == id) ?? Array.Find(VolcanicV2, m => m.Id == id);
+        public static OzShittyMap Find(string id) => Playable.FirstOrDefault(m => m.Id == id);
         public static bool IsDuelMap(string id) => Find(id)?.Duel == true;
         public static OzShittyMap[] Select(bool solo, string group = "ALL", string world = "all", int sort = 0)
         {

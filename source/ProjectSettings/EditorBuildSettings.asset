@@ -209,6 +209,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SMChillyWillyV2_Converted.unity
     guid: 5750836eec8b52846ac6a7d9455fe848
+  - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SMBallermansMapV3_Converted.unity
+    guid: 6302ebc2285b14f4cab3d3a53398b060
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

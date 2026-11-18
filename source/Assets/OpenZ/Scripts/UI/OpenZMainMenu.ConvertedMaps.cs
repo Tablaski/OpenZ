@@ -9,8 +9,8 @@ namespace OpenZ
     {
         HudButton soloAllowedButton, soloTankDynamicsButton, soloRobotDynamicsButton;
         HudButton catalogButton;
-        bool aiCampaign;
-        int officialCard, aiCard;
+        bool aiCampaign, experimentalCampaign;
+        int officialCard, aiCard, experimentalCard;
 
         void BuildSelectionWordmark(RectTransform parent)
         {
@@ -29,6 +29,14 @@ namespace OpenZ
             catalogButton = button;
             button.Rt.Place(new OzRect(CW - 326, 210, 300, 58));
             AddHot(button.Rt, View.Select, () => SwitchCampaign(!aiCampaign), null, button, "ui_menu_select");
+
+            if (aiCampaign)
+            {
+                var category = HudButton.Make(parent, "AiMapCategory", experimentalCampaign ? "All other AI Maps" : "Experimental",
+                    new Vector2(240, 46), HudButtonKind.Large, 17);
+                category.Rt.Place(new OzRect(740, 108, 240, 46));
+                AddHot(category.Rt, View.Select, () => SwitchCampaign(true, !experimentalCampaign), null, category, "ui_menu_select");
+            }
 
             var allowed = OzSoloAllowedUnits.Read();
             soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits",
@@ -57,10 +65,12 @@ namespace OpenZ
             return button;
         }
 
-        void SetCampaignLevels(bool converted)
+        void SetCampaignLevels(bool converted, bool experimental = false)
         {
             aiCampaign = converted;
-            levels = converted ? OzAiMapCatalog.Select(true).Select(OzAiMapGallery.Definition).ToArray() : OzLevelDef.All;
+            experimentalCampaign = experimental;
+            levels = converted ? OzAiMapCatalog.Select(true).Where(map => map.Experimental == experimental)
+                .Select(OzAiMapGallery.Definition).ToArray() : OzLevelDef.All;
             int count = levels.Length;
             cardPeekK = new float[count];
             liveK = new float[count];
@@ -90,14 +100,15 @@ namespace OpenZ
             if (infos != null) foreach (var info in infos) if (info != null && info.Mini) Destroy(info.Mini);
         }
 
-        void SwitchCampaign(bool converted)
+        void SwitchCampaign(bool converted, bool experimental = false)
         {
-            if (converted == aiCampaign) return;
-            if (aiCampaign) aiCard = focusCard;
+            if (converted == aiCampaign && experimental == experimentalCampaign) return;
+            if (experimentalCampaign) experimentalCard = focusCard;
+            else if (aiCampaign) aiCard = focusCard;
             else officialCard = focusCard;
             ReleaseCampaignPreviews();
-            SetCampaignLevels(converted);
-            focusCard = Mathf.Clamp(converted ? aiCard : officialCard, 0, levels.Length - 1);
+            SetCampaignLevels(converted, experimental);
+            focusCard = Mathf.Clamp(experimental ? experimentalCard : converted ? aiCard : officialCard, 0, levels.Length - 1);
             hoverCard = bgLevel = bgFrom = -1;
             carFirst = 0;
             hsOpen = false;

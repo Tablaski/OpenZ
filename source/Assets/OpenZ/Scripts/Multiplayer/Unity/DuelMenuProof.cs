@@ -155,7 +155,7 @@ namespace OpenZ.Multiplayer
                             next = Time.realtimeSinceStartupAsDouble + 2.5;
                             break;
                         case 13:
-                            if (!menu.ProofAiPreviewPlaying || menu.ProofCardCount != OzAiMapCatalog.Select(true).Length)
+                            if (!menu.ProofAiPreviewPlaying || menu.ProofCardCount != OzAiMapCatalog.Select(true).Count(m => !m.Experimental))
                                 throw new Exception("The solo AI Maps carousel is missing its looping video or stamp.");
                             Capture("ai-maps-solo-full");
                             break;

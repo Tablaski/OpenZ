@@ -47,3 +47,9 @@
 | Sandy Shore | Desert | — | Yes |
 | Volcanic 1 | Volcanic | — | Yes |
 | Chilly Willy (OpenZ-VK) | Arctic | Yes | — |
+
+## Experimental
+
+| Map | World | Solo | 1 vs 1 |
+| --- | --- | --- | --- |
+| Ballerman's map | City | Yes | Yes |

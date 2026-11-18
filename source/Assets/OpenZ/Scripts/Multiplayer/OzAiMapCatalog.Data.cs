@@ -65,6 +65,7 @@ namespace OpenZ
             new OzAiMap("SMMP_Plains", "Plains", "desert", "p02_Plains.map", 0, false, true, false, false),
             new OzAiMap("SMMP_Sandy_Shore", "Sandy Shore", "desert", "p02_Sandy_Shore.map", 0, false, true, false, false),
             new OzAiMap("SMMP_Volcanic_1", "Volcanic 1", "volcanic", "p02_Volcanic_1.map", 0, false, true, false, false),
+            new OzAiMap("SMBallermansMapV3", "Ballerman's map", "city", "vk_ballermans_map.map", 0, true, true, false, false, experimental: true),
         };
     }
 }

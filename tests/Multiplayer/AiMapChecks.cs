@@ -14,9 +14,14 @@ static class AiMapChecks
         string settings=File.ReadAllText(Path.Combine(root,"source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
         check(OzAiMapCatalog.All.Select(m=>m.Id).Distinct().Count()==OzAiMapCatalog.All.Length,"Unique converted map identities");
         check(OzAiMapCatalog.All.All(m=>!new[]{2,7,16,17}.Contains(m.Number)),"Already restored OpenZ campaign maps excluded");
-        check(OzAiMapCatalog.All.Count(m=>m.Solo)==31,"31 solo campaign choices");
+        check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==31,"31 solo campaign choices");
         check(OzAiMapCatalog.All.Where(m=>m.Solo&&m.Balanced).All(m=>m.SoloException&&(m.Number==21||m.Number==27)),"Fixed solo files limited to approved exceptions");
         check(OzAiMapCatalog.Select(true,"Z EXPANSION","arctic").Select(m=>m.Number).SequenceEqual(new[]{27,28,29}),"Arctic expansion filtering and numeric order");
+        var ballermans = OzAiMapCatalog.Find("SMBallermansMapV3");
+        check(ballermans?.Experimental == true && !ballermans.Balanced
+            && OzAiMapCatalog.Select(true, OzAiMap.ExperimentalGroup, "city").Contains(ballermans)
+            && OzAiMapCatalog.Select(false, OzAiMap.ExperimentalGroup, "city").Contains(ballermans),
+            "Ballerman's map is experimental in both solo and duel City selections");
         foreach(var group in OzAiMapCatalog.All.Where(m=>m.Number>0).GroupBy(m=>m.Number))
         {
             var duel=group.Single(m=>m.Duel);
@@ -36,6 +41,13 @@ static class AiMapChecks
             check(map.objects.Count==BitConverter.ToUInt16(original,56)&&map.tiles.Length==map.width*map.height,entry.Id+": source object and tile counts");
             var world=ZWorld.Create(settings,json,1935);
             check(world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Red)==1&&world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Blue)==1,entry.Id+": two-team fort ownership");
+            if (entry.Id == "SMBallermansMapV3")
+            {
+                var fortZones = world.Objects.Where(o => o.IsFort).Select(o => o.ZoneIndex).ToHashSet();
+                var flagZones = world.Flags.Select(o => o.ZoneIndex).ToArray();
+                check(flagZones.OrderBy(i => i).SequenceEqual(Enumerable.Range(0, world.Zones.Count).Where(i => !fortZones.Contains(i))),
+                    entry.Id + ": each neutral territory has one flag outside the starting fort zones");
+            }
             if(!entry.Duel) { reject(()=>new DuelRules{Map=entry.Id}.Validate(),entry.Id+": solo-only original cannot bypass duel selection"); continue; }
             var rules=new DuelRules{Map=entry.Id,Common=DuelMissionDefaults.Create()}; rules.Validate();
             DuelMissionDefaults.ApplyOutsidePreset(rules, new[] { "light", "", "", "" });
@@ -111,8 +123,8 @@ static class AiMapChecks
     static void CheckCatalogV3(string root, string settings, Action<bool,string> check)
     {
         var entries = OzAiMapCatalog.Playable.ToArray();
-        check(entries.Length == 61 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
-            "61 unique AI maps without official duplicates");
+        check(entries.Length == 62 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
+            "62 unique AI maps without official duplicates");
         bool lavaRule = ZWorld.LavaDeviation, crocodileRule = ZWorld.CrocodileDeviation;
         ZWorld.LavaDeviation = true;
         ZWorld.CrocodileDeviation = true;

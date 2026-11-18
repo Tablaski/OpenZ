@@ -7,16 +7,17 @@ namespace OpenZ
     /// <summary>Pure data shared by the menus, converter and authoritative duel validation.</summary>
     public sealed class OzAiMap
     {
+        public const string ExperimentalGroup = "EXPERIMENTAL";
         public readonly string Id, Name, World, File;
         public readonly int Number;
-        public readonly bool Solo, Duel, Balanced, SoloException, ForkOriginal;
+        public readonly bool Solo, Duel, Balanced, SoloException, ForkOriginal, Experimental;
         public string Scene => Id + "_Converted";
         public string ScenePath => "Packages/org.openz.aimaps/Scenes/" + Scene + ".unity";
-        public string Group => ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
+        public string Group => Experimental ? ExperimentalGroup : ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
         public string Title => (Number > 0 ? Number.ToString("00") + " · " : "") + Name;
         public string Variant => "V3";
-        public OzAiMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false)
-        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; }
+        public OzAiMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false, bool experimental = false)
+        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; Experimental=experimental; }
     }
 
     public static partial class OzAiMapCatalog

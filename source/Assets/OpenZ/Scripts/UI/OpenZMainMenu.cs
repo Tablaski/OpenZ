@@ -103,7 +103,8 @@ namespace OpenZ
             OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
             string last = PlayerPrefs.GetString(PrefLevel, "L02");
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
-            SetCampaignLevels(openedWithSelect && OzAiMapCatalog.Find(last)?.Solo == true);
+            var lastAiMap = openedWithSelect ? OzAiMapCatalog.Find(last) : null;
+            SetCampaignLevels(lastAiMap?.Solo == true, lastAiMap?.Solo == true && lastAiMap.Experimental);
             focusCard = openedWithSelect ? Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last)) : 0;   // a fresh menu opens the battlefield row at the left, on its first card; back from a level it stays on that level
             if (openedWithSelect) { PlayerPrefs.DeleteKey(PrefOpenSelect); PlayerPrefs.Save(); }
         }
@@ -719,7 +720,7 @@ namespace OpenZ
         {
             var p = selectRoot;
             Hud.Label(p, "Eyebrow", "SELECT OPERATION", 12, OzUi.Amber, 0.3f).At(OzMenuLayout.SelEyebrowX, OzMenuLayout.SelEyebrowY);
-            Hud.Label(p, "Title", aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
+            Hud.Label(p, "Title", experimentalCampaign ? "AI MAPS · EXPERIMENTAL" : aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
             var br = OzMenuLayout.Back;
             backBtn = HudButton.Make(p, "Back", "BACK", new Vector2(br.w, br.h), HudButtonKind.Large, 13, 0.16f, HudButtonStyle.Normal, true, OzH.L);
             backBtn.Rt.Place(br);
@@ -729,7 +730,15 @@ namespace OpenZ
                 .At(XR(OzMenuLayout.SelHintRX), OzMenuLayout.SelHintY, OzH.R, false, 1200);                // k75a: no B (PLAY AS BLUE) any more: the side is picked on the faction screen, ESC goes back there; 1.2 item 60: N (UNIT STATS) while that selector shows, the box 1200 u
 
             int n = levels.Length;                                                                           // 1.3 item 30: the places come from OzLevelCarousel (UI/OzLevelCarousel.cs): up to three levels the 1.2 row, unchanged; more: today's cards in a carousel
-            var slots = OzLevelCarousel.Place(n, CW); var cardParent = BuildCarousel(p, slots);            // the carousel's window and strip (UI/OpenZMainMenu.Carousel.cs); off: the screen's root, as 1.2
+            var slots = OzLevelCarousel.Place(n, CW);
+            if (experimentalCampaign && n <= 2)
+                for (int i = 0; i < n; i++)
+                {
+                    // Short rows otherwise start behind the AI Maps controls.
+                    slots[i].y += 68;
+                    slots[i].ih -= 68;
+                }
+            var cardParent = BuildCarousel(p, slots);                                                    // the carousel's window and strip (UI/OpenZMainMenu.Carousel.cs); off: the screen's root, as 1.2
             for (int i = 0; i < n; i++) cards[i] = BuildCard(cardParent, i, slots[i].x, slots[i].y, slots[i].w, slots[i].ih);
             BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
             BuildDeployBar(p);
@@ -836,7 +845,7 @@ namespace OpenZ
             cpuHint.Set(OzDeployBar.CpuHint(pick));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
             RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips
-            if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set("DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
+            if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set(experimentalCampaign ? "DEPLOY" : "DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
             if (deployFocus.enabled) deployFocus.color = OzUi.A(Color.white, kbMode && view == View.Select ? 0.55f + 0.45f * Mathf.Sin(OzMotion.Now * 4f) * (OzMotion.Reduced ? 0f : 1f) : 0f);
             if (errorUntil > 0 && OzMotion.Now > errorUntil) { errorLine.Set(""); errorUntil = 0; }
         }

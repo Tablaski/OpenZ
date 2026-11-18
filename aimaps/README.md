@@ -5,9 +5,10 @@ map additions without downloading another full OpenZ resource archive.
 `source/Packages/manifest.json` references it directly; there is no copy or
 installation script, second Unity project, or Git LFS requirement.
 
-The catalog contains 60 conversions from the supplied native maps and one
-original Arctic layout, **Chilly Willy**. It offers 32 solo and 44 AI map choices
-for 1v1. The four restored OpenZ missions are available in the official campaign
+The catalog offers 33 solo and 45 AI map choices for 1v1. **Ballerman's map**
+appears in Experimental in both selectors. Its reconstructed City layout is
+stored as `Sources~/maps/vk_ballermans_map.map` and converted through the V3
+City profile. The four restored OpenZ missions are available in the official campaign
 and the OpenZ tab of the lobby gallery.
 
 - Solo uses the OpenZ mission carousel with looping 3D previews and the AI stamp.

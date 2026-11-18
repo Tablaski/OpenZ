@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 0.2.36 Ballerman's map
+
+- The 6,680 simulation checks passed, including both starting forts, the neutral territory flags and bridge damage and repair. Unity Play Mode verified the Experimental selectors and the scene registration.
+- In a compiled game, deploy from the solo Experimental selector, then return to mission selection and verify that the same map stays selected.
+- In 1 vs 1, select the map from Experimental, confirm the guest sees it, and complete a match. Check fort approaches, starting-army placement, flag access and bridge damage and repair.
+
 ## OpenZ-VK 0.2.35 combat and duel controls
 
 - Verify both fort orientations and the closest road or bridge with four different turrets.

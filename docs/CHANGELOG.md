@@ -1,5 +1,9 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.36 (18 Nov 2026)
+
+- **Ballerman's map** is available under **AI Maps → Experimental** in solo and 1 vs 1. Fight through a City battlefield with two forts, six bridges and roads winding around the canals.
+
 ## OpenZ-VK 0.2.35 (18 Nov 2026)
 
 - Choose four fort turret slots per team. The strongest guns cover the entrance, with the next strongest covering the closest road or bridge. The default starts each fort with a howitzer and a missile cannon, and leaves the outside slots empty.

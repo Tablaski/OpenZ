@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -109,7 +110,7 @@ namespace OpenZ.Multiplayer
             {
                 Directory.CreateDirectory(folder); var r = DuelRuntime.I;
                 var menu = FindFirstObjectByType<OpenZMainMenu>();
-                if (preparation < 16)
+                if (preparation < 21)
                 {
                     next = Time.realtimeSinceStartupAsDouble + .6;
                     switch (preparation++)
@@ -139,7 +140,9 @@ namespace OpenZ.Multiplayer
                         case 8:
                             ClickSoloUnits("Z 1996");break;
                         case 9:
-                            if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Z1996||OzSoloAllowedUnits.Read().Allows("electrobot"))throw new Exception("Solo Z 1996 preset not saved.");
+                            if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Z1996||OzSoloAllowedUnits.Read().Allows("electrobot") ||
+                                OzSoloAllowedUnits.Read().Allows("medium") || !new[] { "light", "mtank", "heavy" }.All(OzSoloAllowedUnits.Read().Allows))
+                                throw new Exception("Solo Z 1996 roster did not include the three original tanks.");
                             Capture("solo-allowed-z1996");ClickSoloUnits("ALLOWED UNIT heavy");break;
                         case 10:
                             if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Custom||OzSoloAllowedUnits.Read().Allows("heavy"))throw new Exception("Solo custom selection not saved.");
@@ -160,9 +163,21 @@ namespace OpenZ.Multiplayer
                             menu.ProofSwitchMapCatalog();
                             if (menu.ProofCardCount != OzLevelDef.All.Length)
                                 throw new Exception("The official carousel did not return.");
-                            menu.ProofMain();
                             break;
-                        case 15:break;
+                        case 15:
+                            menu.ProofOpenSoloDynamics(ZBehaviorFamily.Tanks); break;
+                        case 16:
+                            Capture("solo-tank-dynamics"); CheckSoloDynamics(ZBehaviorFamily.Tanks); break;
+                        case 17:
+                            menu.ProofOpenSoloDynamics(ZBehaviorFamily.Robots); break;
+                        case 18:
+                            Capture("solo-robot-dynamics"); CheckSoloDynamics(ZBehaviorFamily.Robots); menu.ProofBackFromSelect(); break;
+                        case 19:
+                            next = Time.realtimeSinceStartupAsDouble + 1.5; break;
+                        case 20:
+                            var logo = menu.ProofFactionRoot.Find("ForkWordmark")?.GetComponent<Image>();
+                            if (!menu.ProofFactionShown || !logo || !logo.sprite) throw new Exception("OpenZ-VK faction logo is missing.");
+                            Capture("solo-faction"); menu.ProofMain(); break;
                     }
                     return;
                 }
@@ -310,6 +325,27 @@ namespace OpenZ.Multiplayer
             var gallery = FindFirstObjectByType<OzAiMapGallery>();
             gallery.GetComponentsInChildren<Button>().Single(b => b.name == name && b.interactable).onClick.Invoke();
         }
+        void CheckSoloDynamics(ZBehaviorFamily family)
+        {
+            string key = OzBehaviorLibrary.SelectedKey(family);
+            string previous = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetString(key) : null;
+            try
+            {
+                var picker = FindFirstObjectByType<OzBehaviorOptions>();
+                var choices = picker.GetComponentsInChildren<Button>();
+                choices.Single(button => button.name == "PROFILE native");
+                choices.Single(button => button.name == "PROFILE zod-classic").onClick.Invoke();
+                if (OzBehaviorLibrary.SelectedId(family) != "zod-classic")
+                    throw new Exception("Z Classic did not apply to " + family);
+            }
+            finally
+            {
+                if (previous == null) PlayerPrefs.DeleteKey(key);
+                else PlayerPrefs.SetString(key, previous);
+                PlayerPrefs.Save();
+            }
+        }
+
         void ClickSoloUnits(string name)
         {
             var panel=FindFirstObjectByType<OzSoloAllowedUnits>();

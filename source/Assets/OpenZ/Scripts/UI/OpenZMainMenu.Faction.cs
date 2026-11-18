@@ -88,6 +88,7 @@ namespace OpenZ
             BuildFactionVs();                                                                                  // k75a3: the VS sign between them
             BuildFactionPolish();                                                                              // k75a4: the posters' shadow under the cards, their shade on them
             fcWashOver = Hud.Img(fcRoot, "MoodOver", Color.clear); fcWashOver.rectTransform.Fill();          // the lighter wash over the posters too
+            BuildSelectionWordmark(fcRoot);
             fcRoot.gameObject.SetActive(false);
         }
 

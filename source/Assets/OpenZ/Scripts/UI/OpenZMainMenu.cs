@@ -733,6 +733,7 @@ namespace OpenZ
             BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
             BuildDeployBar(p);
             BuildConvertedMapsButton(p);
+            BuildSelectionWordmark(p);
             BuildHighScores(p);                                                                              // the HIGH SCORES button and its popup, last: their pointer areas lie over the cards and the bar (OpenZMainMenu.HighScores.cs)
         }
 

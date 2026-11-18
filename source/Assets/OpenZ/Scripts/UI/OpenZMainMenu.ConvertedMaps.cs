@@ -1,34 +1,60 @@
 using System;
 using System.Linq;
+using OpenZ.Sim;
 using UnityEngine;
 
 namespace OpenZ
 {
     public partial class OpenZMainMenu
     {
-        HudButton soloAllowedButton;
+        HudButton soloAllowedButton, soloTankDynamicsButton, soloRobotDynamicsButton;
         HudButton catalogButton;
         bool aiCampaign;
         int officialCard, aiCard;
+
+        void BuildSelectionWordmark(RectTransform parent)
+        {
+            var logo = Hud.Kit(parent, "ForkWordmark", "Wordmarks/wm_openz_vk_menu",
+                new OzRect(CW - 226, 10, 200, 66), null, UnityEngine.UI.Image.Type.Simple);
+            logo.preserveAspect = true;
+            logo.raycastTarget = false;
+            if (!logo.sprite) Hud.Label(parent, "ForkWordmarkFallback", "OpenZ-VK", 28, OzForkOptions.Brand)
+                .At(CW - 216, 28);
+        }
 
         void BuildConvertedMapsButton(RectTransform parent)
         {
             var caption = aiCampaign ? "OpenZ Campaign" : "AI Maps";
             var button = HudButton.Make(parent, "MapCatalog", caption, new Vector2(300, 58), HudButtonKind.Large, 17);
             catalogButton = button;
-            button.Rt.Place(new OzRect(Mathf.Max(800, CW - 410), 210, 300, 58));
+            button.Rt.Place(new OzRect(CW - 326, 210, 300, 58));
             AddHot(button.Rt, View.Select, () => SwitchCampaign(!aiCampaign), null, button, "ui_menu_select");
 
             var allowed = OzSoloAllowedUnits.Read();
             soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits",
                 "Allowed units · " + Multiplayer.DuelUnitRoster.Name(allowed.UnitPreset), new Vector2(340, 58), HudButtonKind.Large, 17);
-            soloAllowedButton.Rt.Place(new OzRect(Mathf.Max(440, CW - 780), 210, 340, 58));
+            soloAllowedButton.Rt.Place(new OzRect(CW - 682, 210, 340, 58));
             OzForkOptions.Highlight(soloAllowedButton, OzSoloAllowedUnits.Label);
             AddHot(soloAllowedButton.Rt, View.Select, () => OzSoloAllowedUnits.Show(() =>
             {
                 if (soloAllowedButton != null && soloAllowedButton.Rt)
                     soloAllowedButton.Label.Set("Allowed units · " + Multiplayer.DuelUnitRoster.Name(OzSoloAllowedUnits.Read().UnitPreset));
             }), null, soloAllowedButton, "ui_menu_select");
+            float width = Mathf.Min(304, (CW - 730) / 2);
+            soloTankDynamicsButton = BuildSoloDynamicsButton(parent, ZBehaviorFamily.Tanks, CW - 698 - width, width);
+            soloRobotDynamicsButton = BuildSoloDynamicsButton(parent, ZBehaviorFamily.Robots, CW - 714 - 2 * width, width);
+        }
+
+        HudButton BuildSoloDynamicsButton(RectTransform parent, ZBehaviorFamily family, float x, float width)
+        {
+            string label = family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel;
+            string Caption() => label + " · " + OzBehaviorLibrary.Selected(family).name;
+            var button = HudButton.Make(parent, label, Caption(), new Vector2(width, 58), HudButtonKind.Large, 16);
+            button.Rt.Place(new OzRect(x, 210, width, 58));
+            OzForkOptions.Highlight(button, label);
+            AddHot(button.Rt, View.Select, () => OzBehaviorOptions.Show(family, () => button.Label.Set(Caption())),
+                null, button, "ui_menu_select");
+            return button;
         }
 
         void SetCampaignLevels(bool converted)
@@ -84,6 +110,12 @@ namespace OpenZ
 
         public void ProofOpenSoloAllowed() =>
             ProofClickAt(RectTransformUtility.WorldToScreenPoint(null, soloAllowedButton.Rt.TransformPoint(soloAllowedButton.Rt.rect.center)));
+
+        internal void ProofOpenSoloDynamics(ZBehaviorFamily family)
+        {
+            var button = family == ZBehaviorFamily.Tanks ? soloTankDynamicsButton : soloRobotDynamicsButton;
+            ProofClickAt(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
+        }
 
         internal void ProofSwitchMapCatalog() =>
             ProofClickAt(RectTransformUtility.WorldToScreenPoint(null, catalogButton.Rt.TransformPoint(catalogButton.Rt.rect.center)));

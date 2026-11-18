@@ -57,7 +57,7 @@ namespace OpenZ
             foreach (var p in SavedProfiles) if (p.family == f) list.Add(p.Clone());
             return list;
         }
-        static string SelectedKey(ZBehaviorFamily f) => "oz_behavior_selected_" + (int)f;
+        internal static string SelectedKey(ZBehaviorFamily f) => "oz_behavior_selected_" + (int)f;
         public static string SelectedId(ZBehaviorFamily f) => PlayerPrefs.GetString(SelectedKey(f), "native");
         public static ZBehaviorProfile Selected(ZBehaviorFamily f) => Choices(f).Find(p => p.id == SelectedId(f)) ?? Native(f);
         public static string SelectedName(ZBehaviorFamily f)

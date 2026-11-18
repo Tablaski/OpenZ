@@ -1,5 +1,12 @@
 # OpenZ change log
 
+## OpenZ-VK 0.2.34 (18 Nov 2026)
+
+- Choose allowed units and switch tank and robot dynamics from the solo battlefield selector, in both the OpenZ campaign and AI Maps.
+- The Z 1996 roster includes the Light, Medium and Heavy Tanks. The Medium Mech remains available in OpenZ and Custom rosters.
+
+- The OpenZ-VK logo identifies the faction and battlefield selectors. The in-match logo has a transparent background in 1 vs 1.
+
 ## OpenZ-VK 0.2.33 (18 Nov 2026)
 
 - **AI Maps** brings 61 V3 battlefields to the solo selection and 1 vs 1 lobby, with looping previews. The lobby gallery pairs each preview with a larger tactical minimap and keeps its world and sort filters.

@@ -29,7 +29,7 @@ namespace OpenZ.Multiplayer
                 if(world.Objects.Any(o=>o.IsUnit&&!world.DuelAllowsUnit(o.IsHero?"heroes":o.Type)))throw new Exception("Excluded starting unit remains.");
                 foreach(var fort in world.Objects.Where(o=>o.IsFort&&o.Owner!=Team.Neutral)){
                     fort.Level=5;
-                    if(world.ProductionUnits(fort).Any(type=>!rules.Allows(type))||fort.SetBuildingProduction("mtank")||fort.AddBuildingQueue("electrobot"))throw new Exception("Solo production ignores the roster.");
+                    if(world.ProductionUnits(fort).Any(type=>!rules.Allows(type))||fort.SetBuildingProduction("medium")||fort.AddBuildingQueue("electrobot"))throw new Exception("Solo production ignores the roster.");
                 }
                 foreach(var bot in world.Bots)bot.ChooseBuildOrders();
                 if(world.Objects.Any(o=>o.IsProducer&&o.CurUnit!=null&&!rules.Allows(o.CurUnit)))throw new Exception("CPU selected a forbidden unit.");

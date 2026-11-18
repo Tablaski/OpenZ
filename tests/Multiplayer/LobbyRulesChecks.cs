@@ -13,11 +13,11 @@ static class LobbyRulesChecks
         var rules = new DuelRules();
         check(rules.AllowedUnits.Count == 22 && DuelUnitRoster.All.All(rules.Allows), "OpenZ preset allows the complete 22-type game catalogue");
         rules.Common.StartingUnits.AddRange(new[] { "mtank", "electrobot", "light" });
-        rules.Handicap.StartingUnits.Add("mtank");
+        rules.Handicap.StartingUnits.Add("medium");
         rules.SetUnitPreset(DuelUnitPreset.Z1996); rules.Validate();
-        check(rules.AllowedUnits.Count == 17 && rules.Allows("medium") && !rules.Allows("mtank") && !rules.Allows("electrobot") && !rules.Allows("evilzod") && !rules.Allows("shuttle") && !rules.Allows("heroes"),
-            "Z 1996 matches Zod's 6 robots, 7 vehicles and 4 cannons, preserving the original medium ID");
-        check(rules.Common.StartingUnits.SequenceEqual(new[] { "", "", "light" }) && rules.Handicap.StartingUnits[0] == "", "Preset switches clear excluded shared and handicap slots without shifting positions");
+        check(rules.AllowedUnits.Count == 17 && rules.Allows("light") && rules.Allows("mtank") && rules.Allows("heavy") && !rules.Allows("medium") && !rules.Allows("electrobot") && !rules.Allows("evilzod") && !rules.Allows("shuttle") && !rules.Allows("heroes"),
+            "Z 1996 matches Zod's 6 robots, 7 vehicles and 4 cannons, including the Medium Tank model");
+        check(rules.Common.StartingUnits.SequenceEqual(new[] { "mtank", "", "light" }) && rules.Handicap.StartingUnits[0] == "", "Preset switches clear excluded shared and handicap slots without shifting positions");
         rules.SetUnitAllowed("gun", false);
         check(rules.UnitPreset == DuelUnitPreset.Custom && !rules.Allows("gun"), "Manual toggle selects Custom");
         rules.SetUnitAllowed("gun", true);

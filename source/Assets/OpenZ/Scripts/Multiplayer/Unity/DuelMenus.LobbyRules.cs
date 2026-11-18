@@ -39,6 +39,11 @@ namespace OpenZ.Multiplayer
             shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel("OPENZ MAPS", 180, 146, 1560, 788);
             panel.name = "OpenZ map picker";
+            var logo = Hud.Kit(panel, "ForkWordmark", "Wordmarks/wm_openz_vk_menu",
+                new OzRect(620, 5, 230, 76), null, Image.Type.Simple);
+            logo.preserveAspect = true;
+            logo.raycastTarget = false;
+            if (!logo.sprite) Label(panel, "OpenZ-VK", 630, 22, 210, 26, OzForkOptions.Brand);
             Button(panel, "CLOSE", 1325, 12, 210, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
             for (int i = 0; i < OzLevelDef.All.Length; i++)
             {

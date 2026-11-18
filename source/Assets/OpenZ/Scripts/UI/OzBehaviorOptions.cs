@@ -14,14 +14,14 @@ namespace OpenZ
         static OzBehaviorOptions instance;
         static int closedFrame = -1;
         public static bool CapturesInput => instance || closedFrame == Time.frameCount;
-        public static void Show(ZBehaviorFamily family)
+        public static void Show(ZBehaviorFamily family, Action changed = null)
         {
             if (Multiplayer.DuelRuntime.Active) return;
             Dismiss();
             var go = new GameObject("OpenZ-VK profile picker", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) { layer = 5 };
             instance = go.AddComponent<OzBehaviorOptions>();
             DontDestroyOnLoad(go);
-            instance.Build(family);
+            instance.Build(family, changed);
             OzSfx.Ui("ui_panel_open");
         }
         public static void Dismiss()
@@ -38,7 +38,7 @@ namespace OpenZ
             { OzSfx.Ui("ui_cancel"); Dismiss(); }
         }
         void OnDestroy() { if (instance == this) instance = null; }
-        void Build(ZBehaviorFamily family)
+        void Build(ZBehaviorFamily family, Action changed)
         {
             var canvas = GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 1150;
             var scaler = GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -67,7 +67,7 @@ namespace OpenZ
             {
                 var profile = choices[i]; bool selected = profile.id == OzBehaviorLibrary.SelectedId(family);
                 var row = MakeButton(content, "PROFILE " + profile.id, (selected ? "SELECTED  ·  " : "") + profile.name, 0, i * 102, 1028, 62,
-                    () => { OzBehaviorLibrary.Select(profile); OzSfx.Ui("ui_confirm"); Dismiss(); });
+                    () => { OzBehaviorLibrary.Select(profile); changed?.Invoke(); OzSfx.Ui("ui_confirm"); Dismiss(); });
                 OzForkOptions.Highlight(row, family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel);
                 Hud.Label(content, "Help " + profile.id, Description(profile), 15, OzUi.Muted).At(14, i * 102 + 72, OzH.L, false, 1000);
             }

@@ -17,7 +17,7 @@ namespace OpenZ
                 Button(panel,DuelUnitRoster.Name(preset),24+index++*340,92,320,46,()=>{rules.SetUnitPreset(selected);changed();},rules.UnitPreset==preset,editable,solo);
             }
             Label(panel,"Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply.",24,146,1410,16,OzUi.Ink);
-            Label(panel,rules.AllowedUnits.Count+"/"+DuelUnitRoster.All.Length+" allowed · Z 1996 excludes the additional medium tank, Electrobot, heroes and shuttle.",24,173,1410,14,OzUi.Muted);
+            Label(panel,rules.AllowedUnits.Count+"/"+DuelUnitRoster.All.Length+" allowed · Z 1996 includes all three tanks and excludes OpenZ additions such as the Medium Mech.",24,173,1410,14,OzUi.Muted);
             var viewport=Hud.Node("Allowed units viewport",panel);viewport.TL(24,205,1432,560);viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>();background.color=OzUi.GM950;
             var content=Hud.Node("Allowed units",viewport);content.TL(0,0,1432,4*140);

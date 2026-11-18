@@ -186,7 +186,7 @@ namespace OpenZ
             if (Time.unscaledTime >= nextRebind) { nextRebind = Time.unscaledTime + 0.5f; matLook = -1; mat.SetTexture(IdMask, tex); matTex = tex; MaterialBind(); FieldUniforms(); }
 #endif
             if (matLook != ver || matY0 != blanketY) { ApplyLook(mat, look, planet, blanketY); matLook = ver; matY0 = blanketY; }
-            mat.SetFloat(IdSee, radarFog ? .88f : 1f - CoverNow);
+            mat.SetFloat(IdSee, 1f - CoverNow);
             float wm = mask.W * OzFowMask.CellPx / 8f, hm = mask.H * OzFowMask.CellPx / 8f;                 // 8 Zod px = 1 m (ZGame.PxToWorld: x = px / 8, z = -py / 8)
             mat.SetVector(IdMap, new Vector4(0f, 0f, 1f / wm, -1f / hm));                                   // u = x / width, v = -z / height (v grows to the south, the mask's rows)
             mat.SetFloat(IdOn, strength);
@@ -470,16 +470,66 @@ namespace OpenZ
         void BeginCamera(ScriptableRenderContext ctx, Camera cam)
         {
             if ((!wanted && !radarFog) || mask == null || !PlayerView(cam) || !GateCamera(cam)) return;
-            if (mat && pass != null && fieldA && cam.TryGetComponent<UniversalAdditionalCameraData>(out var d) && d.scriptableRenderer != null)
+            if (cam.TryGetComponent<UniversalAdditionalCameraData>(out var d) && d.scriptableRenderer != null)
             {
-                if (!BenchNoPass) { d.scriptableRenderer.EnqueuePass(pass); PassesQueued++; }
-                DitherOn(d);
+                if (radarFog && radarGroundPass != null)
+                {
+                    radarGroundMaterial.SetTexture(RadarGroundPass.Sight, tex);
+                    radarGroundMaterial.SetVector(RadarGroundPass.MapScale, new Vector4(8f / W.Map.WidthPix, -8f / W.Map.HeightPix, 0, 0));
+                    radarGroundMaterial.SetFloat(RadarGroundPass.Opacity, .52f * strength);
+                    d.scriptableRenderer.EnqueuePass(radarGroundPass);
+                }
+                else if (!radarFog && mat && pass != null && fieldA)
+                {
+                    if (!BenchNoPass) { d.scriptableRenderer.EnqueuePass(pass); PassesQueued++; }
+                    DitherOn(d);
+                }
             }
             if (gateClock.HoldOff)                                                                      // 1.4 fog_gameplay_only: units held off whenever the player plays, from the first frame of play (View/OzFowGate.cs HoldsOff; with no cloud drawn yet GateCamera holds them off)
             {
                 long t = Stopwatch.GetTimestamp();
                 HideCovered(cam);
                 long dt = Stopwatch.GetTimestamp() - t; cHide += dt; lastHide += dt;
+            }
+        }
+
+        Material radarGroundMaterial;
+        RadarGroundPass radarGroundPass;
+        void EnsureRadarGroundPass()
+        {
+            if (radarGroundPass != null) return;
+            var shader = Resources.Load<Shader>("OzRadarGroundFog");
+            if (!shader || !shader.isSupported) { Debug.LogError("Radar ground fog shader is unavailable."); return; }
+            radarGroundMaterial = new Material(shader) { hideFlags = HideFlags.DontSave };
+            radarGroundPass = new RadarGroundPass(radarGroundMaterial);
+        }
+
+        sealed class RadarGroundPass : ScriptableRenderPass
+        {
+            internal static readonly int Sight = Shader.PropertyToID("_RadarSight"), MapScale = Shader.PropertyToID("_RadarMapScale"),
+                Opacity = Shader.PropertyToID("_RadarFogOpacity");
+            static readonly ProfilingSampler Sampler = new ProfilingSampler("OpenZ Radar Ground Fog");
+            static readonly MaterialPropertyBlock DrawProperties = new MaterialPropertyBlock();
+            readonly Material material;
+            sealed class PassData { public Material Material; }
+            internal RadarGroundPass(Material material)
+            {
+                this.material = material;
+                renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing + 2;
+                requiresIntermediateTexture = true;
+                ConfigureInput(ScriptableRenderPassInput.Depth);
+                DrawProperties.SetVector(IdBlitScaleBias, new Vector4(1, 1, 0, 0));
+            }
+            public override void RecordRenderGraph(RenderGraph graph, ContextContainer context)
+            {
+                var resources = context.Get<UniversalResourceData>();
+                if (resources.isActiveTargetBackBuffer || !resources.cameraDepthTexture.IsValid()) return;
+                using var builder = graph.AddRasterRenderPass<PassData>("OpenZ Radar Ground Fog", out var data, Sampler, file: "OzFogOfWar.Render.cs");
+                data.Material = material;
+                builder.UseTexture(resources.cameraDepthTexture, AccessFlags.Read);
+                builder.SetRenderAttachment(resources.activeColorTexture, 0, AccessFlags.ReadWrite);
+                builder.SetRenderFunc((PassData pass, RasterGraphContext drawing) =>
+                    drawing.cmd.DrawProcedural(Matrix4x4.identity, pass.Material, 0, MeshTopology.Triangles, 3, 1, DrawProperties));
             }
         }
 

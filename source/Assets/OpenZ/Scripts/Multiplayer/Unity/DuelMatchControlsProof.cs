@@ -155,20 +155,38 @@ namespace OpenZ.Multiplayer
                 var world = r.Game.World;
                 var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);
                 var camera = Camera.main.GetComponent<RtsCamera>();
-                camera.FlyTo(r.Game.CenterWorld(fort));
-                camera.SetHeightImmediate(35);
                 var radar = world.Objects.FirstOrDefault(o => o.Type == "radar" && !o.Destroyed);
-                if (radar != null) radar.Owner = Team.Red;
-                foreach (string type in new[] { "light", "heavy" })
+                Check(radar != null, "No radar for the loss demonstration.");
+                radar.Owner = Team.Red;
+                var tank = world.AddHeadStart(Team.Red, "light").Single();
+                tank.SetHealth(Math.Max(1, tank.MaxHealth / 8));
+                int tx = tank.CenterX / ZConst.TILE, ty = tank.CenterY / ZConst.TILE;
+                var directions = new[] { (x: 1, y: 0), (x: -1, y: 0), (x: 0, y: 1), (x: 0, y: -1) };
+                int Reach(int x, int y)
                 {
-                    var vehicle = world.AddHeadStart(Team.Red, type).Single();
-                    vehicle.SetHealth(Math.Max(1, vehicle.MaxHealth / 8));
-                    world.SendWaypoints(Team.Red, vehicle, new[] { ZWaypoint.Move(Math.Min(world.Map.WidthPix - 32, vehicle.CenterX + 112), vehicle.CenterY) });
+                    int tiles = 1;
+                    while (tiles < 13 && world.Path.TilePassable(tx + x * tiles, ty + y * tiles, false)) tiles++;
+                    return tiles - 1;
                 }
+                var direction = directions.OrderByDescending(d => Reach(d.x, d.y)).First();
+                int distance = Reach(direction.x, direction.y) * ZConst.TILE;
+                Check(distance >= 96 && world.SendWaypoints(Team.Red, tank,
+                    new[] { ZWaypoint.Move(tank.CenterX + direction.x * distance, tank.CenterY + direction.y * distance) }), "Cannot order the damaged tank to move.");
+                camera.focus = r.Game.CenterWorld(tank);
+                camera.SetHeightImmediate(35);
+                foreach (var step in WaitFor(() => r.Game.GetComponent<OzCripplingTrails>()?.Emitted >= 14, "fourteen oil marks from the moving tank", 15)) yield return step;
+                var end = r.Game.CenterWorld(tank);
+                camera.focus = end - new Vector3(direction.x * 1.4f, 0, -direction.y * 1.4f);
+                camera.SetHeightImmediate(35);
+                r.Game.GetComponent<OpenZHud>()?.Toast("RED HEALTH · SMOKE AND OIL", OzUi.Amber, 2f);
+                yield return null;
+                WorldShot("damaged-tanks");
+                camera.focus = Vector3.Lerp(r.Game.CenterWorld(fort), ZGame.PxToWorld(world.Map.WidthPix / 2, world.Map.HeightPix / 2), .6f);
+                camera.SetHeightImmediate(70);
+                WorldShot("radar-ground-before");
             }
             yield return new WaitForSecondsRealtime(1.2f);
             Shot("replacement-map");
-            if (host) WorldShot("damaged-tanks");
             foreach (var step in Sync("replacement-map")) yield return step;
             if (host)
             {
@@ -179,6 +197,7 @@ namespace OpenZ.Multiplayer
                 WorldShot("radar-static");
                 yield return new WaitForSecondsRealtime(1f);
                 WorldShot("radar-fog-zoom");
+                WorldShot("radar-ground-after");
                 yield return null;
                 r.ProofInterruptMatch();
             }
@@ -199,7 +218,7 @@ namespace OpenZ.Multiplayer
             yield return new WaitForSecondsRealtime(.4f);
             Shot("returned");
         }
-        IEnumerable Sync(string shot) => WaitFor(() => File.Exists(FileFor(Other, shot, ".png")), shot + " on both sides");
+        IEnumerable Sync(string shot) => WaitFor(() => File.Exists(FileFor(Other, shot, ".png")), shot + " on both sides", 30);
         IEnumerable WaitFor(Func<bool> ready, string message, double seconds = 12)
         {
             double deadline = Time.realtimeSinceStartupAsDouble + seconds;

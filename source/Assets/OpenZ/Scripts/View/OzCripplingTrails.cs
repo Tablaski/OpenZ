@@ -13,6 +13,7 @@ namespace OpenZ
         int cursor;
         Material material;
         ZGame game;
+        internal int Emitted { get; private set; }
         public void Add(ZGame owner, Vector3 from, Vector3 to, float width, double life, double fade = 0)
         {
             game = owner;
@@ -41,6 +42,7 @@ namespace OpenZ
             mark.fade = fade > 0 ? fade : life;
             mark.line.SetPosition(0, from); mark.line.SetPosition(1, to);
             mark.line.startWidth = mark.line.endWidth = width; mark.line.enabled = true;
+            Emitted++;
             Tint(mark, .6f);
         }
         static void Tint(Mark mark, float alpha)

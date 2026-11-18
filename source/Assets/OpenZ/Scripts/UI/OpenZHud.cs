@@ -549,7 +549,7 @@ namespace OpenZ
             CheckFortDanger();
         }
 
-        const string LastRadarText = "LAST RADAR DESTROYED · COMMUNICATIONS LOST";
+        const string LastRadarText = "RADAR DESTROYED · COMMS CUT";
         internal void ClearRadarCommunications()
         {
             recentEvents.Clear();

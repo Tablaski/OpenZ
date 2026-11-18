@@ -256,7 +256,7 @@ namespace OpenZ
             Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
         }
 
-        internal bool UsesBuildKey(Key key) => key >= Key.A && key <= Key.Z && Building != null && Building.Owner == hud.Player &&
+        internal bool UsesBuildKey(Key key) => Building != null && Building.Owner == hud.Player && OzBuildKeys.IsLetter(key) &&
             !Building.Destroyed && !W.GameOver && !hud.Modal && !CaptureKit.DemoRun && !OzUnitEditor.I &&
             !OzFpsView.On && !OzBehaviorOptions.CapturesInput && !OpenZ.Multiplayer.DuelRuntime.CapturesInput &&
             tiles.Exists(tile => OzBuildKeys.Get(tile.unit) == key);

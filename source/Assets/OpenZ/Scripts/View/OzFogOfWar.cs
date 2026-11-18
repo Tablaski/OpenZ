@@ -126,6 +126,7 @@ namespace OpenZ
             RestoreDither();
             if (I == this) { I = null; hidingNow = false; maskNow = null; }
             if (tex) Destroy(tex);
+            if (radarGroundMaterial) Destroy(radarGroundMaterial);
             FieldRelease();
             MinimapDestroy();
         }
@@ -283,7 +284,14 @@ namespace OpenZ
             bool radarNow = loss && loss.Fog;
             if (radarNow != radarFog)
             {
-                if (radarNow) { campaignMask = mask; StartFog(); mask = loss.Sight; }
+                if (radarNow)
+                {
+                    campaignMask = mask;
+                    mask = loss.Sight;
+                    if (!tex) tex = new Texture2D(mask.W, mask.H, TextureFormat.R8, false, true)
+                        { name = "OZ_RadarSight", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.DontSave };
+                    EnsureRadarGroundPass();
+                }
                 else { mask = campaignMask; campaignMask = null; lastStamp.Clear(); }
                 radarFog = radarNow;
                 radarSightRevision = -1;
@@ -310,8 +318,11 @@ namespace OpenZ
             GateStep();                                                                                 // 1.4 fog_gameplay_only (View/OzFogOfWar.Gate.cs): the one gate sets strength (a 0.4 s smootherstep fade, 0 at once on a cut), Covers and the units held off
             maskNow = mask; playerNow = player;                 // nothing is hidden when the fog cannot be drawn
             if (strength <= 0.001f) RestoreDither();
-            SetMaterial();
-            if (fieldDirty) RunField();                                                                 // 1.4 premium clouds: the soft edge field, only when the reveal map changed
+            if (!radarFog)
+            {
+                SetMaterial();
+                if (fieldDirty) RunField();
+            }
             GpuStep();
             long t3 = Stopwatch.GetTimestamp();                                                         // (the upload bucket: upload + the material + the field dispatch)
             long t4 = t3;

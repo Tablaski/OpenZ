@@ -20,7 +20,10 @@ namespace OpenZ
         {
             int index = Array.IndexOf(Units, type);
             if (index < 0) return Key.None;
-            return (Key)PlayerPrefs.GetInt(Preference(type), (int)Key.A + DefaultLetters[index] - 'A');
+            string letter = DefaultLetters[index].ToString();
+            var defaultKey = Keyboard.current?.FindKeyOnCurrentKeyboardLayout(letter)?.keyCode ??
+                (Key)((int)Key.A + DefaultLetters[index] - 'A');
+            return (Key)PlayerPrefs.GetInt(Preference(type), (int)defaultKey);
         }
         internal static void Set(string type, Key key)
         {
@@ -30,6 +33,12 @@ namespace OpenZ
             PlayerPrefs.Save();
         }
         internal static bool Modifier(Keyboard keyboard) => keyboard.shiftKey.isPressed && !keyboard.ctrlKey.isPressed && !keyboard.altKey.isPressed;
+        internal static bool IsLetter(Key key)
+        {
+            if (key == Key.None || OzBindings.Reserved(key) != null) return false;
+            string name = Keyboard.current?[key]?.displayName;
+            return name != null && name.Length == 1 && char.IsLetter(name[0]);
+        }
     }
 
     public partial class OpenZMainMenu
@@ -79,7 +88,7 @@ namespace OpenZ
             {
                 if (!control.wasPressedThisFrame) continue;
                 var key = control.keyCode;
-                if (key != Key.Escape && key != Key.Backspace && (key < Key.A || key > Key.Z)) continue;
+                if (key != Key.Escape && key != Key.Backspace && !OzBuildKeys.IsLetter(key)) continue;
                 if (key != Key.Escape) OzBuildKeys.Set(bindingBuildUnit, key == Key.Backspace ? Key.None : key);
                 bindingBuildUnit = null;
                 RefreshBuildKeys();

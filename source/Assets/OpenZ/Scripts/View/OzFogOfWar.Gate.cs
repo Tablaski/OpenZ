@@ -137,7 +137,7 @@ namespace OpenZ
         bool GateStep()
         {
             string w = GateNow(out bool cut);
-            gateClock.Update(w, cut, GateDt, Time.frameCount, mat, strength);
+            gateClock.Update(w, cut, GateDt, Time.frameCount, radarFog ? radarGroundMaterial : mat, strength);
             if (gateClock.FirstOpen) GateFirstFrameCovers++;
             GateAfter(cut, false);
             return w == null;
@@ -150,7 +150,7 @@ namespace OpenZ
         {
             float was = strength;
             string w = GateNow(out bool cut);
-            gateClock.Recheck(w, cut, mat);
+            gateClock.Recheck(w, cut, radarFog ? radarGroundMaterial : mat);
             if (atCamera && gateClock.Change < 0 && cut) GateCameraCuts++;               // a cut found only here (a scene begun after LateUpdate)
             GateAfter(cut, true);
             if (strength <= 0.001f) RestoreDither();

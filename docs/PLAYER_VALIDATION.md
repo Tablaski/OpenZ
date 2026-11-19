@@ -4,10 +4,12 @@
 
 - Passed locally: 6,902 simulation and core checks, native WebRTC loopback, 44 installer checks, and preparation and reuse of the complete 1.5 resource package. The published 0.2.22 and 0.2.34 installers also passed resource discovery, migration and reuse against a simulated release feed with the 1.5.1 and 1.6.1 pins.
 - Unity verified the enabled scenes, Bridge Game lobby serialization, both Changes & Updates tabs, and all 60 regenerated AI Maps videos and fallback stills. All clips decoded to 96 frames before import.
-- Pending on a compiled game: deploy the official Bridge Game in solo and in a 1 vs 1 match, repair a long bridge, take control of the Mammoth and Bizon, and verify tactical pause and its key binding in solo.
-- Check that an online duel keeps running on both sides when Space is pressed and that its host-owned oil setting survives a rematch and a map change.
-- Check 31%, 30% and critical health with the oil option on and off, while moving and stationary, and after repair. Verify the shake with reduced motion on and off.
-- Check AI Maps previews in the solo selector and duel gallery, the original and fork tabs in Changes & Updates, and direct launch into the Unit Editor.
+- Windows x64 compiled game from clean source commit `d0a74817efa38cf0ad9b5cccdd9632fca8b3438c`: all 20 scenarios passed. The build used the production flags and the pinned 1.5 resources.
+- Passed in solo: Bridge Game deployment, both big tanks present, breached long bridges, restored bridge visuals and pathing, and tactical pause and resume. Checked independent oil and shake at 31%, 30%, critical and repaired health, and verified that reduced motion suppresses the shake. The bridge was restored through the simulation for this check.
+- Passed in 1 vs 1: six maps over local TCP, Bridge Game over WebRTC direct and forced TURN, and the match-controls proof. Verified combat, chat, synthetic voice, proposals, surrender, map changes, frozen host rules, reconnection, lobby return and Windows invitation registration. Host and guest ran in separate processes on the same computer.
+- Passed presentation and compatibility: five native video decode checks, the solo and duel AI Maps galleries, both changelog tabs, both Unit Editor entry points, the solo roster, six converted scenes, 200 crater stress rounds, Direct3D 11 and 12 on Bridge Game, and the incompatible-resource recovery screen and exit code.
+- The local test script reported a Windows registry restoration error after all scenarios passed. The `openz://` association remained pointed at the tested build. This was a test-environment cleanup issue.
+- Pending manual checks: use a crane to repair a long bridge, board the Mammoth and Bizon through gameplay, exercise the tactical-pause binding with physical input, and play a match from two separate computers.
 - For a stable release, verify the published installer payloads and the 1.5 resource bundle on a clean Windows installation.
 
 ## OpenZ-VK 0.2.40 duel chat

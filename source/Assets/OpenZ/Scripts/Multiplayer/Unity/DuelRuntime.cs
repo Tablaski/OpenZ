@@ -952,12 +952,17 @@ namespace OpenZ
         {
             var root = GameObject.Find("ZodObjects");
             if (root)
+            {
+                var liveViews = new HashSet<GameObject>(Views.Where(pair => pair.Value && World.Get(pair.Key) != null)
+                    .Select(pair => pair.Value.gameObject));
                 foreach (var source in World.Map.objects.Where(o => (o.owner == "red" || o.owner == "blue") && (o.Category == "robot" || o.Category == "vehicle" || o.Category == "cannon")))
+                {
+                    string prefix = source.Type + "_" + source.x + "_" + source.y;
                     foreach (Transform child in root.transform)
-                    {
-                        string prefix = source.Type + "_" + source.x + "_" + source.y;
-                        if (child.name == prefix || child.name.StartsWith(prefix + "_", StringComparison.Ordinal)) child.gameObject.SetActive(false);
-                    }
+                        if ((child.name == prefix || child.name.StartsWith(prefix + "_", StringComparison.Ordinal)) && !liveViews.Contains(child.gameObject))
+                            child.gameObject.SetActive(false);
+                }
+            }
             foreach (var pair in Views.ToArray()) if (World.Get(pair.Key) == null) { if (pair.Value) pair.Value.gameObject.SetActive(false); Views.Remove(pair.Key); }
             foreach (var o in World.Objects) if (o.IsUnit && !Views.ContainsKey(o.Id)) SpawnUnitView(o);
         }

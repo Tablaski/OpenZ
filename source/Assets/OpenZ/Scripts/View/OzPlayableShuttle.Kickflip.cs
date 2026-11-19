@@ -158,7 +158,7 @@ namespace OpenZ
             if (!kickOn) return;
             var k = KickNow;
             var fx = OpenZFxPlayer.I;
-            bool draw = kickOnScreen && fx && fx.isActiveAndEnabled && !(game && game.paused) && jets != null;
+            bool draw = kickOnScreen && fx && fx.isActiveAndEnabled && !(game && game.paused) && jets != null && !jets.Held;   // 1.5 shuttle_view_thrusters_r7: no flare or attitude puffs while the first-person view holds this ship's jets
             if (draw && k.Flare > 0.01)
             {   // the main jets flare (the pop, the catch): a second, longer flame over each jet, a larger halo, brighter lights, more fire
                 float f = (float)k.Flare, T = Mathf.Max(0.7f, jets.Throttle);

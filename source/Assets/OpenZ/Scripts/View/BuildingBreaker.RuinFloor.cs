@@ -831,7 +831,7 @@ namespace OpenZ
         static void RuinPaintRubble(MeshRenderer r, bool lib)
         {
             shellMpb ??= new MaterialPropertyBlock();
-            bool l17 = ZGame.I && ZGame.I.level == "L17";
+            bool l17 = OzCity.Here;
             Color outer = lib ? ConcreteChunkLib.LevelOuter : ShellConcrete, frac = Color.Lerp(lib ? ConcreteChunkLib.LevelFracture : ShellConcrete, ConcreteChunkLib.ScorchTone, 0.1f);
             for (int i = 0; i < 3; i++)
             {

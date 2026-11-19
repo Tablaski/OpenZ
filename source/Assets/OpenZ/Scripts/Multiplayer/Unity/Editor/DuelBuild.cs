@@ -15,10 +15,16 @@ namespace OpenZ.Multiplayer.Editor
         {
             ValidateScriptBindings();
             ValidateWire();
-            var scenes = Array.ConvertAll(new[] { "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", OzUnitEditor.SceneName }, s => "Assets/OpenZ/Scenes/" + s + ".unity").Concat(OzAiMapCatalog.Playable.Select(m=>m.ScenePath)).ToArray();
+            var scenes = EditorBuildSettings.scenes.Where(scene => scene.enabled).Select(scene => scene.path).ToArray();
+            var requiredScenes = new[] { "MainMenu", OzCity.BridgeGameScene, OzUnitEditor.SceneName }
+                .Select(scene => "Assets/OpenZ/Scenes/" + scene + ".unity")
+                .Concat(OzAiMapCatalog.Playable.Select(map => map.ScenePath));
+            foreach (string scene in requiredScenes)
+                if (!scenes.Contains(scene))
+                    throw new InvalidOperationException("Required compiled-game scene is disabled or missing: " + scene);
             foreach (string scene in scenes)
                 if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(scene))
-                    throw new InvalidOperationException("Required player scene is missing: " + scene);
+                    throw new InvalidOperationException("Required compiled-game scene is missing: " + scene);
             string root = Path.GetFullPath(Path.Combine(Application.dataPath, "../.."));
             var args = Environment.GetCommandLineArgs();
             int outputOption = Array.IndexOf(args, "-oz-duel-output");

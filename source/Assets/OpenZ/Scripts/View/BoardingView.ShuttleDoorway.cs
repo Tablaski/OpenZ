@@ -143,7 +143,7 @@ namespace OpenZ
             EndGhost(g, true);
             if (boarding) foreach (var rr in live.GetComponentsInChildren<Renderer>(true)) if (rr.enabled) { rr.enabled = false; walker.hidden.Add(rr); }
             Unparent(go);
-            walker.s0 = go.transform.localScale.x; walker.s1 = live.transform.localScale.x;
+            walker.s0 = go.transform.localScale.x; walker.s1 = OzRobotScale.ExitScaleX(live); /* 1.5 R3.25: its robot's coming size (live.transform.localScale.x at 100 %) */
             walker.from = go.transform.position;
             doorWalking++; DoorwayWalks++; ExitRingsWalker(robotId, go);   // K431: its rings and frame walk with it (View/BoardingView.ExitRings.cs)
             StartCoroutine(DoorWalk(walker));

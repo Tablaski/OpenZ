@@ -37,7 +37,7 @@ namespace OpenZ.EditorTools
             public string[] ripClips, flapClips, clangClips, states;
         }
         [Serializable] public class Kit { public string level, fbx, atlas, water; public KitProp[] props; }
-        [Serializable] public class PItem { public string uid, id; public float x, y, z, yaw = 180f, scale = 1f, hideDecor; public bool walkable, skip; }
+        [Serializable] public class PItem { public string uid, id; public float x, y, z, yaw = 180f, scale = 1f, hideDecor; public bool walkable, skip; public string sign, mount; }   // kit l18_street_r3: a traffic light's street sign (its road's name; "arm" = on the mast arm)
         [Serializable] public class PLane { public string id; public float[] from, to; }
         [Serializable] public class PFile { public string version, level; public PItem[] items; public PLane[] lanes; public float[] wind; }
 
@@ -48,7 +48,7 @@ namespace OpenZ.EditorTools
             var g = UnityEngine.Object.FindFirstObjectByType<OpenZ.ZGame>();
             if (g && !string.IsNullOrEmpty(g.level)) return g.level;
             var n = EditorSceneManager.GetActiveScene().name;
-            return n.Contains("L17") ? "L17" : n.Contains("L02") ? "L02" : n.Contains(OzVolcanic.Level) ? OzVolcanic.Level : null;
+            return n.Contains(OzCity.BridgeGame) ? OzCity.BridgeGame : n.Contains("L17") ? "L17" : n.Contains("L02") ? "L02" : n.Contains(OzVolcanic.Level) ? OzVolcanic.Level : null;
         }
 
         [MenuItem("OpenZ/Details v2/Build and Place")]
@@ -486,6 +486,7 @@ namespace OpenZ.EditorTools
                 go.transform.position = new Vector3(it.x, it.y, it.z);
                 go.transform.rotation = Quaternion.Euler(0f, it.yaw - 180f, 0f);                // FRONT_ faces -Z at 0: yaw 180 = the camera side
                 go.transform.localScale = Vector3.one * (it.scale > 0f ? it.scale : 1f);
+                if (!string.IsNullOrEmpty(it.sign)) OzStreetR3.Apply(go, it.sign, it.mount, sb);   // kit l18_street_r3 (R3.35): the traffic light wears its road's name
                 var tw = go.GetComponent<OpenZ.TumbleweedRoll>();
                 if (tw)
                 {

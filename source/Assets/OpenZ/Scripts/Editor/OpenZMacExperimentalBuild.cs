@@ -50,7 +50,7 @@ namespace OpenZ.EditorTools
         static string ArchWant(MacArch a) => a == MacArch.Universal ? "arm64+x86_64" : a == MacArch.AppleChip ? "arm64" : "x86_64";
         static string ArchWords(MacArch a) => a == MacArch.Universal ? "Universal (Intel 64-bit + Apple chip)" : a == MacArch.AppleChip ? "Apple chip only (arm64)" : "Intel 64-bit only";
         static string Suffix(MacArch a) => a == MacArch.AppleChip ? "_mac_applechip_EXPERIMENTAL" : FolderSuffix;
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" };
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", "L18_BridgeGame" };
 
         static string JobRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "../../../.."));
         static bool ModuleSeen => BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneOSX);

@@ -47,6 +47,7 @@ namespace OpenZ
     public sealed class UeRules
     {
         public bool sniperOn, pairOn, craneGun, apcCrew, rocketOn;
+        public bool smallArmsOn;                                                                            // 1.5 DV212 (kit small_arms_balance_r8): ZWorld.SmallArmsDeviation as the level start sets it
         public double sniperHit, sniperReload;
         public int electroCycle;
         public readonly Dictionary<(string attacker, string target), int> pairs = new Dictionary<(string attacker, string target), int>();
@@ -61,6 +62,7 @@ namespace OpenZ
                 electroCycle = ZElectro.CycleTicks,
             };
             foreach (var kv in ZWorld.RiflePair) r.pairs[kv.Key] = kv.Value;
+            r.smallArmsOn = ZWorld.SmallArmsDeviation;                                                          // 1.5 DV212 (kit small_arms_balance_r8)
             return r;
         }
 
@@ -76,6 +78,7 @@ namespace OpenZ
                 sniperReload = sniperReload, electroCycle = electroCycle,
             };
             foreach (var kv in pairs) r.pairs[kv.Key] = kv.Value;
+            r.smallArmsOn = smallArmsOn;                                                                        // 1.5 DV212 (kit small_arms_balance_r8)
             return r;
         }
 
@@ -118,7 +121,7 @@ namespace OpenZ
         /// <summary>The 22 units in the game's build-menu order (robots, vehicles, guns), then the heroes, EvilZod and the shuttle.</summary>
         public static readonly string[] Units =
         {
-            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", ZMTank.Type, "heavy", "apc",   // DV145: + the medium tank
+            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", ZMTank.Type, "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, "apc",   // DV145: + the medium tank
             "missile_launcher", "crane", "gatling", "gun", "howitzer", "missile_cannon", Heroes, ZEvilZod.Type, Shuttle,
         };
 
@@ -153,13 +156,13 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ unit classes (the Sim's own lists and class flags)
         public static bool IsRobot(string id) => ZBuildLists.IsRobot(id);
-        public static bool IsVehicle(string id) => Array.IndexOf(ZSettings.Vehicles, id) >= 0;
+        public static bool IsVehicle(string id) => Array.IndexOf(ZSettings.Vehicles, id) >= 0 || OzBigTanks.Is(id);   // 1.5 DV180 / DV181
         public static bool IsGun(string id) => ZBuildLists.IsCannon(id);
         public static bool Known(string id) => Array.IndexOf(Units, id) >= 0;
 
         /// <summary>Shells, rockets and missiles: the Sim's DamageIsMissile class flag (ZWorld.SetClassFlags). No hit roll.</summary>
         public static bool Missile(string id) =>
-            id == "tough" || id == "light" || id == "medium" || id == ZMTank.Type || id == "heavy" || id == "missile_launcher" || id == "gun" || id == "howitzer" || id == "missile_cannon";   // DV145 the medium tank (Sim/ZMTank.cs)
+            id == "tough" || id == "light" || id == "medium" || id == ZMTank.Type || id == "heavy" || id == "missile_launcher" || id == "gun" || id == "howitzer" || id == "missile_cannon" || OzBigTanks.Is(id);   // DV145 the medium tank (Sim/ZMTank.cs)
 
         /// <summary>The weapons that can hit drivers: the Sim's CanSnipe class flag (ZWorld.SetClassFlags).</summary>
         public static bool CanSnipe(string id) =>
@@ -218,6 +221,10 @@ namespace OpenZ
 
         /// <summary>The HP one hit of this unit removes from a grunt: the rifle pair when it is higher than the damage (ZObject.BaseHitDamage).</summary>
         public static int VsGrunt(string id, int damage, UeRules r) =>
+            r.smallArmsOn ? ZWorld.SmallArmsVsGrunt(id, VsGruntToday(id, damage, r)) : VsGruntToday(id, damage, r);   // 1.5 DV212 (kit small_arms_balance_r8): a grunt / psycho / the jeep's gun / the gatling hit a grunt harder (Sim/ZObject.SmallArms.cs)
+
+        /// <summary>Today's (DV212 off): the rifle pair when it is higher than the damage (ZObject.BaseHitDamage).</summary>
+        static int VsGruntToday(string id, int damage, UeRules r) =>
             Hitscan(id) && r.pairOn && r.pairs.TryGetValue((id, "grunt"), out int p) && p > damage ? p : damage;
 
         /// <summary>The crane's driver fires back with a grunt squad's rifle while the crane-gun rule is on (ZObject.CraneGunStep).</summary>

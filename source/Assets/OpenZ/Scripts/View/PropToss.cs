@@ -17,7 +17,7 @@ namespace OpenZ
         {
             if (game == null || o == null || !o.Type.StartsWith("map_object")) return false;
             if (!game.StaticViews.TryGetValue(o.Id, out var go) || !go || !go.activeInHierarchy) return false;
-            bool barrel = go.name.ToLowerInvariant().Contains("barrel") || (game.level == "L17" && o.Type == "map_object11");   // OpenZSetup: L17 map_object 11 = Z_barrel
+            bool barrel = go.name.ToLowerInvariant().Contains("barrel") || (OzCity.Is(game.level) && o.Type == "map_object11");   // OpenZSetup: L17 map_object 11 = Z_barrel
             if (!barrel) return false;
             ZMissile m = null;
             foreach (var x in game.World.PendingMissiles) if (x.debris && x.attackerId == o.Id) { m = x; break; }

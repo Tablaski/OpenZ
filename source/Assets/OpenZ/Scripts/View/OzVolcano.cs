@@ -823,7 +823,7 @@ namespace OpenZ
             {
                 if (drawN[k] == 0) continue;
                 drawB[k].SetFloatArray(BombT, drawT[k]);
-                Graphics.DrawMeshInstanced(rocks[k], 0, bombMat, drawM[k], drawN[k], drawB[k], ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);
+                if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(rocks[k], 0, bombMat, drawM[k], drawN[k], drawB[k], ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);   // no instancing (no graphics): skip, never throw
             }
         }
 

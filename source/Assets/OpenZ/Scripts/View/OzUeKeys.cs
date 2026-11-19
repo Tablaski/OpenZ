@@ -82,11 +82,13 @@ namespace OpenZ
             if (typing || typedLast) { typedLast = typing; return; }                                     // the frame a box lets go of the keyboard is still the box's (its Enter / Esc)
             if (OzConfirm.Blocks || OzControlsTable.Capturing) return;
             var hud = OzUnitEditor.I.Hud;
+            if (OzFpsView.On && kb.escapeKey.wasPressedThisFrame) return;   // 1.5 fps_in_ue: Esc leaves the first-person view (OzFpsView), never the editor's close chain (it would unpick the viewed unit)
             if (kb.escapeKey.wasPressedThisFrame) { Esc(); return; }
             if (OzUeHooks.AnyModal) return;                                                              // a dialog: only Esc
             if (hud && hud.Modal) return;                                                                // anything else in front (pause, arrange)
             if (kb.ctrlKey.isPressed || kb.altKey.isPressed || OzTrackpadScroll.CmdHeld(kb)) return;
             if (kb.spaceKey.wasPressedThisFrame && Free(Key.Space)) Act("SPACE", () => OzUeControls.TogglePlay());
+            if (OzFpsView.On) return;   // 1.5 fps_in_ue: in the first-person view only SPACE (play / pause) is the editor's; its other keys wait (their panels are hidden with the HUD)
             if (Letter(kb, 'T')) Act("T", () => OzUeStats.ToggleTable());
             if (Letter(kb, 'B')) Act("B", () => OzUeStats.ToggleBalance());
             if (Letter(kb, 'I')) Act("I", () => OzUeStats.ToggleBox());

@@ -50,7 +50,7 @@ namespace OpenZ
         static void Data()
         {
             var oz = OzUeSets.OpenZTable;
-            Check(oz != null && oz.Count == 22, "the OpenZ set (live from the game's rule tables) has 22 units (" + (oz != null ? oz.Count : 0) + ")");   // DV145: + the medium tank
+            Check(oz != null && oz.Count == 24, "the OpenZ set (live from the game's rule tables) has 24 units (" + (oz != null ? oz.Count : 0) + ")");   // DV145: + the medium tank
             bool order = OzUePlayground.Units.Length == OzUeLiveStats.Units.Length;
             for (int i = 0; order && i < OzUeLiveStats.Units.Length; i++) order = OzUePlayground.Units[i] == OzUeLiveStats.Units[i];
             Check(order, "the stats' unit order is the playground palette's (the game's build-menu order, then heroes, shuttle)");
@@ -211,7 +211,7 @@ namespace OpenZ
         {
             float gap = L.narrowBal ? 4f : 6f, gapR = L.w - 10f, gapW = L.narrowBal ? 42f : 46f, valueW = L.narrowBal ? 60f : 64f;
             float valueR = gapR - gapW - gap, mid = valueR - valueW - gap - (10f + 26f + gap);
-            float nameW = L.narrowBal ? 64f : Mathf.Clamp(mid - 50f - gap, 60f, 92f);
+            float nameW = L.narrowBal ? Mathf.Clamp(mid - 40f - gap, 64f, 92f) : Mathf.Clamp(mid - 50f - gap, 60f, 92f);   // 1.5 ue_bar_r2: as UI/OzUeBalance.cs
             return nameW - 4f;                                                                     // the name's own text width (OzUeBalance.MakeRow: 4 u left pad, as the prototype's .br .n)
         }
     }

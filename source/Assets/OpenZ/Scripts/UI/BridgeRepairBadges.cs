@@ -55,7 +55,7 @@ namespace OpenZ
                 b.cg.alpha = b.alpha * 0.9f;
                 if (b.alpha <= 0.001f) { b.rt.gameObject.SetActive(false); if (!down) { Destroy(b.rt.gameObject); badges.Remove(o.Id); } continue; }
                 b.rt.gameObject.SetActive(true);
-                var c = g.CenterWorld(o); c.y = station ? g.GroundY(c.x, c.z) + 7.4f : (g.level == "L17" ? 0.3f : 1.2f) + 3.2f;   // ZF23: over the gantry
+                var c = g.CenterWorld(o); c.y = station ? g.GroundY(c.x, c.z) + 7.4f : (OzCity.Is(g.level) ? 0.3f : 1.2f) + 3.2f;   // ZF23: over the gantry
                 var sp = cam.WorldToScreenPoint(c);
                 if (sp.z < 0) { b.rt.gameObject.SetActive(false); continue; }
                 RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)canvas.transform, new Vector2(Mathf.Round(sp.x), Mathf.Round(sp.y)), null, out var lp);   // ui_quality_v1: whole pixels

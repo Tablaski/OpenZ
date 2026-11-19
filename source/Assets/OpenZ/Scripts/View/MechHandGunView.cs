@@ -329,10 +329,10 @@ namespace OpenZ
                 hits.RemoveAt(i--);
                 if (!z || !z.isActiveAndEnabled) continue;
                 if (h.anchored && HitSurface.Now(h.anc, out var np, out _)) h.pos = np;
-                if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.15f, 3); z.Ripple(w, 0.16f); continue; }
+                if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.15f, 3); z.BulletRing(w, 0.16f); continue; }   // 1.5 kit water_blast_r6 (A16)
                 if (OpenZHitSparks.Active)
                 {   // as the Psycho's rounds (WeaponsV2Runner.MgImpact)
-                    if (h.hit && h.surf == FxSurface.Unit) { OpenZHitSparks.Burst(h.pos, h.dir, FxWeapon.Bolt, h.surf, 0.8f, Random.value < 0.35f); continue; }
+                    if (h.hit && h.surf == FxSurface.Unit) { OzHitFeedback.Landed(h.pos, true, h.surf, -1, false); /* 1.5 kit hit_feedback_sounds_r8 (A31): the hand gun's hit on a robot */ OpenZHitSparks.Burst(h.pos, h.dir, FxWeapon.Bolt, h.surf, 0.8f, Random.value < 0.35f); continue; }
                     if (!h.hit) OzSoundV3.GroundImpact(h.pos, h.surf);
                     if (h.surf == FxSurface.Road || h.surf == FxSurface.Rock) OpenZHitSparks.Chips(h.pos, h.surf);
                     z.Dust(h.pos, 0.12f);

@@ -46,6 +46,12 @@ namespace OpenZ
         // ================================================================ the top bar (UI/OzUeTopBar.cs, DESIGN_SPEC E001-E009)
         public const float BarH = 40f, BarHCompact = 36f, LogoX = 16f, LogoGap = 14f, Right = 12f, GroupGap = 6f, GroupMargin = 6f, Gap = 14f, BtnH = 28f;
         public const float LogoAspect = 100f / 26f;                                                          // Wordmarks/wm_openz, size_u
+        /// <summary>
+        /// A square button as tall as the bar's buttons, Right u
+        /// from the canvas' right edge; MAIN MENU and the rest of the right group stand EyeSize + EyeGap further left.</summary>
+        public const float EyeSize = BtnH, EyeGap = 10f;
+        /// <summary>The eye button's rect (canvas units, top-left origin) on a canvas cw wide, in the bar of that height (compact: 36 u).</summary>
+        public static UeR Eye(float cw, bool compact) { float h = compact ? BarHCompact : BarH; return new UeR(cw - Right - EyeSize, (h - 1f - BtnH) * 0.5f, EyeSize, BtnH); }
         public const string ResetLabel = "RESET STATS";
         /// <summary>RESET STATS stands this far left of SAVE: in the file group, a little apart from it.</summary>
         public const float ResetGap = GroupGap + GroupMargin;
@@ -69,7 +75,7 @@ namespace OpenZ
             p.crumbLong = cw >= 1700f && ch >= 800f;
             p.crumbW = m(p.crumbLong ? crumbLong : crumb, 12f, 0.16f);
             p.btnY = (p.h - 1f - BtnH) * 0.5f;                                                                 // centred over the bottom line, 5.5 at 40 u
-            float mw = ButtonW("MAIN MENU", m, 10f), x = cw - Right - mw;
+            float mw = ButtonW("MAIN MENU", m, 10f), x = cw - Right - EyeSize - EyeGap - mw;                     // ue_names_eye: the eye button takes the corner (Eye above)
             p.menu = new UeR(x, p.btnY, mw, BtnH);
             x -= Gap + BtnH; p.help = new UeR(x, p.btnY, BtnH, BtnH);
             x -= Gap + GroupMargin;
@@ -86,8 +92,8 @@ namespace OpenZ
         {
             why = null;
             var bar = new UeR(0f, 0f, p.cw, p.h - 1f);
-            var b = new[] { p.reset, p.save, p.load, p.share, p.help, p.menu };
-            string[] n = { ResetLabel, "SAVE", "LOAD", "SHARE", "?", "MAIN MENU" };
+            var b = new[] { p.reset, p.save, p.load, p.share, p.help, p.menu, Eye(p.cw, p.h < BarH) };              // ue_names_eye: + the eye button
+            string[] n = { ResetLabel, "SAVE", "LOAD", "SHARE", "?", "MAIN MENU", "the eye button" };
             for (int i = 0; i < b.Length; i++)
             {
                 if (!b[i].Inside(bar, 0f)) { why = n[i] + " " + b[i] + " is not inside the bar"; return false; }

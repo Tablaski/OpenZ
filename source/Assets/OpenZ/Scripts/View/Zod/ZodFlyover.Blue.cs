@@ -56,7 +56,7 @@ namespace OpenZ
         public static bool BlueSide => ForceBlueList < 0 ? OzPlayBlue.Active : ForceBlueList == 1;
 
         /// <summary>The blue list of a level (any other level: the Desert's blue list).</summary>
-        public static ZodShotList ForBlue(string level) => level == "L17" ? B17 : level == "L16" ? B16 : OzVolcanic.Is(level) ? B07 : B02;
+        public static ZodShotList ForBlue(string level) => OzCity.IsBridgeGame(level) ? BridgeGame(true) : level == "L17" ? B17 : level == "L16" ? B16 : OzVolcanic.Is(level) ? B07 : B02;
 
         /// <summary>The names of the four blue beats, in order (checks).</summary>
         public static readonly string[] BlueShotNames = { "blue_base_dawn", "the_world", "red_fort", "blue_home" };

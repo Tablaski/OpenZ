@@ -466,7 +466,7 @@ namespace OpenZ
 
         GameObject BridgeChunk(Vector3 at)
         {
-            var set = g.Prefab($"Z_bridge_{(g.level == "L17" ? "city" : g.level == "L16" ? "jungle" : "desert")}_chunks");
+            var set = OzBridgeKit.Chunks(g);
             if (!set || set.transform.childCount == 0) return null;
             var go = Instantiate(set.transform.GetChild(0).gameObject, at, Random.rotation);
             go.layer = BuildingBreaker.DebrisLayer;
@@ -474,7 +474,7 @@ namespace OpenZ
             if (mf && mf.sharedMesh) { var mc = go.AddComponent<MeshCollider>(); mc.sharedMesh = mf.sharedMesh; mc.convex = true; }
             var rb = go.AddComponent<Rigidbody>(); rb.mass = 60f; rb.linearDamping = 0.28f; rb.angularDamping = 0.95f;
             rb.interpolation = RigidbodyInterpolation.Interpolate; rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            if (g.level == "L17") AudioDirector.AttachImpacts(go, "dst_debris_metal", "dst_debris_splash");      // as RulesView.BridgeChunks: the relay must stay silent for a piece the rule holds
+            if (OzCity.Is(g.level)) AudioDirector.AttachImpacts(go, "dst_debris_metal", "dst_debris_splash");      // as RulesView.BridgeChunks: the relay must stay silent for a piece the rule holds
             go.AddComponent<RockChunkLife>().lifeMin = 16f;
             mine.Add(go);
             return go;
@@ -909,7 +909,7 @@ namespace OpenZ
                 Line(hull == 1, $"{label}: the jeep's wreck fell into the water once ({hull})");
                 Line(hull >= 1 && he.under >= 0.05f && he.fx, $"{label}: the wreck: droplets drawn, {he.rings} rings, sound {he.sound}, it settles {he.under:F2} m under the surface ({he.height:F2} m high, water {he.waterY - he.bedY:F2} m deep)");
             }
-            if (!g.Prefab($"Z_bridge_{(g.level == "L17" ? "city" : g.level == "L16" ? "jungle" : "desert")}_chunks"))
+            if (!OzBridgeKit.Chunks(g))
                 Skip(label + ": this level's bridge has no chunk set among the game's prefabs (it throws no chunks): the two chunk lines", 2);
             else
             {

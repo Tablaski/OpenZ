@@ -272,7 +272,7 @@ namespace OpenZ
                 var p = pops[i]; float age = Time.unscaledTime - p.t0;
                 var o = game && game.World != null ? game.World.GetAny(p.id) : null;
                 if (age > 2.6f || o == null || o.Destroyed) { if (p.rt) Destroy(p.rt.gameObject); pops.RemoveAt(i); continue; }
-                var sp = hide ? Vector3.back : cam.WorldToScreenPoint(Pos(o) + Vector3.up * (o.Kind == ZKind.Robot ? 2.4f : 3.2f));
+                var sp = hide ? Vector3.back : cam.WorldToScreenPoint(Pos(o) + Vector3.up * (o.Kind == ZKind.Robot ? OzRobotScale.Times(2.4f, o) : 3.2f));
                 bool vis = sp.z > 0;
                 p.rt.gameObject.SetActive(vis);
                 if (!vis) continue;

@@ -52,6 +52,7 @@ namespace OpenZ.Sim
             foreach (var o in w.Map.objects) w.CreateFromMap(o);
             w.AddFortDoorGuns();                                                    // DV73: a new missile cannon on a planned spot that was free
             w.AddHarbourWrecks();                                                   // l17_details_v1 DV39: L17 harbour wrecks (ZWorld.Wrecks.cs), right after Zod's objects
+            w.AddL18Stumps();                                                       // 1.5 DV197 (kit level18_rules): level 18's two river stumps close their pool tiles (ZWorld.L18Rules.cs); no object is made
             w.AddDetailProps();
             w.AddTreeTiles();                                                       // DV88: level 16, the trees that close a tile are map items of the same kind (ZWorld.TreeTiles.cs), right after the details
             w.AddL16Pyramids();                                                     // level 16 DV89: the two pyramids as destroyable map items on closed tiles (ZWorld.L16Pyramids.cs)
@@ -60,6 +61,9 @@ namespace OpenZ.Sim
             w.ClearExitLanes();
             w.AddL17Shuttles();                                                     // K444 DV134: level 17's own shuttles: the EMPTY car-park one (every difficulty), the SHUTTLE box's one by the red fort (ZWorld.L17Shuttles.cs)
             w.AddSideShuttles();                                                    // 1.2 item 111 DV144: level 17's second EMPTY car-park shuttle (the blue side's), a blue player's SHUTTLE box ship by the blue fort (ZWorld.SideShuttles.cs)
+            w.AddL18Shuttle();                                                      // 1.5 DV200 (kit level18_rules): level 18's SHUTTLE box ship by the player's fort (ZWorld.L18Rules.cs)
+            w.AddL18BigTankDrivers();                                               // 1.5 DV198 (kit level18_rules): level 18's EMPTY start: each replaced start tank's driver beside its empty big tank (ZWorld.L18Rules.cs), after every other start object
+            w.AddL18Containers();                                                   // 1.5 DV201 (kit level18_containers): level 18's shipping containers in the water as destructible map items (ZWorld.L18Containers.cs), the last object step: every older object keeps its id
             w.MarkFortTurretCannons();
             w.InitRules();
             w.InitL17Crews();
@@ -91,6 +95,7 @@ namespace OpenZ.Sim
                                            c == ZClass.Ground ? PfTile.Normal : PfTile.Impassable);
                 }
             Path.SetTileWideWeights();
+            BigTankGridsInit();   // 1.5 DV192 / DV193 (kit sim_notes11): lava open in the Bizon's grid, its 2x2 weights (Sim/ZBigTanks.Ground.cs)
         }
 
         // ------------------------------------------------------------------ object creation (zserver.cpp:623-833)
@@ -107,7 +112,7 @@ namespace OpenZ.Sim
             if (ParkedStart && o.Category == "vehicle") owner = Team.Neutral;
             if (ShuttleFromMap(o, owner)) return;                                   // DV118 (K256f): a map's "vehicle:shuttle" entry is a playable shuttle, "null" = an empty one (Sim/ZWorld.ShuttleEmpty.cs)
             if (o.Category == "robot") CreateRobotGroup(o.Type, o.x * 16, o.y * 16, owner, -1, o.health_percent, o);
-            else CreateObject(o.Category, FortDoorGunTypeAt(o), o.x * 16, o.y * 16, owner, o.extra_links, o.health_percent, o);   // DV73: the door tower's cannon
+            else { string ty = L18BigTankTypeAt(o, FortDoorGunTypeAt(o)); L18BigTankMade(CreateObject(o.Category, ty, o.x * 16, o.y * 16, L18BigTankOwner(o, ty, owner), o.extra_links, o.health_percent, o), o); }   // DV73: the door tower's cannon; 1.5 DV198 (kit level18_rules): level 18's Mammoth and Bizon in the start set (ZWorld.L18Rules.cs)
         }
 
         /// <summary>zserver.cpp:623-657: leader + (amount - 1) minions at exactly the same coordinates.</summary>
@@ -205,7 +210,7 @@ namespace OpenZ.Sim
                 o.SnipeChance = o.U.attack_snipe_chance;
                 if (SniperBalanceDeviation && type == "sniper") SniperBalance(o);   // 1.2: a slightly weaker sniper (Sim/ZWorld.SniperBalance.cs)
             }
-            else o.MaxHealth = (int)(ItemOrBuildingHealth(type) * ZConst.MAX_UNIT_HEALTH);
+            else o.MaxHealth = BridgeMaxHealth(type, (int)(ItemOrBuildingHealth(type) * ZConst.MAX_UNIT_HEALTH));   // 1.5 DV207 (kit bridge_health_r3): a bridge has 46546 hit points instead of Zod's 83333 (Sim/ZWorld.BridgeHealth.cs); every other type Zod's
             SetClassFlags(o);
             o.SetCords(x, y);
             o.ZoneIndex = GetZoneIndex(x, y);                                        // connected_zone from the top-left (zserver.cpp:802)
@@ -217,7 +222,7 @@ namespace OpenZ.Sim
             OnCreatedLosClearance(o);                                                // los_clearance_v1: DV22 mesh tiles, DV23 sight blockers
             // initial drivers (zvehicle.cpp:155-168, zcannon.cpp:57-70): an owned vehicle/cannon carries one full-health grunt
             if ((o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && owner != Team.Neutral)
-            { o.DriverType = "grunt"; o.Drivers.Add(S.Unit("grunt").MaxHealth); }
+            { o.DriverType = ZBigTanks.FirstDriver(type); o.Drivers.Add(S.Unit(o.DriverType).MaxHealth); }   // 1.5 DV180 / DV181: a big tank starts with a psycho (Sim/ZBigTanks.cs); every other one Zod's grunt
             o.ResetDamageInfo();
             if (type == "grenades") o.Grenades = S.grenades_per_box;
             // SetHealthPercent: a map object can start destroyed (L17 bridges) -> destroyed impassables + auto-repair timer
@@ -238,6 +243,7 @@ namespace OpenZ.Sim
                 case ZEvilZod.Type: o.IsEvilZod = ZWorld.EvilZodDeviation; break;      // DV161 (Sim/ZEvilZod.cs): false for every object of every level
                 case "jeep": o.CanSnipe = true; o.CanBeSnipedFlag = true; break;
                 case "light": case "medium": case ZMTank.Type: case "heavy": o.HasExplosivesFlag = true; o.DamageIsMissile = true; o.HasLid = true; o.CanBeSnipedFlag = true; break;   // DV145: the medium tank is a lid tank like the light tank
+                case ZBigTanks.Mammoth: case ZBigTanks.Bizon: o.HasExplosivesFlag = true; o.DamageIsMissile = true; o.HasLid = true; o.CanBeSnipedFlag = true; break;   // 1.5 DV180 / DV181: lid tanks like the heavy (Sim/ZBigTanks.cs)
                 case "missile_launcher": o.HasExplosivesFlag = true; o.DamageIsMissile = true; break;
                 case "gatling": o.CanSnipe = true; o.CanBeSnipedFlag = true; break;
                 case "gun": case "howitzer": case "missile_cannon": o.HasExplosivesFlag = true; o.DamageIsMissile = true; o.CanBeSnipedFlag = true; break;
@@ -385,8 +391,9 @@ namespace OpenZ.Sim
                 if (o.KillAt >= 0 && Time >= o.KillAt) DeleteObject(o); else i++;
             }
             int rp = ZRuleProf.Enter(ZRuleProf.Path); Pathing?.BeginTick(); ZRuleProf.Exit(rp);                                                   // OpenZ pathing: spatial hash, lanes
+            BoxPlacesTick();                                                        // 1.5 N29b (kit ue_boxes_range_n29b, DV194): a group ordered onto a box: every unit its own firing place (Sim/ZWorld.UeBoxGroup.cs); returns at once in every level
             int n = Objects.Count;
-            for (int i = 0; i < n && i < Objects.Count; i++) Objects[i].ProcessServer(Time);
+            for (int i = 0; i < n && i < Objects.Count; i++) ProcessServerKind(Objects[i]);   /* 1.5 DV192 / DV193 (kit sim_notes11): inside the unit's grid kind, then the wreck crush (Sim/ZBigTanks.Ground.cs) */
             if (pathResults.Count > 0)                                              // the path thread answers after the objects ran
             {
                 var batch = pathResults.ToArray(); pathResults.Clear();
@@ -405,16 +412,21 @@ namespace OpenZ.Sim
             }
             rp = ZRuleProf.Enter(ZRuleProf.Move); Pathing?.EndTick(dt); ZRuleProf.Exit(rp);                                                   // OpenZ pathing: spacing push, stuck guard, deadlocks
             RunOverTick();                                                          // DV65: moving enemy vehicles knock down / squash robots (ZWorld.RunOver.cs)
+            MammothRamTick();                                                       // 1.5 DV182: a vehicle the Mammoth rammed is destroyed when its hold is over (Sim/ZObject.MammothRam.cs)
+            RamSweepTick();                                                         // 1.5 DV188 (kit ram_polish): the pushed / rolled hull squashes the enemy robots behind it (Sim/ZObject.RamPolish.cs)
             GroundFireTick();                                                       // DV117: burning ground bites an enemy who stays in it (ZWorld.GroundFire.cs)
             LavaTick();                                                             // DV152: lava burns a robot standing in it, it melts if it stays (ZWorld.Lava.cs)
+            BizonHeatTick();   // 1.5 DV192 amended N12b (kit sim_notes11): lava slowly burns a Bizon standing in it (Sim/ZBigTanks.Ground.cs)
             DragonTick();                                                           // DV163: a dragon pass in progress, the first line returns when there is none (ZWorld.Dragons.cs)
             CrocodileTick(dt);                                                      // level 16: the crocodiles' own clock (ZWorld.Crocodiles.cs)
             HeroRegenTick(dt);                                                      // DV112: the heroes' self-repair (Sim/ZHeroSquad.Kh4.cs)
             ProneTargetTick(dt);                                                    // DV122: every sniper's stance, a rule (Sim/ZObject.ProneTarget.cs)
             CheckFlagCaptures();
+            FlagStepOffTick();                                                      // 1.5 DV184 (kit vehicle_off_flag): a vehicle at rest on the flag it captured, no order: one short roll off it (Sim/ZObject.FlagStepOff.cs)
             rp = ZRuleProf.Enter(ZRuleProf.Combat); ProcessMissiles(); ZRuleProf.Exit(rp);   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
             UnitTesting?.FinishRespawns();
             HeavyFallTick();                                                        // DV124: a fort cannon shot to pieces gets its toss; the shuttle / cannon that land now fell their trees (Sim/ZWorld.HeavyFall.cs)
+            BoxSettleTick();                                                        // 1.5 ue_boxes DV194: the Unit editor's boxes above a destroyed box fall, whole levels (Sim/ZWorld.UeBoxes.cs); returns at once in every level
             CheckEndGame();
             SquadSplitTick();                                                       // DV98: a member left far behind becomes a squad of his own (ZWorld.SquadSplit.cs)
             if (!GameOver || !EndFreezeDeviation)                                   // endgame_ui_v1 (DV10): the CPU stops at the game over
@@ -484,6 +496,7 @@ namespace OpenZ.Sim
                 if (o.Destroyed || (m.team != Team.Neutral && o.Owner == m.team)) continue;   // no friendly fire
                 if (m.onlyId >= 0 && o.Id != m.onlyId) continue;                   // DV164: a shell at a rock the heavy tank clips hurts that rock alone (Sim/ZObject.HeavyRock.cs)
                 if (PlatformBlastOff(m, o)) continue;                              // 1.3 the Unit editor: a blast does not cross the levels of a ramp platform (Sim/ZWorld.Platforms.cs); false in every level
+                if (BoxBlastOff(m, o)) continue;                                   // 1.5 ue_boxes DV194: a blast hurts the Unit editor's boxes of one level only (Sim/ZWorld.UeBoxes.cs); false in every level
                 if (ShuttleAirBlast(m, o)) continue;                               // DV118: up in the air only a blast aimed at the shuttle reaches it, and nobody below (Sim/ZWorld.Shuttle.cs)
                 int dx = m.x - o.CenterX, dy = m.y - o.CenterY;
                 bool walls = o.Id == m.targetId && o.ReachToWalls;                  // combat_nb_v1 DV26: the aimed building takes it from its walls
@@ -580,7 +593,7 @@ namespace OpenZ.Sim
         /// <summary>OpenZ deviation DV7: the fort's big gun is a real howitzer of the fort (ZObject.FortGun.cs). OFF = Zod exact
         /// (forts have no weapon). Static like SnipeDeviation; ZGame sets it at every start (PlayerPrefs oz_fortgun_sim).</summary>
         public static bool FortGunDeviation = true;
-        public static readonly Dictionary<string, int> DriverHitFloor = new Dictionary<string, int> { ["jeep"] = 57, ["light"] = 29, ["medium"] = 19, [ZMTank.Type] = 29, ["heavy"] = 15 };   // DV145: the medium tank's driver like the light tank's
+        public static readonly Dictionary<string, int> DriverHitFloor = new Dictionary<string, int> { ["jeep"] = 57, ["light"] = 29, ["medium"] = 19, [ZMTank.Type] = 29, ["heavy"] = 15, [ZBigTanks.Mammoth] = 15, [ZBigTanks.Bizon] = 15 };   // 1.5 DV180 / DV181: their drivers as the heavy's   // DV145: the medium tank's driver like the light tank's
         public const int SniperDriverFactor = 3;
 
         /// <summary>HP one driver hit removes: Zod = the attacker's normal damage (zobject.cpp:2192); with the deviation at least
@@ -592,6 +605,7 @@ namespace OpenZ.Sim
             if (!SnipeDeviation) return d;
             if (OpenSeatPair.TryGetValue((attacker.Type, target.Type), out var pair) && pair.hit > 0) { if (d < pair.hit) d = pair.hit; }
             else if (DriverHitFloor.TryGetValue(target.Type, out int floor) && d < floor) d = floor;
+            d = SmallArmsDriverHit(attacker, d);                        // 1.5 DV212 part 2 (kit small_arms_balance_r8, OFF): a small arm's crew hit at least its hit on a grunt (Sim/ZObject.SmallArms.cs)
             d = CraneDriverHit(target, d);                              // DV141: a driver hit on the crane's driver up in his hatch removes at least CraneDriverHitFloor (Sim/ZObject.CraneSnipe.cs)
             d = ApcDriverHit(target, d);                                // DV143: a driver hit on the APC's lone driver up in the roof hatch removes at least ApcDriverHitFloor (Sim/ZObject.ApcSnipe.cs)
             if (attacker.Type == "sniper") d *= SniperDriverFactor;
@@ -628,7 +642,7 @@ namespace OpenZ.Sim
         /// deviation the chance of the pair in OpenSeatPair when that is higher.</summary>
         public static double SnipeChanceOn(ZObject attacker, ZObject target)
         {
-            double sc = attacker.SnipeChance;
+            double sc = SmallArmsCrewRoll(attacker, attacker.SnipeChance);       // 1.5 DV212 part 2 (kit small_arms_balance_r8, OFF): a small arm's crew roll at least Z95's 60/128 (Sim/ZObject.SmallArms.cs)
             if (!SnipeDeviation || target == null) return sc;
             if (OpenSeatPair.TryGetValue((attacker.Type, target.Type), out var pair) && pair.chance > sc) sc = pair.chance;
             return sc;
@@ -673,10 +687,10 @@ namespace OpenZ.Sim
                 x = (o.LocX + 16) + (hx - Rng.Next(hx + hx)), y = (o.LocY + 16) + (vy - Rng.Next(vy + vy)),
                 damage = dmg, radius = 40, team = Team.Neutral, debris = true, attackerId = o.Id, explodeTime = Time + delay
             };
-            if (o.Kind == ZKind.Vehicle && (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy"))   // DV145: its turret's debris like the tanks'
-            { var m = One(mh, mv, 0, 40); m.explodeTime = Time + 3 + 0.01 * Rng.Next(100); yield return m; }
+            if (o.Kind == ZKind.Vehicle && (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy" || ZBigTanks.Is(o.Type)))   // 1.5 DV180 / DV181:   // DV145: its turret's debris like the tanks'
+            { var m = One(mh, mv, 0, 40); RamDebrisNear(o, m, mh, mv);   /* 1.5 DV186 (kit ram_throw_fix): a ram's / crush's victim: near its wreck (Sim/ZWorld.RamDebris.cs) */ m.explodeTime = Time + 3 + 0.01 * Rng.Next(100); yield return m; }
             else if (o.Kind == ZKind.Cannon)
-            { var m = One(mh, mv, 0, 40); m.explodeTime = Time + 7 + 0.01 * Rng.Next(300); yield return m; }
+            { var m = One(mh, mv, 0, 40); RamDebrisNear(o, m, mh, mv);   /* 1.5 DV186 (kit ram_throw_fix) */ m.explodeTime = Time + 7 + 0.01 * Rng.Next(300); yield return m; }
             else if (o.Type.StartsWith("map_object"))
             { double t = 3 + 0.01 * Rng.Next(100); yield return One(mh, mv, t, (int)(S.map_item_turrent_damage * ZConst.MAX_UNIT_HEALTH)); }
             else if (o.Type == "grenades")
@@ -842,16 +856,20 @@ namespace OpenZ.Sim
             if (DuelDefersOrders) return DuelSend(team, o, new DuelOrder { Kind = DuelOrderKind.Waypoints, Points = new List<ZWaypoint>(list).ToArray() });
             if (o == null || o.Owner == Team.Neutral || o.Owner != team) return false;
             if (!CanSetWaypoints(o) || o.IsMinion || o.Destroyed) return false;
+            if (RamStillRefuses(o)) return false;                                   // 1.5 DV195 (kit ram_chain_n24_n25): rammed / crushed: no order any more (Sim/ZObject.RamChain.cs)
             if (o.IsShuttle) return ShuttleOrder(team, o, list);                                   // DV118: a move order is the shuttle's flight target; a CPU team's order is refused (Sim/ZWorld.Shuttle.cs)
             if (RepairInPlaceDeviation) o.RepairBayOnOrder(IsHumanTeam(team));                    // DV62: a player's order calls a vehicle off the repair pad
             L17CrewForget(o);                                                       // 1.4 DV171 final fix: a new order: no start crew's ENTER left to turn into a walk at an EXIT (Sim/ZObject.VehicleExit.cs)
             o.ClearOrderModes(); foreach (var m in o.Minions) m?.ClearOrderModes();                // DV68: any new order ends a patrol / hold
             o.ChargeOrdered();                                                                     // DV121: a new order ends a jeep's charge or its drive back at once (Sim/ZObject.JeepCharge.cs)
+            o.RamOrdered();                                                                        // 1.5 DV182: a new order ends a Mammoth's ram at once (Sim/ZObject.MammothRam.cs)
             if (!o.CanOverwriteWP()) { var first = o.Waypoints[0]; o.Waypoints.Clear(); o.Waypoints.Add(first); }
             else o.Waypoints.Clear();
             foreach (var w0 in list) { var w = w0; w.playerGiven = true; if (CheckWaypoint(o, ref w)) o.Waypoints.Add(w); }
+            BoxOrderNote(o);                                                        // 1.5 N29b (kit ue_boxes_range_n29b, DV194): a new order ends a box order; an order onto a box is noted for its group's firing places (Sim/ZWorld.UeBoxGroup.cs); returns at once in every level
             LavaOrder(team, o);                                                     // DV152: a player's robot sent onto lava walks in by the least way; a lava walk never outlives a new order (ZWorld.Lava.cs)
             o.JustLeftCannon = false;
+            o.FlagStepOffOrdered(list.Count == 0);                                     // 1.5 DV184 (kit vehicle_off_flag): any order ends a pending step-off; a STOP / HOLD notes its spot (Sim/ZObject.FlagStepOff.cs)
             if (GrabPolicyDeviation && IsHumanTeam(team)) o.PlayerHold = true;                   // DV38: sent by the player: holds, no auto-grab
             // a fresh order starts clean: pathing-layer actions queued for the OLD order (give-up, crowd arrival, retarget, back-off,
             o.OrderClearPending(); foreach (var m in o.Minions) m?.OrderClearPending();   // 1.3 item 29: a unit stopped for such an action restarts its first waypoint, also when the new one is the same (Sim/ZObject.OrderWatch.cs)

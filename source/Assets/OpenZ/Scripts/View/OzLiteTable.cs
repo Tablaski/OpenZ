@@ -6,8 +6,8 @@ namespace OpenZ
     public static class OzLiteTable
     {
         // ------------------------------------------------------------------ the cuts (one bit each in OzLite.Off)
-        public const int CutSunReach = 0, CutSunSteps = 1, CutNightLights = 2, CutNightShadows = 3, CutRain = 4, CutLampGlow = 5, CutLampBeams = 6, CutCount = 7;
-        public static readonly string[] CutNames = { "shadow reach", "shadow steps", "night lights", "night light shadows", "rain", "lamp glow", "lamp beams" };
+        public const int CutSunReach = 0, CutSunSteps = 1, CutNightLights = 2, CutNightShadows = 3, CutRain = 4, CutLampGlow = 5, CutLampBeams = 6, CutWater = 7, CutCount = 8;
+        public static readonly string[] CutNames = { "shadow reach", "shadow steps", "night lights", "night light shadows", "rain", "lamp glow", "lamp beams", "water glints" };
 
         // ------------------------------------------------------------------ the numbers: { HIGH as it is today, MEDIUM, LOW }
         /// <summary>The sun's (at night the moon's) shadows reach as far as the farthest ground in view, between these limits (m).
@@ -32,6 +32,10 @@ namespace OpenZ
         /// (The game's own two switches; the fort's red alarm light and the Jungle's fires follow them too.) The lens, the bulb,
         /// the painted pool on the ground and the real light are not touched.</summary>
         public static readonly bool[] Halos = { true, true, false }, Beams = { true, true, false };
+        /// <summary>
+        /// Are the water's new extras drawn (the sun lane, the fire / lamp reflection, level 18's clear band round objects in the
+        /// water: the shaders' global _OZWaterLite)? LOW alone: no. The water's colour, ripples, foam, sky and its old sparse sun glint stay.</summary>
+        public static readonly bool[] WaterExtras = { true, true, false };
 
         /// <summary>Does this cut lower anything on this preset (1 = MEDIUM, 2 = LOW)? The measuring menu leaves the others out.</summary>
         public static bool Lowers(int cut, int level)
@@ -46,6 +50,7 @@ namespace OpenZ
                 case CutRain: return Rain[level] < 1f;
                 case CutLampGlow: return !Halos[level];
                 case CutLampBeams: return !Beams[level];
+                case CutWater: return !WaterExtras[level];
                 default: return false;
             }
         }

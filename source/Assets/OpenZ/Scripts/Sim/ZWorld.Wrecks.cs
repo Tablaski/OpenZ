@@ -43,6 +43,7 @@ namespace OpenZ.Sim
                 var o = CreateObject("map_item", WreckType, tx * 16, ty * 16, Team.Neutral);
                 o.WidthPix = w * 16; o.HeightPix = h * 16; o.SetCords(tx * 16, ty * 16);
                 o.IsDestroyableImpass = true;                                                 // SetClassFlags gave AttackedByExplosives
+                o.VehicleWreck = true;   // 1.5 DV192 / DV193 (kit sim_notes11): a car wreck the heavy tank, the Bizon and the Mammoth crush
                 o.MaxHealth = o.Health = (int)(S.map_item_health * ZConst.MAX_UNIT_HEALTH);   // Zod map object HP (1667)
                 SetMapImpassables(o);                                                         // the whole footprint, destroyable
                 Wrecks.Add(o);
@@ -55,6 +56,7 @@ namespace OpenZ.Sim
         /// driveable (vehicles never enter water).</summary>
         void WreckImpassables(ZObject o, bool set)
         {
+            BigTankWreckTiles(o, set);   // 1.5 DV192 / DV193 (kit sim_notes11): a car wreck opens for the crushing tanks (Sim/ZBigTanks.Ground.cs)
             int tx = o.LocX / 16, ty = o.LocY / 16, w = Math.Max(1, o.WidthPix / 16), h = Math.Max(1, o.HeightPix / 16);
             for (int i = tx; i < tx + w; i++)
                 for (int j = ty; j < ty + h; j++)

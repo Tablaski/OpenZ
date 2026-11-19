@@ -79,6 +79,7 @@ namespace OpenZ
         void Update()
         {
             if (!rts || !cam) return;
+            if (OzFpsView.On) return;   // 1.5 fps_in_ue: the first-person view has the camera: no turn, zoom anchor or double-click centring from its clicks
             var m = Mouse.current; var hud = OpenZHud.I;
             bool overUi = hud && hud.PointerOverUi;
             bool modal = OzUeHooks.AnyModal || OzConfirm.Blocks;
@@ -133,6 +134,7 @@ namespace OpenZ
             float dt = Time.unscaledDeltaTime, now = Time.unscaledTime;
             var ff = OzUeInsets.FreeFieldScreen;
             Vector2 centre = ff.width > 1f && ff.height > 1f ? ff.center : new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            if (OzFpsView.On) { glideOn = moveOn = zoomOn = turnOn = clickArmed = false; lastClickAt = -10f; lastCentre = centre; return; }   // 1.5 fps_in_ue: nor a glide, zoom anchor or free-field move of the RTS focus while it is on (and through its glide out); the holds under way at Alt+F end
 
             // the player moves the view himself (arrows, W A S D, the screen edge): the glides give way
             if (UserPans()) { glideOn = false; moveOn = false; }

@@ -554,7 +554,7 @@ namespace OpenZ
             {
                 var b = batches[i]; if (b == null || b.n == 0) continue;
                 b.block.SetFloatArray(MeltTId, b.t); b.block.SetFloatArray(MeltTopId, b.top);
-                Graphics.DrawMeshInstanced(b.mesh, 0, instMat, b.mats, b.n, b.block, ShadowCastingMode.Off, false);
+                if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(b.mesh, 0, instMat, b.mats, b.n, b.block, ShadowCastingMode.Off, false);   // no instancing (no graphics): skip, never throw
                 b.n = 0;
             }
         }

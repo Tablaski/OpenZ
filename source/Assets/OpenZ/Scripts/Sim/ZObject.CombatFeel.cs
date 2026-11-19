@@ -62,7 +62,7 @@ namespace OpenZ.Sim
         public int KnockCount { get; private set; }
         public int KnockRolls { get; private set; }
         public int KnockSkips { get; private set; }
-        static readonly HashSet<string> KnockHeavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
+        static readonly HashSet<string> KnockHeavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher", ZBigTanks.Mammoth, ZBigTanks.Bizon };   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
 
         /// <summary></summary>
         void KnockOnBlast(ZObject o, ZMissile m, float ratio)

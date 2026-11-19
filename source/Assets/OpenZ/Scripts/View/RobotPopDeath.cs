@@ -62,9 +62,9 @@ namespace OpenZ
     /// one material built once, no per-death allocation after warm-up. More than <see cref="FullPerFrame"/> pops in one frame shrink.
     /// </summary>
     [DefaultExecutionOrder(96)]
-    public class RobotPopDeath : MonoBehaviour
+    public partial class RobotPopDeath : MonoBehaviour   // 1.5 chips_white: + View/RobotPopDeath.HullChips.cs
     {
-        public const int MaxPieces = 140, FullPerFrame = 4;
+        public const int MaxPieces = 220, FullPerFrame = 4;   // 1.5 kit chips_ground_rest: 140 -> 220 (chips now lie 8-12 s; pieces are made on demand only)
         public const string SoundKey = "robot_pop";
         public static readonly string[] Bank = { "rp_pop_a", "rp_pop_b", "rp_pop_c", "rp_pop_d", "rp_pop_e", "rp_pop_f" };
         static readonly string[] Electric = { "rp_pop_b", "rp_pop_e" };
@@ -81,6 +81,8 @@ namespace OpenZ
             public float smoke, smokeT; public bool heavy, concrete;
             public int glow;                                                                            // 0 = no glow part on it; else the fade step it shows + 1 (OzGlowFade)
             public int dead;                                                                            // item 228: -1 = no dead colour (a vehicle's part, a chip); else the dead step shown (OzDeadTint, from the age)
+            public bool chip, chipLife; public float settle, chk, restGy, restT; public Vector3 restP, restN, restS, fromP; public Quaternion restQ, fromQ;   // 1.5 kit chips_ground_rest
+            public Transform mt; public bool fit; public Vector3 be;
         }
         readonly List<Piece> pieces = new List<Piece>();
         readonly List<Renderer> parts = new List<Renderer>();
@@ -210,6 +212,7 @@ namespace OpenZ
                 p.mr.shadowCastingMode = ShadowCastingMode.On;
                 p.t.SetPositionAndRotation(src.transform.position, src.transform.rotation); p.t.localScale = src.transform.lossyScale;
                 var ext = src.bounds.extents; p.rad = Mathf.Clamp(Mathf.Min(ext.x, Mathf.Min(ext.y, ext.z)) + 0.05f, 0.08f, 0.6f);
+                Fit(p);
                 Launch(p, c, away, sq, 1f);
                 p.heavy = ext.magnitude > 0.35f; if (real > 0 && full) p.smoke = R(0.3f, 0.6f); p.dead = 0;   // PD1: the gun clangs down; item 228: the dead colour fades in
             }
@@ -239,6 +242,7 @@ namespace OpenZ
                 p.mr.shadowCastingMode = s.magnitude * hs > 0.35f ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 p.t.SetPositionAndRotation(c + Random.insideUnitSphere * 0.45f * hs, Random.rotation); p.t.localScale = s * hs;
                 p.rad = Mathf.Clamp(Mathf.Min(s.x, Mathf.Min(s.y, s.z)) * 0.5f * hs + 0.03f, 0.04f, 0.4f);
+                Fit(p);
                 Launch(p, c, away, sq, kind >= 5 ? 1.25f : 1f); p.dead = 0;                             // item 228: every piece of a pop is a dead robot's
             }
             return true;
@@ -255,7 +259,7 @@ namespace OpenZ
             p.v += BoardingView.HatchPopCarry;                                                      // vehicle_exit_jump fix round 3: + his flight's velocity (zero for every other pop)
             p.w = Random.onUnitSphere * R(300f, 900f);
             p.age = 0f; p.life = R(PieceLifeMin, PieceLifeMax); p.rest = p.popping = p.wet = p.landed = false; p.bounces = 0; p.active = true;
-            p.smoke = 0f; p.smokeT = 0f; p.heavy = p.concrete = false; p.dead = -1;
+            p.smoke = 0f; p.smokeT = 0f; p.heavy = p.concrete = false; p.dead = -1; p.chip = false;   // 1.5 kit chips_ground_rest
             p.go.SetActive(true);
         }
 
@@ -310,6 +314,7 @@ namespace OpenZ
                 p.t.SetPositionAndRotation(b.TransformPoint(ps.centre[i]), b.rotation); p.t.localScale = sc;
                 var ext = Vector3.Scale(ps.mesh[i].bounds.extents, new Vector3(Mathf.Abs(sc.x), Mathf.Abs(sc.y), Mathf.Abs(sc.z)));
                 p.rad = Mathf.Clamp(Mathf.Min(ext.x, Mathf.Min(ext.y, ext.z)) + 0.04f, 0.08f, 0.6f);
+                Fit(p);
                 Launch(p, c, away, sq, full ? 1f : 0.8f);
                 p.smoke = full ? R(0.5f, 0.9f) : 0f; p.heavy = ext.magnitude > 0.3f; p.dead = 0;
                 n++;
@@ -347,6 +352,7 @@ namespace OpenZ
                 if (mr.sharedMaterial && mr.sharedMaterial.renderQueue >= 2450) continue;
                 var b = mr.bounds; float size = b.size.magnitude;
                 if (size < 0.25f || size > 1.8f || NoKnock.IsMatch(mr.name) || InGunRig(mr.transform, root)) continue;
+                if (OzHatchLid.KeepOn(mr.transform, root)) continue;                                         // 1.5 hatch_lid: a tank's hatch lid (and hinge, handle, rim) is never knocked off: no black hole (View/OzHatchLid.cs)
                 float d = Mathf.Sqrt(b.SqrDistance(at));
                 if (d < bestD) { bestD = d; best = mr; }
             }
@@ -398,18 +404,18 @@ namespace OpenZ
                 var s = concrete ? new Vector3(R(0.25f, 0.45f), R(0.18f, 0.32f), R(0.22f, 0.4f)) : i % 3 == 2 ? Vector3.one * R(0.12f, 0.18f) : new Vector3(R(0.3f, 0.5f), R(0.06f, 0.1f), R(0.22f, 0.36f));
                 s *= size;
                 p.mf.sharedMesh = mesh; p.mr.sharedMaterial = pieceMat;
-                block ??= new MaterialPropertyBlock(); block.Clear(); block.SetColor(BaseColorId, c); p.mr.SetPropertyBlock(block);
+                block ??= new MaterialPropertyBlock(); block.Clear(); block.SetColor(BaseColorId, c); p.mr.SetPropertyBlock(block, 0);   // 1.5 chips_white: slot 0, the block OzGlowFade.Dim keeps (the renderer-wide one lost to it: white chips)
                 p.mr.shadowCastingMode = s.magnitude > 0.3f ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 p.t.SetPositionAndRotation(at + Random.insideUnitSphere * 0.2f, Random.rotation); p.t.localScale = s;
                 p.rad = Mathf.Clamp(Mathf.Min(s.x, Mathf.Min(s.y, s.z)) * 0.5f + 0.03f, 0.04f, 0.4f);
                 Launch(p, at, away, 0.85f, 1f);
-                p.v += away * R(1f, 3f); p.concrete = concrete;
+                p.v += away * R(1f, 3f); p.concrete = concrete; AsChip(p);   // 1.5 kit chips_ground_rest: lands flat on the surface, lies 8-12 s
                 ChipsThrown++;
             }
         }
 
         /// <summary>A free piece; its glow is looked at on its first frame.</summary>
-        Piece Take() { var p = TakeRaw(); if (p != null) p.glow = -1; return p; }
+        Piece Take() { var p = TakeRaw(); if (p != null) { p.glow = -1; Unfit(p); } return p; }
 
         Piece TakeRaw()
         {
@@ -417,18 +423,19 @@ namespace OpenZ
             if (pieces.Count < MaxPieces)
             {
                 var go = new GameObject("OZ_PopPiece"); go.transform.SetParent(transform, false);
-                var p = new Piece { go = go, t = go.transform, mf = go.AddComponent<MeshFilter>(), mr = go.AddComponent<MeshRenderer>() };
+                var p = NewFitPiece(go);
                 p.mr.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
                 p.mr.receiveShadows = true;
                 pieces.Add(p); return p;
             }
             Piece best = null;                                                                          // full pool: the oldest resting piece
-            foreach (var p in pieces) if (p.rest && !p.popping && !OzLavaMelt.Busy(p.t) && (best == null || p.age > best.age)) best = p;   // level 7, kit LV5: never a melting part
+            foreach (var p in pieces) if (p.rest && !p.popping && !OzLavaMelt.Busy(p.t) && (best == null || p.life - p.age < best.life - best.age)) best = p;   // level 7, kit LV5: never a melting part   // 1.5 kit chips_ground_rest: the one nearest its own end (was: the oldest = the chips)
             if (best == null) return null;
+            if (best.chip && best.age < best.life) ChipsRecycledEarly++;   // 1.5 kit chips_ground_rest
             Retire(best); return best;
         }
 
-        void Retire(Piece p) { p.active = false; p.popping = false; if (p.go) { p.go.SetActive(false); p.t.localScale = Vector3.one; } }
+        void Retire(Piece p) { ClearSlotBlocks(p); p.active = false; p.popping = false; if (p.go) { p.go.SetActive(false); p.t.localScale = Vector3.one; } }   // 1.5 chips_white: no slot block carried to the next use
 
         void LateUpdate()
         {
@@ -450,13 +457,14 @@ namespace OpenZ
                     int dn = Mathf.Min(OzDeadTint.Steps, Mathf.FloorToInt(Mathf.Clamp01(p.age / OzDeadTint.Seconds) * OzDeadTint.Steps));
                     if (dn != p.dead) { p.dead = dn; OzDeadTint.Set(p.mr, dn / (float)OzDeadTint.Steps); if (dn >= OzDeadTint.Steps) { OzDeadTint.PartsFaded++; p.dead = -1; } }
                 }
+                if (p.chip && p.rest && !p.wet) { ChipRestUpdate(p, dt, game); continue; }   // 1.5 kit chips_ground_rest: settle flat, lie, slow sink
                 if (p.age >= p.life)
                 {
                     p.popping = true; var pp = p;
                     PopOut.Begin(p.t, PopOut.Style.Debris, () => Retire(pp), false, false);
                     continue;
                 }
-                if (p.rest) continue;
+                if (p.rest) { if (p.fit && !p.wet) FitRestUpdate(p, dt, game); continue; }
                 if (fx && p.smoke > 0f && p.age < p.smoke && (p.smokeT -= dt) <= 0f)
                 {
                     p.smokeT = 0.07f;
@@ -475,18 +483,111 @@ namespace OpenZ
                     p.v *= 0.15f; p.w *= 0.3f; p.life = Mathf.Min(p.life, p.age + 1.4f);
                 }
                 if (p.wet) { p.v.y = Mathf.Max(p.v.y, -0.8f); p.v.x *= 0.9f; p.v.z *= 0.9f; }
-                if (pos.y - p.rad < gy)
+                if (p.chip) p.rad = ChipHalfUp(p);   // 1.5 kit chips_ground_rest: the chip's real half height as it is turned (was: half its thickness, edges in the ground)
+                float lo = p.fit ? FitHalfUp(p) : p.rad;
+                if (pos.y - lo < gy)
                 {
-                    pos.y = gy + p.rad;
+                    pos.y = gy + lo;
                     if (p.v.y < -1.6f && !p.wet && p.bounces < 3)
                     {
                         p.v.y = -p.v.y * R(0.3f, 0.45f); p.v.x *= 0.6f; p.v.z *= 0.6f; p.w *= 0.55f; p.bounces++;
                         if (!p.landed) { p.landed = true; Land(p, pos); }
                     }
-                    else { p.v = Vector3.zero; p.w = Vector3.zero; p.rest = true; }
+                    else { p.v = Vector3.zero; p.w = Vector3.zero; p.rest = true; if (p.chip && !p.wet) ChipRest(p, pos, gy, game); else if (p.fit && !p.wet) FitRest(p, pos, gy, game); }   // 1.5 kit chips_ground_rest; 1.5 kit robot_pieces_ground_r10 (A35): a fitted piece lies on its face
                 }
                 p.t.position = pos;
             }
+        }
+
+        // ------------------------------------------------------------------------------------------------ 1.5 kit chips_ground_rest
+        /// <summary>
+        /// It was: a piece met the ground with p.rad = half its THINNEST side (a chip's thickness) whatever way it was turned, and stopped
+        /// dead in that pose, so a 0.6-0.8 m chip (x1.85, chips_rts_read) landing on its edge stood up to ~0.35 m inside the ground; it lived
+        /// 3.8-6.5 s counted from the throw (2.5-5 s on the ground), then popped out in 0.5 s; a full pool (140) recycled the oldest resting
+        /// piece at once (the chips, which rest longest). Now a chip (HC1 hull chips + RobotPopDeath.Chips) meets the surface GroundY gives
+        /// (terrain, road, bridge / platform deck) with its real turned half height, bounces, settles FLAT on the surface's slope in
+        /// ChipSettleTime s (its whole thickness above it + ChipLift), lies ChipStayMin-Max s from the moment it lands, follows the ground if
+        /// a crater is dug under it (falls again if the deck goes), then sinks into the surface and shrinks a little over ChipSinkTime s.
+        /// The pool keeps 220 and recycles the piece nearest its own end first. Robot / body / knocked-off parts unchanged.</summary>
+        public static float ChipStayMin = 8f, ChipStayMax = 12f, ChipSinkTime = 1.5f, ChipSettleTime = 0.22f, ChipLift = 0.02f;
+        public static int ChipsRested { get; private set; }
+        public static int ChipsSunk { get; private set; }
+        /// <summary>Chips taken back by a full pool before their time was up (should stay 0 in normal play).</summary>
+        public static int ChipsRecycledEarly { get; private set; }
+
+        void AsChip(Piece p)
+        {
+            p.chip = true; p.chipLife = false; p.settle = 1f; p.restT = 0f;
+            p.life = p.age + ChipStayMax + 6f;                                                          // failsafe while it flies (one that never lands)
+            p.rad = ChipHalfUp(p);
+        }
+
+        /// <summary>A chip's half height along world up as it is turned now (its unit -.5..+.5 mesh box, scaled).</summary>
+        static float ChipHalfUp(Piece p)
+        {
+            var q = p.t.rotation; var s = p.t.localScale;
+            return 0.5f * (Mathf.Abs((q * Vector3.right).y) * s.x + Mathf.Abs((q * Vector3.up).y) * s.y + Mathf.Abs((q * Vector3.forward).y) * s.z);
+        }
+
+        /// <summary>The chip came to rest at pos: it will lie flat on the surface (its slope from four ground samples), thickness above it.</summary>
+        void ChipRest(Piece p, Vector3 pos, float gy, ZGame game)
+        {
+            const float d = 0.25f;
+            var n = new Vector3(game.GroundY(pos.x - d, pos.z) - game.GroundY(pos.x + d, pos.z), 2f * d, game.GroundY(pos.x, pos.z - d) - game.GroundY(pos.x, pos.z + d)).normalized;
+            if (n.y < 0.85f) n = Vector3.up;                                                            // a deck edge / kerb step under it: lie level
+            var up = p.t.up; if (Vector3.Dot(up, n) < 0f) up = -up;                                     // the face nearer the sky stays up (painted face or back)
+            p.fromP = pos; p.fromQ = p.t.rotation;
+            p.restQ = Quaternion.FromToRotation(up, n) * p.t.rotation;
+            p.restN = n; p.restS = p.t.localScale; p.restGy = gy;
+            p.restP = new Vector3(pos.x, gy + 0.5f * p.restS.y / n.y + ChipLift, pos.z);
+            p.settle = 0f; p.chk = R(0.2f, 0.4f);
+            if (!p.chipLife) { p.chipLife = true; p.restT = p.age; p.life = p.age + ChipSettleTime + R(ChipStayMin, ChipStayMax); ChipsRested++; }
+        }
+
+        /// <summary>A resting chip: settle flat, follow the ground, then the slow sink at the end of its time.</summary>
+        void ChipRestUpdate(Piece p, float dt, ZGame game)
+        {
+            if (p.age >= p.life)
+            {   // the end: it sinks into the surface and shrinks a little, slowly (no pop)
+                float k = (p.age - p.life) / ChipSinkTime;
+                if (k >= 1f) { ChipsSunk++; Retire(p); return; }
+                float e = k * k * (3f - 2f * k);
+                p.t.SetPositionAndRotation(p.restP - p.restN * ((p.restS.y + ChipLift + 0.04f) * e), p.restQ);
+                p.t.localScale = p.restS * Mathf.Lerp(1f, 0.7f, e);
+                return;
+            }
+            if ((p.chk -= dt) <= 0f)
+            {   // the ground under it changed (a crater dug, a deck gone): follow it, or fall again
+                p.chk = 0.4f;
+                float gy = game.GroundY(p.restP.x, p.restP.z), dy = gy - p.restGy;
+                if (dy < -0.15f) { p.rest = false; p.settle = 1f; p.v = Vector3.zero; p.w = Random.onUnitSphere * 90f; p.rad = ChipHalfUp(p); return; }
+                if (Mathf.Abs(dy) > 0.01f) { p.restGy = gy; p.restP.y += dy; p.fromP.y += dy; if (p.settle >= 1f) p.t.position = p.restP; }
+            }
+            if (p.settle < 1f)
+            {
+                p.settle = Mathf.Min(1f, p.settle + dt / ChipSettleTime);
+                float e = p.settle * p.settle * (3f - 2f * p.settle);
+                p.t.SetPositionAndRotation(Vector3.Lerp(p.fromP, p.restP, e), Quaternion.Slerp(p.fromQ, p.restQ, e));
+            }
+        }
+
+        /// <summary>Play check (OzChipsCheck rows 5-6): the chips lying now (settled, dry, not sinking): how many lie flat on the surface
+        /// normal, the lowest bottom against GroundY (m; negative = in the ground), the longest any has lain (s).</summary>
+        public static int ChipReport(out int flat, out float lowest, out float longest)
+        {
+            flat = 0; lowest = float.MaxValue; longest = 0f; int n = 0;
+            var me = inst; var game = ZGame.I; if (!me || !game) { lowest = 0f; return 0; }
+            foreach (var p in me.pieces)
+            {
+                if (!p.active || !p.chip || !p.rest || p.wet || p.settle < 1f || p.age >= p.life) continue;
+                n++;
+                if (Mathf.Abs(Vector3.Dot(p.t.up, p.restN)) > 0.985f) flat++;
+                float bottom = p.t.position.y - 0.5f * p.t.localScale.y / Mathf.Max(0.5f, p.restN.y);
+                lowest = Mathf.Min(lowest, bottom - game.GroundY(p.t.position.x, p.t.position.z));
+                longest = Mathf.Max(longest, p.age - p.restT);
+            }
+            if (n == 0) lowest = 0f;
+            return n;
         }
 
         /// <summary>

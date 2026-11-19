@@ -190,6 +190,7 @@ namespace OpenZ
             float wm = mask.W * OzFowMask.CellPx / 8f, hm = mask.H * OzFowMask.CellPx / 8f;                 // 8 Zod px = 1 m (ZGame.PxToWorld: x = px / 8, z = -py / 8)
             mat.SetVector(IdMap, new Vector4(0f, 0f, 1f / wm, -1f / hm));                                   // u = x / width, v = -z / height (v grows to the south, the mask's rows)
             mat.SetFloat(IdOn, strength);
+            LosMaterial();                                                                                   // 1.5 los_fog (View/OzFogOfWar.Los.cs): the seen-now texture and the line-of-sight fog's look
             mat.SetFloat(IdDebug, DebugMode);
             mat.SetFloat(IdOutside, 20f);                                                                     // closed over 20 m outside the map
 
@@ -545,7 +546,7 @@ namespace OpenZ
 
         void EndCamera(ScriptableRenderContext ctx, Camera cam)
         {
-            if (hiddenNow.Count > 0 || earlyNow.Count > 0) RestoreHidden();                         // 1.4 mayhem_headstart: the early units' shadows too
+            if (hiddenNow.Count > 0 || earlyNow.Count > 0 || losLights.Count > 0) RestoreHidden();  // 1.4 mayhem_headstart: the early units' shadows too; 1.5 los_fog: the held lamps
         }
 
         // ---------------------------------------------------------------- units under the fog
@@ -589,15 +590,17 @@ namespace OpenZ
             for (int i = 0; i < views.Count; i++)
             {
                 var v = views[i]; if (!v) continue;
-                var o = v.Obj;
-                if (radarFog ? !OzRadarLoss.Covers(o) : o == null || o.Owner == player || !o.IsUnit || mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) continue;
-                bool early = !radarFog && band > 0 && NearRevealed(mask, o.CenterX, o.CenterY, band);
+                var o = v.Obj; if (o == null || !radarFog && (o.Owner == player || !o.IsUnit)) continue;
+                bool los = radarFog ? OzRadarLoss.Covers(o) : LosCovers(o);                                                                        // 1.5 los_fog (View/OzFogOfWar.Los.cs): an enemy on explored ground nothing of ours sees now is held off too, never in the early band
+                if (radarFog && !los) continue;
+                if (!los) { if (mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) continue; }
+                bool early = !radarFog && !los && band > 0 && NearRevealed(mask, o.CenterX, o.CenterY, band);                          // 1.4 mayhem_headstart: under the fog's soft edge: drawn, shadows held off
                 float wx = o.CenterX / 8f, wz = -o.CenterY / 8f;                                                // 8 Zod px = 1 m (ZGame.PxToWorld)
-                if (boxed && (wx < box.x || wx > box.z || wz < box.y || wz > box.w)) { if (!early) outside++; continue; }   // 1.4 mayhem_headstart: early units are not held units
+                if (boxed && (wx < box.x || wx > box.z || wz < box.y || wz > box.w)) { if (!early && !los) outside++; continue; }   // 1.4 mayhem_headstart: early units are not held units
                 int id = v.GetInstanceID();
                 if (!rcache.TryGetValue(id, out var c)) { c = new RCache(); rcache[id] = c; }
                 // parts added later (a gun, a crew) join within a second; at most 3 lists made again a frame (the rest wait a frame or two)
-                if (c.at < 0f || (now - c.at > 1f && refreshed < 3)) { v.GetComponentsInChildren(true, c.list); c.at = now; refreshed++; }
+                if (c.at < 0f || (now - c.at > 1f && refreshed < 3)) { v.GetComponentsInChildren(true, c.list); c.at = now; refreshed++; BoardingView.AddCrewRenderers(v, c.list); }   // final pass 14h: its crew figure (jeep driver, hatch commander, boarding robot: View/BoardingView.FogHide.cs) held off with it
                 if (early)
                 {
                     for (int k = 0; k < c.list.Count; k++)
@@ -612,6 +615,7 @@ namespace OpenZ
                     var r = c.list[k];
                     if (r && !r.forceRenderingOff) { r.forceRenderingOff = true; hiddenNow.Add(r); }
                 }
+                if (los) { LosHeldView(v); continue; }                                                           // 1.5 los_fog: counted apart (HiddenViews stays the units in covered ground), its real lamps held off too
                 nv++;
             }
             if (radarFog)
@@ -646,6 +650,7 @@ namespace OpenZ
                 r.forceRenderingOff = false;
             }
             hiddenNow.Clear();
+            if (losLights.Count > 0) LosRestoreLights();                                                   // 1.5 los_fog: the lamps held off with the units it hides
             if (earlyNow.Count > 0) RestoreEarly();                                                         // 1.4 mayhem_headstart
         }
 

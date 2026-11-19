@@ -140,7 +140,7 @@ namespace OpenZ
             centre = new Vector3(at.x, fxp ? fxp.SurfaceY(at) : (ZGame.I ? ZGame.I.GroundY(at.x, at.z) : at.y), at.z);
             rumbleId = 91000 + (int)(t0 * 10f) % 1000;
             var g = ZGame.I;
-            dustColor = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+            dustColor = g != null && OzCity.Is(g.level) ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
             var add = Resources.Load<Material>("OpenZ/FX/M_FxAdditive"); var addShader = add && add.shader ? add.shader : Shader.Find("OpenZ/FxAdditive");
             if (addShader)
             {

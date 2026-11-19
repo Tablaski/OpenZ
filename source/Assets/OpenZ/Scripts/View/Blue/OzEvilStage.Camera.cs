@@ -44,7 +44,7 @@ namespace OpenZ
             if (b.beat == "lock") { camLockF = camNow; camLockOn = true; camDur = 0f; return; }           // the picture stays where it is now
             if (b.beat == "crash") { Crash(b.a > 0f ? b.a : 1f, b.hold); return; }
             if (b.beat == "push") { camPushT0 = clock; camPushDur = Mathf.Max(0.5f, b.hold > 0f ? b.hold : 3f); camPushK = b.a > 0f ? b.a : 0.1f; return; }
-            if (!Known(b.beat)) { Debug.LogWarning("[EvilZod] unknown camera framing " + b.beat); return; }
+            if (!Known(b.beat) && !L18Known(b.beat)) { Debug.LogWarning("[EvilZod] unknown camera framing " + b.beat); return; }
             camFrom = camNow; camLockOn = false; camName = b.beat; camT0 = clock; camDur = Mathf.Max(0f, b.a);
             if (camDur <= 0f)
             {   // a cut: the new picture at once, the zoom and the push of the last shot gone (as the commander's SnapFraming)
@@ -133,7 +133,7 @@ namespace OpenZ
             return new Framing { look = mid, dist = FitDist(hi - lo, spread + extraW, fov), fov = fov, elev = elev, yaw = yaw, wide = true, subject = 0 };
         }
 
-        Framing Resolve(string n) { var f = ResolveHq(n); return LavaWalkOn ? LavaFrame(n, f) : f; }      // level 7: his own framings on the lava (OzEvilStage.L07Walk.cs)
+        Framing Resolve(string n) { if (L18Frame(n, out var w)) return L18HeadRoom(n, w); var f = ResolveHq(n); return LavaWalkOn ? LavaFrame(n, f) : f; }      // level 7: his own framings on the lava (OzEvilStage.L07Walk.cs)
         Framing ResolveHq(string n)
         {
             EzPoints(out var eTop, out var eFace, out var eChest, out var eHips, out var eFeet);
@@ -297,6 +297,7 @@ namespace OpenZ
             cam.transform.position = pos + baseRot * off;
             cam.transform.rotation = baseRot * Quaternion.Euler(pitch, yaw, roll);
             cam.fieldOfView = camNow.fov * camFovMul;
+            if (l18On) L18Dof(); else                                                                    // level 18: its own lens (a real depth of field: OzEvilStage.L18Window.cs)
             if (dof != null && !LavaWalkOn) { float dd = camDistS, far = RunnersRunning ? 4f : 1.2f; dof.gaussianStart.value = dd + far; dof.gaussianEnd.value = dd + 6f + far; }   // the fleeing clones stay sharp
         }
 

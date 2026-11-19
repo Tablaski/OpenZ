@@ -341,6 +341,7 @@ namespace OpenZ
             GunHidden();                                                                                 // LOSE: in his hands from the cut on "Fine" (gun_ready)
             DisposeRunners();                                                                            // LOSE builds its fleeing lookalikes on its own beat
             SetWallBeacons(s != null && s.id == OzBlueScenes.Lose);                                      // the alarm beacons: LOSE only
+            BeginL18Window(s);                                                                           // level 18: the main window, the binoculars, the two-button console (OzEvilStage.L18Window.cs)
             BeginLavaWalk(s);                                                                            // level 7: this one scene walks on the real lava (OzEvilStage.L07Walk.cs)
             ResetCamera();
             Debug.Log($"[EvilZod] scene {(s != null ? s.id : "none")} begins ({(onScreen ? "full screen" : "window")}): {Status()}");
@@ -377,6 +378,7 @@ namespace OpenZ
                     StartLoop("OpenZ/Audio/Sfx/sd_alarm_klaxon", AlarmDb, 0.9f, "alarm_klaxon"); alarmDuck = 0f;
                     break;
                 case "alarm_off": alarmOn = false; StopLoop(); break;
+                default: L18SetBeat(b); break;                                                          // level 18: flash, alarm_chirp (OzEvilStage.L18Window.cs)
                 case "clones_run": StartRunners(); break;                                               // LOSE: the army flees at the back (OzEvilStage.Runners.cs)
             }
         }
@@ -391,6 +393,7 @@ namespace OpenZ
             if (ez != null) TickEvilZod(dt);
             if (sk != null) TickSidekick(dt);
             TickLavaWalk(dt);
+            TickL18Window(dt);                                                                          // level 18: after both robots' poses (the binoculars follow his head or his hand)
             TickRunners(dt);
             TickButton(dt);
             TickBombLaunch(dt);

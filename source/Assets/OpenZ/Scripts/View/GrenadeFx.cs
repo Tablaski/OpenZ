@@ -195,8 +195,9 @@ namespace OpenZ
                     sparkM[ns++] = Matrix4x4.TRS(tip, Quaternion.identity, Vector3.one * FuseHalo * f);
                 }
             }
-            if (nb > 0) Graphics.DrawMeshInstanced(body, 0, bodyMat, bodyM, nb, null, ShadowCastingMode.On, true);
-            if (ns > 0)
+            bool inst = SystemInfo.supportsInstancing;   // no instancing (no graphics): skip, never throw
+            if (nb > 0 && inst) Graphics.DrawMeshInstanced(body, 0, bodyMat, bodyM, nb, null, ShadowCastingMode.On, true);
+            if (ns > 0 && inst)
             {
                 sparkMpb.SetFloatArray(AlphaId, ones);
                 Graphics.DrawMeshInstanced(spark, 0, sparkMat, sparkM, ns, sparkMpb, ShadowCastingMode.Off, false);

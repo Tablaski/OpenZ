@@ -53,6 +53,7 @@ Shader "OpenZ/TrackMark"
                 float _DissolveScale; float _DepthTolerance; half _SceneDepthTest; half _ZTest;
             CBUFFER_END
             float _OZTrackTime;                                    // global, TrackMarks game clock (s)
+            float4 _OZDevilSweep;                                  // global, OzDustDevilTrace (1.5 kit dust_devil_trace_r5): lane lighter, edge darker, streaks, edge wander
 
             struct A { float3 pos : POSITION; half4 col : COLOR; float2 uv : TEXCOORD0; float4 d : TEXCOORD1; };
             struct V
@@ -150,6 +151,41 @@ Shader "OpenZ/TrackMark"
                 if (kind > 2.5) cover *= 1.25;                     // heavier: pressed deeper
             }
 
+            // 1.5 kit view_notes11 N9 (kind 4, TrackMarks.DevilSweep): a dust devil's swept mark. uv = the disc's own coordinates (-1..1), the
+            // devil's heading is in the seed (seed / 0.9 = heading / 2 pi). The look is in WORLD space (wp), so the overlapping discs along a
+            // devil's path draw one coherent swept band: long thin streaks along the travel with a gentle sideways curl (the swept sand a little
+            // lighter, the furrows between a little darker), a soft rim broken by noise; far away the streaks average out (no moire) to a
+            // faint lighter band.
+            // 1.5 kit dust_devil_trace_r5 (A25 / N9: the trace was hardly readable from the RTS camera: only fine lighter / darker streaks,
+            // which cancel over any patch the eye reads from up there). Now a swept TRACK along the heading: a paler swept lane (|a| < ~0.4 of
+            // the radius, broad streaks along the travel), a soft darker scoured edge on both sides (0.35-0.9), the lane's edges wandering
+            // with the ground (world-space noise: the overlapping discs agree), each disc cross-faded along the path (cos^2 over 0.577 of the
+            // radius = 1.5 m, the marks' step: the windows of the neighbours add up to 1, an even band without beads). _OZDevilSweep (global,
+            // OzDustDevilTrace): x = the fresh lane's lighter share, y = the edge's darker share (true shares of the ground's brightness at
+            // strength 1: _Intensity, _Berm and _Groove are divided out), z = how streaky (0..1), w = the edges' wander (x the radius).
+            void DevilSweep(float2 uv, float2 duv, float3 wp, float seed, out float cover, out float groove, out float berm)
+            {
+                float hd = seed / 0.9 * 6.2832;
+                float2 dir = float2(cos(hd), sin(hd)), perp = float2(-dir.y, dir.x);
+                float2 w = float2(dot(wp.xz, dir), dot(wp.xz, perp));
+                float along = dot(uv, dir);
+                float a = abs(dot(uv, perp) + _OZDevilSweep.w * (VNoise(wp.xz * 0.3 + float2(3.7, 9.1)) - 0.5));
+                float c = cos(1.5708 * saturate(abs(along) / 0.577));
+                float win = c * c * (1.0 - smoothstep(0.86, 1.0, length(uv)));
+                float core = 1.0 - smoothstep(0.22, 0.52, a);
+                float edge = smoothstep(0.34, 0.56, a) * (1.0 - smoothstep(0.62, 0.9, a));
+                float curl = sin(w.x * 0.45 + w.y * 0.2) * 0.6;
+                float sc = VNoise(float2(w.x * 0.16 + 5.1, (w.y + curl) * 1.7));                 // broad streaks (0.6 m): read from the RTS camera
+                float fade = saturate(1.0 - max(duv.x, duv.y) * 6.0);
+                float sf = VNoise(float2(w.x * 0.35, (w.y + curl) * 5.5)) - 0.5;                 // fine streaks (18 cm): close up only (fade)
+                float k = win / max(_Intensity, 0.05);
+                float lt = k * core * _OZDevilSweep.x * saturate(1.0 - _OZDevilSweep.z + 2.0 * _OZDevilSweep.z * sc + 0.6 * fade * sf);
+                float dk = k * _OZDevilSweep.y * (edge * (0.55 + 0.9 * sc) + core * 0.5 * _OZDevilSweep.z * fade * saturate(-sf * 2.4));
+                cover = 0.0;
+                groove = dk / max(_Groove, 0.001);
+                berm = lt / max(_Berm, 0.001);
+            }
+
             float SceneEyeDepth(float2 suv)
             {
                 float raw = SampleSceneDepth(suv);
@@ -168,7 +204,8 @@ Shader "OpenZ/TrackMark"
                 float kind = floor(i.k.z + 0.001), seed = i.k.z - kind;
                 float2 duv = fwidth(i.uv);                          // derivatives outside the per-kind branches
                 float cover, groove, berm;
-                if (kind < 1.5) Ribbon(i.uv, duv, kind, cover, groove, berm);
+                if (kind > 3.5) DevilSweep(i.uv, duv, i.wp, seed, cover, groove, berm);   // 1.5 kit view_notes11 N9: a dust devil's swept mark (kind 4)
+                else if (kind < 1.5) Ribbon(i.uv, duv, kind, cover, groove, berm);
                 else Foot(i.uv, duv, kind, cover, groove, berm);
 
                 // dissolve: sand blows back into the print, grain by grain, the older end first

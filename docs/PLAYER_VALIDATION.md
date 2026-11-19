@@ -1,5 +1,15 @@
 # Player validation record
 
+## OpenZ-VK 1.5.1 and OpenZ 1.5
+
+- Passed locally: 6,902 simulation and core checks, native WebRTC loopback, 44 installer checks, and preparation and reuse of the complete 1.5 resource package. The published 0.2.22 and 0.2.34 installers also passed resource discovery, migration and reuse against a simulated release feed with the 1.5.1 and 1.6.1 pins.
+- Unity verified the enabled scenes, Bridge Game lobby serialization, both Changes & Updates tabs, and all 60 regenerated AI Maps videos and fallback stills. All clips decoded to 96 frames before import.
+- Pending on a compiled game: deploy the official Bridge Game in solo and in a 1 vs 1 match, repair a long bridge, take control of the Mammoth and Bizon, and verify tactical pause and its key binding in solo.
+- Check that an online duel keeps running on both sides when Space is pressed and that its host-owned oil setting survives a rematch and a map change.
+- Check 31%, 30% and critical health with the oil option on and off, while moving and stationary, and after repair. Verify the shake with reduced motion on and off.
+- Check AI Maps previews in the solo selector and duel gallery, the original and fork tabs in Changes & Updates, and direct launch into the Unit Editor.
+- For a stable release, verify the published installer payloads and the 1.5 resource bundle on a clean Windows installation.
+
 ## OpenZ-VK 0.2.40 duel chat
 
 - In a 1 vs 1 match, type a draft, move the caret into the middle and keep typing while the opponent sends several messages and earlier chat notifications expire. Verify the draft and caret stay in place, selected text stays selected, and new messages appear in the history.

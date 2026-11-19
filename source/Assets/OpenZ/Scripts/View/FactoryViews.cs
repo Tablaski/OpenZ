@@ -263,7 +263,7 @@ namespace OpenZ
                 }
                 if (n == 0) continue;
                 pool.mpb.SetFloatArray("_Alpha", pool.alpha);
-                Graphics.DrawMeshInstanced(puffMesh, 0, pool.mat, pool.mats, n, pool.mpb, ShadowCastingMode.Off, false);
+                if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(puffMesh, 0, pool.mat, pool.mats, n, pool.mpb, ShadowCastingMode.Off, false);   // no instancing (no graphics): skip, never throw
             }
         }
 

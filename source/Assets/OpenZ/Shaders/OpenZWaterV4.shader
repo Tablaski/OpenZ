@@ -47,6 +47,8 @@
 //    however long the game runs
 // The wet dark-sand band above the waterline is a separate shader (OpenZ/WaterV4Wet) on its own proxy mesh, because the
 // river mesh ends only ~0.8 m (median) past the waterline and would cut the band with a hard edge.
+// 1.5 water_fx: _FireReflect (fires and lamps as a broad broken reflection drawn out toward the camera) and _SunLane (a broken lane
+// toward a low sun), the same maths as OpenZWaterStylized; both 0 = exactly as before.
 // Needs: URP Depth Texture ON, Opaque Texture ON, Opaque Downsampling NONE (OpenZ > Water v4 > 1 Apply sets them).
 Shader "OpenZ/WaterV4"
 {
@@ -74,6 +76,14 @@ Shader "OpenZ/WaterV4"
         _LightNeutral ("Water light hue removed (0 = the sun's own colour)", Range(0, 1)) = 0.85
         _Refraction ("Refraction (m of bed shift at full ripple slope)", Range(0, 0.5)) = 0.12
         _EdgeFade ("Waterline softening (m of depth)", Range(0.001, 0.2)) = 0.012
+        [Header(Wrecks and swimmers in the water  kit water_depth_soft 1.5)]
+        _ObjectClarity ("Object under the surface: m to 63 % of its opacity", Range(0.05, 3)) = 0.55
+        _ObjectOpacityMax ("Object under the surface: max opacity", Range(0, 1)) = 0.9
+        _ObjectEdgeFade ("Object waterline softening (m of depth)", Range(0.001, 0.3)) = 0.05
+        _ContactRing ("Contact ring opacity (outline foam + ripple)", Range(0, 1)) = 0.6
+        _ContactRingWidth ("Contact ring width (m)", Range(0.02, 0.6)) = 0.16
+        _ContactRippleReach ("Contact ripple reach (m)", Range(0, 3)) = 0.9
+        _ContactRippleSpeed ("Contact ripple rate (rings per s)", Range(0, 2)) = 0.35
 
         [Header(L02 bed map)]
         [Toggle(_WATER_BEDMAP)] _UseBedMap ("Use the bed map", Float) = 1
@@ -183,6 +193,9 @@ Shader "OpenZ/WaterV4"
         _ShadowStrength ("Sun shadow strength on the water", Range(0, 1)) = 0.7
         [ToggleOff(_WATER_NO_ADDITIONAL_LIGHTS)] _AdditionalLights ("Lamps, headlights and fires light the water", Float) = 1
         _AddLightStrength ("Lamp light strength", Range(0, 4)) = 1
+        _FireReflect ("Fires and lamps: a broad broken reflection drawn out toward the camera (0 = off)", Range(0, 3)) = 0
+        _SunLane ("The sun on the water: a broad broken lane toward a low sun (0 = off)", Range(0, 4)) = 0
+        _SunLanePower ("Sun lane: how narrow", Range(8, 200)) = 46
 
         [Header(Night)]
         _NightDarken ("Night body darkening", Range(0, 1)) = 0.5
@@ -222,12 +235,17 @@ Shader "OpenZ/WaterV4"
             half _FoamLace; float _LapSpeed; float _ObjectFoam; float _ObjectRing;
             float _BandSpacing; float _BandWidthM; float _BandTailM; float _BandReach; float _BandSpeed; half _BandBreakup; float _BandWobble; half _BandOpacity;
             half _AmbientStrength; half _ShadowStrength; half _AdditionalLights; half _AddLightStrength;
+            half _FireReflect; half _SunLane; half _SunLanePower;   // 1.5 water_fx
             half _NightDarken; half _NightDesaturate; half _DuskDarken;
             half _NoOpaque; half _NoDepth; float _FallbackDepth;
+            float _ObjectClarity; half _ObjectOpacityMax; float _ObjectEdgeFade; half _ContactRing; float _ContactRingWidth; float _ContactRippleReach; float _ContactRippleSpeed;   // water_depth_soft (1.5)
         CBUFFER_END
 
         TEXTURE2D(_BedMap);       SAMPLER(sampler_BedMap);
         float _OZNight;           // night package (NightGrade): 0 by day .. 1 at night, global
+        // unset = 0 = every picture as before): x = the sun lane, y = the fire / lamp reflection, z = the clear band round objects standing in
+        // the water (level 18), w = free (a later object reflection reads it). A part is skipped only while its component is 1.
+        float4 _OZWaterLite;
 
         float WaterHash21(float2 p)
         {
@@ -292,6 +310,9 @@ Shader "OpenZ/WaterV4"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
+            #include "OpenZWaterContact.hlsl"                                       // water_depth_soft (1.5): wrecks, pieces and swimmers in the water
+            #include "OpenZWaterBlast.hlsl"   // 1.5 kit water_blast_r6 (A16): the stamps a blast leaves in the water (View/OzWaterBlast.cs)
+            #include "OzWaterObjReflect.hlsl"
 
             TEXTURE2D(_RippleNormal); SAMPLER(sampler_RippleNormal);
             TEXTURE2D(_FlowMap);      SAMPLER(sampler_FlowMap);
@@ -579,7 +600,14 @@ Shader "OpenZ/WaterV4"
                 half across = (half)saturate(d / 0.75);
                 half isTerrain = 1.0;
             #endif
-                float dv = d + extra * smoothstep(0.02, 0.3, d);                      // virtual depth
+                // water_depth_soft (1.5): over a wreck, a piece or a swimmer (not the terrain bed, inside its waterline outline) the water takes its
+                // REAL depth (the bed map's virtual channel depth is for the bed only: added over a hull 0.1 m under it made the water 64-95 % opaque
+                // there, so the hull looked cut off on a solid surface) with a softer waterline
+                half2 wc = OzWaterContacts(positionWS, d, t, mPerPx, _ContactRingWidth, _ContactRippleReach, _ContactRippleSpeed);
+                half3 wkH = OzWaterWakeHull(positionWS, d);   // 1.5 kit bizon_ripple_r6 (A2): the wading hull: x over its submerged part, z its flanks; no Bizon in water = 0
+                half objK = max(wc.y, wkH.x) * (1.0 - isTerrain);   // 1.5 kit bizon_ripple_r6 (A2): the water over the submerged hull is as clear as over a wreck (no ring comes with it)
+                edge = (half)saturate(d / max(lerp(_EdgeFade, _ObjectEdgeFade, (float)objK), 1e-4));
+                float dv = d + extra * smoothstep(0.02, 0.3, d) * (1.0 - objK);     // virtual depth (water_depth_soft: not over a contact)
                 // lagoon shelf: the first _ShelfWidth m from the waterline read as a shallow sand shelf, so the bright aqua
                 // rim is wide enough to see from 70 m (the real bank drops to 0.56 m within 0.5 m)
                 half shelf = (half)smoothstep(0.0, max(_ShelfWidth, 1e-3), max(sd, 0.0));
@@ -596,6 +624,11 @@ Shader "OpenZ/WaterV4"
                 half2 slope = WaterRippleSlope(xz, vel * t);
             #endif
                 slope *= lerp((half)0.45, (half)1.0, calm);
+                half4 wb = OzWaterBlast(positionWS, t, mPerPx);   // 1.5 kit water_blast_r6 (A16): a blast in the water: xy the slope of its spreading crests, z churn, w the blast hole; no stamp alive = 0
+                slope = slope * (half)(1.0 - 0.6 * max(wb.z, wb.w)) + wb.xy;   // 1.5 kit water_blast_r6 (A16): churned water and the blast hole have calmer small waves; no stamp = exactly as before
+                slope += OzWaterContactSlope();   // 1.5 kit water_rings_rest_r6: the ripples round wrecks, pieces, swimmers and dipping hulls as the water's own slope (open arcs; no pale ring line); none near = + 0
+                half3 wk = OzWaterWake(positionWS, t, mPerPx);   // 1.5 kit bizon_ripple_r6 (A2): the ripples a wading hull leaves in the water (slope) and its churn (z)
+                slope = slope * (half)(1.0 - 0.6 * wk.z) + wk.xy;   // 1.5 kit bizon_ripple_r6 (A2): churned water has calmer small waves; no stamp = exactly as before
                 half3 n = normalize(half3(slope.x, 1.0, slope.y));
                 half3 V = GetWorldSpaceNormalizeViewDir(positionWS);
 
@@ -623,6 +656,27 @@ Shader "OpenZ/WaterV4"
                         half3 hAdd = SafeNormalize(float3(light.direction) + float3(V));
                         half3 nStreak = normalize(half3(n.x * 2.2, 1.0, n.z * 2.2));   // lamp reflections break into streaks
                         addSpec += radiance * (pow(saturate(dot(n, hAdd)), 220.0) + (0.25 + 0.5 * night) * pow(saturate(dot(nStreak, hAdd)), 48.0));
+                        if (_FireReflect > 0.0 && _OZWaterLite.y < 0.5)   // kit l18_perf_r3: off on GRAPHICS QUALITY LOW
+                        {   // 1.5 water_fx (OpenZWaterStylized's fire reflection): a fire or a lamp shows in the water as a broad, broken, moving
+                            // reflection: the ripples' slope counts five times along the line of sight and 1.6 times across it
+                            half2 vd = SafeNormalize(float3(V.x, 0.0, V.z)).xz;
+                            half sAlong = dot(n.xz, vd);
+                            half2 sPath = vd * (sAlong * 5.0) + (n.xz - vd * sAlong) * 1.6;
+                            half3 nPath = normalize(half3(sPath.x, 1.0, sPath.y));
+                        #if defined(_CLUSTER_LIGHT_LOOP)
+                        #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
+                            float3 toLight = _AdditionalLightsBuffer[lightIndex].position.xyz - positionWS;
+                        #else
+                            float3 toLight = _AdditionalLightsPosition[lightIndex].xyz - positionWS;
+                        #endif
+                            half inRange = (half)saturate(light.distanceAttenuation * dot(toLight, toLight));
+                        #else
+                            float3 toLight = light.direction * 5.0;                                 // without the light list: as if every light stood 5 m away
+                            half inRange = (half)saturate(light.distanceAttenuation * 25.0);
+                        #endif
+                            half3 glow = min(light.color * (inRange * light.shadowAttenuation * (half)0.07 / (1.0 + dot(toLight, toLight) / 350.0)), half3(3.0, 3.0, 3.0));
+                            addSpec += glow * ((pow(saturate(dot(nPath, hAdd)), 18.0) + pow(saturate(dot(up, hAdd)), 3.0) * 0.06) * _FireReflect);
+                        }
                     LIGHT_LOOP_END
                 }
             #endif
@@ -649,6 +703,7 @@ Shader "OpenZ/WaterV4"
                 half bodyLum = dot(bodyAlb, kLuma);
                 bodyAlb = lerp(bodyAlb, bodyLum.xxx, _NightDesaturate * night) * (1.0 - _NightDarken * night);
                 half A = _OpacityMax * (half)(1.0 - exp(-dvC / max(_Clarity, 1e-3)));
+                A = lerp(A, min(A, _ObjectOpacityMax * (half)(1.0 - exp(-d / max(_ObjectClarity, 1e-3)))), objK);   // water_depth_soft: the part under the surface shows faintly
                 half3 body = bodyAlb * lightN;
 
                 // ---- sky reflection x Fresnel
@@ -674,7 +729,20 @@ Shader "OpenZ/WaterV4"
                 float camH = _WorldSpaceCameraPos.y - positionWS.y;
                 sheen *= (half)(1.0 - 0.6 * smoothstep(_SheenFadeHeight * 0.6, _SheenFadeHeight, camH));
                 sheen *= saturate((L.y - 0.15) * 4.0) * mainLight.shadowAttenuation * (1.0 - 0.75 * night) * (half)smoothstep(0.02, 0.25, d);   // gone at blue hour
-                half3 S = sunColor * (sheen * _SheenIntensity) + addSpec;
+                half3 sunLane = half3(0.0, 0.0, 0.0);
+                if (_SunLane > 0.0 && _OZWaterLite.x < 0.5)   // kit l18_perf_r3: off on GRAPHICS QUALITY LOW
+                {   // 1.5 water_fx (OpenZWaterStylized's sun lane): the low sun as a warm broken lane toward it, sparkles travelling through it
+                    half2 svd = SafeNormalize(float3(V.x, 0.0, V.z)).xz;
+                    half sAl = dot(n.xz, svd);
+                    half2 sP = svd * (sAl * 5.0) + (n.xz - svd * sAl) * 1.6;
+                    half3 nLane = normalize(half3(sP.x, 1.0, sP.y));
+                    half3 hSun = SafeNormalize(float3(L) + float3(V));
+                    half lane = pow(saturate(dot(nLane, hSun)), _SunLanePower) + pow(saturate(dot(up, hSun)), _SunLanePower * 0.25) * 0.10;
+                    half spark = (half)WaterValueNoise(xz * 2.1 + vel * (t * 1.6));
+                    lane *= (half)(0.35 + 1.5 * smoothstep(0.45, 0.8, spark));
+                    sunLane = sunColor * (lane * _SunLane * saturate(L.y * 8.0 + 0.25) * (1.0 - night) * mainLight.shadowAttenuation);
+                }
+                half3 S = sunColor * (sheen * _SheenIntensity) + addSpec + sunLane;
 
                 // ---- foam (rev3, like the top-down reference): soft white wave lines that lap in and out along the shore,
                 // broken into lace, only on some stretches of the shoreline (never a closed rim), plus rings around piers
@@ -719,6 +787,7 @@ Shader "OpenZ/WaterV4"
                 half objMask = (half)(1.0 - saturate(d / max(_ObjectFoam, 1e-4))) * (1.0 - isTerrain);
                 half objCut = (half)(0.35 + 0.45 * nz.r);
                 foam = max(foam, smoothstep(objCut - 0.08, objCut + 0.08, objMask));
+                foam = max(foam, wc.x * _ContactRing * (half)(0.55 + 0.45 * nz.r) * (1.0 - objK));   // water_depth_soft: thin foam + ripple ring where it cuts the surface
                 // (4) a soft ring on the water around anything that crosses the surface (piers, wading legs): eight taps
                 // (four on a circle of _ObjectRing m, four at 0.6 of it); a tap that finds a non-terrain point within ~0.3 m
                 // of the water line marks it (bridge decks above the water and units on the bank do not count)
@@ -741,6 +810,20 @@ Shader "OpenZ/WaterV4"
                     foam = max(foam, smoothstep((half)0.04, (half)0.5, ringHit) * (half)(0.5 + 0.5 * nz.r) * isTerrain);
                 }
             #endif
+                foam *= (half)(1.0 - wkH.z);   // 1.5 kit bizon_ripple_r6 (A2): no pale foam line / soft ring along the wading hull's flanks (OzWaterWakeHull z)
+                [branch] if (wk.z > 0.002)   // 1.5 kit bizon_ripple_r6 (A2): a few foam flecks on churned water (through moving noise; they erode as the patch dies)
+                {
+                    half wkN = (half)(0.6 * WaterValueNoise(xz * 2.7 + float2(0.11, -0.07) * t) + 0.4 * WaterValueNoise(xz * 6.1 - float2(0.05, 0.13) * t));
+                    half wkCut = (half)(0.95 - 0.55 * wk.z);
+                    foam = max(foam, smoothstep(wkCut - 0.07, wkCut + 0.07, wkN) * saturate(wk.z * 2.5) * (half)0.4);
+                }
+                [branch] if (wb.z + wb.w > 0.002)   // 1.5 kit water_blast_r6 (A16): foam flecks on the churned water (through moving noise: the patch erodes as it dies) and the dark blast hole
+                {
+                    half wbN = (half)(0.6 * WaterValueNoise(xz * 2.3 + float2(0.09, -0.06) * t) + 0.4 * WaterValueNoise(xz * 5.7 - float2(0.04, 0.11) * t));
+                    half wbCut = (half)(0.92 - 0.62 * wb.z);
+                    foam = max(foam, smoothstep(wbCut - 0.08, wbCut + 0.08, wbN) * saturate(wb.z * 2.2) * (half)0.9);
+                    body *= (half)(1.0 - 0.45 * wb.w);   // the blast hole: darker for half a second
+                }
                 foam *= _FoamColor.a * (1.0 - 0.55 * night);
                 half3 foamLit = _FoamColor.rgb * lerp(min(_FoamBright, (half)1.5), (half)1.0, night) * lightN;   // lit paint
 
@@ -830,6 +913,12 @@ Shader "OpenZ/WaterV4"
                 surf = surf * fogVis + unity_FogColor.rgb * ((1.0 - fogVis) * cover);
                 S *= fogVis;
                 half3 outC = surf + S + bedSeen * trans;
+                // (_OZWaterObjRefl, View/OzWaterPlayCalm.cs), off on GRAPHICS QUALITY LOW (_OZWaterLite.w); unset = 0 = as before
+                if (_OZWaterObjRefl.x > 0.0 && _OZWaterLite.w < 0.5)
+                {
+                    half4 ro = OzWaterObjReflect(positionWS, n, V, screenUV);
+                    outC = lerp(outC, ro.rgb * (half)0.9, ro.a * (half)_OZWaterObjRefl.x * (1.0 - foam) * fogVis);
+                }
                 return half4(outC * edge, edge);
             #endif
             }

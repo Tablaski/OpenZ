@@ -57,6 +57,10 @@ Shader "OpenZ/AtmosphereFullscreen"
             float _AtmoColumnTop;      // endings round 4: the stem's height over its foot (m)
             float4 _AtmoFarRect;       // endings round 4: the map's ground (x0, z0, x1, z1), set while the level 16 ending scene draws
             float4 _AtmoFarSky;        // endings round 4: x, y the far land's blend (m outside the map: from, to), w on (0 = the pass exactly as before)
+            // 1.5 kit smoke_fog_r3: the see-through smoke's own cover and eye depth (View/OzSmokeFog.cs, Shaders/OzFxDist.hlsl): R = eye depth x cover,
+            // G = cover, both composited front over back; _OzFxDistOn 1 only for the camera that drew it this frame (0 = the pass exactly as before)
+            TEXTURE2D(_OzFxDistTex);
+            float _OzFxDistOn;
 
             float Hash3(float3 p) { p = frac(p * 0.3183099 + 0.1); p *= 17.0; return frac(p.x * p.y * p.z * (p.x + p.y + p.z)); }
             float Noise3(float3 x)
@@ -206,6 +210,19 @@ Shader "OpenZ/AtmosphereFullscreen"
                     bool sky = rawDepth >= 1 - 1e-6;
                 #endif
                 float farDist = sky ? 0 : dist;          // the sky gradient already ends in the horizon colour
+                // See-through smoke writes no depth, so its pixels took the fog of what stood BEHIND them (far cliff: heavy haze, the sky
+                // over it: the sky's haze and the horizon band) and the far land's outline cut a line through near smoke. fxA = the smoke's cover
+                // here, fxT = its own ray distance: that share is fogged by fxT below (march snapshot + the ground's rules at fxT), the rest as before.
+                float fxA = 0, fxT = 0;
+                if (_OzFxDistOn > 0.5)
+                {
+                    float2 fxd = SAMPLE_TEXTURE2D_LOD(_OzFxDistTex, sampler_LinearClamp, uv, 0).rg;
+                    if (fxd.y > 0.004)
+                    {
+                        fxT = (fxd.x / fxd.y) / max(dot(dir, -UNITY_MATRIX_V[2].xyz), 0.05);         // eye depth -> distance along this pixel's ray
+                        fxA = (sky || fxT < dist) ? saturate(fxd.y) : 0;                              // only smoke in front of what this pixel shows
+                    }
+                }
                 if (sky) dist = _FogMaxDistance;
                 // endings round 4: see-through effects (the fire's glow and smoke, flames, the blast cloud) write no depth, so their pixels took
                 // the haze of what stood behind them: over the far hills the hills' haze, over the open sky just above them the sky's, and a
@@ -294,6 +311,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                 if (farW > 0 && _FlybySkyW > 0) phaseDir = FlybySafeDir(lerp(phaseDir, FlybySafeDir(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW), sun.direction), farW), phaseDir);   // endings round 4: the far land's in-scatter as the sky's; 1.2 item 49: never normalize(0)
                 float phase = HG(dot(dir, phaseDir), _FogG) * 12.566371;   // normalised so isotropic = 1
                 float trans = 1; float3 scat = 0;
+                float trS = 1; float3 scS = 0; bool snapS = fxA <= 0;   // 1.5 kit smoke_fog_r3: the fog between the camera and the smoke (taken where the march passes it)
                 int lampCount = (int)_FogLampCount;
                 // on it). A lamp further than its range w from the whole segment adds exactly 0 at every step (saturate(1 - ld / w) = 0),
                 // so the step loop skips it; the 5 % + 5 cm margin keeps float rounding on the safe side, w <= 0 is always kept (as before).
@@ -323,6 +341,9 @@ Shader "OpenZ/AtmosphereFullscreen"
                         float tA = BandT(i / (float)STEPS, sb, tBand, maxD), tB = BandT((i + 1) / (float)STEPS, sb, tBand, maxD);
                         extLow = LowBankStep(p, cam.y + dir.y * tA, cam.y + dir.y * tB) * (tB - tA) * (1 - 0.8 * _FlybySkyW);
                     }
+                    float sEnd = sb > 0 ? BandT((i + 1) / (float)STEPS, sb, tBand, maxD) : (i + 1) * stepLen;   // 1.5 kit smoke_fog_r3: this step's far end
+                    bool atS = !snapS && fxT < sEnd;
+                    if (atS && d < 1e-5 && extLow < 1e-6) { trS = trans; scS = scat; snapS = true; }
                     if (d < 1e-5 && extLow < 1e-6) continue;
                     // two taps 1.2 m apart across the sun (+ a little softening): thin poles and posts no longer cut razor-thin
                     // shafts through the whole view (long red lines on screen); cliffs and buildings keep their god rays
@@ -340,10 +361,17 @@ Shader "OpenZ/AtmosphereFullscreen"
                     }
                     float ext = d * dS + extLow;
                     float t = exp(-ext);
+                    if (atS && !snapS)   // 1.5 kit smoke_fog_r3: the smoke lies inside this step: its share of the step
+                    {
+                        float sBeg = sb > 0 ? BandT(i / (float)STEPS, sb, tBand, maxD) : i * stepLen;
+                        float tp = exp(-ext * saturate((fxT - sBeg) / max(sEnd - sBeg, 1e-4)));
+                        scS = scat + trans * light * _FogColor.rgb * (1 - tp); trS = trans * tp; snapS = true;
+                    }
                     scat += trans * light * _FogColor.rgb * (1 - t);
                     trans *= t;
                     if (trans < 0.02) break;
                 }
+                if (!snapS) { trS = trans; scS = scat; }   // 1.5 kit smoke_fog_r3: the smoke beyond the march (or the march stopped before it)
                 // readability cap: fog never hides more than (1 - _MinTransmittance) of the scene behind it
                 float capK = saturate((1 - _MinTransmittance) / max(1e-3, 1 - trans));
                 float k = sky ? lerp(1, capK, floorK) : lerp(capK, 1, farW);                     // l17_night_fog_read: the skirt is capped like the ground; endings round 4: the far land as the sky
@@ -400,6 +428,23 @@ Shader "OpenZ/AtmosphereFullscreen"
                         float vis = lerp(trans, 1, clearK) * (1 - hz);                       // the share of the dome's own disc that came through
                         outc += _FlybySunDisc.rgb * (disc * max(0, saturate(_FlybySunThrough) - vis) * _FlybySkyW);
                     }
+                }
+                if (fxA > 0)
+                {   // 1.5 kit smoke_fog_r3: the smoke's share fogged by its OWN distance, by the ground's rules (readability cap, horizon haze, the
+                    // flyby's dawn grade): near smoke stays in front of the far haze, the horizon band and the cliff's outline; far smoke still hazes
+                    float capS = saturate((1 - _MinTransmittance) / max(1e-3, 1 - trS));
+                    float trS2 = lerp(1, trS, capS);
+                    half3 oS = col * (half)trS2 + (half3)(scS * capS);
+                    float hzS = smoothstep(_HorizonStart, _HorizonEnd, fxT);
+                    oS = lerp(oS, _HorizonColor.rgb + FlybyGlow(dir) * _FlybySkyW, hzS);
+                    if (_FlybySkyW > 0)
+                    {
+                        half kS = (half)(_FlybySkyW * saturate(_FlybySunDir.w * 1.6));
+                        half3 dawnS = lerp((half3)1, half3(1.22, 0.84, 0.48), kS);
+                        half3 baseS = col * (half)(trS2 * (1 - hzS));
+                        oS = baseS * lerp((half3)1, half3(0.90, 0.76, 0.62), kS) + (oS - baseS) * dawnS;
+                    }
+                    outc = lerp(outc, oS, (half)fxA);
                 }
                 return half4(outc, outA);
             }

@@ -72,11 +72,12 @@ namespace OpenZ
             if (kind == UeInspect.Platform) { SetupPlatform(); return; }                              // UI/OzUeObjectPanel.Platform.cs
             if (kind == UeInspect.Crate) { SetupCrate(); return; }                                    // UI/OzUeObjectPanel.Crate.cs
             bool flag = kind == UeInspect.Flag;
-            string id = flag ? OzUePlayground.Flag : OzUePlayground.Obstacle;
+            bool box = !flag && OzUePlayground.IsBox(obj);                                               // 1.5 ue_boxes: the BOX's own panel words
+            string id = flag ? OzUePlayground.Flag : box ? OzUePlayground.Box : OzUePlayground.Obstacle;
             OzUeArt.Apply(head.Art, id, Team.Neutral);
             head.ShowRemove(true, "Remove it from the field (Delete)");
-            head.SetName(flag ? "FLAG" : "OBSTACLE", false, flag ? "Capture flag" : "Holo obstacle, always neutral");
-            var w = flag ? FlagWords : ObstacleWords;
+            head.SetName(flag ? "FLAG" : box ? "BOX" : "OBSTACLE", false, flag ? "Capture flag" : box ? "Holo box, always neutral" : "Holo obstacle, always neutral");
+            var w = flag ? FlagWords : box ? OzUeBoxes.PanelWords : ObstacleWords;
             float y = 0f;
             for (int i = 0; i < 3; i++)
             {
@@ -95,6 +96,7 @@ namespace OpenZ
             rowVal[2].Set(flag ? "A robot or vehicle that touches it" : "Blocks every shot");
             rowVal[3].Set(flag ? "The shuttle or a gun" : "Units walk round it");
             if (!flag) rowVal[1].Set(side.ToString("0") + " x " + side.ToString("0") + " m, " + OzUePlayground.ObstacleHeightM.ToString("0") + " m tall");
+            if (box) rowVal[1].Set(OzUeBoxes.SizeWords(obj));                                              // 1.5 ue_boxes: 4 x 4 m, 4 m tall, its level
             lastLive = null;
             Refresh();
         }

@@ -46,7 +46,7 @@ namespace OpenZ
         public static int Stations = 13, ProofStations = 17;
         public static float SnapM = 3f, StillResampleS = 0.25f;
         /// <summary>The vehicle types whose running gear is planted (both models of each).</summary>
-        public static readonly HashSet<string> Types = new HashSet<string> { OzHeavyTank.Type, OzLightTank.Type, OzMediumTank.Type, OzMlrs.Type };   // 1.2 v2 units: the light tank (v1 and v2) too; DV145: the medium tank (its gear beside the suspension, as the light tank v2); 1.2 v2 units: the MLRS (v1 and v2: its belts, road wheels and side plates beside MLRSSuspension)
+        public static readonly HashSet<string> Types = new HashSet<string> { OzHeavyTank.Type, OzLightTank.Type, OzMediumTank.Type, OzMlrs.Type, OzBigTanks.Mammoth, OzBigTanks.Bizon };   /* 1.5 DV180 / DV181: their link tracks planted (View/UnitView.LinkGear.cs) */   // 1.2 v2 units: the light tank (v1 and v2) too; DV145: the medium tank (its gear beside the suspension, as the light tank v2); 1.2 v2 units: the MLRS (v1 and v2: its belts, road wheels and side plates beside MLRSSuspension)
         /// <summary>Statistics (the Play test): frames planted, the largest hull lift over the gear (m).</summary>
         public static int Frames;
         public static float MaxHullLiftM;
@@ -89,18 +89,23 @@ namespace OpenZ
             var p0 = transform.position;
             float s = Mathf.Abs(transform.lossyScale.x); if (s < 1e-4f) s = 1f;
             if ((p0 - gearLastP).sqrMagnitude > TrackGround.SnapM * TrackGround.SnapM) gearSnap = true;   // a jump (a spawn, an exit, a teleport): no easing from the old place
-            bool same = !gearSnap && (p0 - gearLastP).sqrMagnitude < 1e-6f && Mathf.Abs(Mathf.DeltaAngle(yawDeg, gearLastYaw)) < 0.01f && Time.time - gearSampledAt < TrackGround.StillResampleS;
+            bool same = !gearSnap && !BigResample() /* 1.5 N26 (kit mammoth_pitch_n26): the ram's drawn lead moved: read again (View/OzBigTankPitch.cs) */ && (p0 - gearLastP).sqrMagnitude < 1e-6f && Mathf.Abs(Mathf.DeltaAngle(yawDeg, gearLastYaw)) < 0.01f && Time.time - gearSampledAt < TrackGround.StillResampleS;
             if (!same)
             {   // the ground under every sample (a still tank keeps its last samples for a moment: nothing under it moved)
-                float gc = game.GroundY(p0.x, p0.z);
+                float gc = OzBizonWade.Ground(this, p0.x, p0.z);   /* 1.5 DV192 (kit sim_notes11): a wading Bizon's tracks on the wade surface */
+                // 1.5 pass 5 (1.3 platform check P1: heavy v2 on the 17.8 deg ramp drawn at 8.2 deg, its rear 0.9 m over the ramp, its nose in it): the
+                // belt's end stations of a long tank on a UE ramp platform lie more than StepIgnoreM above / below the centre, so the slope itself was
+                // read as a deck edge and flattened. On a platform (the rules' floor height > 0 under the centre AND under the station) the
+                // platform's own surface is used as it is. Every level has no platform (PlatformHeightM 0): unchanged there.
+                var pw = game.World; bool onPlat = pw != null && pw.PlatformHeightM(p0.x * 8.0, -p0.z * 8.0) > 0.0;
                 foreach (var b in gearBelts)
                 {
                     var lean = gearSnap ? Quaternion.identity : Quaternion.Euler(b.pitch, 0f, gearRoll);   // the belt's turn now: the ground is read where its points are drawn (a flat read is 9 cm off at the ends of a 15 deg slope)
                     for (int i = 0; i < b.pts.Length; i++)
                     {
                         var q = lean * (b.pts[i] * s); var w = p0 + yawRot * new Vector3(q.x, 0f, q.z);
-                        float gy = game.GroundY(w.x, w.z); if (Mathf.Abs(gy - gc) > TrackGround.StepIgnoreM) gy = gc;   // a deck edge, a wall: the centre's ground
-                        b.g[i] = gy;
+                        float gy = OzBizonWade.Ground(this, w.x, w.z); /* 1.5 DV192 (kit sim_notes11) */ if (Mathf.Abs(gy - gc) > TrackGround.StepIgnoreM && !(onPlat && pw.PlatformHeightM(w.x * 8.0, -w.z * 8.0) > 0.0) && !GearSlopeRun(p0, w, gc)) gy = gc;   // a deck edge, a wall: the centre's ground (1.5 pass 5: not the slope of a ramp platform; 1.5 N8: not a continuous bank slope, View/UnitView.GearSlope.cs)
+                        b.g[i] = BigStation(p0, w, gc, gy);   /* 1.5 N26 (kit mammoth_pitch_n26): a big tank reads its ground where it is drawn (the ram's lead) and keeps its level at a UE platform wall (View/OzBigTankPitch.cs) */
                     }
                 }
                 gearSampledAt = Time.time;
@@ -108,13 +113,13 @@ namespace OpenZ
             gearLastP = p0; gearLastYaw = yawDeg;
             float k = gearSnap ? 1f : 1f - Mathf.Exp(-TrackGround.TiltRate * Mathf.Max(0f, dt));
             // each belt's pitch: the line it rests on, eased
-            foreach (var b in gearBelts) b.pitch = Mathf.LerpAngle(b.pitch, BeltRestPitch(b, s), k);
+            if (!BigPitchStep(s, dt)) foreach (var b in gearBelts) b.pitch = Mathf.LerpAngle(b.pitch, BeltRestPitch(b, s), k);   /* 1.5 N26 (kit mammoth_pitch_n26): the big tanks: the best-fit line of the ground under the whole track, sprung (View/OzBigTankPitch.cs) */
             // the shared roll: from the two belts' heights at their own pitch (+x side up = +roll)
             GearBelt lo = gearBelts[0], hi = gearBelts[gearBelts.Length - 1];
             float rollWant = 0f;
             if (gearBelts.Length > 1 && hi.xc - lo.xc > 0.2f)
                 rollWant = Mathf.Atan2(BeltHeight(hi, yawRot, hi.pitch, 0f, s) - BeltHeight(lo, yawRot, lo.pitch, 0f, s), (hi.xc - lo.xc) * s) * Mathf.Rad2Deg;
-            gearRoll = Mathf.LerpAngle(gearRoll, rollWant, k);
+            gearRoll = BigRollStep(rollWant, k, dt);   /* 1.5 N26 (kit mammoth_pitch_n26): the big tanks' roll on the same spring; every other tank eased as before */
             // each belt's frame: its pitch, the shared roll, its height exact (no sample under the ground; the vehicles' 1 cm draw offset
             // into the ground, yOffset, is not added to a planted belt or to the hull on it: the contact is exact)
             float hSum = 0f, pSum = 0f;
@@ -225,7 +230,7 @@ namespace OpenZ
                 var g = new GearNode { t = t, spun = spun, restPos = t.localPosition, restRot = t.localRotation, scale = t.localScale, chain = GearChain(t.parent, bp, br) };
                 nodes.Add(g);
                 var mf = spun ? null : t.GetComponent<MeshFilter>();
-                if (!mf || !mf.sharedMesh) { boxes.Add((Vector3.zero, Vector3.zero)); continue; }
+                if (!mf || !mf.sharedMesh) { boxes.Add(LinkGearBox(g)); /* 1.5 DV180 / DV181: a link-track side root's footprint (View/UnitView.LinkGear.cs) */ continue; }
                 var bb = mf.sharedMesh.bounds; var m = g.chain * Matrix4x4.TRS(g.restPos, g.restRot, g.scale);
                 Vector3 lo = Vector3.one * 1e9f, hi = -Vector3.one * 1e9f;
                 for (int i = 0; i < 8; i++)
@@ -276,6 +281,7 @@ namespace OpenZ
                 for (int i = 0; i < 4; i++) { gearHullRoot[i] = mb.MultiplyPoint3x4(gearHullBody[i]); gearHullSide[i] = belts.Count > 1 && gearHullRoot[i].x >= mid ? 1 : 0; }
             }
             gearNodes = nodes.ToArray(); gearBelts = belts.ToArray(); gearSnap = true;
+            BigProfileInit();   /* 1.5 N26 (kit mammoth_pitch_n26): the Mammoth's / Bizon's belt samples on the real underside of the link loop (View/OzBigTankPitch.cs) */
         }
 
         /// <summary>A belt from its box in the root's space at rest: the planting's samples (stations along its whole length at the box's

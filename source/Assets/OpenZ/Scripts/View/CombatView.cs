@@ -60,7 +60,7 @@ namespace OpenZ
 
         //      from the shooter first meets the target's body, not at its centre. The body is the sim footprint (Zod's hit box)
         //      inset 12 %, as tall as the model class; robots keep their aim point.
-        static float BodyHeight(ZObject t) => t.IsShuttle ? 5.1f : t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : t.Type == "heavy" || t.Type == "medium" || t.Type == ZMTank.Type ? 2.6f : 2.1f;   // DV145 the medium tank (Sim/ZMTank.cs)
+        static float BodyHeight(ZObject t) => t.IsShuttle ? 5.1f : t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : OzBigTanks.Is(t.Type) ? OzBigTanks.BodyHeight(t.Type) /* 1.5 DV180 / DV181 */ : t.Type == "heavy" || t.Type == "medium" || t.Type == ZMTank.Type ? 2.6f : 2.1f;   // DV145 the medium tank (Sim/ZMTank.cs)
 
         bool BodyBounds(ZObject t, out Bounds b)
         {
@@ -134,13 +134,13 @@ namespace OpenZ
                         var at = OzShuttleAim.AirAim(b, PxGround(e.x, e.y), 0f);                                          // DV118: a blast at the flying shuttle bursts up at its hull
                         BoardingView.HatchExitBlastAt(b, ref at);                                                     // 1.4 DV171 fix round 4: and bursts there (View/BoardingView.VehicleExit.cs)
                         if (b != null && b.IsFortDefender) at = FortDefenderView.RoofPoint(at);             // fort_defender_v1 DV41: on the roof where he stands
-                        if (b != null && !b.Destroyed && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))
+                        if (b != null && !b.Destroyed && !OzBridgeDeckHits.OnDeck(b, a, at) && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))   // 1.5 DV210 (kit bridge_aim_further_r6): a blast at a bridge bursts on its deck at the sim's point (View/OzBridgeDeckHits.cs)
                         {   // bug #13: a shell that lands inside a building / vehicle footprint bursts on the wall facing the shooter
                             var src = a != null ? (ViewOf(a.Id) ? ViewOf(a.Id).transform.position : game.CenterWorld(a)) + Vector3.up * 1.2f : at + Vector3.up * 8f;
                             at = OnSurface(b, src, at + Vector3.up * 1f);                             // IM1: on the drawn wall
                         }
                         OzShuttleAim.NoteBlast(e, a, b, at);                                            // DV118: the gallery's counts, the last hit on the ship
-                        if (!ShotLine.Take(e, fx, au)) LegacyMatch.MissileBlast(e, a, b, at, fx, au);  // legacy_match: size + sound per source (LEGACY_MATCH.md 1); bullets_straight: a round cut on a wall burst there when it arrived
+                        if (!OzUeBlasts.Take(e) /* 1.5 ue_explosions_6 */ && !ShotLine.Take(e, fx, au)) LegacyMatch.MissileBlast(e, a, b, at, fx, au);  // legacy_match: size + sound per source (LEGACY_MATCH.md 1); bullets_straight: a round cut on a wall burst there when it arrived
                         NoteBlast(at, e.radius);                                                      // deaths_mech_v1: ragdolls fly from this blast's centre
                         OzDeathTrace.Blast(e, at);
                         HitReactions.OnBlast(game, e, a, at);                                         // deaths_mech_v1: survivors are knocked down / stagger, shrapnel
@@ -149,6 +149,8 @@ namespace OpenZ
                     }
                     case ZEventType.Death: Death(e, a, fx, au); break;
                     case ZEventType.RunOverHit: RunOverView.Hit(game, e, a, b); break;
+                    case ZEventType.MammothRam: OzMammothRamView.OnEvent(game, e, a, b); break;          // 1.5 DV182: the Mammoth's ram: rev, crunch, sparks, shake, its line, the flip (View/OzMammothRamView.cs)
+                    case ZEventType.BizonCrush: OzBizonCrushView.OnEvent(game, e, a, b); break;          // 1.5 DV183 (kit bizon_crush): the Bizon's crush: rev, crumple, climb, squash, its line (View/OzBizonCrushView.cs)
                     case ZEventType.Sniped: Sniped(e, a, b, fx, au); break;
                     case ZEventType.DriverHit: DriverHit(e, a, b, fx, au); break;
                     case ZEventType.Entered:
@@ -381,7 +383,7 @@ namespace OpenZ
             Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = OzShuttleAim.AirAim(t, PxGround(e.x, e.y) + Vector3.up * 0.25f, e.value);   // DV118: up to the flying shuttle (the hull's middle, where it will be)
             BoardingView.HatchExitBlastAt(t, ref to);                                                 // 1.4 DV171 fix round 4: a shell, rocket or grenade at a driver climbing out of a tank or the mech lands at his figure (View/BoardingView.VehicleExit.cs)
             if (a.Kind == ZKind.Vehicle && a.Type == "apc" && !BoardingView.TryCrewMuzzle(a.Id, out _) && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;   // the passengers' rockets and grenades leave a side hatch too; DV87: not while the lone driver is up in the roof hatch
-            if (t != null && !e.flag && BodyBounds(t, out var tb) && tb.Contains(new Vector3(to.x, tb.center.y, to.z)))
+            if (t != null && !e.flag && !OzBridgeDeckHits.FlatShot(t, a) && BodyBounds(t, out var tb) && tb.Contains(new Vector3(to.x, tb.center.y, to.z)))   // 1.5 DV210 (kit bridge_aim_further_r6): a shot at a bridge flies to its point on the deck, not to the near end facing the shooter (View/OzBridgeDeckHits.cs)
             {
                 if (LegacyMatch.Eased(type))
                 {
@@ -427,7 +429,7 @@ namespace OpenZ
             OzSoundV3.Flight(type, from, to, delay, e.objId, au);                                      // sound_v3: mech / missile-cannon rockets + tank shells in flight               // SOUND-bundle: the bazooka rocket's roar flies with it (APC crew / fallback path)
             LegacyMatch.GunMuzzleBlast(type, from, to, delay);
             if (type == "howitzer") LegacyMatch.HowitzerWhistle(to, delay, e.objId, au);
-            if (type == "missile_launcher") MlrsSalvo.Follow(game, a, av, from, to, delay, e.radius);
+            if (type == "missile_launcher") MlrsSalvo.Follow(game, a, av, from, to, delay, e.radius, t);
             if (type == "medium") MechRockets.Follow(game, a, av, to, delay);
             if (type == "missile_cannon") MissileCannonSalvo.Follow(game, a, av, from, to, delay);    // MC1: launch sound, the twin side by side, 3 small blasts
         }
@@ -554,6 +556,7 @@ namespace OpenZ
                         pil.Break(blast);                                                            // plays dst_rock_crash_large itself
                         break;
                     }
+                    if (OzSandbagNest.SimDied(game, o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p)) break;   // 1.5 kit l18_placeholder_boxes_r6: level 18's Zod map objects 14 are sandbag positions: they break as sandbags (bags, sand, the sandbag sounds), not as stone (View/OzSandbagNest.cs)
                     if (o.Type == "hut" && L16Hut.SimDied(game, o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p)) break;   // level 16: the thatched hut breaks itself (straw and wood, its fallen state, the wood sound)
                     if (o.Type == "hut" && game.StaticViews.TryGetValue(o.Id, out var hgo) && hgo && hgo.GetComponentInChildren<BaseProp>(true) is BaseProp bprop)
                     {   // base_props_v1: the military base set breaks itself (fuel fireball / glass / sparks, chunks, ruin, fire, sounds)

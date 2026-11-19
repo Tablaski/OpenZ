@@ -82,7 +82,7 @@ namespace OpenZ.EditorTools
             }
             var kit = Resources.Load<GameObject>("OpenZ/Craters/CraterClodKit");
             sb.Append($"\n  clod kit: {(kit ? kit.GetComponentsInChildren<MeshFilter>(true).Length + " meshes" : "MISSING")}");
-            foreach (var d in new[] { "CraterDecal_Sand_01_Mul", "CraterDecal_Sand_02_Mul", "CraterDecal_Sand_03_Mul", "CraterDecal_Paved_01", "CraterDecal_Paved_02" })
+            foreach (var d in new[] { "CraterDecal_Sand_01_NoRing_Mul", "CraterDecal_Sand_02_NoRing_Mul", "CraterDecal_Sand_03_NoRing_Mul", "CraterDecal_Paved_01_NoRing_Mul", "CraterDecal_Paved_02_NoRing_Mul" })   // scorch_ring_fix (1.5): the decals CraterField draws (all *_Mul: sRGB off)
             {
                 var t = Resources.Load<Texture2D>("OpenZ/Craters/Decals/" + d);
                 if (!t) { ok = false; sb.Append($"\n  MISSING decal {d}"); continue; }

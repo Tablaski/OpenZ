@@ -18,6 +18,9 @@ namespace OpenZ
         /// <summary>The lower frame cap the guard holds right now (0 = none): the FRAME RATE LIMIT row does not lift it.</summary>
         public static int HeldFps;
         static Thread worker;
+        static volatile bool stopping;   // 1.5 kit player_reports_1111 P1: set at the quit's start (View/OzQuit.cs) and in OnApplicationQuit
+        /// <summary>The quit has started: the reading thread ends at its next wake and starts no new reading (no nvidia-smi while the game shuts down).</summary>
+        public static void StopPolling() { stopping = true; }
         int level, lastLogged = -100;   // 0 normal, 1 warm, 2 hot
         float baseScale = 1f;
         /// <summary>v1.3 (item 25 g): where the temperature comes from: "driver" (read inside the game from the graphics driver's own
@@ -41,11 +44,12 @@ namespace OpenZ
             if (windows && OzNvml.Open())
             {
                 Source = "driver";
-                while (OzNvml.Read(out int t)) { temp = t; Thread.Sleep(2000); }
+                while (!stopping && OzNvml.Read(out int t)) { temp = t; Thread.Sleep(2000); }
                 OzNvml.Close();
+                if (stopping) return;   // 1.5 kit player_reports_1111 P1
             }
             Source = "nvidia-smi";
-            while (true)
+            while (!stopping)
             {
                 try
                 {
@@ -91,6 +95,7 @@ namespace OpenZ
 
         void OnApplicationQuit()
         {
+            stopping = true;   // 1.5 kit player_reports_1111 P1
             TakeFlag.Restore();
             var urp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
             if (urp) urp.renderScale = baseScale;

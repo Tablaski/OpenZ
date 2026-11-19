@@ -21,17 +21,9 @@ Shader "OpenZ/FxLit"
     SubShader
     {
         Tags { "RenderType"="Opaque" "RenderPipeline"="UniversalPipeline" }
-        Pass
-        {
-            Tags { "LightMode"="UniversalForward" }
-            Blend [_SrcBlend] [_DstBlend]
-            ZWrite [_ZWrite]
-            ZTest [_ZTest]
-            Cull [_Cull]
-            HLSLPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma multi_compile_instancing
+        // 1.5 kit smoke_fog_r3: the program below is shared (HLSLINCLUDE) by the forward pass (render states and pragmas as before, after it)
+        // and the OzFxDist pass (this material's cover and eye depth for the fog pass: Shaders/OzFxDist.hlsl, View/OzSmokeFog.cs)
+        HLSLINCLUDE
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             CBUFFER_START(UnityPerMaterial)
@@ -61,6 +53,34 @@ Shader "OpenZ/FxLit"
                 a *= lerp(1, smoothstep(0.02, 0.72, ndv), _SoftEdge);                 // dust soft edge
                 return half4(c, saturate(_BaseColor.a * a));
             }
+            ENDHLSL
+        Pass
+        {
+            Tags { "LightMode"="UniversalForward" }
+            Blend [_SrcBlend] [_DstBlend]
+            ZWrite [_ZWrite]
+            ZTest [_ZTest]
+            Cull [_Cull]
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_instancing
+            ENDHLSL
+        }
+        Pass
+        {   // 1.5 kit smoke_fog_r3: cover + eye depth for the fog pass (only the transparent pools are drawn into it: OzSmokeFog filters by queue)
+            Name "OzFxDist"
+            Tags { "LightMode"="OzFxDist" }
+            Blend One OneMinusSrcAlpha
+            ZWrite Off
+            ZTest Always
+            Cull [_Cull]
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment OzFxDistFrag
+            #pragma multi_compile_instancing
+            #include "Assets/OpenZ/Shaders/OzFxDist.hlsl"
+            half4 OzFxDistFrag(V i) : SV_Target { return OzFxDistOut(frag(i), i.pos, 0.0); }   // straight alpha: the rgb is a colour, not light
             ENDHLSL
         }
     }

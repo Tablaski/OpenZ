@@ -1049,7 +1049,7 @@ namespace OpenZ
             var px = ZGame.WorldToPx(p); return map.ClassAt(px.x >> 4, px.y >> 4);
         }
         bool Wet(Vector3 p) { var c = ClassAt(p); return c == ZClass.Water || c == ZClass.DeepWater; }
-        bool City => game && game.level == "L17";
+        bool City => game && OzCity.Is(game.level);
         bool Jungle => game && game.level == "L16";
         bool Volcanic => game && OzVolcanic.Is(game.level);
         /// <summary>Level 7: lava under this point, once the lava sounds are in (the sim's own tile data, read only).</summary>
@@ -1177,7 +1177,7 @@ namespace OpenZ
                     if (b != null)
                     {
                         Owned("veh_crane_arm");                                                                   // RulesView: the wrench
-                        if (e.flag) craneWork[b.Id] = (game.CenterWorld(b), Time.time + 1.8f); else craneWork.Remove(b.Id);
+                        if (e.flag && !OzCraneLandEnd.OwnsWorkSound) craneWork[b.Id] = (game.CenterWorld(b), Time.time + 1.8f); else craneWork.Remove(b.Id);   // 1.5 kit crane_deck_sound_r3: veh_crane_work (the old repair noise) only when the owner's track is not in the build
                     }
                     break;
                 case ZEventType.FortEntered: Play("brd_fort_breach", b != null ? game.CenterWorld(b) : PosOf(a), e.otherId); break;
@@ -1256,9 +1256,9 @@ namespace OpenZ
                 switch (type)
                 {
                     case "tough": Owned("wpn_tough_bazooka"); Owned("proj_rocket_flight"); if (a.Kind == ZKind.Robot) Owned("wpn_tough_backblast"); break;   // weapons_v2 + SOUND-bundle flight
-                    case "light": case ZMTank.Type: Owned("wpn_light_tank"); break;   // DV145: the light tank's gun
+                    case "light": case ZMTank.Type: case OzBigTanks.Bizon: Owned("wpn_light_tank"); break;   // DV145: the light tank's gun
                     case "medium": Owned("wpn_medium_tank"); break;
-                    case "heavy": Owned("wpn_heavy_tank"); break;
+                    case "heavy": case OzBigTanks.Mammoth: /* 1.5 DV180 / DV181 */ Owned("wpn_heavy_tank"); break;
                     case "missile_launcher": Owned("wpn_mlrs"); break;
                     case "missile_cannon": Owned("wpn_missile_cannon"); break;
                     case "howitzer": Owned("wpn_howitzer"); break;
@@ -1270,6 +1270,7 @@ namespace OpenZ
 
         void OnExploded(ZEvent e, ZObject a, ZObject t)
         {
+            if (OzUeBlasts.Mine(e) || OzExpInGame.HeadGoneEvent(e)) return;                                         // 1.5 ue_explosions_6: a beat of a Unit editor test explosion plays its own sounds (View/OzUeBlastFx.cs)
             var at = Px(e.x, e.y);
             bool wet = Wet(at);
             if (e.flag2)
@@ -1323,7 +1324,7 @@ namespace OpenZ
                 case ZKind.Vehicle:
                     if (VehicleDeathLater(e, o, p)) break;                                              // version 1.1 item 202: with its held explosion (AudioDirector.Kc5b.cs)
                     Owned("exp_vehicle_death");
-                    if (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy") Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);   // DV145 the medium tank (Sim/ZMTank.cs)
+                    if (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy" || OzBigTanks.Is(o.Type)) Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);   // DV145 the medium tank (Sim/ZMTank.cs)
                     // b27: the plunge sound that stood here (at the death, on a water tile) is made by the wreck itself when it really falls into the water (OzWaterLanding, UnitView.BeginWreck)
                     wrecks[o.Id] = (p, Time.time);
                     break;
@@ -1565,7 +1566,7 @@ namespace OpenZ
         public static readonly List<float> BoomDelays = new List<float>();
         float lastBoom = -100f, boomAt, boomQuietSince = -1f; int boomKiller = -1; bool boomWaiting; string boomWhat, boomKillerType;
         /// <summary>The kinds of kill the cheer is for: a medium or big vehicle, or a gun (never a jeep, a light tank or a robot).</summary>
-        static readonly HashSet<string> BoomVehicles = new HashSet<string> { ZMTank.Type, "medium", "heavy", "missile_launcher", "apc", "crane" };
+        static readonly HashSet<string> BoomVehicles = new HashSet<string> { ZMTank.Type, "medium", "heavy", "missile_launcher", "apc", "crane", OzBigTanks.Mammoth, OzBigTanks.Bizon };   // 1.5 DV180 / DV181
         public static bool BoomKill(ZObject victim) => victim != null && (victim.Kind == ZKind.Cannon || (victim.Kind == ZKind.Vehicle && BoomVehicles.Contains(victim.Type)));
         /// <summary>A cheer is waiting: SayImpl holds the robots' chatter and quips for it.</summary>
         bool BoomPending => boomWaiting;
@@ -1612,9 +1613,10 @@ namespace OpenZ
             string id = UnitVoices.SecondVoice(type) ? "vo_boom_brad" : "vo_boom";
             int before = Plays.TryGetValue(id, out var n0) ? n0 : 0;
             boomWaiting = false;                                                                    // not pending while it speaks (SayImpl's chatter hold off)
-            Say(id);
+            Say(id, BoomFilterR3(id));   // 1.5 voice_lines_check_r3: every other cheer of a match says a wipeout line, the others an older take
             if ((Plays.TryGetValue(id, out var n1) ? n1 : 0) <= before) { boomWaiting = true; return; }   // not said this frame (a rule held it): try again next frame
             lastBoom = now; Booms++; BoomDelays.Add(now - boomAt);
+            BoomSaidR3(id);   // 1.5 voice_lines_check_r3
             OzSoundLog.Add("VO", id, null, "CHEER by " + type + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it");
             Debug.Log("[OpenZ] cheer " + id + " by " + type + " after a " + boomWhat + " kill, " + (now - boomAt).ToString("0.0") + " s after it; cheers so far " + Booms);
         }
@@ -1701,11 +1703,12 @@ namespace OpenZ
             var c = game.CenterWorld(a);
             if (a.IsBridge)
             {
+                if (!OzBridgeRestore.OwnsRebuildSound(a.Id))   // 1.5 kit bridge_restore_r3: the restore plays it at its start
                 Play(Jungle && HasClips("bld_bridge_rebuild_wood") ? "bld_bridge_rebuild_wood" : "bld_bridge_rebuild", c, a.Id);
                 bool near = OnScreen(c, 0.3f) || W.Objects.Any(o => o.Owner == Player && o.IsMobile && !o.Destroyed && Near(o, a, 400));
-                if (near) Announce("ann_bridge_repaired");
+                if (near && OzBridgeSaidOnce.RachelSays(a)) OzBridgeSaidOnce.RachelQueued(a, AnnounceImpl("ann_bridge_repaired"));
             }
-            if (a.Owner == Player || (a.IsBridge && OnScreen(c, 0.3f))) Say("vo_building_events", a.IsBridge ? "Bridge" : "repaired!Bridge");
+            if (OzBridgeSaidOnce.RobotSays(a, a.Owner == Player || (a.IsBridge && OnScreen(c, 0.3f)))) Say("vo_building_events", a.IsBridge ? "Bridge" : "repaired!Bridge");   // 1.5 kit crane_deck_sound_r3: a bridge Rachel announces gets no robot line
         }
 
         // ---- territory (FlagView + RulesView play the flag sounds; FlagView asks CombatAudio.Voice for Rachel -> routed here)
@@ -2086,6 +2089,8 @@ namespace OpenZ
         public static int StatusGated;
         float lastStatusLine = -1000f;
 
+        // 1.5 final_fixes_r12 (FAILS A41) changed the timing below: one call per episode, within HelpMaxWait s of the trouble, only while the
+        // group lives, is still hit and an enemy on it lives; a watched call skips the long shut gap (View/Voice/AudioDirector.HelpTriggerR12.cs).
         //      Radio discipline for every Alan line that comes from a fight the player is not watching:
         //      * one distress episode at a time: a player group (or building) hit by the enemy while the camera is not on it and the
         //        group is not simply handling its own fight (firing back under light fire). Its first call comes ~1.2 s after the
@@ -2106,7 +2111,7 @@ namespace OpenZ
         [Tooltip("Chance that the first call of an episode is a cry for help although the fire is still light")] [Range(0f, 1f)] public float cryChanceLight = 0.35f;
         [Tooltip("Off-screen vo_hurt as rare radio chatter (off: only units on screen yelp)")] public bool offscreenHurtChatter = true;
 
-        sealed class DistressEp { public int id; public Vector3 pos; public float first, lastHit, next; public int level; public bool building; }
+        sealed class DistressEp { public int id; public Vector3 pos; public float first, lastHit, next; public int level; public bool building, watched, heavyLoss; public HashSet<int> members; public float gapFrom = float.NaN; }   // 1.5 final_fixes_r12 (A41): members = the group's units at the trouble (alive check), gapFrom = the watched gap to give back if the call never goes out   // 1.5 voice_lines_check_r3: watched = the player sees this fight (Voice/AudioDirector.HelpWipeoutR3.cs)   // 1.5 help_line_r5: heavyLoss = the episode began under heavy fire while losing people
         DistressEp distress; float distressCalmUntil, lastVoiceBusy = -100f; readonly Dictionary<int, float> distressQuiet = new Dictionary<int, float>();
         const int MaxEpisodeCalls = 3;
         /// <summary>Other voices (Commander Zod cameo) can report that they are speaking; distress shouts wait for them.</summary>
@@ -2200,37 +2205,38 @@ namespace OpenZ
         {
             float now = Time.unscaledTime;
             var at = game.CenterWorld(victim);
-            if (distress != null && distress.id == group.Id) { distress.lastHit = now; distress.pos = at; return; }
-            if (distress != null && now - distress.lastHit < 6f) return;                         // one episode at a time
+            if (distress != null && distress.id == group.Id) { distress.lastHit = now; distress.pos = at; distress.members?.Add(victim.Id); return; }   // 1.5 final_fixes_r12: a member hit later counts as the group's
+            if (distress != null) return;                                                         // one episode at a time   // 1.5 final_fixes_r12 (FAILS A41): an episode lives at most HelpMaxWait s or until its one call (Voice/AudioDirector.HelpTriggerR12.cs); was: a watched episode kept its turn up to 25 s
             if (now < distressCalmUntil || (distressQuiet.TryGetValue(group.Id, out var q) && now < q)) return;
             bool building = group.Kind == ZKind.Building;
-            if (Watching(at)) return;                                                             // the player already watches this fight
+            float gap0 = lastWatchedHelp;                                                         // 1.5 final_fixes_r12: given back if the watched call never goes out
+            if (Watching(at) && !HelpWatchedOk(group, now, victim)) return;                               // the player already watches this fight   // 1.5 voice_lines_check_r3: unless it is under heavy fire and losing people (once per HelpWatchedGap s, Voice/AudioDirector.HelpWipeoutR3.cs)
             if (!building && group.AttackObject != null && !Heavy(group.Id)) return;              // firing back under light fire: no call
-            distress = new DistressEp { id = group.Id, pos = at, first = now, lastHit = now, next = now + 1.2f, building = building };
+            distress = new DistressEp { id = group.Id, pos = at, first = now, lastHit = now, next = now + HelpFirstDelay, building = building, watched = Watching(at), heavyLoss = HelpHeavyLossR5(group), members = HelpMembers(group, victim), gapFrom = gap0 };   // 1.5 final_fixes_r12: the first look HelpFirstDelay s after the hit (was 1.2 s), the members for the alive check   // 1.5 voice_lines_check_r3   // 1.5 help_line_r5: the episode keeps its start state until its cry goes out
         }
 
         void UpdateDistress()
         {
             float now = Time.unscaledTime;
             if (AnyVoiceBusy || rachelQueue.Count > 0) lastVoiceBusy = now;
+            HelpCutTick();                                                                        // 1.5 final_fixes_r12 (FAILS A41): the group of the call speaking now fell: the line fades out (Voice/AudioDirector.HelpTriggerR12.cs)
             var d = distress; if (d == null) return;
             var u = W.GetAny(d.id);
             bool ordered = input && input.MarkerTime > d.first && input.Selection.Any(s => s == u || s.Leader == u);
-            bool over = u == null || u.Destroyed || now - d.lastHit > 6f || ordered || Watching(d.pos);
-            if (over || d.level >= MaxEpisodeCalls)
+            string end = HelpEndWhy(d, ordered, now);
+            if (end != null || d.level >= 1)                                                     // 1.5 final_fixes_r12: one call per episode, then the group is quiet HelpGroupQuiet s (never twice in a row for the same fight)
             {
-                distressQuiet[d.id] = now + (d.level >= MaxEpisodeCalls ? 60f : 30f); distressCalmUntil = now + 12f; distress = null; return;
+                HelpEpisodeEnd(d, end, now); distress = null; return;
             }
             if (now < d.next) return;
-            d.next = now + 0.5f;                                                                  // waiting for the radio: look twice a second
+            d.next = now + HelpLookEvery;                                                         // 1.5 final_fixes_r12: looks 10 times a second, so the call goes out within ~0.5 s of the trouble when the radio is free
             bool heavy = Heavy(d.id);
-            if (d.level > 0 && !heavy) return;                                                   // a follow-up only while the fire stays heavy
             SyncRadio();
-            if (!Radio.CanCall(now) || !RadioQuiet(now)) return;
-            bool cry = d.level > 0 || heavy || UnityEngine.Random.value < cryChanceLight;
+            if ((!d.watched && !Radio.CanCall(now)) || !RadioQuiet(now)) return;                 // 1.5 final_fixes_r12: a watched call skips the radio's long shut gap (its own HelpWatchedGap); never over another voice
+            bool cry = heavy || UnityEngine.Random.value < cryChanceLight;                        // 1.5 final_fixes_r12: a cry for help only while the fire is heavy NOW (was: also by the episode's start state, after a long wait)
             string id = cry && HasClips("vo_under_attack_repeat") ? "vo_under_attack_repeat" : "vo_under_attack";
             var def = Def(id);
-            string line = def != null ? Radio.Peek(id, def.lines, d.level > 0) : null;
+            string line = def != null ? (HelpLineR3(id, def, d, heavy) ?? Radio.Peek(id, def.lines, d.level > 0)) : null;   // 1.5 voice_lines_check_r3: the first cry under heavy fire while losing: the 1.3 bag
             if (line == null) return;
             float before = lastLine.TryGetValue(id, out var lb) ? lb : -1f;
             lastLine.Remove(id);                                                                 // the radio paces itself, not the event cooldown
@@ -2238,9 +2244,10 @@ namespace OpenZ
             if (lastLine.TryGetValue(id, out var la) && la > before)
             {
                 if (d.level == 0) UI("ui_alert");
-                Radio.Played(id, line); Radio.Called(now, true);
+                Radio.Played(id, line); HelpLinePlayedR3(line); Radio.Called(now, true);   // 1.5 voice_lines_check_r3
                 DistressPlays++; if (id == "vo_under_attack_repeat") HelpCries++;
                 if (!d.building) NoteHelpCall(d.id);
+                HelpSaid(d, id, now);                                                            // 1.5 final_fixes_r12: counted, watched while it plays
                 d.level++; d.next = now + 1f;
             }
             else if (before >= 0f) lastLine[id] = before;                                        // refused (busy): retry in 0.5 s
@@ -2398,8 +2405,9 @@ namespace OpenZ
             }
             if (game.paused != lastPaused)
             {
-                lastPaused = game.paused; UI(game.paused ? "ui_pause" : "ui_resume"); SetPaused(game.paused);
-                if (!gameOver) Announce(game.paused ? "ann_game_paused" : "ann_game_resumed");
+                bool tac = OzTacticalPause.QuietFlip;                                                   // 1.5 tactical_pause_megashake: the freeze plays its own sound, never "Game paused" (View/OzTacticalPause.cs)
+                lastPaused = game.paused; if (!tac) UI(game.paused ? "ui_pause" : "ui_resume"); SetPaused(game.paused);
+                if (!gameOver && !tac) Announce(game.paused ? "ann_game_paused" : "ann_game_resumed");
             }
             if (lastSpeed >= 0f && !Mathf.Approximately(lastSpeed, game.gameSpeed)) UI("ui_game_speed");
             lastSpeed = game.gameSpeed;
@@ -2430,14 +2438,14 @@ namespace OpenZ
         //      zunitrating.cpp:57-128, the UCR_WILL_DIE rows (attacker -> victim types); every other pair is even or a win.
         static readonly Dictionary<string, HashSet<string>> WillDie = new Dictionary<string, HashSet<string>>
         {
-            ["grunt"] = new HashSet<string> { "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "gatling", "gun", "howitzer", "missile_cannon", "jeep", "light", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
-            ["psycho"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
+            ["grunt"] = new HashSet<string> { "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "gatling", "gun", "howitzer", "missile_cannon", "jeep", "light", "medium", ZMTank.Type, "heavy", "missile_launcher", OzBigTanks.Mammoth, OzBigTanks.Bizon },   // DV145 the medium tank (Sim/ZMTank.cs)
+            ["psycho"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "medium", ZMTank.Type, "heavy", "missile_launcher", OzBigTanks.Mammoth, OzBigTanks.Bizon },   // DV145 the medium tank (Sim/ZMTank.cs)
             ["sniper"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "missile_cannon", "missile_launcher" },
             ["tough"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
             ["electrobot"] = new HashSet<string> { "missile_cannon", "missile_launcher" },   // electrobot_v1: the Tough's row (same health)
             ["pyro"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
             ["laser"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
-            ["jeep"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "gun", "howitzer", "missile_cannon", "light", "medium", ZMTank.Type, "heavy", "missile_launcher" },   // DV145 the medium tank (Sim/ZMTank.cs)
+            ["jeep"] = new HashSet<string> { "tough", "pyro", "laser", "electrobot", "gun", "howitzer", "missile_cannon", "light", "medium", ZMTank.Type, "heavy", "missile_launcher", OzBigTanks.Mammoth, OzBigTanks.Bizon },   // DV145 the medium tank (Sim/ZMTank.cs)
             ["light"] = new HashSet<string> { "missile_cannon", "missile_launcher" },
             [ZMTank.Type] = new HashSet<string> { "missile_cannon", "missile_launcher" },   // DV145: the medium tank fights as the light tank (its gun)
             ["medium"] = new HashSet<string> { "missile_launcher" },
@@ -2527,7 +2535,7 @@ namespace OpenZ
         {
             switch (type)
             {
-                case "heavy": return I && I.HasClips("veh_tracks_heavy_loop") ? "veh_tracks_heavy_loop" : "veh_tracks_loop";   // sound_v3: its own heavier tread loop
+                case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return I && I.HasClips("veh_tracks_heavy_loop") ? "veh_tracks_heavy_loop" : "veh_tracks_loop";   // sound_v3: its own heavier tread loop
                 case "light": case ZMTank.Type: case "missile_launcher": return "veh_tracks_loop";
                 case "jeep": case "apc": case "crane": return "veh_wheels_sand";
                 default: return null;
@@ -2556,7 +2564,7 @@ namespace OpenZ
         {
             switch (type)
             {
-                case "jeep": return "veh_engine_jeep"; case "light": case ZMTank.Type: return "veh_engine_light"; case "heavy": return "veh_engine_heavy";   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "jeep": return "veh_engine_jeep"; case "light": case ZMTank.Type: return "veh_engine_light"; case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return "veh_engine_heavy";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": return "veh_engine_apc"; case "missile_launcher": return "veh_engine_mlrs"; case "crane": return "veh_engine_crane";
                 default: return null;
             }

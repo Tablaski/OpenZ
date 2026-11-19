@@ -19,13 +19,13 @@ namespace OpenZ.EditorTools
         {
             string report, measured; bool pass;
             string Level(string lv) { var a = UnityEngine.Resources.Load<UnityEngine.TextAsset>("OpenZ/Maps/" + lv + "_grid"); return a != null ? a.text : null; }
-            using (OzV11Kit.GameSwitches()) report = OzV13HeavyRockCount.Check(SettingsText, Level, false);
+            using (OzV11Kit.GameSwitches()) report = OzV13HeavyRockCount.Check(SettingsText, Level, false) + OzV15BigRockCount.Check(SettingsText, Level, false);   // 1.5 r14_r16: + the Mammoth and the Bizon (Editor/OzV15BigRockCount.cs)
             measured = OzV11Kit.VerdictCell(report, out pass);
             return new Deviation
             {
-                id = "DV164", change = "A heavy tank standing idle clears a rock it clips: it turns its gun and shoots that rock until it is gone, then stands idle again",
+                id = "DV164", change = "A heavy tank (1.5: also a Mammoth or a Bizon) standing idle clears a rock it clips: it turns its gun and shoots that rock until it is gone, then stands idle again",
                 zod = "a rock is blasted only when a path runs into it (zobject.cpp:3716-3747); a unit standing by one leaves it alone",
-                openz = "Sim/ZObject.HeavyRock.cs: a crewed heavy tank, no other unit, after " + ZWorld.HeavyRockIdleSeconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " s standing idle with no enemy in its agro reach, " +
+                openz = "Sim/ZObject.HeavyRock.cs: a crewed heavy tank, Mammoth or Bizon (1.5 r14_r16, Sim/ZObject.BigRock.cs: what clips from their bigger models: " + ZWorld.BigRockText + "), no other unit, after " + ZWorld.HeavyRockIdleSeconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " s standing idle with no enemy in its agro reach, " +
                         "at a rock whose foot lies within the reach of its barrels from the turret ring (they sweep all round when idle) + the rock's own radius, whole pixels, at the drawn vehicle size. " +
                         "It never moves. An order, a target, an agro win at once. The shot, its sound, the rock's damage and break are the game's; the shell is aimed at the rock's foot and hurts that rock alone. Both teams and the computer. No random draw of its own",
                 measured = measured,

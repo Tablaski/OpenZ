@@ -41,13 +41,14 @@ namespace OpenZ
 
         OzUnitEditor ed; OpenZHud hud;
         public RectTransform Plate, Rail;
-        OzUeSeg team, count, tabs;
+        OzUeSeg count, tabs;
+        OzUeTeamSeg team;                                                                                   // 1.5 kit ue_bottom_left_r10 (FAILS A36): the bigger, team-tinted switch (UI/OzUeTeamSeg.cs)
         Image sep; OzText caption;
         HudButton pin; HudButton railBtn; OzText railLabel; OzUeKeycap railKey;
         CanvasGroup plateCg;
         readonly List<Tile> tiles = new List<Tile>();
         readonly List<Tile>[] byTab = { new List<Tile>(), new List<Tile>(), new List<Tile>(), new List<Tile>() };
-        Tile flag, obstacle, grenades, nuke, platMid, platHigh;
+        Tile flag, obstacle, box, grenades, nuke, platMid, platHigh;                                      // 1.5 ue_boxes: + BOX
         bool pinned = true, wasInside; float leftAt = -1f;
         float slideFrom, slideTo = 0f, slideAt = -10f, slideShown;
         OzUeBottomLayout.Dock lay;
@@ -59,6 +60,8 @@ namespace OpenZ
         Vector2 pressFrom; bool rescueHeld; readonly object rescueHolder = new object();
 
         public bool Pinned => pinned;
+        /// <summary>1.5 kit ue_bottom_left_r10 (A36, checks): the team switch.</summary>
+        public OzUeTeamSeg TeamSeg => team;
         /// <summary>The plate's rect on the canvas as laid out (for the counted check: one row, the same rect in every tab).</summary>
         public UeBox PlateBox => lay != null ? lay.plate : default;
 
@@ -75,7 +78,7 @@ namespace OpenZ
             hud.AddBlocker(Plate);
 
             var tw = TeamWords();
-            team = new OzUeSeg(Plate, "Team", tw, OzUeBottomLayout.TeamText, OzUeBottomLayout.TeamTrack);
+            team = new OzUeTeamSeg(Plate, "Team", tw, OzUeBottomLayout.TeamBigText, OzUeBottomLayout.TeamTrack);   // 1.5 kit ue_bottom_left_r10 (A36)
             team.OnPick = k => OzUeControls.SetTeam(k == 0 ? Team.Red : k == 1 ? Team.Blue : Team.Neutral);
             count = new OzUeSeg(Plate, "Count", OzUeBottomLayout.CountWords, OzUeBottomLayout.TeamText, OzUeBottomLayout.TeamTrack);
             count.OnPick = k => OzUeControls.SetCount(OzUeControls.CountSteps[Mathf.Clamp(k, 0, OzUeControls.CountSteps.Length - 1)]);
@@ -89,15 +92,17 @@ namespace OpenZ
             tabs.SetTip(0, OzUeW.Tip("Robots", null, "Robot squads: grunt to electro"));
             tabs.SetTip(1, OzUeW.Tip("Vehicles", null, "Jeep to crane"));
             tabs.SetTip(2, OzUeW.Tip("Guns", null, "Gatling, gun, howitzer, missile"));
-            tabs.SetTip(3, OzUeW.Tip("Special", null, "The heroes: Alan and Brad on the " + OzUeUi.TeamWordSentence(Team.Red).ToLowerInvariant() + " side, EvilZod on the " + OzUeUi.TeamWordSentence(Team.Blue).ToLowerInvariant() + " side; the shuttle for both"));   // rows 79 / 80
+            tabs.SetTip(3, OzUeW.Tip("Special", null, "The heroes: Alan and Brad on the " + OzUeUi.TeamWordSentence(Team.Red).ToLowerInvariant() + " side, EvilZod on the " + OzUeUi.TeamWordSentence(Team.Blue).ToLowerInvariant() + " side; the shuttle for both", "Six test explosions to drag onto the field"));   // rows 79 / 80
 
             var lists = new[] { OzUePlayground.Robots, OzUePlayground.Vehicles, OzUePlayground.Guns, OzUePlayground.Special };
             for (int k = 0; k < 4; k++) foreach (var id in lists[k]) byTab[k].Add(MakeTile(id, k, false));
+            foreach (var id in OzUeBlasts.Ids) byTab[3].Add(MakeTile(id, 3, true));
             sep = Hud.Img(Plate, "ExtrasLine", OzUi.A(OzUi.Khaki, 0.5f));
             caption = Hud.Label(Plate, "ExtrasCaption", "EXTRAS", 11f, OzUi.Khaki, 0.12f, OzStyle.Plain).FillParent(OzH.C);   // centred in its box
             caption.rectTransform.localEulerAngles = new Vector3(0f, 0f, 90f);                             // reads bottom to top
             flag = MakeTile(OzUePlayground.Flag, -1, true);
             obstacle = MakeTile(OzUePlayground.Obstacle, -1, true);
+            box = MakeTile(OzUePlayground.Box, -1, true);
             grenades = MakeTile(OzUePlayground.Grenades, -1, true);
             nuke = MakeTile(OzUePlayground.Nuke, -1, true);                                               // 1.3 item 2: the NUKE extra
             MakeCooldown(nuke);
@@ -245,6 +250,7 @@ namespace OpenZ
             cr.anchoredPosition = new Vector2(d.caption.x + d.caption.w * 0.5f, -(d.caption.y + d.caption.h * 0.5f));
             PlaceTile(flag, d.flagTile.x, d.flagTile.y, d.flagTile.w, d.tile);
             PlaceTile(obstacle, d.obstacleTile.x, d.obstacleTile.y, d.obstacleTile.w, d.tile);
+            PlaceTile(box, d.boxTile.x, d.boxTile.y, d.boxTile.w, d.tile);                                   // 1.5 ue_boxes
             PlaceTile(grenades, d.grenadesTile.x, d.grenadesTile.y, d.grenadesTile.w, d.tile);
             PlaceTile(nuke, d.nukeTile.x, d.nukeTile.y, d.nukeTile.w, d.tile);
             PlaceTile(platMid, d.platMidTile.x, d.platMidTile.y, d.platMidTile.w, d.tile);
@@ -409,6 +415,9 @@ namespace OpenZ
                 t.b.Tooltip = OzUeW.Tip("Grenade crate (always neutral)", null, "Drag onto the field, or click it and then click the field",
                                         "A robot that walks over it picks it up: its squad gets the crate's grenades and the crate is gone",
                                         "Toughs and electrobots never take grenades, nor a squad that still has some", "Shots and blasts can blow it up");
+            else if (OzUeBlasts.Is(t.id))                                                                            // 1.5 ue_explosions_6: the six test explosions
+                t.b.Tooltip = OzUeW.Tip(OzUeBlasts.TipTitle(t.id), null, "Drag onto the field, or click it and then click the field",
+                                        OzUeBlasts.TipLook(t.id), OzUeBlasts.TipDamage(t.id), "Unit editor only: a test of how it looks");
             else if (t.id == OzUePlayground.Nuke)
                 t.b.Tooltip = OzUeW.Tip("Nuke strike", null, "Drag onto the field, or click it and then click the field",
                                         "The bomber flies in and drops the nuke on that spot",
@@ -420,6 +429,11 @@ namespace OpenZ
                                         "Its ramp faces the view: turn the view to choose the side. " + (t.id == OzUePlayground.PlatformHigh ? "As high as a fort tower gun" : "Half a fort tower's height"),
                                         "Units drive up the ramp; dropped on it they stand on it. A blast stays on its own level",
                                         "Destructible by explosives only (Ctrl + right-click): what stands on it dies with it");
+            else if (t.id == OzUePlayground.Box)
+                t.b.Tooltip = OzUeW.Tip("Holo box (always neutral)", null, "Drag onto the field, or click it and then click the field",
+                                        "Drop it on a box and it goes on top: build towers, walls and castles, up to " + ZWorld.BoxLevels + " high",
+                                        "Blocks every shot and every path, like the obstacle. Destructible (10000 HP) by explosives only: Ctrl + right-click it",
+                                        "When a box breaks, the boxes above it fall");
             else if (t.id == OzUePlayground.Obstacle)
                 t.b.Tooltip = OzUeW.Tip("Holo obstacle (always neutral)", null, "Drag onto the field, or click it and then click the field",
                                         "Blocks every shot and every path: units walk round it", "Destructible (10000 HP) by explosives only: pick Toughs, tanks, mechs, the MLRS or cannons, then Ctrl + right-click it",
@@ -598,6 +612,7 @@ namespace OpenZ
             var lists = new[] { OzUePlayground.Robots, OzUePlayground.Vehicles, OzUePlayground.Guns, OzUePlayground.Special };
             var o = new string[4][];
             for (int k = 0; k < 4; k++) { o[k] = new string[lists[k].Length]; for (int j = 0; j < lists[k].Length; j++) o[k][j] = OzUePlayground.ShortName(lists[k][j]); }
+            { var sp = new List<string>(o[3]); foreach (var id in OzUeBlasts.Ids) sp.Add(OzUePlayground.ShortName(id)); o[3] = sp.ToArray(); }   // 1.5 ue_explosions_6: + the six test explosions
             return o;
         }
     }

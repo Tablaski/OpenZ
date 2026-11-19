@@ -58,10 +58,10 @@ namespace OpenZ
 
         // ---------------------------------------------------------------- the profile on this computer
         /// <summary>The Unit editor's saved Custom profile (its View/OzUeProfile.cs KeyValues, KeyName, KeyBase).</summary>
-        public const string ProfileKey = "oz_ue_profile", ProfileNameKey = "oz_ue_profile_name", ProfileBaseKey = "oz_ue_profile_base";
-        public static string SavedText { get { try { return PlayerPrefs.GetString(ProfileKey, "") ?? ""; } catch (System.Exception) { return ""; } } }
-        public static string SavedName { get { string n = ""; try { n = PlayerPrefs.GetString(ProfileNameKey, ""); } catch (System.Exception) { } return string.IsNullOrEmpty(n) ? OzUeSets.DefaultName : n; } }
-        public static int SavedBase { get { try { return PlayerPrefs.GetInt(ProfileBaseKey, 0); } catch (System.Exception) { return 0; } } }
+        public const string ProfileKey = OzUeProfile.KeyValues, ProfileNameKey = OzUeProfile.KeyName, ProfileBaseKey = OzUeProfile.KeyBase;   // settings_tidy (1.5): the profile's keys have one home, View/OzUeProfile.cs (the same three strings)
+        public static string SavedText => OzUeProfile.Text;                                                 // settings_tidy: the profile's one read (the same code it had here: GetString(key, ""), "" on an error)
+        public static string SavedName => OzUeProfile.Name;                                                 // settings_tidy: the same ("" -> OzUeSets.DefaultName)
+        public static int SavedBase => (int)OzUeProfile.Base;                                               // settings_tidy: the same default 0 (OPENZ); 0..2 kept, anything else 0, as OzLevelStatsPlan.Read already made of it
         public static string SettingsText { get { var st = Resources.Load<TextAsset>("OpenZ/default_settings"); return st ? st.text : ""; } }
 
         /// <summary>The rules a level start reads (UeRules.FromGame after View/ZGame.cs Awake has set the switches): the same switch lines
@@ -72,8 +72,10 @@ namespace OpenZ
             bool z = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;
             var r = UeRules.FromGame();
             r.sniperOn = z; r.pairOn = z;                                                                   // ZGame: SniperBalanceDeviation, RiflePairDeviation
+            r.smallArmsOn = z;                                                                              // 1.5 DV212 (kit small_arms_balance_r8): ZGame sets ZWorld.SmallArmsDeviation the same
             ZWorld.MechHpDeviation = z;                                                                     // DV147: the mech's health as the level start parses it (ZGame sets the same; Sim/ZMechHp.cs)
             ZWorld.GatlingBuffDeviation = z;                                                                // DV170: the gatling's range and damage per shot as the level start parses them (ZGame sets the same; Sim/ZGatlingBuff.cs)
+            ZWorld.MissileTurretBuildTimeDeviation = z;                                                     // 1.5 DV191 (kit missile_build_time): the missile cannon's build time as the level start parses it (ZGame sets the same; Sim/ZMissileBuildTime.cs)
             r.craneGun = z && PlayerPrefs.GetInt("oz_crane_gun", 1) == 1;                                  // CraneGunDeviation (DV31)
             r.apcCrew = z && PlayerPrefs.GetInt("oz_apc_crew", 1) == 1;                                    // ApcCrewDeviation (DV15)
             r.rocketOn = z && PlayerPrefs.GetInt("oz_rocket_speed", 1) == 1;                               // RocketSpeedDeviation (DV52)

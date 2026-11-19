@@ -20,7 +20,7 @@ namespace OpenZ
     public partial class HeavyRecoil
     {
         /// <summary>The vehicle types that kick and rock this way (both models of each).</summary>
-        public static readonly HashSet<string> Types = new HashSet<string> { OzHeavyTank.Type, OzLightTank.Type, OzMediumTank.Type, OzMlrs.Type, OzMech.Type, OzGun.Type };   // DV145: the medium tank kicks and rocks too; 1.2 v2 units: the MLRS hull rocks too (View/HeavyRecoil.Mlrs.cs); the mech's upper body kicks and its body rocks (View/HeavyRecoil.Mech.cs); the gun's turret kicks, its base never moves (View/HeavyRecoil.Gun.cs)
+        public static readonly HashSet<string> Types = new HashSet<string> { OzHeavyTank.Type, OzLightTank.Type, OzMediumTank.Type, OzMlrs.Type, OzMech.Type, OzGun.Type, OzBigTanks.Mammoth, OzBigTanks.Bizon };   /* 1.5 DV180 / DV181 */   // DV145: the medium tank kicks and rocks too; 1.2 v2 units: the MLRS hull rocks too (View/HeavyRecoil.Mlrs.cs); the mech's upper body kicks and its body rocks (View/HeavyRecoil.Mech.cs); the gun's turret kicks, its base never moves (View/HeavyRecoil.Gun.cs)
         /// <summary>The light tank: the body's slide back (m) and rock back (deg) at the peak before RecoilFeel's gains (x1.65 / x1.6:
         /// 0.080 m, 1.40 deg); the head's slide back per model (m) and its rock back (deg, its front up).</summary>
         public static float LightBodyPushM = 0.0485f, LightBodyRockDeg = 0.875f, LightHeadSlideV1 = 0.10f, LightHeadSlideV2 = 0.20f, LightHeadRockDeg = 2.0f;
@@ -38,8 +38,8 @@ namespace OpenZ
         static float BodyPushFor(string t) => t == OzGun.Type ? GunBodyPushM : t == OzMech.Type ? MechBodyPushM : t == OzMlrs.Type ? MlrsBodyPushM : LightGun(t) ? LightBodyPushM : BodyPushM;
         static float BodyRockFor(string t) => t == OzGun.Type ? GunBodyRockDeg : t == OzMech.Type ? MechBodyRockDeg : t == OzMlrs.Type ? MlrsBodyRockDeg : LightGun(t) ? LightBodyRockDeg : BodyRockDeg;
         /// <summary>The hull mesh (its size sets the rock's pivot) and the head mesh (its rear sets the head's rock pivot) of each type.</summary>
-        static bool IsHull(string n) => n == "HeavyTankHull" || n == "Tank_hull" || n == "MLRS_hull" || n == "Mech_pelvis";   // 1.2 v2 units: the MLRS hull (v1 and v2) sets its rock's pivot; the mech's pelvis box (v1 and v2): its body rocks about the far end of it at the ground
-        static bool IsHead(string n) => n == "HeavyTankTurret" || n == "Tank_turret" || n == "Mech_body";   // 1.2 v2 units: the mech's upper body (v1 and v2) rocks about a point half-way to its rear
+        static bool IsHull(string n) => n == "HeavyTankHull" || n == "Tank_hull" || n == "MLRS_hull" || n == "Mech_pelvis" || n == "Mammoth_hull" || n == "Bizon_hull";   // 1.5 DV180 / DV181   // 1.2 v2 units: the MLRS hull (v1 and v2) sets its rock's pivot; the mech's pelvis box (v1 and v2): its body rocks about the far end of it at the ground
+        static bool IsHead(string n) => n == "HeavyTankTurret" || n == "Tank_turret" || n == "Mech_body" || n == "Mammoth_turret" || n == "Bizon_turret";   // 1.5 DV180 / DV181   // 1.2 v2 units: the mech's upper body (v1 and v2) rocks about a point half-way to its rear
         /// <summary>DV145: the light tank's gun (the light tank and the medium tank: their own sizes, RecoilFeel's gains per type on top).</summary>
         static bool LightGun(string t) => t == OzLightTank.Type || t == OzMediumTank.Type;
     }

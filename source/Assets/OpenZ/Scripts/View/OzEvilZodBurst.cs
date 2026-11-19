@@ -19,7 +19,7 @@ namespace OpenZ
         public static int EmptyBakes { get; private set; }
         const int Groups = 11;
 
-        sealed class Part { public Transform t; public Mesh mesh; public Vector3 v, w, box, thinL, box0, s0, c0; public float rad, lie, smokeT, squash = 1f; public int bounces; public bool rest, cloth; public Transform inner; }   // U9h: + the cape (cloth: its half sizes, its thin axis, its cloth node and how flat it lies)
+        sealed class Part { public Transform t; public Mesh mesh; public Vector3 v, w, box, thinL, box0, s0, c0; public float rad, lie, smokeT, squash = 1f; public int bounces; public bool rest, cloth; public Transform inner; public Vector3[] pts; }   // 1.5 kit robot_pieces_ground_r10 (A35): pts = a body piece's own points (its lowest drawn one). U9h: + the cape (cloth: its half sizes, its thin axis, its cloth node and how flat it lies)
         readonly List<Part> parts = new List<Part>();
         float lastClang = -10f, age;
 
@@ -93,7 +93,7 @@ namespace OpenZ
         /// fold along that axis pressed out (to about ClothLieM thick), so the whole cloth lies on the ground, not a curved shell standing on its edge.</summary>
         static void Flat(Part p, float dt)
         {
-            var a = p.t.rotation * p.thinL; var q = Quaternion.FromToRotation(a, a.y >= 0f ? Vector3.up : Vector3.down); p.t.rotation = Quaternion.Slerp(Quaternion.identity, q, 1f - Mathf.Exp(-9f * dt)) * p.t.rotation;
+            var a = p.t.rotation * p.thinL; var nu = OzRestSurface.UpAt(p.t.position); var q = Quaternion.FromToRotation(a, Vector3.Dot(a, nu) >= 0f ? nu : -nu);   /* 1.5 kit robot_pieces_ground_r11b (A35): along the ground's slope (OzRestSurface.UpAt; off: up) */ p.t.rotation = Quaternion.Slerp(Quaternion.identity, q, 1f - Mathf.Exp(-9f * dt)) * p.t.rotation;
             float thin0 = Vector3.Dot(p.box0, p.thinL), goal = thin0 > ClothLieM ? ClothLieM / thin0 : 1f;
             p.squash = Mathf.MoveTowards(p.squash, goal, dt / 0.3f);
             var k = Vector3.one - p.thinL * (1f - p.squash); p.box = Vector3.Scale(p.box0, k);
@@ -156,7 +156,7 @@ namespace OpenZ
                 var r = go.AddComponent<MeshRenderer>(); r.sharedMaterials = mats; r.SetPropertyBlock(block);
                 for (int i = 0; i < slot.Length; i++) if (slot[i] != null) r.SetPropertyBlock(slot[i], i);
                 var away = t.position - centre; away.y = 0f; if (away.sqrMagnitude < 0.04f) away = Random.onUnitSphere; away.y = 0f; away.Normalize();
-                parts.Add(new Part { t = t, mesh = m, rad = rad, w = Random.onUnitSphere * Random.Range(SpinMax * 0.4f, SpinMax), v = away * Random.Range(OutMin, OutMax) + Vector3.up * Random.Range(UpMin, UpMax) + Vector3.ProjectOnPlane(Random.onUnitSphere, Vector3.up) * 2f });
+                parts.Add(new Part { pts = OzRobotPieceRest.Sample(pv), t = t, mesh = m, rad = rad, w = Random.onUnitSphere * Random.Range(SpinMax * 0.4f, SpinMax), v = away * Random.Range(OutMin, OutMax) + Vector3.up * Random.Range(UpMin, UpMax) + Vector3.ProjectOnPlane(Random.onUnitSphere, Vector3.up) * 2f });
                 made++;
             }
             Destroy(baked);
@@ -172,7 +172,8 @@ namespace OpenZ
                 var p = parts[i]; if (!p.t) continue;
                 if (p.rest)
                 {
-                    if (p.cloth && p.lie < LieSeconds) { Flat(p, dt); var q = p.t.position; q.y = g.GroundY(q.x, q.z) + HalfY(p) + 0.02f; p.t.position = q; }   // U9h: the cape lies flat on the ground
+                    if (p.cloth && p.lie < LieSeconds) { Flat(p, dt); var q = p.t.position; float cy = OzRestSurface.CapeY(p.t); q.y = float.IsNaN(cy) ? g.GroundY(q.x, q.z) + HalfY(p) + 0.02f : cy; p.t.position = q; }
+                    else if (p.pts != null && p.lie < LieSeconds) { if (!OzRestSurface.EvilRest(p.t, p.mesh, dt, g)) OzRobotPieceRest.Settle(p.t, p.pts, g, dt, ref p.v.y); }   /* 1.5 kit robot_pieces_ground_r11b (A35): on a box face, on the real surface, lifted out of the ground too (View/OzRestSurface.cs) */
                     p.lie += dt;
                     if (p.lie > LieSeconds)
                     {

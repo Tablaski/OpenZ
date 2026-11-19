@@ -105,6 +105,9 @@ namespace OpenZ
             Debug.Log($"[OpenZ Options] graphics API: {Names[v ? 1 : 0]} ({Pref} {(v ? 1 : 0)}, saved, from the next start; now {SystemInfo.graphicsDeviceType})");
         }
 
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        static extern System.IntPtr ShellExecuteW(System.IntPtr hwnd, string op, string file, string args, string dir, int show);   // 1.5 exe 14c: the DX11 start again (IL2CPP has no CreateProcess)
+
         static bool HasArg(string a)
         {
             foreach (var s in System.Environment.GetCommandLineArgs()) if (s.Equals(a, System.StringComparison.OrdinalIgnoreCase)) return true;
@@ -119,12 +122,13 @@ namespace OpenZ
             if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D12 || HasArg(ForceDx11) || HasArg(RelaunchMark)) return;
             try
             {
-                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                var exe = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath), Application.productName + ".exe");   // 1.5 exe 14c: was Process.MainModule (Mono only; IL2CPP threw 'Collection cannot be null' and stayed on DX12)
+                if (!System.IO.File.Exists(exe)) exe = System.IO.Path.GetFullPath(System.Environment.GetCommandLineArgs()[0]);   // a renamed exe: the path it was started with
                 var args = System.Environment.GetCommandLineArgs(); var sb = new System.Text.StringBuilder();
                 for (int i = 1; i < args.Length; i++) sb.Append('"').Append(args[i].Replace("\"", "\\\"")).Append("\" ");
                 sb.Append(ForceDx11).Append(' ').Append(RelaunchMark);
-                var psi = new System.Diagnostics.ProcessStartInfo(exe, sb.ToString()) { UseShellExecute = false, WorkingDirectory = System.IO.Path.GetDirectoryName(exe) };
-                System.Diagnostics.Process.Start(psi);
+                long r = (long)ShellExecuteW(System.IntPtr.Zero, "open", exe, sb.ToString(), System.IO.Path.GetDirectoryName(exe), 1);   // 1.5 exe 14c: was Process.Start (IL2CPP: 'Native error= Success', no new start)
+                if (r <= 32) throw new System.Exception("ShellExecute returned " + r);
                 Debug.Log("[OpenZ Options] graphics API DX11: starting again with " + ForceDx11);
                 Application.Quit();
             }

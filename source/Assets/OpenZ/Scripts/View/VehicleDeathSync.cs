@@ -56,6 +56,19 @@ namespace OpenZ
         struct Entry { public float delay; public string why; }
         static readonly Dictionary<int, Entry> cache = new Dictionary<int, Entry>();
         static int cacheFrame = -1;
+        /// <summary>1.5 pass 6a: the Bizon-crush waits handed out this frame (wait -> the target's id), so After (AudioDirector's death sounds,
+        /// BoardingView's crew) follows the crush ride's explosion time (OzCrushRide.DueAt) like Later does.</summary>
+        static readonly List<KeyValuePair<float, int>> crushWaits = new List<KeyValuePair<float, int>>();
+        static readonly List<KeyValuePair<float, ZObject>> leverWaits = new List<KeyValuePair<float, ZObject>>();   // 1.5 rework 14i: a ram flip's held death (OzRamLever.DueAt)
+        static int leverFrame = -1;
+        static ZObject LeverFor(float wait) { if (leverFrame != Time.frameCount) return null; foreach (var kv in leverWaits) if (kv.Key == wait) return kv.Value; return null; }
+        static int crushFrame = -1;
+        static int CrushIdFor(float wait)
+        {
+            if (crushFrame != Time.frameCount) return -1;
+            foreach (var kv in crushWaits) if (kv.Key == wait) return kv.Value;
+            return -1;
+        }
 
         /// <summary>Real seconds from now until vehicle / gun o (its Death event e) explodes; 0 = now.</summary>
         public static float Delay(ZGame g, ZEvent e, ZObject o) => Delay(g, e, o, out _);
@@ -68,6 +81,12 @@ namespace OpenZ
             if (cache.TryGetValue(o.Id, out var c)) { why = c.why; return Enabled ? c.delay : 0f; }
             float d = Compute(g, e, o, out why);                                                        // switched off: computed all the same (the BEFORE
             cache[o.Id] = new Entry { delay = d, why = why };                                           // report shows what it would wait), played at once
+            if (why == "ram flip" && d > 0.015f) { if (leverFrame != Time.frameCount) { leverWaits.Clear(); leverFrame = Time.frameCount; } leverWaits.Add(new KeyValuePair<float, ZObject>(d, o)); }   // 1.5 rework 14i
+            if (why == "bizon crush" && d > 0.015f)
+            {   // 1.5 pass 6a: After() of this frame finds the ride by its wait
+                if (crushFrame != Time.frameCount) { crushWaits.Clear(); crushFrame = Time.frameCount; }
+                crushWaits.Add(new KeyValuePair<float, int>(d, o.Id));
+            }
             if (Enabled)
             {
                 if (d > 0.015f) { if (why.StartsWith("round")) HeldForRound++; else HeldForRipple++; if (d > MaxHeld) MaxHeld = d; }
@@ -88,6 +107,8 @@ namespace OpenZ
         static float Compute(ZGame g, ZEvent e, ZObject o, out string why)
         {
             why = "on the frame";
+            if (OzCrushRide.DeathWait(g, o, out float crushWait)) { why = "bizon crush"; return crushWait; }   // 1.5 kit crush_swamp_fix: crushed by a Bizon: it explodes after the Bizon has rolled over it (View/OzCrushRide.cs)
+            if (OzRamLever.DeathWait(o, out float leverWait)) { why = "ram flip"; return leverWait; }   // 1.5 rework 14i: turned over by a Mammoth: it explodes after it has landed on its roof (View/OzRamLever.cs)
             var ev = g.World.Events; var killer = g.World.GetAny(e.otherId);
             // the killer's blast of this frame that reached it (the sim emits the MissileExploded, then its victims' deaths)
             bool blast = false; ZEvent best = default; float bd = float.MaxValue;
@@ -167,7 +188,9 @@ namespace OpenZ
             rolled += Glide(v, vel, t0, t0 + Mathf.Min(GlideStopS, wait));                                // this frame: no stop dead (its own sync is held)
             yield return null;
             if (why.StartsWith("round") && BlastWave.DrawnArrival(e.otherId, o.Id, f0, out float at)) { due = at; Noted(o, at); }   // the drawing code noted its killing round: exactly then
-            while (Time.time < due) { rolled += Glide(v, vel, t0, t0 + Mathf.Min(GlideStopS, due - t0)); yield return null; }
+            bool crush = why == "bizon crush";                                                         // 1.5 pass 6a: its time follows the drawn roll-off (OzCrushRide.DueAt)
+            bool lever = why == "ram flip";                                                            // 1.5 rework 14i: its time follows the drawn landing (OzRamLever.DueAt)
+            while (Time.time < (crush ? (due = OzCrushRide.DueAt(o.Id, due)) : lever ? (due = OzRamLever.DueAt(o, due)) : due)) { rolled += Glide(v, vel, t0, t0 + Mathf.Min(GlideStopS, due - t0)); yield return null; }
             if (!v) yield break;
             var p = v.transform.position;
             if (OzShuttleBreakup.TakesDeath(o, v, p, FxManager.I, au ? au : CombatAudio.I)) { Played(o, rolled); yield break; }   // DV118: the shuttle falls apart (View/OzShuttleBreakup.cs)
@@ -193,8 +216,10 @@ namespace OpenZ
         /// <summary>AudioDirector / BoardingView: run `then` after `wait` s on `host` (scaled time: a paused game waits).</summary>
         public static IEnumerator After(float wait, System.Action then)
         {
+            int crushId = CrushIdFor(wait);                                                             // 1.5 pass 6a: a Bizon crush's held death follows the ride
+            var leverObj = LeverFor(wait);                                                              // 1.5 rework 14i: a ram flip's held death follows the landing
             float due = Time.time + wait;
-            while (Time.time < due) yield return null;
+            while (Time.time < (crushId >= 0 ? (due = OzCrushRide.DueAt(crushId, due)) : leverObj != null ? (due = OzRamLever.DueAt(leverObj, due)) : due)) yield return null;
             then?.Invoke();
         }
     }

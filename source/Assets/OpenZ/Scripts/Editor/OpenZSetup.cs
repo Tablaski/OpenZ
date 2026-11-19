@@ -656,7 +656,7 @@ namespace OpenZ.EditorTools
 
         public static string BuildLevel(string lv)
         {
-            bool city = lv == "L17", jungle = lv == "L16", volcanic = OzVolcanic.Is(lv);
+            bool city = OzCity.Is(lv), jungle = lv == "L16", volcanic = OzVolcanic.Is(lv);
             SpawnLv = lv;
             var log = new System.Text.StringBuilder();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -743,6 +743,7 @@ namespace OpenZ.EditorTools
                                      "bridge_desert_intact", "bridge_desert_destroyed", "bridge_city_intact", "bridge_city_destroyed",
                                      "bridge_desert_damaged", "bridge_city_damaged", "bridge_desert_chunks", "bridge_city_chunks",
                                      "bridge_jungle_intact", "bridge_jungle_damaged", "bridge_jungle_destroyed", "bridge_jungle_chunks",
+                                     "bridge_city_long_intact", "bridge_city_long_damaged", "bridge_city_long_destroyed", "bridge_city_long_chunks",   // 1.5 level 18: the 24 m city bridge family (kit level18_assets); a missing prefab is left out
                                      "bs01_grunt", "bs01_psycho", "bs01_tough", "bs01_sniper", "bs01_pyro", "bs01_laser", "bs01_electrobot" }
                                 .Select(Pf).Where(g => g).ToArray();
             var zin = zgo.AddComponent<PlayerInput>(); zin.game = zgame; zin.cam = rts;
@@ -764,7 +765,7 @@ namespace OpenZ.EditorTools
             log.AppendLine(AntiClip(env.transform, zroot));
             log.AppendLine("markers " + (markersOk ? "OK" : "WRONG"));
             Directory.CreateDirectory($"{Root}/Scenes");
-            string sp = $"{Root}/Scenes/{lv}_{(city ? "CarPark" : jungle ? "Jungle" : volcanic ? "Volcanic" : "Desert")}.unity";
+            string sp = $"{Root}/Scenes/{lv}_{(OzCity.IsBridgeGame(lv) ? "BridgeGame" : city ? "CarPark" : jungle ? "Jungle" : volcanic ? "Volcanic" : "Desert")}.unity";
             EditorSceneManager.SaveScene(scene, sp);
             var list = EditorBuildSettings.scenes.ToList();
             if (!list.Any(s => s.path == sp)) { list.Add(new EditorBuildSettingsScene(sp, true)); EditorBuildSettings.scenes = list.ToArray(); }
@@ -837,9 +838,12 @@ namespace OpenZ.EditorTools
                     bool vert = type == "bridge_vert"; int len = 5 + (o.extra_links < 100 ? o.extra_links : 0);
                     w = vert ? 4 : len; h = vert ? len : 4;
                     bool plank = SpawnLv == "L16";
-                    key = $"bridge_{(arctic ? "arctic" : city ? "city" : plank ? "jungle" : "desert")}_{(o.health_percent <= 0 ? "destroyed" : "intact")}";
-                    float mw = arctic ? OzArcticArt.BridgeWidth : city || plank ? 8f : 7.8f;
-                    float ml = arctic ? OzArcticArt.BridgeLength : city ? 12f : plank ? 22f : 20.6f;
+                    string bst = o.health_percent <= 0 ? "destroyed" : "intact";
+                    // 1.5 level 18 (kit level18_map): a city bridge of 10 tiles or more wears the 24 m family at scale 1; while its prefabs are not in, the 12 m model (stretched), and the log says so
+                    bool longKit = OzBridgeKit.Long(SpawnLv, len) && Pf(OzBridgeKit.Key(SpawnLv, len, "intact")) && Pf(OzBridgeKit.Key(SpawnLv, len, "destroyed"));
+                    if (OzBridgeKit.Long(SpawnLv, len) && !longKit) Debug.LogError($"[OpenZ] {SpawnLv}: bridge at ({o.x},{o.y}) is {len} tiles long and the long city bridge family (Z_bridge_city_long_*, kit level18_assets) is not in: the 12 m model is stretched. Not a picture for the owner.");
+                    key = longKit ? OzBridgeKit.Key(SpawnLv, len, bst) : $"bridge_{(arctic ? "arctic" : city ? "city" : plank ? "jungle" : "desert")}_{bst}";
+                    float mw = arctic ? OzArcticArt.BridgeWidth : city || plank ? 8f : 7.8f, ml = arctic ? OzArcticArt.BridgeLength : longKit ? OzBridgeKit.LongModelLength : city ? 12f : plank ? 22f : 20.6f;
                     yaw = vert ? 0 : 90; scale = new Vector3((vert ? w : h) * 2 / mw, 1, (vert ? h : w) * 2 / ml);
                     team = Team.Neutral; break;
                 }
@@ -848,7 +852,7 @@ namespace OpenZ.EditorTools
             {
                 if (cat == "cannon") { key = type == "gun" ? "gun" : type; w = h = 2; yaw = teamYaw; }
                 else if (cat == "vehicle") { key = type; w = h = 2; yaw = team == Team.Neutral ? rng.Next(2) * 180 : teamYaw; }   // parked along the bays
-                else if (cat == "robot") { key = SpawnLv == "L16" && Pf("bs01_" + type) != null ? "bs01_" + type : type == "tough" ? "tough" : "robot"; }
+                else if (cat == "robot") { key = (SpawnLv == "L16" || SpawnLv == "L18") && Pf("bs01_" + type) != null ? "bs01_" + type : type == "tough" ? "tough" : "robot"; }   // 1.5 kit level18_start_robots: level 18 builds its start robots as the BS-01 prefabs too (was the old Z_robot model)
                 else if (type == "flag") key = "flag";
                 else if (type == "grenades" || type == "rockets") key = "grenades";
                 else if (type == "hut") key = "hut";

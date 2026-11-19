@@ -47,7 +47,7 @@ namespace OpenZ
         /// <summary>endgame_ui_v1: longest wait for the crowd's playing cheers before one of Rachel's end lines starts.</summary>
         public static float CrowdWait = 2.5f;
         /// <summary></summary>
-        static readonly string[] LossFilters = { "blown it", "crap", "shambles", "commander", "stuffed", "disaster", "useless", "Rubbish", "It's over" };
+        static readonly string[] LossFilters = { "blown it", "crap", "shambles", "commander", "stuffed", "disaster", "useless", "Rubbish", "It's over", "testing their defences" };   // 1.5 voice_lines_check_r3 (FAILS A4): item 21's loss line in the rotation (was never asked)
 
         ZGame game; bool started, released, skippable; float overAt;
         float extraHold;                                                                     // voice_lines_v3: the nuke intro's wait
@@ -154,7 +154,8 @@ namespace OpenZ
                 {
                     yield return Line(false, "vo_victory_cheer", "=" + cheer[0], "vo_win_lines", "Yeee");
                     yield return Line(false, "vo_victory_cheer", "=" + cheer[1], "vo_win_lines", "Nice one");
-                    yield return Line(false, "vo_victory_cheer", "=" + cheer[2], "vo_we_won", null);
+                    if (Random.value < AudioDirector.VictoryInstalledChance) yield return Line(false, "vo_win_lines", "=" + AudioDirector.VictoryInstalledLine, "vo_victory_cheer", "=" + cheer[2]);   // 1.5 voice_lines_check_r3 (FAILS A4): item 21's win line, about 1 victory in 3 (was never asked)
+                    else yield return Line(false, "vo_victory_cheer", "=" + cheer[2], "vo_we_won", null);
                 }
                 else
                 {

@@ -220,10 +220,11 @@ namespace OpenZ
             if (lights.Count == 0 || rimMesh == null) return;
             if (instDirty) RebuildInstances();
             var rp = new RenderParams(toyMetal) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true, worldBounds = lightBounds, layer = 0 };
-            if (rimN > 0) Graphics.RenderMeshInstanced(rp, rimMesh, 0, rimM, rimN);
+            bool inst = SystemInfo.supportsInstancing;   // no instancing (a batch run with no graphics): RenderMeshInstanced would throw every frame (as OzLavaDomes)
+            if (rimN > 0 && inst) Graphics.RenderMeshInstanced(rp, rimMesh, 0, rimM, rimN);
             for (int g = 0; g < Groups; g++)
             {
-                if (lensN[g] == 0) continue;
+                if (lensN[g] == 0 || !inst) continue;
                 var rl = new RenderParams(groupMats[g]) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false, worldBounds = lightBounds };
                 Graphics.RenderMeshInstanced(rl, lensMesh, 0, lensM[g], lensN[g]);
             }
@@ -542,7 +543,8 @@ namespace OpenZ
                 if (o.tRing <= 0f)
                 {
                     o.tRing += 0.55f + (float)rng.NextDouble() * 0.25f;
-                    fx.EmitChannel("m12_ripple", new Vector3(o.impact.x, waterY + 0.09f, o.impact.z), Vector3.zero, 1.5f, 0.9f + (float)rng.NextDouble() * 0.5f, foam, 0.75f);
+                    float ringS = 0.9f + (float)rng.NextDouble() * 0.5f;   // 1.5 kit outfall_ring_r5 (A2b): the same number drawn as before
+                    if (!OzOutfallFoam.Holds()) fx.EmitChannel("m12_ripple", new Vector3(o.impact.x, waterY + 0.09f, o.impact.z), Vector3.zero, 1.5f, ringS, foam, 0.75f);   // 1.5 kit outfall_ring_r5 (A2b): no 2.8-4.3 m pale ring while the soft foam draws (View/OzOutfallFoam.cs)
                 }
                 if (mist && o.tMist <= 0f)
                 {
@@ -562,6 +564,7 @@ namespace OpenZ
                 if (fxStain && o.stain) Graphics.RenderMesh(new RenderParams(fxStain) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false }, o.stain, 0, Matrix4x4.identity);
                 if (fxRibbon && o.ribbon) Graphics.RenderMesh(new RenderParams(fxRibbon) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false }, o.ribbon, 0, Matrix4x4.identity);
                 if (fxFoam && o.foamM) Graphics.RenderMesh(new RenderParams(fxFoam) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false }, o.foamM, 0, Matrix4x4.identity);
+                OzOutfallFoam.Feed(o.idx, o.impact, o.down, clock, o.gush > 0f);   // 1.5 kit outfall_ring_r5 (A2b): the soft apron, flecks and ripple arcs on the water (also while paused: the same picture)
             }
         }
 
@@ -861,7 +864,7 @@ namespace OpenZ
                     if (fx && w.sink < 5f && rng.NextDouble() < dt * 6f)
                     {
                         var bp = w.pos + w.pivot.rotation * new Vector3(((float)rng.NextDouble() - 0.5f) * w.half.x * 2f, 0f, ((float)rng.NextDouble() - 0.5f) * w.half.y * 2f); bp.y = waterY;
-                        fx.EmitChannel("m12_ripple", bp + Vector3.up * 0.09f, Vector3.zero, 1.2f, 0.4f + (float)rng.NextDouble() * 0.4f, foam, 0.7f);
+                        float ozR = 0.4f + (float)rng.NextDouble() * 0.4f; if (!OzWaterBlast.Lap(bp, ozR * 3f)) fx.EmitChannel("m12_ripple", bp + Vector3.up * 0.09f, Vector3.zero, 1.2f, ozR, foam, 0.7f);   // 1.5 kit water_rings_rest_r6: bubbles of the sinking hull = faint small stamps (the same random draws), no flat rings
                         fx.Droplets(bp, 0.25f, 3);
                     }
                     if (w.sink > 5f && w.go.activeSelf) w.go.SetActive(false);
@@ -882,7 +885,7 @@ namespace OpenZ
                     float u = (float)rng.NextDouble() * 2f - 1f, s = rng.NextDouble() < 0.5 ? -1f : 1f;
                     var lp = rng.NextDouble() < 0.6 ? new Vector3(s * (w.half.x + 0.05f), 0f, u * w.half.y) : new Vector3(u * w.half.x, 0f, s * (w.half.y + 0.05f));
                     var p = w.pivot.position + Quaternion.Euler(0f, w.pivot.eulerAngles.y, 0f) * lp; p.y = waterY + 0.09f;
-                    fx.EmitChannel("m12_ripple", p, Vector3.zero, 1.8f, 0.45f + (float)rng.NextDouble() * 0.45f, foam, 0.55f);
+                    float ozL = 0.45f + (float)rng.NextDouble() * 0.45f; if (!OzWaterBlast.Lap(p, ozL * 3f)) fx.EmitChannel("m12_ripple", p, Vector3.zero, 1.8f, ozL, foam, 0.55f);   // 1.5 kit water_rings_rest_r6: the hull's lap = a faint small stamp (the same random draw), no flat ring
                     if (rng.NextDouble() < 0.25) fx.Droplets(p, 0.15f, 2);
                 }
                 if (w.creak <= 0f)
@@ -941,7 +944,7 @@ namespace OpenZ
             }
             FxManager.I?.Pop(w.pos + Vector3.up * 0.8f, 0.5f);
             bits.Burst(w.pos + Vector3.up * 0.6f, 6, BRust, 2.4f, 0.08f, rng);
-            if (fx) fx.Splash(new Vector3(w.pos.x, waterY, w.pos.z), 0.7f);
+            if (fx) fx.SplashStamped(new Vector3(w.pos.x, waterY, w.pos.z), 0.7f);   // 1.5 kit water_rings_rest_r6: a wreck hit: the splash's droplets + a small stamp in the water, no flat ring
             if (playSounds) DetailKit.Sound("dtl_wreck_hit", w.pos, 0.8f, "tank_impact", 0.15f, -1, "final-metal-land-a", "final-metal-land-b", "final-metal-land-c");
         }
 
@@ -983,7 +986,7 @@ namespace OpenZ
             }
             w.sink = 0f;
             var p = new Vector3(w.pos.x, waterY, w.pos.z);
-            if (fx) { fx.Splash(p, 1.6f); fx.Ripple(p, 1.4f); fx.DemolitionDust(p + Vector3.up * 0.3f, 3f, 2f, 0.5f); }
+            if (fx) { if (OzWaterBlast.Heavy(p, 1.6f)) fx.SplashStamped(p, 1.6f); else { fx.Splash(p, 1.6f); fx.Ripple(p, 1.4f); } fx.DemolitionDust(p + Vector3.up * 0.3f, 3f, 2f, 0.5f); }   // 1.5 kit water_rings_rest_r6: the broken wreck: a heavy stamp (4.3 m of broken crests, flecks, a brief hole) + the splash's droplets; no 7.4 m / 6.5 m flat rings
             FxManager.I?.Breakup(p + Vector3.up * 0.6f, "metal", 2.2f, 10, 0.9f);
             bits.Burst(p + Vector3.up * 0.7f, 14, BRust, 3.2f, 0.1f, rng); bits.Burst(p + Vector3.up * 0.8f, 8, BGlass, 3f, 0.05f, rng);
             if (playSounds)
@@ -1096,6 +1099,7 @@ namespace OpenZ
                     ? $"  wreck {w.id} (sim #{w.simId}, tiles {w.sim.LocX / 16},{w.sim.LocY / 16} {w.sim.WidthPix / 16}x{w.sim.HeightPix / 16}): {(w.dead ? "sunk, tiles open" : $"{w.sim.Health} / {w.sim.MaxHealth} HP, robots path round it")} at {w.pos}\n"
                     : $"  wreck {w.id} (channel, view only): {(w.dead ? "sunk" : "hp " + w.hp.ToString("F1"))} at {w.pos}\n");
             foreach (var o in outs) sb.Append($"  outfall {o.id}: face {o.face} impact {o.impact} flow {o.len:F2} m{(o.broken ? " (grille gone)" : "")}\n");
+            sb.Append("  " + OzOutfallFoam.Status() + "\n");   // 1.5 kit outfall_ring_r5 (A2b)
             Debug.Log(sb.ToString());
         }
     }

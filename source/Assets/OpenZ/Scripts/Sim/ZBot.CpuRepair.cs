@@ -117,7 +117,7 @@ namespace OpenZ.Sim
         CpuRepairTrip crTrip;
 
         /// <summary>DV137 rank of a vehicle kind: heavy tank 0, missile launcher 1, shuttle 2, medium tank 3; -1 = not one of them.</summary>
-        public static int CpuRepairRank(ZObject o) => o == null || o.Kind != ZKind.Vehicle ? -1 : o.IsShuttle ? 2 : o.Type == "heavy" ? 0 : o.Type == "missile_launcher" ? 1 : o.Type == "medium" || o.Type == ZMTank.Type ? 3 : -1;   // DV145: the medium tank ranks as the mech
+        public static int CpuRepairRank(ZObject o) => o == null || o.Kind != ZKind.Vehicle ? -1 : o.IsShuttle ? 2 : ZBigTanks.IsHeavyLike(o.Type) ? 0 /* 1.5 DV180 / DV181 */ : o.Type == "missile_launcher" ? 1 : o.Type == "medium" || o.Type == ZMTank.Type ? 3 : -1;   // DV145: the medium tank ranks as the mech
 
         /// <summary>ZBot.Tick, every server tick right after the strike groups (Normal and Easy alike): follows the trip under way every
         /// tick, looks for a new one once a second. With the switch off it returns at once and touches nothing.</summary>
@@ -181,7 +181,7 @@ namespace OpenZ.Sim
             {
                 if (st.Id == skip) continue;
                 if (u.IsShuttle) { if (!u.ShuttleDeckPoint(st, out _, out _)) continue; }
-                else if (!st.GetRepairEntrance(out int ex, out int ey) || !InSameRegion(u.LocX + 8, u.LocY + 8, ex, ey, false) || CrSpotBlocked(u, ex, ey)) continue;
+                else if (!st.GetRepairEntrance(out int ex, out int ey) || !BotPairPoint(u, ex, ey) || CrSpotBlocked(u, ex, ey)) continue;   // 1.5 DV199 (kit level18_rules): a big tank asks the live reachability on its own grid (Sim/ZBot.BigTanks.cs)
                 double dx = st.CenterX - u.CenterX, dy = st.CenterY - u.CenterY, d = dx * dx + dy * dy;
                 if (best == null || d < bd || (d == bd && st.Id < best.Id)) { best = st; bd = d; }
             }
@@ -260,6 +260,7 @@ namespace OpenZ.Sim
             if (toStation)                                                                      // on its way there, in the bay, on the pad (a step aside of the movement layer may stand in front)
             {
                 if (crTrip.padAt < 0 && u.OnRepairPad(sid)) crTrip.padAt = W.Time;
+                BigTankTripStall(u, sid);                                                       // 1.5 DV199 (kit level18_rules): a big tank standing still on its way to the bay gives the trip up (Sim/ZBot.BigTanks.cs)
                 return;
             }
             if (crBackFrom < 0) { crBackFrom = W.Time; crTrip.leftAt = W.Time; }                 // the repair waypoint is over: the drive back

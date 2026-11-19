@@ -90,7 +90,7 @@ namespace OpenZ
             valueW = L.narrowBal ? 60f : 64f; gapW = L.narrowBal ? 42f : 46f;
             gapR = W - 10f; valueR = gapR - gapW - gap;
             float mid = valueR - valueW - gap - (picX + 26f + gap);
-            nameW = L.narrowBal ? 64f : Mathf.Clamp(mid - 50f - gap, 60f, 92f);
+            nameW = L.narrowBal ? Mathf.Clamp(mid - 40f - gap, 64f, 92f) : Mathf.Clamp(mid - 50f - gap, 60f, 92f);   // 1.5 ue_bar_r2: the narrow box's name column 64..92 u (bars at least 40 u): MAMMOTH fits
             nameX = picX + 26f + gap;
             barsX = nameX + nameW + gap; barsW = Mathf.Max(40f, valueR - valueW - gap - barsX);
             colHead = OzUeGfx.Node(root, "ColHead", 0, 80f, W, 30f);

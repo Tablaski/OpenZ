@@ -155,7 +155,7 @@ namespace OpenZ
                     continue;
                 }
                 // ZF1 hit flash: any health drop on a drawn unit
-                if (o.Health < u.lastHp && HitFlash && !OzMotion.Reduced && !CaptureNoFlash && now - u.lastFlash >= FlashGap && v.gameObject.activeInHierarchy) Flash(v, u, now);
+                if (o.Health < u.lastHp && !OzBizonWade.HeatOnly(o, u.lastHp) /* 1.5 DV192 amended N12b (kit sim_notes11): the lava's heat is no hit */ && HitFlash && !OzMotion.Reduced && !CaptureNoFlash && now - u.lastFlash >= FlashGap && v.gameObject.activeInHierarchy) Flash(v, u, now);
                 u.lastHp = o.Health;
                 if (o.Kind == ZKind.Robot) { if (now >= u.nextUnchar) UncharLiving(v, u, now); continue; }   // a living robot's flame char fades like a living vehicle's: clean paint again once the fire on it has ended (robots have no battered stage: stage 0)
                 if (now >= u.nextGear) KeepGear(v, o, u, now); if (o.IsShuttle && ShipDefer(kv.Key)) continue;   /* K413: a living shuttle's step after its drawn pose (OpenZDamageStates.ShipLate.cs) */
@@ -241,7 +241,7 @@ namespace OpenZ
             u.nextUnchar = now + 0.25f;
             if (!u.tp) u.tp = v.GetComponent<TeamPaint>();
             if (!u.tp) { u.nextUnchar = now + 5f; return; }
-            float want = u.stage == 2 ? BurningCharred : u.stage == 1 ? BatteredCharred : 0f;
+            float want = Mathf.Max(u.stage == 2 ? BurningCharred : u.stage == 1 ? BatteredCharred : 0f, OzBizonWade.CharFloor(v.Obj));   // 1.5 DV192 amended N12b (kit sim_notes11): a Bizon keeps the char lava gave it (View/OzBizonWade.cs)
             if (u.tp.Charred > want + 0.01f && !OpenZPyroFire.FullBurning(v.Obj.Id)) u.tp.Charred = Mathf.Max(want, u.tp.Charred - 0.03f);   // ~5 s back from pyro-black
         }
 
@@ -277,13 +277,13 @@ namespace OpenZ
         /// <summary></summary>
         public static int GearRestored, GearLost;
 
-        static bool TrackedHull(string t) => t == "light" || t == "medium" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher";   // DV145 the medium tank (Sim/ZMTank.cs)
+        static bool TrackedHull(string t) => t == "light" || t == "medium" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher" || OzBigTanks.Is(t);   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
 
         void SetUnitStage(int id, UnitView v, ZObject o, U u, int want, Vector3 pos)
         {
             int was = u.stage; u.stage = want;
             var tp = v.GetComponent<TeamPaint>();
-            float charred = want == 2 ? BurningCharred : want == 1 ? BatteredCharred : 0f;
+            float charred = Mathf.Max(want == 2 ? BurningCharred : want == 1 ? BatteredCharred : 0f, OzBizonWade.CharFloor(o));   // 1.5 DV192 amended N12b (kit sim_notes11)
             if (tp && Mathf.Abs(tp.Charred - charred) > 0.01f) tp.Charred = charred;
             var top = pos + Vector3.up * TopOf(v, u);
             if (want >= 1 && was == 0) { Battered++; AudioDirector.Fire("dst_debris_metal", top, id, 0.45f, 1.15f); }   // the hull gives: a metal clank

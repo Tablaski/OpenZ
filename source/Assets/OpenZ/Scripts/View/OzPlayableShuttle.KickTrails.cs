@@ -205,12 +205,12 @@ namespace OpenZ
                 var at = transform.TransformPoint(port); var dir = top ? transform.up : -transform.up;
                 bool on = emit && k.Active && pw > 0.04f;
                 kickPort[p].Step(dt, at.x, at.y, at.z, dir.x, dir.y, dir.z, KickStreakSpeed * (0.7f + 0.3f * pw), carry.x, carry.y, carry.z, Mathf.Clamp01(pw), on);
-                if (on && kickBurst > 0.01f && fx && fx.isActiveAndEnabled && pw >= kickBurst - 1e-3f) fx.DrawHalo(at + dir * 0.15f, KickBurstGlowM, KickStreakHot, 1.4f * kickBurst);
+                if (on && kickBurst > 0.01f && fx && fx.isActiveAndEnabled && pw >= kickBurst - 1e-3f && !(jets != null && jets.Held)) fx.DrawHalo(at + dir * 0.15f, KickBurstGlowM, KickStreakHot, 1.4f * kickBurst);   // shuttle_view_thrusters_r7: not while held
             }
             KickPuffs += kickPort[0].Born + kickPort[1].Born + kickPort[2].Born + kickPort[3].Born - born0;
             // draw (on screen only)
             var cam = Camera.main;
-            if (!cam || !DetailKit.OnScreen(cam, KickCentre, 0.3f)) return;
+            if (!cam || !DetailKit.OnScreen(cam, KickCentre, 0.3f) || (jets != null && jets.Held)) return;   // 1.5 shuttle_view_thrusters_r7: no trail or streak drawn while the first-person view holds this ship's jets (they go on, unseen)
             var cp = cam.transform.position;
             bool any = false, anyStreak = false;
             float wid = KickTrailWidth * (1f + 0.35f * Mathf.Clamp01(f));

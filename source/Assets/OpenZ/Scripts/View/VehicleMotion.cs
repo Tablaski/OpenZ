@@ -59,6 +59,11 @@ namespace OpenZ
         public void Kick(float rollDeg, float pitchDeg) { kRollV += rollDeg * KickFreq; kPitchV += pitchDeg * KickFreq; }
         const float KickFreq = 8f, KickDamp = 4.5f;
         float kRoll, kRollV, kPitch, kPitchV;
+        /// <summary>1.5 pass 6b (gate B12): 1 while the Bizon's crush ride (OzCrushRide) poses the hull over its target: the flat-ground drive
+        /// wobble of the whole model (+-3 deg pitch at 0.9 Hz) eases out (0.33 s) and back in afterwards, so it does not rock the ride's
+        /// pitch to a standstill. Every other drive: 0 (unchanged).</summary>
+        public float RideHoldTarget;
+        float rideHold;
 
         public Quaternion Step(float speed, float yawRate, float dt)
         {
@@ -79,6 +84,7 @@ namespace OpenZ
                 float dist = travel + yawTravel * w.side * 1.3f;                                      // tracks: outer side runs farther
                 w.t.localRotation = w.rest * Quaternion.AngleAxis(-dist / w.radius * Mathf.Rad2Deg, Vector3.right);   // front = -z
             }
+            LinksStep();                                                                              // 1.5 DV180 / DV181: the big tanks' REAL track links (View/VehicleMotion.Links.cs)
             float steerDeg = Mathf.Clamp(yawRate * 0.22f, -28f, 28f);
             foreach (var s in steers) s.t.localRotation = Quaternion.Slerp(s.t.localRotation, s.rest * Quaternion.AngleAxis(steerDeg, Vector3.up), 1f - Mathf.Exp(-14f * dt));
             if (tracks.Count > 0)
@@ -98,6 +104,8 @@ namespace OpenZ
             float squat = Mathf.Clamp(accel * 1.6f, -4.5f, 4.5f);
             lean = Mathf.Lerp(lean, Mathf.Clamp(yawRate * 0.03f, -5f, 5f) * Mathf.Clamp01(Mathf.Abs(speed) / 2f), 1f - Mathf.Exp(-6f * dt));
             var wob = moving ? Quaternion.Euler(Mathf.Sin(motionAge * 5.7f) * 0.055f * wobble * Mathf.Rad2Deg, 0, Mathf.Sin(motionAge * 4.1f) * 0.045f * wobble * Mathf.Rad2Deg) : Quaternion.identity;
+            rideHold = Mathf.MoveTowards(rideHold, RideHoldTarget, dt * 3f);                       // 1.5 pass 6b: the crush ride owns the hull's pitch
+            if (rideHold > 0f) wob = Quaternion.Slerp(wob, Quaternion.identity, rideHold);
             if (body)
             {
                 var pos = bodyPos; var rot = bodyRot * Quaternion.Euler(squat, 0, lean) * kickRot;

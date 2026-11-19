@@ -102,6 +102,7 @@ namespace OpenZ.Sim
             if (IsApc) { ApcDriverStep(time); return; }
             if (!HasLid) return;
             if (LidOpen && HatchShutSpot(time, true)) HatchShutNow();                                // part B: an open lid shuts in the tick the tank rolls onto a bridge / into a door lane: asked every tick while it is open, after this tick's move and before his shot
+            BigTankUpStep(time);                                                                       // 1.5 DV211 (kit bizon_mammoth_driver_up_r7): a Mammoth's / Bizon's lid held open while it fights and for 8 s after (Sim/ZObject.BigTankUp.cs)
             if (!DriverFireUp) { dfTarget = null; dfUpSince = -1; return; }
             if (dfUpSince < 0 || time - dfUpSeen > 0.1)                                              // he comes up (again): the lid and his rise first
             { dfUpSince = time; dfNextShot = Math.Max(dfNextShot, time + ZWorld.CraneGunPopSeconds); }
@@ -139,7 +140,7 @@ namespace OpenZ.Sim
         /// points_within_distance), no Zod barrier in between, a clear line (DV23).</summary>
         bool DriverFireValid(ZObject o, int radius)
         {
-            if (o == null || o == this || !o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) return false;
+            if (o == null || o == this || RamFireBarred(o) /* 1.5 DV188 (kit ram_polish) */ || !o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) return false;
             if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, HighRange(radius, o))) return false;
             if (!o.ShuttleAirborne && World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) return false;   // DV118: no ground tile stops a shot at the flying shuttle
             return HasLineOfSight(o);

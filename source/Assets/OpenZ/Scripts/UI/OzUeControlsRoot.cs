@@ -23,6 +23,8 @@ namespace OpenZ
         OzUeBottomLayout.Out lay;
         /// <summary>The last layout (for the counted check).</summary>
         public OzUeBottomLayout.Out Laid => lay;
+        /// <summary>1.5 kit ue_bottom_left_r10 (A36, checks): the dock, the BACKGROUND popover and its zoom row.</summary>
+        public OzUeDock Dock => dock; public OzUeBackdropMenu Menu => menu; public OzUeZoomBar Zoom => zoom;
 
         void Awake()
         {
@@ -47,9 +49,10 @@ namespace OpenZ
             if (OzUeFloor.I) OzUeFloor.I.BuildLabels(field);
             counts = new OzUeCounts(); counts.Build(editor, panels);
             play = new OzUePlayBar(); play.Build(editor, panels);
-            zoom = new OzUeZoomBar(); zoom.Build(editor, panels);
+            // 1.5 kit ue_bottom_left_r10 (FAILS A36): the zoom row is built in the BACKGROUND popover's VIEW header (after the popover, below)
             dock = new OzUeDock(); dock.Build(editor, panels);
             menu = new OzUeBackdropMenu(); menu.Build(editor, pops, counts.Gear.Rt);
+            zoom = new OzUeZoomBar(); zoom.Build(editor, menu.ViewHead);                                    // 1.5 kit ue_bottom_left_r10 (A36): the zoom row in the popover
             counts.OnGear = menu.Toggle;
             OzUeInsets.Changed += OnDirty;
             OzUnitEditor.PanelsHiddenChanged += OnHidden;
@@ -151,17 +154,35 @@ namespace OpenZ
                     f += line(log, p.Right <= s.cw - (OzUeBottomLayout.Gap + box) - OzUeBottomLayout.Gap + 0.01f && p.x >= OzUeBottomLayout.Gap - 0.01f, $"play bar inside the free field {at}: {p}");
                     f += line(log, !p.Overlaps(d.plate) && !p.Overlaps(z) && !z.Overlaps(d.plate), $"play bar, zoom and dock do not overlap {at} (zoom {z}, {o.zoom.Where})");
                     f += line(log, Mathf.Abs(p.Bottom + OzUeBottomLayout.PlayAbove - d.plate.y) < 0.01f, $"play bar 8 u above the dock {at}");
+                    // 1.5 kit ue_bottom_left_r10 (FAILS A36): the bigger team switch over the count row, lined up, inside the plate with 2 u or more free
+                    var tw = d.teamWell; var cwl = d.countWell;
+                    f += line(log, Mathf.Abs(tw.h - OzUeBottomLayout.TeamSegH) < 0.01f && Mathf.Abs(cwl.h - OzUeBottomLayout.CountSegH) < 0.01f && Mathf.Abs(tw.x - cwl.x) < 0.01f && Mathf.Abs(tw.w - cwl.w) < 0.01f
+                                   && cwl.y >= tw.Bottom + OzUeBottomLayout.TeamColGap - 0.01f && tw.y >= OzUeBottomLayout.Border + 2f - 0.01f && cwl.Bottom <= d.plate.h - OzUeBottomLayout.Border - 2f + 0.01f
+                                   && tw.Right + d.sectionGap <= d.tabsWell.x + 0.01f && Mathf.Abs(d.teamCells[0] + d.teamCells[1] + d.teamCells[2] + 2f * OzUeBottomLayout.Border - tw.w) < 0.01f,
+                              $"A36 team switch {tw} ({OzUeBottomLayout.TeamBigText:0.#} u labels, cells {d.teamCells[0]:0.#} / {d.teamCells[1]:0.#} / {d.teamCells[2]:0.#} u) over the count row {cwl}, the same left edge and width, 2 u or more free in the {d.plate.h:0} u plate, before the tabs {at}");
                     if (s.cw == 1920f && s.ch == 1080f && s.screen == "1920x1080")
                     {
-                        float platCells = d.platMidTile.w + d.platHighTile.w + 2f * d.tileGap;                     // 1.3: the two ramp platforms' cells, as their labels measure
-                        f += line(log, Near(d.plate, 350.5f - platCells * 0.5f, 996f, 1219f + platCells, 72f), $"E040 dock at 1920 x 1080: {d.plate} (spec 437,996 1046x72 + the medium tank's tile, DV145 + the GRENADES and NUKE extras' cells + the two ramp platforms' {platCells:0} u, the extras' labels inside their cells: {350.5f - platCells * 0.5f:0.#},996 {1219f + platCells:0}x72)");   // 1.3 item 2: + the NUKE cell (5 + 48 u)
+                        float platCells = d.platMidTile.w + d.platHighTile.w + 2f * d.tileGap + d.boxTile.w + d.tileGap;   // 1.5 ue_boxes: + the BOX cell                     // 1.3: the two ramp platforms' cells, as their labels measure
+                        // 1.5 ue_bar_r2 (tracker A13) re-specified E040 to leave the zoom control its place beside the dock (tiles down to 40 u). 1.5 kit ue_bottom_left_r10
+                        // (FAILS A36): the zoom control is the BACKGROUND popover's VIEW row, the dock keeps the full tiles: centred at y 996, 72 u
+                        // high, inside the canvas, 48 u tiles (the spec's 437,996 1046x72 + every cell added since: the medium tank, the extras, 1.5's 10 tiles)
+                        f += line(log, Mathf.Abs(d.plate.x - (s.cw - d.plate.w) * 0.5f) < 0.01f && Mathf.Abs(d.plate.y - 996f) <= 2f && Mathf.Abs(d.plate.h - 72f) <= 2f && d.plate.w <= s.cw - 2f * OzUeBottomLayout.Gap + 0.01f && Mathf.Abs(d.tile - OzUeBottomLayout.TileStd) < 0.01f,
+                                  $"E040 dock at 1920 x 1080: {d.plate}, tiles {d.tile:0} u (A36: centred, y 996, 72 u high, inside the canvas, the full {OzUeBottomLayout.TileStd:0} u tiles: the zoom control is no longer beside it)");
                         f += line(log, Near(p, 424f, 950f, 638f, 38f), $"E021 play bar at 1920 x 1080: {p} (spec 424,950 638x38)");
-                        f += line(log, Near(z, 12f, 1038f, 232f, 30f) && o.zoom.low, $"E030 zoom control at 1920 x 1080: {z} (spec 12,1038 232x30, beside the dock)");
+                        f += line(log, o.zoom.inMenu && o.zoom.plate.w <= 0f && o.zoom.plate.h <= 0f && o.zoom.rowW > 0f && !o.zoom.low && !o.zoom.stacked,
+                                  $"E030 (1.5 A36) the zoom control is not in the bottom band: it is the BACKGROUND popover's VIEW row ({o.zoom.rowW:0.#} x {OzUeBottomLayout.ZoomH:0} u); the band's plate {z} lies over nothing");
                         f += line(log, Mathf.Abs(o.insetB - 84f) < 0.01f, $"bottom inset 12 + the dock's 72 = {o.insetB:0} u (spec 2.2)");
                     }
                 }
                 f += line(log, Mathf.Min(OzUeBottomLayout.TileLabelText, Mathf.Min(OzUeBottomLayout.ZoomText, OzUeBottomLayout.KeyText)) >= OzText.MinSize, $"no text under {OzText.MinSize:0} u (the smallest: 11 u tile labels, zoom read-out, key caps, captions)");
-                f += line(log, Mathf.Abs(OzUeBackdropMenu.Height(2) - 828.9f) < 1f, $"E013 background popover 300 x {OzUeBackdropMenu.Height(2):0.#} u with 2 columns (spec 722 with 10 styles; 1.3 item 26: 12 styles = one more row of 98.8 + 8 u = 828.9)");
+                f += line(log, Mathf.Abs(OzUeBackdropMenu.Height(2) - 864.9f) < 1f, $"E013 background popover 300 x {OzUeBackdropMenu.Height(2):0.#} u with 2 columns (spec 722 with 10 styles; 1.3 item 26: 12 styles = one more row of 98.8 + 8 u = 828.9; 1.5 A36: + the 36 u VIEW header = 864.9)");
+                {   // 1.5 kit ue_bottom_left_r10 (FAILS A36): the VIEW header holds its title and the zoom row side by side in the 300 u popover
+                    float rowW = OzUeBottomLayout.ZoomWidth(new OzUeBottomLayout.In { measure = m.Width });
+                    float titleEnd = 12f + m.Width(OzUeBackdropMenu.ViewWord, 13f, 0.16f), rowX = OzUeBackdropMenu.Width2 - 2f - OzUeBackdropMenu.ViewRowRight - rowW;
+                    float rulerX = rowX + OzUeBottomLayout.Border + OzUeBottomLayout.ZoomPadL;
+                    f += line(log, titleEnd + 8f <= rulerX + 0.01f && rowX >= 0f,
+                              $"A36 the BACKGROUND popover's VIEW header (300 u): the title VIEW ends at {titleEnd:0.#} u, the zoom row ({rowW:0.#} u) from {rowX:0.#} u, its ruler from {rulerX:0.#} u: 8 u or more between");
+                }
                 f += OzUeFloor.SelfCheckAssets(log, line);
                 foreach (var g in new[] { "gear", "compass", "plus", "minus", "fit", "cube" })
                     foreach (var tier in new[] { 48, 96 })
@@ -180,6 +201,8 @@ namespace OpenZ
                     {
                         f += line(log, Mathf.Abs(OzUeInsets.Get(UeSide.Bottom) - (OzUnitEditor.PanelsHidden ? 0f : live.insetB)) < 0.01f, $"Play: the bottom inset reported ({live.insetB:0} u)");
                         f += line(log, Mathf.Abs(I.dock.PlateBox.w - live.dock.plate.w) < 0.01f, $"Play: the dock's rect {live.dock.plate}");
+                        f += line(log, I.zoom != null && I.zoom.Plate && I.menu != null && I.menu.Panel && I.zoom.Plate.IsChildOf(I.menu.Panel) && live.zoom.inMenu,
+                                  "Play: A36 the zoom row is in the BACKGROUND popover (UE_BackgroundPopover / View / UE_ZoomRow), not in the bottom band");   // 1.5 kit ue_bottom_left_r10
                     }
                     // D18: SOUND OFF mutes the world's buses (effects + ambience, robot voices; never the interface sounds) and never pauses
                     // the listener, so nothing held back bursts out on SOUND ON; the player's own state is put back after the check

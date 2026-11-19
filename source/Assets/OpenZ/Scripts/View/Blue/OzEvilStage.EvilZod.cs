@@ -28,8 +28,8 @@ namespace OpenZ
             public void Dispose() { Rig?.Dispose(); }
         }
 
-        enum HandMode { Side, Hip, FistUp, FistCam, PointBoard, PointSk, Shoo, Wide, Present, Shrug, FistUpBoth, WindUp, Press, Gun }
-        enum LookMode { Cam, Sk, Board, Doors, Button, Away, Gun }
+        enum HandMode { Side, Hip, FistUp, FistCam, PointBoard, PointSk, Shoo, Wide, Present, Shrug, FistUpBoth, WindUp, Press, Gun, Binoc, BinocLow, BinocSide, PatConsole, PointOut }
+        enum LookMode { Cam, Sk, Board, Doors, Button, Away, Gun, Out }
 
         /// <summary></summary>
         public static float EzScale = 1.08f, SkScale = 0.88f;
@@ -197,7 +197,7 @@ namespace OpenZ
                         break;
                     }
                 case "pump_gun": PumpStart(); ezLook = LookMode.Gun; break;                              // one small pump (its sound on the slide's two stops)
-                default: Debug.LogWarning("[EvilZod] unknown EvilZod beat " + b.beat); break;
+                default: if (!L18EvilZodBeat(b)) Debug.LogWarning("[EvilZod] unknown EvilZod beat " + b.beat); break;
             }
         }
         void SetHand(bool right, HandMode m) { if (right) { ezR = m; ezRAt = clock; } else { ezL = m; ezLAt = clock; } }
@@ -276,6 +276,7 @@ namespace OpenZ
                 if (u >= 1f && !ezPressHit) { ezPressHit = true; ButtonPress(); }
                 if (clock - ezPressAt > PressHit + 0.5f) SetHand(true, HandMode.Hip);
             }
+            L18HandsOverride();                                                                         // level 18: the palm's timed way over the console (OzEvilStage.L18Window.cs)
             Vector3 jab = Vector3.zero;
             if (ezJabAt >= 0f) { float u = clock - ezJabAt; float p = u < 0.11f ? Mathf.SmoothStep(0f, 1f, u / 0.11f) : 1f - Mathf.SmoothStep(0f, 1f, (u - 0.11f) / 0.3f); jab = (ezRPos - shR).normalized * (0.08f * H * p); if (u > 0.5f) ezJabAt = -10f; }   // eased out and back (no one-frame snap)
             Vector3 pump = Vector3.zero;
@@ -327,6 +328,7 @@ namespace OpenZ
             Vector3 fwd = rig.Fwd, rgt = rig.Right, up = Vector3.up;
             pole = rgt * s * 0.8f + Vector3.down * 0.5f - fwd * 0.3f; fingers = "HandsOpen"; palm = Vector3.zero; smooth = 0.22f;
             Vector3 hip = Body(s * 0.39f * k, 1.22f * k, 0.16f * k) - (right ? ezOffR : ezOffL);                     // fists ON the hips
+            if (L18HandGoal(right, m, H, reach, ref pole, ref fingers, ref palm, ref smooth, out Vector3 l18)) return l18;   // level 18: the binoculars, the console, the window
             switch (m)
             {
                 case HandMode.Side: palm = -rgt * s; return Body(s * 0.40f * k, 1.33f * k, 0.06f * k);
@@ -389,6 +391,7 @@ namespace OpenZ
                 case LookMode.Button: target = ButtonTop; break;
                 case LookMode.Away: target = rig.Local(0.9f * EzH, 0.78f * EzH, 1.2f); break;
                 case LookMode.Gun: target = PumpGrip + Vector3.up * 0.1f; break;
+                case LookMode.Out: target = L18LookOut(); break;                                         // level 18: out of the HQ's main window
                 default: target = LavaWalkOn ? LavaLookPoint(rig) : CamPos; break;                      // level 7: from the shot's framing, never the last shot's lens (OzEvilStage.L07Walk.cs)
             }
             bool single = false;
@@ -407,7 +410,7 @@ namespace OpenZ
             // the look point moves (no snap from one target to the next): about 0.2 s, like a head turn
             if (!ezLookInit || clock < 0.15f) { ezLookPt = target; ezLookVel = Vector3.zero; ezLookInit = true; }   // a scene's first frames: the camera takes its place, the look with it (no turn from the rest pose)
             else if (dt > 0f) ezLookPt = Vector3.SmoothDamp(ezLookPt, target, ref ezLookVel, 0.2f, 30f, dt);
-            rig.LookAt(ezLookPt, 1f, LavaWalkOn ? walk.headTurnMax : 70f, single ? 8f : 22f, 0.35f);                                   // little look-down in his own shots: the hat brim never hides his eyes
+            rig.LookAt(ezLookPt, 1f, LavaWalkOn ? walk.headTurnMax : l18On ? 45f : 70f, single ? 8f : 22f, 0.35f);                                   // little look-down in his own shots: the hat brim never hides his eyes
             float nod = ezNodT < 0.42f ? Mathf.Sin(ezNodT / 0.42f * Mathf.PI) * ezNodAmp : 0f;
             float shake = 0f;
             if (ezShakeAt >= 0f) { float u = clock - ezShakeAt; shake = u < 0.9f ? Mathf.Sin(u * Mathf.PI * 2f * 3.0f) * 9f * (1f - u / 0.9f) * Mathf.Clamp01(u / 0.08f) : 0f; if (u > 0.9f) ezShakeAt = -10f; }

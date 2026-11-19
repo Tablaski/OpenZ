@@ -143,6 +143,7 @@ namespace OpenZ
             float r = planRachel ? MaxClip("ann_nuke_explain") + 0.45f + NukeGap : 0f;           // the queue starts her next frame
             float z = planZod ? (OzBlueCameo.CanPlayNuke ? OzBlueCameo.NukeLeadSeconds : ZodBriefing.NukeLeadSeconds) + 0.3f : 0f;   // window preroll + line up to the slam (blue: up to the press)
             planHold = r + z + NukeWatchdogSlack;                                                 // watchdog margin: LaunchNow comes first
+            planHold += FortGunView.OutroPlanSeconds(planRachel);                                  // 1.5 outro_megacannon_blast: + the blast's beat before the scene
             launched = false;
             I.StartCoroutine(I.NukeIntro(planRachel, planZod));
             Debug.Log($"[VoiceV3] enemy fort fell: nuke intro (Rachel {planRachel}, Zod {planZod}), bomber held up to {planHold:F1} s");
@@ -166,6 +167,7 @@ namespace OpenZ
                 while (AudioDirector.VoiceBusy && Time.time - s < NukeWaitRachel) yield return null;
                 yield return new WaitForSeconds(NukeGap);
             }
+            if (!launched) yield return FortGunView.OutroBlastBeat(rachel);
             if (zod && !launched && planHold - (Time.time - planAt) < (OzBlueCameo.CanPlayNuke ? OzBlueCameo.NukeLeadSeconds : ZodBriefing.NukeLeadSeconds) + 0.2f)
             {   // REVIEW: Rachel ran late: his slam could no longer come before the watchdog launch (bomber first, button after)
                 zod = false;

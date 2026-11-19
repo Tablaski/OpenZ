@@ -100,7 +100,7 @@ namespace OpenZ
             ("LB · RB", "Hold: CTRL · SHIFT"),
             ("D-PAD", "Groups 1 to 4 · with LB: store"),
             ("START · SELECT", "Pause menu · minimal UI"),
-            ("L3 · R3", "Exit crew · last message"),
+            (OpenZHud.PadR3Key, OpenZHud.PadR3Text),   // 1.5 kit player_reports_1111 P3: "Exit crew · tactical pause" while the switch has the LAST MESSAGE key (UI/OpenZHud.PadR3Text.cs)
         };
 
         void BuildTouchHelp()
@@ -130,7 +130,7 @@ namespace OpenZ
             {
                 float y = top + i * rowH;
                 Hud.Label(touchHelp, id + "Key" + i, rows[i].key, 11, OzUi.Ink, 0.12f, OzStyle.Plain).At(x, y + rowH * 0.5f, OzH.L, true, keyW);
-                Hud.Label(touchHelp, id + "Text" + i, rows[i].text, 12, OzUi.Ink2, 0.02f, OzStyle.Plain).At(x + keyW + 10f, y + rowH * 0.5f, OzH.L, true, colW - keyW - 10f);
+                PadR3Keep(id, rows[i].key, Hud.Label(touchHelp, id + "Text" + i, rows[i].text, 12, OzUi.Ink2, 0.02f, OzStyle.Plain).At(x + keyW + 10f, y + rowH * 0.5f, OzH.L, true, colW - keyW - 10f));   // 1.5 kit player_reports_1111 P3
             }
         }
 
@@ -139,6 +139,7 @@ namespace OpenZ
             if (!touchHelp || on == touchHelpOn) return;
             touchHelpOn = on;
             touchHelp.gameObject.SetActive(on);
+            if (on) PadR3Refresh();   // 1.5 kit player_reports_1111 P3
             if (on) { touchHelp.SetAsLastSibling(); if (PlayerPrefs.GetInt(OzTouch.HelpPref, 0) == 0) { PlayerPrefs.SetInt(OzTouch.HelpPref, 1); PlayerPrefs.Save(); } }
         }
 

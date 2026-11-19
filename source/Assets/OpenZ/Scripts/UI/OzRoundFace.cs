@@ -58,6 +58,23 @@ namespace OpenZ
             Rt.gameObject.SetActiveFast(true);
         }
 
+        /// <summary>1.5 (Discord 10 Nov, the vehicle card's DRIVER slot, UI/OpenZHud.DriverSlot.cs): a robot type's round face; a type the
+        /// production badge has no face for (the Electrobot: no factory builds it, so only the class glyph) shows its own card portrait
+        /// (UnitArt.Portrait) cut round by a grunt face's disc, as <see cref="Hero"/> does, instead of the bare glyph.</summary>
+        public void RobotOrPortrait(string type, Team team)
+        {
+            if (!OzBadgeArt.FaceFor(type, team).StartsWith("face_glyph_")) { Robot(type, team); return; }
+            var tex = UnitArt.Portrait(type, team);
+            var s = OzBadgeArt.Get(Tier, OzBadgeArt.FaceFor("grunt", team));                             // the disc that cuts it round
+            if (tex == null || s == null) { Robot(type, team); return; }
+            if (disc.sprite != s) disc.sprite = s;
+            disc.enabled = true;
+            if (!mask.enabled || mask.showMaskGraphic) { mask.showMaskGraphic = false; mask.enabled = true; }
+            if (photo.texture != tex) photo.texture = tex;
+            photo.enabled = true; Shows = type ?? "";
+            Rt.gameObject.SetActiveFast(true);
+        }
+
         public void Off() { if (Rt.gameObject.activeSelf) Rt.gameObject.SetActive(false); Shows = ""; }
 
         public void At(float x, float y) => Rt.Place(new OzRect(x, y, size, size));

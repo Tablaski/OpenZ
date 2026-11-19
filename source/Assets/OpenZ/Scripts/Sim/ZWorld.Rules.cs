@@ -119,6 +119,7 @@ namespace OpenZ.Sim
                     if (!(o.Kind == ZKind.Vehicle || o.Kind == ZKind.Robot) || o.IsFortDefender) continue;   // fort_defender_v1 DV41
                     if (!f.IntersectsObject(o) || !FlagCaptureAllowed(f)) continue;                     // 1.2 item 6: the playground's 1 s hold after a change (Sim/ZWorld.Playground.cs; 0 = the game's rule)
                     AwardZone(f, o.Owner, o);
+                    FlagStepOffNote(f, o);                                                     // 1.5 DV184 (kit vehicle_off_flag): a vehicle that took it may roll a short way off it later (Sim/ZObject.FlagStepOff.cs); off = Zod
                     break;
                 }
         }

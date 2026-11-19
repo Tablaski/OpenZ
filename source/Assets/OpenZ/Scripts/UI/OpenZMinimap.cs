@@ -31,7 +31,7 @@ namespace OpenZ
         public RectTransform Panel => panel;
         /// <summary>Left drag is flying the camera (tooltips stay away, guide 9.11).</summary>
         public bool Dragging => dragFly;
-        public bool PointerOverMap => hud != null && MapRect && OpenZHud.Contains(MapRect, hud.Pointer) && !hud.Modal;
+        public bool PointerOverMap => hud != null && MapRect && hud.hudVisible && OpenZHud.Contains(MapRect, hud.Pointer) && !hud.Modal;   // 1.5 N16: not while hidden
 
         OpenZHud hud; ZGame game; ZWorld W;
         RectTransform panel, markers; RawImage img; Texture2D tex;
@@ -80,7 +80,7 @@ namespace OpenZ
             }
             else Hud.Plate(panel, "lg", 28f, OzUi.Amber);
             panel.gameObject.AddComponent<Canvas>();                                                   // nested canvas: per-frame frustum updates rebuild only this panel
-            string lvl = OzAiMapCatalog.Find(game.level) is OzAiMap converted ? converted.Title : game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
+            string lvl = OzAiMapCatalog.Find(game.level) is OzAiMap converted ? converted.Title : game.level == "L17" ? "L17 · CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameLabel : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             Hud.Label(panel, "Level", lvl, 10, OzUi.Muted, 0.16f, OzStyle.Plain).At(OzLayout.MinimapTitleX, OzLayout.MinimapLevelY, OzH.L, false, 200);
 
             // well: the map fitted keeping its aspect (zmini_map.cpp:24-59), letterbox bands hatched with coordinate ticks
@@ -127,10 +127,16 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ terrain (once)
         struct Pal { public Color32 ground, road, water, deep, cliff, cliffDark; public bool plates; }
+        /// <summary>fixes_r5 (A1): level 18's water on the minimap, MEASURED on a game frame of its river (owner_frames/level18/water_moving.mp4 at 2 s:
+        /// the median of three water patches, kits/fixes_r5/proof/minimap_l18_water_measure.txt); deep = 0.8 of it. Level 17 keeps its olive.</summary>
+        public static readonly Color32 L18Water = new Color32(47, 46, 47, 255), L18Deep = new Color32(38, 37, 38, 255);
         Pal Palette()
         {
+            if (OzCity.IsBridgeGame(game.level))                                                              // fixes_r5 (A1): level 18 = level 17's city colours with its own water
+                return new Pal { ground = new Color32(86, 86, 84, 255), road = new Color32(118, 116, 110, 255), water = L18Water, deep = L18Deep,
+                                 cliff = new Color32(172, 168, 158, 255), cliffDark = new Color32(138, 134, 126, 255), plates = true };
             if (W.Map.planet == "arctic") return new Pal { ground=new Color32(226,237,242,255), road=new Color32(167,202,221,255), water=new Color32(52,134,194,255), deep=new Color32(28,75,132,255), cliff=new Color32(177,207,226,255), cliffDark=new Color32(112,150,180,255) };
-            if (W.Map.planet == "city")                                                                          // Z level 17 (refs/zod_maps/L17_z1996.png)
+            if (W.Map.planet == "city")                                                                        // Z level 17 (refs/zod_maps/L17_z1996.png)
                 return new Pal { ground = new Color32(86, 86, 84, 255), road = new Color32(118, 116, 110, 255), water = new Color32(92, 104, 58, 255),
                                  deep = new Color32(70, 82, 44, 255), cliff = new Color32(172, 168, 158, 255), cliffDark = new Color32(138, 134, 126, 255), plates = true };
             if (W.Map.planet == "jungle")
@@ -385,7 +391,7 @@ namespace OpenZ
             var m = Mouse.current; var kb = Keyboard.current; if (m == null) return;
             Vector2 mp = hud.Pointer;
             bool modal = hud.Modal;
-            bool over = !modal && OpenZHud.Contains(MapRect, mp);
+            bool over = !modal && hud.hudVisible && OpenZHud.Contains(MapRect, mp);                     // 1.5 N16: the hidden map takes no press (the testing overlay over it, UI/OzCheatSpawner.HudHide.cs)
             bool shift = kb != null && kb.shiftKey.isPressed;
 
             // left: fly (Zod: press flies, drag follows, zplayer_events.cpp:149-162, 255-257) or the armed rally tool

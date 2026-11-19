@@ -80,7 +80,7 @@ namespace OpenZ
         void Build(Material mat)
         {
             var g = ZGame.I;
-            dust = g != null && g.level == "L17" ? new Color(0.6f, 0.56f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+            dust = g != null && OzCity.Is(g.level) ? new Color(0.6f, 0.56f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
             backMat = mat; frontMat = new Material(mat) { name = "NukeMushroom front" }; backMat.name = "NukeMushroom back";
             foreach (var m in new[] { backMat, frontMat })
             {

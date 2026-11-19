@@ -50,7 +50,7 @@ namespace OpenZ.Sim
         /// <summary>A reverse is only started with room for ReverseRoom x (own speed x its time) before the edge of the band
         /// (the target may back away or dodge at the same time), so it is not cut short by range.</summary>
         public const double ReverseRoom = 2.5;
-        public static int Margin(string type) => type == "heavy" ? 26 : type == "medium" || type == ZMTank.Type ? 24 : 22;   // DV145 the medium tank (Sim/ZMTank.cs)
+        public static int Margin(string type) => type == "heavy" || ZBigTanks.Is(type) ? ZBigTanks.DuelMarginPx /* 1.5 DV180 / DV181 */ : type == "medium" || type == ZMTank.Type ? 24 : 22;   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>Manoeuvre weights in the range band (Arc, Flank, Reverse; sum 100): jeeps race and swerve, heavies circle.</summary>
         public static (int arc, int flank, int rev) Weights(string type) =>
             type == "jeep" ? (35, 45, 20) : type == "light" ? (50, 30, 20) : type == "medium" || type == ZMTank.Type ? (55, 25, 20) : (60, 20, 20);   // DV145 the medium tank (Sim/ZMTank.cs)
@@ -85,7 +85,7 @@ namespace OpenZ.Sim
         public int DuelSeq => duel?.seq ?? 0;
         /// <summary>Tanks, mech (medium) and jeep: the vehicles that duel (DV9).</summary>
         public bool DuelCapable => Kind == ZKind.Vehicle && MoveSpeed > 0 && Owner != Team.Neutral &&
-                                   (Type == "jeep" || Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy");   // DV145 the medium tank (Sim/ZMTank.cs)
+                                   (Type == "jeep" || Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy" || Type == ZBigTanks.Mammoth || (Type == ZBigTanks.Bizon && !BizonHoldsCourse));   // 1.5 DV180 / DV181: the Mammoth duels as the heavy; the Bizon holds its course (Sim/ZBigTanks.cs)   // DV145 the medium tank (Sim/ZMTank.cs)
 
         /// <summary>ATTACK / AGRO waypoint, target in range (where Zod stops and fires): drive a committed manoeuvre and fire.
         /// Returns ZDuel.Manoeuvre (engaged, moved this tick), ZDuel.Approach (engaged, the waypoint keeps driving its approach:

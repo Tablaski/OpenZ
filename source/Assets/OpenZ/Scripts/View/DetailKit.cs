@@ -124,7 +124,7 @@ namespace OpenZ
             float y = float.NegativeInfinity;
             foreach (var r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
                 if (r.name.StartsWith("WAT_") && r.gameObject.activeInHierarchy) y = Mathf.Max(y, r.bounds.min.y + 0.02f);
-            if (float.IsNegativeInfinity(y) || y > 0.2f || y < -3f) y = level == "L17" ? -0.8f : -0.35f;
+            if (float.IsNegativeInfinity(y) || y > 0.2f || y < -3f) y = OzCity.Is(level) ? -0.8f : -0.35f;
             return y;
         }
 
@@ -393,7 +393,7 @@ namespace OpenZ
                     batch[b.col][cnt[b.col]++] = Matrix4x4.TRS(b.p, b.r, new Vector3(s, s, s));
                 }
                 for (int i = 0; i < mats.Length; i++)
-                    if (cnt[i] > 0) Graphics.DrawMeshInstanced(mesh, 0, mats[i], batch[i], cnt[i], null, ShadowCastingMode.Off, false);
+                    if (cnt[i] > 0 && SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(mesh, 0, mats[i], batch[i], cnt[i], null, ShadowCastingMode.Off, false);
             }
         }
     }

@@ -163,13 +163,41 @@ namespace OpenZ
                 lightApplied = true;
             }
             else if (!MenuLight && lightApplied) UndoCamera();
+            LowTrim(MenuLight && lightApplied && OzQuality.Level == 2);   // 1.5 kit player_reports_1111 P8: LOW only, live with a preset change in OPTIONS
         }
 
         void UndoCamera()
         {
+            LowTrim(false);   // 1.5 kit player_reports_1111 P8
             if (!lightApplied) return;
             if (menuCam && camKept) menuCam.allowMSAA = msaa0;
             lightApplied = false;
+        }
+
+        // menu camera (it draws no object and clears to one colour; the menu is the overlay canvas drawn after it) also renders without HDR and
+        // without the depth and colour copies the LOW settings file asks every camera for: URP then needs no full-screen HDR target, no depth /
+        // opaque copy and no final blit for it. The picture is the same (one clear colour under a full-screen overlay); MEDIUM / HIGH unchanged;
+        // put back when the preset changes, the light goes off or the menu goes.
+        bool lowTrim, hdr0; CameraOverrideOption color0, depth0;
+        /// <summary>Checks: the LOW trim is on the menu camera now.</summary>
+        public static bool LowTrimmed => I && I.lowTrim;
+        void LowTrim(bool want)
+        {
+            if (want && !menuCam) want = false;
+            if (want == lowTrim) return;
+            var d = menuCam ? menuCam.GetUniversalAdditionalCameraData() : null;
+            if (want)
+            {
+                hdr0 = menuCam.allowHDR; menuCam.allowHDR = false;
+                if (d) { color0 = d.requiresColorOption; depth0 = d.requiresDepthOption; d.requiresColorOption = CameraOverrideOption.Off; d.requiresDepthOption = CameraOverrideOption.Off; }
+                lowTrim = true;
+                Debug.Log($"{Tag} LOW: the menu camera renders without HDR and without the depth / colour copies (it draws no object: the same picture, less work for the graphics chip)");
+            }
+            else
+            {
+                if (menuCam) { menuCam.allowHDR = hdr0; if (d) { d.requiresColorOption = color0; d.requiresDepthOption = depth0; } }
+                lowTrim = false;
+            }
         }
 
         /// <summary>Before each camera draws: the menu camera with the light on = the SSAO and Atmosphere features paused for its render;
@@ -321,7 +349,7 @@ namespace OpenZ
             if (startSkipped < 2)
             {   // the first two steps of the clock hold the loading before the first picture: no menu frame was on screen yet, so they have their own line
                 if (++startSkipped < 2) return;
-                if (!firstPictureSaid) { firstPictureSaid = true; Debug.Log($"{Tag} first picture {Time.realtimeSinceStartup:0.00} s after the game started"); }
+                if (!firstPictureSaid) { firstPictureSaid = true; Debug.Log($"{Tag} first picture {Time.realtimeSinceStartup:0.00} s after the game started"); OzBootTime.Once("menu", "main menu ready (first frame shown)"); }   // 1.5 kit player_reports_1111 P2 (View/OzBootTime.cs)
                 return;
             }
             if (Time.unscaledTime >= nextView) { nextView = Time.unscaledTime + 0.5f; viewNow = menu ? menu.ProofView : "?"; }   // the view's name allocates: twice a second, not a frame

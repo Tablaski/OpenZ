@@ -552,6 +552,7 @@ namespace OpenZ
         {
             yield return new WaitForSecondsRealtime(0.5f);                                                 // the log line is flushed
             Debug.Log($"{Tag} quitting (exit code {code})");
+            OzQuit.ExitCode = code;                                                                          // 1.5 kit quit_loading_crash_r5: the Windows end (View/OzQuit.cs step 6) leaves with it
             Application.Quit(code);
         }
 

@@ -77,6 +77,7 @@ namespace OpenZ
             float gy = game.GroundY(p.x, p.z);
             var go = new GameObject("SquashedRobot_" + v.Obj.Id);
             go.transform.SetPositionAndRotation(new Vector3(p.x, gy + 0.04f, p.z), Quaternion.LookRotation(dir, Vector3.up));
+            OzBodyGround.Pancake(go.transform, game, p, gy, dir, FlatY);
             var sr = go.AddComponent<SquashedRemains>();
             sr.s = RobotDeathRule.Hash(v.Obj.Id, vehicle != null ? vehicle.Id : 0, 63u) | 1u;
             int parts = 0;
@@ -107,6 +108,7 @@ namespace OpenZ
                 parts++;
             }
             rendBuf.Clear();
+            OzBodyGround.PancakeSeat(go.transform, FlatY, WideXZ);
             long sw2 = System.Diagnostics.Stopwatch.GetTimestamp();
             Made++; Live++;
             // oil / scrap splat (fades like the other ground marks), springs and bolts popping out, the scrap rattle and the hull bump

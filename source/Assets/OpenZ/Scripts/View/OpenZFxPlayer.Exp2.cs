@@ -28,6 +28,12 @@ namespace OpenZ
         public static int Exp2Force = -1;
         public static bool Exp2LogConsole;
         public static int Exp2Total, Exp2Fallbacks;
+        /// <summary>1.5 pass 6b (gate note): the L10 vehicle smoke puffs (e2_smoke, born 0.7-0.95 s
+        /// after a Medium / Big hit, 2.5 s) had the reference clip's maroon (#5C1C1D / #381B21) as their colour, so they stayed blood-red over a
+        /// tank that lives on, ~2 s after the fire was gone. The reference's maroon is the fire's light on the smoke: the puffs are now the dark
+        /// grey-brown of the other damage smoke and the channel's own birth heat glow (heatColor .9/.22/.05 for the first 25 % of the life, the
+        /// time they sit in the fireball) gives them the fire's red. false = the old maroon (proof only).</summary>
+        public static bool E2SmokeGrey = true;
         public static readonly int[] Exp2ByKind = new int[6];
         public static readonly List<string> Exp2Log = new List<string>();
         public const int Exp2MaxBig = 3, Exp2MaxMedium = 6, Exp2MaxSalvo = 12;
@@ -545,7 +551,7 @@ namespace OpenZ
                 {
                     var o = new Vector3(Rand() - 0.5f, Rand() * 0.4f, Rand() - 0.5f) * (0.5f * pBody * U);
                     EmitP(e2Smoke, b + Vector3.up * (0.3f * U) + o, new Vector3((Rand() - 0.5f) * 0.2f * U, 0.3f * U, (Rand() - 0.5f) * 0.2f * U), 2.5f * tj,
-                        0.6f * U * (0.85f + 0.3f * Rand()), i % 2 == 0 ? Hx("#5C1C1D") : Hx("#381B21"), 0.9f, (0.7f + 0.25f * Rand()) * tj);
+                        0.6f * U * (0.85f + 0.3f * Rand()), E2SmokeGrey ? (i % 2 == 0 ? Hx("#4A443E") : Hx("#38332F")) : (i % 2 == 0 ? Hx("#5C1C1D") : Hx("#381B21")), 0.9f, (0.7f + 0.25f * Rand()) * tj);   // 1.5 pass 6b: dark grey-brown (was maroon)
                 }
             }
             if (k == Exp2Kind.BuildingHit)

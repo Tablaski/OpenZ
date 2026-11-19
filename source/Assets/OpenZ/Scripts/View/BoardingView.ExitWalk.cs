@@ -159,6 +159,7 @@ namespace OpenZ
         {
             if (!ExitWalkKeepOn || g.enter || g.demo || g.done || !g.go || !g.live || g.keys.Count < 2) return;
             var tr = g.go.transform;
+            var placedRot = tr.rotation;                                                                    // 1.5 N2: as Place drew it this frame
             var last = g.keys[g.keys.Count - 1];
             float left = g.total - g.time, leftT = left / Mathf.Max(1f, g.speedMul);                      // walk time left; the same in game time (paced up: ExitWalkDuePace)
             if (dt > 0f && left <= last.dur)
@@ -176,9 +177,11 @@ namespace OpenZ
                 float vKey = (last.at() - g.keys[g.keys.Count - 2].at()).magnitude / Mathf.Max(0.05f, last.dur);
                 bool run = vKey > 2.4f;
                 float spd = Mathf.Clamp(v / (run ? RunClipSpeed : WalkClipSpeed), 0.6f, 2.5f);
-                string now = g.clipNow; Play(g.anim, ref now, run ? "run_forward" : "walking", spd * SimRate); g.clipNow = now;
+                bool pivot = HatchTurnInPlace(g);                                                           // 1.5 N2: on his spot, still turning to his robot's facing: he pivots on the idle stance (no walk steps crossing his legs)
+                string now = g.clipNow; Play(g.anim, ref now, pivot ? "idle" : run ? "run_forward" : "walking", pivot ? SimRate : spd * SimRate); g.clipNow = now;
                 Band(g.skin, tr, g.hips, tr.localScale.x);
             }
+            HatchTurnEase(g, tr, placedRot, dt);                                                            // 1.5 N2: after a hatch leap he turns at a human rate, never in one frame (View/BoardingView.ExitTurn.cs)
             if (dt > 0f && g.go.activeInHierarchy)
             {
                 var mv = tr.position - from; mv.y = 0f; float m = mv.magnitude;
@@ -192,6 +195,7 @@ namespace OpenZ
         {
             if (!ExitWalkKeepOn || g.enter || g.demo || !g.go || !g.live) return true;
             var a = g.go.transform.position; var b = g.live.transform.position; a.y = 0f; b.y = 0f;
+            if (HatchTurnHolds(g)) return false;                                                          // 1.5 N2: still turning to his robot's facing (View/BoardingView.ExitTurn.cs)
             return OzExitWalkPace.Reached(Vector3.Distance(a, b), g.time - g.total, ExitChaseMaxSec);
         }
 

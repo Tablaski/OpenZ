@@ -41,7 +41,7 @@ namespace OpenZ.Sim
         bool ExitWalkHold(double time)
         {
             if (ExitOutAt < 0) return false;
-            if (DriverOutFromId >= 0 && DriverOutHullGone()) ExitOutAt = time;                         // 1.4 DV171: a driver held while climbing down a hull that is now destroyed: out now (Sim/ZObject.VehicleExit.cs)
+            if (DriverOutFromId >= 0) { int dvFrom = DriverOutFromId; if (DriverOutHullGone()) ExitOutAt = DriverThrownOut(dvFrom, time); }   // 1.4 DV171: a driver held while climbing down a hull that is now destroyed: out now (Sim/ZObject.VehicleExit.cs); 1.5 DV179 (kit exit_leap_death): destroyed before his take-off, he is thrown by its blast and held DriverThrownTicks (Sim/ZObject.DriverThrown.cs); off = out now
             if (!ZWorld.ExitWalkHoldOn || time >= ExitOutAt - 1e-9 || Kind != ZKind.Robot || Owner == Team.Neutral || KillAt >= 0 || World == null) { ExitWalkEnd(); return false; }
             StopMove(); IsRunning = false; fortRush = false;
             LastAttackPlayerGiven = false;

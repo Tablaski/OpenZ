@@ -37,7 +37,7 @@ namespace OpenZ
     /// under a bump of the drawn ground and never paint a unit or rock standing in front of them.
     /// </summary>
     [DefaultExecutionOrder(80)]   // after UnitView (60) placed the units and OpenZWading (70) lowered the waders
-    public class TrackMarks : MonoBehaviour
+    public partial class TrackMarks : MonoBehaviour   // 1.5 kit view_notes11 N9: partial (the dust devils' swept marks: TrackMarks.DevilSweep.cs)
     {
         public static TrackMarks I { get; private set; }
         public static bool Active => I && I.isActiveAndEnabled && I.ready;
@@ -153,6 +153,7 @@ namespace OpenZ
 
         public static TrackMarks Ensure()
         {
+            if (OzUeDust.HostsTracks) return OzUeDust.EnsureTracks();                                         // 1.5 ue_dust_night: the Unit editor's ground-like floors (View/OzUeDust.cs: Desert dunes, Snow field)
             if (PlayerPrefs.GetInt("oz_tracks", 1) == 0 || OzUeHooks.NoGroundDressing) return null;   // 1.2 item 6: not on the Unit editor's code-drawn floor (no terrain there)
             if (I) return I;
             var g = ZGame.I; if (!g) return null;
@@ -346,6 +347,7 @@ namespace OpenZ
             // dust kicked up behind the vehicle on soft ground: more puffs, bigger and denser with speed (DustTrails)
             var dust = DustTrails.I;
             if (!dust || !dust.isActiveAndEnabled || md < 1e-4f) return;
+            if (OzBigTanksDust.On && r.v && r.v.Obj != null && OzBigTanks.Is(r.v.Obj.Type)) return;      // 1.5 big_tanks_dust_redo: the big tanks draw their own dust (OzBigTanksDust)
             float s01 = Mathf.Clamp01(r.speed / Mathf.Max(0.5f, r.maxSpeed));
             r.dustDist += md;
             float every = Mathf.Lerp(wheels ? 1.1f : 1.4f, wheels ? 0.5f : 0.65f, s01);
@@ -772,9 +774,9 @@ namespace OpenZ
             s.fallbackDust = s.City ? new Color32(118, 100, 88, 255) : s.map.planet == OzVolcanic.Planet ? OzVolcanic.FallbackDust : new Color32(205, 160, 104, 255);
             s.fallbackSoft = (byte)(s.City ? 80 : 255);
             float windDeg = 28f;
-            try { s.ReadPaint(ref windDeg); }
+            if (!OzUeDust.Here) try { s.ReadPaint(ref windDeg); }                                   // 1.5 ue_dust_night: no terrain paint in the Unit editor (OzUeDust answers)
             catch (System.Exception e) { Debug.LogWarning("TrackSurface: ground paint read-back failed, using the class grid only: " + e.Message); s.PaintOk = false; }
-            try { s.BuildRenderHeights(); }
+            if (!OzUeDust.Here) try { s.BuildRenderHeights(); }                                     // 1.5 ue_dust_night: the Unit editor's floor is flat (y 0)
             catch (System.Exception e) { Debug.LogWarning("TrackSurface: rendered terrain heights failed, using COL_Terrain: " + e.Message); s.rh = null; s.RenderHeights = false; }
             float a = windDeg * Mathf.Deg2Rad;
             s.Wind = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));                                           // Sand.shader: dir = (cos a, sin a) over world xz
@@ -827,6 +829,7 @@ namespace OpenZ
         /// <summary>0 = no print (water), 1 = full print (sand / dirt).</summary>
         public float MarkStrength(float x, float z)
         {
+            if (OzUeDust.Here) return OzUeDust.Mark(x, z);                                            // 1.5 ue_dust_night: the Unit editor's floor
             Classes(x, z, out float roadW, out float waterW, out float rockW);
             if (waterW > 0.55f) return 0f;
             float s = Mathf.Lerp(hard, sand, Soft(x, z));
@@ -838,6 +841,7 @@ namespace OpenZ
         /// <summary>0 on roads, concrete and water, 1 on loose sand / dirt.</summary>
         public float DustStrength(float x, float z)
         {
+            if (OzUeDust.Here) return OzUeDust.Dust(x, z);                                            // 1.5 ue_dust_night: the Unit editor's floor
             Classes(x, z, out float roadW, out float waterW, out float rockW);
             return Soft(x, z) * (1f - roadW) * (1f - 0.6f * rockW) * (1f - Smooth(0.1f, 0.5f, waterW));
         }
@@ -845,6 +849,7 @@ namespace OpenZ
         /// <summary>Rendered ground colour at (x, z), sRGB.</summary>
         public Color DustColor(float x, float z)
         {
+            if (OzUeDust.Here) return OzUeDust.Colour;                                                 // 1.5 ue_dust_night: the floor's own colour
             if (!PaintOk) return fallbackDust;
             return dust[Index(x, z)];
         }

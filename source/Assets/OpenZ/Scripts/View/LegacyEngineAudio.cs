@@ -170,7 +170,7 @@ namespace OpenZ
         /// <summary>The OzFoleyV1 mech plant bank for the ground under a planted foot (the robot-step surface rule).</summary>
         public static string[] PlantBank(Vector3 at)
         {
-            var g = ZGame.I; bool city = g && g.level == "L17", deck = false, road = false;
+            var g = ZGame.I; bool city = g && OzCity.Is(g.level), deck = false, road = false;
             var tm = TrackMarks.I; if (tm && tm.Surface != null) tm.Surface.Sample(at.x, at.z, out float gy, out deck);
             var map = g && g.World != null ? g.World.Map : null;
             if (map != null) { var px = ZGame.WorldToPx(at); road = map.ClassAt(px.x >> 4, px.y >> 4) == ZClass.Road; }

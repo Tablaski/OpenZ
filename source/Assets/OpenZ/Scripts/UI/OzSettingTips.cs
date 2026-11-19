@@ -53,7 +53,7 @@ namespace OpenZ
             [PathV3Label] = "SMOOTHER PATHING|On (default): less back-and-forth in open ground, groups settle when close enough, units stuck over 5 s may step over wreck debris; bridges and bottlenecks keep the classic planner. Off = the classic pathing (rollback). Applies from the next match.|",
             ["MUSIC · SOUNDTRACK"] = "MUSIC|Switches the soundtrack on or off, in the menu and in battle.|",
             [OzSettings.FullLabel] = "FULLSCREEN|On: the game fills the screen, at the size the RESOLUTION row sets. Off: a window.|",
-            [OzSettings.ResLabel] = "RESOLUTION|Lower it on a slower computer. NATIVE is the sharpest.|",
+            [OzSettings.ResLabel] = "RESOLUTION|Lower it on a slower computer. NATIVE is the sharpest. Left click: one size larger. Right click (or Shift + click): one size smaller. After NATIVE comes the smallest size again. A window always fits on your screen.|",   // 1.5 issue 8
             [NightShadows.Label] = NightShadows.Tip,
             [CraterField.Label] = CraterField.Tip,
             [OzQuality.Label] = OzQuality.Tip,
@@ -67,13 +67,16 @@ namespace OpenZ
             [OzOvertake.Label] = OzOvertake.Tip,                                           // DV105: fast units pass slow ones (OzOvertake.cs)
             [OzOverlapOption.Label] = OzOverlapOption.Tip,                                 // FRIENDLY UNITS OVERLAP (OzOverlapOption.cs)
             [OzVehicleSizeOption.Label] = OzVehicleSizeOption.Tip,                         // VEHICLE SIZE (OzVehicleSizeOption.cs)
+            [OzRobotSizeOption.Label] = OzRobotSizeOption.Tip,                             // 1.5 R3.25 ROBOT SIZE (UI/OzRobotSizeOption.cs)
             [OzRangeRingsOption.Label] = OzRangeRingsOption.Tip,                           // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS (UI/OzRangeRingsOption.cs)
             [OzForkOptions.ChatLabel] = "CHAT SHORTCUT|Click and press the key that opens duel chat. ESC cancels. Chat is also available beside the command bar.|",
             [OzForceBarOption.Label] = OzForceBarOption.Tip,
-            [OzBattleOptions.DamageLabel] = "DAMAGED TANKS|Damaged tanks smoke at yellow health and leak oil while moving at red health.|",
+            [OzBattleOptions.DamageLabel] = OzBattleOptions.DamageLabel + "|" + OzBattleOptions.DamageTip + "|",
+            [OzBattleOptions.ShakeLabel] = OzBattleOptions.ShakeLabel + "|" + OzBattleOptions.ShakeTip + "|",
             [OzTouch.Label] = OzTouch.Tip,                                                  // touch and gamepad (OzTouch.cs)
             [OzTrackpadScroll.Label] = OzTrackpadScroll.Tip,                                // TRACKPAD SCROLL: ZOOM / MOVE MAP (OzTrackpadScroll.cs)
-            [MinimalLabel] = "MINIMAL UI|Hide the permanent HUD panels; keep the menu button and the minimap.|",
+            [MinimalLabel] = "MINIMAL UI|Hide the permanent HUD panels; keep the menu button and the minimap. In a match the MINIMAL UI key (U, see CONTROLS) switches it.|",
+            [OzTacticalPause.Label] = OzTacticalPause.Tip,                                  // 1.5 TACTICAL PAUSE, default OFF (View/OzTacticalPause.cs)
             [OzStrikeGroups.Label] = OzStrikeGroups.Tip,                                    // enemy strike groups (DV107)
             [OzLavaOption.Label] = OzLavaOption.Tip,                                        // level 7 lava (DV152, OzLavaOption.cs)
             [OzHighGroundOption.Label] = OzHighGroundOption.Tip,                            // high ground shoots farther (DV162, OzHighGroundOption.cs)
@@ -91,6 +94,7 @@ namespace OpenZ
             [OzLightRows.AoLabel] = OzLightRows.AoTip,
             [OzLightRows.TreesLabel] = OzLightRows.TreesTip,
             [OzLightRows.WrecksLabel] = OzLightRows.WrecksTip,
+            [OzLowPicture.Label] = OzLowPicture.Tip,                                       // 1.5 issue 8: 3D PICTURE SHARP / SOFT / SOFTEST (View/OzLowPicture.cs)
         };
 
         // ---- options tabs: one table for both menus (the main menu's OPTIONS modal, the pause menu's OPTIONS panel)
@@ -101,11 +105,15 @@ namespace OpenZ
         {
             ("MUSIC · SOUNDTRACK", TabMain), ("ANNOUNCER CHATTER", TabMain), (RobotChatterLabel, TabMain), (OzSettings.FullLabel, TabMain), (OzSettings.ResLabel, TabMain), ("HUD SCALE", TabMain), ("UI SCALE", TabMain),
             ("EDGE SCROLL", TabGame), (OzFreeCam.Label, TabGame), (OzCamControls.SpeedLabel, TabGame), (OzCamControls.RightLabel, TabGame), ("HEALTH BARS ON EVERY DAMAGED UNIT", TabGame), (OzRangeRingsOption.Label, TabGame), (MinimalLabel, TabGame), (OzHudLayout.Label, TabGame), ("YOUR TEAM COLOUR · VISUAL ONLY", TabGame),
-            (OzForkOptions.ChatLabel, TabGame), (OzForceBarOption.Label, TabGame), (OzMapReadabilityOptions.FlagLabel, TabGame), (OzMapReadabilityOptions.BorderLabel, TabGame), (OzBehaviorLibrary.TanksLabel, TabGame), (OzBehaviorLibrary.RobotsLabel, TabGame), ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame), (OzBattleOptions.DamageLabel, TabGame),
+            ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame), (OzVehicleSizeOption.Label, TabGame), (OzRobotSizeOption.Label, TabGame),   // 1.5 R3.25: ROBOT SIZE right under VEHICLE SIZE
+            (OzTacticalPause.Label, TabGame),                                                // 1.5 TACTICAL PAUSE: the GAME tab's last row
+            (OzForkOptions.ChatLabel, TabGame), (OzForceBarOption.Label, TabGame), (OzMapReadabilityOptions.FlagLabel, TabGame), (OzMapReadabilityOptions.BorderLabel, TabGame), (OzBehaviorLibrary.TanksLabel, TabGame), (OzBehaviorLibrary.RobotsLabel, TabGame), (OzBattleOptions.DamageLabel, TabGame), (OzBattleOptions.ShakeLabel, TabGame),
+
             (OzQuality.Label, TabGraphics), (OzFpsCap.Label, TabGraphics), (NightShadows.Label, TabGraphics), (OzNightRain.Label, TabGraphics),
             ("MOTION BLUR · FAST DEBRIS AND SHELLS", TabGraphics), (OzLensEdges.Label, TabGraphics), (OzQuality.FpsLabel, TabGraphics),
             (OzSmoothFrames.Label, TabGraphics), (OzSunSteps.Label, TabGraphics), (OzEndingDebris.Label, TabGraphics), (OzGfxApi.Label, TabGraphics), (OzMassLod.Label, TabGraphics),   // v1.3 item 25: rows for slower computers; ue_mass_battles: MASS BATTLES last
             (OzLightRows.LightestLabel, TabGraphics), (OzLightRows.ShadowsLabel, TabGraphics), (OzLightRows.AoLabel, TabGraphics), (OzLightRows.TreesLabel, TabGraphics), (OzLightRows.WrecksLabel, TabGraphics),   // 1.3 item 40: after MASS BATTLES
+            (OzLowPicture.Label, TabGraphics),                                               // 1.5 issue 8: 3D PICTURE, the GRAPHICS tab's last row (a LIGHTEST FOR SLOW PCS row, after WRECKS AND DEBRIS)
             (OzStrikeGroups.Label, TabAdvanced), (OzTouch.Label, TabAdvanced), (OzTrackpadScroll.Label, TabAdvanced), (PathV3Label, TabAdvanced), (OzOvertake.Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
         };
         static int TabRow(string label) { for (int i = 0; i < TabRows.Length; i++) if (TabRows[i].label == label) return i; return -1; }

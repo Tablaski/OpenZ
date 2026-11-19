@@ -17,7 +17,7 @@ namespace OpenZ
                 if (o.Kind == ZKind.Vehicle)
                 {
                     Owned("exp_vehicle_death");
-                    if (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy") Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);   // DV145 the medium tank (Sim/ZMTank.cs)
+                    if (o.Type == "light" || o.Type == "medium" || o.Type == ZMTank.Type || o.Type == "heavy" || OzBigTanks.Is(o.Type)) Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);   // DV145 the medium tank (Sim/ZMTank.cs)
                 }
                 else Owned("exp_cannon_death");
                 wrecks[o.Id] = (p, Time.time);

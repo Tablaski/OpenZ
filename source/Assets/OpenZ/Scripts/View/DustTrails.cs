@@ -33,6 +33,8 @@ namespace OpenZ
         [Range(0.5f, 1.5f)] public float brightness = 1.04f;
 
         public int Live { get; private set; }
+        /// <summary>1.5 pass 6b proof: vehicle wake volleys drawn on the lit channel (OpenZFxCatalog.WakeChannel).</summary>
+        public static int WakeLitPuffs;
 
         struct Puff { public bool on; public Vector3 p, v; public float age, life, size, alpha, spin; public Quaternion rot; public Vector4 tint; }
 
@@ -114,6 +116,7 @@ namespace OpenZ
         public void Emit(Vector3 at, Vector3 vel, float size, float life, float alpha, Color srgb)
         {
             if (!enabled || alpha < 0.004f || life <= 0.05f) return;
+            if (OzLevelDust.Emit(at, vel, size, life, alpha, srgb, brightness)) return;            // 1.5 review R11 (kit review_r8_r12): the levels' lit wake dust, not a round unlit ball (View/OzLevelDust.cs)
             ref var p = ref puffs[cursor];
             cursor = (cursor + 1) % Capacity;                                                        // ring: the oldest puff goes first
             var c = Color.Lerp(srgb, new Color(0.9f, 0.86f, 0.8f), pale) * brightness;
@@ -132,6 +135,18 @@ namespace OpenZ
                       + Vector3.up * Random.Range(0.3f, 0.6f);
             float size = wakeSize * (wheeled ? 0.85f : 1.1f) * (0.7f + 0.6f * s) * Random.Range(0.85f, 1.15f);
             float life = wakeLife * (0.9f + 0.6f * s) * Random.Range(0.85f, 1.2f);
+            var fx = OpenZFxCatalog.WakeChannel ? OpenZFxPlayer.I : null;                           // 1.5 pass 6b (gate A14): the lit wake channel, not round puffs
+            if (fx && fx.isActiveAndEnabled && fx.HasChannel(OpenZFxPlayer.WakeChannelName))
+            {
+                if (!enabled) return;
+                var c = Color.Lerp(srgb, new Color(0.9f, 0.86f, 0.8f), OpenZFxCatalog.WakePale) * brightness; c.a = 1f;
+                float k = OpenZFxCatalog.WakeAlphaK;
+                fx.EmitChannel(OpenZFxPlayer.WakeChannelName, at + Vector3.up * (0.12f + 0.1f * size), vel, life, size, c, wakeAlpha * strength * (0.3f + 0.7f * s) * k);
+                if (!wheeled && s > 0.6f)
+                    fx.EmitChannel(OpenZFxPlayer.WakeChannelName, at + Vector3.up * 0.08f - dir * 0.3f, vel * 0.6f + sideOut * 0.2f, life * 0.8f, size * 0.7f, c, wakeAlpha * strength * 0.6f * s * k);
+                WakeLitPuffs++;
+                return;
+            }
             Emit(at + Vector3.up * (0.12f + 0.1f * size), vel, size, life, wakeAlpha * strength * (0.3f + 0.7f * s), srgb);
             if (!wheeled && s > 0.6f)                                                                // heavy tracks throw a second, lower puff
                 Emit(at + Vector3.up * 0.08f - dir * 0.3f, vel * 0.6f + sideOut * 0.2f, size * 0.7f, life * 0.8f, wakeAlpha * strength * 0.6f * s, srgb);
@@ -205,7 +220,7 @@ namespace OpenZ
             if (m == 0) return;
             mpb.SetFloatArray(AlphaId, alphas);
             if (tinted) mpb.SetVectorArray(TintId, tints);
-            Graphics.DrawMeshInstanced(mesh, 0, mat, mats, m, mpb, ShadowCastingMode.Off, false);
+            if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(mesh, 0, mat, mats, m, mpb, ShadowCastingMode.Off, false);   // no instancing (no graphics): skip, never throw
         }
 
         static float Smooth(float e0, float e1, float x) { float t = Mathf.Clamp01((x - e0) / (e1 - e0)); return t * t * (3f - 2f * t); }

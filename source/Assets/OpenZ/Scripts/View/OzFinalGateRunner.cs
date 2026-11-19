@@ -35,7 +35,7 @@ namespace OpenZ
         public const string ChainKey = "OpenZ.FinalGate.Chain";
         static readonly Dictionary<string, string> ChainScene = new Dictionary<string, string>
         {
-            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L07"] = "Assets/OpenZ/Scenes/L07_Volcanic.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
+            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L07"] = "Assets/OpenZ/Scenes/L07_Volcanic.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["L18"] = "Assets/OpenZ/Scenes/L18_BridgeGame.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
         };
         static string pendingJob;
         static void OnChainLoaded(Scene sc, LoadSceneMode mode)

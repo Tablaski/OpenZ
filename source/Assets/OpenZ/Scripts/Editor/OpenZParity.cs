@@ -46,7 +46,32 @@ namespace OpenZ.EditorTools
             bool brLock = ZWorld.EjectLockDeviation, brFall = ZWorld.EnterFallbackDeviation; ZWorld.EjectLockDeviation = ZWorld.EnterFallbackDeviation = false;
             bool caeQueue = ZWorld.CtrlAttackEmptyDeviation; ZWorld.CtrlAttackEmptyDeviation = false;   // DV81: the Zod rows keep Zod's clean-up after a shot-out crew (the first waypoint only)
             bool emptiedDrop = ZWorld.EmptiedTargetsDeviation; ZWorld.EmptiedTargetsDeviation = false;   // 1.4 DV176: the Zod rows keep Zod's clean-up of an emptied vehicle's attackers
+            bool driverThrown = ZWorld.DriverThrownDeviation; ZWorld.DriverThrownDeviation = false;   // 1.5 DV179: the Zod rows have no thrown driver (EXIT DRIVER is OpenZ's)
+            bool mammothRam = ZWorld.MammothRamDeviation; ZWorld.MammothRamDeviation = false;   // 1.5 DV182: the Zod rows have no ram (the Mammoth is OpenZ's)
+            bool bizonCrush = ZWorld.BizonCrushDeviation; ZWorld.BizonCrushDeviation = false;   // 1.5 DV183 (kit bizon_crush): the Zod rows have no crush (the Bizon is OpenZ's)
+            bool ramDuel = ZWorld.RamDuelDeviation; ZWorld.RamDuelDeviation = false;     // 1.5 DV185 (kit big_tanks_fx): the Zod rows have no ram duel (the big tanks are OpenZ's)
+            bool crushRollOff = ZWorld.CrushRollOffDeviation; ZWorld.CrushRollOffDeviation = false;   // 1.5 DV187 (kit bizon_crush_climb): the Zod rows have no crush
+            bool ramDebris = ZWorld.RamDebrisDeviation; ZWorld.RamDebrisDeviation = false;   // 1.5 DV186 (kit ram_throw_fix): the Zod rows throw turrets as Zod
+            bool ramPolish = ZWorld.RamPolishDeviation; ZWorld.RamPolishDeviation = false;   // 1.5 DV188 (kit ram_polish)
+            bool ramFirst = ZWorld.BigTankRamFirstDeviation; ZWorld.BigTankRamFirstDeviation = false;   // 1.5 DV189 (kit ram_first)
+            bool shuttleNearest = ZWorld.ShuttleNearestLandingDeviation; ZWorld.ShuttleNearestLandingDeviation = false;   // 1.5 DV190 (kit shuttle_nearest_landing)
+            using var missileBuildTimeHold = ZWorld.MissileTurretBuildTimeOff();                     // 1.5 DV191 (kit missile_build_time): Zod's 182 s missile cannon in the Zod rows and the probes (a Play session leaves the switch on)
+            using var ramChainHold = ZWorld.RamChainOff();   // 1.5 DV195 (kit ram_chain_n24_n25): Zod's rules in the Zod rows and the probes
+            using var ramFightHold = ZWorld.RamFightOff();   // 1.5 DV196 (kit mammoth_ram_fight_n26c): Zod's rules in the Zod rows and the probes
+            using var l18RulesHold = ZWorld.L18RulesOff(); using var botBigHold = ZWorld.BotBigTanksOff();   // 1.5 DV197-DV200 (kit level18_rules): Zod's rules in the Zod rows and the probes
+            using var marchGrabHold = ZWorld.MarchGrabOff();   // 1.5 DV203 (kit march_grab_r3): Zod's rules in the Zod rows and the probes
+            using var craneLandEndHold = ZWorld.CraneLandEndOff();   // 1.5 DV206 (kit crane_deck_sound_r3): Zod's rules (the drive to the bridge's centre) in the Zod rows and the probes
+            using var fortGunAnswerHold = ZWorld.FortGunAnswerOff();   // 1.5 DV204 (kit fort_gun_target_r3): Zod's rules in the Zod rows and the probes
+            using var towerDrawnReachHold = ZWorld.TowerDrawnReachOff();   // 1.5 DV208 (kit tower_reach_dv208): Zod's rules in the Zod rows and the probes
+            using var bridgeHealthHold = ZWorld.BridgeHealthOff();   // 1.5 DV207 (kit bridge_health_r3): Zod's 83333 bridge hit points in the Zod rows and the probes
+            using var bridgeDeckAimHold = ZWorld.BridgeDeckAimOff();   // 1.5 DV210 (kit bridge_aim_further_r6): DV26's aim at a bridge (its nearest point) in the Zod rows and the probes
+            using var bigTankUpHold = ZWorld.BigTankUpOff();   // 1.5 DV211 (kit bizon_mammoth_driver_up_r7): Zod's lid for the Mammoth and the Bizon in the Zod rows and the probes
+            using var smallArmsHold = ZWorld.SmallArmsOff();   // 1.5 DV212 (kit small_arms_balance_r8): Zod's bullet damage in the Zod rows and the probes
+            using var l18ContainersHold = ZWorld.L18ContainersOff();   // 1.5 DV201 (kit level18_containers): Zod's rules in the Zod rows and the probes
+            using var lowPitsHold = ZWorld.LowPitsOff();   // 1.5 DV205 (kit pits_no_block_r3): Zod's rules (every impassable tile but lava a sight wall, as DV23 had it) in the Zod rows and the probes
+            using var bigTankGroundHold = ZWorld.BigTankGroundOff();   // 1.5 DV192 / DV193 (kit sim_notes11): Zod's ground for every tank in the Zod rows and the probes
             bool rpPad = ZWorld.RepairInPlaceDeviation; ZWorld.RepairInPlaceDeviation = false;
+            bool flagStepOff = ZWorld.FlagStepOffDeviation; ZWorld.FlagStepOffDeviation = false;   // 1.5 DV184: the Zod rows park a vehicle on the flag it took
             bool runOver = ZWorld.RunOverDeviation; ZWorld.RunOverDeviation = false;
             bool unmannedStop = ZWorld.UnmannedStopDeviation; ZWorld.UnmannedStopDeviation = false;   // DV79: the Zod rows measure Zod's server-level stop alone (a Play session leaves the switch on)
             bool driverFire = ZWorld.DriverFireDeviation; ZWorld.DriverFireDeviation = false;         // DV87: no hatch driver fires in the Zod rows (a Play session leaves the switch on); put back after the Deviations block
@@ -63,6 +88,8 @@ namespace OpenZ.EditorTools
             using var handGunHold = ZWorld.HandGunOff();                                              // DV146: no mech hand gun in the Zod rows (a Play session leaves the switch on)
             using var mechHpHold = ZWorld.MechHpOff(); using var mechMixHold = ZWorld.MechMixOff();   // DV147 / DV148: Zod's mech (6756 HP) and DV145's own computer rule in the Zod rows (a Play session leaves the switches on)
             using var gatlingBuffHold = ZWorld.GatlingBuffOff();                                     // DV170: Zod's gatling (120 px, 39 HP a hit) in the Zod rows and the probes (a Play session leaves the switch on)
+            using var sprintOrderHold = ZWorld.SprintOrderOff();                                     // DV178: no sprint order in the Zod rows and the probes (a Play session leaves the switch on)
+            using var fortTurretRofHold = ZWorld.FortTurretRofOff();                                 // DV177: Zod's reload for a missile cannon on a fort's tower in the Zod rows and the probes (a Play session leaves the switch on)
             using var gunLossHold = ZWorld.GunLossOff();                                              // DV149: no lost hand gun in the Zod rows (a Play session leaves the switch on)
             using var highGroundHold = ZWorld.HighGroundOff();                                        // DV162: Zod's flat range in the Zod rows (a Play session leaves the switch on)
             using var heavyRockHold = ZWorld.HeavyRockOff();                                          // DV164: no rock cleared by an idle heavy tank in the Zod rows (a Play session leaves the switch on)
@@ -91,6 +118,7 @@ namespace OpenZ.EditorTools
                 SettingsTests(rows);
                 MapTests(rows, "L02", 244, 9, 7);
                 MapTests(rows, "L17", 421, 16, 14);
+                MapTests(rows, "L18", 612, 14, 12);                                       // 1.5 level 18 "Bridge Game" (kit level18_map): 612 map objects, 14 zones, 12 flags
                 MovementTests(rows);
                 ZWorld.PathV3Deviation = pcCommit;                                        // pathing_v3: the OpenZ squad rows measure the squads as shipped
                 try { SquadTests(rows); if (pcCommit) PathCommitSquadRows(rows); } finally { ZWorld.PathV3Deviation = false; }   // (+ squad-minion pace with v3 on: OpenZParity.PathV3Rows.cs; v3 off = the live rows only)
@@ -118,7 +146,17 @@ namespace OpenZ.EditorTools
             ZWorld.EjectLockDeviation = brLock; ZWorld.EnterFallbackDeviation = brFall;                 // DV58 / DV59
             ZWorld.CtrlAttackEmptyDeviation = caeQueue;                                                 // DV81
             ZWorld.EmptiedTargetsDeviation = emptiedDrop;                                               // DV176
+            ZWorld.DriverThrownDeviation = driverThrown;                                               // DV179
+            ZWorld.MammothRamDeviation = mammothRam;                                                   // DV182
+            ZWorld.BizonCrushDeviation = bizonCrush;                                                   // DV183
+            ZWorld.RamDuelDeviation = ramDuel;                                                         // DV185
+            ZWorld.CrushRollOffDeviation = crushRollOff;                                               // DV187
+            ZWorld.RamDebrisDeviation = ramDebris;                                                     // DV186
+            ZWorld.RamPolishDeviation = ramPolish;                                                     // DV188
+            ZWorld.BigTankRamFirstDeviation = ramFirst;                                                // DV189
+            ZWorld.ShuttleNearestLandingDeviation = shuttleNearest;                                    // DV190
             ZWorld.RepairInPlaceDeviation = rpPad;                                                      // DV62
+            ZWorld.FlagStepOffDeviation = flagStepOff;                                                  // DV184
             ZWorld.RunOverDeviation = runOver;                                                          // DV65
             ZWorld.UnmannedStopDeviation = unmannedStop;                                                // DV79
             ZWorld.RiflePairDeviation = riflePair;                                                      // DV78

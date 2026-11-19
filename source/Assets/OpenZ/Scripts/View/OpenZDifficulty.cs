@@ -68,8 +68,8 @@ namespace OpenZ
         /// The head start a match of this chosen difficulty gets: the saved switch, never on MAYHEM. The switch itself
         /// is kept (it comes back on EASY, MEDIUM and HARD).</summary>
         public static bool HeadStartFor(GameDifficulty choice) => choice != GameDifficulty.Mayhem && HeadStartToggle;
-        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : level == "L16" ? ZGame.HeadStartL16Types.Length : OzVolcanic.Is(level) ? ZGame.HeadStartL07Types.Length : 0;
-        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : level == "L16" || OzVolcanic.Is(level) ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : "";
+        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : level == "L16" ? ZGame.HeadStartL16Types.Length : OzVolcanic.Is(level) ? ZGame.HeadStartL07Types.Length : OzCity.IsBridgeGame(level) ? ZGame.HeadStartL18Types.Length : 0;
+        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : level == "L16" || OzVolcanic.Is(level) ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : OzCity.IsBridgeGame(level) ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : "";
 
         public static string Label(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : d == GameDifficulty.Mayhem ? "MAYHEM" : "HARD";   // 1.4 MAYHEM
 

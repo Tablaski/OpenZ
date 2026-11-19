@@ -632,7 +632,7 @@ namespace OpenZ
         void Zap(Vector3 at, bool strong, bool hit, int target, FxSurface surf)
         {
             if (!Live(out var z)) return;
-            if (surf == FxSurface.Water) { var w = new Vector3(at.x, z.SurfaceY(at), at.z); z.Droplets(w, 0.25f, 5); z.Ripple(w, 0.3f); }
+            if (surf == FxSurface.Water) { var w = new Vector3(at.x, z.SurfaceY(at), at.z); z.Droplets(w, 0.25f, 5); z.BulletRing(w, 0.3f); }   // 1.5 kit water_blast_r6 (A16)
             float k = strong ? 1f : 0.55f;
             z.EmitChannel(Ch("wv2_glow", "leg_cloud"), at, Vector3.up * 0.2f, 0.18f, 1.5f * k, LaserGlow, 1f);
             z.EmitChannel("m12_core", at, Vector3.zero, 0.08f, 0.4f * k, LaserCore, 1f);
@@ -699,8 +699,9 @@ namespace OpenZ
 
         void SniperImpact(Hit h, OpenZFxPlayer z)
         {
-            if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.35f, 7); z.Ripple(w, 0.35f); return; }
+            if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.35f, 7); z.BulletRing(w, 0.35f); return; }   // 1.5 kit water_blast_r6 (A16)
             // streaks, bounce, flash, light, ricochet); a driver hit / snipe already got its seat burst from CombatView (never twice)
+            OzHitFeedback.Landed(h.pos, h.hit && !h.driver && !UnitView.HeadshotRound(h.target, h.shooter), h.surf, h.target, true);
             if (h.hit && h.driver && OpenZHitSparks.Active) return;
             if (h.hit && (h.surf == FxSurface.Unit || h.surf == FxSurface.Metal) && OpenZHitSparks.Burst(h.pos, h.dir, FxWeapon.Sniper, h.surf, 1f, !UnitView.HeadshotRound(h.target, h.shooter))) return;   // K248b: a headshot round's own ricochet is silent (the head pop is that moment's sound)
             z.EmitChannel("m12_core", h.pos, Vector3.zero, 0.09f, 0.5f, OpenZFxCatalog.M12Core.color, 1f);
@@ -737,7 +738,8 @@ namespace OpenZ
 
         void MgImpact(Hit h, OpenZFxPlayer z)
         {
-            if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.15f, 3); z.Ripple(w, 0.16f); return; }
+            if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.15f, 3); z.BulletRing(w, 0.16f); return; }   // 1.5 kit water_blast_r6 (A16)
+            OzHitFeedback.Landed(h.pos, h.hit, h.surf, h.target, false);                               // 1.5 kit hit_feedback_sounds_r8 (A31): a psycho's round that hits says what it hit (View/OzHitFeedback.cs)
             // psycho's rounds get the same new HDR streak bursts as every other bullet (a bit smaller: ~7 hits/s per psycho), and its
             // varied ricochets on about every 3rd hit (hitsparks rate-limits the sounds itself)
             if (OpenZHitSparks.Active)

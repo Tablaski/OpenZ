@@ -14,7 +14,8 @@ namespace OpenZ
     /// (LateUpdate) this hands the shader what the prototype's canvas knew: the field's rectangle on the screen (under the top bar), the
     /// free field's middle (its light), the visible floor, the style's slow light effect for this frame (frozen while paused, off with
     /// the motion option), the floor point under the mouse (Blueprint), the far edge's row (the haze), and the post chain's settings, so
-    /// the shader can show the design colours through the game's tonemapping. The Blueprint style's metre numbers and the mouse read-out
+    /// the shader can show the design colours through the game's tonemapping (1.5 kit ue_pause_vignette_r8: without the editor's pause look,
+    /// View/OzUePauseLook.cs, so its vignette and dim show on the floor). The Blueprint style's metre numbers and the mouse read-out
     /// are HUD labels on the editor's field layer.
     /// </summary>
     public sealed class OzUeFloor : MonoBehaviour
@@ -30,6 +31,7 @@ namespace OpenZ
         OzUnitEditor ed; Camera cam; RtsCamera rts; Material mat; GameObject quad;
         float motionT = 3f;                                                                       // the prototype's Backdrop starts at t = 3
         int styleShown = -1; bool gradeWarned;
+        VolumeStack pauseBase;                                                                    // 1.5 kit ue_pause_vignette_r8: the grade without the pause look (Grade)
         // Blueprint labels (UI)
         readonly List<OzText> numbers = new List<OzText>(); OzText mouseLabel; RectTransform labelRoot;
         readonly int[] numberShown = new int[30]; Vector2Int mouseShown = new Vector2Int(int.MinValue, int.MinValue);
@@ -82,6 +84,7 @@ namespace OpenZ
         {
             OzUeBackdrop.Changed -= OnBackdrop;
             if (mat) Destroy(mat);
+            if (pauseBase != null) { VolumeManager.instance.DestroyStack(pauseBase); pauseBase = null; }   // 1.5 kit ue_pause_vignette_r8
             if (quad) Destroy(quad);
             if (I == this) I = null;
         }
@@ -300,6 +303,12 @@ namespace OpenZ
             bool post = cd != null && cd.renderPostProcessing;
             var stack = cd != null && cd.volumeStack != null ? cd.volumeStack : VolumeManager.instance.stack;
             if (!post || stack == null) { mat.SetVector(pGA, new Vector4(1f, 1f, 1f, 0f)); mat.SetVector(pV2, new Vector4(0.5f, 0.5f, 0f, 1f)); return; }
+            if (OzUePauseLook.Weight > 0f)
+            {
+                // back only the grade without it, so the pause's vignette and dim reach the floor (most of the screen) as in a level's pause
+                pauseBase ??= VolumeManager.instance.CreateStack();
+                if (OzUePauseLook.BaseGrade(pauseBase, cd.volumeTrigger ? cd.volumeTrigger : cam.transform, cd.volumeLayerMask)) stack = pauseBase;
+            }
             var ca = stack.GetComponent<ColorAdjustments>(); var wb = stack.GetComponent<WhiteBalance>(); var tm = stack.GetComponent<Tonemapping>(); var vg = stack.GetComponent<Vignette>();
             float expo = ca != null ? Mathf.Pow(2f, ca.postExposure.value) : 1f;
             float con = ca != null ? ca.contrast.value / 100f + 1f : 1f, sat = ca != null ? ca.saturation.value / 100f + 1f : 1f;

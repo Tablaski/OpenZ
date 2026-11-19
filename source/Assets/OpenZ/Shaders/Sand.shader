@@ -95,6 +95,7 @@ Shader "OpenZ/Sand"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "OpenZNightV2.hlsl"                                            // night_v2: day-sky reflection fix
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
+            #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
             TEXTURE2D(_GroundSdf); SAMPLER(sampler_GroundSdf);
             TEXTURE2D(_DetailTex); SAMPLER(sampler_DetailTex);
@@ -340,6 +341,7 @@ Shader "OpenZ/Sand"
                 Light ml = GetMainLight(inputData.shadowCoord);
                 half ndl = saturate(dot(inputData.normalWS, ml.direction));
                 c.rgb += albedo * _ShadowTint.rgb * ml.color * ndl * (1 - ml.shadowAttenuation) * _ShadowLift;
+                c.rgb += OZCloudSun(i.positionWS, albedo * ml.color * (ndl * ml.shadowAttenuation), _ShadowTint.rgb * _ShadowLift);   // cloud_shadows (1.5): a cloud takes its share of the direct sun and gives back the same share of the warm bounce (OzCloudShadow.hlsl; 0 = no cloud)
                 // fog factor per pixel (the interpolated vertex factor darkened the whole floor on this 40k-triangle ground mesh)
                 if (_OzWetness > 0.001)                                                      // weather_l17_v1: wet sheen, puddle reflections, drop ripples
                     c.rgb += OZWetSheen(i.positionWS, (half3)inputData.normalWS, (half3)inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, inputData.shadowCoord, ozWetP, ozPxm);

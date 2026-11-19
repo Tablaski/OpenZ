@@ -31,7 +31,7 @@ Shader "OpenZ/WaterV4Wet"
             Name "ShoreWet"
             Tags { "LightMode"="UniversalForward" }
 
-            Blend DstColor Zero
+            Blend Zero SrcColor    // = dst x src; 1.5 FAILS A39: "DstColor Zero" drew as a light hard-edged patch with MSAA + HDR on (see OpenZScorchDecal.shader)
             ZWrite Off
             ZTest LEqual
             Cull Off

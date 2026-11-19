@@ -67,7 +67,7 @@ namespace OpenZ
         // ------------------------------------------------------------------ the hooks' reads
         static bool on;
         /// <summary>The view is on (View/OzBindings.cs: every bound action reads as not pressed).</summary>
-        public static bool On => on && I;
+        public static bool On => (on && I) || OzFpsFeel.GlideOutNow;                                   // 1.5 fps_feel: also while the camera glides out (the RTS camera, the bound keys, Esc and the clicks wait those 0.75 s; View/OzFpsFeel.cs)
         /// <summary>View/RtsCamera.cs Update: the RTS camera leaves the camera's pose, the cursor and its keys alone.</summary>
         public static bool HoldsCamera => On;
         /// <summary>UI/OpenZPauseMenu.cs: Esc belongs to the view (while it is on, and on the frame an Esc left it).</summary>
@@ -85,7 +85,7 @@ namespace OpenZ
         /// <summary>fps_view_sky (2b): the view holds this unit view now. View/VehicleLights.cs does not draw its lamp glows and haze cones while the
         /// eye sits in them (the halo billboards are pulled toward the camera, so from the hatch one filled the screen white), View/VeteranMarks.cs
         /// holds its promotion pop while the view is on. False always with the view off.</summary>
-        public static bool Holds(UnitView v) => on && I && v && I.view == v;
+        public static bool Holds(UnitView v) => OzFpsFeel.LampHold(v, on && I && v && I.view == v);   // 1.5 fps_feel: during a glide its lamp glows are held only near the eye (View/OzFpsFeel.cs)
 
         // ------------------------------------------------------------------ fps_view_sky (2c): left click fires, like a first-person game
         /// <summary>Left click (held: again every <see cref="FireRetarget"/> s when the centre points at another target): the target under the view's
@@ -177,6 +177,7 @@ namespace OpenZ
         static readonly List<Renderer> rscan = new List<Renderer>();
         bool hooked; int heldModel, lastGivenBack;
         float yaw, pitch, enterAt, shake; Vector3 eye, lastPos; bool eyeInit;
+        float lagYaw, lagPitch;   // 1.5 fps_look_smooth: how far the drawn look trails the mouse's look (deg, unwrapped; eased to exactly 0, View/OzFpsLook.cs)
         enum EyeKind { Head, Hatch, Seat, Top }
         EyeKind eyeKind; Transform eyeT; float topUp;
         GameObject gun; Transform gunPivot; Quaternion gunRot; Vector3 gunGrip, gunDir, gunAxis, gripLocal; float lastFire, kick, gunScale; int gunParts;
@@ -189,6 +190,9 @@ namespace OpenZ
         public UnitView View => view;
         public float Yaw => yaw;
         public float Pitch => pitch;
+        /// <summary>1.5 fps_look_smooth: the look as drawn (the camera, the crosshair, the fire pick, the walk): Yaw / Pitch less the eased lag.</summary>
+        public float LookYaw => Mathf.Repeat(yaw - lagYaw + 180f, 360f) - 180f;
+        public float LookPitch => pitch - lagPitch;
         /// <summary>Renderers of the unit held off in the last picture (fps_view_fix (c): only while the camera draws); renderers of the gun copy;
         /// what the gun search found ("" = a gun).</summary>
         public int HiddenCount => heldModel;
@@ -251,7 +255,7 @@ namespace OpenZ
             var hh = OpenZHud.I; if (hh && hh.Rally && hh.Rally.Armed) return "the rally tool is armed";
             if (p.Selection.Count != 1) return p.Selection.Count == 0 ? "nothing selected" : p.Selection.Count + " units selected (one only)";
             u = p.Selection[0];
-            if (u == null || u.Owner != gm.player) return "not an own unit";
+            if (u == null || !OzFpsUe.Mine(u, gm.player)) return "not an own unit";   // 1.5 fps_in_ue: either team in the Unit editor (the player orders both there; View/OzFpsUe.cs), the player's own in a level as before
             if (!Sees(u)) return (u.Type ?? "?") + " cannot be looked out of (a robot, an own crewed vehicle or gun only)";
             if (u.Destroyed || u.KillAt >= 0 || w.Get(u.Id) != u) return "the unit is not on the map";
             if (!gm.Views.TryGetValue(u.Id, out v) || !v || !v.gameObject.activeInHierarchy || v.Dying) return "the unit has no view";
@@ -259,7 +263,7 @@ namespace OpenZ
         }
 
         /// <summary>A unit that can see: a robot, or an own vehicle or gun with its crew (never the shuttle, never a fort's roof defender).</summary>
-        static bool Sees(ZObject u) => !u.IsFortDefender && (u.Kind == ZKind.Robot || ((u.Kind == ZKind.Vehicle || u.Kind == ZKind.Cannon) && !u.IsShuttle && u.Drivers.Count > 0));
+        static bool Sees(ZObject u) => !u.IsFortDefender && (u.Kind == ZKind.Robot || ((u.Kind == ZKind.Vehicle || u.Kind == ZKind.Cannon) && !u.IsShuttle && u.Drivers.Count > 0)) || OzFpsShuttleView.Sees(u);   // 1.5 fps_shuttle_badges: an own crewed shuttle too (View/OzFpsShuttleView.cs)
 
         /// <summary>A moment the view never runs in (null = none).</summary>
         static string Busy(ZWorld w)
@@ -268,7 +272,7 @@ namespace OpenZ
             var h = OpenZHud.I;
             if (h && h.Pause && h.Pause.IsOpen) return "the pause menu is open";
             if (h && h.Modal) return "a menu owns the screen";
-            if (OzUeHooks.Active) return "the Unit editor";
+            string ue = OzFpsUe.Busy(); if (ue != null) return ue;   // 1.5 fps_in_ue: the Unit editor is no longer refused whole (the cause of "Alt+F does nothing there"); only its placing, typing and dialogs
             if (OzConfirm.Blocks) return "a question is open";                                               // fix round 1: its Esc is the question's
             if (ZodBriefing.BriefingActive || OzBlueCameo.BriefingActive || CaptureKit.CineActive || (ZodFlyover.Live != null && ZodFlyover.Live.Active)) return "a scene has the camera";
             return null;
@@ -279,6 +283,7 @@ namespace OpenZ
         {
             pi = p; g = p.game; rts = p.cam; cam = rts.GetComponent<Camera>(); hud = OpenZHud.I; unit = u; view = v;
             fov0 = cam.fieldOfView; near0 = cam.nearClipPlane;
+            OzFpsFeel.Entering(this, cam, rts, ref fov0, ref near0);                                       // 1.5 fps_feel: the glide in starts from the RTS camera's pose (or turns a glide out round; then fov0 / near0 are the RTS camera's own)
             hudWas = hud && hud.hudVisible; hudPending = false;
             if (hudWas) hud.SetVisible(false);
             if (hud && hud.Help && hud.Help.IsOpen) { hud.Help.Toggle(false); HelpClosed++; }               // fix round 2: the CONTROLS HELP card is its own canvas (not hidden with the HUD): closed, with its own close sound
@@ -295,6 +300,9 @@ namespace OpenZ
             Vector3 f = barrelWorld; f.y = 0f;
             if (u.Kind == ZKind.Robot || f.sqrMagnitude < 1e-4f) { f = -v.transform.forward; f.y = 0f; }      // every unit model faces its root's -z
             yaw = f.sqrMagnitude > 1e-6f ? Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg : 0f; pitch = -4f;
+            lagYaw = lagPitch = 0f;   // 1.5 fps_look_smooth: the view goes in with no lag (drawn = the look)
+            if (OzFpsShuttleView.Flies(u)) yaw = OzFpsShuttleView.NoseYaw(u, v, yaw);                         // 1.5 fps_shuttle_badges: the shuttle's first look is along its nose (its model faces its root's +z)
+            yaw = OzFpsFeel.ApproachYaw(cam, v, u, yaw);                                                     // 1.5 N15: a glide in looks along the way in (View/OzFpsFeel.AimIn.cs)
             eyeInit = false; enterAt = Time.unscaledTime; held = false; moveDir = sentKeys = Vector2.zero; sentAt = -10f;
             shake = 0f; rts.TakeShake(); lastFire = v.LastFireAt; kick = 0f; lastPos = v.transform.position;
             on = true; I = this; Enters++; EnteredFrame = Time.frameCount;
@@ -313,7 +321,7 @@ namespace OpenZ
         {
             if (!on || I != this) return;
             on = false; LeftFrame = Time.frameCount; if (esc) EscFrame = Time.frameCount; Leaves++; LastLeave = why;
-            bool alive = unit != null && !unit.Destroyed && unit.KillAt < 0 && g && g.World != null && g.World.Get(unit.Id) == unit && unit.Owner == g.player;
+            bool alive = unit != null && !unit.Destroyed && unit.KillAt < 0 && g && g.World != null && g.World.Get(unit.Id) == unit && OzFpsUe.Mine(unit, g.player);   // 1.5 fps_in_ue: a blue unit's walk stops too
             if (held && alive && pi && pi.FpsStop(unit)) StopOrders++;                                        // a walk in progress ends with the view
             held = false;
             ShowModel(); DropGun();
@@ -325,6 +333,7 @@ namespace OpenZ
             // or another script set the camera's follow while the view was on: follow, focus and zoom stay theirs (the glide and the orbit go on; the
             // ending took its start from the focus the view kept on the unit). Else back on the unit, the follow cleared.
             bool keepCam = EndingOwnsCamera(); LastLeaveKeptCamera = keepCam;
+            OzFpsFeel.Leaving(why, quiet);                                                                 // 1.5 fps_feel: a leave by the player or the unit glides out; the game's own leaves (and one whose camera the ending keeps) stay instant
             if (rts)
             {
                 rts.UeStopFly();
@@ -358,6 +367,7 @@ namespace OpenZ
         void OnDestroy()
         {
             GiveBack(); Hook(false);                                                                         // fps_view_fix (c): never a renderer left held, never a callback left
+            OzFpsBadgeHold.Release();                                                                        // 1.5 fps_shuttle_badges: and here
             if (I != this) return;
             if (on) { on = false; LeftFrame = Time.frameCount; ShowModel(); FogUnder(null); Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
             I = null;
@@ -369,7 +379,7 @@ namespace OpenZ
             if (w == null || !pi || !rts || !cam) return "the level went";
             if (unit == null || unit.Destroyed) return "the unit died";
             if (unit.KillAt >= 0 || w.Get(unit.Id) != unit) return "the unit got in (it left the map)";
-            if (unit.Owner != g.player || (unit.Kind != ZKind.Robot && unit.Drivers.Count == 0)) return "the crew got out";
+            if (!OzFpsUe.Mine(unit, g.player) || (unit.Kind != ZKind.Robot && unit.Drivers.Count == 0)) return "the crew got out";   // 1.5 fps_in_ue: either team in the Unit editor
             if (!view || !view.gameObject.activeInHierarchy || view.Dying) return "the unit died";
             if (!pi.Selection.Contains(unit)) return "the selection changed";
             string busy = Busy(w); if (busy != null) return busy;
@@ -382,6 +392,7 @@ namespace OpenZ
         {
             if (!on || I != this)
             {
+                OzFpsBadgeHold.ReleaseWhenOut();                                                            // 1.5 fps_shuttle_badges: once the view is over, the blocks it made are taken off again
                 if (hudPending && hud && !(hud.Pause && hud.Pause.IsOpen))
                 {
                     hudPending = false;
@@ -407,8 +418,9 @@ namespace OpenZ
                 if (Cursor.lockState != CursorLockMode.Locked) Cursor.lockState = CursorLockMode.Locked;
                 if (Cursor.visible) Cursor.visible = false;
                 var m = Mouse.current;
-                if (m != null && Time.frameCount - EnteredFrame > 1 && Time.frameCount != lookSkipFrame) LookBy(m.delta.ReadValue());   // not the frame the cursor was locked (its jump to the centre)
+                if (m != null && Time.frameCount - EnteredFrame > 1 && Time.frameCount != lookSkipFrame) MouseLook(m.delta.ReadValue());   // not the frame the cursor was locked (its jump to the centre)   // 1.5 fps_look_smooth: the mouse's look, drawn eased
             }
+            if (OzFpsFortButton.Holds(unit)) { held = false; moveDir = sentKeys = Vector2.zero; lastPos = view.transform.position; return; }
             Walk(kb);
             if (Application.isFocused && Time.frameCount - EnteredFrame > 1) Fire(Mouse.current);         // fps_view_sky (2c): left click fires
             lastPos = view.transform.position;
@@ -418,6 +430,7 @@ namespace OpenZ
         void Fire(Mouse m)
         {
             if (m == null || unit == null || !pi || !cam) return;
+            if (OzFpsShuttleView.Flies(unit)) return;                                                      // 1.5 fps_shuttle_badges: the shuttle has no weapon (a click means nothing to it)
             bool down = m.leftButton.wasPressedThisFrame;
             if (!m.leftButton.isPressed) { fireSentId = -1; return; }
             if (down) FireClicks++;
@@ -446,6 +459,17 @@ namespace OpenZ
             float k = RtsCamera.FreeLookSpeed;
             yaw = Mathf.Repeat(yaw + px.x * k + 180f, 360f) - 180f;
             pitch = Mathf.Clamp(pitch + px.y * k, PitchMin, PitchMax);
+            lagYaw = lagPitch = 0f;   // 1.5 fps_look_smooth: a look set by code (the Play checks, the glide's turn round) is drawn at once, as before
+        }
+
+        /// <summary>1.5 fps_look_smooth: the mouse's look. The look (yaw, pitch: the aim's target) moves at once as LookBy moves it; the drawn
+        /// look trails it by the lag, which PlaceCamera eases off (View/OzFpsLook.cs: exp(-dt / 40 ms), no overshoot, ends exactly on the look).</summary>
+        void MouseLook(Vector2 px)
+        {
+            float k = RtsCamera.FreeLookSpeed, p0 = pitch;
+            yaw = Mathf.Repeat(yaw + px.x * k + 180f, 360f) - 180f;
+            pitch = Mathf.Clamp(pitch + px.y * k, PitchMin, PitchMax);
+            OzFpsLook.Trail(ref lagYaw, ref lagPitch, px.x * k, pitch - p0);   // the yaw's travel unwrapped; the pitch's after the clamp
         }
 
         static bool Down(Keyboard kb, OzAction a)
@@ -472,11 +496,12 @@ namespace OpenZ
                 moveDir = sentKeys = Vector2.zero; return;
             }
             float now = Time.unscaledTime;
-            var f = Quaternion.Euler(0f, yaw, 0f) * new Vector3(d.x, 0f, d.y).normalized;                     // the wanted direction on the ground (world)
+            var f = Quaternion.Euler(0f, yaw - lagYaw, 0f) * new Vector3(d.x, 0f, d.y).normalized;                     // the wanted direction on the ground (world)   // 1.5 fps_look_smooth: along the drawn look
             var nd = new Vector2(f.x, f.z);
             int mx = Mathf.RoundToInt(rts.mapSizeMeters.x * 8f), my = Mathf.RoundToInt(rts.mapSizeMeters.y * 8f);   // 8 Zod px = 1 m (ZGame.PxToWorld)
             var to = new Vector2Int(Mathf.Clamp(Mathf.RoundToInt(unit.CenterX + f.x * StepPx), 12, Mathf.Max(12, mx - 12)),
                                     Mathf.Clamp(Mathf.RoundToInt(unit.CenterY - f.z * StepPx), 12, Mathf.Max(12, my - 12)));
+            if (OzFpsShuttleView.Flies(unit)) to = OzFpsShuttleView.Ahead(unit, f, mx, my);                // 1.5 fps_shuttle_badges: the shuttle's point is past its braking distance (it never plans its stop while a key is held)
             if (held)
             {
                 // fix round 3: every player move drops the unit's target (ZWorld.SendWaypoints, DV16) and its fire picks one up again only on the
@@ -484,18 +509,21 @@ namespace OpenZ
                 // go (at once), a turn of the wanted way past TurnDeg, the unit within NearPx of the point or its walk ended short of it (blocked,
                 // settled); those three at most every TurnReissue s and never to the same point again (the map's edge)
                 bool keys = d != sentKeys;
+                if (OzFpsFeel.SprintFlip(kb, unit)) keys = true;                                                // 1.5 fps_feel: Shift pressed or let go = a new order at once
                 if (now - heardAt >= 1f) { heardAt = now; AudioDirector.FpsWalkOrder(unit); }               // its walk stays heard between the orders (AudioDirector.WalkSoundHold 3.5 s; an order can be 2 - 5 s apart now)
                 if (!keys)
                 {
                     bool turned = Vector2.Angle(moveDir, nd) > TurnDeg;
                     int ex = unit.CenterX - sentTo.x, ey = unit.CenterY - sentTo.y;
                     bool near = ex * ex + ey * ey <= NearPx * NearPx, ended = unit.Waypoints.Count == 0;
+                    if (OzFpsShuttleView.Flies(unit)) { near = OzFpsShuttleView.Near(unit, sentTo); ended = false; }   // 1.5 fps_shuttle_badges: its next point once it is within its braking distance of this one (its waypoint list is always empty)
                     if (!turned && !near && !ended) return;                                                // straight on: the order under way holds
                     if (now - sentAt < TurnReissue) return;
                     if (!turned && (to - sentTo).sqrMagnitude < 36) return;                                // the same point: nothing new to say
                 }
             }
             held = true; moveDir = nd; sentKeys = d; sentAt = heardAt = now; sentTo = to;
+            if (OzFpsFeel.Sprint(kb, unit)) { if (pi.FpsSprint(unit, to.x, to.y)) MoveOrders++; else MoveRefused++; return; }   // 1.5 fps_feel: Shift held = the sprint move (DV178, Sim/ZObject.SprintOrder.cs)
             if (pi.FpsMove(unit, to.x, to.y)) MoveOrders++; else MoveRefused++;
         }
 
@@ -507,6 +535,7 @@ namespace OpenZ
             float dt = Time.unscaledDeltaTime;
             var raw = EyePoint();
             eye = snap || !eyeInit ? raw : Vector3.Lerp(eye, raw, 1f - Mathf.Exp(-dt / EyeTau));                   // smooth: the hull's bounce and the head's sway eased, no lag to speak of
+            if (OzFpsShuttleView.Flies(unit)) eye = raw;                                                    // 1.5 fps_shuttle_badges: the ship's pose is eased already (an eased eye would trail into the nose at speed)
             eyeInit = true;
             shake = Mathf.Max(shake, rts.TakeShake());                                                         // the game's own hit shakes (gated as always), small at the eye
             Vector3 j = Vector3.zero;
@@ -517,11 +546,13 @@ namespace OpenZ
                 shake *= Mathf.Exp(-dt * 7f);
             }
             else shake = 0f;
-            transform.SetPositionAndRotation(eye + j, Quaternion.Euler(-pitch, yaw, 0f));
+            OzFpsLook.Ease(ref lagYaw, ref lagPitch, dt, snap);   // 1.5 fps_look_smooth: lag *= exp(-dt / Tau) on unscaled time (the first pose: none)
+            transform.SetPositionAndRotation(eye + j, Quaternion.Euler(-(pitch - lagPitch), yaw - lagYaw, 0f));   // 1.5 fps_look_smooth: the drawn look (the crosshair, the fire pick and the gun copy follow the camera)
             FogUnder(cam);                                                                                   // the fog's wall stays on while the view is (cheap: one global)
             var vp = view.transform.position; rts.focus = new Vector3(vp.x, 0f, vp.z);                      // what reads the RTS focus (the listener, weather, the outskirts' scenery) follows the unit
             LastFocusSet = rts.focus; LastFocusFrame = Time.frameCount;                                     // fps_view_fix: the check compares the focus with this (never scrolled by the keys)
             HoldHidden();
+            OzFpsBadgeHold.Mark(unit, view, figs, unitFigs);                                                // 1.5 fps_shuttle_badges: its parts the GPU Resident Drawer draws (the rank chevrons) get a block, so the hold below takes them too
             GunStep(dt);
         }
 
@@ -560,6 +591,7 @@ namespace OpenZ
         Vector3 EyePoint()
         {
             var vt = view.transform; float s = Mathf.Max(0.2f, vt.lossyScale.y);
+            if (OzFpsShuttleView.Eye(unit, view, out var shuttleEye)) { EyeBase = shuttleEye; return shuttleEye; }   // 1.5 fps_shuttle_badges: the shuttle's eye, slightly in front of its nose (View/OzFpsShuttleView.cs)
             if (!eyeT) eyeT = vt;
             Vector3 front = -vt.forward; front.y = 0f; front = front.sqrMagnitude > 1e-6f ? front.normalized : Vector3.forward;
             Vector3 p;
@@ -628,10 +660,12 @@ namespace OpenZ
             foreignOff.Clear();
             int own = 0, crew = 0;
             rscan.Clear(); view.GetComponentsInChildren(true, rscan);                                        // every picture: a part added this frame is held too
+            if (OzFpsFeel.OwnDrawn) rscan.Clear();                                                          // 1.5 fps_feel: while the camera glides the unit's own model is drawn (faded by View/OzFpsFeel.cs)
             for (int i = 0; i < rscan.Count; i++) if (Model(rscan[i]) && Take(rscan[i])) own++;
             foreach (var kv in figs)
             {
                 if (!kv.Key) continue;
+                if (OzFpsFeel.Fades(kv.Key, crewT)) continue;                                                   // 1.5 fps_feel: a unit or figure by the eye fades (View/OzFpsFeel.cs) instead of being held off in one frame
                 int n = 0; var l = kv.Value;
                 for (int i = 0; i < l.Count; i++) if (Take(l[i])) n++;
                 if (kv.Key == crewT) crew = n;
@@ -829,6 +863,7 @@ namespace OpenZ
         {
             barrelWorld = Vector3.zero; DropGun(); GunWhy = ""; GunRootName = ""; GunKept = ""; GunDropped = "";
             var root = GunRoot();
+            if (OzFpsShuttleView.Flies(unit)) root = null;                                                  // 1.5 fps_shuttle_badges: the shuttle has no gun to copy
             if (!root) { GunWhy = "no gun part in the model"; return; }
             GunRootName = root.name;
             var rs = new List<MeshRenderer>(Solid(root));
@@ -1005,6 +1040,7 @@ namespace OpenZ
         void OnGUI()
         {
             if (!on || I != this || Event.current.type != EventType.Repaint) return;
+            if (OzFpsFeel.HideGui) return;                                                                   // 1.5 fps_feel: no crosshair while the camera is still high in the glide in
             GuiFrames++;
             if (!white) { white = new Texture2D(1, 1) { hideFlags = HideFlags.HideAndDontSave }; white.SetPixel(0, 0, Color.white); white.Apply(); }
             float k = Mathf.Max(0.75f, Screen.height / 1080f), cx = Mathf.Round(Screen.width * 0.5f), cy = Mathf.Round(Screen.height * 0.5f);

@@ -1,4 +1,4 @@
-# Tank crippling and shortest hull turns (0.2.7)
+# Tank crippling and shortest hull turns
 
 Unit Editor > Dynamics > Tanks > CRIPPLING edits the selected family or tank
 type live. SAVE AS stores a named profile; the host selects that profile under
@@ -9,17 +9,15 @@ match, including restarts. Per-type exceptions take priority over family values.
 
 The bands use the existing Unit Editor hover-card boundaries:
 
-| Band | Remaining HP | Default retained speed | Extra acceleration | Shake | Rear smoke | Oil width / lifetime |
-| --- | --- | --- | --- | --- | --- | --- |
-| Green | >50% | 100% | 0 s | 0 degrees | 0 puffs/s | 0 m / 20 s |
-| Yellow | >25% through 50% | 90% | 0.35 s | 0.8 degrees | 3 puffs/s | 0.16 m / 20 s |
-| Red | <=25% | 80% | 0.8 s | 1.8 degrees | 6 puffs/s | 0.26 m / 30 s |
+| Band | Remaining HP | Default retained speed | Extra acceleration | Profile shake | Extra oil width / lifetime |
+| --- | --- | --- | --- | --- | --- |
+| Green | >50% | 100% | 0 s | 0 degrees | 0 m / 20 s |
+| Yellow | >25% through 50% | 90% | 0.35 s | 0.8 degrees | 0.16 m / 20 s |
+| Red | <=25% | 80% | 0.8 s | 1.8 degrees | 0.26 m / 30 s |
 
-Custom damage movement and trails defaults to OFF. Turning it off retains the
-native damage-speed rules (their 70%/40% thresholds are independent) and original
-smoke/fire effects. The main game overlay still uses its upstream low-HP display;
-the three band names correspond to the editor hover card. Original damage/fire
-smoke is preserved when the new rear smoke is enabled or disabled.
+Custom damage movement defaults to OFF and has its own health bands. OpenZ
+continues to manage smoke and fire. Saved profiles retain their legacy smoke
+values for format compatibility.
 
 Retained speed replaces the native damage speed factor, retains terrain/boost
 factors and is effectively clamped to 0-100%. Zero stops real travel without
@@ -28,11 +26,12 @@ with physical limits ON it adds to the configured acceleration time. Braking is
 independent. Visual effects do not change combat positions or consume simulation
 random numbers. Shake is measured in degrees and respects reduced motion.
 
-Zero shake, smoke rate or oil width disables that effect. Oil trails start at
-the hull rear only while moving, stop when stationary or held, and fade linearly
-over their duration in simulation seconds. Pause freezes their fade. The scene
-owns a pool of at most 512 segments and recycles the oldest marks under load.
-Teleport gaps are discarded. Marks do not affect friction or damage.
+Damaged Tank Shake and Damaged Tank Oil Trails are independent options. Both
+start at 30% remaining health and intensify as damage increases. The separate
+profile shake still applies in motion. Oil marks are emitted from the rear
+while moving, and the selected profile can add to their width and lifetime.
+Pause freezes the fade. The scene recycles the oldest marks from its pool
+of at most 4,096 segments. Marks do not affect friction or damage.
 
 ## Impact penalties
 

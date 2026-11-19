@@ -73,7 +73,7 @@ namespace OpenZ.Sim
         /// <summary>DV75: vehicle types whose crew rests in the hatch. light / medium / heavy are Zod's lid tanks and can be sniped
         /// while resting. The crane only shows its driver (Zod never lets him be sniped; unchanged). The missile launcher is left
         /// out: its roof hatch is a boarding frame and a figure standing in it is cut by that frame.</summary>
-        public static readonly HashSet<string> IdleRestTypes = new HashSet<string> { "light", "medium", ZMTank.Type, "heavy", "crane" };   // DV145 the medium tank (Sim/ZMTank.cs)
+        public static readonly HashSet<string> IdleRestTypes = new HashSet<string> { "light", "medium", ZMTank.Type, "heavy", "crane", ZBigTanks.Mammoth, ZBigTanks.Bizon };   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>DV75: seconds of calm before a crew rests; each vehicle adds its own 0..IdleRestSpreadSeconds (from its id).</summary>
         public static double IdleRestSeconds = 25.0, IdleRestSpreadSeconds = 8.0;
         /// <summary>DV75: seconds between an enemy waking a resting crew (seen, in range, a stun) and the end of the rest: long

@@ -1,1 +1,1 @@
-PASS 61 AI maps; 1580 source starting-unit records; original types, ownership and positions; duel rule validation, starting-army application, scenes, preview videos and fallback stills.
+PASS 60 AI maps; 1560 source starting-unit records; original types, ownership and positions; duel rule validation, starting-army application, scenes, preview videos and fallback stills.

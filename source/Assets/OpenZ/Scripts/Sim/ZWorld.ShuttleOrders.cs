@@ -105,6 +105,7 @@ namespace OpenZ.Sim
                 var land = ShuttleLandingMove(kv.Value);                                                       // DV125: a route's LAST move (its landing); one point: the first move, as before (Sim/ZWorld.ShuttleQueue.cs)
                 if (land.HasValue && ShuttleNeverLands(land.Value.x, land.Value.y, o, out string why))
                 {
+                    if (ShuttleNearestRedirect(o, kv.Value, land.Value, why)) continue;                        // 1.5 DV190 (kit shuttle_nearest_landing): the nearest place where it can land instead (Sim/ZWorld.ShuttleNearestLanding.cs)
                     (drop ??= new List<ZObject>()).Add(o);
                     o.ShuttleNoLandOrders++; ShuttleOrdersNoLand++; ShuttleOrdersNoLandWhy = why;
                 }

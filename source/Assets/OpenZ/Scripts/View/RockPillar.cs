@@ -45,7 +45,7 @@ namespace OpenZ
             if (pillar) pillar.SetActive(false);
             if (damaged) damaged.SetActive(true);
             var p = transform.position;
-            FxManager.I?.DemolitionDust(p, Random.Range(1.2f, 1.6f), 1.6f, 0.3f);
+            PillarDust(p, Random.Range(1.2f, 1.6f), 1.6f, 0.3f);                                 // 1.5 quick fix 14d: soft lit dust (was FxManager.DemolitionDust)
             Throw(p + Vector3.up * 2.5f, Random.Range(2, 5), Random.Range(0.55f, 0.85f), null, 1f, 0f, Random.Range(0.8f, 1.3f));
             if (AudioDirector.Has("dst_rock_crumble_medium")) AudioDirector.Fire("dst_rock_crumble_medium", p + Vector3.up * 2f, simId);
             else CombatAudio.I?.Play("rock", p, 0.55f, 0.08f, -1, "v3-rock-break-a", "v3-rock-break-b");
@@ -68,9 +68,9 @@ namespace OpenZ
             if (delay > 0f) yield return new WaitForSeconds(delay);
             var p = transform.position;
             if (rubble) rubble.SetActive(false);
-            if (wasIntact) FxManager.I?.DemolitionDust(p, 1.4f, 1.6f, 0.3f);
+            if (wasIntact) PillarDust(p, 1.4f, 1.6f, 0.3f);                                     // 1.5 quick fix 14d
             FxManager.I?.Explosion(p + Vector3.up * 0.6f, Random.Range(0.5f, 0.7f));
-            FxManager.I?.DemolitionDust(p, Random.Range(2.0f, 2.8f), Random.Range(2.2f, 3.0f), Random.Range(0.4f, 0.6f));
+            PillarDust(p, Random.Range(2.0f, 2.8f), Random.Range(2.2f, 3.0f), Random.Range(0.4f, 0.6f));   // 1.5 quick fix 14d
             ScorchDecals.Add(p, Random.Range(2.0f, 2.8f), ScorchKind.Explosion);
             if (AudioDirector.Has("dst_rock_crash_large")) AudioDirector.Fire("dst_rock_crash_large", p + Vector3.up * 2f, simId, Random.Range(0.85f, 1.05f), Random.Range(0.92f, 1.08f));
             else CombatAudio.I?.Play("rock", p, 0.9f, 0.05f, -1, "v3-rock-break-a", "v3-rock-break-b");
@@ -101,6 +101,31 @@ namespace OpenZ
             if (pillar) pillar.SetActive(false);
             if (damaged) damaged.SetActive(false);
             Throw(p + Vector3.up * 0.6f, Random.Range(4, 9), Random.Range(0.25f, 0.45f), blast, Random.Range(0.26f, 0.38f), Random.Range(14f, 26f), Random.Range(0.8f, 1.3f));   // loose stones
+        }
+
+        /// <summary>1.5 quick fix 14d (gate A14, the L02 smoke re-take:
+        /// unlit "dust" puffs; 24 + 8 of them at the cliff foot as the duel's shells crumbled the pillars there, smoke_diag5/dust_emits.txt;
+        /// hiding FxManager alone removes them, smoke_diag4). Now the same 8 puffs (places, throws, lives and sizes) go on the lit wake dust
+        /// channel that fixed A14 (OpenZFxPlayer m12_dust_wake: soft edge, sun-lit, the ground's own dust colour; the channel's size = OpenZFxPlayer.DemolitionDust's), so they read as a soft
+        /// haze. FxManager stays the fallback (no OpenZFxPlayer). <see cref="LitDust"/> false = as before (proof only).</summary>
+        public static bool LitDust = true; public static int LitDustClouds;
+        public static float LitDustAlpha = 0.5f;
+        static void PillarDust(Vector3 at, float width, float depth, float strength)
+        {
+            var z = OpenZFxPlayer.I;
+            if (!LitDust || !OpenZFxCatalog.WakeChannel || !z || !z.isActiveAndEnabled || !z.HasChannel(OpenZFxPlayer.WakeChannelName)) { FxManager.I?.DemolitionDust(at, width, depth, strength); return; }
+            var tm = TrackMarks.I;
+            var g = tm && tm.Surface != null ? tm.Surface.DustColor(at.x, at.z) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+            var c = Color.Lerp(g, new Color(0.9f, 0.86f, 0.8f), OpenZFxCatalog.WakePale); c.a = 1f;
+            float a0 = Random.value * 6.2832f;
+            for (int j = 0; j < 8; j++)
+            {   // FxManager.DemolitionDust's puffs (demolitionDust)
+                float a = j * 2.399f + a0;
+                var p = at + new Vector3(Mathf.Cos(a) * width * 0.42f, 1.0f + j % 3 * 0.3f, Mathf.Sin(a) * depth * 0.42f);
+                z.EmitChannel(OpenZFxPlayer.WakeChannelName, p, new Vector3(Mathf.Cos(a) * 1.3f, 0.65f + j % 3 * 0.12f, Mathf.Sin(a) * 1.3f), 2.8f + j * 0.1f,
+                              (5.2f + j % 3 * 1.1f) * strength * 2f, c, LitDustAlpha * OpenZFxCatalog.WakeAlphaK);   // try 2: the channels' size (x 2, as OpenZFxPlayer.DemolitionDust; x 0.5 = FxManager's scale read invisible inside the rock)
+            }
+            LitDustClouds++;
         }
 
         void Throw(Vector3 at, int n, float power, Vector3? blast = null, float scale = 1f, float lifeMin = 0f, float spread = 1f)

@@ -27,6 +27,17 @@ namespace OpenZ
     /// is off the ground the throttle never drops under 0.7. The parked ship's side wisp (OzShuttleExhaust) is off in flight.
     /// QUALITY: the particle rates are shared by the graphics preset (HIGH 1, MEDIUM 0.75, LOW 0.5); at most about 40 particles of
     /// the shared pools are alive; nothing is emitted off screen, while paused or with the effects player off.
+    /// nose, looking back over the ship, its own two flames filled the picture as two huge bright cones). The eye sits about 5 m in front
+    /// of the mouths; the view holds the ship's model renderers off in its pictures, but the cores, the halos and the shimmer are
+    /// Graphics.DrawMesh calls (no renderer: nothing the view or OzShuttleCamFade can hold) and the fire puffs are shared-pool particles.
+    /// Now, while the view holds this ship (<see cref="Held"/>: <see cref="OzFpsView.Holds"/>, the test the viewed vehicle's lamp glows
+    /// (VehicleLights) and the viewed big tank's parts (OzBigTanksFx.FpsHold) use: from the view's first frame, during the glide in once
+    /// the camera is 85 % of the way to the eye, during the glide out until it is 15 % of the way back), the jets draw no core, halo or
+    /// heat shimmer and emit no fire puff or flame streak at the mouths, and the kickflip draws none of its flare, trails or attitude
+    /// puffs (OzPlayableShuttle.Kickflip.cs, .KickTrails.cs). The nozzle throat glows are model parts the view holds off already. What
+    /// the jets do to the world stays as it was: the two thruster lights, the ground pool and the ground splash. Every other ship, and
+    /// this ship outside the view, is drawn exactly as before; the step the hold ends draws everything again. <see cref="EyeHold"/> off
+    /// = as before (a before / after look). Play check: OzShuttleViewJetsPlayCheck (menu OpenZ/V1.5).
     /// </summary>
     public sealed class OzShuttleJets
     {
@@ -50,6 +61,20 @@ namespace OpenZ
         /// near-ground share, the ground pool's strength and whether it was drawn.</summary>
         public static float LastCoreScale, LastCoreM, LastHaloM, LastLowK, LastPoolK;
         public static bool LastPoolOn;
+        /// <summary>1.5 shuttle_view_thrusters_r7: off = the first-person view's own ship draws its jets as before (a before / after look).</summary>
+        public static bool EyeHold = true;
+        /// <summary>shuttle_view_thrusters_r7 proof: steps a ship's jets were held by the view, and of them the steps with the mouths on the game
+        /// camera's screen and burning (the steps whose flames, halos, heat and fire were left out).</summary>
+        public static int EyeHeldSteps, EyeHeldOnScreen;
+        /// <summary>shuttle_view_thrusters_r7: the first-person view holds this ship's jets now (asked at the start of each step).</summary>
+        public bool Held { get; private set; }
+        /// <summary>shuttle_view_thrusters_r7 proof, this ship's last step: the flame, halo and heat draws plus the fire puffs and flame streaks
+        /// emitted at its mouths (the ground splash, the ground pool and the lights are not counted); whether its mouths were on the game
+        /// camera's screen with the jets burning and the effects player on (the step where they are drawn); the frame of that step.</summary>
+        public int LastDraws { get; private set; }
+        public bool LastOnScreen { get; private set; }
+        public int LastStepFrame { get; private set; } = -1;
+        UnitView eyeView;                                                                                    // shuttle_view_thrusters_r7: the ship's own unit view (the view's test)
 
         /// <summary>The metres of flame drawn under a mouth for a core scale (x the throttle) drawn drop m lower: the longer of the two cones.</summary>
         public static float CoreMetres(float scaleT, float drop = 0f) =>
@@ -98,6 +123,9 @@ namespace OpenZ
         public void Step(float dt, Sim.ZShuttleState state, float lift, bool airborne, float feetM, Vector3 vel)
         {
             age += dt;
+            if (!eyeView && root) eyeView = root.GetComponent<UnitView>();                                  // 1.5 shuttle_view_thrusters_r7: the view holds this ship's jets
+            Held = EyeHold && eyeView && OzFpsView.Holds(eyeView); LastStepFrame = Time.frameCount; LastDraws = 0; LastOnScreen = false;
+            if (Held) EyeHeldSteps++;
             float want;
             switch (state)
             {
@@ -165,20 +193,24 @@ namespace OpenZ
             if (!fx || !fx.isActiveAndEnabled || (game && game.paused)) return;
             if (!DetailKit.OnScreen(Camera.main, (mL + mR) * 0.5f, 0.2f)) return;
             float share = Share;
-            for (int s = 0; s < 2; s++)
+            LastOnScreen = true; if (Held) EyeHeldOnScreen++;
+            for (int s = 0; s < 2 && !Held; s++)                                                            // shuttle_view_thrusters_r7: no core, halo or heat while the first-person view holds this ship
             {
                 var m = s == 0 ? mL : mR;
                 fx.DrawExhaust(m + axis * drop, root.up, core * T, age);
                 fx.DrawExhaust(m + axis * (0.5f + drop), root.up, core * 0.7f * T, age + 0.37f);
                 fx.DrawHalo(m + axis * Mathf.Lerp(0.4f, HaloLowDrop, lowK), haloM, Halo, (night > 0.5f ? 0.7f : 1.0f) * Mathf.Lerp(1f, HaloLowGain, lowK));
+                LastDraws += 3;                                                                              // shuttle_view_thrusters_r7 proof: the two cores and the halo
                 if (shimmer && Camera.main)
                 {
                     var c = Camera.main; var sp = m + axis * 1.2f;
                     Graphics.DrawMesh(OpenZFortShockwave.Quad(), Matrix4x4.TRS(sp, Quaternion.LookRotation(sp - c.transform.position, c.transform.up), Vector3.one * ShimmerSize), shimmer, 0, null, 0, null, ShadowCastingMode.Off, false);
+                    LastDraws++;                                                                             // shuttle_view_thrusters_r7 proof: the heat shimmer
                 }
             }
             // fire puffs, flame streaks, the ground splash: rates x the preset's share x the throttle
-            acc0 += dt * FireRate * share * T; acc1 += dt * FlameRate * share * T;
+            if (!Held) { acc0 += dt * FireRate * share * T; acc1 += dt * FlameRate * share * T; }           // shuttle_view_thrusters_r7: no fire puffs or flame streaks at the mouths while held (the splash stays)
+            int emitted0 = Emitted;
             var gm = ZGame.I; float groundL = gm ? gm.GroundY(mL.x, mL.z) : 0f, groundR = gm ? gm.GroundY(mR.x, mR.z) : 0f;
             bool low = Mathf.Min(mL.y - groundL, mR.y - groundR) < SplashBelowM;
             if (low) acc2 += dt * SplashRate * share * T;
@@ -197,6 +229,7 @@ namespace OpenZ
                 acc1 -= 1f;
                 for (int s = 0; s < 2; s++) { var m = s == 0 ? mL : mR; fx.EmitChannel("m12_flame", m + axis * 0.2f, axis * 10f + vel, 0.10f, 0.3f, Fire, 1f); Emitted++; }
             }
+            LastDraws += Emitted - emitted0;                                                                 // shuttle_view_thrusters_r7 proof: this step's fire puffs and flame streaks
             while (acc2 >= 1f)
             {
                 acc2 -= 1f;

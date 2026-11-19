@@ -239,7 +239,7 @@ namespace OpenZ
             BuildObstacles();
             BuildShared();
             if (level == "L02") { if (eagles) SpawnEagles(); if (worms) SpawnWorms(); }
-            else if (level == "L17") { if (gulls) SpawnGulls(); }
+            else if (OzCity.Is(level)) { if (gulls) SpawnGulls(); }
             else if (level == "L07") { if (dragons) SpawnDragons(); }                                       // level 7: lava dragons in the place of Z's volcanic pterodactyls (AmbientLife.Dragons.cs)
             FxManager.Exploded += OnExplosion; subscribed = true;
             int e = 0, g = 0; foreach (var b in birds) if (b.eagle) e++; else g++;
@@ -260,7 +260,7 @@ namespace OpenZ
         {
             foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
                 if (r.name.StartsWith("WAT_") && r.gameObject.activeInHierarchy) waterY = Mathf.Max(waterY, r.bounds.min.y + 0.02f);   // as ZoneMarkers
-            if (float.IsNegativeInfinity(waterY)) waterY = level == "L17" ? -0.8f : -0.35f;                                           // level_terrain_data.py
+            if (float.IsNegativeInfinity(waterY)) waterY = OzCity.Is(level) ? -0.8f : -0.35f;                                           // level_terrain_data.py
         }
 
         void BuildObstacles()
@@ -1437,7 +1437,7 @@ namespace OpenZ
                 bitBatch[x.mat][bitN[x.mat]++] = Matrix4x4.TRS(x.p, x.r, s);
             }
             for (int m = 0; m < MatCount; m++)
-                if (bitN[m] > 0 && bitMats[m]) Graphics.DrawMeshInstanced(bitMesh, 0, bitMats[m], bitBatch[m], bitN[m], null, ShadowCastingMode.Off, true);
+                if (bitN[m] > 0 && bitMats[m] && SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(bitMesh, 0, bitMats[m], bitBatch[m], bitN[m], null, ShadowCastingMode.Off, true);
         }
 
         /// <summary>Unit octahedron stretched along Z: a feather (flat) or a goo drop (round) depending on the scale.</summary>

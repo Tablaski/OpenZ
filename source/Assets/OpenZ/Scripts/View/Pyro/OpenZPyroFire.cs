@@ -617,10 +617,11 @@ namespace OpenZ
             {
                 var b = burns[key];
                 if (!b.go || !b.go.activeInHierarchy || now >= b.until) { burns.Remove(key); continue; }
+                if (OzFireSource.Gone(b.go, b.view, b.structure, b.at)) { burns.Remove(key); continue; }   /* 1.5 N33 (kit fire_no_source_n33): a wreck that broke into its pieces (or was hidden) kept this fire for the rest of its 5 s on a hull that was no longer drawn: licks, light and smoke in the air where it WAS (View/OzFireSource.cs) */
                 if (b.touched && b.simId >= 0) { var so = ZGame.I && ZGame.I.World != null ? ZGame.I.World.Get(b.simId) : null; if (so == null || so.Destroyed) { burns.Remove(key); continue; } }
                 if (b.small)
                 {
-                    var sc = b.go.transform.TransformPoint(b.local); b.at = sc;
+                    var sc = b.go.transform.TransformPoint(b.local); if (!OzFireSource.Small(b.go, b.view, b.structure, ref sc)) { burns.Remove(key); continue; } /* 1.5 N33: on a hull a Bizon dented the spot stayed at the old deck height */ b.at = sc;
                     if (!OnScreen(sc, 0.08f)) continue;
                     float spread = b.structure ? 0.6f : 0.3f;
                     if (emitSticky && fill <= 0.9f)
@@ -642,7 +643,7 @@ namespace OpenZ
                 Vector3 spotW = default, spotN = default;
                 bool atSpot = b.structure && b.surf.LatestSpot(now, out spotW, out spotN);
                 if (atSpot) c = spotW + spotN * 0.6f;
-                b.at = c;
+                OzFireSource.Centre(b.go, b.view, b.structure || b.surf.Skinned, ref c); /* 1.5 N33 (kit fire_no_source_n33): the fire light, dark smoke and heat shimmer of a wreck started at the middle of the box of the model as it was built: in the air between the hull and a turret lying metres away */ b.at = c;
                 if (!OnScreen(c, 0.08f)) continue;
                 int n = b.structure && !b.surf.Whole ? Mathf.Min(6, b.licks * Mathf.Max(1, b.surf.SpotCount(now))) : b.licks;
                 if (fill > 0.9f) n = 1;
@@ -650,6 +651,7 @@ namespace OpenZ
                     for (int i = 0; i < n; i++)
                     {
                         if (!b.surf.Sample(camPos, GroundF, now, out var p, out var nrm, out var anchor)) continue;
+                        if (!OzFireSource.Lick(b.go, b.view, b.structure || b.surf.Skinned, ref p)) continue;   /* 1.5 N33 (kit fire_no_source_n33): the lick of a wreck or of a dented hull is sampled on the box of the whole model as it was built: with air where the turret, the gun or the dent is. Brought onto the nearest drawn part */
                         // spawn(p, n.x .16, .6 + max(0, n.y) .12, n.z .16, .85 s, .52, ground, boost .25, spin .5, soft 1, anchor)
                         pool.Spawn(p, new Vector3(nrm.x * 0.16f, 0.6f + Mathf.Max(0f, nrm.y) * 0.12f, nrm.z * 0.16f), 0.85f, 0.52f, G(p.x, p.z), G(p.x, p.z), b.structure || b.surf.Skinned ? 0.25f : hullBoost, 0.5f, 1f, anchor);
                     }

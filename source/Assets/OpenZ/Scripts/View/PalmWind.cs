@@ -113,7 +113,7 @@ namespace OpenZ
         {
             Vector4 fw = Shader.GetGlobalVector(FogWindId);                            // Atmosphere.cs: desert (3, 0, 1.5), city (1.2, 0, 0.6)
             var wv = new Vector2(fw.x, fw.z);
-            if (wv.sqrMagnitude < 0.01f) { var fb = game && game.level == "L17" ? fallbackWindCity : fallbackWind; wv = new Vector2(fb.x, fb.z); }
+            if (wv.sqrMagnitude < 0.01f) { var fb = game && OzCity.Is(game.level) ? fallbackWindCity : fallbackWind; wv = new Vector2(fb.x, fb.z); }
             float speed = Mathf.Max(wv.magnitude, 0.01f); windDir = wv / speed;
             Vector4 fl = Shader.GetGlobalVector(FlagWindId);                           // FlagView: (strength, gust, phase, time)
             if (fl.w > 0.01f) { windS = fl.x; gust = fl.y; }

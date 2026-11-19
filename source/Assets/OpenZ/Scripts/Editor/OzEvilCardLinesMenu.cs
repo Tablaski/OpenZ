@@ -39,8 +39,8 @@ namespace OpenZ.EditorTools
         };
         const string Sibling = "Assets/OpenZ/Resources/OpenZ/Zod/Voice/zod_select_L02.wav";
         /// <summary>How many lines each level of the battlefield screen has (the jungle three, the others two); seven in all.</summary>
-        static readonly Dictionary<string, int> Want = new Dictionary<string, int> { { "L02", 2 }, { "L07", 1 }, { "L16", 3 }, { "L17", 2 } };   // 1.3 item 30: level 7 one exchange
-        const int AllLines = 8;
+        static readonly Dictionary<string, int> Want = new Dictionary<string, int> { { "L02", 2 }, { "L07", 1 }, { "L16", 3 }, { "L17", 2 }, { "L18", 2 } };   // 1.3 item 30: level 7 one exchange
+        const int AllLines = 10;                                                                        // 1.5 level18_select_lines: 8 + level 18's two
         /// <summary>1.3 item 30: the levels the table serves, in menu order: the menu's levels, and level 7 in its place (after L02)
         /// before item 12 registers it.</summary>
         static IEnumerable<string> TableLevels() => OzLevelL07.MenuOrder();

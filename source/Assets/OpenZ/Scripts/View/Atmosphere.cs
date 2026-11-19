@@ -61,6 +61,7 @@ namespace OpenZ
         readonly List<Vector3> lamps = new List<Vector3>();
         readonly Vector4[] lampPos = new Vector4[16], lampCol = new Vector4[16];
         ParticleSystem sand; readonly List<ParticleSystem> devils = new List<ParticleSystem>(); readonly List<Vector3> devilDir = new List<Vector3>();
+        Gradient sandFade;                                                                           // 1.5 kit dust_devils_quality: kept for BuildDevils (the old devils when the lit ones cannot be drawn)
 
         [System.Serializable] class MapJson { public int width, height; public int[] classes; }
 
@@ -265,8 +266,17 @@ namespace OpenZ
             col.color = g;
             var r = go.GetComponent<ParticleSystemRenderer>(); r.renderMode = ParticleSystemRenderMode.Stretch; r.lengthScale = 14; r.velocityScale = 0.06f;
             r.sharedMaterial = ParticleMat(); r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            // two dust devils wandering across the map
-            for (int i = 0; i < 2; i++)
+            sandFade = g;
+            if (OzDustDevils.On) { OzDustDevils.Make(transform, ParticleMat()); return; }   // 1.5 kit dust_devils_quality: the devils as lit swirling dust (View/OzDustDevils.cs); the old ones below only if it cannot draw
+            BuildDevils(g);
+        }
+
+        /// <summary>The dust devils as before 1.5 kit dust_devils_quality (unlit soft round dots, 50 a second): with OzDustDevils off, or when its
+        /// lit dust material never came (OzDustDevils.Failed).</summary>
+        void BuildDevils(Gradient g)
+        {
+            // the dust devils wandering across the map: ONE since 1.5 kit one_dust_devil_r7 (OzDustDevils.Count, the lit devils' number; was two)
+            for (int i = 0; i < OzDustDevils.Count; i++)
             {
                 var d = new GameObject("DustDevil" + i) { hideFlags = HideFlags.DontSave }; d.transform.SetParent(transform, false);
                 d.transform.position = new Vector3(40 + 60 * i, 0, -60 - 50 * i);
@@ -287,6 +297,8 @@ namespace OpenZ
         void UpdateDesertParticles(float strength)
         {
             if (!Application.isPlaying) return;
+            OzDustDevils.Strength = strength;                                                          // 1.5 kit dust_devils_quality: the day / night amount for the lit devils
+            if (devils.Count == 0 && OzDustDevils.Failed && sandFade != null) BuildDevils(sandFade);  // 1.5 kit dust_devils_quality: the lit devils cannot be drawn: the old ones, as before
             var rts = Camera.main ? Camera.main.GetComponent<RtsCamera>() : null;
             if (sand)
             {

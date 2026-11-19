@@ -183,8 +183,11 @@ namespace OpenZ
 
         float Ground(float x, float z) => ZGame.I ? ZGame.I.GroundY(x, z) : 0f;
 
+        /// <summary>1.5 quick fix 14d (proof aid, never set by the game): told of every puff emitted (kind, where, scale).</summary>
+        public static System.Action<string, Vector3, float> EmitSeen;
         Slot Emit(string kind, Vector3 pos, Vector3 vel, float life, float scale = 1)
         {
+            EmitSeen?.Invoke(kind, pos, scale);
             if (!pools.TryGetValue(kind, out var p)) return null;
             Slot s = null;
             foreach (var c in p.slots) if (!c.active) { s = c; break; }
@@ -267,8 +270,11 @@ namespace OpenZ
             if (Random.value < 0.6f) Emit("dark", at + Vector3.up * 0.6f, new Vector3(0.3f, 1.6f, 0.2f), 2.2f, 0.45f * strength);
         }
 
+        /// <summary>1.5 quick fix 14d (proof aid, never set by the game): told of every Dust call (where, strength).</summary>
+        public static System.Action<Vector3, float> DustSeen;
         public void Dust(Vector3 at, float strength = 0.5f)
         {
+            DustSeen?.Invoke(at, strength);
             for (int j = 0; j < 5; j++) { float a = j * 2.399f; var s = Emit("dust", at, new Vector3(Mathf.Cos(a) * 1.7f, 0.4f + j * 0.08f, Mathf.Sin(a) * 1.7f), 1.1f + j * 0.11f, (0.4f + j * 0.09f) * strength); if (s != null) s.dustOpacity = 0.32f; }
         }
 
@@ -602,7 +608,7 @@ namespace OpenZ
         void Flush(Pool p, int count)
         {
             if (p.fading) p.mpb.SetFloatArray("_Alpha", p.alpha); else p.mpb.Clear();
-            Graphics.DrawMeshInstanced(p.mesh, 0, p.mat, p.mats, count, p.mpb, ShadowCastingMode.Off, false);
+            if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(p.mesh, 0, p.mat, p.mats, count, p.mpb, ShadowCastingMode.Off, false);   // no instancing (no graphics): skip, never throw
         }
 
         /// <summary>

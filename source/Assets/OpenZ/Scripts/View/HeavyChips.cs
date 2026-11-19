@@ -17,7 +17,7 @@ namespace OpenZ
         public static bool Enabled = true;
         /// <summary>Share of heavy hits on a vehicle / cannon that tear a real part off (the rest only chip).</summary>
         public static float PartChance = 0.6f;
-        static readonly HashSet<string> HeavyShooters = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
+        static readonly HashSet<string> HeavyShooters = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher", OzBigTanks.Mammoth, OzBigTanks.Bizon };   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
         public static int Hits { get; private set; }
         static uint n;
 
@@ -46,7 +46,16 @@ namespace OpenZ
             {
                 bool part = (seed & 0xFFFF) / 65536f < PartChance && RobotPopDeath.KnockOff(root, b.Id, at, from, seed);
                 var col = Color.Lerp(TeamColors.Of(b.Owner), new Color(0.45f, 0.45f, 0.45f), 0.3f);
-                RobotPopDeath.Chips(at, away, col, part ? 2 : 3 + (int)(seed >> 20) % 2, 1f, seed ^ 0x9E37u, false);
+                RobotPopDeath.HullChips(root, at, from, away, col, part ? 3 : 4 + (int)(seed >> 20) % 2, seed ^ 0x9E37u);   // 1.5 chips_white: pieces of the struck armour from the hit point, varied sizes (View/RobotPopDeath.HullChips.cs)
+                OpenZHitSparks.Burst(at, (from - at).sqrMagnitude > 1e-4f ? (from - at).normalized : Vector3.up, FxWeapon.Cannon, FxSurface.Metal, 0.9f, false);   // 1.5 kit chips_rts_read: sparks at the hit point (the hit's own sound plays)
+                var fxd = OpenZFxPlayer.I;                                                                  // 1.5 last_small_fixes: a little flipbook dust where the armour tore (was FxManager.Dust: 5 round white balls)
+                if (fxd && fxd.isActiveAndEnabled)
+                {
+                    var outd = from - at; outd.y = 0f; outd = outd.sqrMagnitude > 1e-4f ? outd.normalized : Vector3.zero;
+                    for (int i = 0; i < 2; i++)                                                         // 1.5 pass 4: 2 small dark puffs (3 x 0.8-1.1 m pale ones still read as round white balls)
+                        fxd.EmitChannel("m12_dust", at + Random.insideUnitSphere * 0.2f, outd * 0.6f + Random.insideUnitSphere * 0.3f + Vector3.up * 0.4f,
+                                        Random.Range(0.7f, 1.0f), Random.Range(0.35f, 0.5f), new Color(0.38f, 0.35f, 0.31f), 0.3f);   // life, size (was size 0.55-0.85, colour 0.5 grey, alpha 0.36)
+                }
                 if (!part) AudioDirector.Fire("dst_debris_metal", at, b.Id, 0.6f, 1.15f);                   // the chips tear off with a lighter clank
             }
             else

@@ -107,6 +107,7 @@ namespace OpenZ.Sim
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
         public bool DuelTankDamageEffects => duelRules?.TankDamageEffects == true;
+        public bool DuelTankDamageShake => duelRules?.TankDamageShake == true;
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAllowsUnit(string type) => duelRules != null ? duelRules.Allows(type) : soloAllowedUnits == null || soloAllowedUnits.Contains(type);
         /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>

@@ -340,7 +340,7 @@ namespace OpenZ
         string StepEvent()
         {
             var g = ZGame.I; if (!g) return "rob_step_sand";
-            if (g.level == "L17") return "rob_step_concrete";
+            if (OzCity.Is(g.level)) return "rob_step_concrete";
             if (g.level == "L16") { string jg = AudioDirector.JungleGround(Pos); return jg == "road" ? "rob_step_concrete" : jg == "mud" && AudioDirector.Has("rob_step_mud") ? "rob_step_mud" : AudioDirector.Has("rob_step_grass") ? "rob_step_grass" : "rob_step_sand"; }
             return OpenZFxPlayer.ClassAt(Pos) == ZClass.Road ? "rob_step_concrete" : "rob_step_sand";
         }

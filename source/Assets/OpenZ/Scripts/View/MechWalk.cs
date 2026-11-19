@@ -76,6 +76,9 @@ namespace OpenZ
         public System.Action<MechWalk, int, Vector3, Vector3> Planted;
         /// <summary>Plants so far (proof counter) and true while the world-space stepping drives this mech's footfalls.</summary>
         public int Plants { get; private set; }
+        /// <summary>1.5 level18_briefings: a mech of a briefing's stage (no unit of the rules): it walks the classic cycle, because the planted-foot walk reads the
+        /// rules' ground and the stage's deck is no ground of the rules. Never set on a unit of the game.</summary>
+        [System.NonSerialized] public bool StageClassic;
         public bool Drives => On && legs != null && legs.Length == 2 && init && isActiveAndEnabled;
         /// <summary>Slide probe (cm per stance, the planted ankle's ground drift from landing to lift-off), all mechs, both modes.
         /// </summary>
@@ -133,7 +136,7 @@ namespace OpenZ
             travel += step; age += dt;
             var game = ZGame.I;
             // (as before, a dying mech's legs ease back to rest) and Travel counted even with no legs found (LegacyEngineAudio's steps)
-            if (!On || !game) { Legacy(dt, step); init = false; return; }
+            if (!On || !game || StageClassic) { Legacy(dt, step); init = false; return; }               // 1.5 level18_briefings: a briefing stage's own mech walks the classic cycle (StageClassic)
             if (legs.Length == 0) return;
             if (view && view.Dying) return;                                                      // killed mid-step: the legs keep their last pose
             if (dt <= 0f) return;

@@ -15,7 +15,7 @@ namespace OpenZ.Sim
         {
             MapFile = "p02_bb_orig17.map",
             Uids = new[] { "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10" },
-            Tiles = new[] { new[] { 41, 98 }, new[] { 68, 98 }, new[] { 98, 10 }, new[] { 105, 54, 105, 55 }, new[] { 99, 42, 100, 42 }, new[] { 34, 26 }, new[] { 76, 26 }, new[] { 11, 10 }, new[] { 37, 26 }, new[] { 73, 26 } },
+            Tiles = new[] { new[] { 43, 98 }, new[] { 66, 98 }, new[] { 98, 10 }, new[] { 105, 54, 105, 55 }, new[] { 99, 42, 100, 42 }, new[] { 34, 26 }, new[] { 76, 26 }, new[] { 11, 10 }, new[] { 37, 26 }, new[] { 73, 26 } },
         };
         public static Set For(string mapFile)
         {

@@ -54,6 +54,7 @@ namespace OpenZ.EditorTools
             using var kc5Hold = ZWorld.Kc5RulesOff();                                         // DV110 / DV111: nor with the veteran heal and the fort sniper; their probes set them themselves
             using var heroSquadHold = ZWorld.HeroSquadsOff();                                   // DV108: nor with the level data's extra hero squads; the DV108 probe sets the switch itself
             using var craneSnipeHold = ZWorld.CraneSnipeOff();                                  // DV141: nor with the crane's driver snipable while up (a Play session leaves the switch on); the DV141 probe sets the switch itself
+            using var craneLandEndHold = ZWorld.CraneLandEndOff();                              // 1.5 DV206 (kit crane_deck_sound_r3): nor with the crane at a bridge's land end; its probe sets it itself
             using var customStatsHold = ZWorld.CustomStatsOff();                                // DV142: nor with a Custom level's rows (a Play session may leave the switch on); the DV142 probe sets it itself
             using var apcSnipeHold = ZWorld.ApcSnipeOff();                                      // DV143: nor with the APC's lone driver snipable while up (a Play session leaves the switch on); the DV143 probe sets the switch itself
             using var sideShuttlesHold = ZWorld.SideShuttlesOff();                              // DV144: nor with the box's ship for both sides and the second car-park ship (a Play session leaves the switch on); the DV144 probe sets the switch itself
@@ -66,6 +67,31 @@ namespace OpenZ.EditorTools
             using var towerAnswerHold = ZWorld.TowerAnswerOff();                                // DV153: nor with fort tower guns answered (a Play session leaves the switch on); the DV153 probe sets it itself
             using var fortAutoRushHold = ZWorld.FortAutoRushOff();                              // DV168: nor with the run in from near the gate (a Play session leaves the switch on); the DV168 probe sets it itself
             using var gatlingBuffHold = ZWorld.GatlingBuffOff();                                // DV170: nor with the gatling's longer reach and harder shot (a Play session leaves the switch on); the DV170 probe sets it itself
+            using var sprintOrderHold = ZWorld.SprintOrderOff();                                // DV178: nor with the sprint order (a Play session leaves the switch on); the DV178 probe sets it itself
+            using var fortTurretRofHold = ZWorld.FortTurretRofOff();                            // DV177: nor with the fort-mounted missile cannons' longer reload (a Play session leaves the switch on); the DV177 probe sets it itself
+            using var bigTanksHold = ZWorld.BigTanksOff();                                      // 1.5 DV180 / DV181: nor with the Mammoth's and the Bizon's own rules (a Play session leaves them on); their probe sets them itself
+            using var mammothRamHold = ZWorld.MammothRamOff();                                  // 1.5 DV182: nor with the Mammoth's ram (a Play session leaves it on); its probe sets it itself
+            using var bizonCrushHold = ZWorld.BizonCrushOff();                                  // 1.5 DV183 (kit bizon_crush): nor with the Bizon's crush (a Play session leaves it on); its probe sets it itself
+            using var ramDuelHold = ZWorld.RamDuelOff();                                        // 1.5 DV185 (kit big_tanks_fx): nor with the ram duel; its probe sets it itself
+            using var crushRollOffHold = ZWorld.CrushRollOffOff();                              // 1.5 DV187 (kit bizon_crush_climb): nor with the roll-off; its probe sets it itself
+            using var ramDebrisHold = ZWorld.RamDebrisOff();                                    // 1.5 DV186 (kit ram_throw_fix): nor with the ram's turret near its wreck; its probe sets it itself
+            using var ramPolishHold = ZWorld.RamPolishOff();                                    // 1.5 DV188 (kit ram_polish): its probe sets it itself
+            using var ramFirstHold = ZWorld.RamFirstOff();                                      // 1.5 DV189 (kit ram_first): its probe sets it itself
+            using var shuttleNearestHold = ZWorld.ShuttleNearestOff();                          // 1.5 DV190 (kit shuttle_nearest_landing): its probe sets it itself
+            using var missileBuildTimeHold = ZWorld.MissileTurretBuildTimeOff();                // 1.5 DV191 (kit missile_build_time): nor with the missile cannon's longer build; its probe sets it itself
+            using var ramChainHold = ZWorld.RamChainOff();   // 1.5 DV195 (kit ram_chain_n24_n25): its probe sets it itself
+            using var ramFightHold = ZWorld.RamFightOff();   // 1.5 DV196 (kit mammoth_ram_fight_n26c): its probe sets it itself
+            using var l18RulesHold = ZWorld.L18RulesOff(); using var botBigHold = ZWorld.BotBigTanksOff();   // 1.5 DV197-DV200 (kit level18_rules): their probe sets them itself
+            using var marchGrabHold = ZWorld.MarchGrabOff();   // 1.5 DV203 (kit march_grab_r3): its probe sets it itself
+            using var fortGunAnswerHold = ZWorld.FortGunAnswerOff();   // 1.5 DV204 (kit fort_gun_target_r3): its probe sets it itself
+            using var towerDrawnReachHold = ZWorld.TowerDrawnReachOff();   // 1.5 DV208 (kit tower_reach_dv208): its probe sets it itself
+            using var bridgeHealthHold = ZWorld.BridgeHealthOff();   // 1.5 DV207 (kit bridge_health_r3): its probe sets it itself
+            using var bridgeDeckAimHold = ZWorld.BridgeDeckAimOff();   // 1.5 DV210 (kit bridge_aim_further_r6): its probe sets it itself
+            using var bigTankUpHold = ZWorld.BigTankUpOff();   // 1.5 DV211 (kit bizon_mammoth_driver_up_r7): its probe sets it itself
+            using var smallArmsHold = ZWorld.SmallArmsOff();   // 1.5 DV212 (kit small_arms_balance_r8): its probe sets it itself
+            using var l18ContainersHold = ZWorld.L18ContainersOff();   // 1.5 DV201 (kit level18_containers): its probe sets it itself
+            using var lowPitsHold = ZWorld.LowPitsOff();   // 1.5 DV205 (kit pits_no_block_r3): its probe sets it itself
+            using var bigTankGroundHold = ZWorld.BigTankGroundOff();   // 1.5 DV192 / DV193 (kit sim_notes11): its probes set them themselves
             try { return CollectDeviationsBody(getInt); }
             finally { ZWorld.DriverFireDeviation = driverFire; }
         }
@@ -165,6 +191,7 @@ namespace OpenZ.EditorTools
             AddGrabCertainDeviation(list, getInt);                                            // version 1.1 (DV84 one unit takes it, for certain; OpenZParity.V11GrabCertain.cs)
             AddDriverFireDeviation(list, getInt);                                             // version 1.1 (DV87 hatch drivers fire their own weapon; OpenZParity.V11DriverFire.cs)
             AddCraneSnipeDeviation(list, getInt);                                             // 1.2 items 32-34 (DV141 the crane's driver can be sniped while he is up in the cab hatch, not while the crane works; OpenZParity.V12CraneSnipe.cs)
+            AddCraneLandEndDeviation(list);                                                   // 1.5 DV206 (kit crane_deck_sound_r3): a crane repairs a bridge from its land end (OpenZParity.V15CraneLandEnd.cs)
             AddApcSnipeDeviation(list, getInt);                                               // 1.2 item 69 (DV143 the APC's lone driver can be sniped while he is up in the roof hatch; OpenZParity.V12ApcSnipe.cs)
             AddGrenadeBoostDeviation(list, getInt);                                           // version 1.1 (DV104 a thrown grenade is judged by where it lands: radius x 1.2, a direct hit x 1.15, an area hit x 0.9; OpenZParity.V11GrenadeBoost.cs)
             AddGrenadeStrongerDeviation(list, getInt);                                        // 1.3 item 32 (DV160 thrown grenades x 1.15 more on top of DV104, direct and area hit; OpenZParity.V13GrenadeStronger.cs)
@@ -201,6 +228,13 @@ namespace OpenZ.EditorTools
             AddHeavyRockDeviation(list);                                            // DV164 a heavy tank standing idle clears the rock it clips (OpenZParity.V13HeavyRock.cs)
             AddL07DragonDeviation(list);                                            // DV163 level 7: a dragon that happens to pass close may burn a robot, robots shoot back (OpenZParity.L07Dragons.cs)
             AddL07LavaDeviation(list);                                              // DV152 level 7 lava: in only on the player's order, it melts a robot that stays (OpenZParity.L07Lava.cs)
+            AddLowPitsDeviation(list);                                              // 1.5 DV205 (kit pits_no_block_r3): low pits, ravines, gorges and moats never block sight or shots (OpenZParity.V15LowPits.cs)
+            AddBridgeHealthDeviation(list);                                         // 1.5 DV207 (kit bridge_health_r3): bridges as weak as in Z, 46546 hit points (OpenZParity.V15BridgeHealth.cs)
+            AddTrafficLightsKerbDeviation(list);                                    // 1.5 DV209 (kit traffic_lights_53): level 17's smaller traffic lights at the kerb (OpenZParity.V15TrafficLights.cs)
+            AddTowerDrawnReachDeviation(list);                                      // 1.5 DV208 (kit tower_reach_dv208): the reach to a fort tower gun is measured to its drawn tower (OpenZParity.V15TowerDrawnReach.cs)
+            AddBridgeAimDeviation(list);                                            // 1.5 DV210 (kit bridge_aim_further_r6): a shot at a bridge lands on its deck a few metres in (OpenZParity.V15BridgeAim.cs)
+            AddBigTankUpDeviation(list);                                            // 1.5 DV211 (kit bizon_mammoth_driver_up_r7): the Mammoth's and the Bizon's driver up while they fight (OpenZParity.V15BigTankUp.cs)
+            AddSmallArmsDeviation(list);                                            // 1.5 DV212 (kit small_arms_balance_r8): small arms hit robots on foot harder (OpenZParity.V15SmallArms.cs)
             AddProneTargetDeviation(list);                                          // DV122 a kneeling or lying sniper is a smaller target, the stance a rule (OpenZParity.V11ProneTarget.cs)
             AddHeroSquadDeviation(list);                                            // DV108 hero squads placed by the level data: ALAN & BRAD (OpenZParity.V11HeroSquad.cs); part 2 (1.3 row 80): none in a PLAY AS BLUE start, red only in the Unit editor
             AddHeroBoostDeviation(list);                                            // DV112 hero squads stronger: ALAN & BRAD + their self-repair (OpenZParity.V11HeroBoost.cs)
@@ -242,10 +276,33 @@ namespace OpenZ.EditorTools
             AddRepeatQueueDeviation(list);                                          // DV169 REPEAT QUEUE: a building's whole queue loops when its player switches it on (1.4; OpenZParity.V14RepeatQueue.cs)
             AddGatlingBuffDeviation(list);                                          // DV170 the gatling reaches 10 % farther and hits 15 % harder per shot (1.4; OpenZParity.V14GatlingBuff.cs)
             AddVehicleExitDeviation(list);                                          // DV171 EXIT DRIVER: a tank's or the mech's driver jumps off, 30 s without auto entry (1.4; OpenZParity.V14VehicleExit.cs)
+            AddDriverThrownDeviation(list);                                         // DV179 a tank or the mech destroyed before its driver has jumped off throws him (1.5; OpenZParity.V15DriverThrown.cs)
             AddEvilFaceDeviation(list);                                             // DV174 EvilZod turns onto his target before he fires (1.4; OpenZParity.V14EvilFace.cs)
             AddPremiumDodgeDeviation(list);                                         // DV173 PREMIUM DRIVER DODGE: a tank or the mech with a non-grunt driver steps aside a little faster (1.4; OpenZParity.V14PremiumDodge.cs)
             AddMayhemBuildDeviation(list);                                          // DV175 MAYHEM: the computer builds every item in 90 % of the player's time (1.4; OpenZParity.V14MayhemBuild.cs)
             AddEmptiedTargetsDeviation(list);                                       // DV176 nobody keeps shooting a vehicle just emptied: EXIT DRIVER or its crew shot out (1.4; OpenZParity.V14EmptiedTargets.cs)
+            AddSprintOrderDeviation(list);                                          // DV178 SPRINT ORDER: a move order with the sprint mark moves x 1.5 (1.5; OpenZParity.V15SprintOrder.cs)
+            AddFlagStepOffDeviation(list);                                          // DV184 a vehicle steps off the flag it captured when it has no further order (1.5; OpenZParity.V15FlagStepOff.cs)
+            AddFortTurretRofDeviation(list);                                        // DV177 a missile cannon on a fort's tower reloads twice as long (1.5; OpenZParity.V15FortTurretRof.cs)
+            AddBigTanksDeviations(list);                                            // 1.5 DV180 the MAMMOTH, DV181 the BIZON, Unit editor only (OpenZParity.V15BigTanks.cs)
+            AddMammothRamDeviation(list);                                           // 1.5 DV182 the MAMMOTH RAM (OpenZParity.V15MammothRam.cs)
+            AddBizonCrushDeviation(list);                                           // 1.5 DV183 (kit bizon_crush) the BIZON CRUSH (OpenZParity.V15BizonCrush.cs)
+            AddRamDuelDeviation(list);                                              // 1.5 DV185 (kit big_tanks_fx) the RAM DUEL (OpenZParity.V15RamDuel.cs)
+            AddCrushRollOffDeviation(list);                                         // 1.5 DV187 (kit bizon_crush_climb) the Bizon rolls off the far side (OpenZParity.V15CrushRollOff.cs)
+            AddRamDebrisDeviation(list);                                            // 1.5 DV186 (kit ram_throw_fix) a rammed / crushed vehicle's turret near its wreck (OpenZParity.V15RamDebris.cs)
+            AddRamPolishDeviation(list);                                            // 1.5 DV188 (kit ram_polish) the ram polish (OpenZParity.V15RamPolish.cs)
+            AddRamFirstDeviation(list);                                             // 1.5 DV189 (kit ram_first) the big tanks ram first (OpenZParity.V15RamFirst.cs)
+            AddShuttleNearestDeviation(list);                                       // 1.5 DV190 (kit shuttle_nearest_landing) the shuttle lands at the nearest place (OpenZParity.V15ShuttleNearest.cs)
+            AddUeBoxesDeviation(list);                                              // 1.5 DV194 (kit ue_boxes) the Unit editor's BOX: stacks, one level per blast, the boxes above fall (OpenZParity.V15UeBoxes.cs)
+            AddMissileBuildTimeDeviation(list);                                     // 1.5 DV191 (kit missile_build_time) the missile cannon builds 40 % longer than the howitzer (OpenZParity.V15MissileBuildTime.cs)
+            AddRamChainDeviation(list);   // 1.5 DV195 (kit ram_chain_n24_n25): the rammed stay still, the big tanks ram on (OpenZParity.V15RamChain.cs)
+            AddRamFightDeviation(list);   // 1.5 DV196 (kit mammoth_ram_fight_n26c): the Mammoth fights on while it rams (OpenZParity.V15RamFight.cs)
+            AddBigTankGroundDeviations(list);   // 1.5 DV192 / DV193 (kit sim_notes11): the Bizon amphibious, the big tanks crush wrecks (OpenZParity.V15BigTankGround.cs)
+            AddL18RulesDeviations(list);   // 1.5 DV197-DV200 (kit level18_rules): level 18's river stumps, big tanks, the computer and the big tanks, the optional shuttle (OpenZParity.V15L18Rules.cs)
+            AddL18ContainersDeviations(list);   // 1.5 DV201 (kit level18_containers): level 18's shipping containers in the water, destructible (OpenZParity.V15L18Containers.cs)
+            AddBigTankDriveDeviation(list);   // 1.5 DV202 (kit l18_cpu_bigtank_r2): the computer drives its big tank (OpenZParity.V15BigTankDrive.cs)
+            AddMarchGrabDeviation(list);   // 1.5 DV203 (kit march_grab_r3): march grabs, one robot takes a flag / an empty gun on the way (OpenZParity.V15MarchGrab.cs)
+            AddFortGunAnswerDeviation(list);   // 1.5 DV204 (kit fort_gun_target_r3): fort guns are answered on the way (OpenZParity.V15FortGunTarget.cs)
 #endif
             return list;
         }

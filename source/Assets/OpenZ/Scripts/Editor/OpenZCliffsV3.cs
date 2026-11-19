@@ -90,7 +90,8 @@ namespace OpenZ.EditorTools
         public static string Place()
         {
             var scene = EditorSceneManager.GetActiveScene();
-            string lv = scene.name.StartsWith("L17") ? "L17" : scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
+            string lv = OzCity.LevelOfScene(scene.name) ?? (scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02");
+            if (!AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/{lv}_cliffs_v3.fbx") || !AssetDatabase.LoadAssetAtPath<GameObject>($"{ModelDir}/{lv}_outer_v3.fbx")) return lv + ": its cliffs v3 models are not in the project (" + ModelDir + "/" + lv + "_cliffs_v3.fbx, " + lv + "_outer_v3.fbx): nothing placed";   // 1.5 level 18: never another level's cliffs on a level without its own export
             var env = GameObject.Find("Environment"); if (!env) return "no Environment";
             if (env.transform.Find("CliffsV3")) return lv + ": already placed";
             var log = new List<string>();
@@ -118,6 +119,7 @@ namespace OpenZ.EditorTools
             var all = env.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("DEC_")).GroupBy(t => t.name).ToDictionary(g => g.Key, g => g.ToList());
             int removed = 0, reseated = 0, missing = 0;
             string list = Path.Combine(OpenZPaths.RepoRoot, "projects", "blender", "export", "cliffs_z", $"cliffs_v3_scene_{lv}.txt");
+            if (!File.Exists(list)) list = $"{ModelDir}/cliffs_v3_scene_{lv}.txt";   // 1.5 level 18 (kit level18_surroundings): a level's props list may live beside its models
             foreach (var line in File.ReadAllLines(list))
             {
                 var p = line.Split(' '); if (p.Length < 2) continue;

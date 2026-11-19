@@ -27,7 +27,7 @@ namespace OpenZ
             // a flag / territory lost
             ["ann_territory_lost"] = "territory_lost",
             // help / medic / under attack
-            ["vo_under_attack"] = "help", ["vo_under_attack_repeat"] = "help", ["vo_hurt"] = "help", ["vo_low_health"] = "help",
+            ["vo_under_attack"] = "help", ["vo_under_attack_repeat"] = "help", ["vo_hurt"] = "hurt", ["vo_low_health"] = "hurt",   // 1.5 voice_lines_check_r3 (FAILS A4): the hurt yelps their own group: an on-screen "Ow!" no longer shuts the cries for help for 30 s
             // the base under attack
             ["ann_fort_under_attack"] = "base_attack", ["ann_base_under_attack"] = "base_attack",
             // a unit lost

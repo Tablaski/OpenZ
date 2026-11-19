@@ -98,32 +98,22 @@ Shader "OpenZ/FxAdditive"
         _SmearPath ("Motion smoothing, puffs: 0 = the quad is stretched along the velocity, 1 = the puff is blurred along its own path, 2 = the same without the fade-in at birth (puffs placed by code)", Float) = 0
         _GroundBand ("Ground decal: scene surfaces up to this far in front still receive it (m of eye depth, 0 = depth buffer test)", Float) = 0
         [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth test (Always with the ground band)", Float) = 4
+        _SmallFade ("Puff: how far a small on-screen puff goes round and soft (1 = as before, 0 = keeps the flipbook's lobes)", Range(0, 1)) = 1
+        _FadeK ("Whole-emitter fade (1 = none; set per renderer)", Range(0, 1)) = 1
+        _HullOn ("Thin this smoke in front of a hull box (_HullX/Y/Z rows: world -> the box's unit space; set per renderer)", Float) = 0
+        _HullKeep ("Share of the smoke kept in front of the hull box", Range(0, 1)) = 0.3
+        _HullX ("Hull box row x (world -> unit)", Vector) = (0, 0, 0, 0)
+        _HullY ("Hull box row y (world -> unit)", Vector) = (0, 0, 0, 0)
+        _HullZ ("Hull box row z (world -> unit)", Vector) = (0, 0, 0, 0)
     }
 
     SubShader
     {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" "RenderPipeline"="UniversalPipeline" "IgnoreProjector"="True" "PreviewType"="Plane" }
 
-        Pass
-        {
-            Name "FxForward"
-            Tags { "LightMode"="UniversalForward" }
-
-            Blend One OneMinusSrcAlpha
-            ZWrite Off
-            ZTest [_ZTest]         // LEqual; Always for ground decals with _GroundBand > 0 (manual scene depth test below)
-            Cull Off
-            Offset -1, -1          // ground decals sit 4-7 cm over the terrain; this keeps them clear of it at RTS distance
-
-            HLSLPROGRAM
-            #pragma target 3.5
-            #pragma vertex FxVert
-            #pragma fragment FxFrag
-
-            // point / spot lights (explosion and muzzle lights light the smoke from inside), Forward and Forward+
-            #pragma multi_compile _ _ADDITIONAL_LIGHTS
-            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
-            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
+        // 1.5 kit smoke_fog_r3: the program below is shared (HLSLINCLUDE) by the forward pass (render states and pragmas as before, after it)
+        // and the OzFxDist pass (this material's cover and eye depth for the fog pass: Shaders/OzFxDist.hlsl, View/OzSmokeFog.cs)
+        HLSLINCLUDE
 
             #define _SURFACE_TYPE_TRANSPARENT 1
 
@@ -184,12 +174,36 @@ Shader "OpenZ/FxAdditive"
                 float _SmearPath;
                 float _GroundBand;
                 float _ZTest;
+                half _SmallFade;                                  // 1.5 big_tanks_dust_redo (all default to 'as before': 1, 1, 0)
+                half _FadeK;
+                float _HullOn;
+                half _HullKeep;
+                float4 _HullX;
+                float4 _HullY;
+                float4 _HullZ;
             CBUFFER_END
             TEXTURE2D(_SmokeAtlas); SAMPLER(sampler_SmokeAtlas);
             TEXTURE2D(_SmokeDetail); SAMPLER(sampler_SmokeDetail);
             float4 _OZFxSmearFast;                            // fast particles: x speed (m/s) where a longer stretch starts, y speed of the full one, z the longest stretch then (share of the size)
             float4 _OZFxSmear;                                // motion smoothing global (MOTION BLUR option): x shutter s (0 = off), y longest stretch (share of the size), z smoke fade-in (share of life)
             float _OZNight;                                   // NightGrade global: 0 by day .. 1 at night
+
+            // 1.5 big_tanks_dust_redo: a big tank's dust / smoke thins where the camera sees it in front of the tank's own hull + turret, so the
+            // tank stays readable at the RTS camera. In the box's unit space (rows _HullX/Y/Z: world -> unit) the ray from this fragment away
+            // from the camera passes nearest the box centre at t; there a rounded-box norm (L4) under 0.85 keeps _HullKeep of the smoke, over
+            // 1.2 all of it (soft between). A fragment behind the box (t = 0) is judged where it is (the depth test hides it anyway). _HullOn 0 = 1.
+            half FxHullKeep(float3 positionWS)
+            {
+                if (_HullOn < 0.5) return (half)1.0;
+                float3 dW = -GetWorldSpaceNormalizeViewDir(positionWS);
+                float3 p = float3(dot(_HullX.xyz, positionWS) + _HullX.w, dot(_HullY.xyz, positionWS) + _HullY.w, dot(_HullZ.xyz, positionWS) + _HullZ.w);
+                float3 d = float3(dot(_HullX.xyz, dW), dot(_HullY.xyz, dW), dot(_HullZ.xyz, dW));
+                float t = max(0.0, -dot(p, d) / max(dot(d, d), 1e-6));
+                float3 c = p + d * t;
+                float3 c2 = c * c;
+                float m = sqrt(sqrt(dot(c2, c2)));
+                return (half)lerp((float)_HullKeep, 1.0, smoothstep(0.85, 1.2, m));
+            }
 
             struct FxAttributes
             {
@@ -596,7 +610,7 @@ Shader "OpenZ/FxAdditive"
                         // round normal and read as separate hard lit balls. Below ~260 px radius the puff fades out radially like a
                         // soft blob, its normal flattens and the sun wraps further, so neighbouring puffs fuse into one translucent cloud.
                         float rpx = 1.0 / max(length(ddx(q)), 1e-5);                     // puff radius in screen px
-                        half small = (half)(1.0 - smoothstep(60.0, 260.0, rpx));
+                        half small = (half)(1.0 - smoothstep(60.0, 260.0, rpx)) * (half)_SmallFade;   // 1.5 big_tanks_dust_redo: _SmallFade 1 = as before
                         half soft = saturate(small + (half)0.2) * saturate((half)0.55 + _EdgeSoft);
                         half rs = (half)saturate(1.0 - dot(qr, qr) / 0.72);
                         cover *= lerp((half)1.0, rs * rs * (3.0 - 2.0 * rs), soft);
@@ -753,6 +767,7 @@ Shader "OpenZ/FxAdditive"
 
                 cover *= FxSoftParticle(positionWS, screenUV);
                 cover *= FxGroundBand(positionWS, screenUV);
+                cover *= FxHullKeep(positionWS) * _FadeK;                // 1.5 big_tanks_dust_redo: 1 for every material without it (_HullOn 0, _FadeK 1)
                 cover = saturate(cover);
 
                 // fog: MixFog(1) - MixFog(0) = how much of this surface survives the fog (1 when fog is off)
@@ -762,6 +777,46 @@ Shader "OpenZ/FxAdditive"
                 half3 outRgb = rgb * cover * fogVis + unity_FogColor.rgb * ((1.0 - fogVis) * alpha);
                 return half4(outRgb, alpha);
             }
+            ENDHLSL
+
+        Pass
+        {
+            Name "FxForward"
+            Tags { "LightMode"="UniversalForward" }
+
+            Blend One OneMinusSrcAlpha
+            ZWrite Off
+            ZTest [_ZTest]         // LEqual; Always for ground decals with _GroundBand > 0 (manual scene depth test below)
+            Cull Off
+            Offset -1, -1          // ground decals sit 4-7 cm over the terrain; this keeps them clear of it at RTS distance
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex FxVert
+            #pragma fragment FxFrag
+
+            // point / spot lights (explosion and muzzle lights light the smoke from inside), Forward and Forward+
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {   // 1.5 kit smoke_fog_r3: cover + eye depth for the fog pass (no colour of the picture is written here)
+            Name "OzFxDist"
+            Tags { "LightMode"="OzFxDist" }
+            Blend One OneMinusSrcAlpha
+            ZWrite Off
+            ZTest Always           // the scene depth test is in OzFxDistOut (the target has no depth buffer)
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex FxVert
+            #pragma fragment OzFxDistFrag
+            #include "Assets/OpenZ/Shaders/OzFxDist.hlsl"
+            half4 OzFxDistFrag(FxVaryings i) : SV_Target { return OzFxDistOut(FxFrag(i), i.positionCS, 0.35); }
             ENDHLSL
         }
     }

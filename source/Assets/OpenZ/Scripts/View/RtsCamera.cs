@@ -337,7 +337,7 @@ namespace OpenZ
         {
             bool windowed = Screen.fullScreenMode == FullScreenMode.Windowed;
             bool alt = kb != null && (kb.leftAltKey.isPressed || kb.rightAltKey.isPressed);
-            var g = ZGame.I; bool paused = g != null && g.paused;
+            var g = ZGame.I; bool paused = g != null && g.paused && !OzTacticalPause.Frozen;   // 1.5 tactical_pause_megashake: frozen time keeps the edge scroll
             bool want = windowed && edgePx > 0f && Application.isFocused && !alt && !paused;
             string why = !windowed ? "fullscreen: untouched" : edgePx <= 0f ? "edge scroll off" : !Application.isFocused ? "window not focused" : alt ? "Alt held: released" : paused ? "paused: released" : "windowed: confined for edge scroll (hold Alt to release)";
             bool apply = !Application.isEditor || ConfineInEditor;

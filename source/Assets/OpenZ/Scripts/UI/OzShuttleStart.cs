@@ -32,8 +32,10 @@ namespace OpenZ
         public const string Level = "L16";
         /// <summary>K444: the second level with the box (its shuttle parks by the red fort; Sim/ZWorld.L17Shuttles.cs).</summary>
         public const string Level17 = "L17";
+        /// <summary>1.5 DV200 (kit level18_rules): the third level with the box, level 18 "Bridge Game" (its ship parks by the player's fort: Sim/ZWorld.L18Rules.cs).</summary>
+        public const string Level18 = "L18";
         /// <summary>The levels with the box: 16 and 17.</summary>
-        public static bool BoxLevel(string level) => level == Level || level == Level17;
+        public static bool BoxLevel(string level) => level == Level || level == Level17 || level == Level18;   // 1.5 DV200 (kit level18_rules): level 18 too
         public const string Label = "SHUTTLE";
         /// <summary>The switch row's words, the hint under it (on / off; the switch itself says ON / OFF), the locked slot on HARD, the tooltip.</summary>
         public const string RowText = "+1 SHUTTLE", HintOn = "PARKED BY YOUR FORT", HintOff = "NO SHUTTLE";
@@ -45,7 +47,7 @@ namespace OpenZ
         public const string LockedRowMayhem = "NOT ON MAYHEM";
         public static string LockedRowFor(GameDifficulty choice) => choice == GameDifficulty.Mayhem ? LockedRowMayhem : LockedRow;
         public const string TipTitle = "SHUTTLE · KEY ";
-        public const string TipBody = "Your shuttle waits by your fort.\nOrder one squad into it, then right-click a place:\nit flies there and lands.\nL16 JUNGLE and L17 CAR PARK on EASY and MEDIUM.\nHARD, MAYHEM or OFF: none by your fort.";
+        public const string TipBody = "Your shuttle waits by your fort.\nOrder one squad into it, then right-click a place:\nit flies there and lands.\nLEVELS 16, 17 AND 18 on EASY and MEDIUM.\nHARD, MAYHEM or OFF: none by your fort.";
 
         /// <summary>The box (saved at once; ON when nothing is saved yet).</summary>
         public static bool On
@@ -87,6 +89,20 @@ namespace OpenZ
             if (level == Level17)
                 Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (d == GameDifficulty.Hard ? "HARD, none by the fort (the box is not offered)" : box ? (OzPlayBlue.Active ? "PLAY AS BLUE, the box is ON: the shuttle stands by the blue fort" : "the box is ON: the shuttle stands by your fort") : "the box is OFF: none by your fort")
                           + $"; the two empty shuttles wait in the car park (red side and blue side) on every difficulty ({Pref} {(box ? 1 : 0)})");
+            return on;
+        }
+
+        /// <summary>1.5 DV200 (kit level18_rules): ZWorld.L18StartShuttle for a level start, the box given: level 18 on EASY / MEDIUM with the box on
+        /// (the player's ship parks by his fort, red or blue); else false. The same rule as level 17's fort ship.</summary>
+        public static bool L18Start(string level, GameDifficulty d, bool box) => level == Level18 && OpenZDifficulty.Rules(d) != GameDifficulty.Hard && box;
+
+        /// <summary>1.5 DV200: ZGame at the level start: <see cref="L18Start"/> with the saved box, and one log line on level 18.</summary>
+        public static bool L18StartAtStart(string level, GameDifficulty d)
+        {
+            bool box = On, on = OzPlayBlue.FortShuttleRule(L18Start(level, d, box));
+            if (level == Level18)
+                Debug.Log($"[OpenZ] shuttle at the start of {level} ({Name(d)}): " + (OpenZDifficulty.Rules(d) == GameDifficulty.Hard ? Name(d) + ", none by the fort (the box is not offered)" : box ? (OzPlayBlue.Active ? "PLAY AS BLUE, the box is ON: the shuttle stands by the blue fort" : "the box is ON: the shuttle stands by your fort") : "the box is OFF: no shuttle")
+                          + $" ({Pref} {(box ? 1 : 0)})");
             return on;
         }
 

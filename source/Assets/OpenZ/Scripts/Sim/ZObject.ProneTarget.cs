@@ -148,7 +148,7 @@ namespace OpenZ.Sim
         bool IsFlameGun => (IsRobot && Type == "pyro") || (Kind == ZKind.Vehicle && Type == "apc" && CrewWeaponType == "pyro");
 
         /// <summary>A flat-firing shell gun (aimed straight at its target): the light, medium and heavy tank, the gun.</summary>
-        bool FlatShellGun => (Kind == ZKind.Vehicle && (Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy")) || (Kind == ZKind.Cannon && Type == "gun");   // DV145 the medium tank (Sim/ZMTank.cs)
+        bool FlatShellGun => (Kind == ZKind.Vehicle && (Type == "light" || Type == "medium" || Type == ZMTank.Type || Type == "heavy" || ZBigTanks.Is(Type)))   /* 1.5 DV180 / DV181 */ || (Kind == ZKind.Cannon && Type == "gun");   // DV145 the medium tank (Sim/ZMTank.cs)
 
         static bool CoveredSniper(ZObject t) => t != null && t.Kind == ZKind.Robot && t.Type == "sniper";
 

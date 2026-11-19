@@ -20,8 +20,8 @@ namespace OpenZ.Sim
         int BaseHitDamage(ZObject t)
         {
             if (ZWorld.RiflePairDeviation && IsRobot && t.IsRobot && !IsFortDefender && !t.IsFortDefender
-                && ZWorld.RiflePair.TryGetValue((Type, t.Type), out int pair) && pair > Damage) return pair;
-            return HullDamage(t);
+                && ZWorld.RiflePair.TryGetValue((Type, t.Type), out int pair) && pair > Damage) return SmallArmsHit(t, pair);   // 1.5 DV212 (kit small_arms_balance_r8): a small arm's hit on a robot on foot (Sim/ZObject.SmallArms.cs)
+            return SmallArmsHit(t, HullDamage(t));                                       // 1.5 DV212 (kit small_arms_balance_r8): a grunt / psycho / jeep gun / gatling hit on a robot on foot (Sim/ZObject.SmallArms.cs); part 2 (off): a hull
         }
     }
 

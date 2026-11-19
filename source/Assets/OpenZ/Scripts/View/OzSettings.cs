@@ -261,6 +261,60 @@ namespace OpenZ
             else Debug.Log($"[OpenZ Display] resolution {ResolutionWord} saved (applied in the Windows build)");
         }
 
+        /// <summary>1.5 issue 8 (GitHub, 10 Nov, Linux, Fedora 45 KDE: "Clicking the resolution button switched between resolutions
+        /// randomly"). The row's mouse buttons set the way, never the place of the click: dir above 0 (a left click) = one size
+        /// larger, dir under 0 (a right click, or Shift + click) = one size smaller; past NATIVE (the largest) comes the smallest and
+        /// the other way round. CAUSE of the "random" steps (1.0 to 1.4, every platform): a click on the left half of the value
+        /// ("<  1920 x 1080  >") stepped towards NATIVE, a click anywhere else on the row (the right arrow, the label, the empty
+        /// middle) one size lower, and the value is right-aligned text whose width changes with every step ("NATIVE (3840 x 2160)"
+        /// is about twice as wide as "1280 x 720"): the left arrow moved under a resting pointer, so the same place meant up after
+        /// one click and down after the next (ArrowDir kept the way only for a pointer that did not move at all). On Linux a
+        /// fullscreen step also switches the screen's video mode, the menu is laid out again at the new size and the pointer lands
+        /// on another part of the row. The steps (ResolutionSteps / LinuxRow, 1.3 item 37) are unchanged: NATIVE, then every lower
+        /// size, one per size. StepResolution (the old arrows' rule) stays for the older checks.</summary>
+        public static void ResolutionClick(int dir)
+        {
+            if (CommandLineOwnsWindow) { Debug.Log($"[OpenZ Display] resolution: the command line sets the window (-screen-* / -window-mode): left at {Screen.width}x{Screen.height}"); return; }
+            if (LinuxRule && OzDisplayHost.I && OzDisplayHost.I.Switching) { Debug.Log($"[OpenZ Display] resolution: click left out, the screen is still switching to {ResolutionWord} (Linux: one step per click)"); return; }
+            var n = NativeResolution(); var steps = ResolutionSteps(n.y);
+            if (steps.Length < 2) return;
+            int cur = Mathf.Max(0, Array.IndexOf(steps, ResolutionHeight(n.y)));
+            int to = dir > 0 ? (cur == 0 ? steps.Length - 1 : cur - 1) : (cur + 1) % steps.Length;              // steps: NATIVE first, then smaller and smaller
+            PlayerPrefs.SetInt(ResPref, steps[to]); PlayerPrefs.Save();
+            string way = dir > 0 ? "one size larger" : "one size smaller";
+            if (OzDisplayHost.I) OzDisplayHost.I.Apply($"options: resolution {ResolutionWord} ({way})", true);
+            else Debug.Log($"[OpenZ Display] resolution {ResolutionWord} ({way}) saved (applied in the player)");
+        }
+
+        /// <summary>1.5 issue 8 (title: "1920x1080p resolution windowed creates a bigger window than 1080p"): the size of a window
+        /// (FULLSCREEN off) so that it, with its frame and title bar, fits the desktop's free area. Up to 1.4 a window took the
+        /// RESOLUTION step's size up to the whole display: NATIVE in a window was as big as the display itself, so its title bar or
+        /// its bottom went past the screen's edge or under the taskbar (every platform; on a Linux desktop scaled by the system the
+        /// game sees the scaled size, so there a "1920 x 1080" window can be the whole screen). The free area: the display's work
+        /// area as the engine reports it (Screen.mainWindowDisplayInfo.workArea) when it is a plausible part of the display (at
+        /// least 60 % of each side, never larger: a work area in other units, such as points on a Retina Mac, is left out), else
+        /// the display less a taskbar's height. Room is left for the frame (1/120 of the width, at least 16 px) and the title bar
+        /// (1/27 of the height, at least 40 px). A size that does not fit is made smaller with its shape kept (even numbers); a
+        /// size that fits is kept as it is.</summary>
+        public static Vector2Int WindowFit(Vector2Int want, Vector2Int display, RectInt work, out string room)
+        {
+            bool useWork = work.width >= display.x * 0.6f && work.height >= display.y * 0.6f && work.width <= display.x && work.height <= display.y;
+            int rw = useWork ? work.width : display.x, rh = useWork ? work.height : display.y - Mathf.Max(40, display.y / 20);
+            int maxW = Mathf.Max(320, rw - Mathf.Max(16, rw / 120)), maxH = Mathf.Max(240, rh - Mathf.Max(40, rh / 27));
+            room = useWork ? $"the desktop's free area {work.width}x{work.height} (display {display.x}x{display.y})" : $"the display {display.x}x{display.y} (no free area reported: a taskbar's height left out)";
+            int w = Mathf.Max(1, want.x), h = Mathf.Max(1, want.y);
+            float k = Mathf.Min(1f, Mathf.Min(maxW / (float)w, maxH / (float)h));
+            if (k < 1f) { w = Mathf.Max(2, Mathf.FloorToInt(w * k * 0.5f) * 2); h = Mathf.Max(2, Mathf.FloorToInt(h * k * 0.5f) * 2); }
+            w = Mathf.Clamp(w, Mathf.Min(960, maxW), maxW); h = Mathf.Clamp(h, Mathf.Min(540, maxH), maxH);
+            return new Vector2Int(w, h);
+        }
+
+        /// <summary>1.5 issue 8: the display's work area as the engine reports it (empty when it gives none).</summary>
+        public static RectInt WorkArea()
+        {
+            try { return Screen.mainWindowDisplayInfo.workArea; } catch (Exception) { return default; }
+        }
+
         /// <summary>The display's own height while the game fills it with a lower RESOLUTION step, else 0 (OzDisplayHost sets it).
         /// The system draws its pointer in the display's pixels, not in the picture's: with this height the pointer keeps the
         /// size it has at NATIVE (OzKit.HardwareCursorSize).</summary>
@@ -398,6 +452,7 @@ namespace OpenZ
         public static OzDisplayHost I { get; private set; }
         bool lastFull; float ignoreUntil, nextCheck;
         float switchFrom = -1f; int switchW, switchH;
+        int askW = -1, askH = -1;                                                                         // 1.5 issue 8: the window size the last windowed Apply asked for (Report names what the desktop gave)
         /// <summary>item 37 (Linux): a fullscreen RESOLUTION switch is still under way (the screen changes its video mode; a TV can
         /// take a few seconds): until the screen has the new size (and 0.3 s more), at most 4 s. Never set on Windows / Mac.</summary>
         public bool Switching => switchFrom >= 0f && Time.unscaledTime < switchFrom + 4f && (Time.unscaledTime < switchFrom + 0.3f || Screen.width != switchW || Screen.height != switchH);
@@ -432,7 +487,9 @@ namespace OpenZ
             {
                 int w = PlayerPrefs.GetInt(OzSettings.WindowWPref, Mathf.RoundToInt(n.x * 0.75f)), h = PlayerPrefs.GetInt(OzSettings.WindowHPref, Mathf.RoundToInt(n.y * 0.75f));
                 if (resize) { w = want.x; h = want.y; }                                                     // the row sets the window's size; a window dragged by hand afterwards saves as before (Update)
-                w = Mathf.Clamp(w, 960, n.x); h = Mathf.Clamp(h, 540, n.y);
+                var fit = OzSettings.WindowFit(new Vector2Int(w, h), n, OzSettings.WorkArea(), out string room);   // 1.5 issue 8: the window with its frame and title bar fits the desktop's free area (was: at most the whole display)
+                if (resize || fit.x != w || fit.y != h) Debug.Log($"[OpenZ Display] {why}: window asked {w}x{h}, {room}: window {fit.x}x{fit.y}{(fit.x < w || fit.y < h ? " (made smaller so it fits with its frame and title bar)" : "")}");
+                w = fit.x; h = fit.y; askW = w; askH = h;
                 if (Screen.fullScreenMode != FullScreenMode.Windowed || (resize && (Screen.width != w || Screen.height != h))) Screen.SetResolution(w, h, FullScreenMode.Windowed);
                 OzSettings.DisplayHeight = 0;
             }
@@ -445,6 +502,8 @@ namespace OpenZ
             yield return null; yield return null;
             lastFull = Screen.fullScreen;
             Debug.Log($"[OpenZ Display] {why}: {(Screen.fullScreen ? "FULLSCREEN" : "windowed")} {Screen.width}x{Screen.height} {Screen.fullScreenMode} (native {n.x}x{n.y}, resolution {OzSettings.ResolutionWord}, oz_fullscreen {PlayerPrefs.GetInt(OzSettings.FullscreenPref, 1)}, saved)");
+            if (!Screen.fullScreen && askW > 0 && (Screen.width != askW || Screen.height != askH))
+                Debug.Log($"[OpenZ Display] {why}: the desktop gave the window {Screen.width}x{Screen.height}, not the {askW}x{askH} asked (its window manager or desktop scaling decides)");   // 1.5 issue 8: for a Linux player's log
         }
 
         int seenW, seenH;

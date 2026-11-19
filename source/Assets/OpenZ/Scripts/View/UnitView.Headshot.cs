@@ -60,7 +60,8 @@ namespace OpenZ
             {
                 float u = (seed & 1023u) / 1023f;
                 var v = Quaternion.Euler(0f, (u - 0.5f) * 50f, 0f) * away * HeadAway + Vector3.up * HeadUp * (0.9f + 0.2f * (((seed >> 10) & 1023u) / 1023f));
-                if (HeadThrown(AnticCan.Throw(piece, v, Obj.Id, Mathf.Max(1f, rad / AnticCan.Radius)))) HeadsThrown++;   // K248b: its clatter louder than a can's (UnitView.HeadPop.cs)
+                var can = AnticCan.Throw(piece, v, Obj.Id, Mathf.Max(1f, rad / AnticCan.Radius)); if (can && OzRestSurface.On) can.restAfter = 0.2f;
+                if (HeadThrown(can)) HeadsThrown++;   // K248b: its clatter louder than a can's (UnitView.HeadPop.cs)
                 else Destroy(piece.gameObject);
             }
             HeadPop(hp);                                                                         // K248b: its own pop, not the armour-hit ping (UnitView.HeadPop.cs)

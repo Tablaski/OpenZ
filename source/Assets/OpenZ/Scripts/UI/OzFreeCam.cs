@@ -43,7 +43,7 @@ namespace OpenZ
         {
             if (label == null || label.rectTransform == null) return label;
             string onText = text == FullRowOff ? FullRowOn : text == CompactRowOff ? CompactRowOn : null;
-            if (onText == null) return OzRightDragRowText.Hook(label, text);                                // 1.4: an orders row names RIGHT-DRAG SCROLL while it is on (UI/OzRightDragRowText.cs); every other row as built
+            if (onText == null) return OzTacticalPause.ControlsRow(OzRightDragRowText.Hook(label, text), text);   // 1.5 tactical_pause_megashake: the game speed row's TACTICAL PAUSE key follows the switch;                                // 1.4: an orders row names RIGHT-DRAG SCROLL while it is on (UI/OzRightDragRowText.cs); every other row as built
             var sw = label.rectTransform.gameObject.AddComponent<OzFreeCamRowText>();
             sw.Init(label, text, onText);
             return label;

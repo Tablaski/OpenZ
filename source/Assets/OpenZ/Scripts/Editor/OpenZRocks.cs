@@ -100,17 +100,17 @@ namespace OpenZ.EditorTools
         public static string RebuildOpenLevel()
         {
             var scene = EditorSceneManager.GetActiveScene();
-            string lv = scene.name.StartsWith("L17") ? "L17" : scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
-            string biome = lv == "L17" ? "City" : OzVolcanic.Is(lv) ? "Volcanic" : "Desert";
+            string lv = OzCity.LevelOfScene(scene.name) ?? (scene.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02");
+            string biome = OzCity.Is(lv) ? "City" : OzVolcanic.Is(lv) ? "Volcanic" : "Desert";
             var w = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, Resources.Load<TextAsset>($"OpenZ/Maps/{lv}_grid").text, 1);
             var root = GameObject.Find("ZodObjects").transform;
             var ground = GameObject.Find("COL_Terrain")?.GetComponent<Collider>();
-            var result = Build(w, root, ground, biome, Mat(biome));
+            var result = Build(w, root, ground, biome, Mat(biome), lv);
             EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveOpenScenes(); AssetDatabase.SaveAssets();
             return $"{lv}: {result}";
         }
 
-        internal static string Build(ZWorld w, Transform root, Collider ground, string biome, Material mat)
+        internal static string Build(ZWorld w, Transform root, Collider ground, string biome, Material mat, string level = null)
         {
             var pillars = "ABCD".Select(c => MeshOf($"RockZ_{biome}_Pillar_{c}")).ToArray();
             var dmg = MeshOf($"RockZ_{biome}_Damaged"); var rub = MeshOf($"RockZ_{biome}_Rubble");
@@ -129,7 +129,7 @@ namespace OpenZ.EditorTools
             {
                 if (o.Source == null || !byName.TryGetValue($"rock_{o.Source.x}_{o.Source.y}", out var t)) continue;
                 int tx = o.LocX / 16, ty = o.LocY / 16 + 2;                               // the bottom (blocking) tile
-                var rng = new System.Random(tx * 7919 + ty * 104729 + (biome == "City" ? 17 : biome == "Volcanic" ? 7 : 2));
+                var rng = new System.Random(tx * 7919 + ty * 104729 + (OzCity.IsBridgeGame(level) ? 18 : biome == "City" ? 17 : biome == "Volcanic" ? 7 : 2));
                 var avoid = new HashSet<int>();
                 if (placed.TryGetValue((tx - 1, ty), out var l)) avoid.Add(l);
                 if (placed.TryGetValue((tx, ty - 1), out var u)) avoid.Add(u);

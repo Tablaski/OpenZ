@@ -186,6 +186,7 @@ namespace OpenZ
             foreach (var d in definitions)
             {
                 if (page != 0 && (d.Group != pages[page] || page != 5 && !Primary(d.Key) && !advanced[page])) continue;
+                if (d.Key == ZBehaviorKey.GreenSmoke || d.Key == ZBehaviorKey.YellowSmoke || d.Key == ZBehaviorKey.RedSmoke) continue;
                 if (page == 5 && d.Key >= ZBehaviorKey.GreenShake && d.Key <= ZBehaviorKey.RedOilLife &&
                     ((int)d.Key - (int)ZBehaviorKey.GreenShake) / 6 != healthBand) continue;
                 var def = d; var row = Row(d.Key.ToString(), y, 100); float rw = layout.w - 40; string tip = Explain(d.Key);

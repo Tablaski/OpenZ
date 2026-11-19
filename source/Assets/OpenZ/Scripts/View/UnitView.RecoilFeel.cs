@@ -91,6 +91,7 @@ namespace OpenZ
                 case "medium": return G(1.55f);
                 case ZMTank.Type: return G(1.5f);                                            // DV145: the medium tank: the light tank's gun on a heavier hull
                 case "heavy": return G(1.25f);
+                case OzBigTanks.Mammoth: return G(1.15f); case OzBigTanks.Bizon: return G(1.05f);   // 1.5 DV180 / DV181
                 case "jeep": return G(1.35f);
                 case "apc": return G(1.3f);
                 case "missile_launcher": return 1f;
@@ -107,6 +108,7 @@ namespace OpenZ
                 case "medium": return G(1.5f);
                 case ZMTank.Type: return G(1.45f);                                           // DV145: the medium tank
                 case "heavy": return G(1.15f);
+                case OzBigTanks.Mammoth: return G(1.1f); case OzBigTanks.Bizon: return G(1.0f);   // 1.5 DV180 / DV181
                 case "jeep": return G(1.35f);
                 case "apc": return G(1.3f);
                 case "missile_launcher": return 1f;

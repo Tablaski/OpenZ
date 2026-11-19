@@ -125,25 +125,29 @@ namespace OpenZ
             flipWreck = (WreckFx.Flips && light && WreckFx.Chance(h >> 2, 3u)) || OzUePlatformViews.Fallen(this);   // 1.3 the Unit editor: a vehicle on a destroyed ramp platform takes the rigidbody wreck's way down, every chassis (View/OzUePlatformView.cs)
             if (Obj.Kind == ZKind.Cannon)
             {
-                cannonToss = turret != null;
+                cannonToss = turret != null && !OzBizonCrushView.Crushed(Obj);   /* 1.5 DV183 (kit bizon_crush): a crushed gun's turret stays under the tracks */
                 tossAt = 2f + (h >> 8) % 201u / 100f;                                                    // Zod: 2 + rand() % 3 s
                 tossAt = GunSpinTossAt(tossAt);                                                          // 1.3 item 17: a gun's / howitzer's spinning flight 30 % shorter, still landing on the rules' debris blast (View/UnitView.GunSpin.cs)
                 if (WreckFx.CannonBreak && (OnTower ? WreckFx.TowerWreck(Obj.Type) : WreckFx.Chance(h >> 5, 2u))) breakAt = tossAt;     // tower guns stay on their pad; 1.3 item 16: a tower gun of TowerWreckTypes falls apart there when its turret flies
                 if (OnTower && breakAt >= 0f) WreckFx.TowerWrecksBroken++;
                 WreckPieces.MeetStatics = WreckFx.TowerWreck(this);                                      // 1.3 item 16: on a tower its parts meet the fort however small
-                try { OzGunBreakup.AtDeath(this, turret, Obj); }                                         // k97b, item 176: the gun falls apart at its death: its barrel, collar and outer parts fly (View/OzGunBreakup.cs); what is left is tossed at Zod's time as before
+                try { if (!OzBizonCrushView.Crushed(Obj)) OzGunBreakup.AtDeath(this, turret, Obj); }   /* 1.5 DV183 (kit bizon_crush): crushed: no barrel flight */                                         // k97b, item 176: the gun falls apart at its death: its barrel, collar and outer parts fly (View/OzGunBreakup.cs); what is left is tossed at Zod's time as before
                 finally { WreckPieces.MeetStatics = false; }
             }
             else
             {
-                if (IsTank && turret) TossTurret();
+                if (IsTank && turret && !OzBizonCrushView.Crushed(Obj)) TossTurret();   /* 1.5 DV183 (kit bizon_crush): crushed: the turret is squashed with the hull */
                 if (!flipWreck && WreckFx.BreakAtDeath && WreckFx.Chance(h >> 4, 3u)) breakAt = 0.05f;                              // explodes into parts now
                 else if (!flipWreck && WreckFx.CookOffs && WreckFx.Force != 2) { cookOff = true; breakAt = burnEnd; }   // burns out, then cooks off
+                if (breakAt < 0f && !flipWreck && OzBigTankWreck.Applies(this)) breakAt = 0.05f;              // 1.5 DV180 / DV181: a big tank always falls apart (View/OzBigTankWreck.cs)
             }
-            if (WheeledBreakup.Applies(Obj)) WheeledBreakup.Tear(this, transform.position + Vector3.up * 1f, flipWreck);
+            if (OzMammothRamView.Rammed(Obj) && Obj.Kind == ZKind.Vehicle) { flipWreck = false; cookOff = false; breakAt = 0.05f; OzMammothRamView.NoteWreck(); }   // 1.5 DV182: rammed and flipped: it explodes into its wreck pieces at once, no second flip (View/OzMammothRamView.cs)
+            if (OzBizonCrushView.Crushed(Obj)) { flipWreck = false; cookOff = false; cannonToss = false; tossAt = -1f; breakAt = OzBizonCrushView.CrushedBreakAt(this); OzBizonCrushView.NoteWreck(); }   // 1.5 DV183 (kit bizon_crush); 1.5 kit bizon_crush_v3: a hull the crush dented stays that wreck (no break into pieces; View/OzCrushSquash.cs), else it breaks at once
+            if (WheeledBreakup.Applies(Obj) && !OzBizonCrushView.KeepsDentedWreck(this) /* 1.5 kit bizon_crush_v3 */) WheeledBreakup.Tear(this, transform.position + Vector3.up * 1f, flipWreck);
             if (flipWreck) StartFlip(h);
-            OzTankWreck.Want(this);
+            if (!OzBizonCrushView.KeepsDentedWreck(this)) OzTankWreck.Want(this);   /* 1.5 kit bizon_crush_v3: never for a dented crushed wreck */
             OzWaterLanding.Watch(transform, "wreck hull", wreckBody, true, wreckBody == null);        // b27: a wreck that falls into water (flipped into the river, or its bridge went) splashes and rests partly under the surface
+            RamRestAtDeath();   /* 1.5 N30 / N31 (kit rammed_wreck_rest_n30): its lights off, nothing of them left in the air; a rammed wreck lies on the ground and stays still (View/OzRammedWreckRest.cs) */
         }
 
         /// <summary>A dead tower gun keeps its pad only while the tower stands. When its fort has collapsed (the tower tops are thrown
@@ -209,13 +213,14 @@ namespace OpenZ
                 var adf = AudioDirector.I;
                 if (float.IsNaN(burnTop)) burnTop = Mathf.Clamp(LocalBounds().max.y * transform.lossyScale.y, 0.8f, 3.2f);   // the hull top, once
                 var fireAt = transform.position + Vector3.up * (flipWreck ? Mathf.Min(0.9f, burnTop) : burnTop + 0.1f);
+                bool n33 = N33Wreck(ref at, ref fireAt);   /* 1.5 N33 (kit fire_no_source_n33): burnTop was the height of everything under the view measured ONCE (turret, label quads, light cones; never under 0.8 m): a hull dented by a Bizon, without its turret, shoved on or broken had its fire in the air. Now on the top of what is drawn of the hull at this beat; nothing drawn = no fire (View/OzFireSource.cs) */
                 // the burning wreck takes the approved pyro sticky fire (flame licks on its own hull surface, fire light, dark smoke, heat
                 // shimmer, the nearest-burn dst_fire_loop), lit once when the burn starts; it ends after the pyro's BurnSeconds (5 s,
                 // Zod's 5-7 s burn). Without the pyro fire the wreck keeps its own fire loop as before.
-                if (burning && !wreckPyroLit) { wreckPyroLit = true; wreckPyro = OpenZPyroFire.KeepBurning(Obj, this, gameObject, false, fireAt); }
-                if (burning && !fireLoopOn && (!wreckPyro || !OpenZPyroFire.FullBurning(Obj.Id)) && adf && AudioDirector.Has("dst_fire_loop")) { adf.StartLoop("wreck_fire_" + Obj.Id, "dst_fire_loop", at, null, 0.6f); fireLoopOn = true; }   // also the last seconds of a 6-7 s burn, after the pyro fire's own 5 s crackle has ended
+                if (n33 && burning && !wreckPyroLit) { wreckPyroLit = true; wreckPyro = OpenZPyroFire.KeepBurning(Obj, this, gameObject, false, fireAt); }
+                if (n33 && burning && !fireLoopOn && (!wreckPyro || !OpenZPyroFire.FullBurning(Obj.Id)) && adf && AudioDirector.Has("dst_fire_loop")) { adf.StartLoop("wreck_fire_" + Obj.Id, "dst_fire_loop", at, null, 0.6f); fireLoopOn = true; }   // also the last seconds of a 6-7 s burn, after the pyro fire's own 5 s crackle has ended
                 else if (!burning && fireLoopOn) StopWreckFire(1.5f);
-                if (fxp && fxp.isActiveAndEnabled) OzFireDesync.VehicleBurn(fxp, Obj.Id, deathT, ref smokeT, at, k, burning, 0.7f, fireAt);
+                if (!n33) { } /* 1.5 N33: nothing of the hull is drawn: no fire, no smoke, no dust */ else if (fxp && fxp.isActiveAndEnabled) OzFireDesync.VehicleBurn(fxp, Obj.Id, deathT, ref smokeT, at, k, burning, N33Spread(0.7f), fireAt);
                 else if (FxManager.I) FxManager.I.Dust(at, 0.35f * k);
             }
             bool tossDone = !tossed || (tossLanded && tossT > tossDur + 3f);
@@ -240,7 +245,7 @@ namespace OpenZ
             if (wreckFlameN == 0 || breakDone || !WreckFx.GroundFlames || Obj.Kind != ZKind.Vehicle || !OpenZPyroFire.TonguesReady) return;
             float left = burnEnd - deathT; if (left <= 0f) return;
             bool moving = wreckBody && !wreckBody.isKinematic && !wreckBody.IsSleeping() && (wreckBody.linearVelocity.sqrMagnitude > 0.09f || wreckBody.angularVelocity.sqrMagnitude > 0.25f);
-            if (wreckFlameN > 0 && (moving || (transform.position - wreckFlameAt).sqrMagnitude > 0.25f)) wreckFlameN = -1;   // knocked on: lit again where it comes to rest
+            if (wreckFlameN > 0 && (moving || (!OzFireSource.On /* 1.5 N33: the spots go with the hull now (no new pick every half metre of a shove) */ && (transform.position - wreckFlameAt).sqrMagnitude > 0.25f))) wreckFlameN = -1;   // knocked on: lit again where it comes to rest
             if (wreckFlameN < 0)
             {
                 if (deathT < 0.6f || moving || left < 1.5f) return;
@@ -283,6 +288,7 @@ namespace OpenZ
             {
                 var f = wreckFlames[i];
                 var root = f.onHull ? transform.TransformPoint(f.p) : f.p;
+                if (!N33Tongue(i, f.onHull, ref root)) continue;   /* 1.5 N33 (kit fire_no_source_n33): the deck spot kept the height of the box it was picked in (with the turret and the gun), a ground spot its world place: on a hull that was dented, lost its turret or was shoved on they burnt in the air or on bare ground. Now on the top of what is drawn under it, or right beside the nearest drawn part (View/OzFireSource.cs) */
                 float a2 = f.seed * 40f;
                 OpenZPyroFire.Tongue(root, f.seed, f.size, f.speed, k, WreckFx.FlameHeight, WreckFx.FlameWidth);
                 // its smaller neighbour a hand away: a spot reads as a small fire, not as one blade
@@ -390,7 +396,8 @@ namespace OpenZ
             ApcDome.BreakOff(this, c, cook ? 0.55f : 1f, Obj.Id); ApcRearDoor.BreakOff(this, c, cook ? 0.55f : 1f, Obj.Id);
             int n;
             WreckPieces.MeetStatics = WreckFx.TowerWreck(this);                                          // 1.3 item 16: a tower gun's base pieces meet the fort however small (they land on the tower top or fall down its side)
-            try { n = WreckPieces.Break(this, tossed, c, cook ? 0.55f : 1f, Obj.Id, charNow); }
+            OzBigTankWreck.Prepare(this, tossed);                                                       // 1.5 DV180 / DV181: the modelled wreck set in place of the hull and tracks, the barrels off the turret (View/OzBigTankWreck.cs)
+            try { n = WreckPieces.Break(this, tossed, c, OzBizonCrushView.Power(Obj, cook ? 0.55f : 1f) /* 1.5 DV183 (kit bizon_crush) */, Obj.Id, charNow); }
             finally { WreckPieces.MeetStatics = false; }
             if (n == 0) { breakDone = false; breakAt = -1f; }                                          // nothing to break: stays a wreck
             else if (ApcCraneKit.HullStays(this)) { breakDone = false; breakAt = -1f; }
@@ -585,7 +592,7 @@ namespace OpenZ
         public static float KnockFrac = 0.75f;
         /// <summary>Test aid: blasts without an attacker count as heavy until this Time.time.</summary>
         public static float ForceHeavyUntil = -1f;
-        static readonly HashSet<string> Heavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher" };   // DV145 the medium tank (Sim/ZMTank.cs)
+        static readonly HashSet<string> Heavy = new HashSet<string> { "tough", "light", "medium", ZMTank.Type, "heavy", "howitzer", "gun", "missile_cannon", "missile_launcher", OzBigTanks.Mammoth, OzBigTanks.Bizon };   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
 
         public static int DownCount()
         {
@@ -610,6 +617,7 @@ namespace OpenZ
                 float frac = Mathf.Sqrt(dx * dx + dy * dy) / e.radius;
                 if (frac >= 1f) continue;                                                                 // the sim's splash did not reach it
                 if (OzShuttleAim.AirBurstSkips(e, v)) continue;                                           // DV118: a blast at the flying shuttle does not reach the ground under it
+                if (OzBridgeDeckHits.OwnBlastSkips(e, attacker, o)) continue;                             // 1.5 DV210 (kit bridge_aim_further_r6): a shot at a bridge: no shrapnel / flinch on the shooter's own team, which the sim never hurts (Sim/ZWorld.cs no friendly fire; View/OzBridgeDeckHits.cs)
                 if (Shrapnel && chips < 6 && !debris) { chips++; Chips(v, at, frac); }
                 if (o.Kind != ZKind.Robot) continue;
                 int kind = debris ? 1 : heavy ? (frac < KnockFrac ? 3 : 2) : grenade ? (frac < 0.45f ? 2 : 1) : 2;

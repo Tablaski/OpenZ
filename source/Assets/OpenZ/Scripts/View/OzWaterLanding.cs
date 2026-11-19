@@ -32,7 +32,7 @@ namespace OpenZ
     /// moves a piece by hand calls the rule when its piece reaches the water.</para>
     /// </summary>
     [DefaultExecutionOrder(230)]
-    public sealed class OzWaterLanding : MonoBehaviour
+    public sealed partial class OzWaterLanding : MonoBehaviour   // 1.5 review R8 (kit review_r8_r12): partial (View/OzWaterLanding.Edge.cs)
     {
         // ================================================================================================ numbers
         /// <summary>Test aid, never saved: false = the rule makes no splash and holds no piece (where water is stays the same).</summary>
@@ -51,7 +51,9 @@ namespace OpenZ
         /// <summary>Water shallower than this over the walk surface is a wet film, a bank or a deck: the dry rules.</summary>
         public const float MinDepth = 0.08f;
         /// <summary>Share of the piece's resting height that ends under the surface, and how far it settles into a shallow bed.</summary>
-        public const float ShareMedium = 0.33f, ShareLarge = 0.33f, ShareFloats = 0.50f, MudSink = 0.06f;
+        /// water_depth_soft (1.5): a steel piece rests 60 % under (was 33 %: a hull rode 2/3 out of the water, "lying on the surface"); wood floats
+        /// higher (ShareFloats); where the water is shallower it rests on the bed (the L02 river: a tank hull sits on the river bed).
+        public const float ShareMedium = 0.60f, ShareLarge = 0.60f, ShareFloats = 0.50f, MudSink = 0.06f;
         /// <summary>Tilt off its flat rest (degrees; a Large piece x TiltLargeK).</summary>
         public const float TiltMin = 4f, TiltMax = 9f, TiltLargeK = 0.75f;
         /// <summary>The blown-off turret lies with a small fixed tilt of its own (degrees, per piece from its id), rolled about its
@@ -137,13 +139,14 @@ namespace OpenZ
             public int entry = -1; public OzWaterSize size;
             public float waterY, restY, floorY, y, w, damp, clock, turn, lapAt;
             public Quaternion rot0, rot1; public Vector3 axis, drift, baseScale, xz;
+            public Vector3 boxC, boxS; public float under;                      // water_depth_soft (1.5): its own box (pivot frame) and how deep it rests, for the water shaders
         }
         readonly List<Rec> recs = new List<Rec>();
         readonly Dictionary<int, Rec> byId = new Dictionary<int, Rec>();
         readonly HashSet<int> wetOnce = new HashSet<int>();
 
         void Awake() { if (inst && inst != this) { Destroy(gameObject); return; } inst = this; }
-        void OnDestroy() { if (inst == this) inst = null; }
+        void OnDestroy() { if (inst == this) { inst = null; PublishNone(); } }                               // water_depth_soft (1.5): no stale contacts in the next scene
 
         // ================================================================================================ where water is
         /// <summary>Open water under p (see the class text). waterY = the surface there.</summary>
@@ -373,12 +376,13 @@ namespace OpenZ
             var rs = piece.GetComponentsInChildren<Renderer>();
             if (!Bounds(rs, piece, out var b)) return false;
             var over = b.center;                                                                            // its middle, or its pivot when the middle hangs over the bank
-            if (!OpenWaterAt(over, out float wy)) { over = piece.position; if (!OpenWaterAt(over, out wy)) return false; }
+            bool edge = false;   // 1.5 review R8 (kit review_r8_r12): middle and pivot dry, a good part of its footprint over open water = it went in there (View/OzWaterLanding.Edge.cs)
+            if (!OpenWaterAt(over, out float wy)) { over = piece.position; if (!OpenWaterAt(over, out wy)) { if (!EdgeWater(b, out over, out wy)) return false; edge = true; } }
             int id = piece.GetInstanceID();
             if (m.byId.TryGetValue(id, out var old)) m.Forget(old, 3);                                      // a pooled piece thrown again
             var r = new Rec { t = piece, kind = kind ?? "piece", id = id, keepPose = keepPose, born = Time.time, prev = piece.position, last = piece.position, rs = rs, pooled = true };
             float bed = Mathf.Min(ZGame.I.GroundY(over.x, over.z), wy - MinDepth);
-            m.EnterWater(r, b, wy, bed, velocity, false, burning);
+            m.EnterWater(r, edge ? EdgeBox(b, over) : b, wy, bed, velocity, false, burning);   // 1.5 review R8: an edge landing is taken from the middle of its wet points
             if (r.state == 0) return false;                                                                 // Small or thin: only the splash
             m.recs.Add(r); m.byId[id] = r;
             return true;
@@ -436,6 +440,7 @@ namespace OpenZ
         /// stream over a land tile, a step in a stream).</summary>
         static void Drops(OpenZFxPlayer fxp, Vector3 at, float s, int count)
         {
+            if (OzWaterSplash.Drops(at, s, count, Tint())) return;                                          // 1.5 water_fx: round soft drops, a crown, foam (OzWaterSplash.cs)
             var L = OpenZFxCatalog.M12Splash; var tint = Tint(); count = Mathf.Clamp(count, 1, 12);
             for (int j = 0; j < count; j++)
             {
@@ -448,6 +453,7 @@ namespace OpenZ
         /// <summary>One ring of the game's ripple look, ended at the nearest edge of the open water (+ 0.4 m under the wet band).</summary>
         static int Ring(OpenZFxPlayer fxp, Vector3 at, float s, float lifeMul, float alpha)
         {
+            if (OzWaterBlast.Landing(at, s)) return 1;   // 1.5 kit water_blast_r6 (A16): a piece landing in the water (a crater's clods, rubble, debris, a wreck part, a turret): one small stamp in the water itself, not 1 to 3 flat rings
             float maxR = Clear(fxp, at, 4.65f * s, out _) + 0.4f;
             if (4.65f * s > maxR) s = Mathf.Max(0.1f, maxR / 4.65f);
             fxp.EmitChannel("m12_ripple", new Vector3(at.x, at.y + OpenZFxCatalog.RippleLift, at.z), Vector3.zero, OpenZFxCatalog.RippleLife * lifeMul, 2f * OpenZFxCatalog.RippleScale * s, Tint(), alpha);
@@ -571,6 +577,7 @@ namespace OpenZ
             bool midOnLava = OzLava.SurfaceAt(b.center, out _);
             r.inLava = midOnLava || OzLava.SurfaceAt(r.t.position, out _);                                  // its pivot when its middle is off the sheet, as Enter chose it: lava, never the water rule
             Box(r.t, r.rs, b, out var oc, out var os);
+            r.boxC = oc; r.boxS = os;                                                                       // water_depth_soft (1.5)
             r.size = SizeOf(Mathf.Max(os.x, Mathf.Max(os.y, os.z)));
             // a piece that would lie flat on the water (a slab, a plate, a plank, a door: its thinnest side under ThinMax) does not
             // rest there: it makes the splash and the sound of its size and goes under like a Small one
@@ -627,6 +634,7 @@ namespace OpenZ
             }
             float share = r.floats ? ShareFloats : large ? ShareLarge : ShareMedium, under = Mathf.Max(0.05f, Mathf.Min(share * h, wy - bed + MudSink));   // never on top of the water
             r.restY = wy - under - off; r.floorY = bed - MudSink - off;
+            r.under = under;                                                                                 // water_depth_soft (1.5): the water shaders' contact depth
             r.w = 2f * Mathf.PI * (large ? BobHzLarge : BobHzMedium); r.damp = large ? BobDampLarge : BobDampMedium;
             r.vy = quiet ? 0f : -Mathf.Min(MaxPlungeSpeed, Carry * Mathf.Abs(v.y));
             r.drift = quiet ? Vector3.zero : new Vector3(v.x, 0f, v.z) * 0.15f; r.turn = large ? 0.8f : 0.55f;
@@ -666,7 +674,7 @@ namespace OpenZ
         void LateUpdate()
         {
             var g = ZGame.I; var fxp = OpenZFxPlayer.I;
-            if (!g || !fxp || !fxp.isActiveAndEnabled || (float.IsNegativeInfinity(fxp.WaterY) && !OzLava.I)) return;
+            if (!g || !fxp || !fxp.isActiveAndEnabled || (float.IsNegativeInfinity(fxp.WaterY) && !OzLava.I)) { if (ContactsShown > 0) PublishNone(); return; }   // water_depth_soft (1.5)
             if (!warmed) { warmed = true; AnticSpot.WaterMeshAt(fxp, transform.position, out _); }       // the grid of the drawn water is laid out in the level's first frames, not at the first blast
             float dt = g.paused ? 0f : Mathf.Min(Time.deltaTime, 0.05f), now = Time.time;
             int lapping = 0;
@@ -685,6 +693,48 @@ namespace OpenZ
                     default: if (!Sink(r, dt)) Forget(r, 2); break;
                 }
             }
+            PublishContacts();                                                                              // water_depth_soft (1.5)
+        }
+
+        // ================================================================================================ water_depth_soft (1.5): the water shaders' contacts
+        /// <summary>Pieces in the water published to the water shaders this frame (Shaders/OpenZWaterContact.hlsl: a soft waterline, the part
+        /// under the surface faintly seen, a thin foam / ripple ring round the outline). Proof counter.</summary>
+        public static int ContactsShown { get; private set; }
+        /// <summary>The shader's list size (OZ_WATER_CONTACTS).</summary>
+        public const int MaxContacts = 16;
+        static readonly int BoxAId = Shader.PropertyToID("_OZWetBoxA"), BoxBId = Shader.PropertyToID("_OZWetBoxB"), BoxCountId = Shader.PropertyToID("_OZWetBoxCount");
+        static readonly Vector4[] boxA = new Vector4[MaxContacts], boxB = new Vector4[MaxContacts];
+
+        static void PublishNone() { ContactsShown = 0; Shader.SetGlobalFloat(BoxCountId, 0f); }
+
+        /// <summary>Every piece the rule holds in water (bobbing or at rest, on screen; never lava), as its footprint at the waterline: the centre,
+        /// half its length and width along its own axes (the two least upright of its box), its yaw, the water height and how deep it rests.</summary>
+        void PublishContacts()
+        {
+            int n = 0;
+            for (int i = 0; i < recs.Count && n < MaxContacts; i++)
+            {
+                var r = recs[i];
+                if ((r.state != 1 && r.state != 2) || r.inLava || !r.t) continue;
+                var q = r.t.rotation; var c = r.t.position + q * r.boxC;
+                if (!WreckFx.OnScreen(c, 0.2f)) continue;
+                Vector3 ax = q * Vector3.right, ay = q * Vector3.up, az = q * Vector3.forward, u, v; float su, sv;
+                float yx = Mathf.Abs(ax.y), yy = Mathf.Abs(ay.y), yz = Mathf.Abs(az.y);
+                if (yx >= yy && yx >= yz) { u = ay; su = r.boxS.y; v = az; sv = r.boxS.z; }                // x is its height
+                else if (yy >= yz) { u = ax; su = r.boxS.x; v = az; sv = r.boxS.z; }                      // y is its height
+                else { u = ax; su = r.boxS.x; v = ay; sv = r.boxS.y; }                                     // z is its height
+                var uf = new Vector2(u.x, u.z); float ul = uf.magnitude;
+                if (ul < 1e-3f) { uf = new Vector2(1f, 0f); ul = 1f; } else uf /= ul;
+                float hu = 0.5f * su * ul, hv = 0.5f * sv * new Vector2(v.x, v.z).magnitude;
+                boxA[n] = new Vector4(c.x, c.z, Mathf.Max(0.05f, hu), Mathf.Max(0.05f, hv));
+                boxB[n] = new Vector4(uf.x, uf.y, r.waterY, Mathf.Max(0.05f, r.under));
+                n++;
+            }
+            n = OzVehicleWaterDip.Contacts(boxA, boxB, n, MaxContacts);                                    // 1.5 review R8 (kit review_r8_r12): the hulls dipping a track into the water, and their wrecks
+            if (n == 0 && ContactsShown == 0) return;                                                       // nothing then, nothing now: no upload
+            for (int i = n; i < MaxContacts; i++) { boxA[i] = Vector4.zero; boxB[i] = Vector4.zero; }
+            Shader.SetGlobalVectorArray(BoxAId, boxA); Shader.SetGlobalVectorArray(BoxBId, boxB); Shader.SetGlobalFloat(BoxCountId, n);
+            ContactsShown = n;
         }
 
         /// <summary>A watched piece that has not reached water yet. False = stop watching it.</summary>
@@ -753,7 +803,7 @@ namespace OpenZ
             if (WreckFx.OnScreen(r.last, 0.1f) && Bounds(r.rs, r.t, out var b))
             {   // the faint ring where it breaks the surface
                 float foot = Mathf.Max(b.size.x, b.size.z);
-                fxp.EmitChannel("m12_ripple", new Vector3(b.center.x, r.waterY + OpenZFxCatalog.RippleLift, b.center.z), Vector3.zero, 2.2f, Mathf.Clamp(foot * 0.3f, 0.2f, 0.8f), Tint(), 0.5f);
+                if (!OzWaterBlast.Lap(new Vector3(b.center.x, r.waterY, b.center.z), foot)) fxp.EmitChannel("m12_ripple", new Vector3(b.center.x, r.waterY + OpenZFxCatalog.RippleLift, b.center.z), Vector3.zero, 2.2f, Mathf.Clamp(foot * 0.3f, 0.2f, 0.8f), Tint(), 0.5f);   // 1.5 kit water_rings_rest_r6: a faint small stamp where it breaks the surface, no flat ring
             }
         }
 
@@ -766,7 +816,7 @@ namespace OpenZ
             var p = Random.value < 0.5f ? new Vector3(b.center.x + sg * (b.extents.x + 0.05f), 0f, b.center.z + u * b.extents.z)
                                         : new Vector3(b.center.x + u * b.extents.x, 0f, b.center.z + sg * (b.extents.z + 0.05f));
             p.y = r.waterY + OpenZFxCatalog.RippleLift;
-            fxp.EmitChannel("m12_ripple", p, Vector3.zero, 1.8f, Mathf.Clamp(Mathf.Max(b.size.x, b.size.z) * 0.22f, 0.14f, 0.6f), Tint(), 0.45f);
+            if (!OzWaterBlast.Lap(p, Mathf.Max(b.size.x, b.size.z))) fxp.EmitChannel("m12_ripple", p, Vector3.zero, 1.8f, Mathf.Clamp(Mathf.Max(b.size.x, b.size.z) * 0.22f, 0.14f, 0.6f), Tint(), 0.45f);   // 1.5 kit water_rings_rest_r6: the lap of a piece lying in the water = a faint small stamp, no flat ring
             Laps++;
         }
 

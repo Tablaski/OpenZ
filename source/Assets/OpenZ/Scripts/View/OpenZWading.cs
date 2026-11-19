@@ -23,6 +23,16 @@ namespace OpenZ
         [Tooltip("Robot height used when the renderer bounds cannot be read (m)")] public float fallbackHeight = 2.4f;
 
         public int Wading { get; private set; }
+        /// <summary>
+        /// with its own water table (L16) a robot wades FULLY (the river's half-body water line) once <see cref="OwnWetFull"/> m of water
+        /// is over the walk surface, eased in from <see cref="OwnWetFrom"/> m (a dry bank stays dry). Off = the old ramp over 0.05-0.40 m,
+        /// which left robots in the shallow band round every pool (the walk surface is the drawn bed there) knee-deep with their legs out.</summary>
+        public static bool OwnTableFullWade = true;
+        public const float OwnWetFrom = 0.02f, OwnWetFull = 0.12f;
+        /// <summary>1.5 kit crush_swamp_fix (the L16 Play check): the last robot on a water tile of a level with its own water table: the
+        /// table's water, its feet, the depth over the walk surface, wet, sink and height (m, once a second).</summary>
+        public static string Diag = "";
+        float diagAt;
         public float WaterY => waterY;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -38,6 +48,8 @@ namespace OpenZ
         sealed class Wader
         {
             public UnitView v; public float height = -1f, sink, wet; public bool wasWet, wasDying;
+            /// <summary>1.5 R3.25: the robot size (View/OzRobotScale.cs) the height was measured at (1 = full size).</summary>
+            public float heightK = 1f;
             public Transform footL, footR; public float relL, relR, lastStep = -10f, stepDist; public bool downL, downR; public int stepSide;
             public float ringT, wakeT; public int wakeSide; public Vector3 lastPos; public bool hasLast;
             public SkinnedMeshRenderer skin; public MaterialPropertyBlock block;
@@ -90,7 +102,7 @@ namespace OpenZ
         {
             if (game == null) game = ZGame.I;
             if (game == null || game.World == null) return;
-            if (float.IsNegativeInfinity(waterY)) { if (shaderHook) Shader.SetGlobalFloat(WadeCountId, 0f); return; }
+            if (float.IsNegativeInfinity(waterY) && !OzWaterLevel.Has(game.level)) { if (shaderHook) Shader.SetGlobalFloat(WadeCountId, 0f); return; }   // 1.5 kit crush_swamp_fix: a level with its own water table (L16) wades by its table even without the flat value
             float dt = Time.deltaTime; var fx = OpenZFxPlayer.I; var cam = Camera.main;
             int points = 0, wading = 0;
             foreach (var v in game.LiveViewValues)
@@ -102,7 +114,7 @@ namespace OpenZ
                 if (w.wet > 0.01f)
                 {
                     wading++;
-                    if (points < wadePoints.Length)
+                    if (points < wadePoints.Length && WreckFx.OnScreen(v.transform.position, 0.3f))        // water_depth_soft (1.5): the water shaders ring these: on screen first
                     {
                         var p = v.transform.position;
                         wadePoints[points++] = new Vector4(p.x, waterY, p.z, w.wet * (v.Obj.IsMoving ? 1f : 0.4f));
@@ -126,7 +138,7 @@ namespace OpenZ
             var v = w.v; var t = v.transform;
             if (v.Dying)
             {   // UnitView stops placing a dying robot: leave it where it is (already lowered); one splash as it falls in
-                if (!w.wasDying && w.wet > 0.3f && fx) fx.Splash(new Vector3(t.position.x, waterY, t.position.z), 0.5f);
+                if (!w.wasDying && w.wet > 0.3f && fx) fx.SplashStamped(new Vector3(t.position.x, waterY, t.position.z), 0.5f);   // 1.5 kit water_blast_r6 (A16): a robot killed while wading: droplets + a small stamp in the water, no flat 2.3 m ring beside the blast
                 w.wasDying = true; return;
             }
             w.wasDying = false;
@@ -141,12 +153,16 @@ namespace OpenZ
             // wading" below and the "feet above the surface" sink are for levels with one flat surface and no carved bed.
             bool ownTable = OzWaterLevel.Has(game.level);
             if (!ownTable && waterTile && depth < OpenZFxCatalog.WadeMinDepth + OpenZFxCatalog.WadeRampDepth) targetWet = 1f;
+            if (ownTable && OwnTableFullWade) targetWet = waterTile && depth > OwnWetFrom ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((depth - OwnWetFrom) / (OwnWetFull - OwnWetFrom))) : 0f;   // 1.5 kit crush_swamp_fix: in the swamp's shallow band (walk surface = drawn bed) fully in from 0.12 m, like the river
             float k = 1f - Mathf.Exp(-dt * 3f / OpenZFxCatalog.WadeBlendTime);           // ~95 % in .3 s
             w.wet = Mathf.Lerp(w.wet, targetWet, k);
-            if (w.wet > 0.01f && w.height < 0f) w.height = MeasureHeight(w);
+            if (w.wet > 0.01f && w.height < 0f) { w.height = MeasureHeight(w); w.heightK = OzRobotScale.Of(w.v); }   // 1.5 R3.25 (View/OzRobotScale.cs): the size it was measured at
             float H = w.height > 0f ? w.height : fallbackHeight;
+            { float rsNow = OzRobotScale.Of(w.v), rsAt = w.height > 0f ? w.heightK : 1f; if (rsNow != rsAt) H = H / rsAt * rsNow; }   // 1.5 R3.25 (View/OzRobotScale.cs): the drawn height after a size change (H itself at 100 %)
             float extra = Mathf.Max(0f, sinkFraction * H - Mathf.Max(0f, depth) + (ownTable ? 0f : Mathf.Max(0f, -depth)));   // water line at sinkFraction x height (feet above the surface: sink that too)
             w.sink = Mathf.Lerp(w.sink, targetWet * extra, k);
+            if (ownTable && waterTile && Time.unscaledTime >= diagAt)   // 1.5 kit crush_swamp_fix: the L16 check's numbers
+            { diagAt = Time.unscaledTime + 1f; Diag = game.level + " robot " + v.Obj.Id + ": table water " + waterY.ToString("F2") + " m, feet " + p.y.ToString("F2") + " m, depth " + depth.ToString("F2") + " m, wet " + w.wet.ToString("F2") + ", sink " + w.sink.ToString("F2") + " m, height " + H.ToString("F2") + " m"; }
             if (w.sink > 0.001f)
             {
                 t.position = p - Vector3.up * w.sink;
@@ -166,13 +182,14 @@ namespace OpenZ
             bool wet = w.wet > 0.5f;
             if (enterSplash && wet && !w.wasWet && fx && OnScreen(cam, surf))
             {
-                fx.Splash(surf, OpenZFxCatalog.WadeEnterSplash);
+                if (OzWadeRipples.Entry(v, surf)) fx.Droplets(surf, OpenZFxCatalog.WadeEnterSplash, 12); else fx.Splash(surf, OpenZFxCatalog.WadeEnterSplash);   // 1.5 kit big_tank_wake_r3 (A2b): the droplets + one soft ripple, no 2.8 m ring
                 if (sound && CombatAudio.I) CombatAudio.I.Play("swim", surf, OpenZFxCatalog.WadeSwimVolume, 0.5f, v.Obj.Id, OzSoundV3.BankSwim);   // sound_v3
             }
             w.wasWet = wet;
             if (!wet || !fx || !OnScreen(cam, surf)) { w.downL = w.downR = false; return; }
+            bool soft = OzWadeRipples.Feed(v, surf, moving, dt);   // 1.5 kit big_tank_wake_r3 (A2b): the soft collar, ripples and wake (View/OzWadeRipples.cs)
 
-            if (ripples)
+            if (ripples && !soft)   // 1.5 kit big_tank_wake_r3 (A2b): no ~2 m rings
             {
                 w.ringT -= dt;
                 if (w.ringT <= 0f)
@@ -181,7 +198,7 @@ namespace OpenZ
                     fx.Ripple(surf, moving ? OpenZFxCatalog.WadeRingMoveStrength : OpenZFxCatalog.WadeRingIdleStrength, OpenZFxCatalog.RippleLife, OpenZFxCatalog.WadeRingLift);
                 }
             }
-            if (wake && moving && move.sqrMagnitude > 1e-6f)
+            if (wake && !soft && moving && move.sqrMagnitude > 1e-6f)   // 1.5 kit big_tank_wake_r3 (A2b): its wake is the soft V of OzWadeRipples
             {   // small wake: alternating rings behind the robot (coast wake: moving body every 250 ms)
                 w.wakeT -= dt;
                 if (w.wakeT <= 0f)
@@ -223,7 +240,7 @@ namespace OpenZ
             w.lastStep = now;
             var at = new Vector3(foot.x, waterY, foot.z);
             fx.Droplets(at, OpenZFxCatalog.WadeStepSplash, OpenZFxCatalog.WadeStepDroplets);   // 4-6 droplets per footfall
-            fx.Ripple(at, OpenZFxCatalog.WadeStepRipple, OpenZFxCatalog.RippleLife * 0.7f, OpenZFxCatalog.WadeRingLift);
+            if (!OzWadeRipples.Step(w.v, at)) fx.Ripple(at, OpenZFxCatalog.WadeStepRipple, OpenZFxCatalog.RippleLife * 0.7f, OpenZFxCatalog.WadeRingLift);   // 1.5 kit big_tank_wake_r3 (A2b): a small soft footfall ripple instead
         }
 
         static bool OnScreen(Camera cam, Vector3 p)

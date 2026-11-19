@@ -124,7 +124,7 @@ namespace OpenZ
             {
                 s.had = PlayerPrefs.HasKey(KeyValues);
                 s.text = PlayerPrefs.GetString(KeyValues, ""); s.name = PlayerPrefs.HasKey(KeyName) ? PlayerPrefs.GetString(KeyName, "") : null;
-                s.basedOn = PlayerPrefs.GetInt(KeyBase, -1); s.changed = PlayerPrefs.GetInt(KeyChanged, -1);
+                s.basedOn = PlayerPrefs.HasKey(KeyBase) ? PlayerPrefs.GetInt(KeyBase, 0) : -1; s.changed = PlayerPrefs.HasKey(KeyChanged) ? PlayerPrefs.GetInt(KeyChanged, 0) : -1;   // settings_tidy (1.5): -1 = not saved (the proof's own mark, as before); a saved value read with the keys' one default 0
             }
             catch (Exception) { }
             return s;

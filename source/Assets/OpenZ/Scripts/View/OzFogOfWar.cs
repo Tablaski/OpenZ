@@ -129,6 +129,7 @@ namespace OpenZ
             if (radarGroundMaterial) Destroy(radarGroundMaterial);
             FieldRelease();
             MinimapDestroy();
+            LosRelease();                                                           // 1.5 los_fog
         }
 
         // ---------------------------------------------------------------- the match's choice
@@ -164,6 +165,7 @@ namespace OpenZ
                 mask.ShowAll();                                                     // the start area is open on the first frame
                 if (!tex) tex = new Texture2D(mask.W, mask.H, TextureFormat.R8, false, true) { name = "OZ_FogOfWarMask", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0, hideFlags = HideFlags.DontSave };
                 Upload();
+                LosStart();                                                         // 1.5 los_fog (View/OzFogOfWar.Los.cs): the seen-now map from where the player's side stands, shown at once
                 floorY = FloorAtCentre();
                 blanketY = BlanketBase(floorY);
             }
@@ -278,7 +280,7 @@ namespace OpenZ
 
         void Update()
         {
-            if (hiddenNow.Count > 0) RestoreHidden();                                   // a camera that never reached its end
+            if (hiddenNow.Count > 0 || losLights.Count > 0) RestoreHidden();            // a camera that never reached its end (1.5 los_fog: its held lamps too)
             if (!decided) { if (game && game.World != null) Decide(); else return; }
             var loss = OzRadarLoss.I;
             bool radarNow = loss && loss.Fog;
@@ -315,6 +317,7 @@ namespace OpenZ
             if (radarFog) radarSightRevision = loss.SightRevision;
             long t2 = Stopwatch.GetTimestamp();
             if (changed) Upload();
+            LosStep();                                                                  // 1.5 los_fog (View/OzFogOfWar.Los.cs): the seen-now map (20 a second), its easing, its upload and the enemy units it hides
             GateStep();                                                                                 // 1.4 fog_gameplay_only (View/OzFogOfWar.Gate.cs): the one gate sets strength (a 0.4 s smootherstep fade, 0 at once on a cut), Covers and the units held off
             maskNow = mask; playerNow = player;                 // nothing is hidden when the fog cannot be drawn
             if (strength <= 0.001f) RestoreDither();
@@ -346,6 +349,7 @@ namespace OpenZ
             if (I && I.radarFog) return OzRadarLoss.Covers(o);
             if (!hidingNow || o == null || o.Owner == playerNow) return false;
             var m = maskNow; if (m == null) return false;
+            if (LosCovers(o)) return LosCountCovered();                                 // 1.5 los_fog (View/OzFogOfWar.Los.cs): an enemy robot or vehicle on explored ground nothing of ours sees now
             if (m.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) return false;
             if (o.Kind == ZKind.Building)
             {
@@ -387,7 +391,7 @@ namespace OpenZ
             var c = CostMs(); var f = I;
             return $"cost a frame (ms, {CostFrames} frames): stamp {c[0]:0.000}, reveal {c[1]:0.000}, upload {c[2]:0.000}, hide {c[3]:0.000}, minimap {c[4]:0.000}, total {c[5]:0.000} (worst frame {c[6]:0.000}); "
                  + $"explored {(f && f.mask != null ? f.mask.ExploredShare() * 100f : 0f):0.0} %, uploads {Uploads}, strength {Strength:0.00}, hidden views {HiddenViews}, look {LookName}, planet {PlanetName}"
-                 + (GpuTiming ? $"; GPU ms field {GpuMsField:0.000}, sheets {GpuMsCloud:0.000}" : "");
+                 + (GpuTiming ? $"; GPU ms field {GpuMsField:0.000}, sheets {GpuMsCloud:0.000}" : "") + LosCostText();   // 1.5 los_fog
         }
     }
 }

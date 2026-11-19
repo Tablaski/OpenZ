@@ -20,6 +20,7 @@ namespace OpenZ
         public static string Report = "";
         public static string Level = "L02";
         public static int Fps = 30, Jpg = 92;
+        OzBriefingRecTimes lt;   // 1.5: the level's own row (picture times, scene watch, folders, clip name); null = level 2's values below, unchanged
         Job job; string dir; readonly StringBuilder sb = new StringBuilder(); int passes, fails;
         bool boxWas, boxChanged, recording, audioStarted; string recDir; int frameNo, renderFails, holdFrames, rate, ch, per; readonly List<float> samples = new List<float>(); float peak;
         readonly List<(float t, string name)> wantShots = new List<(float, string)>(); int shotI; string shotScene = ""; readonly Dictionary<string, float> marks = new Dictionary<string, float>();
@@ -44,7 +45,8 @@ namespace OpenZ
 
         IEnumerator Run()
         {
-            dir = Path.Combine(Application.dataPath, "../../../../work/records/milestones/blue_cutscenes_k75b/" + job).Replace('\\', '/');
+            lt = OzBriefingRecTimes.Blue(Level);
+            dir = lt != null ? lt.NewFramesDir(job.ToString()) : Path.Combine(Application.dataPath, "../../../../work/records/milestones/blue_cutscenes_k75b/" + job).Replace('\\', '/');
             Directory.CreateDirectory(dir);
             var m = FindFirstObjectByType<OpenZMainMenu>();
             if (!m) { Check("the MainMenu scene is in Play", false); Finish(); yield break; }
@@ -68,8 +70,9 @@ namespace OpenZ
             Check("the blue director is installed (ZodBriefing absent)", OzBlueCameo.I && !ZodBriefing.I);
             if (job == Job.Briefing || job == Job.RecordBriefing)
             {
+                if (lt != null) WantShots("briefing", lt.Shots); else
                 WantShots("briefing", (-0.5f, "opening"), (0.6f, "sidekick_asks"), (3.9f, "evilzod_fist_up"), (5.9f, "sidekick_scared"), (9.0f, "evilzod_points_board"), (11.4f, "now_move"), (12.5f, "sidekick_leaves"));
-                yield return WatchScene("briefing", 30f);
+                yield return WatchScene("briefing", lt != null ? lt.WatchSeconds : 30f);
                 Check("the blue briefing played (BriefingsPlayed " + OzBlueCameo.BriefingsPlayed + ")", OzBlueCameo.BriefingsPlayed >= 1);
                 Check("the start lines were held through the whole briefing (" + holdLapses + " of " + holdSamples + " briefing frames without AudioDirector.HoldStartLines)", holdSamples > 30 && holdLapses == 0);
                 float th = Clock;
@@ -79,7 +82,7 @@ namespace OpenZ
                 if (record)
                 {
                     float te = Clock; while (Clock - te < 2.5f) yield return null;
-                    StopRecording("cutscene_briefing");
+                    StopRecording(lt != null ? lt.ClipName : "cutscene_briefing");
                 }
             }
             else
@@ -110,6 +113,7 @@ namespace OpenZ
                 Check("the crash zoom ran in the ending (" + crashFrames + " frames zoomed in)", crashFrames > 5);
                 if (!won) Check("the shotgun in EvilZod's hands from the cut on 'Fine' (" + gunFrames + " frames; LOSE only)", gunFrames > 20);
                 if (won) Check("the red fort's gun stayed on the fort until the bomb landed (HoldFortToss " + (tossSeen ? "released " + tossBeforeImpact.ToString("F2") + " s before the impact" : "held to the impact") + ")", !tossSeen || tossBeforeImpact <= 0.05f);
+                if (won) Check("the red fort's standing gun was blown off before the scene's first line (" + FortGunView.OutroBlastReport() + ")", FortGunView.OutroBlastOk);   // 1.5 outro_megacannon_blast
                 float te = Clock;
                 while (OpenZVictory.HoldEndScreen && Clock - te < 20f) yield return null;
                 Check("the end screen came after the scene", !OpenZVictory.HoldEndScreen);
@@ -229,7 +233,7 @@ namespace OpenZ
             }
             Log($"take: {frameNo} frames at {Fps} ({frameNo / (float)Fps:F1} s), sound {wav} (peak {peak:F3}, render fails {renderFails}, held {holdFrames})");
             Check("the take has frames and sound", frameNo > Fps * 5 && peak > 0.01f && renderFails == 0);
-            string st = Staging(); string outDir = st.Length > 0 ? st + "/blue_team/videos" : dir; Directory.CreateDirectory(outDir);
+            string st = Staging(); string outDir = lt != null ? lt.ClipDir : st.Length > 0 ? st + "/blue_team/videos" : dir; Directory.CreateDirectory(outDir);
             string ff = FfmpegExe();
             if (ff == null) { Check("ffmpeg found (join by hand: python <kit>/tools/mux_mp4.py " + recDir + " " + wav + " <out.mp4>)", false); return; }
             string full = Path.Combine(dir, name + "_full.mp4").Replace('\\', '/');
@@ -248,7 +252,7 @@ namespace OpenZ
             string range = "";
             if (marks.TryGetValue(kind + "_start", out var a) && marks.TryGetValue(kind + "_end", out var b))
             {
-                float to = b + (kind == "briefing" ? 2.5f : 1.0f);
+                float to = b + (kind == "briefing" ? (lt != null ? lt.TailSeconds : 2.5f) : 1.0f);
                 if (kind == "nuke" && marks.TryGetValue("impact", out var hit) && hit > b) { to = hit + 2.0f; if (marks.TryGetValue("ending_start", out var e0) && e0 > hit) to = Mathf.Min(to, e0); }
                 var inv = System.Globalization.CultureInfo.InvariantCulture;   // ffmpeg reads a dot, whatever the system's number format
                 range = "-ss " + Mathf.Max(0f, a - 0.5f).ToString("F2", inv) + " -to " + to.ToString("F2", inv) + " ";

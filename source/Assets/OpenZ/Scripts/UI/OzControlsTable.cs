@@ -77,7 +77,7 @@ namespace OpenZ
             R(OzBindings.DefOf(OzAction.PlaceCannon).label, A(OzAction.PlaceCannon)),
             R(OzBindings.DefOf(OzAction.ExitCrew).label, A(OzAction.ExitCrew)),
             R(OzBindings.DefOf(OzAction.LastMessage).label, A(OzAction.LastMessage)),
-            R("Game speed: slower / faster", K("-"), S("/"), K("+")),                                                // fixed keys, the numpad pair too (OzSpeedKeys)
+            R("Game speed: slower / faster", A(OzAction.TacticalPause), S("·"), K("-"), S("/"), K("+")),             // fixed keys, the numpad pair too (OzSpeedKeys); 1.5: the TACTICAL PAUSE key in front, shown while it is on (View/OzTacticalPause.cs)
             R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),                                    // the MINIMAL UI key (OpenZHud.MinimalKey.cs)
             R("Hide the HUD · arrange its panels", A(OzAction.HideHud), S("·"), A(OzAction.ArrangeHud)),
             R("Controls help · pause menu", A(OzAction.HelpOverlay), S("·"), K("ESC")),
@@ -105,7 +105,7 @@ namespace OpenZ
             R("Hold SHIFT to scroll faster", K("SHIFT")),
             R("Factory list · place a stored cannon", A(OzAction.FactoryList), S("·"), A(OzAction.PlaceCannon)),
             R("Exit crew · cycle the last 5 messages", A(OzAction.ExitCrew), S("·"), A(OzAction.LastMessage)),
-            R("Game speed: slower / faster", K("-"), S("/"), K("+")),
+            R("Game speed: slower / faster", A(OzAction.TacticalPause), S("·"), K("-"), S("/"), K("+")),   // 1.5 tactical_pause_megashake: the TACTICAL PAUSE key in front, shown while it is on
             R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),
             R("Hide HUD / arrange it · help · menu", A(OzAction.HideHud), A(OzAction.ArrangeHud), S("·"), A(OzAction.HelpOverlay), S("·"), K("ESC")),
             R(OzBindings.DefOf(OzAction.RestartProduction).label, A(OzAction.RestartProduction)),

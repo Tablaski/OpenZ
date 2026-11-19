@@ -30,9 +30,10 @@ namespace OpenZ
             if (string.IsNullOrEmpty(id)) return null;
             if (id == OzUePlayground.Flag) { var t = Tile(FlagTilePath); return t ? t : FlagPicture(); }
             if (id == OzUePlayground.Obstacle) { var t = Tile(ObstacleTilePath); return t ? t : ObstaclePicture(); }
+            if (id == OzUePlayground.Box) { var t = Tile(OzUeBoxes.TilePath); return t ? t : ObstaclePicture(); }   // 1.5 ue_boxes: a render of the box (kit ue_boxes)
             if (id == OzUePlayground.Grenades) return GrenadesPicture();
             if (OzUePlayground.IsPlatformId(id)) { var t = Tile(id == OzUePlayground.PlatformHigh ? PlatformHighTilePath : PlatformMidTilePath); return t ? t : OzUePlatformArt.Picture(id); }   // 1.3: the code-drawn one in View/OzUePlatformView.cs if it is missing
-            if (id == OzUePlayground.Nuke) return NukePicture();                                                 // 1.3 item 2
+            if (OzUeBlasts.Is(id)) { var t = Tile(OzUeBlasts.TilePaths[OzUeBlasts.TypeOf(id)]); return t ? t : NukePicture(); } /* 1.5 ue_explosions_6 */ if (id == OzUePlayground.Nuke) return NukePicture();                                                 // 1.3 item 2
             if (team == Team.Neutral) return OzNeutralArt.ForUnit(id) ?? Grey(TeamPicture(id, Team.Blue));   // 1.2 item 167c: the empty vehicle's / gun's / shuttle's own neutral picture (View/OzNeutralArt.cs); the grey filter only where none
             return TeamPicture(id, team);
         }

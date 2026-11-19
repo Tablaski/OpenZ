@@ -210,6 +210,7 @@ namespace OpenZ
             if (plan.Count < 2) { Debug.LogError("[OpenZ] shuttle break-up: no pieces (" + LastPlan + "): the whole ship falls"); return false; }
             var g = ZGame.I; var w = g ? g.World : null;
             bool air = ps.FeetHeight > 0.5f;
+            OzShuttleAirBurst.AtShipDeath(o, root.TransformPoint(new Vector3(0f, 2.6f, 0f)), air);   // 1.5 owner addition 44 (kit shuttle_air_burst_44): exp_v2_7 on top in the air, view only
             var vel = ps.Velocity; var centre = root.TransformPoint(new Vector3(0f, 2.6f, 0f));
             // the killing hit: where it struck, the round's way, how hard (none drawn in the last 1.5 s: a plain burst)
             bool hitKnown = OzShuttleAim.KillHit(o.Id, out var hitDir, out var hitAt, out float power, out string hitKind);

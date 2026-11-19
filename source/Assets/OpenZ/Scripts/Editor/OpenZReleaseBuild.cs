@@ -29,7 +29,7 @@ namespace OpenZ.EditorTools
     {
         public const string Define = "OZ_RELEASE";
         public const string ReleaseCompany = "OpenZ";
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" };
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", "L18_BridgeGame" };
         internal static bool Building;
         /// <summary>A letter after the day tag for a second private test build on one day (release\OpenZ_&lt;tag&gt;&lt;suffix&gt;); empty by
         /// default. Only the folder names change: bundleVersion stays the day tag, so the in-game version text still reads the build day.</summary>
@@ -53,7 +53,7 @@ namespace OpenZ.EditorTools
             // ---- pre-flight
             var scenes = Array.ConvertAll(Array.FindAll(EditorBuildSettings.scenes, e => e.enabled), e => e.path);
             var missing = RequiredScenes.Where(r => !scenes.Any(s => Path.GetFileNameWithoutExtension(s) == r)).ToArray();
-            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L07_Volcanic, L16_Jungle, L17_CarPark must be enabled)");
+            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L07_Volcanic, L16_Jungle, L17_CarPark, L18_BridgeGame must be enabled)");
             string introSrc = Path.Combine(Application.dataPath, "OpenZ/Scripts/Intro/OzIntroData.cs");
             if (File.Exists(introSrc) && !File.ReadAllText(introSrc).Contains("PlayerPrefs.GetInt(Pref, 0) == 1"))
                 return Fail("the intro default is not OFF in OzIntroData.cs (expected PlayerPrefs.GetInt(Pref, 0) == 1)");
@@ -356,10 +356,11 @@ namespace OpenZ.EditorTools
 $@"{OzVersion.Display(d)}
 ==============================
 A faithful fan tribute remake of Z by The Bitmap Brothers (1996), made for its 30th anniversary.
-Free and non-commercial. Four maps: Z level 2 (desert), Z level 7 (volcano), Z level 16 (jungle) and Z level 17 ""Car Park"" (city).
+Free and non-commercial. Five maps: Z level 2 (desert), Z level 7 (volcano), Z level 16 (jungle), Z level 17 ""Car Park"" (city) and Z level 18 ""Bridge Game"" (city).
 
 START
 - Run OpenZ.exe. The game opens full screen at your screen's resolution (Alt+Enter or OPTIONS > FULLSCREEN for a window).
+- A desktop shortcut: right-click OpenZ.exe > Send to > Desktop (create shortcut). Keep OpenZ.exe in its folder: a copy of OpenZ.exe on its own does not start (Windows says UnityPlayer.dll was not found).
 - Pick a map in the main menu, choose the difficulty and deploy.
 - Capture the territory flags, build robots and vehicles in your factories and fort, and destroy the enemy fort.
 - CONTROLS in the main menu lists every key and lets you change them. OPTIONS holds music, screen and game settings.
@@ -372,47 +373,76 @@ SYSTEM
   %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\CrashLogs
   Please attach the newest file from there to a bug report. The game itself sends nothing anywhere.
 
-NEW IN 1.4
+NEW IN 1.5
 New:
-- MAYHEM, a fourth difficulty after HARD: the computer plays as on HARD, and the battlefield starts under the fog of war, a drifting cloud that opens wherever your units, buildings and flags have been. Explored ground stays open for the whole match, and enemies in unexplored ground stay hidden, on the minimap and under the pointer too. The cloud is drawn for each kind of planet, and a captured radar opens a wide circle in it. MAYHEM keeps its own high scores.
-- On MAYHEM the enemy also builds 10 % faster: every unit and gun in its fort and factories is ready 10 % sooner than the same one in yours.
-- EXIT DRIVER (the button above the unit panel, or E): the driver of a tank or the mech springs out of the hatch with one quick flip and lands on his feet beside it. For 30 seconds nobody climbs in by himself, so you can right-click the robot you want onto it as the new driver.
-- A tank or the mech whose driver jumps out or is sniped stops dead at once and its guns fall silent: no driving, turning or firing until someone climbs back in.
-- A tank or the mech with a driver who is not a grunt steps aside from incoming shells a little faster. Grunt drivers and other vehicles dodge as before.
-- Rally points from the minimap: after SET RALLY, click the minimap to set the rally point there; Shift with clicks makes a route.
-- OPTIONS, GAME tab: RANGE RINGS ON SELECTED UNITS. FADE (the default) shows the firing-range rings for about 2 seconds after you select, as before; ALWAYS keeps them on while your units stay selected.
-- REPEAT in every build menu has three answers for when the list runs out: OFF (the factory goes idle), LAST (the last unit keeps being built, the default as before) or ALL (the whole list loops).
-- OPTIONS, GAME tab: SCROLL SPEED (50 to 300 %), RIGHT-DRAG SCROLL (hold the right button and drag to move the map) and MIDDLE MOUSE (turn the view, drag the map, or drag the map and turn it with Alt) in place of FREE CAMERA. The defaults play as before.
-- Robots standing near the enemy fort's door with no orders run inside by themselves and finish it, as soon as no enemy guards the door. Your own orders and HOLD POSITION come first.
-- UNIT EDITOR: X10 and X20 drop counts for setting up big battles fast, and the NUKE grows a new glowing mushroom cloud, with dust that rolls out in soft puffs of many sizes. Its column of fire is gone before the cloud starts to fade.
+- A new city level, BRIDGE GAME (level 18), the last card after level 17: the three long bridges in the middle lie blown up from the start, robots wade across, vehicles go round over the one bridge still standing, a crane can rebuild a bridge; a ruined harbour, half-sunk tower stumps and rusty containers in the water, the city's night storm, a briefing for each side, a line of each general on the level card, and an empty BIZON and MAMMOTH to take.
+- UNIT EDITOR: two big tanks, the MAMMOTH and the BIZON, each driven by a Psycho, with their own voice lines, real moving tracks with worn, dusty links, lamps and glowing team strips at night, and dozens of flying pieces when destroyed. No factory builds them: place them in the Unit editor, or take the empty ones that wait on level 18.
+- UNIT EDITOR: the MAMMOTH fires from two heavy barrels in turn and rams an enemy vehicle with a crew that comes close in front of it, rolling it onto its back. Enemy robots caught behind the rolling hull are crushed.
+- UNIT EDITOR: the BIZON, the toughest and slowest tank of all, never backs away: it climbs onto an enemy vehicle or ground gun right in front of it, rides over it and crushes it flat. It is the only vehicle that can cross water, and even lava, which slowly burns it.
+- Soft shadows of passing clouds drift across the battlefield by day and fade out at night and in the rain.
+- Forts show their damage stage by stage: soot, cracks, breaches, broken parapets, smoke and fire, until a heavy ruin stands just before the fort falls.
+- The big cannon on a fort's roof goes up in a towering geyser of fire with a column of flame and a shake of the screen when it is shot off a standing fort, and after a won battle the beaten fort's cannon is blown off before the final talk, leaving a burning ruin.
+- Crocodile attacks: no more siren. A robot of yours nearby calls out a warning instead, in one of six lines.
+- UNIT EDITOR: a DAY / NIGHT switch under BACKGROUND, track prints and dust on the Desert dunes and Snow field floors, and an eye button in the top right corner that hides and shows the whole interface, like F10.
+- TACTICAL PAUSE in OPTIONS (on by default): press Space to freeze time, look around, give orders and change production, then Space again to go on. Switched off, Space goes to the last message as before.
+- UNIT EDITOR: seven test explosions on the SPECIAL tab (COLUMN, FUEL, CHAIN, GEYSER, FLAK, SHOCK, BURST): drag one onto the field, or click it and then the field.
+- Now and then a vehicle or gun that blows up in view goes up in one of four big new explosions, the heavy tank, the MAMMOTH and the BIZON every time (jeeps, light tanks, the GATLING and the GUN never), a turret thrown high may burst in the air, and every destroyed building sends out a shock wave.
+- OPTIONS > GRAPHICS: a new row 3D PICTURE (SHARP, SOFT, SOFTEST) sets how small GRAPHICS QUALITY LOW draws the battlefield; menus and text stay sharp. LOW only, not on the Mac.
+- OPTIONS > GAME: a new row ROBOT SIZE, under VEHICLE SIZE, draws the robots smaller, down to 60 %; only the look changes. The default is 100 %, as before.
+- A repaired bridge comes back with see-through orange pieces flying into place like a puzzle while orange light sweeps over it; a repaired factory, radar or repair station comes back the same way.
+- Every river, canal and swamp reflects the glitter of the sun and the light of fires and explosions, softly in battle and brighter in the briefings; the ripples on levels 17 and 18 are low and calm.
+- The OpenZ Launcher (Windows), a small program in the game folder: start the game with it, and from the next version on it downloads, checks and installs each new version by itself; settings and saves stay as they are.
+- A squad losing people on your screen calls for help on the radio with real urgency while the fight is still on, never after it has fallen or the duel is won.
+- Machine gun and sniper bullets that hit sound like hits: one sound on a robot, another on metal, another on a building.
+- Water mirrors the bridges, banks and units in it, and rockets and shells landing in it throw up white spray.
 Changed:
-- The game runs faster: the same battles take about 10 to 20 % less work from your computer, so busy views keep a higher frame rate.
-- One Windows download for everyone: nothing to choose.
-- The gatling reaches 10 % farther and each shot does 15 % more damage. It fires as fast as before.
-- The laser robot's gun glows green for a moment before each shot, and its beam flies a little quicker and looks crisper. Damage, range and fire rate are as before.
-- General EvilZod turns to face his target before he fires. His power dash recharges twice as fast, and when he is shot at from too far away to fire back, he dashes at the nearest enemy by himself.
-- Enemy health bars show only while you own a standing radar, like the enemy dots on the minimap. Your own units keep theirs.
-- The dramatic music comes in as soon as a fort is really under fire, even from a single tank, and it stands out clearly from the battle songs.
-- A right-click on the enemy fort's door, the ground in front of its gate or its walls and roof sends your selected units in: a much bigger area to click.
-- STOP sits at the end of the build progress bar, beside the unit it stops, and a small X beside SET RALLY clears the rally points (it was the CLEAR button).
-- The map lags behind less when the game slows down for a moment.
-- Level 7's card on the battlefield screen plays its familiar volcano flight, recorded again sharp and smooth, and the loading screen now gets level 7 ready before its first briefing.
-- MAYHEM: HEAD START's extra vehicles are locked off, as MAYHEM was too easy with them.
-- MAYHEM: enemies and empty vehicles come into view smoothly at the edge of the fog instead of popping up.
-- General EvilZod's win lines after a kill come much less often.
-- After jumping out of a vehicle, the driver always brings his gun up quickly once he lands, whatever kind of robot he is.
-- No unit, not even a fort or the computer's units, keeps shooting at a vehicle once its crew is out.
-- A robot killed by a rocket falls by his death only, without the hit wobble fighting it.
+- Missile cannons on fort towers fire half as fast (every 2.2 s); missile cannons on the ground are unchanged.
+- A vehicle that captures a flag and has no further order rolls a short way off it to a free spot beside the flag.
+- Captured or abandoned vehicles and guns fill into their new colour over a moment instead of switching at once.
+- Crocodiles no longer stop and slowly surface before they strike: they swim straight in and lunge.
+- When a tank or the mech blows up while its driver is still climbing out, the blast throws him clear: he lies stunned for a moment, then gets up.
+- Heavy hits knock chips of painted armour off where the shell strikes, and the chips lie on the ground for a while.
+- The smoke at a tank's muzzle and behind shells and rockets is a soft grey wisp instead of a row of white balls.
+- Level 2 has one dust devil, a tall twisting column of sand with dust swirling round its foot.
+- UNIT EDITOR: EXIT DRIVER sits in a picked tank's card, flags can stand on PLATFORM and TOWER decks and ramps, and towers and platforms collapse into concrete slabs and rubble with dust and sound.
+- The fort's mega cannon wreck now shakes the screen when it crashes down.
+- The Bizon and the Mammoth now wear desert paint like the heavy tank.
+- MINIMAL UI: the OPTIONS tip now says that in a match the MINIMAL UI key (U, see CONTROLS) switches it.
+- MINIMAL UI: in a match, H with nothing selected now switches it too, as H hides the panels in the Unit editor; with units selected, H still orders HOLD POSITION.
+- While your squad marches, the one robot nearest a flag that is not yours runs off to take it, and the one nearest an empty gun by the way goes to man it; the rest keep walking.
+- Units shoot at the guns on an enemy fort's towers as soon as the tower is within their reach, before the robots on the roof or anything else.
+- Pits and ravines lower than the ground around them no longer block sight or shots; they still cannot be crossed.
+- Bridges go down about as fast as in Z: an MLRS needs six volleys instead of eleven, and other weapons need fewer shots too.
+- A destroyed bridge goes up in a chain of blasts, a long bridge in three big charges along its span.
+- A crane repairs a bridge from the bank at its end instead of driving out onto the broken span, to a new construction sound, and you hear 'Bridge repaired' once.
+- GRAPHICS QUALITY LOW leaves out the sun and fire glints on the water and draws the far scenery more simply, to run lighter.
+- Grunts, Psychos, the jeep and the GATLING hit robots on foot harder.
+- A missile cannon takes 40 % longer to build than a howitzer: 4:11 instead of 3:02.
+- A transport ship sent to a spot where it cannot land flies to the nearest place where it can.
+- The MAMMOTH and the BIZON: the driver rides up in the hatch for most of a fight, so a good sniper can pick him off.
+- UNIT EDITOR: the zoom tools sit in the BACKGROUND box, the RED / BLUE / NEUTRAL buttons are bigger and show their team colour, the FPS counter sits in the top bar, and a paused fight darkens the corners.
+- The dark smoke of a turret bursting in the air clears in a few seconds, and a fort taken by one of your units falls without a shock wave.
+- The loading bar no longer stands still at the end: while the battlefield is built the screen says so. New loading pictures for level 2 and the CAR PARK card.
+- Mac: lighter on big screens and older Macs. Macs with Intel or AMD graphics start on LOW, and the loading screen gets the graphics ready before the battle.
 Fixed:
-- Radar voices: no ""RADAR ACTIVATED"" for a ruined radar, ""Radar lost."" only when your last radar is really gone, and voice lines no longer talk over each other.
-- A turret blown off a tank or a gun still spins through the air, then lies still where it lands: no more hops or slides up a slope.
-- Level 7: a lava pterodactyl that swoops down to attack where you can see it always screams, with one of three new screams, never the same one twice in a row.
-- UNIT EDITOR: EvilZod is offered only for the blue side, Alan and Brad only for the red side.
-- The main menu shows the right version number.
-- The blurred background of the level selection is now smooth and soft: no more big flickering blocks.
-- MAYHEM: after the briefing the fog of war eases in smoothly instead of snapping in.
-- The rank star in the unit panel no longer stays huge after the HUD has been hidden.
-- CHANGES & UPDATES in the main menu lists every change, those of 1.3, 1.2, 1.1 and 1.0 included, and opens with the main additions of 1.4.
+- Tanks no longer lose their hatch lid when they are hit hard.
+- Crater marks fade softly into any ground, with no pale ring round the edge.
+- Shell hits leave soft scorch marks with no ring round them.
+- A tank stepping aside from a shell no longer throws up round pale balls of dust.
+- The card of a selected tank or gun names its real driver, so after a driver swap it no longer looks as if a Grunt still drives it.
+- Wrecks and wading robots sit in the water instead of on top of it.
+- A vehicle with a track over the water dips that side into it, and a turret thrown onto the river's edge goes into the water instead of lying on top of it.
+- Tanks and robots kick up the same soft dust everywhere, the Unit editor and the big tanks included, darker at night, with no round puffs.
+- UNIT EDITOR: unit names show only when you point at a unit or pick it, instead of staying stuck over every unit, and a tank on a platform ramp lies along the ramp.
+- GRAPHICS QUALITY LOW is much lighter on big screens: the battlefield is drawn at a smaller size there, while menus and text stay sharp.
+- Slow graphics chips: the first start picks GRAPHICS QUALITY LOW, LIGHTEST FOR SLOW PCS and FRAME RATE LIMIT 30 by itself; shadows and the other lightest rows are off on LOW only.
+- Linux: the game keeps a copy of your settings in its own folder and puts them back if they get lost.
+- On the jungle level the gravel paths from the factories to the roads no longer fade away when you zoom out.
+- Wrecks, thrown turrets, gun seats and the helmets and packs of fallen robots no longer hang in the air, and no fire burns in mid-air.
+- The jeep's wheels have hubcaps instead of a hole in the middle.
+- RESOLUTION: a left click picks the next larger size, a right click (or Shift + click) the next smaller one; with FULLSCREEN off the window always fits on your screen with its title bar.
+- Choosing DX11 under GRAPHICS API really starts the game on DX11 (it used to stay on DX12).
+- CHANGES & UPDATES in the main menu lists every change, those of 1.4, 1.3, 1.2, 1.1 and 1.0 included, and opens with the main additions of 1.5.
 
 EXPERIMENTAL (provided as is, not tried on real devices: tell us how it works for you)
 - Touch screen and gamepad input (the TOUCH and GAMEPAD row on the ADVANCED tab of OPTIONS).

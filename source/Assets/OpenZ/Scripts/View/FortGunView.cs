@@ -1189,7 +1189,7 @@ namespace OpenZ
             if (!hasFlagPole) return;
             Vector4 fw = Shader.GetGlobalVector(FogWindId);
             var w = new Vector3(fw.x, 0f, fw.z);
-            if (w.sqrMagnitude < 0.01f) w = game.level == "L17" ? new Vector3(1.2f, 0f, 0.6f) : new Vector3(3f, 0f, 1.5f);
+            if (w.sqrMagnitude < 0.01f) w = OzCity.Is(game.level) ? new Vector3(1.2f, 0f, 0.6f) : new Vector3(3f, 0f, 1.5f);
             w.Normalize();
             if (FlagView.FortClothDir(Fort.Id, out var faced)) w = faced;                             // 1.3: the cloth faces the camera, so it flies where FlagView turned it
             var toTurret = yaw.position - flagPoleW; toTurret.y = 0f;
@@ -1533,6 +1533,11 @@ namespace OpenZ
 
         /// <summary></summary>
         public static int Tosses, TossReshown; public static float LastTossAt = -1f; public static bool LastTossFortDestroyed;
+        /// <summary>
+        /// that goes with its fort gets the 1.4 blast (off = the GEYSER in every case, as before this kit). The Play check's counts: tosses with the
+        /// fort that played the 1.4 blast, tosses off a standing fort that played the GEYSER.</summary>
+        public static bool GeyserOnlyStanding = true;
+        public static int WithFort14, StandingGeysers;
         public Transform YawT => yaw;
         public Quaternion TossEndRot => tossEndRot;                                                  // item 205: the landing rotation (OzFortGunBreakup takes the armour plates off the side that lands facing up)
         void StartToss()
@@ -1541,6 +1546,7 @@ namespace OpenZ
             tossed = true; pending = false; target = null;
             StopLoop("fortgun_" + Fort.Id);
             if (!FortFallAtGameOver.Fallen(Fort)) FortGunMount.Build(Fort, transform);   // shot off while the fort stands (open_fixes_3nov row 77: not one the game-over rule drops): the modelled wreck takes the pedestal's place (FortGunMount.cs)
+            else OutroRuinSocket();
             // detach BEFORE CombatView (order 50) lets BuildingBreaker hide the fort's renderers and collapse it
             yaw.SetParent(FxRoot(), true);
             var tp = yaw.GetComponent<TeamPaint>(); if (!tp) tp = yaw.gameObject.AddComponent<TeamPaint>();
@@ -1568,9 +1574,18 @@ namespace OpenZ
             if (!yaw.gameObject.activeSelf) yaw.gameObject.SetActive(true);
             TossPathPlan();                                                                            // open_fixes_2nov wreck_toss_landing: it lands where its arc ends, in tossEndRot, with no flip on the way (FortGunView.TossPath.cs)
             Tosses++; LastTossAt = Time.time; LastTossFortDestroyed = Fort.Destroyed;
-            FxManager.I?.Explosion(tossFrom + Vector3.up * 0.5f, Fort.Destroyed ? 2.4f : 1.6f);
+            // 1.5 round 3 R3.4 + R3.40 (kit megacannon_big_r3): exp_v2_4 (GEYSER, scale 1) and 0.15 s later exp_v2_1 (COLUMN, 0.9) at its base on the
+            // roof, each with its own sounds (View/OzExpInGame.cs MegacannonOff); the old big blasts below play only if the GEYSER cannot (off / refused).
+            // fort's fall, the ending's beat before the nuke scene, our fort at the impact, a strike-off) the 1.4 blast of that moment: the 2.4 explosion,
+            // the toss sound and run 9's MegaBlast (DeathBlast leaves a cannon with its fort to the fort's fall), so the nuke is never upstaged
+            bool withFort = FortFallAtGameOver.Fallen(Fort);
+            bool geyser = !(withFort && GeyserOnlyStanding) && OzExpInGame.MegacannonOff(Fort, tossFrom);
+            if (geyser && !withFort) StandingGeysers++;
+            if (withFort && !geyser) { WithFort14++; Debug.Log($"[OpenZ] fort #{Fort.Id} ({Fort.Owner}) mega cannon goes with its fort{(outroBlast ? " (the ending's beat)" : "")}: the 1.4 blast, no GEYSER"); }
+            if (!geyser) FxManager.I?.Explosion(tossFrom + Vector3.up * 0.5f, Fort.Destroyed ? 2.4f : 1.6f);
+            if (!geyser) DeathBlast(tossFrom);                                                         // 1.5 megacannon_blast: the massive blast that throws it, its camera kick first (View/FortGunView.DeathBlast.cs)
             if (!Sfx(sndToss, tossFrom, 1f)) Legacy("fortgun_toss", tossFrom, 0.9f, "explosion-v3-20260909");
-            MegaBlast(tossFrom);
+            if (!geyser) MegaBlast(tossFrom);
         }
 
         static Bounds WorldBounds(Transform t)
@@ -1598,7 +1613,7 @@ namespace OpenZ
                     landed = true; landedAt = Time.time;
                     var fx = FxManager.I;
                     if (fx) { fx.Explosion(p, 1.1f); fx.Dust(p, 2f); fx.Breakup(p + Vector3.up * 0.5f, "metal", 4f, 16, 1.4f); }
-                    if (rts) rts.Shake(0.5f, p, "fortgun_toss");
+                    if (!LandShake(p) && rts) rts.Shake(0.5f, p, "fortgun_toss");
                     if (!Sfx(sndCrash, p, 1f)) Legacy("fortgun_crash", p, 1f, "v3-tank-impact-a", "v3-collapse-medium-b");
                     OzHeavyLanding.FortGun(yaw, p, tossFrom, tossTo, tossApex, tossDuration, Emitter);    // item 172: heavy: concrete thud, dust burst, bounce, skid, rock, lies on the ground
                     OzFortGunBreakup.Break(this, yaw, p, tossFrom, tossTo, tossApex, tossDuration, Emitter);   // item 205: on this frame it falls apart into its parts (OzFortGunBreakup.cs); off / open water = it lies whole as above

@@ -27,13 +27,14 @@ namespace OpenZ
         public static int Apply(bool b)
         {
             On = b; int n = 0;
-            if (b && !texB) texB = Resources.Load<Texture2D>("OpenZ/Ground/L02_ground_paint_beachB");
+            // kit l18_perf_r3: level 2's beach paint is loaded below, only when a level 2 ground is there (it was held in graphics memory on every level)
             var mpb = new MaterialPropertyBlock();
             foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
             {
                 var mats = r.sharedMaterials; int slot = -1;
                 for (int i = 0; i < mats.Length; i++) if (mats[i] && mats[i].name.StartsWith("M_L02_Ground")) { slot = i; break; }
                 if (slot < 0) continue;
+                if (b && !texB) texB = Resources.Load<Texture2D>("OpenZ/Ground/L02_ground_paint_beachB");
                 r.GetPropertyBlock(mpb, slot);
                 if (b && texB) { mpb.SetTexture(IdBase, texB); mpb.SetTexture(IdMain, texB); }
                 else { mpb.SetTexture(IdBase, mats[slot].GetTexture(IdBase)); if (mats[slot].HasProperty(IdMain)) mpb.SetTexture(IdMain, mats[slot].GetTexture(IdMain)); }

@@ -338,7 +338,7 @@ namespace OpenZ
             var shownOwner = r.IsBuilding ? (o != null ? o.Owner : Team.Neutral) : CaptureHold.Shown(o);   // boarding_nb_v1 NB17
             bool on = alive && shownOwner != Team.Neutral;
             if (on && (!r.WasOn || shownOwner != r.Owner)) r.StartAt = now;                          // boarded / captured: a start-up flicker
-            r.WasOn = on; if (o != null) r.Owner = shownOwner;
+            r.WasOn = on; if (o != null && (r.IsBuilding || OzVehicleColourFill.LampTeamNow(on, r.Power))) r.Owner = shownOwner;   // 1.5 vehicle_colour_fill: a vehicle's lamp fading out keeps its team colour
             r.Power = Mathf.MoveTowards(r.Power, on ? 1f : 0f, dt / (on ? 0.25f : 0.35f));
             float p = r.Power;
             if (now - r.StartAt < 0.9f) p *= Mathf.PerlinNoise(r.Seed * 17f, now * 22f) > 0.45f ? 1f : 0.1f;

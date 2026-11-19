@@ -56,7 +56,9 @@ namespace OpenZ
                 case "light": return new Slew { yawSpeed = 240, yawSmooth = 0.10f, pitchSpeed = 90, pitchSmooth = 0.08f, pitchMin = -10, pitchMax = 30, tol = 4, kickDeg = 5.2f, recoilK = 0.66f };
                 case ZMTank.Type: return new Slew { yawSpeed = MediumYawSpeed, yawSmooth = MediumYawSmooth, pitchSpeed = 90, pitchSmooth = 0.08f, pitchMin = -10, pitchMax = 30, tol = 4, kickDeg = 5.2f, recoilK = 0.55f };   // DV145: the light tank's gun on the medium tank; the slide's peak 1.13 x 0.55 = 0.62 m keeps the barrel's root inside the dome (<= 0.65 m, OzMediumTank.SlideMaxM); item 181: its turret turns slower than the light tank's (View/UnitAim.K87d.cs)
                 case "medium": return new Slew { yawSpeed = 260, yawSmooth = 0.09f, pitchSpeed = 140, pitchSmooth = 0.08f, pitchMin = -45, pitchMax = 60, tol = 5, kickDeg = 3.4f, recoilK = 0.24f, spinMax = 900 };
-                case "heavy": return new Slew { yawSpeed = 150, yawSmooth = 0.14f, pitchSpeed = 60, pitchSmooth = 0.10f, pitchMin = -10, pitchMax = 25, tol = 4, kickDeg = 7f, recoilK = 0.66f };
+                case "heavy": return new Slew { yawSpeed = HeavyYawSpeed, yawSmooth = HeavyYawSmooth /* 1.5 kit big_tanks_fx: the same numbers, named (View/UnitAim.BigTanks.cs) */, pitchSpeed = 60, pitchSmooth = 0.10f, pitchMin = -10, pitchMax = 25, tol = 4, kickDeg = 7f, recoilK = 0.66f };
+                case OzBigTanks.Mammoth: return new Slew { yawSpeed = HeavyYawSpeed * MammothTurnK, yawSmooth = HeavyYawSmooth / MammothTurnK /* 1.5 kit big_tanks_fx: the heavy's turn x 0.8 (View/UnitAim.BigTanks.cs) */, pitchSpeed = 55, pitchSmooth = 0.10f, pitchMin = -10, pitchMax = 25, tol = 4, kickDeg = 7f, recoilK = 0.66f };   // 1.5 DV180 / DV181: the heavy's gun on a bigger turret
+                case OzBigTanks.Bizon: return new Slew { yawSpeed = MediumYawSpeed, yawSmooth = MediumYawSmooth /* 1.5 kit big_tanks_fx: the medium tank's turn (View/UnitAim.BigTanks.cs) */, pitchSpeed = 60, pitchSmooth = 0.10f, pitchMin = -10, pitchMax = 25, tol = 4, kickDeg = 6.4f, recoilK = 0.62f };   // 1.5 DV180 / DV181
                 case "missile_launcher": return new Slew { yawSpeed = 160, yawSmooth = 0.12f, pitchSpeed = 70, pitchSmooth = 0.10f, pitchMin = -20, pitchMax = 57, tol = 6, kickDeg = 8f, recoilK = 0f };
                 case "gun": return new Slew { yawSpeed = 220, yawSmooth = 0.10f, pitchSpeed = 90, pitchSmooth = 0.08f, pitchMin = -15, pitchMax = 40, tol = 4, kickDeg = 3.4f, recoilK = 0.38f };
                 case "howitzer": return new Slew { yawSpeed = 130, yawSmooth = 0.14f, pitchSpeed = 45, pitchSmooth = 0.12f, pitchMin = -25, pitchMax = 22, tol = 4, kickDeg = 3.4f, recoilK = 0.38f };
@@ -626,6 +628,7 @@ namespace OpenZ
             if (view.Reacting) return;                                                                 // deaths_mech_v1: knocked down (the torso solve would twist the fall)
             if (view.Dying) { FlushHeld(); return; }                                                   // its last shots still leave the gun
             if (QuietStep(Time.deltaTime)) return;                                                    // vehicle_exit_jump part B: nobody inside (EXIT, sniped): the gun stands still and quiet from this frame (View/UnitAim.Quiet.cs)
+            if (RamLockStep(Time.deltaTime)) return;                                                  // 1.5 quick fix 14d (gate B10): rammed by a Mammoth: the turret locked on the hull through the flip (View/UnitAim.RamLock.cs)
             float dt = Time.deltaTime;
             VeteranMarks.AimSlew(obj, ref slew, ref vetBaseSlew, ref vetSlewOn);                       // veterancy_v1 DV12: veterans x1.35 slew
             if (robot) SolveRobot(dt);
@@ -758,6 +761,7 @@ namespace OpenZ
             float hs = HurrySpeed, hm = HurrySmooth;
             if (yawJ != null)
             {
+                if (RamClear(ref gy, ref gp)) { has = false; hs = Mathf.Max(hs, RamClearHurry); hm = Mathf.Min(hm, 1f / RamClearHurry); }   // 1.5 kit big_tanks_fx: a Mammoth near or in a ram takes its barrels clear (View/UnitAim.RamClear.cs)
                 float goal = yawJ.ang + Mathf.DeltaAngle(yawJ.ang, gy);
                 float ysm = slew.yawSmooth * hm, ysp = slew.yawSpeed * hs; SteadyDeadline(goal - yawJ.ang, ref ysm, ref ysp);   // 1.2 item 132: on a waiting shot before its cap, eased
                 if (!CombatSlew(gy, gp, ysm, ysp, dt))                                                  // 1.2 item 132 (fight): the barrels' WORLD heading slews (View/UnitAim.Combat.cs)
@@ -770,6 +774,7 @@ namespace OpenZ
             }
             float ya = yawJ != null ? yawJ.ang : 0f, pa = pitchJ != null ? pitchJ.ang : 0f;
             ya = CombatHeading(ya, pa, Recoil(shotAge) * slew.kickDeg);                                // 1.2 item 132 (fight): whatever the hull does under it (View/UnitAim.Combat.cs)
+            pa = RamFightFloor(ya, pa);                                                                // 1.5 DV196 (kit mammoth_ram_fight_n26c): the drawn barrels never inside a rammed hull (View/UnitAim.RamFight.cs)
             Pose(ya, pa, 0f);
             AimError = has ? GunError(m, Desired(m.t.position, P, ballistic, T, g)) : 180f;
             OzSoundV3.Slew(obj, yawJ != null && yawJ.t ? yawJ.t : transform, yawJ != null ? yawJ.vel : 0f, pitchJ != null ? pitchJ.vel : 0f, has, AimError, slew.tol);   // sound_v3

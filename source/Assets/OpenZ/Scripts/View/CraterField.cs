@@ -594,7 +594,8 @@ namespace OpenZ
             string result = null;
             yield return SelfTest(rounds, s => result = s);
             Debug.Log("[OpenZ Craters] self test " + (result ?? "FAILED: no result"));
-            Application.Quit(result != null && result.StartsWith("PASSED") ? 0 : 3);
+            OzQuit.ExitCode = result != null && result.StartsWith("PASSED") ? 0 : 3;                       // 1.5 kit quit_loading_crash_r5: the Windows end (View/OzQuit.cs step 6) leaves with it
+            Application.Quit(OzQuit.ExitCode);
         }
 
         // ------------------------------------------------------------------------------------------------ placement
@@ -701,7 +702,14 @@ namespace OpenZ
         }
 
         // ------------------------------------------------------------------------------------------------ spawn / seat
-        static readonly string[] SandDecals = { "CraterDecal_Sand_01_Mul", "CraterDecal_Sand_02_Mul", "CraterDecal_Sand_03_Mul" }, PavedDecals = { "CraterDecal_Paved_01", "CraterDecal_Paved_02" };
+        // scorch_soft_edges (1.5): every crater decal is a 2x multiply relative to the ground under the patch (the paved ones were straight alpha: a pale disc).
+        // scorch_ring_fix (1.5): the *_NoRing_Mul decals: the bowl as before, NOTHING lighter than the ground past 0.40 R (the _Soft_Mul ones had a band of light
+        // grains at the bowl edge = the light ring), one long smooth fade to exactly neutral by 0.96 R (tools/make_noring_decals.py). Before: *_Soft_Mul.
+        /// <summary>1.5 last_small_fixes (final eye pass, L17): a paved crater's
+        /// seated clods take this _BaseColor (sRGB, per renderer) instead of the shared kit material's (white / 0.42 earth): the dark road grey.
+        /// Alpha 0 = as before.</summary>
+        public static Color PavedClodTint = new Color(0.27f, 0.26f, 0.245f, 1f);
+        static readonly string[] SandDecals = { "CraterDecal_Sand_01_NoRing_Mul", "CraterDecal_Sand_02_NoRing_Mul", "CraterDecal_Sand_03_NoRing_Mul" }, PavedDecals = { "CraterDecal_Paved_01_NoRing_Mul", "CraterDecal_Paved_02_NoRing_Mul" };
 
         void Spawn(Variant v, Vector3 at, float s, (Renderer r, Bounds b, Vector3 ua, Vector3 va, Material m, int slot) gu, bool paved, string src)
         {
@@ -726,7 +734,7 @@ namespace OpenZ
             c.patch.vertices = c.pBase; c.patch.uv = uv0; c.patch.uv2 = uv1; c.patch.triangles = v.ptri;
             var pg = new GameObject("Patch"); pg.transform.SetParent(c.root.transform, false); pg.layer = gu.r.gameObject.layer;
             pg.AddComponent<MeshFilter>().sharedMesh = c.patch;
-            c.patchR = pg.AddComponent<MeshRenderer>(); c.patchR.sharedMaterial = PatchMaterial(gu.m, paved ? PavedDecals[Random.Range(0, PavedDecals.Length)] : SandDecals[Random.Range(0, SandDecals.Length)], !paved);
+            c.patchR = pg.AddComponent<MeshRenderer>(); c.patchR.sharedMaterial = PatchMaterial(gu.m, paved ? PavedDecals[Random.Range(0, PavedDecals.Length)] : SandDecals[Random.Range(0, SandDecals.Length)], true);   // scorch_soft_edges (1.5): every decal is a 2x multiply (was: !paved)
             c.patchR.shadowCastingMode = ShadowCastingMode.Off; c.patchR.receiveShadows = true;
             c.patchR.renderingLayerMask = gu.r.renderingLayerMask;
             {   // the ground's per-slot overrides (ShoreBeach paint B on L02) drawn on the patch too, so paint and patch match; role 2 on top
@@ -744,6 +752,7 @@ namespace OpenZ
             var kg = new GameObject("Clods"); kg.transform.SetParent(c.root.transform, false); kg.layer = pg.layer;
             kg.AddComponent<MeshFilter>().sharedMesh = c.clods;
             c.clodR = kg.AddComponent<MeshRenderer>(); c.clodR.sharedMaterial = kitMat; c.clodR.enabled = false; c.clodR.shadowCastingMode = ShadowCastingMode.On;
+            if (paved && PavedClodTint.a > 0f) { var kb = new MaterialPropertyBlock(); kb.SetColor("_BaseColor", PavedClodTint); c.clodR.SetPropertyBlock(kb); }   // 1.5 last_small_fixes: dark clods on a dark road
             // bowl collider on the terrain collider's heights (live once the chunk under it is swapped)
             if (physicsOk)
             {
@@ -969,7 +978,10 @@ namespace OpenZ
             for (int i = 0; i < n; i++)
             {
                 var c = act[i];
-                glob[k++] = new Vector4(c.c.x, c.c.z, c.v.R * Mathf.Cos(Mathf.PI / 64f) - 0.002f, c.ease);   // the clip circle = the render patch's 64-gon inner circle
+                // scorch_ring_fix (1.5): the clip circle = the render patch's 64-gon inner circle minus 4 cm (was 2 mm): with only 2 mm, a millimetre of height
+                // difference between the patch rim and the real ground let oblique pixels hit neither (a dotted light circle round every crater); the patch now
+                // overlaps the ground in a 4 cm band where its decal is exactly neutral (alpha 0 from 0.96 R). OzGunZone.Tiles reads this value + 0.1 m.
+                glob[k++] = new Vector4(c.c.x, c.c.z, c.v.R * Mathf.Cos(Mathf.PI / 64f) - 0.04f, c.ease);
             }
             for (; k < Cap; k++) glob[k] = Vector4.zero;
             Shader.SetGlobalVectorArray(CratersId, glob);

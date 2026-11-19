@@ -102,7 +102,7 @@ namespace OpenZ.Sim
         internal void PathQueueHold() { StopMove(); cur.gotPfResponse = false; cur.pathFindingId = QueuedPathId; }
         internal bool PathQueuedStill() => World.Get(Id) == this && !Destroyed && KillAt < 0 && Waypoints.Count > 0 && Waypoints[0].Equals(PC.queuedWp) && cur.pathFindingId == QueuedPathId;
         /// <summary>Run the queued Find_Path now (StartPath from where the unit stands, to the target it had).</summary>
-        internal void PathServeQueued() { cur.pathFindingId = 0; StartPath(); }
+        internal void PathServeQueued() { cur.pathFindingId = 0; using (World.Path.Kind(World.GridKindOf(this))) StartPath(); }   // 1.5 DV192 / DV193 (kit sim_notes11): its own grid kind
 
         /// <summary>DV44 (StartPath): a minion on its leader's MOVE walks with its leader (V / single file on the trail) and makes no
         /// search of its own. False = it needs its own path (not a minion, left the follow, another order).</summary>

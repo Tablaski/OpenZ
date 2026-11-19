@@ -32,7 +32,7 @@ namespace OpenZ.Multiplayer
         public double MinimumBuildSeconds = 1;
         public double FortLoserMaximum;
         public double TerritoryReductionCap = 1;
-        public bool TankDamageEffects;
+        public bool TankDamageEffects, TankDamageShake;
         public RadarLossRule RadarLoss;
         public DuelArmySettings Common = new DuelArmySettings();
         // Null keeps the legacy shared mounts until a team is edited independently.
@@ -116,7 +116,7 @@ namespace OpenZ.Multiplayer
         public DuelRules Copy() => new DuelRules
         {
             Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
-            TankDamageEffects = TankDamageEffects, RadarLoss = RadarLoss,
+            TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = RadarLoss,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
             RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
             BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
@@ -158,7 +158,7 @@ namespace OpenZ.Multiplayer
             }
         }
         public static bool IsMapAllowed(string map) => map == "L02" || map == "L07" || map == "L16" ||
-            map == "L17" || map == "L19" || OzAiMapCatalog.IsDuelMap(map);
+            map == "L17" || map == "L18" || map == "L19" || OzAiMapCatalog.IsDuelMap(map);
 
         static bool InRange(double v, double min, double max) => !double.IsNaN(v) && v >= min && v <= max;
         static void CheckArmy(DuelArmySettings h)

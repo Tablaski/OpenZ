@@ -36,7 +36,10 @@ namespace OpenZ.Sim
         public int TargetLevel => ShuttleAirborne ? ZWorld.HighLevelAir : IsFortDefender ? ZWorld.HighLevelTop : StandLevel;
 
         /// <summary>The range `radius` (px) of one of this unit's weapons at t: longer when t stands below it. t null: `radius`.</summary>
-        public int HighRange(int radius, ZObject t)
+        public int HighRange(int radius, ZObject t) => HighRangeFlat(radius, t) + TowerBodyPad(radius, t) + TowerDrawnPad(radius, t);   // 1.5 DV204 (kit fort_gun_target_r3): the range to an enemy fort tower gun is measured to the body of its tower (Sim/ZObject.FortGunAnswer.cs); 1.5 DV208 (kit tower_reach_dv208): to where its tower is drawn (Sim/ZObject.TowerDrawnReach.cs)
+
+        /// <summary>DV162: the range of one weapon at t (to the centre of t).</summary>
+        int HighRangeFlat(int radius, ZObject t)
         {
             if (!ZWorld.HighGroundDeviation || t == null) return radius;
             int s = StandLevel;

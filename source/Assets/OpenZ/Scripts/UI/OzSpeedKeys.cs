@@ -86,7 +86,7 @@ namespace OpenZ
             var hud = OpenZHud.I;
             if (!game || !game.isActiveAndEnabled || game.World == null) return false;                // menus, loading, the briefing (the sim waits)
             if (!hud || !hud.isActiveAndEnabled || !hud.Canvas) return false;                          // the HUD is not up yet
-            if (game.World.GameOver || game.paused || hud.Modal || OzConfirm.Blocks) return false;     // the end, the pause menu, a question on screen
+            if (game.World.GameOver || (game.paused && !OzTacticalPause.Frozen) || hud.Modal || OzConfirm.Blocks) return false;     // the end, the pause menu, a question on screen; 1.5 tactical_pause_megashake: while frozen the speed still changes
             if (CaptureKit.Enabled || OzControlsTable.Capturing) return false;                         // the capture tool's own speed keys; a key being bound
             var es = EventSystem.current; var sel = es ? es.currentSelectedGameObject : null;
             if (sel && (sel.GetComponent<TMPro.TMP_InputField>() || sel.GetComponent<UnityEngine.UI.InputField>())) return false;   // a text field has the keyboard

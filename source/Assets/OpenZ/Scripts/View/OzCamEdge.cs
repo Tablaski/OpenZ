@@ -32,14 +32,14 @@ namespace OpenZ
         /// with 34 the bottom row shows the ground out to 40 m (with 40 it would show 45 m out: four fifths bare dunes). Car park: rock
         /// to 17 m, about 10 m high: with 16 the bottom row shows out to 21 m; open harbour water after it.</summary>
         public static float ReachCapL02 = 34f, ReachCapL17 = 16f, ReachCapOther = 16f;
-        public static float ReachCap(string level) => level == "L02" ? ReachCapL02 : level == "L17" ? ReachCapL17 : ReachCapOther;
+        public static float ReachCap(string level) => level == "L02" ? ReachCapL02 : OzCity.Is(level) ? ReachCapL17 : ReachCapOther;
         /// <summary>Car park: a standing extra travel at the lower edge, as a fraction of the camera height (m of travel per m of
         /// height), whether or not an object asks for it. Its lowest flags stand 16 m from the lower map edge: on the old limit they
         /// sit low on the screen, just above the panels, and the view cannot be pushed further. With this the view goes a little
         /// lower at every zoom and they come up clear of the panels. The reach cap still holds: the bottom screen row never looks
         /// further past the map edge than the outer rock reaches. Other maps: 0.</summary>
         public static float StandingL17 = 0.12f;
-        public static float Standing(string level) => level == "L17" ? StandingL17 : 0f;
+        public static float Standing(string level) => OzCity.Is(level) ? StandingL17 : 0f;
 
         /// <summary>Read-outs of the last call (checks): the extra travel the objects ask for (m), the limit in use (m the focus stays
         /// north of the lower map edge), how far past that edge the bottom screen row looks (m, negative = inside the map), and whether

@@ -227,17 +227,17 @@ namespace OpenZ
             {
                 if (flash) { z.Muzzle(muzzle, dir, FxWeapon.Cannon); z.LaunchFlash(muzzle + dir * 0.45f, dir, MuzzleFlashK, MuzzleGroundLight); }
                 var right = Vector3.Cross(Vector3.up, dir); right = right.sqrMagnitude > 1e-4f ? right.normalized : Vector3.right;
-                var up = Vector3.Cross(dir, right).normalized; var smoke = OpenZFxCatalog.M12Smoke.color;
+                var up = Vector3.Cross(dir, right).normalized; var smoke = OpenZFxCatalog.TrailColor;   // 1.5 pass 6a: forward blast cloud grey (was M12Smoke pale)
                 var c = muzzle + dir * 0.7f;
                 for (int i = 0; i < 18; i++)
                 {
                     float a = i * Mathf.PI * 2f / 18 + UnityEngine.Random.Range(-0.1f, 0.1f);
                     var radial = right * Mathf.Cos(a) + up * Mathf.Sin(a);
-                    z.EmitChannel("leg_smoke", c + radial * 0.3f, radial * UnityEngine.Random.Range(3.4f, 4.6f) + dir * UnityEngine.Random.Range(0.8f, 1.6f),
-                        UnityEngine.Random.Range(1.2f, 1.7f), UnityEngine.Random.Range(0.7f, 0.95f), smoke, 0.78f);
+                    z.EmitChannel("m12_smoke_ring", c + radial * 0.3f, radial * UnityEngine.Random.Range(3.4f, 4.6f) + dir * UnityEngine.Random.Range(0.8f, 1.6f),   // 1.5 pass 5: lit flipbook ring (was leg_smoke)
+                        UnityEngine.Random.Range(1.2f, 1.7f), UnityEngine.Random.Range(0.7f, 0.95f), OpenZFxCatalog.RingSmoke, 0.78f);
                 }
                 for (int j = 0; j < 6; j++)
-                    z.EmitChannel("m12_smoke", muzzle + dir * (0.9f + j * 0.6f), dir * UnityEngine.Random.Range(3f, 6f) + UnityEngine.Random.insideUnitSphere * 0.5f,
+                    z.EmitChannel(OpenZFxCatalog.TrailCh, muzzle + dir * (0.9f + j * 0.6f), dir * UnityEngine.Random.Range(3f, 6f) + UnityEngine.Random.insideUnitSphere * 0.5f,
                         UnityEngine.Random.Range(0.9f, 1.4f), UnityEngine.Random.Range(0.9f, 1.3f), smoke, OpenZFxCatalog.M12Smoke.alpha);
                 // shock ring + dust kick: on the ground under a field gun, on the roof plate under the fort gun
                 float gy = z.SurfaceY(muzzle);
@@ -246,7 +246,7 @@ namespace OpenZ
                 I.AddRing(new Vector3(muzzle.x + dir.x * 1.2f, baseY + 0.25f, muzzle.z + dir.z * 1.2f), MuzzleRingRadius * (fort ? 1.2f : 1f), MuzzleRingSeconds, fort);
                 if (nearGround && !z.WetAt(muzzle))
                 {
-                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+                    var dust = OzCity.Here ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
                     for (int k = 0; k < 16; k++)
                     {
                         float a = k * Mathf.PI * 2f / 16 + UnityEngine.Random.Range(-0.12f, 0.12f);
@@ -274,7 +274,7 @@ namespace OpenZ
             bool wet = z && z.WetAt(ground);
             if (wet)
             {
-                z.Splash(ground, 1.8f * k); z.Ripple(ground, 1.4f * k);
+                if (OzLava.SurfaceAt(ground, out _) || !OzWaterBlast.Blast(z, ground, 2.0f * k, 0.1f)) { z.Splash(ground, 1.8f * k); z.Ripple(ground, 1.4f * k); }   // 1.5 kit water_blast_r6 (A16): the heavy shell's second, taller column and wider crests a beat after the table blast; no 6.5 / 8.4 m flat rings
             }
             else
             {
@@ -284,7 +284,7 @@ namespace OpenZ
                 fx?.Breakup(ground + Vector3.up * 0.4f, "stone", 2.6f * k, 14, 1.15f);
                 if (z)
                 {
-                    var dust = ZGame.I != null && ZGame.I.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+                    var dust = OzCity.Here ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
                     for (int i = 0; i < 18; i++)
                     {
                         float a = i * Mathf.PI * 2f / 18 + UnityEngine.Random.Range(-0.1f, 0.1f);

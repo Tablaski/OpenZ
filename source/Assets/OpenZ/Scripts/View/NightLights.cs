@@ -183,7 +183,7 @@ namespace OpenZ
             levelFile = lt ? JsonUtility.FromJson<NightLevelFile>(lt.text) : null;
             levelSpec = null;
             if (specs?.levels != null) foreach (var l in specs.levels) if (l != null && l.level == level) levelSpec = l;
-            if (levelSpec == null) levelSpec = new NightLevelSpec { level = level, lampTemplate = level == "L17" ? "round13_warm_street_lamp" : "Service_lamp" };
+            if (levelSpec == null) levelSpec = new NightLevelSpec { level = level, lampTemplate = OzCity.Is(level) ? "round13_warm_street_lamp" : "Service_lamp" };
             NightGrade.HazeBoost = levelSpec.haze - 1f;
         }
 
@@ -902,7 +902,7 @@ namespace OpenZ
                 // was a 1.25 m circle round its centre), and the pole falls away from the hull along its motion
                 var vel = new Vector3(o.Dx, 0, -o.Dy) / 8f;                                  // m/s (pixel y points south)
                 var w = ZGame.PxToWorld(o.CenterX, o.CenterY) + vel * 0.12f;
-                float reach = (o.Type == "jeep" ? 1.5f : o.Type == "heavy" || o.Type == "apc" || o.Type == "missile_launcher" ? 2.1f : 1.8f) + knockRadius * 0.2f;
+                float reach = (o.Type == "jeep" ? 1.5f : o.Type == "heavy" || OzBigTanks.Is(o.Type) || o.Type == "apc" || o.Type == "missile_launcher" ? 2.1f : 1.8f) + knockRadius * 0.2f;
                 int cx = Mathf.FloorToInt(w.x / 8f), cz = Mathf.FloorToInt(w.z / 8f);
                 for (int ix = cx - 1; ix <= cx + 1; ix++)
                     for (int iz = cz - 1; iz <= cz + 1; iz++)

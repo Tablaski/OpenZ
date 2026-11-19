@@ -260,7 +260,7 @@ namespace OpenZ
                 var def = Array.Find(OzLevelDef.All, d => d.Id == game.level);
                 comms.Letterbox(true, "MISSION BRIEFING", "OPERATION " + game.level + " · " + (def != null ? def.Name : game.level));
                 var lay = ZodLayout.Briefing(); lay.eyebrow = "INCOMING TRANSMISSION"; lay.channel = "EVIL HQ · CH 02"; lay.scale = WindowScale;
-                bool ok = StartShow("briefing", OzVolcanic.BlueBriefingScene(game ? game.level : null), lay, false, briefingPreroll);
+                bool ok = StartShow("briefing", OzCity.BlueBriefingScene(game ? game.level : null), lay, false, briefingPreroll);
                 if (ok && flying && show != null)
                 {
                     var line = FlyLine(show.scene);

@@ -90,15 +90,16 @@ namespace OpenZ
                     {
                         if (e.flag)
                         {
-                            craneWork[b.Id] = Time.time + 30f; au?.Play("crane", game.CenterWorld(b), 0.9f, 0, b.Id, OzSoundV3.BankWrench);   /* sound_v3 */
+                            craneWork[b.Id] = Time.time + 30f; if (!OzCraneLandEnd.OwnsWorkSound) au?.Play("crane", game.CenterWorld(b), 0.9f, 0, b.Id, OzSoundV3.BankWrench);   /* sound_v3 */   // 1.5 kit crane_deck_sound_r3: the owner's construction track is the work sound (OzCraneLandEnd)
                             if (a != null) craneOf[b.Id] = a.Id;
                             CraneJobs++;
                             OzRuinFires.End(b.Id);                                                     // a crane starts on it: the ruin's fire is out
                             CraneArm.Job(game, a, b, true);
+                            OzCraneLandEnd.Job(game, a, b, true);                                          // 1.5 kit crane_deck_sound_r3: the owner's construction track (fade in) + on a bridge the orange stream from the hook into the span
                             // and are welded; held until the sim repairs it, then they merge into the intact deck)
-                            if (b.IsBridge && b.Destroyed && !rebuilding.Contains(b.Id)) StartCoroutine(Rebuild(b, 3.4f, true));
+                            if (b.IsBridge && b.Destroyed && !rebuilding.Contains(b.Id) && !OzBridgeRestore.Active) StartCoroutine(Rebuild(b, 3.4f, true));   // 1.5 kit bridge_restore_r3: the restore plays when the crane's repair ends
                         }
-                        else { craneWork.Remove(b.Id); CraneArm.Job(game, a, b, false); }
+                        else { craneWork.Remove(b.Id); CraneArm.Job(game, a, b, false); OzCraneLandEnd.Job(game, a, b, false); }
                     }
                     break;
                 case ZEventType.Revived:
@@ -110,9 +111,10 @@ namespace OpenZ
                         {
                             var g = Static(a.Id); var br = g ? g.GetComponent<BuildingBreaker>() : null; bool was = br && br.Collapsed;
                             if (br) br.Restore();
-                            if (g && was && RiseOnRestore) StartCoroutine(RiseUp(a, g.transform));
+                            if (g && was && OzBuildingRestore.Begin(game, a, g)) { }
+                            else if (g && was && RiseOnRestore) StartCoroutine(RiseUp(a, g.transform));
                         }
-                        var p = game.CenterWorld(a); fx?.Pop(p + Vector3.up * 2, 1.2f);
+                        var p = game.CenterWorld(a); if (!(a.IsBridge && OzBridgeRestore.Active) && !OzBuildingRestore.Running(a.Id)) fx?.Pop(p + Vector3.up * 2, 1.2f);   // 1.5 kit bridge_restore_r3: no round puff over the bridge
                         if (!AudioDirector.Has("bld_building_revived")) au?.Play("revived", p, 0.8f, 0, a.Id, "v3-capture-raise");
                     }
                     break;
@@ -157,8 +159,10 @@ namespace OpenZ
                 return;
             }
             OpenZFxShake.I?.Kick(game.CenterWorld(o), o.IsBridge ? OpenZFxCatalog.ShakeBridgePx : OpenZFxCatalog.ShakeBuildingPx, o.IsBridge ? "bridge" : "building", true);   // a building or a bridge blowing up in view always kicks the camera
-            if (o.IsBridge) { SwapBridge(o, true); StartCoroutine(Booms(o, 6, 1.2f)); if (!AudioDirector.Has("dst_bridge_collapse")) au?.Play("collapse", p, 1f, 0, -1, "v3-collapse-large-a", "building-collapse-20260909"); return; }
+            // 1.5 kit bridge_death_exp_r3 (R3.43): a short bridge plays exp_v2_3 CHAIN, a long one the level 18 briefing's charges along its span (View/OzBridgeDeathExp.cs)
+            if (o.IsBridge) { SwapBridge(o, true); if (!OzBridgeDeathExp.Play(this, game, o)) StartCoroutine(Booms(o, 6, 1.2f)); if (!AudioDirector.Has("dst_bridge_collapse")) au?.Play("collapse", p, 1f, 0, -1, "v3-collapse-large-a", "building-collapse-20260909"); return; }
             var g = Static(o.Id);
+            OzBuildingRestore.Died(game, o, g);   // 1.5 kit factory_restore_crane_r3: noted before the collapse hides it (its restore pieces are cut from now on)
             if (g && BuildingBreaker.For(g, o).Collapse(game.CenterWorld(o), 1f)) return;                 // physics collapse (map 13 style)
             game.RuinStatic(o.Id);
             int n = o.Type == "radar" ? 4 + Random.Range(0, 3) : o.Type == "repair" ? 6 + Random.Range(0, 3) : 8 + Random.Range(0, 3);
@@ -174,7 +178,7 @@ namespace OpenZ
                 int px = o.LocX + Random.Range(8, o.WidthPix - 8), py = o.LocY + Random.Range(8, o.HeightPix - 8);
                 var p = Ground(px, py) + Vector3.up * Random.Range(0.8f, 3f);
                 fx.Explosion(p, 1.2f);
-                if (i % 2 == 0) fx.Breakup(p, o.IsBridge && game.level != "L17" && i % 3 == 0 ? "stone" : "metal", 3f);   // steel bridges (Z kit)
+                if (i % 2 == 0) fx.Breakup(p, o.IsBridge && !OzCity.Is(game.level) && i % 3 == 0 ? "stone" : "metal", 3f);   // steel bridges (Z kit)
                 yield return new WaitForSeconds(span / n);
             }
         }
@@ -193,24 +197,25 @@ namespace OpenZ
             _ => "desert"
         };
 
-        GameObject BridgePrefab(string biome, string stage)
+        GameObject BridgePrefab(ZObject bridge, string stage)
         {
-            string name = $"Z_bridge_{biome}_{stage}";
+            if (!game.World.Map.aiMap)
+                return OzBridgeKit.Prefab(game, bridge, stage);
+            string name = $"Z_bridge_{BridgeBiome}_{stage}";
             var prefab = game.Prefab(name);
-            return prefab || !game.World.Map.aiMap ? prefab : Experimental.OzAiBridgeKit.Find(name);
+            return prefab ? prefab : Experimental.OzAiBridgeKit.Find(name);
         }
 
         GameObject[] Variants(ZObject o)
         {
             if (bridgeVariants.TryGetValue(o.Id, out var v)) return v;
             var cur = Static(o.Id); if (!cur) return null;
-            string biome = BridgeBiome;
             bool placedDestroyed = o.Source != null && o.Source.health_percent <= 0;
             v = new GameObject[3]; v[placedDestroyed ? 2 : 0] = cur;
             for (int st = 0; st < 3; st++)
             {
                 if (v[st]) continue;
-                var pf = BridgePrefab(biome, BridgeStates[st]); if (!pf) continue;
+                var pf = BridgePrefab(o, BridgeStates[st]); if (!pf) continue;
                 var go = Instantiate(pf, cur.transform.parent); go.name = cur.name + "_" + BridgeStates[st];
                 go.transform.SetLocalPositionAndRotation(cur.transform.localPosition, cur.transform.localRotation); go.transform.localScale = cur.transform.localScale;
                 go.SetActive(false); v[st] = go;
@@ -218,6 +223,9 @@ namespace OpenZ
             bridgeVariants[o.Id] = v; bridgeState[o.Id] = placedDestroyed ? 2 : 0;
             return v;
         }
+
+        /// <summary>The bridge's models (intact, damaged, destroyed; made on first use).</summary>
+        public GameObject[] BridgeModels(ZObject o) => o != null && o.IsBridge ? Variants(o) : null;   // 1.5 kit factory_restore_crane_r3: OzCraneDeck (R3.6)
 
         void SetBridge(ZObject o, int st, bool effects)
         {
@@ -239,7 +247,7 @@ namespace OpenZ
         /// <summary>Kit chunks (8 per biome) thrown from the middle third of the deck: real physics, bounce, settle, sink.</summary>
         void BridgeChunks(ZObject o, int n, bool small)
         {
-            var set = BridgePrefab(BridgeBiome, "chunks"); if (!set) return;
+            var set = BridgePrefab(o, "chunks"); if (!set) return;
             var parts = new List<Transform>(); foreach (Transform t in set.transform) parts.Add(t);
             if (parts.Count == 0) return;
             var c = game.CenterWorld(o); var deck = c.y + (game.level == "L02" ? 1.2f : 0.3f);
@@ -258,7 +266,7 @@ namespace OpenZ
                 var away = new Vector3(pos.x - c.x, 0, pos.z - c.z); if (away.sqrMagnitude < 0.01f) away = Random.insideUnitSphere; away.y = 0; away.Normalize();
                 rb.linearVelocity = away * Random.Range(2f, 6.5f) * (small ? 0.5f : 1f) + Vector3.up * Random.Range(6f, 12.5f) * (small ? 0.6f : 1f);
                 rb.angularVelocity = Random.insideUnitSphere * Random.Range(2f, 7f);
-                if (game.level == "L17") AudioDirector.AttachImpacts(go, "dst_debris_metal", "dst_debris_splash");   // sound_v3: the city bridge is steel
+                if (OzCity.Is(game.level)) AudioDirector.AttachImpacts(go, "dst_debris_metal", "dst_debris_splash");   // sound_v3: the city bridge is steel
                 go.AddComponent<RockChunkLife>().floats = game.level == "L16";                          // the jungle bridge is planks: wood floats
             }
             if (!small) FxManager.I?.DemolitionDust(c + Vector3.up * 0.5f, 5f, 5f, 0.6f);
@@ -267,6 +275,7 @@ namespace OpenZ
         void SwapBridge(ZObject o, bool destroyed)
         {
             SetBridge(o, destroyed ? 2 : 0, destroyed);
+            if (OzBridgeRestore.Swapped(game, o, destroyed, Variants(o))) return;   // 1.5 kit bridge_restore_r3: its restore instead of the haze puffs
             if (!destroyed && !rebuilding.Contains(o.Id)) { var p = game.CenterWorld(o); FxManager.I?.DemolitionDust(p, 4f, 4f, 0.35f, 0.28f, 2.2f); /* critic: faint wide haze, not orange balls */ CombatAudio.I?.Play("repair", p, 0.8f, 0, -1, "atom-repair-wrench"); }
         }
 
@@ -284,6 +293,7 @@ namespace OpenZ
                 if (!down) continue;
                 double left = o.NextAutoRepairTime - W.Time;
                 OzSoundV3.BridgeCountdown(o, left, game.CenterWorld(o));                                 // sound_v3                                   // the badge (BridgeRepairBadges) shows the countdown
+                if (OzBridgeRestore.PreRoll(game, o, Variants(o), left)) continue;
                 if (left <= 3.5 && !rebuilding.Contains(o.Id)) StartCoroutine(Rebuild(o, (float)left));
             }
         }
@@ -331,7 +341,7 @@ namespace OpenZ
         {
             rebuilding.Add(o.Id); if (crane) CraneRebuilds++;
             OzRuinFires.End(o.Id);                                                              // the deck comes back: no fire under it
-            var set = game.Prefab($"Z_bridge_{BridgeBiome}_chunks");
+            var set = BridgePrefab(o, "chunks");
             var c = game.CenterWorld(o); float deck = c.y + (game.level == "L02" ? 1.2f : 0.3f); bool vert = o.Type == "bridge_vert";
             var pieces = new List<(Transform t, Vector3 from, Vector3 to, Quaternion r0, Quaternion r1, float t0, float t1)>();
             if (set)
@@ -419,7 +429,7 @@ namespace OpenZ
             {
                 if (Time.time > kv.Value || !CraneAlive(kv.Key)) { (done ??= new List<int>()).Add(kv.Key); continue; }
                 var b = game.World.Get(kv.Key); if (b == null) continue;
-                if (CraneArm.Covers(b.Id)) continue;
+                if (CraneArm.Covers(b.Id) || OzCraneLandEnd.Streams(b.Id)) continue;
                 // faces the crane (else a random side), plus a faint work puff
                 var bc = game.CenterWorld(b); Vector3 side;
                 var cr = craneOf.TryGetValue(b.Id, out int cid) ? game.World.Get(cid) : null;
@@ -429,7 +439,7 @@ namespace OpenZ
                 var p = bc + side * reach + Vector3.Cross(Vector3.up, side) * Random.Range(-1.6f, 1.6f) + Vector3.up * (b.IsBridge ? Random.Range(0.6f, 1.4f) : Random.Range(1f, 3f));
                 BuildingSurface.OnFacade(game, b, ref p, ref side);                                     // crane_front_reach: on the real face toward the crane (never inside the walls / in the air)
                 fx.WeldSparks(p, side, Random.Range(0.8f, 1.1f)); CraneWelds++;
-                AudioDirector.I?.Play("bld_repair_weld", p, b.Id);
+                if (!OzCraneLandEnd.QuietWeld()) AudioDirector.I?.Play("bld_repair_weld", p, b.Id);   // 1.5 kit crane_deck_sound_r3: no weld crackle while the owner's construction track plays
                 if (Random.value < 0.35f) fx.Pop(p, 0.25f);
             }
             if (done != null) foreach (var k in done) craneWork.Remove(k);

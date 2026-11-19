@@ -38,10 +38,11 @@ namespace OpenZ.EditorTools
     ///      level)
     ///  O2  the row is inside the plate, the plate inside the screen; the row is as far under its neighbour as the rows above
     ///      are from each other, with the same edges
-    ///  O3  the value reads NATIVE and the display's size between the two arrows, at its full size, not cut, clear of the label
+    ///  O3  the value reads NATIVE and the display's size (1.5 issue 8: alone, no arrows), at its full size, not cut, clear of the label
     ///  O4  the row has the RESOLUTION hint
-    ///  O5  the row steps by click: the right arrow one step down, the left arrow back to NATIVE (main menu: the menu's own
-    ///      click on the arrows; level: the row's own click, shift-click and right-click)
+    ///  O5  the row steps by click (1.5 issue 8: by mouse button, wherever on the row): a right click one size smaller, a left click
+    ///      one size larger, NATIVE wraps to the smallest and back (main menu: the menu's own clicks; level: the row's own click,
+    ///      shift-click and right-click)
     /// In a level, per size, the HUD (2 checks, and 1 more at the last size):
     ///  H1  a HUD scale the player never set follows the size: it is the default of this size
     ///  H2  the HUD's own layout check at this size: every panel rectangle inside the screen at all 9 places
@@ -171,7 +172,7 @@ namespace OpenZ.EditorTools
         static float U => Screen.height / 1080f;                                                           // screen pixels per unit of the two menus' canvases (both 1080 u tall)
         static string Plain(string s) => Regex.Replace(s ?? "", "<[^>]+>", "");
         static string Size(Vector2Int s) => s.x + " x " + s.y;
-        static string Value(string name) => "◀  " + name + "  ▶";
+        static string Value(string name) => name;                                                          // 1.5 issue 8: the row shows its value alone (no arrows)
 
         static Rect Px(RectTransform rt)
         {
@@ -368,16 +369,24 @@ namespace OpenZ.EditorTools
                 yield return Shot("menu_options");
                 if (me == null) continue;
                 if (mine.Length < 2) { Check(OzSettings.ResolutionHeight(here.y) == 0, $"{at} O5 this display offers NATIVE only: the arrows keep it"); continue; }
-                bool pts = menu.ProofArrowPoints(OzSettings.ResLabel, out var left, out var right);
-                string hit = pts ? menu.ProofClickAt(right) : "no arrows"; yield return 4;
+                bool pts = menu.ProofArrowPoints(OzSettings.ResLabel, out var left, out var right);         // 1.5 issue 8: the two ends of the value; where the click lands does not matter any more
+                int last = mine[mine.Length - 1];
+                string hit = pts ? menu.ProofRightClickAt(right) : "no value"; yield return 4;            // NATIVE, a right click: one size smaller
                 int h1 = PlayerPrefs.GetInt(OzSettings.ResPref, -1); string v1 = Plain(me.value.text), want1 = Value(Size(OzSettings.ResolutionSize(here, mine[1])));
                 yield return 0.3f;
-                pts &= menu.ProofArrowPoints(OzSettings.ResLabel, out left, out right);                     // the value is narrower now: its arrows moved
-                if (pts) menu.ProofClickAt(left);
+                pts &= menu.ProofArrowPoints(OzSettings.ResLabel, out left, out right);                     // the value is wider or narrower now
+                if (pts) menu.ProofClickAt(right);                                                         // a left click: one size larger = NATIVE
                 yield return 4;
                 int h2 = PlayerPrefs.GetInt(OzSettings.ResPref, -1); string v2 = Plain(me.value.text);
-                Check(pts && hit == "control" && h1 == mine[1] && v1 == want1 && h2 == 0 && v2 == Value("NATIVE (" + Size(here) + ")"),
-                      $"{at} O5 a click on the right arrow steps down (saved {h1}, the row reads \"{v1}\", wanted \"{want1}\"), a click on the left arrow steps back to NATIVE (saved {h2}, \"{v2}\"); the click landed on: {hit}");
+                pts &= menu.ProofArrowPoints(OzSettings.ResLabel, out left, out right);
+                if (pts) menu.ProofClickAt(left);                                                          // a left click at NATIVE: the smallest (the row wraps)
+                yield return 4;
+                int h3 = PlayerPrefs.GetInt(OzSettings.ResPref, -1);
+                if (pts) menu.ProofRightClickAt(left);                                                     // a right click at the smallest: NATIVE again
+                yield return 4;
+                int h4 = PlayerPrefs.GetInt(OzSettings.ResPref, -1);
+                Check(pts && hit == "control" && h1 == mine[1] && v1 == want1 && h2 == 0 && v2 == Value("NATIVE (" + Size(here) + ")") && h3 == last && h4 == 0,
+                      $"{at} O5 a right click steps one size smaller (saved {h1}, the row reads \"{v1}\", wanted \"{want1}\"), a left click one size larger to NATIVE (saved {h2}, \"{v2}\"), a left click at NATIVE wraps to the smallest (saved {h3}, wanted {last}), a right click there back to NATIVE (saved {h4}); the click landed on: {hit}");
                 menu.ProofOptTip(null);
             }
             Finish("main menu", $"this display {Size(here)}, {mine.Length} values in the row; the editor saves a step and never changes the screen");
@@ -425,17 +434,17 @@ namespace OpenZ.EditorTools
                 if (me != null && mine.Length < 2) Check(OzSettings.ResolutionHeight(here.y) == 0, $"{at} O5 this display offers NATIVE only: the arrows keep it");
                 else if (me != null && me.row.OnClick != null && me.row.OnRightClick != null)
                 {
-                    var m = Mouse.current; int dir = OzSettings.ArrowDir(me.value, m != null ? m.position.ReadValue() : default);   // the same question the row's click asks (and it keeps its answer for an unmoved pointer)
-                    me.row.OnClick(default); yield return 4;
-                    int h1 = PlayerPrefs.GetInt(OzSettings.ResPref, -1), want1 = dir > 0 ? mine[1] : 0; string v1 = Plain(me.value.text);
-                    if (h1 != mine[1]) { PlayerPrefs.DeleteKey(OzSettings.ResPref); OzSettings.StepResolution(1); yield return 4; }   // the pointer rested on the left arrow: one step down by the rule itself
-                    me.row.OnClick(new HudClick { shift = true }); yield return 4;
+                    int last = mine[mine.Length - 1];                                                      // 1.5 issue 8: the mouse button sets the way, wherever on the row
+                    me.row.OnRightClick(new HudClick { right = true }); yield return 4;                    // NATIVE, a right click: one size smaller
+                    int h1 = PlayerPrefs.GetInt(OzSettings.ResPref, -1); string v1 = Plain(me.value.text);
+                    me.row.OnClick(default); yield return 4;                                               // a left click: one size larger = NATIVE
                     int h2 = PlayerPrefs.GetInt(OzSettings.ResPref, -1);
-                    OzSettings.StepResolution(1); yield return 2;
-                    me.row.OnRightClick(new HudClick { right = true }); yield return 4;
-                    int h3 = PlayerPrefs.GetInt(OzSettings.ResPref, -1); string v3 = Plain(me.value.text);
-                    Check(h1 == want1 && h2 == 0 && h3 == 0 && v3 == Value("NATIVE (" + Size(here) + ")") && (dir < 0 || v1 == Value(Size(OzSettings.ResolutionSize(here, mine[1])))),
-                          $"{at} O5 the row's own click steps {(dir > 0 ? "down" : "towards NATIVE (the pointer rests on its left arrow)")} (saved {h1}, the row read \"{v1}\"), a shift-click steps back (saved {h2}), a right-click steps back (saved {h3}, \"{v3}\")");
+                    me.row.OnClick(default); yield return 4;                                               // a left click at NATIVE: the smallest (the row wraps)
+                    int h3 = PlayerPrefs.GetInt(OzSettings.ResPref, -1);
+                    me.row.OnClick(new HudClick { shift = true }); yield return 4;                         // Shift + click at the smallest: NATIVE again
+                    int h4 = PlayerPrefs.GetInt(OzSettings.ResPref, -1); string v4 = Plain(me.value.text);
+                    Check(h1 == mine[1] && v1 == Value(Size(OzSettings.ResolutionSize(here, mine[1]))) && h2 == 0 && h3 == last && h4 == 0 && v4 == Value("NATIVE (" + Size(here) + ")"),
+                          $"{at} O5 a right click steps one size smaller (saved {h1}, \"{v1}\"), a left click one size larger to NATIVE (saved {h2}), a left click at NATIVE wraps to the smallest (saved {h3}, wanted {last}), a Shift + click there back to NATIVE (saved {h4}, \"{v4}\")");
                 }
                 else if (me != null) Check(false, $"{at} O5 the row has no click");
                 hud.Pause.Close();

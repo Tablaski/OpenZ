@@ -15,8 +15,9 @@ namespace OpenZ
     ///   the path picture (Resources/OpenZ/Ground/L16_gravel_tracks.png, 8 points per metre over the map's tiles: R the path,
     ///   G the pebble density, B the bare-earth margin), the gravel pictures (L16_gravel_stones.png: pebble colour, A = each pebble's rank;
     ///   L16_gravel_stones_aux.png: pebble cover, contact shadow, earth detail), the strength, the earth and verge colours (stored
-    ///   values, as the ground's own tints) and the fade with distance (full under 0.075, none over 0.1 ground metres per screen
-    ///   point, as the road wear: the standard zoom is fully in, nothing pops).
+    ///   values, as the ground's own tints) and the fade with distance (1.5 FAILS A7, kit factory_path_zoom_r3: none; it was full under
+    ///   0.075, none over 0.1 ground metres per screen point, so the paths went when the player zoomed out; JungleGround.shader also keeps
+    ///   the layers on a path's footprint where the far picture, which has no paths, would take over).
     /// Statics: Play can tune them (Apply() after a change).
     /// </summary>
     public static class OzL16GravelTracks
@@ -27,7 +28,7 @@ namespace OpenZ
         /// <summary>Amount (0 = none), the path's strength in its middle (the rest is the grass showing through), the pebbles'
         /// strength, their contact shadow.</summary>
         public static float Amount = 1f, Strength = 0.72f, Pebbles = 0.80f, Shadow = 0.50f;
-        public static Vector2 Far = new Vector2(0.075f, 0.1f);
+        public static Vector2 Far = new Vector2(1000f, 1001f);   // 1.5 FAILS A7 (kit factory_path_zoom_r3): never fades (was 0.075 / 0.1 m per screen point: the paths went when zoomed out)
         /// <summary>The path's edge: sharpness of the picture's soft ramp, how far the ground's own height moves it (leafy, not a line).</summary>
         public static Vector2 Edge = new Vector2(1.45f, 0.90f);
         /// <summary>Stored colours (the ground's own tint numbers, sRGB): the pale earth, the darker earth patches, the brownish bare-earth margin

@@ -38,7 +38,7 @@ namespace OpenZ.EditorTools
         const string ResultKey = "oz_linux_experimental_build_result";
         const string FolderSuffix = "_linux_EXPERIMENTAL";
         const string ProgramName = "OpenZ.x86_64";
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark" };
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L07_Volcanic", "L16_Jungle", "L17_CarPark", "L18_BridgeGame" };
 
         static string JobRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "../../../.."));
         static bool ModuleSeen => BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneLinux64);

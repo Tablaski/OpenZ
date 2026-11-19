@@ -162,6 +162,35 @@ namespace OpenZ
         /// the inventory's LEG pixel sizes. The RTS camera sees ~1.4x more ground than LEG's 34 m view at the default 70 m zoom,
         /// so raise it (1.3-1.6) if these puffs read too small in the Game view.</summary>
         public static float LegSmokeScale = 1f;
+        /// <summary>1.5 pass 5: the muzzle bore-smoke rings (channel m12_smoke_ring): how far small on-screen puffs still go round and soft
+        /// (the shader's _SmallFade: 1 = the old round blob, 0 = the flipbook's lobes), and their colour (the pale M12 smoke 45 % toward the
+        /// muzzle smoke grey: never white balls in the sun).</summary>
+        public static float RingSmallFade = 0.6f, RingTone = 0.45f;
+        /// <summary>1.5 pass 5 try 2: the ring material's tint (darker, alpha x .6: soft grey smoke, not white puffs in the sun).</summary>
+        public static Color RingTint = new Color(0.62f, 0.6f, 0.57f, 0.6f);
+        public static Color RingSmoke => Color.Lerp(M12Smoke.color, MuzzleSmoke, RingTone);
+        /// <summary>
+        /// blasts, OpenZHeavyShells howitzer / fort), the 3 launch puffs of every shot (LaunchFlash) and the rockets' in-flight smoke trail were
+        /// m12_smoke puffs in the pale #cec7b6 with the shared material's full small-puff rounding (_SmallFade 1): white beads along the shot line.
+        /// They now draw on their own channel m12_smoke_trail: m12_smoke's motion, sizes and life curves, softer light wrap and edge, the
+        /// flipbook lobes mostly kept (TrailSmallFade) and a smoke grey (TrailSmoke x TrailTint) = soft grey wisps. Every other m12_smoke user
+        /// (fires, wrecks, blasts, water, Zod) keeps the shared channel as it was. TrailChannel false = the old pale puffs (side-by-side proof only).</summary>
+        public static float TrailSmallFade = 0.55f, TrailTone = 0.45f;
+        public static Color TrailTint = new Color(0.62f, 0.6f, 0.57f, 0.6f);
+        public static bool TrailChannel = true;
+        public static Color TrailSmoke => Color.Lerp(M12Smoke.color, MuzzleSmoke, TrailTone);
+        public static string TrailCh => TrailChannel ? "m12_smoke_trail" : "m12_smoke";
+        public static Color TrailColor => TrailChannel ? TrailSmoke : M12Smoke.color;
+        /// <summary>1.5 pass 6b (gate A14, the owner: round pale cream balls at the heavy-shell hits beside the hulls): they were DustTrails' vehicle
+        /// wake puffs (OpenZ/TrackDust: one round unlit puff each, the ground colour paled toward cream) kicked up when a tank steps aside or
+        /// manoeuvres at the hits. The vehicle wake now draws on its own channel m12_dust_wake: m12_dust's lit smoke flipbook (sun + sky, soft
+        /// against the ground) with its size and fade curves (the same as DustTrails': 0.5 -> 2.3 x, fade from 22 % of the life), a softer wrap,
+        /// edge and self shadow, the flipbook's lobes kept (WakeSmallFade) and the ground's own dust colour (WakePale toward pale sand instead of
+        /// DustTrails' 0.14 toward cream) = low soft ground-coloured wisps. The robots' and the mech's footfall puffs stay DustTrails' (untouched).
+        /// WakeChannel false = the old puffs (side-by-side proof only).</summary>
+        public static bool WakeChannel = true;
+        public static float WakeSmallFade = 0.45f, WakePale = 0.06f, WakeAlphaK = 1f;
+        public static Color WakeTint = new Color(1f, 1f, 1f, 1f);
         /// <summary>three.js r185 (package.json) lights are physical: diffuse = albedo / pi * I / d^2. URP diffuse has no 1/pi
         /// (Lighting.hlsl:54-56) and the same 1/d^2 * (1-(d/r)^4)^2 falloff (RealtimeLights.hlsl:47-60), so URP intensity =
         /// three intensity / pi. LightGain is the one visual knob on top.</summary>
@@ -337,6 +366,25 @@ namespace OpenZ
                 intensity = 1f, lit = 0.35f, wrap = 0.6f, edgeSoft = 0.6f, softFade = 0.8f, gravity = -0.12f, drag = 0.965f, sortByDistance = true,
                 noiseAmt = 0.28f, noiseScale = 1.9f, boil = 0.6f, spin = 0.5f, bump = 0.3f, selfShadow = 0.5f,              // fx_look: billows
                 sizeCurve = FxSizeCurve.Lerp, sizeEnd = 3.2f, alphaCurve = FxAlphaCurve.LegSin },          // LEG soft smoke (normal blend) 5 -> 17 px
+            // blasts, OpenZHeavyShells howitzer / fort) were 16-18 leg_smoke puffs in pale #cec7b6 (lit .35): at the RTS camera every one read as
+            // a round white ball for ~1.5 s. Now the lit smoke flipbook (m12_smoke's look: lit, self shadow, billows) on its own material with
+            // the small-puff rounding mostly off (OpenZFxPlayer: _SmallFade RingSmallFade), so each puff keeps its flipbook lobes; the SAME
+            // motion, sizes and timing as leg_smoke (drag, rise, 1 -> 3.2 x, LegSin fade in / out), in a smoke grey (RingSmoke).
+            new FxChannelDef { name = "m12_smoke_ring", shape = FxShape.Puff, capacity = 480, queue = 3010, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, wrap = 0.6f, edgeSoft = 0.7f, softFade = 1.2f, gravity = -0.12f, drag = 0.965f, sortByDistance = true,   // try 2: wrap .45 -> .6, edge .45 -> .7
+                noiseAmt = 0.3f, noiseScale = 2f, boil = 0.6f, spin = 0.4f, bump = 0.35f, selfShadow = 0.6f,
+                sizeCurve = FxSizeCurve.Lerp, sizeEnd = 3.2f, alphaCurve = FxAlphaCurve.LegSin },
+            // 1.5 pass 6a: shell / launch / rocket-trail smoke (see TrailSmallFade): m12_smoke's look and motion, wrap .35 -> .6, edge .3 -> .7
+            new FxChannelDef { name = "m12_smoke_trail", shape = FxShape.Puff, capacity = 1200, queue = 3010, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, wrap = 0.6f, edgeSoft = 0.7f, softFade = 1.2f, sortByDistance = true,
+                noiseAmt = 0.3f, noiseScale = 2f, boil = 0.6f, spin = 0.4f, bump = 0.35f, selfShadow = 0.6f,
+                sizeCurve = FxSizeCurve.SmokeGrow, alphaCurve = FxAlphaCurve.SmokeFade },
+            // 1.5 pass 6b (gate A14): the vehicle wake dust (DustTrails.VehicleWake, see WakeChannel): m12_dust's look and curves, softer
+            new FxChannelDef { name = "m12_dust_wake", shape = FxShape.Puff, capacity = 2400 /* 1.5 review R11: was 900; the footfalls and the big tanks' dust draw here too */, queue = 3008, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, wrap = 0.7f, edgeSoft = 0.85f, softFade = 1.2f, drag = 0.977f, sortByDistance = true,
+                noiseAmt = 0.3f, noiseScale = 1.8f, boil = 0.45f, spin = 0.3f, bump = 0.12f, selfShadow = 0.2f,
+                ageColor = new Color(1.02f, 1.02f, 1.02f, 1f),
+                sizeCurve = FxSizeCurve.SmokeGrow, alphaCurve = FxAlphaCurve.SmokeFade },
             new FxChannelDef { name = "leg_cone", shape = FxShape.Streak, capacity = 160, queue = 3046, opaqueness = 0f, tint = White,
                 intensity = 2f, coreColor = HotCore, coreMix = 0.6f, squareness = 0.1f, stretch = true, lengthScale = (0.85f * 1.45f) / 0.24f,
                 sizeCurve = FxSizeCurve.SinPulse, alphaCurve = FxAlphaCurve.One },                         // 6-sided cone .24 x .85, (p,p,1.45p), #ffc04d .9
@@ -737,8 +785,8 @@ namespace OpenZ
         public const float RippleLife = 1.35f, RippleScale = 0.75f, RippleLift = 0.09f;
         /// <summary>
         /// </summary>
-        public static Color RippleColorFor(string level) => level == "L02" ? Hex("#a9b6c6") : level == "L17" ? Hex("#9c9c80") : level == "L16" ? Hex("#a59c7a") : Hex("#82b6b9");
-        public static Color RippleEmissionFor(string level) => level == "L02" ? Hex("#8fa3b8") : level == "L17" ? Hex("#86866a") : level == "L16" ? Hex("#5c573f") : Hex("#7bc1d0");
+        public static Color RippleColorFor(string level) => level == "L02" ? Hex("#a9b6c6") : OzCity.Is(level) ? Hex("#9c9c80") : level == "L16" ? Hex("#a59c7a") : Hex("#82b6b9");
+        public static Color RippleEmissionFor(string level) => level == "L02" ? Hex("#8fa3b8") : OzCity.Is(level) ? Hex("#86866a") : level == "L16" ? Hex("#5c573f") : Hex("#7bc1d0");
         public const float BlastWaterSplash = 1f;                                                          // blast centred on water: splash s
         /// <summary></summary>
         public const float WadeSinkFraction = 0.45f, WadeBlendTime = 0.3f, WadeMinDepth = 0.05f, WadeRampDepth = 0.35f;

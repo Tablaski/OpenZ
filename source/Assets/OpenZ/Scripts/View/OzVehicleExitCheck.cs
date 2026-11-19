@@ -1682,6 +1682,7 @@ namespace OpenZ
 
         IEnumerator KilledRows()
         {
+            bool exitLeapThrown0 = ZWorld.DriverThrownDeviation; ZWorld.DriverThrownDeviation = false;   // 1.5 kit exit_leap_death: K1 is 1.4's jump at once = DV179 off (the throw's own rows: View/OzExitLeapDeathCheck.cs)
             foreach (var type in new[] { "light", ZMTank.Mech })
                 foreach (var (at, phase) in new[] { (0.2f, "lid"), (0.35f, "crouch") })
                 {
@@ -1706,6 +1707,7 @@ namespace OpenZ
                         $"killed {killed}; the jump at once {rec?.bailed}, touched {(j.touchFrame > 0 ? $"{j.touchT - j.clickT:0.00} s after the click" : "NEVER")} (tilt {j.touchTilt:0.0} deg), "
                         + $"turned {j.flip:0} deg; rob_land {land}; the driver alive {alive}; the wreck's lid {lid:0.00} (0 .. 0.01; -1: the wreck's rig gone, then its lid must have been shut by the jump at once: lids shut {BoardingView.HatchLidsShut}); plan: {rec?.plan}");
                 }
+            ZWorld.DriverThrownDeviation = exitLeapThrown0;                                             // exit_leap_death: DV179 back as the game has it for K2 (the driver's own death)
             foreach (var (type, phase, head) in new[] { ("light", "crouch", false), ("light", "air", false), ("light", "air", true), (ZMTank.Mech, "crouch", false), (ZMTank.Mech, "air", false) })
             {
                 Focus(out int fx, out int fy);

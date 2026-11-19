@@ -42,10 +42,13 @@ namespace OpenZ
             exeMusicRow = toggles[j].row.Rt; exeFullRow = toggles[j + 1].row.Rt;
             AddCycle(p, toggles.Count, OzSettings.ResLabel, () => OzSettings.ResolutionName, OzSettings.StepResolution);   // RESOLUTION, under FULLSCREEN (OzSettingTips.TabRows): NATIVE (default) and the lower steps of this display (oz_res_h), saved and applied at once
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // its longest value is wider than the 170 u of a cycle row
+            { var rh = hots[hots.Count - 1]; rh.click = () => OzSettings.ResolutionClick(Shift ? -1 : 1); rh.rclick = () => OzSettings.ResolutionClick(-1); }   // 1.5 issue 8: a left click one size larger, a right click (or Shift + click) one size smaller, wherever on the row
             AddToggle(p, toggles.Count, OzOvertake.Label, () => OzOvertake.On, v => OzOvertake.On = v);         // DV105 FAST UNITS PASS SLOW ONES: oz_overtake, default OFF, from the next match (OzOvertake.cs); its tab and place come from OzSettingTips
             CamControlRows(p);                                                                               // 1.4: MIDDLE MOUSE (was FREE CAMERA, its saved switch carries over), SCROLL SPEED, RIGHT-DRAG SCROLL (UI/OpenZMainMenu.CamControls.cs); tab and place from OzSettingTips
             AddCycle(p, toggles.Count, OzOverlapOption.Label, () => OzOverlapOption.Name, OzOverlapOption.Step);   // FRIENDLY UNITS OVERLAP: NO (default) / YES, oz_overlap, live (OzOverlapOption.cs); its tab and place (under HIT FLASH, GAME tab) come from OzSettingTips
             AddCycle(p, toggles.Count, OzRangeRingsOption.Label, () => OzRangeRingsOption.Name, OzRangeRingsOption.Step);   // 1.4 RANGE RINGS ON SELECTED UNITS: FADE (default) / ALWAYS, oz_range_rings, live (UI/OzRangeRingsOption.cs); GAME, under HEALTH BARS (OzSettingTips)
+            AddToggle(p, toggles.Count, OzTacticalPause.Label, () => OzTacticalPause.On, v => OzTacticalPause.On = v);   // 1.5 TACTICAL PAUSE: oz_tactical_pause, default OFF, live (View/OzTacticalPause.cs); GAME, last row (OzSettingTips)
+            AddCycle(p, toggles.Count, OzRobotSizeOption.Label, () => OzRobotSizeOption.Name, OzRobotSizeOption.Step);   // 1.5 R3.25 ROBOT SIZE: 60 to 100 %, oz_robot_size, default 100 % (= the robots as before), live (UI/OzRobotSizeOption.cs); GAME, under VEHICLE SIZE (OzSettingTips)
             AddCycle(p, toggles.Count, OzVehicleSizeOption.Label, () => OzVehicleSizeOption.Name, OzVehicleSizeOption.Step);   // VEHICLE SIZE: 60 to 100 %, oz_vehicle_size, default 90 %, live (OzVehicleSizeOption.cs); GAME, under FRIENDLY UNITS OVERLAP (OzSettingTips)
             AddCycle(p, toggles.Count, OzTrackpadScroll.Label, () => OzTrackpadScroll.Name, OzTrackpadScroll.Step);   // TRACKPAD SCROLL: ZOOM (default) / MOVE MAP, oz_trackpad_scroll, live (OzTrackpadScroll.cs); its tab and place (ADVANCED, under TOUCH · GAMEPAD) come from OzSettingTips
             AddToggle(p, toggles.Count, OzLensEdges.Label, () => OzLensEdges.On, v => OzLensEdges.On = v);   // CHROMATIC ABERRATION · LENS EDGES: oz_chroma, default OFF, live (View/OzLensEdges.cs); its tab and place (GRAPHICS, under MOTION BLUR) come from OzSettingTips
@@ -56,8 +59,9 @@ namespace OpenZ
             AddToggle(p, toggles.Count, OzLightRows.AoLabel, () => OzLightRows.AoOn, v => OzLightRows.AoOn = v);             // oz_lite_ao, default ON
             AddCycle(p, toggles.Count, OzLightRows.TreesLabel, () => OzLightRows.TreesName, OzLightRows.TreesStep);          // oz_lite_trees FULL (default) / LIGHT / LIGHTEST
             AddCycle(p, toggles.Count, OzLightRows.WrecksLabel, () => OzLightRows.WrecksName, OzLightRows.WrecksStep);       // oz_lite_wrecks FULL (default) / LIGHT
+            if (OzLowPicture.InOptions) AddCycle(p, toggles.Count, OzLowPicture.Label, () => OzLowPicture.Name, OzLowPicture.Step);   // 1.5 issue 8: 3D PICTURE SHARP (default) / SOFT / SOFTEST, oz_lite_picture, live, LOW only (View/OzLowPicture.cs); not in the Mac player
             AddBehaviorOptions(p);
-            float h = BuildOptTabs(p);
+            float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
             optionsScale = Mathf.Min(OptionsMaxScale, ModalMaxH / h, (CW - OzMenuLayout.CreditsX - 60f) / OptW);   // beside the list: 60 u stay free on the right
             Modal(optionsRt, OptW, h, Side.Options, true);
@@ -236,6 +240,15 @@ namespace OpenZ
         {
             string what = ProofHotAt(mp); var h = HotAt(mp);
             if (h != null && h.click != null) { if (!string.IsNullOrEmpty(h.sfx)) Sfx(h.sfx); lastMouse = mp; h.click(); }
+            return what;
+        }
+
+        /// <summary>1.5 issue 8: a right click at screen point mp as Poll resolves it (its sound, then the hot's right click; a hot
+        /// without one: nothing).</summary>
+        public string ProofRightClickAt(Vector2 mp)
+        {
+            string what = ProofHotAt(mp); var h = HotAt(mp);
+            if (h != null && h.rclick != null) { if (!string.IsNullOrEmpty(h.sfx)) Sfx(h.sfx); lastMouse = mp; h.rclick(); }
             return what;
         }
 

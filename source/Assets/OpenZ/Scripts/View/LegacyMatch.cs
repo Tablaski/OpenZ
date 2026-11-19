@@ -128,6 +128,7 @@ namespace OpenZ
                 case "missile_launcher": return DeathMlrs;
                 case "medium": return DeathMedium;
                 case "heavy": return DeathHeavy;
+                case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return DeathHeavy;   // 1.5 DV180 / DV181: the heavy tank's death blast
                 case "robot_factory": case "vehicle_factory": return DeathFactory;
                 case "fort_front": case "fort_back": return DeathFort;
                 case "repair": return DeathRepair;
@@ -163,9 +164,10 @@ namespace OpenZ
             var d = e.driver ? Bazooka : ForMissile(attacker, e.flag, e.flag2, e.radius);         // DV87: a Tough hatch driver's rocket bursts as a bazooka rocket, not as the tank's shell
             if (OzAirShots.AirBlast(e, attacker, target, at, d)) return;                               // K337: a miss at the flying shuttle: its small air burst up there, nothing on the ground
             int bid = e.objId * 7919 + e.x * 31 + e.y;
+            if (d.label == TurretLand.label && OzExpInGame.HeadLanding(e.objId, at)) return;
             if (d.label == TurretLand.label) { TurretLanding(OzRockSolid.TurretBlastAt(e.objId, at), d, bid, fx, au); return; }   // items 331 + 332: on the moved turret
             var xk = Exp2ForMissile(e, attacker, target, d, at, bid, out float xU);
-            if (xk != Exp2Kind.None && !OzShuttleAim.AirBurst(target) && Live(out var xz)) { FxManager.RaiseExploded(at, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(at + Vector3.up * 0.2f, xU, xk, bid, d.s, d.kind, false, xk == Exp2Kind.Medium); }   // K256e: at the flying shuttle the gated blast below (no exp2 ground light or rings)
+            if (xk != Exp2Kind.None && !OzShuttleAim.AirBurst(target) && Live(out var xz) && !xz.WetAt(at)) { FxManager.RaiseExploded(at, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(at + Vector3.up * 0.2f, xU, xk, bid, d.s, d.kind, false, xk == Exp2Kind.Medium); }   // K256e: at the flying shuttle the gated blast below (no exp2 ground light or rings)   // 1.5 kit water_blast_r6 (A16): a rocket of a volley decided exp2 on land (a Tough, the MLRS's own rocket: VolleyExp2 keeps the choice 3.5 s) that lands in WATER is never exp2 (its flat ring, dust and burn mark lay on the bed under the water, no splash): it falls to the table blast = the water blast
             else DoBlast(at + Vector3.up * 0.2f, d, bid, fx);
             if (d.label == MlrsRocket.label && Random.value < OpenZFxCatalog.ShakeMlrsChance) OpenZFxShake.I?.Kick(at, OpenZFxCatalog.ShakeMlrsPx, "mlrs");   // an MLRS salvo landing in view kicks the camera now and then
             Sound(d, at, au, OzSoundV3.BlastEmitter(e));                                            // sound_v3: every blast its own slot (volleys lost 2nd+ blasts)
@@ -195,10 +197,12 @@ namespace OpenZ
         {
             var d = ForDeath(o);
             var xk = Exp2ForDeath(o, d, p, out float xU);
-            if (xk != Exp2Kind.None && Live(out var xz)) { FxManager.RaiseExploded(p, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(p + Vector3.up * 0.6f, xU, xk, o.Id, d.s, d.kind, false, true); }
+            bool swap = OzExpInGame.SwapDeath(o, p);
+            if (swap) FxManager.RaiseExploded(p, d.s / OpenZFxCatalog.LegacyToM12);
+            else if (xk != Exp2Kind.None && Live(out var xz)) { FxManager.RaiseExploded(p, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(p + Vector3.up * 0.6f, xU, xk, o.Id, d.s, d.kind, false, true); }
             else DoBlast(p + Vector3.up * 0.6f, d, o.Id, fx);
-            if (d.wreck > 0f && Live(out var z)) z.WreckFire(p, d.wreck);
-            Sound(d, p, au, -1, 0f);
+            if (d.wreck > 0f && Live(out var z)) OzFireSource.DeathFire(z, o, p, d.wreck);   /* 1.5 N33 (kit fire_no_source_n33): was z.WreckFire(p, d.wreck): 0.85 m over the GROUND under the death point, also for a hull that dies in the air (flipped by a ram) or lies dented; a whole hull on the ground: unchanged */
+            if (!swap) Sound(d, p, au, -1, 0f);   // 1.5 kit explosions_in_game_1_5: the swapped explosion plays its own sounds
             OzSoundV3.DeathTail(o, p);                                                              // sound_v3: metal parts raining down
         }
 
@@ -206,6 +210,7 @@ namespace OpenZ
         {
             var d = ForDeath(o);
             DoBlast(p + Vector3.up * 2f, d, o.Id, fx);
+            if (!OzCaptureNoShock.Skips(o)) OzExpInGame.BuildingDied(o, p);
             // dust and camera (the collapse logic stays); bridges keep the current look
             if (o != null && !o.IsBridge && OpenZFxPlayer.Pick(Exp2Kind.Big, 0.4f, p, o.Id * 613 + 17) != Exp2Kind.None && Live(out var z))
                 z.Exp2(p + Vector3.up * 2f, Mathf.Clamp(2.3f * d.s, 4f, 8f), Exp2Kind.Big, o.Id * 613 + 17, d.s, d.kind, true, false);
@@ -240,7 +245,7 @@ namespace OpenZ
         {
             U = 0f;
             if (o == null || (o.Kind != ZKind.Vehicle && o.Kind != ZKind.Cannon)) return Exp2Kind.None;
-            bool big = o.Type == "heavy" || o.Type == "apc" || o.Type == "missile_launcher" || o.Type == "medium";
+            bool big = o.Type == "heavy" || o.Type == "apc" || o.Type == "missile_launcher" || o.Type == "medium" || OzBigTanks.Is(o.Type);   // 1.5 DV180 / DV181
             U = big ? Mathf.Clamp(2.3f * d.s, 3.5f, 6f) : Mathf.Clamp(3f * d.s, 3.5f, 6f);
             return OpenZFxPlayer.Pick(big ? Exp2Kind.Big : Exp2Kind.Medium, 0.45f, p, o.Id * 977 + 5);
         }
@@ -387,17 +392,17 @@ namespace OpenZ
             z.LaunchFlash(from + dir * 0.3f, dir, HeavyBlastFlashK * k, HeavyBlastGroundLight * k);
             var right = Vector3.Cross(Vector3.up, dir); right = right.sqrMagnitude > 1e-4f ? right.normalized : Vector3.right;
             var up = Vector3.Cross(dir, right).normalized;
-            var c = from + dir * 0.5f; var smoke = OpenZFxCatalog.M12Smoke.color;
+            var c = from + dir * 0.5f; var smoke = OpenZFxCatalog.TrailColor;   // 1.5 pass 6a: forward puffs grey (was M12Smoke pale)
             int puffs = Mathf.Max(4, Mathf.RoundToInt(HeavyRingPuffs * k));
             for (int i = 0; i < puffs; i++)
             {
                 float a = i * Mathf.PI * 2f / puffs + Random.Range(-0.12f, 0.12f);
                 var radial = right * Mathf.Cos(a) + up * Mathf.Sin(a);
-                z.EmitChannel("leg_smoke", c + radial * 0.2f, radial * Random.Range(2.2f, 3f) * k + dir * Random.Range(0.5f, 1f),
-                    Random.Range(0.9f, 1.3f) * k, Random.Range(0.45f, 0.65f), smoke, 0.7f);
+                z.EmitChannel("m12_smoke_ring", c + radial * 0.2f, radial * Random.Range(2.2f, 3f) * k + dir * Random.Range(0.5f, 1f),   // 1.5 pass 5: lit flipbook ring (was leg_smoke: round white balls)
+                    Random.Range(0.9f, 1.3f) * k, Random.Range(0.45f, 0.65f), OpenZFxCatalog.RingSmoke, 0.7f);
             }
             for (int j = 0; j < 3; j++)
-                z.EmitChannel("m12_smoke", from + dir * (0.6f + j * 0.45f), dir * Random.Range(2f, 4f) + Random.insideUnitSphere * 0.35f,
+                z.EmitChannel(OpenZFxCatalog.TrailCh, from + dir * (0.6f + j * 0.45f), dir * Random.Range(2f, 4f) + Random.insideUnitSphere * 0.35f,
                     Random.Range(0.6f, 0.95f) * k, Random.Range(0.6f, 0.9f), smoke, OpenZFxCatalog.M12Smoke.alpha);
         }
 
@@ -410,16 +415,16 @@ namespace OpenZ
             z.LaunchFlash(from + dir * 0.35f, dir, HeavyBlastFlashK, HeavyBlastGroundLight);
             var right = Vector3.Cross(Vector3.up, dir); right = right.sqrMagnitude > 1e-4f ? right.normalized : Vector3.right;
             var up = Vector3.Cross(dir, right).normalized;
-            var c = from + dir * 0.6f; var smoke = OpenZFxCatalog.M12Smoke.color;
+            var c = from + dir * 0.6f; var smoke = OpenZFxCatalog.TrailColor;   // 1.5 pass 6a: forward puffs grey (was M12Smoke pale)
             for (int i = 0; i < HeavyRingPuffs; i++)
             {
                 float a = i * Mathf.PI * 2f / HeavyRingPuffs + Random.Range(-0.12f, 0.12f);
                 var radial = right * Mathf.Cos(a) + up * Mathf.Sin(a);
-                z.EmitChannel("leg_smoke", c + radial * 0.25f, radial * Random.Range(2.6f, 3.4f) + dir * Random.Range(0.6f, 1.2f),
-                    Random.Range(1.1f, 1.5f), Random.Range(0.5f, 0.7f), smoke, 0.75f);
+                z.EmitChannel("m12_smoke_ring", c + radial * 0.25f, radial * Random.Range(2.6f, 3.4f) + dir * Random.Range(0.6f, 1.2f),   // 1.5 pass 5: lit flipbook ring (was leg_smoke: round white balls)
+                    Random.Range(1.1f, 1.5f), Random.Range(0.5f, 0.7f), OpenZFxCatalog.RingSmoke, 0.75f);
             }
             for (int j = 0; j < 5; j++)
-                z.EmitChannel("m12_smoke", from + dir * (0.8f + j * 0.55f), dir * Random.Range(2.5f, 5f) + Random.insideUnitSphere * 0.4f,
+                z.EmitChannel(OpenZFxCatalog.TrailCh, from + dir * (0.8f + j * 0.55f), dir * Random.Range(2.5f, 5f) + Random.insideUnitSphere * 0.4f,
                     Random.Range(0.8f, 1.2f), Random.Range(0.7f, 1.0f), smoke, OpenZFxCatalog.M12Smoke.alpha);
             float gy = ZGame.I ? ZGame.I.GroundY(from.x, from.z) : from.y - 2f;
             if (from.y - gy < 3.5f) z.Dust(new Vector3(from.x + dir.x * 1.6f, gy + 0.15f, from.z + dir.z * 1.6f), HeavyBlastDust);
@@ -495,7 +500,7 @@ namespace OpenZ
             if (v == null || v.Kind != ZKind.Vehicle) return null;
             switch (v.Type)
             {
-                case "light": case ZMTank.Type: case "heavy": case "missile_launcher": case "apc": case "crane": return "tank";   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "light": case ZMTank.Type: case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: case "missile_launcher": case "apc": case "crane": return "tank";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "medium": return null;
                 default: return "car";                                                                    // jeep
             }

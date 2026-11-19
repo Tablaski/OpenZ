@@ -187,7 +187,7 @@ namespace OpenZ
                     bool compact = Mathf.Min(cs.y - 40f - 24f - 84f, 860f) < 705f;
                     var p = OzUeTopBar.Layout(cs, compact);
                     Check(Mathf.Approximately(p.h, compact ? 36f : 40f) && p.cw == cs.x, "E001 top bar 0,0 " + cs.x + " x " + p.h + " at " + at);
-                    Check(Mathf.Abs(p.menu.xMax - (cs.x - 12f)) < 0.01f && Mathf.Abs(p.help.xMax + 14f - p.menu.x) < 0.01f && Mathf.Abs(p.share.xMax + 20f - p.help.x) < 0.01f
+                    Check(Mathf.Abs(p.menu.xMax - (cs.x - 12f - OzUePlan.EyeSize - OzUePlan.EyeGap)) < 0.01f && Mathf.Abs(p.help.xMax + 14f - p.menu.x) < 0.01f && Mathf.Abs(p.share.xMax + 20f - p.help.x) < 0.01f
                           && Mathf.Abs(p.load.xMax + 6f - p.share.x) < 0.01f && Mathf.Abs(p.save.xMax + 6f - p.load.x) < 0.01f,
                           "E004-E009 right group at " + at + ": SAVE " + F(p.save) + ", LOAD " + F(p.load) + ", SHARE " + F(p.share) + ", ? " + F(p.help) + ", MAIN MENU " + F(p.menu));
                     Check(p.crumbX + p.crumbW + OzUeTopBar.Gap <= p.save.x, "E003 crumb (" + (p.crumbLong ? "MAIN MENU / UNIT EDITOR / PLAYGROUND" : "UNIT EDITOR / PLAYGROUND") + ") ends at " + (p.crumbX + p.crumbW).ToString("0.0", CultureInfo.InvariantCulture) + ", before SAVE at " + p.save.x.ToString("0.0", CultureInfo.InvariantCulture) + " at " + at);

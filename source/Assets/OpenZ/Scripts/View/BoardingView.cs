@@ -346,6 +346,7 @@ namespace OpenZ
                 case ZMTank.Type: r.mode = Mode.Roof; r.crewScale = 0.67f; r.lid = true; break;   // DV145: the medium tank's dome hatch (its hatch 0.77 x 0.85 m, the light tank v2's 0.73 x 0.69 m)
                 case "medium": r.mode = Mode.Roof; r.crewScale = 0.7f; r.lid = true; break;
                 case "heavy": r.mode = Mode.Roof; r.crewScale = 0.62f; r.lid = true; break;
+                case OzBigTanks.Mammoth: case OzBigTanks.Bizon: r.mode = Mode.Roof; r.crewScale = 0.62f; r.lid = true; break;   // 1.5 DV180 / DV181: the turret hatch, the heavy tank v2's commander size
                 case "missile_launcher": r.mode = Mode.Roof; r.crewScale = 0.62f; break;
                 case "jeep": r.mode = Mode.Seat; r.crewScale = 0.62f * JeepGrowNow(r); r.visible = true; break;   // x the seat's measured gain (SeatGrow; the further-back driver's own: BoardingView.JeepSeat.cs)
                 case "apc": r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 0.85f; r.lid = true; break;                   // DV87: the roof hatch its lone driver comes up through (RoundHatch "apc")
@@ -393,7 +394,7 @@ namespace OpenZ
         /// Cannons, the crane cab and the MLRS roof: ElectrobotFitDefault, proven in Play (OpenZ/Electrobot: 5 Crew Fit Check).
         /// Every other type: 1.</summary>
         public static readonly Dictionary<string, float> ElectrobotFit = new Dictionary<string, float>
-        { { "light", 0.69f }, { "medium", 0.66f }, { ZMTank.Type, 0.69f }, { "heavy", 0.69f }, { "jeep", 0.81f }, { "apc", 0.87f } };   // DV145 the medium tank (Sim/ZMTank.cs)
+        { { "light", 0.69f }, { "medium", 0.66f }, { ZMTank.Type, 0.69f }, { "heavy", 0.69f }, { OzBigTanks.Mammoth, 0.69f }, { OzBigTanks.Bizon, 0.69f }, { "jeep", 0.81f }, { "apc", 0.87f } };   // DV145 the medium tank (Sim/ZMTank.cs)
         public static float ElectrobotFitDefault = 0.87f;
         /// <summary>
         /// Every robot type was measured seated in each of
@@ -815,6 +816,7 @@ namespace OpenZ
             if (!prefab) prefab = game.Prefab(type == "tough" ? "Z_tough" : "Z_robot");
             if (!prefab) return null;
             var go = Instantiate(prefab, pos, rot, box);
+            OzRobotScale.NewFigure(go);   // 1.5 R3.25 (View/OzRobotScale.cs): a new figure of a robot at the row's size (nothing written at 100 %)
             go.name = "crew_" + type;
             OzEvilZodView.Figure(go, type, team);                                                        // DV161: a figure of him wears his paint and holds his gun
             UnitLookMotionGate.KeepUnitCrisp(go);                                                        // a crew figure rides a living vehicle: body and rigid kit stay sharp
@@ -1187,7 +1189,7 @@ namespace OpenZ
             if (index == 0 && r.crew && r.visible) { go = r.crew; r.crew = null; Unparent(go); }     // the visible gunner / driver gets up (crews_v1: off the turret)
             else go = CloneView(live);
             var g = NewGhost(go, r, false); g.live = live; g.robotId = robot.Id; g.delay = index * crewStagger;
-            g.baseScale = live.transform.localScale.x;
+            g.baseScale = OzRobotScale.ExitScaleX(live);   // 1.5 R3.25 (View/OzRobotScale.cs): the size its robot is drawn at from this frame on (live.transform.localScale.x at 100 %)
             if (r.obj.IsShuttle && ShuttleRearDoor.Of(r.view)) ShuttleExitDelay(g, r, robot, index);   // DV118: seated by the doorway, out at the rules' moment (BoardingView.Shuttle.cs)
             else if (r.obj.Type == "apc" && ApcRearDoor.Of(r.view))
             {
@@ -1548,7 +1550,7 @@ namespace OpenZ
 
         /// <summary>hatch_v1: the ONE decision point for the hatch driver popping out (view only: reads the sim lid state, never
         /// writes sim state; the deterministic sim is untouched). Extra view guards (e.g. veteran crews stay buttoned up) go here.</summary>
-        bool ShowHatchDriver(ZObject v) => v != null && (v.LidOpen || v.CraneGunUp || v.Resting || v.ApcDriverUp) && !VeteranMarks.ButtonedUp(v);   // vehicles_nb_v1 NB24: + the crane's driver while he shoots back (DV31); veterancy_v1 DV12: veterans stay inside; DV87: + the APC's lone driver while it fights
+        bool ShowHatchDriver(ZObject v) => v != null && (v.LidOpen || v.CraneGunUp || v.Resting || v.ApcDriverUp) && (!VeteranMarks.ButtonedUp(v) || v.BigTankUpHeld);   // vehicles_nb_v1 NB24: + the crane's driver while he shoots back (DV31); veterancy_v1 DV12: veterans stay inside; DV87: + the APC's lone driver while it fights   // 1.5 DV211 (kit bizon_mammoth_driver_up_r7): a veteran driver of a Mammoth / Bizon is up while it fights like any other (Sim/ZObject.BigTankUp.cs)
 
         /// <summary>ui_combat_v1 hatch commander (Zod ZVehicle::RenderLid, zvehicle.cpp:268-330: the "tank_fire" robot sprite over
         /// and shoulders (commanderCut); he faces and aims at the vehicle's target while engaged (else along the barrel), kicks back
@@ -1617,7 +1619,7 @@ namespace OpenZ
         {
             var v = View(t.Id);
             var p = v && v.gameObject.activeInHierarchy ? v.transform.position : game.CenterWorld(t);
-            return p + Vector3.up * (t.Kind == ZKind.Robot ? 1.1f : t.Kind == ZKind.Building ? 2.5f : 1.3f);
+            return p + Vector3.up * (t.Kind == ZKind.Robot ? 1.1f * OzRobotScale.Of(v) : t.Kind == ZKind.Building ? 2.5f : 1.3f);   // 1.5 R3.25 (View/OzRobotScale.cs): a robot's drawn body
         }
 
         static Transform FindMuzzle(GameObject go)

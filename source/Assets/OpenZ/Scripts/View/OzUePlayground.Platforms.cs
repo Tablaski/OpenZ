@@ -9,7 +9,8 @@ namespace OpenZ
     /// the EXTRAS. Dragged or click-placed like the obstacle; the drop point is the footprint's middle; the ramp's foot looks toward the viewer
     /// (the camera's turn snapped to four sides: turn the view to choose). Always neutral, one per drop, no unit of the cap.
     /// Units and guns dropped on a platform stand on its deck or ramp, never inside it: FreeSpot keeps to the level the drop started on, guns
-    /// only on the deck (they are drawn flat). A flag, a crate and an obstacle are refused there.
+    /// only on the deck (they are drawn flat). A crate and an obstacle are refused there; a flag stands on the deck or the ramp (1.5 ue_flag_anywhere,
+    /// View/FlagView.Deck.cs), goes with the platform on a removal and comes down to the floor when the platform is destroyed.
     /// Delete and CLEAR FIELD never kill: a platform removed takes what stands on it off the field too, quietly, and what is dead or loose on it
     /// (OzUePlatformViews.Remove), so nothing is left in the air.
     /// Saved in the field block as "platforms": [{"id", "tx", "ty", "dir", "hp"}], read first (the units then land on the decks).
@@ -80,6 +81,7 @@ namespace OpenZ
         static void PlatformLeaves(ZGame g, ZWorld w, ZObject o)
         {
             foreach (var u in w.PlatformLoad(o)) RemoveQuiet(u);
+            foreach (var f in new List<ZObject>(w.Flags)) if (f != null && !f.Destroyed && f.KillAt < 0 && o.Contains(f.CenterX, f.CenterY)) RemoveQuiet(f);   // ue_flag_anywhere: its flags too
             w.PlatformClearTiles(o);
         }
 

@@ -65,7 +65,10 @@ namespace OpenZ
             return bones;
         }
 
-        public static bool CanStart() { active.RemoveAll(r => !r || r.Frozen); return active.Count < MaxActive; }
+        /// <summary>1.5 kit robot_pieces_ground_r11 (A35), Play checks only (OzRobotPiecesCheckR11): every ragdoll taken, as MaxActive falling bodies in a battle,
+        /// so the next death plays its clip. Never set by the game.</summary>
+        public static bool CheckFull;
+        public static bool CanStart() { if (CheckFull) return false; active.RemoveAll(r => !r || r.Frozen); return active.Count < MaxActive; }
 
         /// <summary>Turn this robot into a ragdoll and throw it. push = horizontal direction away from the killer,
         /// strength 1 = rifle hit, ~2.5 = missile / explosion.</summary>

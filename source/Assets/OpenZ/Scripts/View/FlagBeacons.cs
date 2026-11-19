@@ -39,7 +39,7 @@ namespace OpenZ
         void LateUpdate()
         {
             var g = ZGame.I; if (!g || g.World == null || !mat) return;
-            bool on = g.level == "L17" ? OnL17 : OnL02; if (!on) return;
+            bool on = OzCity.Is(g.level) ? OnL17 : OnL02; if (!on) return;
             float t = Time.time, dt = Time.deltaTime, day = 1f - FlagView.NightLook;                 // v1.2: 1 by day .. 0 at night
             bool teamRings = FlagView.TeamRingsOn;
             foreach (var f in g.World.Flags)

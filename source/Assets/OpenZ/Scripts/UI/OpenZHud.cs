@@ -116,7 +116,8 @@ namespace OpenZ
         public bool IsOverUi(Vector2 screen)
         {
             if (Modal) return true;
-            if (!hudVisible || !Canvas) return false;
+            if (!Canvas) return false;
+            if (!hudVisible) return OzCheatSpawner.Over(screen);                                       // 1.5 N16: the interface hidden: only the open testing overlay's own panels (UI/OzCheatSpawner.HudHide.cs)
             foreach (var b in blockers) if (Contains(b, screen)) return true;
             return false;
         }
@@ -278,8 +279,9 @@ namespace OpenZ
             if (kb != null && OzBindings.Pressed(OzAction.HideHud) && !(Pause && Pause.IsOpen)) SetVisible(!hudVisible);   // menu_exe_v1: bound key (F10); not under the pause menu (it hides the HUD itself)
             if (!modal && kb != null && OzBindings.Pressed(OzAction.FactoryList) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) FactoryListKey();   // the list is a lower panel: with the production window up the key closes the window and shows the list
             if (!modal && kb != null && OzBindings.Pressed(OzAction.ExitCrew) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed && input.Selection.Count > 0) ExitSelected();   // EXIT CREW
-            if (!modal && kb != null && OzBindings.Pressed(OzAction.LastMessage)) SpaceEvent();                 // Zod: space = the last computer message's action
+            if (!modal && kb != null && OzBindings.Pressed(OzAction.LastMessage) && !OzTacticalPause.TakesLastMessageKey) SpaceEvent();   // Zod: space = the last computer message's action; 1.5 tactical_pause_megashake: with TACTICAL PAUSE on that key freezes time (View/OzTacticalPause.cs), the toasts stay clickable
             if (kb != null && OzBindings.Pressed(OzAction.MinimalUi) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) MinimalUiKey();   // the MINIMAL UI key (default U): the OPTIONS switch in a match, never under a menu (OpenZHud.MinimalKey.cs)
+            else if (kb != null) HoldKeyMinimalTick(kb);
 
             ScanEvents();
 
@@ -295,7 +297,7 @@ namespace OpenZ
             int minPriority = OzConfirm.Blocks ? int.MaxValue : (modal || exited) ? 100 : Production && Production.IsOpen && Contains(Production.WindowRect, Pointer) ? 10 : int.MinValue;
             if (PointerOverUi)
                 for (int i = buttons.Count - 1; i >= 0; i--)
-                    if (buttons[i].Priority >= minPriority && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
+                    if (buttons[i].Priority >= minPriority && (hudVisible || buttons[i].Priority >= 100) && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
             if (over != HotButton) { if (HotButton != null) { HotButton.Hovered = false; HotButton.Refresh(); } HotButton = over; if (over != null) { over.Hovered = true; over.Refresh(); } }
             if (!modal && over != null && over.Interactable && Production && OzBindings.Pressed(OzAction.RestartProduction))
                 Production.RestartHovered(over);
@@ -749,7 +751,7 @@ namespace OpenZ
             // clock (Zod: game time h:mm:ss, "!" past 9 h); PAUSED blinks 0.5 s in AMBER, SPEED xN in AMBER
             int sec = (int)W.Time;
             if (sec != lastClockSec) { lastClockSec = sec; clock.Set(OzText.Tab(UnitInfo.Clock(W.Time))); }
-            bool paused = game.paused || (Pause && Pause.IsOpen);
+            bool paused = (game.paused && (OzTacticalPause.ClockSaysPaused || !OzTacticalPause.Frozen)) || (Pause && Pause.IsOpen);
             string sub = W.GameOver ? "GAME OVER" : paused ? "PAUSED" : Mathf.Abs(game.gameSpeed - 1f) > 0.01f ? SpeedLabel(game.gameSpeed) : "";
             sub = OzSpeedKeys.ClockLine(sub, game, W.GameOver || paused);                               // speed keys: the new speed for 1.5 s, also at x1
             clockSub.Set(sub);
@@ -903,6 +905,7 @@ namespace OpenZ
             }
             var u = hudUnit;
             ShuttleCardReset(u);                                                                            // 1.2 item 2: the type chip and the CREW slot of every unit but a shuttle as before (UI/OpenZHud.ShuttleAboard.cs)
+            DriverCardReset(u);                                                                             // 1.5 Discord 10 Nov: the driver's face only on a vehicle's / gun's card (UI/OpenZHud.DriverSlot.cs)
             VeteranMarks.PortraitStar(unitPanel, u);                                                        // veterancy_v1 DV12: veteran star
             if (u != null) EndCall("a selection");
             if (u == null)
@@ -946,8 +949,7 @@ namespace OpenZ
             string more = sel.Count > 1 ? $" · +{sel.Count - 1} MORE SELECTED" : "";
             var hu = PanelHealthOf(u);                                                                     // the squad member under the pointer, else the unit itself
             string sub = robot ? (squad > 1 ? $"{(hu != u ? "SQUAD MEMBER" : "SQUAD LEADER")} · {squad} ROBOTS" : "1 ROBOT")
-                       : u.IsShuttle ? ShuttleSub(u, more) : u.Drivers.Count > 0 ? $"{(u.Kind == ZKind.Cannon ? "GUNNER" : "DRIVER")} · {OzHeroSquadView.CrewNameOr(u, false, UnitInfo.Name(u.DriverType))}{(u.Drivers.Count > 1 ? " ×" + u.Drivers.Count : "")}"
-                         + (u.IsApc && ZWorld.ApcCrewDeviation ? (u.Passengers.Count > 0 ? $" · PASSENGERS {OzHeroSquadView.CrewNameOr(u, true, UnitInfo.Name(u.PassengerType))} ×{u.Passengers.Count}" : " · ROOM FOR ONE SQUAD") : "")   // apc_v1 DV15
+                       : u.IsShuttle ? ShuttleSub(u, more) : u.Drivers.Count > 0 ? CrewSub(u)                // 1.5 Discord 10 Nov: the driver is named in the stat slot now, this line the crew count (apc_v1 DV15: an APC's passengers as before; UI/OpenZHud.DriverSlot.cs)
                        : "EMPTY · ANY ROBOT CAN CAPTURE";
             uSub.Set(sub + more);
             typeIcon.Rt.gameObject.SetActiveFast(!u.IsShuttle); typeWell.gameObject.SetActiveFast(true);       // 1.2 item 2: a shuttle's chip shows who is inside (ShuttleTypeChip)
@@ -958,6 +960,7 @@ namespace OpenZ
             bool nades = robot && u.Type != "tough";                                                       // Zod: robots except Tough (zhud.cpp:794-819)
             if (nades) { uNadeLabel.Set("GRENADES"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "grenade", 24); nadeIcon.color = OzUi.Amber; uNades.Set(OzText.Tab($"{u.SquadGrenades:00}")); uNades.color = OzUi.Ink; }   // KH: + a hero member's own (Alan's)
             else if (u.IsShuttle) ShuttlePilotSlot(u);                                                     // 1.2 item 2 round 3: the PILOT (stays in / a hero can exit), not who is aboard again (UI/OpenZHud.ShuttleAboard.cs)
+            else if (DriverCardOf(u)) DriverSlot(u);                                                       // 1.5 Discord 10 Nov: DRIVER / GUNNER, the driver's face and name (UI/OpenZHud.DriverSlot.cs)
             else if (!robot) { uNadeLabel.Set("CREW"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "robot", 24); nadeIcon.color = OzUi.Ink2; uNades.Set(OzText.Tab($"{u.CrewAboard:00}")); uNades.color = OzUi.Ink;   /* apc_v1 DV15: driver + passengers */ }
             else { uNadeLabel.Set(""); nadeIcon.enabled = false; uNades.Set(""); }
             // Zod's absolute scale (zhud.cpp:948-1016): green = health / 10000, lost colour up to max health / 10000
@@ -1857,8 +1860,8 @@ namespace OpenZ
             t.text.Set(text);
             Hud.SetIcon(t.icon, glyph, OzLayout.ToastIconSize); t.icon.color = alert ? OzUi.Alert : OzUi.Amber;
             if (t.bar) t.bar.color = alert ? (Color)OzUi.Alert : (Color)OzUi.AmberHi;
-            if (t.key) t.key.gameObject.SetActive(action != null);
-            t.hot.Interactable = action != null; t.hot.Tooltip = action != null ? text + "|Click or press " + OzBindings.Cap(OzAction.LastMessage) + " to go there.|" + OzBindings.Cap(OzAction.LastMessage) : null;
+            if (t.key) t.key.gameObject.SetActive(action != null && !OzTacticalPause.TakesLastMessageKey);   // 1.5 tactical_pause_megashake: no SPACE cap while that key freezes time
+            t.hot.Interactable = action != null; t.hot.Tooltip = action != null ? text + OzTacticalPause.PressTip("to go there.") : null;   // 1.5 tactical_pause_megashake: "Click or press SPACE", or "Click" while SPACE freezes time
             t.keep = keep;                                                                               // the MINIMAL UI key's own note is drawn in MINIMAL UI too
             t.cg.alpha = 0f; t.rt.gameObject.SetActive(keep || minK > 0.001f); t.rt.SetAsLastSibling();
         }
@@ -1996,7 +1999,7 @@ namespace OpenZ
                 fortSeen = fortFired;
                 fortLast = now; fortToast.used = true; fortToast.t0 = now; fortToast.cg.alpha = 0f; fortToast.rt.gameObject.SetActive(minK > 0.001f); fortToast.rt.SetAsLastSibling();
                 var f = dangerFort; fortToast.action = () => { if (rts && f != null) rts.FlyTo(game.CenterWorld(f)); };
-                fortToast.hot.Tooltip = "YOUR FORT IS UNDER ATTACK|Click or press " + OzBindings.Cap(OzAction.LastMessage) + " to fly to the fort.|" + OzBindings.Cap(OzAction.LastMessage);
+                fortToast.hot.Tooltip = "YOUR FORT IS UNDER ATTACK" + OzTacticalPause.PressTip("to fly to the fort.");   // 1.5 tactical_pause_megashake
                 lastAction = fortToast.action; NoteEvent(fortToast.action, "YOUR FORT IS UNDER ATTACK");
                 if (!fortDanger) fortDangerSince = now;
             }
@@ -2013,7 +2016,7 @@ namespace OpenZ
             bannerCg = banner.gameObject.AddComponent<CanvasGroup>(); bannerCg.blocksRaycasts = false;
             if (OzKit.Available) Hud.Shadow(banner, "Panels/panel_lg_mask");
             Hud.Kit(banner, "Plate", "Panels/mission_banner", new OzRect(0, 0, r.w, r.h), null);
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameLabel : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             string enemy = TeamColors.Name(Player == Team.Red ? Team.Blue : Team.Red);
             Hud.Label(banner, "Eyebrow", "OPERATION " + lvl, 11, OzUi.Amber, 0.3f).At(OzLayout.BannerTextX, OzLayout.BannerEyebrowY);
             Hud.Label(banner, "Line", $"CAPTURE THE FLAGS · DESTROY THE {enemy} FORT", 20, OzUi.Ink, 0.08f).At(OzLayout.BannerTextX, OzLayout.BannerLineY, OzH.L, false, 600);

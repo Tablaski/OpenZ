@@ -114,7 +114,7 @@ namespace OpenZ
             if (MenuCold && MenuSpacing) { heldSec += Time.unscaledDeltaTime; return; }                     // a driver that compiles: the rest of the list waits for the loading screen, the menu keeps its frames
             if (!list)   // loaded only now (after the intro film and the wait), in the background: it pulls in every listed shader
             {
-                if (load == null) { load = Resources.LoadAsync<ShaderVariantCollection>(ListResource); return; }
+                if (load == null) { load = Resources.LoadAsync<ShaderVariantCollection>(ListResource); OzBootTime.Once("warm", "shader warm-up start"); return; }   // 1.5 kit player_reports_1111 P2
                 if (!load.isDone) return;
                 list = load.asset as ShaderVariantCollection;
                 if (!list) { Finish("no warm-up list (Resources/" + ListResource + "): nothing warmed"); return; }
@@ -154,6 +154,7 @@ namespace OpenZ
             Done = true;
             LastReport = what;
             Debug.Log("[OpenZ Shaders] " + what);
+            OzBootTime.Mark("shader warm-up end");   // 1.5 kit player_reports_1111 P2
             if (live == this) live = null;
             Destroy(gameObject);
         }

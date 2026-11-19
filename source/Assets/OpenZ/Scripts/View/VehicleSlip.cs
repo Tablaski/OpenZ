@@ -59,6 +59,8 @@ namespace OpenZ
                 case OzMediumTank.Type: return new Chassis { type = type, pivot = true, rate = 130f, slipMax = 6.5f, look = 3.3f, stand = 0.35f, lmax = 1.6f, rmin = 0f, tau = 0.07f, accel = 1150f };   // DV145: the medium tank, between the light tank and the heavy
                 case "medium": return new Chassis { type = type, pivot = true, rate = 140f, slipMax = 9f, look = 3.2f, stand = 0.35f, lmax = 1.5f, rmin = 0f, tau = 0.07f, accel = 1200f };   // the mech walks: a little more side step
                 case "heavy": return new Chassis { type = type, pivot = true, rate = 110f, slipMax = 6f, look = 3.4f, stand = 0.35f, lmax = 1.7f, rmin = 0f, tau = 0.08f, accel = 900f };
+                case OzBigTanks.Mammoth: return new Chassis { type = type, pivot = true, rate = 100f, slipMax = 5.5f, look = 3.6f, stand = 0.35f, lmax = 1.8f, rmin = 0f, tau = 0.09f, accel = 800f };   // 1.5 DV180 / DV181
+                case OzBigTanks.Bizon: return new Chassis { type = type, pivot = true, rate = 92f, slipMax = 5f, look = 3.8f, stand = 0.35f, lmax = 1.9f, rmin = 0f, tau = 0.10f, accel = 700f };   // 1.5 DV180 / DV181
                 case "missile_launcher": return new Chassis { type = type, pivot = true, rate = 120f, slipMax = 6f, look = 3.4f, stand = 0.35f, lmax = 1.7f, rmin = 0f, tau = 0.08f, accel = 1000f };
                 case "apc": return new Chassis { type = type, pivot = false, rate = 220f, slipMax = 5f, look = 3.6f, stand = 0.5f, lmax = 1.5f, rmin = 1.6f, tau = 0.06f, accel = 1600f };
                 case "crane": return new Chassis { type = type, pivot = false, rate = 180f, slipMax = 5f, look = 3.8f, stand = 0.5f, lmax = 1.5f, rmin = 1.8f, tau = 0.07f, accel = 1300f };

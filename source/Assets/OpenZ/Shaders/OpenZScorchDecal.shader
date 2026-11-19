@@ -1,5 +1,8 @@
 // OpenZ/ScorchDecal: explosion scorch marks as terrain-conforming mesh decals (ScorchDecals.cs builds a grid that follows
-// decal MULTIPLIES what is already drawn (Blend DstColor Zero): the lit, shadowed, AO'd ground keeps its shading and the
+// decal MULTIPLIES what is already drawn (Blend Zero SrcColor = dst x src): the lit, shadowed, AO'd ground keeps its shading and the
+// (1.5 FAILS A39, 16 Nov: written "Blend DstColor Zero" before, the same product on paper, but with MSAA + HDR on (the HIGH preset,
+// D3D12) the transparent pass drew it as a light, hard-edged square (about dst x (1 + src)): the "light squares" under dead
+// robots in the Unit editor. "Zero SrcColor" draws the same multiply correctly with MSAA and HDR on.)
 // mark never glows at night. Soft edges come from the procedural atlas alpha x the grid's vertex alpha (0 at the rim,
 // over water and down cliff steps) x _Opacity (per decal, fade-in / fade-out). Fog: the factor is pulled back to 1 by the
 // fog amount (MixFogColor with white), so distant marks do not darken the fog. Offset pulls it toward the camera; it never
@@ -19,7 +22,7 @@ Shader "OpenZ/ScorchDecal"
         {
             Name "ScorchMultiply"
             Tags { "LightMode"="UniversalForward" }
-            Blend DstColor Zero
+            Blend Zero SrcColor
             ZWrite Off
             ZTest LEqual
             Cull Back

@@ -119,6 +119,7 @@ namespace OpenZ.Sim
                 case "light": return 1.0;
                 case "medium": case ZMTank.Type: return 1.2;   // DV145: the medium tank's dome turret
                 case "heavy": return 1.4;
+                case ZBigTanks.Mammoth: return ZBigTanks.MammothTurretCoverM; case ZBigTanks.Bizon: return ZBigTanks.BizonTurretCoverM;   // 1.5 DV180 / DV181
                 case "gun": return 1.2;
                 case "howitzer": return 1.4;
                 case "missile_cannon": return 1.1;
@@ -126,7 +127,7 @@ namespace OpenZ.Sim
                 default: return 0.0;
             }
         }
-        public static bool IsTurretFaller(ZObject a) => a != null && ((a.Kind == ZKind.Vehicle && (a.Type == "light" || a.Type == "medium" || a.Type == ZMTank.Type || a.Type == "heavy")) || a.Kind == ZKind.Cannon) && TurretCoverM(a.Type) > 0;   // DV145 the medium tank (Sim/ZMTank.cs)
+        public static bool IsTurretFaller(ZObject a) => a != null && ((a.Kind == ZKind.Vehicle && (a.Type == "light" || a.Type == "medium" || a.Type == ZMTank.Type || a.Type == "heavy" || ZBigTanks.Is(a.Type)))   /* 1.5 DV180 / DV181 */ || a.Kind == ZKind.Cannon) && TurretCoverM(a.Type) > 0;   // DV145 the medium tank (Sim/ZMTank.cs)
 
         // ------------------------------------------------------------------ the trees the rules know, with their drawn trunks
         void HeavyBuild()

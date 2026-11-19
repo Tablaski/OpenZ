@@ -101,6 +101,7 @@ namespace OpenZ.Sim
         public void EnsureLanes()
         {
             var pf = W.Path;
+            using var gridKindHold = pf.Kind(ZPathFinder.GridZod);   // 1.5 DV192 / DV193 (kit sim_notes11): the lanes are shared: Zod's grids
             if (lanesVersion == pf.Version && lanesShort == ShortLanes) return;            // DV44: short chokepoints are lanes too (ZCommit.Lanes.cs)
             lanesShort = ShortLanes; squadRes.Clear(); lanesBuilds++; lanesStamp++;
             lanesVersion = pf.Version;

@@ -54,7 +54,7 @@ namespace OpenZ
                     foreach (var path in Materials)
                     {
                         var m = Resources.Load<Material>(path); if (!m) continue;
-                        if (m.enableInstancing) Graphics.DrawMeshInstanced(quad, 0, m, one, 1, null, ShadowCastingMode.Off, false);   // domes, rings, bombs: their real draw is instanced, another shader variant
+                        if (m.enableInstancing) { if (SystemInfo.supportsInstancing) Graphics.DrawMeshInstanced(quad, 0, m, one, 1, null, ShadowCastingMode.Off, false); }   // domes, rings, bombs: their real draw is instanced, another shader variant
                         else
                         {
                             var rp = new RenderParams(m) { layer = 0, shadowCastingMode = ShadowCastingMode.Off, receiveShadows = false, worldBounds = new Bounds(at.GetColumn(3), Vector3.one) };

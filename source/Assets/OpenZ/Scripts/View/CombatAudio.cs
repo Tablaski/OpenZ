@@ -504,6 +504,32 @@ namespace OpenZ
             if (src == null || !src.s.clip) return;
             StartCoroutine(FadeByClip(src, src.s.clip, src.start, src.key, from, to));
         }
+        // under one gain. A one-shot joins a group right after PlayPitched started it; from then its level is its own x the group's gain,
+        // which the group's owner sets each frame (a fade in, a fade out); gain 0 stops the group's voices. A voice that ended or was
+        // taken for another sound is let go.
+        readonly List<(Src s, float start, string key, int group, float vol)> grouped = new List<(Src, float, string, int, float)>();
+        /// <summary>The one-shot PlayPitched just started joins `group` at `gain` (0..1). Nothing when that play was dropped.</summary>
+        public void JoinGroup(int group, float gain)
+        {
+            var src = lastSrc; lastSrc = null;
+            if (src == null) return;
+            grouped.Add((src, src.start, src.key, group, src.baseVol));
+            src.baseVol *= Mathf.Clamp01(gain); src.s.volume = src.baseVol * ZoomGain * DuckOf(src.bus);
+        }
+        /// <summary>The gain of every live voice of `group` (0 = they stop and the group is forgotten).</summary>
+        public void GroupGain(int group, float gain)
+        {
+            gain = Mathf.Clamp01(gain);
+            for (int i = grouped.Count - 1; i >= 0; i--)
+            {
+                var h = grouped[i];
+                bool live = (h.s.s.isPlaying || AudioListener.pause) && h.s.key == h.key && Mathf.Approximately(h.s.start, h.start);   // ended / stolen / restarted: let go
+                if (!live) { grouped.RemoveAt(i); continue; }
+                if (h.group != group) continue;
+                if (gain <= 0f) { h.s.s.Stop(); h.s.baseVol = h.vol; grouped.RemoveAt(i); continue; }
+                h.s.baseVol = h.vol * gain;
+            }
+        }
         System.Collections.IEnumerator FadeByClip(Src src, AudioClip clip, float start0, string key, float from, float to)
         {
             float vol0 = src.baseVol;

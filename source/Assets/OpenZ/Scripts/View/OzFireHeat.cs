@@ -41,6 +41,7 @@ namespace OpenZ
                 case "jeep": case "gatling": return 0.55f;
                 case "light": case ZMTank.Type: case ZWorld.ShuttleType: case "missile_cannon": return 0.60f;
                 case "heavy": return 0.65f;
+                case OzBigTanks.Mammoth: return 0.75f; case OzBigTanks.Bizon: return 0.80f;   // 1.5 DV180 / DV181
                 case "medium": return 1.10f;                                                       // the mech: feet to thighs
                 case "missile_launcher": case "apc": case "crane": return 0.70f;
                 case "howitzer": return 0.45f;

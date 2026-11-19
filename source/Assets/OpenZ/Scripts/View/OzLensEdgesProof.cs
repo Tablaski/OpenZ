@@ -33,7 +33,7 @@ namespace OpenZ
         const string MotionBlurLabel = "MOTION BLUR · FAST DEBRIS AND SHELLS";
         static readonly string[] GraphicsRows = { OzQuality.Label, OzFpsCap.Label, NightShadows.Label, OzNightRain.Label, MotionBlurLabel, OzLensEdges.Label, OzQuality.FpsLabel,
                                                   OzSmoothFrames.Label, OzSunSteps.Label, OzEndingDebris.Label, OzGfxApi.Label, OzMassLod.Label,
-                                                  OzLightRows.LightestLabel, OzLightRows.ShadowsLabel, OzLightRows.AoLabel, OzLightRows.TreesLabel, OzLightRows.WrecksLabel };   // v1.3 item 25 (GRAPHICS API: Windows only, as the proof runs)
+                                                  OzLightRows.LightestLabel, OzLightRows.ShadowsLabel, OzLightRows.AoLabel, OzLightRows.TreesLabel, OzLightRows.WrecksLabel, OzLowPicture.Label };   // v1.3 item 25 (GRAPHICS API: Windows only, as the proof runs); 1.5 issue 8: 3D PICTURE last
 
         /// <summary></summary>
         public static string Folder()

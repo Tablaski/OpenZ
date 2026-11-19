@@ -23,20 +23,9 @@ Shader "OpenZ/PyroFlame"
     SubShader
     {
         Tags { "RenderType"="Transparent" "Queue"="Transparent+50" "RenderPipeline"="UniversalPipeline" "IgnoreProjector"="True" "PreviewType"="Plane" }
-        Pass
-        {
-            Name "PyroFlame"
-            Tags { "LightMode"="UniversalForward" }
-            Blend SrcAlpha One
-            ZWrite Off
-            ZTest LEqual
-            Cull Off
-
-            HLSLPROGRAM
-            #pragma target 3.5
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma multi_compile_fog
+        // 1.5 kit smoke_fog_r3: the program below is shared (HLSLINCLUDE) by the forward pass (render states and pragmas as before, after it)
+        // and the OzFxDist pass (this material's cover and eye depth for the fog pass: Shaders/OzFxDist.hlsl, View/OzSmokeFog.cs)
+        HLSLINCLUDE
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
@@ -161,6 +150,39 @@ Shader "OpenZ/PyroFlame"
                 float fogVis = MixFog(float3(1.0, 1.0, 1.0), i.b.z).r - MixFog(float3(0.0, 0.0, 0.0), i.b.z).r;
                 return half4(col * fogVis, a);
             }
+            ENDHLSL
+
+        Pass
+        {
+            Name "PyroFlame"
+            Tags { "LightMode"="UniversalForward" }
+            Blend SrcAlpha One
+            ZWrite Off
+            ZTest LEqual
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_fog
+            ENDHLSL
+        }
+
+        Pass
+        {   // 1.5 kit smoke_fog_r3: cover + eye depth for the fog pass (no colour of the picture is written here)
+            Name "OzFxDist"
+            Tags { "LightMode"="OzFxDist" }
+            Blend One OneMinusSrcAlpha
+            ZWrite Off
+            ZTest Always           // the scene depth test is in OzFxDistOut (the target has no depth buffer)
+            Cull Off
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment OzFxDistFrag
+            #include "Assets/OpenZ/Shaders/OzFxDist.hlsl"
+            half4 OzFxDistFrag(Varyings i) : SV_Target { half4 c = frag(i); return OzFxDistOut(half4(c.rgb * c.a, 0), i.positionCS, 0.35); }   // additive: light only, no alpha
             ENDHLSL
         }
     }

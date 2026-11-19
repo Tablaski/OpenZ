@@ -53,6 +53,7 @@ namespace OpenZ
             switch (type)
             {
                 case "jeep": plank = 0.015f; sag = 0.02f; sway = 0.01f; cls = 0; break;
+                case OzBigTanks.Mammoth: case OzBigTanks.Bizon: plank = 0.045f; sag = 0.08f; sway = 0.035f; cls = 2; break;   // 1.5 kit view_notes11 N17: the big tanks give the planks a little more (heavier)
                 case "heavy": case "missile_launcher": plank = 0.035f; sag = 0.06f; sway = 0.03f; cls = 2; break;
                 default: plank = 0.025f; sag = 0.04f; sway = 0.02f; cls = 1; break;
             }
@@ -139,7 +140,7 @@ namespace OpenZ
         /// <summary>For ZGame.GroundY: how far the walk deck is down at this point right now (0 off a deck).</summary>
         public static float DipAt(Collider hit, float x, float z)
         {
-            if (!Active || inst == null || hit == null) return 0f;
+            if (!Active || inst == null || hit == null) return OzBridgeSag.DipAt(hit, x, z);   // 1.5 kit view_notes11 N17: off L16's plank bridge, the steel decks' give under a big tank (View/OzBridgeSag.cs)
             var d = inst.loadDeck; if (d == null || hit.transform != d.walk) return 0f;
             return Mathf.Max(0f, inst.Field(d, (d.alongZ ? z : x) - d.c, 1f, true, out _));
         }

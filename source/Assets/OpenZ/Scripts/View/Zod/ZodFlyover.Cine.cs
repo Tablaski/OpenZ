@@ -142,7 +142,7 @@ namespace OpenZ
             }
         };
 
-        public static ZodShotList For(string level) { EnsureFile(); if (BlueSide) return ForBlue(level); return level == "L17" ? L17 : level == "L16" ? L16 : OzVolcanic.Is(level) ? L07 : L02; }   // a level played as blue: its blue list (ZodFlyover.Blue.cs)
+        public static ZodShotList For(string level) { EnsureFile(); if (BlueSide) return ForBlue(level); return OzCity.IsBridgeGame(level) ? BridgeGame(false) : level == "L17" ? L17 : level == "L16" ? L16 : OzVolcanic.Is(level) ? L07 : L02; }   // a level played as blue: its blue list (ZodFlyover.Blue.cs)
 
         // ---------------------------------------------------------------------------------------- the tuned data file
         public const string JsonPath = "OpenZ/Zod/briefing_shots";
@@ -168,6 +168,7 @@ namespace OpenZ
                 LoadL07(f);                                                                   // ZodFlyover.L07.cs
                 LoadL16(f);                                                                   // ZodFlyover.L16.cs: the jungle list and its numbers
                 LoadBlue(f);                                                                  // ZodFlyover.Blue.cs: the blue lists and their numbers
+                LoadL18(f);                                                                   // ZodFlyover.L18.cs: level 18's two lists
                 if (f.startTod >= 0f) DayNight.SunriseStart = f.startTod;
                 if (f.morningWarmth >= 0f) DayNight.MorningWarmth = f.morningWarmth;
                 ZodFlyover.BriefExposure = f.briefExposure; ZodFlyover.BriefTemperature = f.briefTemperature;
@@ -187,6 +188,7 @@ namespace OpenZ
             SaveL07(f);                                                                       // ZodFlyover.L07.cs
             SaveL16(f);                                                                       // ZodFlyover.L16.cs
             SaveBlue(f);                                                                      // ZodFlyover.Blue.cs
+            SaveL18(f);                                                                       // ZodFlyover.L18.cs
             return JsonUtility.ToJson(f, true);
         }
 
@@ -201,6 +203,8 @@ namespace OpenZ
         public static float CutSnap = 1.2f, CutLead = 0.15f, MinShot = 2.6f;
         /// <summary>The camera clock follows Zod's line clock smoothly: correction rate (1/s), most lead (s), a gap that snaps (s).</summary>
         public static float ClockEase = 4f, ClockLead = 0.05f, ClockJump = 0.3f;
+        /// <summary>How fast the mean of the voice clock's error follows it (1/s): its buffer steps (21 ms) average out. 1000 = the error itself, as before.</summary>
+        public static float ClockErrEase = 2.5f; float cineErr; bool cineErrOn;
         /// <summary>Skip hand-back: dip to black (s), cut to the RTS camera, back from black (s). HandEase: an early normal end eases home (s).</summary>
         public static float SkipDipOut = 0.15f, SkipDipIn = 0.22f, HandEase = 0.8f;
         /// <summary>WholeMap fit: the map corners inside these NDC bounds (the letterbox: 64 u top, 112 u bottom of 1080).</summary>
@@ -238,7 +242,7 @@ namespace OpenZ
         /// <summary>Begin: builds the level's shot list and puts the camera on the first frame. False = the orbit flight flies.</summary>
         bool CineBegin()
         {
-            cine = null; cineHanding = false; handT = -1f; cineIdx = -1; whooshIdx = 0; cineT = 0f; cineClock = null;
+            cine = null; cineHanding = false; handT = -1f; cineIdx = -1; whooshIdx = 0; cineT = 0f; cineClock = null; cineErr = 0f; cineErrOn = false;
             if (!UseShotList) return false;
             try
             {
@@ -435,8 +439,11 @@ namespace OpenZ
             {   // Zod's voice clock (timeSamples) steps in mix buffers (1024 samples = 21 ms at 48 kHz): used directly, the camera would
                 // stand still on about one 60 fps frame in five (judder). It runs on real time and eases towards his clock instead, never
                 // more than ClockLead s ahead of it (a pause freezes it with him) and jumps to it on a gap over ClockJump s.
+                // error itself still stepped with the buffers (+-10 ms), so the easing passed a ripple on. It is eased through a slow mean first.
                 float run = cineT + dt, err = c - run;
-                cineT = Mathf.Abs(err) > ClockJump ? c : Mathf.Min(run + err * Mathf.Clamp01(dt * ClockEase), c + ClockLead);
+                bool jump = Mathf.Abs(err) > ClockJump;
+                cineErr = jump || !cineErrOn ? (jump ? 0f : err) : Mathf.Lerp(cineErr, err, Mathf.Clamp01(dt * ClockErrEase)); cineErrOn = !jump;
+                cineT = jump ? c : Mathf.Min(run + cineErr * Mathf.Clamp01(dt * ClockEase), c + ClockLead);
             }
             CineApply(cineT);
         }
@@ -451,12 +458,12 @@ namespace OpenZ
             if (!hold)
                 while (whooshIdx < cine.Count && t >= cine[whooshIdx].start - cine[whooshIdx].dip * 0.5f - 0.1f)
                 {   // the wind swell rises into the cut (dip) into a shot that asks for it
-                    if (whooshIdx > 0 && cine[whooshIdx].whoosh) PlayDip();
+                    if (whooshIdx > 0 && cine[whooshIdx].whoosh) PlayDip(cine[whooshIdx].name);
                     whooshIdx++;
                 }
             var s = cine[i];
             float u = Mathf.Clamp01((t - s.start) / Mathf.Max(0.05f, s.dur));
-            Put(Eval(s, u), s.home && u >= 0.9999f, s.floor);
+            if (!L18DronePut(s.name, u, s.dur, s.home)) Put(Eval(s, u), s.home && u >= 0.9999f, s.floor);   // 1.5 level18_briefings: a shot with a drone path is flown along it (ZodFlyover.L18Drone.cs)
             L16Danger(s.name, t - s.start, s.dur, hold);
             BriefGrade(i == cine.Count - 1 ? 1f - CineEase(ZodCineEase.InOut, u) : 1f);
             float a = 0f;

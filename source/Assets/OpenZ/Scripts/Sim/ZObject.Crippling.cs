@@ -10,6 +10,20 @@ namespace OpenZ.Sim
         public ZHealthBand HealthBand => MaxHealth <= 0 || (double)Health / MaxHealth > .5 ? ZHealthBand.Green :
             (double)Health / MaxHealth > .25 ? ZHealthBand.Yellow : ZHealthBand.Red;
         public bool CripplingActive => Kind == ZKind.Vehicle && ZBehaviorSchema.IsTank(Type) && Behavior != null && Behavior.On(ZBehaviorKey.Crippling);
+
+        public bool ShowsCriticalTankDamage => !Destroyed && Kind == ZKind.Vehicle &&
+            (ZBehaviorSchema.IsTank(Type) || ZBigTanks.Is(Type)) &&
+            MaxHealth > 0 && Health > 0 && (long)Health * 10 <= (long)MaxHealth * 3;
+
+        public float CriticalTankDamageSeverity
+        {
+            get
+            {
+                if (!ShowsCriticalTankDamage) return 0;
+                double remaining = (double)Health * 10 / ((long)MaxHealth * 3);
+                return (float)(1 - remaining * remaining * remaining);
+            }
+        }
         public double CripplingImpactUntil, CripplingImpactFactor = 1, CripplingActualSpeed;
         public bool CripplingHitActive => Behavior != null && Behavior.On(ZBehaviorKey.Impact) && World.Time < CripplingImpactUntil;
         public bool BehaviorUsesActualMotion => Behavior != null && (BehaviorSteersHull || CripplingActive || Behavior.On(ZBehaviorKey.Impact));

@@ -172,7 +172,7 @@ namespace OpenZ
                 f.mat.SetFloat("_GroundFade", ue ? UeGroundFadeM : 0f);
                 f.mat.SetFloat("_GroundY", at.y);
             }
-            Color c = g != null && g.level == "L17" ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
+            Color c = g != null && OzCity.Is(g.level) ? new Color(0.62f, 0.57f, 0.52f) : OzVolcanic.Dust(OpenZFxCatalog.M12Dust.color);
             int n = SkirtPerRing + ring / 2;
             float phase = Random.Range(0f, Mathf.PI * 2f);
             for (int j = 0; j < n; j++)

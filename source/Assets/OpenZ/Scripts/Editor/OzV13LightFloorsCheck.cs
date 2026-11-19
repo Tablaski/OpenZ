@@ -176,7 +176,7 @@ namespace OpenZ.EditorTools
             SavedIndex();
             // S7
             float h2 = OzUeBackdropMenu.Height(2), h3 = OzUeBackdropMenu.Height(3);
-            Check(Mathf.Abs(h2 - 828.875f) < 0.01f && Mathf.Abs(h3 - 601f) < 0.01f, $"S7 popover heights: 2 columns {h2:0.###} u (828.875), 3 columns {h3:0.###} u (601, as with 10 styles)");
+            Check(Mathf.Abs(h2 - 864.875f) < 0.01f && Mathf.Abs(h3 - 637f) < 0.01f, $"S7 popover heights: 2 columns {h2:0.###} u (864.875), 3 columns {h3:0.###} u (637, as with 10 styles; 1.5 kit ue_bottom_left_r10: + the 36 u VIEW header)");
             foreach (var cs in UI_OzUeControlsRoot_CheckSizes())
             {
                 const float topY = 56f + 28f + 8f;                                                         // under the gear (OzUeBackdropMenu: the default gear rect 17,56 28x28 + 8 u)

@@ -18,8 +18,6 @@ namespace OpenZ
             new OzAiMap("SM13", "Hot n Steamy", "jungle", "p02_bb_orig13.map", 13, true, true, false, false),
             new OzAiMap("SM14", "Restoration", "jungle", "p02_bb_orig14.map", 14, true, true, false, false),
             new OzAiMap("SM15", "Swamp Fever", "jungle", "p02_bb_orig15.map", 15, true, true, false, false),
-            new OzAiMap("SM18", "Bridge Game", "city", "p02_bb_orig18.map", 18, true, false, false, false),
-            new OzAiMap("SM18F", "Bridge Game", "city", "p02_bb_orig18_fixed.map", 18, false, true, true, false),
             new OzAiMap("SM19", "Mayhem", "city", "p02_bb_orig19.map", 19, true, false, false, false),
             new OzAiMap("SM19F", "Mayhem", "city", "p02_bb_orig19_fixed.map", 19, false, true, true, false),
             new OzAiMap("SM20", "Z", "city", "p02_bb_orig20.map", 20, true, false, false, false),

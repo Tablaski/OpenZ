@@ -21,6 +21,7 @@ namespace OpenZ
             if (!body) return;
             foreach (var (r, _) in tracks) if (r && r.transform != body && GearUnder(r.transform)) into.Add((r.transform, false));   // 1.2 v2 units: under the suspension or beside it (View/VehicleMotion.GearOutside.cs)
             foreach (var w in wheels) if (w.t && w.t != body && GearUnder(w.t)) into.Add((w.t, true));
+            LinkGearNodes(into);                                                                       // 1.5 DV180 / DV181: the link-track side roots (View/VehicleMotion.Links.cs)
             for (int i = into.Count - 1; i >= 0; i--)
                 for (int j = 0; j < into.Count; j++)
                     if (j != i && into[i].t != into[j].t && into[i].t.IsChildOf(into[j].t)) { into.RemoveAt(i); break; }

@@ -49,6 +49,8 @@ namespace OpenZ
             { "light", new HatchGruntRow(1.07f, 0.0418f, 0f, 0.0976f) },        // x1.07; 3 cm toward the turret front, 7 cm up (the tank at full size)
             { ZMTank.Type, new HatchGruntRow(1.08f, 0f, -0.1382f, 0.0415f) },  // with HatchGruntMediumHeavy: x1.08; 10 cm back along his facing, 3 cm up
             { "heavy", new HatchGruntRow(1.08f, 0f, -0.0896f, 0.0597f) },       // with HatchGruntMediumHeavy: x1.08; 6 cm back along his facing, 4 cm up
+            { OzBigTanks.Mammoth, new HatchGruntRow(1.08f, 0f, -0.0896f, 0.0597f) },   // 1.5 DV180 / DV181: the heavy tank v2's place (menu 2 measures the hatch)
+            { OzBigTanks.Bizon, new HatchGruntRow(1.08f, 0f, -0.0896f, 0.0597f) },
         };
 
         /// <summary>Frames a grunt was placed in a tank's top hatch by this row (the check).</summary>

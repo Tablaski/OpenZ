@@ -303,6 +303,7 @@ namespace OpenZ
             J15Before(dt);                                                                          // J15: the robots and vehicles (the passive sink)
             foreach (var v in views) { Step(v, dt); if (v.rig != null && v.rig.Shown) shown++; }
             Shown = shown;
+            OzCrocAlert.Tick(W, cam);                                                                   // 1.5 croc_alert: the warning line when a robot of ours sees the attack (View/OzCrocAlert.cs)
             for (int i = floaters.Count - 1; i >= 0; i--) if (!StepFloater(floaters[i])) floaters.RemoveAt(i);
         }
 
@@ -317,6 +318,7 @@ namespace OpenZ
         /// <summary>A robot's spoken line about a crocodile (hurry, flee, bank), at most one per squad in CrocLineGap seconds.</summary>
         void CrocLine(ZCrocNote n, string evt, Vector3 at, params string[] files)
         {
+            if (OzCrocAlert.HoldsCrocLine(evt, at)) return;                                                // 1.5 croc_alert: never over the warning line (View/OzCrocAlert.cs)
             var o = W.Get(n.robot); int squad = o != null && o.Leader != null ? o.Leader.Id : n.robot;
             double last;
             if (crocLineAt.TryGetValue(squad, out last) && W.Time - last < CrocLineGap)
@@ -326,7 +328,7 @@ namespace OpenZ
                 return;
             }
             crocLineAt[squad] = W.Time;
-            Snd(evt, at, 0.8f, 8f, 70f, files);
+            OzCrocAlert.CrocLineSaid(sounds ? L16AnimalKit.Play(evt, at, 0.8f, 8f, 70f, 1f, files) : null);   // 1.5 croc_alert: Snd's own call, its clip kept: the warning line waits for its end
         }
 
         void OnNote(ZCrocNote n)
@@ -338,7 +340,7 @@ namespace OpenZ
                 if (n.what == ZCrocNote.Hurry)
                 {   // the alarm beeps for every squad; the spoken hurry line only from a squad on an order or on hold: one with neither sets
                     // off for the bank at its next look (half a second) and says its flee line then
-                    Snd("robot_croc_alarm", at, 0.55f, 8f, 70f, "sd_robot_croc_alarm_a");
+                    if (!OzCrocAlert.SirenOff) Snd("robot_croc_alarm", at, 0.55f, 8f, 70f, "sd_robot_croc_alarm_a"); else OzCrocAlert.NoSiren(at);   // 1.5 croc_alert: no siren at a crocodile attack (View/OzCrocAlert.cs)
                     var ro = W.Get(n.robot); var lead = ro != null && ro.Leader != null ? ro.Leader : ro;
                     if (lead == null || lead.Waypoints.Count > 0 || lead.HoldPosition) CrocLine(n, "vo_croc_hurry", at);
                     else { CrocHurryLeftToFlee++; if (sounds) OzSoundLog.Add("L16", "vo_croc_hurry", null, "not said: the squad has no order, its flee line follows", 0.8f, at); }
@@ -366,6 +368,7 @@ namespace OpenZ
                     return;
                 case ZCrocNote.Scared: return;
             }
+            if (n.what == ZCrocNote.State && n.state == ZCrocState.Warn && v.state != ZCrocState.Warn) OzCrocAlert.HuntStarted(W, n.croc, n.robot, p);   // 1.5 croc_alert: a hunt started (View/OzCrocAlert.cs)
             // a state began
             v.state = n.state; v.since = n.time;
             switch (n.state)
@@ -470,7 +473,7 @@ namespace OpenZ
                 case ZCrocState.Stalk:
                     take = Mathf.Abs(v.yawRate) > 30f && tNoseL >= 0 && tNoseR >= 0 ? (v.yawRate < 0f ? tNoseL : tNoseR) : tNose;
                     tt = Mathf.Repeat(Time.time, Mathf.Max(0.1f, v.rig.Length(take))); break;
-                case ZCrocState.Rise: take = tRise; tt = tState; loop = false; break;
+                case ZCrocState.Rise: take = tRise; tt = tState * Mathf.Max(1f, 0.6f / Mathf.Max(0.05f, (float)ZWorld.CrocRiseSeconds)); loop = false; break;   // 1.5 review R12 (kit review_r8_r12): the rise take's first 0.6 s in the rule's shorter rise
                 case ZCrocState.Lunge: case ZCrocState.Snap: take = tLunge; tt = (float)(W.Time - (c.State == ZCrocState.Snap ? c.Until - ZWorld.CrocLungeSeconds : v.since)); loop = false; break;
                 case ZCrocState.Thrash: take = tThrash; tt = Mathf.Repeat(tState, Mathf.Max(0.1f, v.rig.Length(tThrash))); break;
                 case ZCrocState.Drag: take = tDrag; tt = tState; loop = false; break;

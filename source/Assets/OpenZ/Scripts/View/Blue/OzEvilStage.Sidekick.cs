@@ -221,7 +221,7 @@ namespace OpenZ
                         break;
                     }
                 case "set_button": skSetWanted = true; break;                                              // runs when he stands turned on his mark: the box goes down onto the stand
-                default: Debug.LogWarning("[EvilZod] unknown sidekick beat " + b.beat); break;
+                default: if (!L18SidekickBeat(b)) Debug.LogWarning("[EvilZod] unknown sidekick beat " + b.beat); break;   // level 18: lunge, lunge_back, head_no (OzEvilStage.L18Window.cs)
             }
         }
         float skBlinkHold;
@@ -304,7 +304,7 @@ namespace OpenZ
             Vector3 jitter = Vector3.zero;
             if (clock < skShakeUntil) jitter = new Vector3(Mathf.Sin(clock * 113f), Mathf.Sin(clock * 97f + 1f), Mathf.Sin(clock * 131f + 2f)) * 0.006f;
             sk.Root.localScale = new Vector3(1f + (1f - sq) * 0.5f, sq, 1f + (1f - sq) * 0.5f) * SkScale;
-            Vector3 basePos = sk.Root.localPosition; skDrawOff = Vector3.up * bounceY + jitter; sk.Root.localPosition = basePos + skDrawOff;
+            Vector3 basePos = sk.Root.localPosition; skDrawOff = Vector3.up * bounceY + jitter + L18SkLunge(); sk.Root.localPosition = basePos + skDrawOff;   // level 18: + his lunge at the button
             rig.WalkRate = skWalkRate;
             bool fromTake = rig.TickWalk(dt);
             if (!fromTake) rig.ResetToRest();
@@ -367,6 +367,7 @@ namespace OpenZ
                     }
                 default: wantR = rig.Local(0.26f * k, 0.48f * k, 0f); wantL = rig.Local(-0.26f * k, 0.48f * k, 0f); poleR = rgt + Vector3.down * 0.5f - fwd * 0.3f; poleL = -rgt + Vector3.down * 0.5f - fwd * 0.3f; break;   // hanging: 80 / 87 %
             }
+            L18SkHands(rig, k, ref wantR, ref wantL, ref poleR, ref poleL, ref smooth);                   // level 18: both mittens at the button while he lunges
             if (!skHandsInit) { skRPos = wantR; skLPos = wantL; skRVel = skLVel = Vector3.zero; skHandsInit = true; }
             if (!skPoleInit) { skPoleR = poleR; skPoleL = poleL; skPoleInit = true; }
             if (dt > 0f)
@@ -388,7 +389,7 @@ namespace OpenZ
                 case SkLook.Cam: target = CamPos; break;
                 case SkLook.Away: target = rig.Local(0.5f, 0.35f * SkHeight, 1.0f); break;
                 case SkLook.Back: target = rig.Local(-1.2f, 0.9f * SkHeight, -0.8f); break;
-                default: target = ez != null && ez.Ok ? ez.Rig.Head.position : transform.TransformPoint(EzPos + Vector3.up * 2f); break;
+                default: target = L18SkLookAt(ez != null && ez.Ok ? ez.Rig.Head.position : transform.TransformPoint(EzPos + Vector3.up * 2f)); break;   // level 18: at the button while he lunges
             }
             // the look point moves to a new target in about 0.18 s (no snap)
             if (!skLookInit) { skLookPt = target; skLookVel = Vector3.zero; skLookInit = true; }
@@ -401,7 +402,7 @@ namespace OpenZ
             skGazeX = dt > 0f ? Mathf.Lerp(skGazeX, -gaze, 1f - Mathf.Exp(-dt * 8f)) : skGazeX;        // lookX + = toward his left (-right)
             rig.LookAt(target, 1f, HeadYawMax, 45f, 0.4f);
             float nod = skNodT < 0.3f ? Mathf.Sin(skNodT / 0.3f * Mathf.PI) * 3.5f : 0f;
-            rig.HeadAdd(nod, skTilt, 0f);
+            rig.HeadAdd(nod, skTilt, L18SkHeadNo());                                                     // level 18: + one shake of the head
         }
 
         void TickEyes(float dt)

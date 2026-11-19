@@ -11,7 +11,26 @@ static class SimulationChecks
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Assets/OpenZ/Resources/OpenZ"));
         string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
-        foreach (string map in new[] { "L02", "L07", "L16", "L17", "SM19F" })
+        string bridgeGame = File.ReadAllText(Path.Combine(root, "Maps", "L18_grid.json"));
+        bool priorBigTanks = ZWorld.L18BigTanksDeviation, priorMammoth = ZWorld.MammothDeviation, priorBizon = ZWorld.BizonDeviation;
+        try
+        {
+            ZWorld.L18BigTanksDeviation = ZWorld.MammothDeviation = ZWorld.BizonDeviation = true;
+            var world = ZWorld.Create(settings, bridgeGame, 18);
+            check(world.L18Map && world.Objects.Count(o => o.IsBridge && o.Destroyed) >= 3,
+                "Bridge Game keeps its breached bridges");
+            foreach (string type in ZBigTanks.Types)
+                check(world.Objects.Any(o => o.Type == type && o.Owner == Team.Neutral),
+                    "Bridge Game starts with an empty " + type);
+        }
+        finally
+        {
+            ZWorld.L18BigTanksDeviation = priorBigTanks;
+            ZWorld.MammothDeviation = priorMammoth;
+            ZWorld.BizonDeviation = priorBizon;
+        }
+
+        foreach (string map in new[] { "L02", "L07", "L16", "L17", "L18", "SM19F" })
         {
             string json = File.ReadAllText(Path.Combine(root, map.StartsWith("SM", StringComparison.Ordinal) ? "../../../../../aimaps/Resources/OpenZ/Maps" : "Maps", map + "_grid.json"));
             var military = ZWorld.Create(settings, json);
@@ -46,9 +65,15 @@ static class SimulationChecks
             var host = ZWorld.Create(settings, json);
             host.Bots.Add(new ZBot(host, Team.Blue, 1));
             host.TechBonus[1] = 5;
-            var rules = new DuelRules { Map = map };
+            var rules = new DuelRules { Map = map, TankDamageShake = true };
             rules.EnableHandicap(0); rules.Handicap.BuildDuration = .8;
             host.ConfigureDuel(rules, false);
+            check(host.DuelTankDamageShake && !host.DuelTankDamageEffects,
+                map + ": the host can enable shake without enabling oil trails");
+            rules.TankDamageShake = false;
+            rules.TankDamageEffects = true;
+            check(host.DuelTankDamageShake && !host.DuelTankDamageEffects,
+                map + ": edits outside the match cannot change frozen damage effects");
             check(host.Bots.Count == 0 && host.TechBonus.All(b => b == 0), map + ": solo advantages retained");
             rules.Handicap.BuildDuration = .1;
             check(host.DuelConfiguration.Handicap.BuildDuration == .8, map + ": caller mutated match rules");

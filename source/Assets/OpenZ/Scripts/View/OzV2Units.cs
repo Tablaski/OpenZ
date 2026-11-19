@@ -159,7 +159,7 @@ namespace OpenZ
     {
         static OzUnitModels[] all;
         /// <summary>Every two-model unit (the heavy tank keeps View/OzHeavyTank.cs).</summary>
-        public static OzUnitModels[] All => all ??= new[] { OzLightTank.Models, OzMediumTank.Models, OzMlrs.Models, OzMech.Models, OzGun.Models };   // DV145: + the medium tank (one model: View/OzMediumTank.cs); 1.2 v2 units: + the MLRS v1 / v2 (View/OzMlrs.cs); + the mech v1 / v2 (View/OzMech.cs); + the gun v1 / v2 (View/OzGun.cs)
+        public static OzUnitModels[] All => all ??= new[] { OzLightTank.Models, OzMediumTank.Models, OzMlrs.Models, OzMech.Models, OzGun.Models, OzBigTanks.MammothModels, OzBigTanks.BizonModels };   /* 1.5 DV180 / DV181: the Mammoth and the Bizon (one model each: View/OzBigTanks.cs) */   // DV145: + the medium tank (one model: View/OzMediumTank.cs); 1.2 v2 units: + the MLRS v1 / v2 (View/OzMlrs.cs); + the mech v1 / v2 (View/OzMech.cs); + the gun v1 / v2 (View/OzGun.cs)
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()

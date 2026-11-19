@@ -329,6 +329,7 @@ Shader "OpenZ/TeamLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "OpenZNightV2.hlsl"                                            // night_v2: night classes, day-sky reflection fix
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
+            #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             #include "OpenZRust.hlsl"
 
             // the sun's normal-offset shadow bias moves from the CASTER to the RECEIVER. URP's ApplyShadowBias pushed every caster
@@ -509,9 +510,9 @@ Shader "OpenZ/TeamLit"
                     other = lerp(other, SRGBToLinear(_NeutralPaint.rgb) * _BaseColor.rgb * nshade, saturate(paint - mask));   // critic #8: _BaseColor carries the wreck char
                     // colour (owned) or a dark unlit grey (neutral); owned paint takes a light livery tint, neutral paint goes flat
                     // grey (empty vehicles, neutral buildings). w of _OZTeamVivid: 0 = not set (v1), 1 = neutral, 2 = owned
-                    half v2on = step(0.5, _OZTeamVivid.w), owned = step(1.5, _OZTeamVivid.w);
+                    half v2on = step(0.5, _OZTeamVivid.w), owned = saturate(_OZTeamVivid.w - 1.0);   // 1.5 vehicle_colour_fill: the owned share (w 1 + share; 0 / 1 as before at w 1 / 2)
                     half3 npaint = SRGBToLinear(_NeutralPaint.rgb) * _BaseColor.rgb;
-                    half3 accentCol = owned > 0.5 ? (half3)_OZTeamVivid.rgb : dot(npaint, half3(0.2126, 0.7152, 0.0722)).xxx * 0.35;
+                    half3 accentCol = owned > 0.999 ? (half3)_OZTeamVivid.rgb : lerp(dot(npaint, half3(0.2126, 0.7152, 0.0722)).xxx * 0.35, (half3)_OZTeamVivid.rgb, owned);   // 1.5 vehicle_colour_fill
                     team = lerp(team, accentCol, _OZTeamLook.x * v2on);
                     half pa = saturate(paint - mask);
                     half3 filt = lerp(half3(1, 1, 1), (half3)(_OZTeamVivid.rgb / max(max(_OZTeamVivid.r, max(_OZTeamVivid.g, _OZTeamVivid.b)), 1e-3)), _OZTeamLook.y * owned);
@@ -527,7 +528,7 @@ Shader "OpenZ/TeamLit"
                 // colour instead of the flat _NeutralPaint; teamcolor_v2's cues stay: owned paint takes half its livery tint,
                 if (_UnitLook > 0.5 && _PaintFromAlpha > 1.5 && _Accent > 0.5)
                 {
-                    half ozOwned = step(1.5, _OZTeamVivid.w), ozSet = step(0.5, _OZTeamVivid.w);
+                    half ozOwned = saturate(_OZTeamVivid.w - 1.0), ozSet = step(0.5, _OZTeamVivid.w);   // 1.5 vehicle_colour_fill: the owned share
                     half ozPa = saturate(paint - mask);
                     half3 ozFilt = lerp(half3(1, 1, 1), (half3)(_OZTeamVivid.rgb / max(max(_OZTeamVivid.r, max(_OZTeamVivid.g, _OZTeamVivid.b)), 1e-3)), 0.5 * _OZTeamLook.y * ozOwned);
                     half3 ozT = lerp(ozToyOther, ozToyOther * ozFilt, ozPa);
@@ -535,7 +536,7 @@ Shader "OpenZ/TeamLit"
                 }
                 // grey: teamcolor_v2's neutral grey (lum x 0.94) x 0.6
                 else if (_UnitLook > 0.5 && _Accent > 0.5 && _PaintFromAlpha < 0.5 && _UseVertexColor > 0.5 && _TeamMode > 0.5 && _TeamMode < 1.5)
-                    other = lerp(other, other * half3(0.60, 0.575, 0.545), saturate(paint - mask) * step(0.5, _OZTeamVivid.w) * (1 - step(1.5, _OZTeamVivid.w)) * _OZTeamLook.w);
+                    other = lerp(other, other * half3(0.60, 0.575, 0.545), saturate(paint - mask) * step(0.5, _OZTeamVivid.w) * (1 - saturate(_OZTeamVivid.w - 1.0)) * _OZTeamLook.w);   // 1.5 vehicle_colour_fill: the neutral share
                 // Warm paint texels (orange / khaki / olive, any
                 // paint mode) take the fort cream at their own relative brightness; dark / grey metal, lamps and the team parts stay
                 if (_OZFortPaint.w > 0.001)
@@ -627,11 +628,11 @@ Shader "OpenZ/TeamLit"
                 // teamcolor_v2: team panel on the up-facing surfaces of turret tops / roofs (TeamPaint.PanelRules: a rounded rect
                 // in mesh-space xz above a mesh height), owned accent objects only; dark seams, hatches and recesses stay
                 half panel = 0;
-                if (_Accent > 0.5 && _OZTeamVivid.w > 1.5 && _OZPanelY.w > 0.001 && _OZTeamLook.z > 0.001)
+                if (_Accent > 0.5 && _OZTeamVivid.w > 1.0 && _OZPanelY.w > 0.001 && _OZTeamLook.z > 0.001)   // 1.5 vehicle_colour_fill: any owned share (the panel x it, below)
                 {
                     panel = OZPanelRect(i.objXZ) * OZPanelAbove(i.objY)
                           * smoothstep(0.5, 0.72, normalize(i.normalWS).y) * smoothstep(0.02, 0.06, dot(preTeam, half3(0.2126, 0.7152, 0.0722)))
-                          * (half)_OZPanelY.w * _OZTeamLook.z;
+                          * (half)_OZPanelY.w * _OZTeamLook.z * saturate(_OZTeamVivid.w - 1.0);   // 1.5 vehicle_colour_fill: x the owned share (1 when owned)
                     half pshade = clamp(RgbToHsv(preTeam).z / max(_TeamRef, 0.05), 0.85, 1.12);
                     albedo = lerp(albedo, (half3)_OZTeamVivid.rgb * pshade, panel);
                     teamMask = max(teamMask, panel);
@@ -640,9 +641,9 @@ Shader "OpenZ/TeamLit"
                 #undef _OZPanelY
                 // toypaint_v1: the team panel of a toy albedo (alpha 1) = the vivid team colour as clean paint, shaded by the
                 // texture's own soft AO and gradient (value / _TeamRef); owned only (neutral: the grey paint, unset: the khaki)
-                if (_UnitLook > 0.5 && _PaintFromAlpha > 1.5 && _Accent > 0.5 && _OZTeamVivid.w > 1.5)
+                if (_UnitLook > 0.5 && _PaintFromAlpha > 1.5 && _Accent > 0.5 && _OZTeamVivid.w > 1.0)   // 1.5 vehicle_colour_fill: any owned share (the panel x it, below)
                 {
-                    half ozTp = smoothstep(0.62, 0.88, tex.a) * saturate(_OZTeamLook.z);
+                    half ozTp = smoothstep(0.62, 0.88, tex.a) * saturate(_OZTeamLook.z) * saturate(_OZTeamVivid.w - 1.0);   // 1.5 vehicle_colour_fill: x the owned share
                     half ozTs = clamp(RgbToHsv(preTeam).z / max(_TeamRef, 0.05), 0.45, 1.2);
                     albedo = lerp(albedo, (half3)_OZTeamVivid.rgb * ozTs, ozTp);
                     teamMask = max(teamMask, ozTp);
@@ -663,7 +664,7 @@ Shader "OpenZ/TeamLit"
                     half hK = max(dot(_BaseColor.rgb, hLumW), 1e-3);                // charred factor (1 intact), also in _TeamColor
                     half hPanel = smoothstep(0.30, 0.45, tex.a);                     // khaki blocks + team accents
                     half hTeam = smoothstep(0.62, 0.88, tex.a);                      // team accents
-                    half hOwned = step(1.5, _OZTeamVivid.w), hNeutral = step(0.5, _OZTeamVivid.w) * (1 - hOwned);
+                    half hOwned = saturate(_OZTeamVivid.w - 1.0), hNeutral = step(0.5, _OZTeamVivid.w) * (1 - hOwned);   // 1.5 vehicle_colour_fill: the owned share (the empty look x the neutral share)
                     half hR = clamp(hL / max(_HeavyLook.x, 1e-3), 0.5, 1.25);        // the texel's shading relative to the khaki
                     half3 hTc = (half3)_OZTeamVivid.rgb / hK;                        // the readable team colour of the siblings' toy panels (linear, SetVector; _TeamColor goes through SetColor's sRGB step)
                     half3 hOwn = lerp(hRaw, hTc * hR * _HeavyLook.w + hRaw * (1 - _HeavyLook.w), hTeam * hOwned);
@@ -785,13 +786,13 @@ Shader "OpenZ/TeamLit"
                 }
                 // teamcolor_v2: by day the rim of owned stylized accent objects (vehicles, cannons) leans to the team glow, a thin
                 // team edge (= lerp(_RimColor, glow, x) on the stylize rim above); it fades with _OZNight, the night rim takes over
-                if (_Stylize > 0.5 && _Accent > 0.5 && _OZTeamVivid.w > 1.5 && _OZTeamRim.x > 0.001)
+                if (_Stylize > 0.5 && _Accent > 0.5 && _OZTeamVivid.w > 1.0 && _OZTeamRim.x > 0.001)   // 1.5 vehicle_colour_fill: any owned share (the rim x it, below)
                 {
                     Light tml = GetMainLight();
                     half tsunK = saturate(dot(tml.color, half3(0.2126, 0.7152, 0.0722)) / 1.6);
                     half tndv = saturate(dot(d.normalWS, d.viewDirectionWS));
                     half trim = pow(1 - tndv, _RimPower) * (0.35 + 0.65 * saturate(d.normalWS.y * 0.5 + 0.5));
-                    c.rgb += ((half3)_OZTeamGlow.rgb * _OZTeamRim.z - _RimColor.rgb) * (_OZTeamRim.x * trim * (0.35 + 0.65 * tsunK) * (1.0 - saturate(_OZNight)));
+                    c.rgb += ((half3)_OZTeamGlow.rgb * _OZTeamRim.z - _RimColor.rgb) * (_OZTeamRim.x * trim * (0.35 + 0.65 * tsunK) * (1.0 - saturate(_OZNight)) * saturate(_OZTeamVivid.w - 1.0));   // 1.5 vehicle_colour_fill
                 }
                 // night package: a cool moonlit rim keeps units, vehicles, cannons, buildings and map items readable against
                 // the dark ground at night. Only materials that carry a rim by day (stylized units / crates / huts, accent
@@ -820,7 +821,7 @@ Shader "OpenZ/TeamLit"
                     c.rgb = OZUnitShade(d, albedo, min(ozSm, 0.82), s.emission, ozNrmW, ozVis, ozMetal, _OZSheen.w * (1.0 - saturate(_OZNight)) * (1.0 - ozMatte), lerp(_OZSheen.x, 1.0, ozMatte));
                     Light ozL = GetMainLight();
                     half ozSunK = saturate(dot(ozL.color, half3(0.2126, 0.7152, 0.0722)) / 1.6);
-                    half ozTeamDay = _OZTeamRim.x * step(0.5, _Accent) * step(1.5, _OZTeamVivid.w) * (1.0 - saturate(_OZNight));
+                    half ozTeamDay = _OZTeamRim.x * step(0.5, _Accent) * saturate(_OZTeamVivid.w - 1.0) * (1.0 - saturate(_OZNight));   // 1.5 vehicle_colour_fill: the owned share
                     half3 ozKcol = lerp(_RimColor.rgb, (half3)_OZTeamGlow.rgb * _OZTeamRim.z, ozTeamDay);
                     c.rgb += ozKcol * (OZKicker(ozKd, ozKw, _UnitKick.x, _UnitKick.y) * _UnitKick.z
                                        * (0.35 * (1.0 - saturate(_OZNight)) + 0.65 * ozSunK) * lerp(0.5, 1.0, ozVis));
@@ -840,7 +841,7 @@ Shader "OpenZ/TeamLit"
                     half rimN = pow(1.0 - ndvN, 1.8) * (0.4 + 0.6 * saturate(d.normalWS.y * 0.5 + 0.5));   // wider rim (was 2.6): reads at 70 m
                     if (ozUnit > 0.5) rimN = ozKickN;   // unitlook_v2: the moonlit / team rim on the top edge only, never on the sides
                     // teamcolor_v2: at night the rim of owned units takes the team glow (robots too), team panels glow faintly
-                    half teamAware = step(0.5, max(_Accent, _TeamMode)) * step(1.5, _OZTeamVivid.w);
+                    half teamAware = step(0.5, max(_Accent, _TeamMode)) * saturate(_OZTeamVivid.w - 1.0);   // 1.5 vehicle_colour_fill: the owned share
                     c.rgb += lerp(_OZNightRim.rgb, (half3)_OZTeamGlow.rgb * _OZTeamRim.z, _OZTeamRim.y * teamAware) * (rimN * nightRim);
                     c.rgb += (half3)_OZTeamGlow.rgb * (panel * _OZTeamRim.w * nightRim);
                     // soft moonlit fill in the unit's own colour (blue stays blue, never a silhouette); tops a bit brighter
@@ -848,6 +849,7 @@ Shader "OpenZ/TeamLit"
                 }
                 c.rgb *= 1.0 - seeCut * _OZSeeThruParams.w;                         // rocks_v2: darker rim frames the unit
                 if (_OzWetness > 0.001 && nClass < 0.5) c.rgb *= OZWetEnvDarken((half)d.normalWS.y);   // weather_l17_v1: wet stone (environment class only)
+                c.rgb += OZCloudSunLit(i.positionWS, d.shadowCoord, (half3)d.normalWS, albedo * (1.0 - s.metallic) * (_Stylize > 0.5 ? (half3)_KeyWarm.rgb : (half3)1), (nClass < 0.5 && ozUnit < 0.5) ? (half)1 : (half)_OzCloudA.y);   // cloud_shadows (1.5) + cloud_shadows_visible: the environment class fully, units / vehicles / buildings / items a share (_OzCloudA.y = OzCloudShadows.UnitShare: the same light as the ground, a little); diffuse share (1 - metallic) as in URP PBR (OzCloudShadow.hlsl; 0 = no cloud)
                 c.rgb = lerp(c.rgb, dot(c.rgb, half3(0.2126, 0.7152, 0.0722)).xxx * 1.15, saturate(_OZDead) * 0.55);   // item 228: a dead robot (OzDeadTint): greyer, luminance kept (+15 %), hue kept; 0 on everything alive
                 if (max(_OZHeat, _OZLegHeat) > 0.001)
                 {   // DV152 level 7 (TeamPaint.Heat.cs): a robot in lava turns redder and glows from the feet up; the glow climbs the body as the heat rises

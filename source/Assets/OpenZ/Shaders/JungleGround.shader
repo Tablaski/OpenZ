@@ -113,6 +113,8 @@ Shader "OpenZ/JungleGround"
             TEXTURE2D(_SplatA); SAMPLER(sampler_SplatA);
             TEXTURE2D(_SplatB); TEXTURE2D(_SplatC);
             TEXTURE2D(_GroundNoise); SAMPLER(sampler_GroundNoise);
+            #define OZ_CLOUD_SAMPLER sampler_GroundNoise                               // cloud_shadows (1.5): the cloud picture is read with the noise picture's sampler (Repeat, trilinear): no new sampler slot
+            #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             TEXTURE2D(_OzCraterDecal); SAMPLER(sampler_OzCraterDecal);
             TEXTURE2D(_RoadStuds); SAMPLER(sampler_point_clamp);
             TEXTURE2D(_CrackMask);                                                  // road wear (read with sampler_linear_clamp)
@@ -340,7 +342,8 @@ Shader "OpenZ/JungleGround"
                 // the earth at the path's strength (the grass shows through the rest), its edge moved by the ground's own height (leafy,
                 // not a line), a ragged brownish bare-earth margin along it; each pebble shows where the picture's pebble density is above its rank (they
                 // thin out one by one into the grass), with its contact shadow; the big stones only at the thin edge. No ruts, no
-                // specks. Fades out with distance like the road wear (the far picture has no paths). Globals from OzL16GravelTracks.cs;
+                // specks. Drawn at every distance (1.5 FAILS A7, kit factory_path_zoom_r3: its own fade never starts, and frag keeps the layers on a
+                // path's footprint where the far picture, which has no paths, would take over). Globals from OzL16GravelTracks.cs;
                 // amount 0 = none (every other level). Where a path meets a road (the join picture, OzL16GravelJoins.cs; its amount 0 =
                 // none) the gravel and its pale earth spill over the road's edge in a ragged fan: on the asphalt of a mouth the join
                 // picture's R and G stand for the path picture (thick at the edge, thinner to its end where the road's own grain breaks
@@ -429,6 +432,18 @@ Shader "OpenZ/JungleGround"
                 half field = SAMPLE_TEXTURE2D_LOD(_LeafyMask, sampler_linear_clamp, guv, 0).r * (half)_CalmAmt.w;         // 1 = inside a grass field
                 half fld = field * (half)_FieldRule.x;
                 far *= (half)1 - (half)smoothstep(_FieldRule.y, _FieldRule.z, field) * (half)step(0.001, _FieldRule.x);   // the far picture has no fields: the layers at every distance there (no pop)
+                [branch] if (_OzTrackRule.x > 0.001 && far > 0.001)                          // 1.5 FAILS A7 (kit factory_path_zoom_r3): the far picture has no gravel paths either: the layers at every distance on a path, its margin and its mouth (level 16 only)
+                {
+                    float2 tuvF = float2(P.x / (2.0 * _MapTiles.x), 1.0 + P.z / (2.0 * _MapTiles.y));   // the path pictures' place, as in OZJLayers
+                    half3 tkF = SAMPLE_TEXTURE2D_LOD(_OzTrackMask, sampler_linear_clamp, tuvF, 0).rgb;   // R path, G pebbles, B margin
+                    half onF = max(tkF.r, max(tkF.g, tkF.b));
+                    [branch] if (_OzJoinRule.x > 0.001)
+                    {
+                        half4 jnF = SAMPLE_TEXTURE2D_LOD(_OzJoinMask, sampler_linear_clamp, tuvF, 0);   // a mouth: R spill, G pebbles, A its zone on the asphalt
+                        onF = max(onF, max(jnF.r, max(jnF.g, jnF.a)));
+                    }
+                    far *= (half)1 - (half)smoothstep(0.03, 0.25, onF);                    // the switch sits in the path's own faint outer fringe (no line)
+                }
                 half3 mood = OZJMood(P.xz);
                 float2 gdx = ddx(guv) * _CalmRule.w, gdy = ddy(guv) * _CalmRule.w;
                 [branch] if (_CalmAmt.z > 0.01)                                               // calm grass far away: the far picture read softer inside the grass
@@ -490,6 +505,7 @@ Shader "OpenZ/JungleGround"
                 inputData.shadowMask = half4(1, 1, 1, 1);
                 half4 c = UniversalFragmentPBR(inputData, s);
                 c.rgb = OZNightEnvFix(c.rgb, inputData, s, 0);                          // ground = environment class
+                c.rgb += OZCloudSunLit(P, inputData.shadowCoord, (half3)inputData.normalWS, albedo, (half)1);   // cloud_shadows (1.5): the cloud's share of the direct sun (OzCloudShadow.hlsl; 0 = no cloud)
                 if (_OzWetness > 0.001 || _OzLowPuddle.x > 0.001)                           // wet sheen, puddle reflections, drop ripples (the low grass's and the paths' puddles outlast the damp)
                     c.rgb += OZWetSheen(P, (half3)inputData.normalWS, (half3)inputData.viewDirectionWS, inputData.normalizedScreenSpaceUV, inputData.shadowCoord, ozWetP, ozPxm);
                 c.rgb = MixFog(c.rgb, ComputeFogFactor(TransformWorldToHClip(P).z));         // fog factor per pixel

@@ -84,6 +84,7 @@ namespace OpenZ
             Physics.SyncTransforms();                                                                  // the deaths of this frame already read the floor
             sinkT = 0f; bodyAt = body ? body.transform.position : transform.position; sinkDepth = (float)Info.DeckM + KerbM + 0.2f;
             OzUePlatformViews.TakeLoose(this);
+            if (OzUeStructureBreak.Platform(this, body)) { Debug.Log($"{OzUnitEditor.Tag} platform #{Obj.Id} destroyed: its deck is gone"); return; }   // 1.5 ue_structure_destruction: the collapse into its own pieces (View/OzUeStructureBreak.cs); off = the sink below
             var p = Mid();
             var fx = FxManager.I;
             if (fx)
@@ -138,6 +139,7 @@ namespace OpenZ
             var v = go.AddComponent<OzUePlatformView>();
             v.Bind(o, p);
             views[o.Id] = v;
+            OzUeStructureBreak.ClearFootprint(ZGame.PxToWorld(o.LocX, o.LocY), ZGame.PxToWorld(o.LocX + o.WidthPix, o.LocY + o.HeightPix));   // 1.5 ue_structure_destruction: no rubble inside the new body
             return v;
         }
 
@@ -163,7 +165,10 @@ namespace OpenZ
             var v = Of(o); if (!v) return false;
             views.Remove(o.Id);
             Fell++;
+            var deckFlags = FlagView.DeckHeights(o);                                                   // 1.5 ue_structure_destruction: the flags come down with the deck (View/FlagView.DeckFall.cs)
             v.Fall();
+            FlagView.PlatformGone(o);                                                                  // ue_flag_anywhere: its flags come down to the floor (View/FlagView.Deck.cs)
+            FlagView.DropFrom(deckFlags);
             return true;
         }
 
@@ -192,6 +197,7 @@ namespace OpenZ
         /// at the wall's foot; every other target: `ground` unchanged.</summary>
         public static Vector3 Aim(ZObject t, Vector3 ground)
         {
+            if (OzUeBoxes.Aim(t, ref ground)) return ground;                                         // 1.5 ue_boxes: a shot at a box up a stack bursts on its level (View/OzUeObstacleView.Box.cs); false in every level
             if (views.Count == 0 || t == null || !t.IsUnit) return ground;
             var g = ZGame.I;
             if (!g || !g.Views.TryGetValue(t.Id, out var v) || !v) return ground;
@@ -275,6 +281,7 @@ namespace OpenZ
                 else if (u.TossedOffDeck(On)) n++;
             }
             n += OzUePlayground.SweepDebrisIn(On);
+            n += OzUeStructureBreak.SweepIn(On);                                                       // 1.5 ue_structure_destruction: rubble of an earlier collapse lying on this deck
             if (FxManager.I) FxManager.I.ClearRubble(v.Mid(), Mathf.Min(Mathf.Abs(x1 - x0), Mathf.Abs(z1 - z0)) * 0.5f);
             ScorchDecals.ClearOver(a, b);
             OpenZPyroFire.GroundGone(a, b);

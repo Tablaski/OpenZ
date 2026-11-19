@@ -234,7 +234,7 @@ namespace OpenZ
                 Destroy(fracture, PopOut.Duration + 0.05f);
             }
             pieces.Clear(); fireUntil = 0;
-            FxManager.I?.DemolitionDust(transform.position, 6f, 6f, 0.6f);
+            if (!OzBuildingRestore.QuietDust(obj)) FxManager.I?.DemolitionDust(transform.position, 6f, 6f, 0.6f);   // 1.5 kit factory_restore_crane_r3: no haze puff, the restore draws it
         }
 
         float nextFire;

@@ -61,7 +61,7 @@ namespace OpenZ
                                     if (panels[a].b.Overlaps(panels[b].b) && bad.Length < 400)
                                         bad.Append(' ').Append(Pct(s)).Append(' ').Append(States[st]).Append(": ").Append(panels[a].n).Append(" x ").Append(panels[b].n).Append(';');
                             bool inside = o.play.plate.x >= OzUeBottomLayout.Gap - 0.01f && o.play.plate.Right <= cs.x - i.insetR - OzUeBottomLayout.Gap + 0.01f
-                                          && o.zoom.plate.x >= OzUeBottomLayout.Gap - 0.01f && o.zoom.plate.y >= 40f + 12f;
+                                          && (o.zoom.inMenu || (o.zoom.plate.x >= OzUeBottomLayout.Gap - 0.01f && o.zoom.plate.y >= 40f + 12f));   // 1.5 kit ue_bottom_left_r10: the zoom is in the popover
                             if (!inside && bad.Length < 400) bad.Append(' ').Append(Pct(s)).Append(' ').Append(States[st]).Append(": the play bar or the zoom outside the free field;");
                         }
                     f += OzUnitEditor.Line(log, bad.Length == 0, "P2 layout grid " + sc.w + "x" + sc.h + " at every UI SCALE step (" + Steps() + ") x " + States.Length

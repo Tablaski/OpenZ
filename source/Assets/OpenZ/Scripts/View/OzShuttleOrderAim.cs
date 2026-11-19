@@ -53,6 +53,12 @@ namespace OpenZ
         /// out over a few frames near an obstacle (the click itself always asks the whole rule at once: ZWorld.ShuttleOrdersFilter).</summary>
         public static bool NeverAt(ZWorld w, ZObject s, int x, int y, out string why)
         {
+            bool never = NeverAtSpot(w, s, x, y, out why);
+            return never && OzShuttleNearestAim.NoneNear(w, s, x, y);                                       // 1.5 DV190 (kit shuttle_nearest_landing): with the rule on, NO only when no landing spot is near either (View/OzShuttleNearestAim.cs)
+        }
+
+        static bool NeverAtSpot(ZWorld w, ZObject s, int x, int y, out string why)
+        {
             why = "";
             if (w == null || s == null) return false;
             float now = Time.unscaledTime; int frame = Time.frameCount;
@@ -95,7 +101,7 @@ namespace OpenZ
             var cam = input.cam ? input.cam.GetComponent<Camera>() : Camera.main;
             if (!cam || !g.GroundPoint(cam.ScreenPointToRay(m.position.ReadValue()), out var gp)) return c;
             var px = ZGame.WorldToPx(gp);
-            foreach (var s in ships) if (!NeverAt(w, s, px.x, px.y, out _)) return c;                       // one of them can land there
+            foreach (var s in ships) if (!NeverAt(w, s, px.x, px.y, out _)) return ZWorld.ShuttleNearestLandingDeviation ? "move" : c;   // one of them can land there (1.5 DV190: or near it: the move cursor, never GRAB: a shuttle takes no flag)
             NoCursorFrames++;
             return "nono";
         }
@@ -106,7 +112,9 @@ namespace OpenZ
         {
             if (g == null || g.World == null || pending == null || pending.Count == 0 || !OzShuttleOrdersOption.LandableOnly) return false;
             refusedNow.Clear();
+            int r0 = ZWorld.ShuttleNearestRedirects;                                                             // 1.5 DV190 (kit shuttle_nearest_landing)
             int n = g.World.ShuttleOrdersFilter(g.player, pending, true, refusedNow);
+            OzShuttleNearestAim.Clicked(r0, n);                                                                  // 1.5 DV190: the log line of a click sent to the nearest landing spot; a refused one: the toast "NO PLACE TO LAND HERE" (View/OzShuttleNearestAim.cs)
             if (n == 0) return false;
             Refused += n; LastRefusedAt = Time.unscaledTime; LastWhy = ZWorld.ShuttleOrdersNoLandWhy;
             Debug.Log($"[OpenZ Orders] shuttle: no order to a place where it can never land ({LastWhy}): {n} ship(s) left out of the click{(pending.Count > 0 ? $", {pending.Count} other unit(s) keep theirs" : "")} (SHUTTLE ORDERS: LANDABLE SPOTS ONLY)");

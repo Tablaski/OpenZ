@@ -48,7 +48,7 @@ namespace OpenZ
             if (id == shownId && t == shownTeam && n == shownCount) return;
             shownId = id; shownTeam = t; shownCount = n;
             var kind = OzUePlayground.KindOf(id);
-            string nm = kind == UeKind.Flag ? "NEUTRAL FLAG" : kind == UeKind.Obstacle ? "HOLO OBSTACLE" : kind == UeKind.Grenades ? "GRENADE CRATE" : kind == UeKind.Nuke ? "NUKE STRIKE" : kind == UeKind.Platform ? OzUePlayground.FullName(id)
+            string nm = kind == UeKind.Flag ? "NEUTRAL FLAG" : kind == UeKind.Obstacle ? (id == OzUePlayground.Box ? "HOLO BOX" : "HOLO OBSTACLE") : kind == UeKind.Grenades ? "GRENADE CRATE" : kind == UeKind.Nuke ? (OzUeBlasts.Is(id) ? OzUeBlasts.Full(id) : "NUKE STRIKE") : kind == UeKind.Platform ? OzUePlayground.FullName(id)
                       : (t == Team.Neutral ? "EMPTY " : "") + OzUePlayground.FullName(id);
             string tw = OzUeUi.TeamWord(t) + (n > 1 && kind != UeKind.Flag && kind != UeKind.Obstacle ? " x" + n : "");
             name.Set(nm.ToUpperInvariant()); team.Set(tw);

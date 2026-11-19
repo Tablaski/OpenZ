@@ -20,6 +20,7 @@ namespace OpenZ
         /// vehicle is not shoved sideways by infantry, and it could not follow the shove without crabbing), else the unit's weight.</summary>
         static float PairWeight(UnitView self, UnitView other)
         {
+            if (OzRamStill.Holds(self.Obj)) return 0f;                                                  // 1.5 DV195 (kit ram_chain_n24_n25): a rammed / crushed hull is never pushed (View/OzRamStill.cs)
             if (VehicleSlip.Enabled && self.Obj != null && other.Obj != null && self.Obj.Kind == ZKind.Vehicle && other.Obj.Kind == ZKind.Robot
                 && (!(self.Obj.IsMoving && !self.Obj.PathHeld) || (ZPathing.VehicleFirst && other.Obj.Owner == self.Obj.Owner))) return 0f;   // vehicles first: a moving one is not pushed by robots of its own team either (ZYield.cs)
             return self.weight;
@@ -47,7 +48,7 @@ namespace OpenZ
                 p += Vector3.Cross(Vector3.up, moveDir) * Mathf.Sin(swerve) * 0.22f * speed01;
             }
             slip ??= new VehicleSlip(VehicleSlip.Of(Obj.Type));
-            if (Obj.UnmannedHeld || (ZWorld.UnmannedStopDeviation && !moving && CaptureHold.IsHeld(Obj.Id)))
+            if (Obj.UnmannedHeld || (ZWorld.UnmannedStopDeviation && !moving && CaptureHold.IsHeld(Obj.Id)) || OzRamStill.Holds(Obj) /* 1.5 DV195: rammed / crushed */)
             {   // DV79 unmanned stop: nobody inside: the picture stops with the rules, in this frame (no catch-up drive, no pivot onto the sim spot).
                 // The same while a robot is still climbing in (CaptureHold, NB17: the vehicle is still painted nobody's) and the rules do not
                 // move it: the offset the hold left is driven off only once the robot sits and the vehicle shows its team colour

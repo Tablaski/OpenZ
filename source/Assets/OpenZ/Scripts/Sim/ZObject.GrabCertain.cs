@@ -105,8 +105,9 @@ namespace OpenZ.Sim
             grabWayNext = time + 0.5;
             if (!World.IsHumanTeam(Owner) || World.CalmStart(Owner) || (World.GameOver && ZWorld.EndFreezeDeviation)) return false;
             if (!CanAttack() || !CanMove || Stunned || HoldPosition || AttackObject != null) return false;
+            int mg = MarchGrabStep(wp); if (mg != 0) return mg == 2;                              // 1.5 DV203 (kit march_grab_r3): one robot of the squad takes a flag (220 px) or an empty gun (80 px) on the way, the rest walk on (Sim/ZObject.MarchGrab.cs)
             ZObject best = null; double bd = double.MaxValue; bool bestEnter = false;
-            foreach (var f in World.Flags)
+            if (!MarchGrabOwnsFlags) foreach (var f in World.Flags)                             // 1.5 DV203 (kit march_grab_r3): a robot's flags are DV203's look above
             {
                 if (f.Owner == Owner) continue;
                 double d = Dist(CenterX, CenterY, f.CenterX, f.CenterY);

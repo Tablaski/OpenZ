@@ -14,14 +14,14 @@ namespace OpenZ.Sim
     public sealed class ZReach
     {
         readonly ZWorld W;
-        readonly int[][] comp = new int[4][];
-        readonly int[] builtVersion = { int.MinValue, int.MinValue, int.MinValue, int.MinValue };
+        readonly int[][] comp = new int[8][];   // 1.5 DV192 / DV193 (kit sim_notes11): + the heavy tanks' and the Bizon's grids
+        readonly int[] builtVersion = { int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue };   // 1.5 DV192 / DV193 (kit sim_notes11)
         int[] queue;
         public int Rebuilds { get; private set; }
 
         public ZReach(ZWorld w) { W = w; }
 
-        static int G(bool robot, bool noRocks) => (robot ? 0 : 2) + (noRocks ? 1 : 0);
+        int G(bool robot, bool noRocks) => (robot ? 0 : 2 + 2 * W.Path.GridKind) + (noRocks ? 1 : 0);   // 1.5 DV192 / DV193 (kit sim_notes11): one component set per grid kind
 
         /// <summary>Component id of footprint tile (tx, ty), -1 when the footprint does not fit there.</summary>
         public int Comp(int tx, int ty, bool robot, bool noRocks)
@@ -124,6 +124,13 @@ namespace OpenZ.Sim
 
         /// <summary>Nearest as above, skipping points <paramref name="skip"/> rejects (null = none).</summary>
         public bool Nearest(int x, int y, bool robot, bool noRocks, int c, Func<int, int, bool> skip, out int rx, out int ry, int maxTiles = 64)
+        {   // 1.5 DV192 amended N12b (kit sim_notes11): a Bizon's goal off the lava unless the point asked for is in it (Sim/ZBigTanks.Ground.cs BizonDrySkip)
+            var dry = robot ? null : W.BizonDrySkip(x, y, skip);
+            if (dry != null && NearestCore(x, y, robot, noRocks, c, dry, out rx, out ry, maxTiles)) return true;
+            return NearestCore(x, y, robot, noRocks, c, skip, out rx, out ry, maxTiles);
+        }
+
+        bool NearestCore(int x, int y, bool robot, bool noRocks, int c, Func<int, int, bool> skip, out int rx, out int ry, int maxTiles)
         {
             rx = x; ry = y;
             if (c < 0) return false;

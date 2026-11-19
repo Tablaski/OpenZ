@@ -48,7 +48,7 @@ namespace OpenZ.Sim
             tileObj = new int[w * h];
             for (int ty = 0; ty < h; ty++)
                 for (int tx = 0; tx < w; tx++)
-                    if (world.Map.ClassAt(tx, ty) == ZClass.Impassable && !world.Map.LavaAt(tx, ty)) tileObj[ty * w + tx] = -1;   // level 7 (DV152 data): a lava pit is flat ground, never a wall for sight
+                    if (world.Map.ClassAt(tx, ty) == ZClass.Impassable && !world.Map.LavaAt(tx, ty) && !world.LowPitNoWall(tx, ty)) tileObj[ty * w + tx] = -1;   // level 7 (DV152 data): a lava pit is flat ground, never a wall for sight; 1.5 DV205 (kit pits_no_block_r3): nor a low pit, ravine, gorge or moat tile (Sim/ZWorld.LowPits.cs)
             foreach (var o in world.Objects) Add(o);
             world.L16ShuttleSightTiles(tileObj, blockers);                                      // level 16 DV95 (ZWorld.L16Shuttle.cs): the standing shuttle's square under its own id, as the hut it replaces blocked on its tile
             world.PlatformSightTiles(tileObj, blockers);                                        // 1.3 the Unit editor's ramp platforms (Sim/ZWorld.Platforms.cs): nothing in a level

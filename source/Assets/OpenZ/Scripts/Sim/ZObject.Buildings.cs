@@ -293,7 +293,8 @@ namespace OpenZ.Sim
             {
                 cur.stage = Stage.GotoEntrance; craneFixUntil = -1;
                 if (!t.GetCraneEntrance(out int ex, out int ey, out int ex2, out int ey2)) { KillWP(); return; }
-                if (ex == ex2 && ey == ey2) SetTarget(ex, ey);
+                if (CraneLandEndOn(t) && CraneLandEndPick(t, out int lx, out int ly)) SetTarget(lx, ly);   // 1.5 DV206 (kit crane_deck_sound_r3): a bridge is repaired from its nearest reachable dry end (Sim/ZObject.CraneLandEnd.cs)
+                else if (ex == ex2 && ey == ey2) SetTarget(ex, ey);
                 else
                 {
                     double d1 = Math.Sqrt(Math.Pow(LocX - ex, 2) + Math.Pow(LocY - ey, 2)), d2 = Math.Sqrt(Math.Pow(LocX - ex2, 2) + Math.Pow(LocY - ey2, 2));
@@ -314,10 +315,11 @@ namespace OpenZ.Sim
             {
                 case Stage.GotoEntrance:
                     if (NextPathPoint()) break;
+                    if (CraneLandEndStart(t)) break;                                                       // 1.5 DV206 (kit crane_deck_sound_r3): a destroyed bridge: the work is done here at the land end, never the drive onto the span over the water
                     if (!t.Destroyed && ZWorld.CraneFixDeviation)
                     {   // DV61: a damaged building that still stands is mended from its entrance (the crane never drives into the walls)
                         cur.stage = Stage.ExitBuilding; SetTarget(CenterX, CenterY); SetVelocity();
-                        craneFixUntil = World.Time + ZWorld.CraneFixSeconds; CraneFixes++;
+                        craneFixUntil = World.Time + ZWorld.CraneFixSeconds; CraneFixes++; CraneWorkBegins();   // 1.5 kit crane_deck_sound_r3: the view reads when the mend began (no rule)
                         World.Emit(ZEventType.CraneAnim, this, t, 0, 0, 0, 0, true);
                         break;
                     }

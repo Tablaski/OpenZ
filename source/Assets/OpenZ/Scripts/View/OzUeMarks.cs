@@ -97,7 +97,8 @@ namespace OpenZ
             }
 
             PlatformMarks(game, hover, kind, insp, all);                                                    // the ramp platforms (View/OzUeMarks.Platforms.cs)
-            CrateMarks(game, hover, kind, insp, all);                                                       // the GRENADES crates (View/OzUeMarks.Crates.cs)
+            CrateMarks(game, hover, kind, insp, all);
+            BoxMarks(game, hover, kind, insp, all);                                                         // 1.5 ue_boxes: the boxes on their levels (View/OzUeMarks.Boxes.cs)                                                       // the GRENADES crates (View/OzUeMarks.Crates.cs)
 
             // units: range rings, lines of sight, labels
             var picked = OzUePick.Picked;
@@ -174,11 +175,12 @@ namespace OpenZ
 
         void Collect(ZWorld W)
         {
-            flags.Clear(); obstacles.Clear(); empty.Clear(); units.Clear(); crates.Clear(); platforms.Clear();
+            flags.Clear(); obstacles.Clear(); empty.Clear(); units.Clear(); crates.Clear(); platforms.Clear(); boxes.Clear();   // 1.5 ue_boxes
             foreach (var o in OzUePlayground.Placed())
             {
                 if (o == null || Gone(o)) continue;
                 if (OzUePlayground.IsFlag(o)) flags.Add(o);
+                else if (OzUePlayground.IsBox(o)) boxes.Add(o);                                                         // 1.5 ue_boxes: View/OzUeMarks.Boxes.cs
                 else if (OzUePlayground.IsObstacle(o)) obstacles.Add(o);
                 else if (OzUePlayground.IsPlatform(o)) platforms.Add(o);                                               // View/OzUeMarks.Platforms.cs
                 else if (OzUePlayground.IsEmptyHardware(o)) empty.Add(o);
@@ -235,6 +237,7 @@ namespace OpenZ
                 case "light": case "howitzer": return 4.2f;
                 case ZMTank.Type: return 4.6f;                                            // DV145: the medium tank, between the light tank and the heavy
                 case "heavy": return 5f;
+                case OzBigTanks.Mammoth: return 6f; case OzBigTanks.Bizon: return 6.5f;   // 1.5 DV180 / DV181
                 case "apc": case "missile_launcher": case "crane": return 4.8f;
                 case "gatling": case "gun": return 3.4f;
                 case "missile_cannon": return 4f;

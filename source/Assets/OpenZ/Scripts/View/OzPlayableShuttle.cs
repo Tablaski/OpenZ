@@ -543,7 +543,7 @@ namespace OpenZ
             if (lights)
             {
                 float upk = Mathf.Clamp01(lift * 3f);
-                lights.enginePeriod = Mathf.Lerp(enginePeriod0, 0.35f, upk); lights.engineGain = engineGain0 * Mathf.Lerp(1f, 2.2f, upk);
+                lights.enginePeriod = Mathf.Lerp(enginePeriod0, 0.35f, upk); lights.engineGain = Vector2.Lerp(IdleEngineGain(), engineGain0 * 2.2f, upk);   // 1.5 N20: on the ground a soft idle glow by day too (OzPlayableShuttle.IdleGlow.cs); in the air as before
                 lights.groundGlowScale = 1f / (1f + (FeetHeight / 2.5f) * (FeetHeight / 2.5f));          // the grass does not glow under a ship in the air
             }
             FootGlow();

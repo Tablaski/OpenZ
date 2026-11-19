@@ -66,14 +66,14 @@ namespace OpenZ
             if (modelPrefMigrated) return;
             modelPrefMigrated = true;
             if (PlayerPrefs.GetInt(PrefModelMigrated, 0) == 1) return;
-            bool had = PlayerPrefs.HasKey(PrefModel); int old = had ? PlayerPrefs.GetInt(PrefModel, 0) : 0;
+            bool had = PlayerPrefs.HasKey(PrefModel); int old = had ? PlayerPrefs.GetInt(PrefModel, 3) : 0;   // settings_tidy (1.5): read only when the key is there, so the default is never used; 3 = the key's one default (v3, ModelWanted)
             if (had) PlayerPrefs.DeleteKey(PrefModel);
             PlayerPrefs.SetInt(PrefModelMigrated, 1); PlayerPrefs.Save();
             Debug.Log("[ZodCameo] model setting migrated once (Zod v3): " + PrefModel + " was " + (had ? old.ToString() : "unset") + " -> cleared, default v3");
         }
         /// <summary>The setting as read (for the stage-built log).</summary>
         public static string ModelPrefState => (ForceModel >= 1 && ForceModel <= 3 ? "proof force v" + ForceModel + ", " : "")
-                                                + (PlayerPrefs.HasKey(PrefModel) ? PrefModel + " = " + PlayerPrefs.GetInt(PrefModel, 0) : PrefModel + " unset (default v3)");
+                                                + (PlayerPrefs.HasKey(PrefModel) ? PrefModel + " = " + PlayerPrefs.GetInt(PrefModel, 3) : PrefModel + " unset (default v3)");   // settings_tidy (1.5): the same (read only when the key is there)
         public static string PrefabPath => PrefabPathFor(ModelWanted);
         public static string ModelPath => ModelPathFor(ModelWanted);
         static string PrefabPathFor(int v) => v == 2 ? PrefabPathV2 : v == 3 ? PrefabPathV3 : PrefabPathV1;

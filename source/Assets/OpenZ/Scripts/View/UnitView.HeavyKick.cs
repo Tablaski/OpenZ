@@ -12,7 +12,7 @@ namespace OpenZ
         void HeavyBarrelKick()
         {
             HeavyRecoilKick();                                                                       // 1.2 items 132 / 132b: the head kick and the body rock (View/HeavyRecoil.cs)
-            if (Obj == null || Obj.Type != "heavy" || !motion || !gunAim) return;
+            if (Obj == null || (Obj.Type != "heavy" && Obj.Type != OzBigTanks.Mammoth) /* 1.5 DV180 / DV181 */ || !motion || !gunAim) return;
             motion.Kick(gunAim.FiredSide * HeavyRollDeg, HeavyPitchDeg);
         }
     }

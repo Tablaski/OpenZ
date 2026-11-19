@@ -22,10 +22,11 @@ namespace OpenZ
             {
                 frozen = true;
                 var hull = transform.Find("OZ_WreckHull");
-                bool moving = !rb.isKinematic;                                                                                                                 // not already held (fading)
+                bool moving = !rb.isKinematic; float ozFall = moving ? Mathf.Max(0f, -rb.linearVelocity.y) : 0f;   /* 1.5 kit wreck_rest_ground_r6: the speed it falls at */                                                                                                                 // not already held (fading)
                 rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;                                                                         // held first, so no interpolation step writes the old pose back over the lift
                 if (moving) WreckGroundRest.Lift(transform, hull ? hull.GetComponent<BoxCollider>() : null);                                                   // 1.3 item 9: never frozen in the ground (View/WreckGroundRest.cs)
                 if (hull) { var c = hull.GetComponent<Collider>(); if (c) c.enabled = false; }
+                if (moving) OzWreckGround.FlipFrozen(this, ozFall);
             }
         }
 

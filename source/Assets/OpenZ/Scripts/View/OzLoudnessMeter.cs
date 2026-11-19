@@ -219,7 +219,7 @@ namespace OpenZ
                 yield return new WaitForSecondsRealtime(1.2f);
             }
             MarkWindow(); yield return new WaitForSecondsRealtime(3.2f);
-            string bedId = game.level == "L17" ? "amb_l17_day / amb_l17_night_fog" : "amb_l02_day / dusk / night";
+            string bedId = OzCity.Is(game.level) ? "amb_l17_day / amb_l17_night_fog" : "amb_l02_day / dusk / night";
             sb.AppendLine($"| ambience bed ({bedId}) + floor, short-term | -38..-40 | {-38f + makeup:0.0}..{-40f + makeup:0.0} | S {ShortTerm:0.0} | - | {WindowMaxGr:0.0} | {(ShortTerm >= -46f + makeup && ShortTerm <= -30f + makeup ? "PASS" : "WARN")} |");
             sb.AppendLine();
             sb.AppendLine($"Result: {pass} PASS, {warn} WARN, {fail} FAIL. Tolerance +-3 dB on the expected reading (+-5 = WARN); one-shots and UI must also stand 4 dB over the background.");
@@ -247,7 +247,7 @@ namespace OpenZ
                 case "rob_squad_march": case "bld_factory_hum": case "veh_tracks_loop":
                     loopKey = "probe:" + id; ad.StartLoop(loopKey, id, at); break;
                 case "water":
-                    loopKey = "probe:water"; ad.StartLoop(loopKey, game.level == "L17" ? "amb_l17_harbour" : "amb_l02_river", at); break;
+                    loopKey = "probe:water"; ad.StartLoop(loopKey, OzCity.Is(game.level) ? "amb_l17_harbour" : "amb_l02_river", at); break;
                 case "offscreen":
                     {
                         var cam = Camera.main; var right = cam ? Vector3.ProjectOnPlane(cam.transform.right, Vector3.up).normalized : Vector3.right;

@@ -59,7 +59,7 @@ namespace OpenZ
         {
             if (o == null) return;
             if (OzUePlayground.IsFlag(o)) Set(UeInspect.Flag, o, OzUePlayground.Flag, o.Owner);
-            else if (OzUePlayground.IsObstacle(o)) Set(UeInspect.Obstacle, o, OzUePlayground.Obstacle, Team.Neutral);
+            else if (OzUePlayground.IsObstacle(o)) Set(UeInspect.Obstacle, o, OzUePlayground.IsBox(o) ? OzUePlayground.Box : OzUePlayground.Obstacle, Team.Neutral);   // 1.5 ue_boxes: a box as itself
             else if (OzUePlayground.IsPlatform(o)) Set(UeInspect.Platform, o, OzUePlayground.PlatformIdOf(o), Team.Neutral);   // UI/OzUeObjectPanel.Platform.cs
             else if (OzUePlayground.IsCrate(o)) Set(UeInspect.Crate, o, OzUePlayground.Grenades, Team.Neutral);   // the GRENADES crate (UI/OzUeObjectPanel.Crate.cs)
             else if (OzUePlayground.IsEmptyHardware(o)) Set(UeInspect.EmptyHardware, o, OzUePlayground.IdOf(o), Team.Neutral);

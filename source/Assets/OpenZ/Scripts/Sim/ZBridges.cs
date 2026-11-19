@@ -196,6 +196,7 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ lanes -> crossings (BeginTick, after EnsureLanes)
         void EnsureBridges()
         {
+            using var gridKindHold = W.Path.Kind(ZPathFinder.GridZod);   // 1.5 DV192 / DV193 (kit sim_notes11): the bridge lanes are shared: Zod's grids
             if (bridgesVersion == W.Path.Version) return;
             bridgesVersion = W.Path.Version;
             var old = new List<ZBridgeLane>(bridges);

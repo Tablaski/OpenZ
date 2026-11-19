@@ -484,7 +484,7 @@ namespace OpenZ
         public static readonly string[] VehiclePortraitFolders = { "OpenZ/UI/PortraitsVehicles", "OpenZ/UI/portraits_vehicles" };
         static Dictionary<string, Texture2D> vehiclePortraits;
 
-        static readonly string[] Order = { "missile_launcher", "missile_cannon", "gatling", "howitzer", "crane", "apc", "jeep", "heavy", "medium", ZMTank.Type, "light", "gun",   // DV145: icon_mtank_* / portrait_mtank_* ("mtank" never contains "medium")
+        static readonly string[] Order = { "missile_launcher", "missile_cannon", "gatling", "howitzer", "crane", "apc", "jeep", "heavy", "medium", ZMTank.Type, OzBigTanks.Mammoth, OzBigTanks.Bizon, "light", "gun",   // DV145: icon_mtank_* / portrait_mtank_* ("mtank" never contains "medium")
                                            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "shuttle", ZEvilZod.Type };   // electrobot_v1: portrait_electrobot_* is its own token; DV118: portrait_shuttle_*
         static readonly (string alias, string type)[] Aliases =
         {
@@ -581,6 +581,7 @@ namespace OpenZ
                 case "medium": n = "MECH"; break;
                 case ZMTank.Type: n = "MEDIUM TANK"; break;                           // DV145: the new tank (the mech keeps Zod's medium type)
                 case "heavy": n = "HEAVY TANK"; break;
+                case OzBigTanks.Mammoth: n = "MAMMOTH"; break; case OzBigTanks.Bizon: n = "BIZON"; break;   // 1.5 DV180 / DV181
                 case "missile_launcher": n = "MLRS"; break;
                 case "missile_cannon": n = "MISSILE CANNON"; break;
                 case "fort_front": case "fort_back": n = "FORT"; break;
@@ -602,6 +603,7 @@ namespace OpenZ
                 case "medium": return "MECH";
                 case ZMTank.Type: return "MEDIUM";                                   // DV145
                 case "heavy": return "HEAVY";
+                case OzBigTanks.Mammoth: return "MAMMOTH"; case OzBigTanks.Bizon: return "BIZON";   // 1.5 DV180 / DV181
                 case "missile_launcher": return "MLRS";
                 case "missile_cannon": return "MISSILE";
                 case "howitzer": return "HOWITZ.";
@@ -616,7 +618,7 @@ namespace OpenZ
             {
                 case "grunt": return "GRU"; case "psycho": return "PSY"; case "sniper": return "SNP"; case "tough": return "TGH";
                 case "pyro": return "PYR"; case "laser": return "LSR"; case "electrobot": return "ELB"; case "jeep": return "JEP"; case "light": return "LT";
-                case "medium": return "MCH"; case ZMTank.Type: return "MT"; case "heavy": return "HT"; case "apc": return "APC"; case "missile_launcher": return "ML";   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "medium": return "MCH"; case ZMTank.Type: return "MT"; case "heavy": return "HT"; case OzBigTanks.Mammoth: return "MAM"; case OzBigTanks.Bizon: return "BZN"; /* 1.5 DV180 / DV181 */ case "apc": return "APC"; case "missile_launcher": return "ML";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "crane": return "CRN"; case "gatling": return "GTL"; case "gun": return "GUN"; case "howitzer": return "HOW";
                 case "missile_cannon": return "MC";
             }
@@ -632,7 +634,7 @@ namespace OpenZ
             {
                 case "jeep": return "jeep";
                 case "light": case "medium": case ZMTank.Type: return "tank";   // DV145 the medium tank (Sim/ZMTank.cs)
-                case "heavy": return "heavy";
+                case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return "heavy";
                 case "apc": return "apc";
                 case "missile_launcher": case "missile_cannon": return "missile";
                 case "crane": return "crane";
@@ -667,7 +669,7 @@ namespace OpenZ
                 case ZEvilZod.Type: return "SHOTGUN";                                        // DV161
                 case "electrobot": return "TESLA GATLING";                                   // electrobot_v1
                 case "jeep": return "MACHINE GUN";
-                case "light": case "medium": case ZMTank.Type: case "heavy": return "CANNON";   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "light": case "medium": case ZMTank.Type: case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return "CANNON";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": return "MISSILES";
                 case "missile_launcher": return "MISSILES";
                 case "crane": return "NONE";
@@ -691,7 +693,7 @@ namespace OpenZ
                 case ZEvilZod.Type: return "shotgun";                                        // DV161: Kit/Icons/ic_shotgun_48 / 96 / 192
                 case "electrobot": return "tesla";                                          // electrobot_v1: Kit/Icons/ic_tesla_48 / 96 / 192
                 case "psycho": case "jeep": case "gatling": return "gatling";
-                case "light": case "medium": case ZMTank.Type: case "heavy": case "gun": return "cannon";   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "light": case "medium": case ZMTank.Type: case "heavy": case OzBigTanks.Mammoth: case OzBigTanks.Bizon: case "gun": return "cannon";   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "apc": case "missile_launcher": case "missile_cannon": return "missile";
                 case "crane": return "wrench";
                 case "howitzer": return "howitzer";

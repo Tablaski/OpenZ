@@ -63,6 +63,11 @@ namespace OpenZ
         Plan plan; bool menuHover = true;
         internal float H => plan.h;
         internal RectTransform Root => root;
+        /// <summary>1.5 kit fps_chip_place_r3: the bar's empty stretch, from the crumb's end + Gap to RESET STATS - Gap (canvas units, top-left
+        /// origin, the bar's height without its bottom line): the FPS chip's place in the editor (View/OzQuality.cs OzFpsChip.EditorSpot).</summary>
+        internal Rect FreeStretch => FreeOf(plan);
+        /// <summary>FreeStretch of a plan (pure: the chip's plan check runs it at every size, UI/OzFpsChipProof.cs).</summary>
+        internal static Rect FreeOf(Plan p) { float x0 = p.crumbX + p.crumbW + Gap, x1 = p.reset.x - Gap; return new Rect(x0, 0f, Mathf.Max(0f, x1 - x0), Mathf.Max(0f, p.h - 1f)); }
 
         internal OzUeTopBar(RectTransform parent, OpenZHud hud, Action onSave, Action onLoad, Action onShare, Action onHelp, Action onMenu, Action onReset)
         {

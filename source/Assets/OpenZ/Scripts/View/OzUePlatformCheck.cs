@@ -16,7 +16,7 @@ namespace OpenZ
     ///  P0 the palette: two tiles right of NUKE, names, pictures, one per drop, always neutral;
     ///  P1 every robot, vehicle, gun and the heroes dropped on both decks stand ON them (root at the deck, never under it, the rules' height the same); on the ramp the slope, a vehicle tilted with it;
     ///  P2 placing: real clicks on the deck, on a wall's face and a rail land on the deck; the far kerb and rail by a real camera ray: on the deck, the platform under the pointer; a gun on the
-    ///     ramp goes to the deck; flag, crate and obstacle refused with their words; a drop beside a platform stays on the ground; a drop onto a gun stands beside it; a platform over units is refused;
+    ///     ramp goes to the deck; crate and obstacle refused with their words, a flag stands on the deck (1.5 ue_flag_anywhere); a drop beside a platform stays on the ground; a drop onto a gun stands beside it; a platform over units is refused;
     ///  P3 shots up and down, each weapon from the high deck at the ground and from the ground at the deck: rounds fired, the drawn end's height at the target, never at the wall's foot;
     ///  P4 the same shots: the barrel's worst error at the shot against its own limit, no wait timed out;
     ///  P5 the shuttle over both platforms with the mech on the deck: the least gap between the ship and anything under it, measured on the drawn renderers;
@@ -275,7 +275,14 @@ namespace OpenZ
                 Check(on, "P2 a gun dropped on the ramp stands on the deck");
                 OzUePlayground.ClearUnits(); yield return Frames(3);
             }
-            foreach (var (id, words) in new[] { (OzUePlayground.Flag, "NO ROOM: NOT ON A PLATFORM"), (OzUePlayground.Grenades, "NO ROOM: NOT ON A PLATFORM"), (OzUePlayground.Obstacle, "NO ROOM: NOT ON A PLATFORM") })
+            {
+                bool canF = OzUePlayground.CanDrop(OzUePlayground.Flag, Team.Neutral, deck, 1, out string whyF);
+                var fl = Lead(OzUePlayground.Drop(OzUePlayground.Flag, Team.Neutral, deck, 1)); yield return Frames(2);
+                Check(canF && fl != null && w.PlatformPartAt(fl.CenterX >> 4, fl.CenterY >> 4) == ZWorld.PlatPartDeck, "P2 a flag on a deck stands on it: " + (whyF ?? "accepted"));
+                if (fl != null) OzUePlayground.Remove(fl);
+                yield return Frames(1);
+            }
+            foreach (var (id, words) in new[] { (OzUePlayground.Grenades, "NO ROOM: NOT ON A PLATFORM"), (OzUePlayground.Obstacle, "NO ROOM: NOT ON A PLATFORM") })
             {
                 bool can = OzUePlayground.CanDrop(id, Team.Neutral, deck, 1, out string why);
                 var d = OzUePlayground.Drop(id, Team.Neutral, deck, 1);
@@ -581,6 +588,7 @@ namespace OpenZ
             var tank = Lead(OzUePlayground.Drop("heavy", Team.Red, foot, 1));
             var onDeck = Lead(OzUePlayground.Drop("grunt", Team.Blue, Deck(ai, 3f, 3f), 1));
             if (onDeck != null) onDeck.Damage = 0;
+            if (tank != null) tank.Damage = 0;   // 1.5 pass 6b: the red tank sent up the ramp shot the blue squad dead before the pick row (BLUE 0 in tank_on_deck.png), so the click found nothing to pick
             yield return Frames(4);
             OzUePick.Pick(new[] { tank }, false); yield return Frames(3);
             yield return Click(ToScreen(Deck(ai, 6f, 6f)), true);

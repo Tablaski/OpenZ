@@ -100,7 +100,7 @@ namespace OpenZ
                 if (!Bounds(rb.transform, out var b)) continue;
                 var c = b.center; if (InWater(rb)) continue;                                             // b27: only what the water landing rule holds is left alone (a piece frozen on a deck that is gone must fall)
                 float gy = g.GroundY(c.x, c.z);
-                if (b.min.y - gy > 0.35f)
+                if (b.min.y - gy > 0.35f && !OzWreckGround.Owns(rb) /* 1.5 kit wreck_rest_ground_r6 (critic round): a wreck piece this kit watches or brings down is its rule's (no second fall at once) */)
                 {   // frozen above the ground: let it fall again
                     rb.isKinematic = false; foreach (var col in rb.GetComponentsInChildren<Collider>()) col.enabled = true;
                     rb.WakeUp(); Woken++;

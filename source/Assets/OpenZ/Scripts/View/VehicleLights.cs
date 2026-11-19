@@ -166,6 +166,7 @@ namespace OpenZ
             if (file?.vehicles != null)
             {
                 foreach (var v in file.vehicles) if (v != null && !string.IsNullOrEmpty(v.type)) specs[v.type] = v;
+                foreach (var v in specs.Values) OzBigTanksFx.LampSpec(v);                    // 1.5 big_tanks_lamp_size: the big tanks' small twin head lamps (View/OzBigTanksFx.HeadLamps.cs)
             }
             else Debug.LogWarning("[OpenZ] VehicleLights: Resources/OpenZ/VehicleLights/vehicle_lights.json missing (README_IMPORT.md step 2)");
             glowMat = VehicleLightMeshes.GlowMaterial("VehicleGlow (vehicles)");
@@ -289,7 +290,7 @@ namespace OpenZ
                     if (s.kind == "head" || s.kind == "eye")
                     {
                         if (!r.HeadNode) r.HeadNode = m;
-                        if (m == r.HeadNode) { headPts.Add(pos); headNrm += nrm; if (faultLamp) faultPts.Add(pos); else keepPts.Add(pos); }   // vehicles_nb_v1 NB10
+                        if (m == r.HeadNode && OzBigTanksFx.BeamLamp(spec, s)) { headPts.Add(pos); headNrm += nrm; if (faultLamp) faultPts.Add(pos); else keepPts.Add(pos); }   // vehicles_nb_v1 NB10
                     }
                     if (s.kind == "work") { r.WorkNode = m; r.WorkLocal = pos; r.HasWork = true; }
                 }
@@ -433,7 +434,7 @@ namespace OpenZ
             }
             if (alive) r.Dead = false;
             if (crewed && (!r.WasCrewed || shownOwner != r.Owner)) r.StartAt = now;                    // boarding / capture: engine start
-            if (o != null) r.Owner = shownOwner;
+            if (o != null && OzVehicleColourFill.LampTeamNow(crewed, r.Power)) r.Owner = shownOwner;   // 1.5 vehicle_colour_fill: a lamp fading out keeps its team colour (before: grey in the first frame)
             r.WasCrewed = crewed; r.Crewed = crewed;
             float target = crewed ? 1f : 0f;
             r.Power = Mathf.MoveTowards(r.Power, target, dt / (target > r.Power ? 0.2f : 0.4f));
@@ -552,6 +553,8 @@ namespace OpenZ
         {
             if (!r.View) return;
             if (ZodBriefing.EndingHides(r.View)) { if (r.Spot && r.Spot.enabled) r.Spot.enabled = false; return; }   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs): glows, beams, pools, the real light
+            if (OzFogOfWar.LosHides(r.Obj)) { r.GlowOn = false; r.BeamOn = false; r.PoolOn = false; if (r.Spot && r.Spot.enabled) r.Spot.enabled = false; return; }   // final pass 14h (1.5 los_fog): a vehicle the line-of-sight fog hides shows no lamp glow, cone, pool or light (drawn with Graphics.DrawMesh: nothing HideCovered could hold off)
+            if (OzFpsFeel.EyeHides(r.View)) { r.GlowOn = false; r.BeamOn = false; r.PoolOn = false; if (r.Spot && r.Spot.enabled) r.Spot.enabled = false; return; }   // 1.5 close_hide_all_parts_r6: nor one the first-person view's eye has faded half away (or more): its glows, cones and pool float where it was otherwise; back as it fades in
             // crane work beacon: a rotating reflector flashes when it points at the camera
             var chB = r.ChB;
             if (r.HasWork && chB.w > 0f && r.WorkNode)

@@ -86,7 +86,7 @@ namespace OpenZ
         public static string LevelOf(Scene s)
         {
             if (ZGame.I && ZGame.I.gameObject.scene == s && !string.IsNullOrEmpty(ZGame.I.level)) return ZGame.I.level;
-            return s.name.StartsWith("L17") ? "L17" : s.name.StartsWith("L16") ? "L16" : s.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
+            return s.name.StartsWith(OzCity.BridgeGame) ? OzCity.BridgeGame : s.name.StartsWith("L17") ? "L17" : s.name.StartsWith("L16") ? "L16" : s.name.StartsWith(OzVolcanic.Level) ? OzVolcanic.Level : "L02";
         }
 
         /// <summary>Installation + gate for a hut tile; unknown tiles (another map) get a stable pick.</summary>

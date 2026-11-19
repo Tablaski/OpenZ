@@ -145,6 +145,7 @@ namespace OpenZ
             if (m == null) { ReleaseLift(); return; }
             if (suppressRightRelease && m.rightButton.wasReleasedThisFrame)
             { suppressRightRelease = false; rightOnField = false; OzUeHooks.RightPickFrame = Time.frameCount; }
+            if (OzFpsView.On) { ReleaseLift(); OzUePick.Hover = null; leftOnField = rightOnField = false; ScanEvents(w); return; }   // 1.5 fps_in_ue: the view's clicks are its own (fire); the sim events still go to the toasts
             Vector2 mp = m.position.ReadValue();
             bool overUi = (hud && (hud.PointerOverUi || hud.Modal)) || OzUeHooks.AnyModal || mp.x < 0f || mp.y < 0f || mp.x > Screen.width || mp.y > Screen.height;
             OzUePick.Hover = overUi ? null : HoverAt(input, w, mp);
@@ -198,7 +199,7 @@ namespace OpenZ
             if (OzUePlayground.IsObstacle(h))
             {   // the game's rule for map items (CanAttackObject): only explosives hurt the obstacle, so armed units without them are told so
                 if (anyArmed && !anyBlast) Hint(ExplosivesOnly);
-                else if (!ctrl) Hint("CTRL + RIGHT-CLICK ATTACKS THE OBSTACLE");
+                else if (!ctrl) Hint(OzUePlayground.IsBox(h) ? "CTRL + RIGHT-CLICK ATTACKS THE BOX" : "CTRL + RIGHT-CLICK ATTACKS THE OBSTACLE");   // 1.5 ue_boxes
                 else if (!anyArmed) Hint("THE PICKED UNITS HAVE NO WEAPON");
             }
             else if (OzUePlayground.IsPlatform(h))
@@ -287,8 +288,9 @@ namespace OpenZ
                     float hm = OzUePlayground.IsFlag(o) ? FlagHeightM : OzUePlayground.IsCrate(o) ? CrateHeightM : OzUePlayground.ObstacleHeightM;
                     if (BoxRect(cam, o, hm).Contains(mp)) h = o;
                 }
-                else if (OzUePlayground.IsPlatform(o)) { if (OzUePlatformViews.Under(mp) == o) h = o; }              // 1.3: by the mouse's ground ray on its footprint: units on the deck stay pickable
+                else if (OzUePlayground.IsPlatform(o)) { if (OzUePlatformViews.Under(mp) == o && !OzUePlayground.IsFlag(h)) h = o; }   // 1.3: by the mouse's ground ray on its footprint: units on the deck stay pickable; ue_flag_anywhere: a flag on it too
             }
+            h = OzUeBoxes.Pick(cam, mp, h);                                                                 // 1.5 ue_boxes: the box the pointer is on, on its level (not its floor footprint)
             HoverSkipped = skipped; HoverAsked = asked;
             return hu ?? h;
         }
@@ -303,10 +305,11 @@ namespace OpenZ
         static Rect BoxRect(Camera cam, ZObject o, float height)
         {
             var a = ZGame.PxToWorld(o.LocX, o.LocY); var b = ZGame.PxToWorld(o.LocX + o.WidthPix, o.LocY + o.HeightPix);
+            var mid = ZGame.PxToWorld(o.CenterX, o.CenterY); float y0 = OzUePlatformViews.UnderM(mid.x, mid.z);   // ue_flag_anywhere: a flag on a ramp platform (0 with none)
             Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = new Vector2(float.MinValue, float.MinValue); bool any = false;
             for (int i = 0; i < 8; i++)
             {
-                var p = new Vector3((i & 1) == 0 ? a.x : b.x, (i & 4) == 0 ? 0f : height, (i & 2) == 0 ? a.z : b.z);
+                var p = new Vector3((i & 1) == 0 ? a.x : b.x, y0 + ((i & 4) == 0 ? 0f : height), (i & 2) == 0 ? a.z : b.z);
                 var s = cam.WorldToScreenPoint(p);
                 if (s.z < 0f) continue;
                 any = true; mn = Vector2.Min(mn, s); mx = Vector2.Max(mx, s);
@@ -342,7 +345,7 @@ namespace OpenZ
                     case ZEventType.Death:
                     {
                         var o = w.GetAny(e.objId);
-                        if (OzUePlayground.IsObstacle(o)) Toast("OBSTACLE DESTROYED");
+                        if (OzUePlayground.IsObstacle(o)) Toast(OzUePlayground.IsBox(o) ? "BOX DESTROYED" : "OBSTACLE DESTROYED");   // 1.5 ue_boxes
                         else if (OzUePlayground.IsPlatform(o)) Toast("PLATFORM DESTROYED");
                         else if (o != null && (o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner == Team.Neutral)
                             Toast("EMPTY " + (o.IsShuttle ? "SHUTTLE" : UnitInfo.Name(o.Type)) + " DESTROYED");

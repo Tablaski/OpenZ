@@ -31,6 +31,12 @@ namespace OpenZ
         public const int MaxMarks = 40, MaxContacts = 10;
         public const float Lift = 0.035f;                                                   // the project rules: decals >= 2-3 cm above their surface
         const int Tile = 256;
+        /// <summary>1.5 pass 6b (gate A16, the i still see rings around them): every mark is darkest in its middle and fades smoothly to
+        /// nothing at its edge. Variants 4 (small crater: dark pit, PALE EJECTA RING), 7 (BURNT RING, paler centre) and 8 (big crater, DOUBLE RIM)
+        /// drew a dark jagged outline round a lighter middle at the shell hits (L02 road / sand, the Unit editor sand); they now get a solid dark
+        /// core under the same wobbly outline, rays and specks, and every variant's burn is capped by a soft radial envelope (<see cref="Envelope"/>:
+        /// no speck or ray near the edge darker than the mark inside it). false = the old atlas (proof only: set it, then <see cref="Rebake"/>).</summary>
+        public static bool SoftCentre = true;
 
         public static ScorchDecals I { get; private set; }
 
@@ -98,6 +104,14 @@ namespace OpenZ
         }
         /// <summary>Proof: disturbed-sand marks laid.</summary>
         public static int SandMarks;
+
+        /// <summary>1.5 pass 6b proof: bakes the atlas again with the current <see cref="SoftCentre"/> (every live mark redraws with it at once).</summary>
+        public static void Rebake()
+        {
+            if (!I || !I.mat) return;
+            var old = I.atlas; I.atlas = BuildAtlas(); I.mat.mainTexture = I.atlas;
+            if (old) Destroy(old);
+        }
 
         /// <summary>
         /// (combatview patch OpenZFxPlayer.patch), so there is ONE scorch system; otherwise it keeps its own marks.</summary>
@@ -398,7 +412,16 @@ namespace OpenZ
                 g = Mathf.Max(g, (1f - PopOut.Smooth(Mathf.Sqrt(qx * qx + qy * qy), size * 0.4f, size)) * 0.6f);
             }
             g *= 0.8f + 0.3f * Fbm(px * 3.1f + seed, py * 3.1f - seed, seed);                            // mottled soot, not a flat stamp
+            if (SoftCentre) g = Mathf.Min(g, Envelope(k, rn));                                             // 1.5 pass 6b: fades out smoothly at the edge
             return Mathf.Clamp01(g);
+        }
+
+        /// <summary>1.5 pass 6b: the soft radial cap of a mark (1 in its middle, smoothly down to 0 at its edge; rn = the radius over the mark's
+        /// wobbly outline): variant 4 a tighter core, 7 a broad soft blot, 8 a big core, the rest as their old soot discs.</summary>
+        static float Envelope(int k, float rn)
+        {
+            float lo = k == 4 ? 0.25f : k == 7 ? 0.45f : k == 8 ? 0.35f : 0.4f, hi = 1f;   // try 3: ends where the old marks ended (rn 1: past it the tile's square border showed); try 1 cut the rays
+            return 1f - PopOut.Smooth(rn, lo, hi);
         }
 
         /// <summary>ZF14 variants 4-8: 4 small crater (dark pit, pale ejecta ring, charred skirt, rays), 5 spotty cluster, 6 directional
@@ -417,10 +440,14 @@ namespace OpenZ
                 case 8:
                 {
                     float pit = k == 8 ? 0.26f : 0.22f;
+                    if (SoftCentre) g = 0.9f + 0.1f * Fbm(px * 5f, py * 5f, seed);                                // 1.5 pass 6b: a solid dark core (no pale ejecta ring, no second rim); Envelope fades it
+                    else
+                    {
                     g = rn < pit ? 1f : rn < pit + 0.08f ? Mathf.Lerp(1f, 0.35f, (rn - pit) / 0.08f)            // the pit
                       : rn < pit + 0.2f ? 0.35f + 0.1f * Fbm(px * 6f, py * 6f, seed)                          // pale ejecta ring
                       : 0.75f * (1f - PopOut.Smooth(rn, pit + 0.2f, 1f));                                       // charred skirt
                     if (k == 8) g = Mathf.Max(g, 0.62f * (1f - PopOut.Smooth(Mathf.Abs(rn - 0.62f), 0f, 0.07f)));   // second rim
+                    }
                     rays = k == 8 ? 18 : 12; specks = k == 8 ? 34 : 20; rayW = 0.07f; rayLen = k == 8 ? 1.25f : 1.1f;
                     break;
                 }
@@ -438,9 +465,13 @@ namespace OpenZ
                     rays = 9; rayW = 0.12f; rayLen = 1.35f;
                     break;
                 default:   // 7
+                    if (SoftCentre) { g = 0.86f + 0.14f * Fbm(px * 4f, py * 4f, seed); }                          // 1.5 pass 6b: a soft mottled blot, darkest inside (was a burnt RING, paler centre)
+                    else
+                    {
                     g = 0.42f + 0.1f * Fbm(px * 4f, py * 4f, seed);
                     g = Mathf.Lerp(g, 0.95f, 1f - PopOut.Smooth(Mathf.Abs(rn - 0.6f), 0f, 0.22f));
                     g *= 1f - PopOut.Smooth(rn, 0.78f, 1f);
+                    }
                     rays = 6; specks = 18;
                     break;
             }
@@ -459,6 +490,7 @@ namespace OpenZ
                 g = Mathf.Max(g, (1f - PopOut.Smooth(Mathf.Sqrt(qx * qx + qy * qy), sz * 0.4f, sz)) * 0.62f);
             }
             g *= 0.8f + 0.3f * Fbm(px * 3.1f + seed, py * 3.1f - seed, seed);
+            if (SoftCentre) g = Mathf.Min(g, Envelope(k, rn));                                             // 1.5 pass 6b: fades out smoothly at the edge
             return Mathf.Clamp01(g);
         }
 

@@ -9,6 +9,8 @@ namespace OpenZ
     /// length on the ground at the free field's bottom row (the largest of 1, 2, 5, 10, 25, 50, 100, 250 m that fits in 64 u), the zoom
     /// against the start, zoom out, fit (Home), zoom in, and the compass (its needle turns with the view; amber while turned or tilted;
     /// a click glides back to north). The ruler keeps a 64 u box, so the buttons never move while the zoom changes.
+    /// in the bottom-left corner: the row at the right end of the BACKGROUND popover's VIEW header (UI/OzUeBackdropMenu.cs ViewHead; no plate
+    /// of its own, the popover blocks the field's clicks); the same buttons, tooltips and keys.
     /// </summary>
     public sealed class OzUeZoomBar
     {
@@ -28,9 +30,7 @@ namespace OpenZ
         public void Build(OzUnitEditor ed, Transform panels)
         {
             OutClicks = FitClicks = InClicks = CompassClicks = 0;
-            Plate = Hud.Node("UE_Zoom", panels);
-            Hud.Plate(Plate, "sm");
-            ed.Hud.AddBlocker(Plate);
+            Plate = Hud.Node("UE_ZoomRow", panels);                                                       // 1.5 kit ue_bottom_left_r10: `panels` = the popover's VIEW header (no plate, no blocker of its own)
 
             var rulerHot = OzUeW.Bare(Plate, "Ruler", OzUeBottomLayout.RulerW, 17f);
             rulerHot.Tooltip = OzUeW.Tip("Scale on the ground");
@@ -63,7 +63,9 @@ namespace OpenZ
         public void Layout(OzUeBottomLayout.Zoom z)
         {
             lay = z;
-            Plate.TL(z.plate.x, z.plate.y, z.plate.w, z.plate.h);
+            // 1.5 kit ue_bottom_left_r10 (A36): at the right end of its parent (the VIEW header), its middle on the header's middle
+            Plate.anchorMin = Plate.anchorMax = new Vector2(1f, 0.5f); Plate.pivot = new Vector2(1f, 0.5f);
+            Plate.sizeDelta = new Vector2(z.rowW, OzUeBottomLayout.ZoomH); Plate.anchoredPosition = new Vector2(-OzUeBackdropMenu.ViewRowRight, 0f);
             float rx = OzUeBottomLayout.Border + OzUeBottomLayout.ZoomPadL, ry = (OzUeBottomLayout.ZoomH - 17f) * 0.5f;
             rulerBox.TL(rx, ry, OzUeBottomLayout.RulerW, 17f);
             rulerText.At(0f, 6f, OzH.L, false, 0f);

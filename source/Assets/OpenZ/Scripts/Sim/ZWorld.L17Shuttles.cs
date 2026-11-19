@@ -56,7 +56,7 @@ namespace OpenZ.Sim
         public string L17ShuttleWhy { get; private set; } = "";
 
         /// <summary>The view (OzPlayableShuttle.Spawn): this level's shuttles are drawn from the unit prefab (there is no scene ship).</summary>
-        public static bool L17DrawnFromPrefab(ZWorld w) => w != null && w.L17ShuttlesMade > 0;
+        public static bool L17DrawnFromPrefab(ZWorld w) => w != null && (w.L17ShuttlesMade > 0 || w.L18ShuttlesMade > 0);   // 1.5 DV200 (kit level18_rules): level 18's ship too (Sim/ZWorld.L18Rules.cs)
 
         /// <summary>ZWorld.Create hook, right after ClearExitLanes (DV66): the car-park shuttle, then the fort shuttle when the box asks.</summary>
         void AddL17Shuttles()

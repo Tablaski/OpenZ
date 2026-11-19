@@ -12,7 +12,7 @@ using UnityEngine.UI;
 namespace OpenZ
 {
     /// <summary>The 88 u head of the inspector and of the flag / obstacle panel (E080-E087, E110).</summary>
-    internal sealed class UeHead
+    internal sealed partial class UeHead                                                              // 1.5 ue_exit_placement: + UI/OzUeInspector.ExitDriver.cs
     {
         public RectTransform Rt, Pic; public RawImage Art; public HudButton Back, Remove, PicHot;
         public OzText Name, Meta, LiveL, LiveR, Dim;
@@ -85,13 +85,13 @@ namespace OpenZ
                 else chip.TL(textX + Mathf.Min(full, Mathf.Max(40f, room)) + 8f, nameMid - 7.5f, cw, 15f);
             }
             Meta.Set(meta);
-            Meta.At(textX, metaMid, OzH.L, true, Mathf.Max(40f, r - textX));
+            Meta.At(textX, metaMid, OzH.L, true, Mathf.Max(40f, MetaRight - textX));                   // 1.5 ue_exit_placement: = r unless EXIT DRIVER stands beside it
         }
 
         /// <summary>The live line: left word, right HP text, a bar (frac &lt; 0 = none); or one DIM line (none = null).</summary>
         public void SetLive(string left, Color lc, string right, Color rc, float frac, Color fill, string none)
         {
-            float r = Right;
+            float r = LiveRight;                                                                     // 1.5 ue_exit_placement: = Right unless EXIT DRIVER stands beside it
             bool live = none == null;
             LiveL.SetActive(live); LiveR.SetActive(live); Dim.SetActive(!live);
             bool bar = live && frac >= 0f;
@@ -99,7 +99,7 @@ namespace OpenZ
             if (!live) { Dim.Set(none); Dim.At(textX, liveMid, OzH.L, true, Mathf.Max(40f, r - textX)); return; }
             LiveL.FontSize = LeftBig ? 13f : 12f;
             LiveL.Set(LeftBig ? OzText.Tab(left) : left); LiveL.color = lc; LiveL.At(textX, liveMid, OzH.L, true, LeftBig ? Mathf.Max(40f, r - textX) : 120f);
-            LiveR.Set(OzText.Tab(right)); LiveR.color = rc; LiveR.At(r, liveMid, OzH.R, true, Mathf.Max(40f, r - textX - 40f));
+            LiveR.Set(OzText.Tab(LiveHpWords(right, r))); LiveR.color = rc; LiveR.At(r, liveMid, OzH.R, true, LiveHpBox(r));   // 1.5 ue_exit_placement: as before unless EXIT DRIVER stands beside it
             if (bar)
             {
                 float w = Mathf.Max(10f, r - textX);
@@ -112,7 +112,7 @@ namespace OpenZ
         public void ShowRemove(bool on, string tip) { RemoveTip = tip ?? ""; Remove.Rt.gameObject.SetActiveFast(on); }
     }
 
-    internal sealed class OzUeInspector
+    internal sealed partial class OzUeInspector                                                       // 1.5 ue_exit_placement: + UI/OzUeInspector.ExitDriver.cs
     {
         sealed class GridRow
         {
@@ -145,6 +145,7 @@ namespace OpenZ
             head = UeHead.Make(root, L, shell.Box, UeBoxShell.PFix);
             head.PicHot.OnClick = cl => { };
             head.Remove.OnClick = cl => RemovePicked();
+            head.MakeExit(L, shell.Box, UeBoxShell.PFix);                                                  // 1.5 ue_exit_placement: EXIT DRIVER under REMOVE
             OzUeSideTip.Add(head.Pic, "Drag onto the field", OzUeSideTip.Place.Side, UeBoxShell.PFix, shell.Box);
             BuildWords();
             BuildGrid();

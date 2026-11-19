@@ -94,7 +94,10 @@ namespace OpenZ
             BakeLibrary();
             SmokeAtlasChannels = 0; SmokeAtlasOn = true;
             foreach (var d in OpenZFxCatalog.Channels) { var c = CreateChannel(d); if (c != null) channels[d.name] = c; }
+            if (channels.TryGetValue("m12_smoke_ring", out var ringCh) && ringCh.mat && ringCh.mat.HasProperty("_SmallFade")) { ringCh.mat.SetFloat("_SmallFade", OpenZFxCatalog.RingSmallFade); ringCh.mat.SetColor("_Color", OpenZFxCatalog.RingTint); }   // 1.5 pass 5: the muzzle rings keep the flipbook's lobes (no round balls)
             BuildOverChannels();
+            foreach (var tn in TrailChannels) if (channels.TryGetValue(tn, out var trCh) && trCh.mat && trCh.mat.HasProperty("_SmallFade")) { trCh.mat.SetFloat("_SmallFade", OpenZFxCatalog.TrailSmallFade); trCh.mat.SetColor("_Color", OpenZFxCatalog.TrailTint); }   // 1.5 pass 6a: shell / rocket-trail smoke keeps the flipbook's lobes, grey
+            if (channels.TryGetValue(WakeChannelName, out var wkCh) && wkCh.mat && wkCh.mat.HasProperty("_SmallFade")) { wkCh.mat.SetFloat("_SmallFade", OpenZFxCatalog.WakeSmallFade); wkCh.mat.SetColor("_Color", OpenZFxCatalog.WakeTint); }   // 1.5 pass 6b: the vehicle wake keeps the flipbook's lobes (no round balls)
             ground = new GroundCache();
             BuildDecalPools();
             BuildLights();
@@ -397,11 +400,15 @@ namespace OpenZ
         }
 
         Channel Ch(string name) => name != null && channels.TryGetValue(name, out var c) ? c : null;
+        /// <summary>1.5 pass 6b: the vehicle wake's channel (DustTrails.VehicleWake); a channel of that name exists.</summary>
+        public const string WakeChannelName = "m12_dust_wake";
+        public bool HasChannel(string name) => Ch(name) != null;
         /// <summary>shots_over_walls: the channel, or its twin for a shot that flies over a wall.</summary>
         Channel On(string name, bool over) { var c = Ch(name); return over && c != null && c.over != null ? c.over : c; }
 
         /// <summary>shots_over_walls: every particle a shot leaves on its way.</summary>
-        static readonly string[] OverChannels = { "m12_bolt", "leg_tracer", "leg_tracer_sleeve", "wv2_mg_tracer", "wv2_laser", "wv2_laser_glow", "wv2_sniper_tracer", "m12_smoke", "leg_smoke", "leg_ember" };
+        static readonly string[] OverChannels = { "m12_bolt", "leg_tracer", "leg_tracer_sleeve", "wv2_mg_tracer", "wv2_laser", "wv2_laser_glow", "wv2_sniper_tracer", "m12_smoke", "leg_smoke", "leg_ember", "m12_smoke_trail" };
+        static readonly string[] TrailChannels = { "m12_smoke_trail", "m12_smoke_trail+over" };
         /// <summary>The same channel again, same values, with the depth test off and no soft fade (behind a wall a soft fade blanks it). In `channels` under its own
         /// key, so the MOTION BLUR option stretches it as its original. They sit empty until a shot is flagged.</summary>
         void BuildOverChannels()
@@ -554,7 +561,7 @@ namespace OpenZ
 
         // ------------------------------------------------------------------------------------------------ ground / water
         GroundCache ground;
-        float Ground(float x, float z) => ground != null ? ground.Y(x, z) : (ZGame.I ? ZGame.I.GroundY(x, z) : 0f);
+        float Ground(float x, float z) => !float.IsNaN(UeFlatY) ? UeFlatY : ground != null ? ground.Y(x, z) : (ZGame.I ? ZGame.I.GroundY(x, z) : 0f);
         /// <summary>The walkable surface under p (terrain / river bed or a bridge deck; the cached 0.5 m grid).</summary>
         public float GroundAt(Vector3 p) => Ground(p.x, p.z);
 
@@ -708,10 +715,13 @@ namespace OpenZ
                 if (onLava) LavaBlast(flat, s);
                 else if (onWater)
                 {
+                    if (!OzWaterBlast.Blast(this, flat, s))   // 1.5 kit water_blast_r6 (A16): thrown white water + a blast stamp in the water itself (View/OzWaterBlast.cs); the three flat rings only when it is switched off
+                    {
                     Splash(flat, s * OpenZFxCatalog.BlastWaterSplash * 1.4f);
                     Droplets(flat + Vector3.up * 0.2f, s * 1.8f, 10);
                     Ripple(flat, s * 0.6f, OpenZFxCatalog.RippleLife * 1.2f);
                     Ripple(flat, s * 1.1f, OpenZFxCatalog.RippleLife * 2.2f);
+                    }
                 }
                 else if (!airBurst) EmitGolden(OpenZFxCatalog.M12Dust, at, s, 1f, OzVolcanic.DustTint);                // K256e: no ground dust in mid-air
                 if (rubble && !onWater)
@@ -859,12 +869,31 @@ namespace OpenZ
         {
             if (LavaRipple(at, s, life)) return;
             if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
+            if (stampSplash && OzWaterBlast.Landing(at, s)) return;   // 1.5 kit water_blast_r6 (A16): a stamped splash (SplashStamped): its ring is a small stamp in the water
             // 4 m L02 river; the ring now ends at the nearest bank (+ .4 m under the wet band)
             float maxR = WaterClearance(at, 4.65f * s) + 0.4f;
             if (4.65f * s > maxR) s = Mathf.Max(0.12f, maxR / 4.65f);
             if (SoftWater) { SoftSwell(at, s, life, lift, 1f); return; }
             EmitP(Ch("m12_ripple"), new Vector3(at.x, at.y + lift, at.z), Vector3.zero, life, 2f * OpenZFxCatalog.RippleScale * s,
                 waterTint, 1f);
+        }
+
+        /// <summary>1.5 kit water_blast_r6 (A16): the mark a bullet, a laser or a small round leaves on the water: a small stamp in the water itself
+        /// (OzWaterBlast.Bullet) instead of the flat ring of strength s. Lava keeps its own ring; the stamp switched off = the ring as before.</summary>
+        public void BulletRing(Vector3 at, float s)
+        {
+            if (OzLava.SurfaceAt(at, out _)) { Ripple(at, s); return; }
+            var w = at; if (IsWaterTile(w) && !float.IsNegativeInfinity(WaterY)) w.y = WaterYAt(w);
+            if (!OzWaterBlast.Bullet(w, s)) Ripple(at, s);
+        }
+
+        bool stampSplash;
+        /// <summary>1.5 kit water_blast_r6 (A16): Splash(at, s) whose ring is a small stamp in the water itself (OzWaterBlast.Landing), not the flat
+        /// ring; no flat foam patch either. The droplets and puffs are the splash's own. For a robot that falls into the water it wades in.</summary>
+        public void SplashStamped(Vector3 at, float s)
+        {
+            stampSplash = true;
+            try { Splash(at, s); } finally { stampSplash = false; }
         }
 
         // ------------------------------------------------------------------------------------------------ the soft water look
@@ -911,7 +940,7 @@ namespace OpenZ
             for (int j = 0; j < puffs; j++)
                 EmitP(Ch("m12_smoke"), at + new Vector3(UnityEngine.Random.Range(-0.15f, 0.15f) * s, 0.12f * s, UnityEngine.Random.Range(-0.15f, 0.15f) * s),
                     Vector3.up * (0.5f + 0.5f * s), 0.38f + 0.14f * j, (0.32f + 0.18f * j) * Mathf.Max(0.35f, s), SoftFoam, SoftMistAlpha + 0.12f);
-            EmitP(Ch("l16_foam"), new Vector3(at.x, at.y + OpenZFxCatalog.RippleLift * 0.6f, at.z), Vector3.zero, 1.5f + 0.7f * Mathf.Clamp01(s), 0.85f * Mathf.Max(0.3f, s), SoftFoam, SoftFoamAlpha);
+            if (!stampSplash || !OzWaterBlast.On) EmitP(Ch("l16_foam"), new Vector3(at.x, at.y + OpenZFxCatalog.RippleLift * 0.6f, at.z), Vector3.zero, 1.5f + 0.7f * Mathf.Clamp01(s), 0.85f * Mathf.Max(0.3f, s), SoftFoam, SoftFoamAlpha);   // 1.5 kit water_blast_r6 (A16): a stamped splash has its foam in the stamp, no flat round patch
             SoftSplashes++;
             Ripple(at, s);
         }
@@ -1033,6 +1062,7 @@ namespace OpenZ
             ShotTraced?.Invoke(from, to, life, w);                                           // vehicle_lights: night glow
             if (surface == FxSurface.Auto && OzShuttleAim.IsSkyMiss(to)) return life;                     // DV118: a miss past the flying shuttle flies on into the sky (no impact)
             if (surface == FxSurface.Auto) surface = SurfaceAt(to);
+            OzHitFeedback.Round(Time.time + life, to, w, surface, target);                    // 1.5 kit hit_feedback_sounds_r8 (A31): a round that hits a robot, a vehicle, a gun or a building says so when it arrives (View/OzHitFeedback.cs: on screen only, capped)
             if (OpenZHitSparks.Take(Time.time + life, to, dir, w, surface)) return life;     // hitsparks_v1: robots / armour = HDR streak burst + ricochet
             var pi = new PendingImpact { at = Time.time + life, pos = to, surface = surface, bolt = w == FxWeapon.Bolt };
             if (HitSurface.Claim(to, out var anc)) { pi.anchored = true; pi.anc = anc; }                  // IM1: follows the body during the flight
@@ -1049,7 +1079,7 @@ namespace OpenZ
             if (spec.splash)
             {
                 var w = new Vector3(at.x, SurfaceY(at), at.z);
-                Droplets(w, OpenZFxCatalog.WaterImpactSplash, 5); Ripple(w, OpenZFxCatalog.WaterImpactSplash * 1.25f);
+                Droplets(w, OpenZFxCatalog.WaterImpactSplash, 5); BulletRing(w, OpenZFxCatalog.WaterImpactSplash * 1.25f);   // 1.5 kit water_blast_r6 (A16): a small stamp in the water, no flat ring
                 return;
             }
             if (bolt)
@@ -1242,7 +1272,7 @@ namespace OpenZ
             {
                 var p = at - heading * (OpenZFxCatalog.LaunchBack + OpenZFxCatalog.LaunchStep * j);
                 EmitP(Ch("m12_flame"), p, -heading * OpenZFxCatalog.LaunchFlameSpeed, OpenZFxCatalog.LaunchFlameLife, 0.37f * OpenZFxCatalog.LaunchFlameScale * k, OpenZFxCatalog.ExhaustColor, 1f);
-                EmitP(Ch("m12_smoke"), p, OpenZFxCatalog.LaunchSmokeVelocity, OpenZFxCatalog.LaunchSmokeLife, OpenZFxCatalog.LaunchSmokeScale * k * 2f, OpenZFxCatalog.M12Smoke.color, OpenZFxCatalog.M12Smoke.alpha);
+                EmitP(Ch(OpenZFxCatalog.TrailCh), p, OpenZFxCatalog.LaunchSmokeVelocity, OpenZFxCatalog.LaunchSmokeLife, OpenZFxCatalog.LaunchSmokeScale * k * 2f, OpenZFxCatalog.TrailColor, OpenZFxCatalog.M12Smoke.alpha);   // 1.5 pass 6a: grey wisp channel
             }
             float size = 1.4f * k;
             if (pointLights) AddLight(at, OpenZFxCatalog.LegLightColor, 7f * size, 5f * size, 0.13f, OpenZFxCatalog.LegLightDecayPow, 0f, true);
@@ -1356,8 +1386,8 @@ namespace OpenZ
                         p.smokeRemainder -= every;
                         float k = seg > 1e-5f ? Mathf.Clamp01(1f - p.smokeRemainder / seg) : 1f;
                         var sp = Vector3.Lerp(p.prev, p.pos, k) - dir * OpenZFxCatalog.ExhaustDistance * spec.exhaustScale + UnityEngine.Random.insideUnitSphere * size * 0.12f;
-                        EmitP(On("m12_smoke", p.over), sp, OpenZFxCatalog.RocketSmokeVelocity, OpenZFxCatalog.RocketSmokeLife * UnityEngine.Random.Range(0.85f, 1.1f), size * UnityEngine.Random.Range(0.85f, 1.2f),
-                            OpenZFxCatalog.M12Smoke.color, OpenZFxCatalog.M12Smoke.alpha);
+                        EmitP(On(OpenZFxCatalog.TrailCh, p.over), sp, OpenZFxCatalog.RocketSmokeVelocity, OpenZFxCatalog.RocketSmokeLife * UnityEngine.Random.Range(0.85f, 1.1f), size * UnityEngine.Random.Range(0.85f, 1.2f),
+                            OpenZFxCatalog.TrailColor, OpenZFxCatalog.M12Smoke.alpha);   // 1.5 pass 6a: grey wisp channel (was pale m12_smoke beads)
                     }
                     if (guard >= 12) p.smokeRemainder = 0f;
                 }
@@ -1571,7 +1601,7 @@ namespace OpenZ
             float px = OpenZFxCatalog.LegPxToM, gy = Ground(at.x, at.z);
             if (WetAt(at, gy))
             {   // OpenZWading already splashes a robot that dies wading (its Dying hook): never two splashes
-                if (!OpenZWading.I || !OpenZWading.I.isActiveAndEnabled) Splash(new Vector3(at.x, SurfaceY(at), at.z), explosive ? 0.5f : 0.3f);
+                if (!OpenZWading.I || !OpenZWading.I.isActiveAndEnabled) SplashStamped(new Vector3(at.x, SurfaceY(at), at.z), explosive ? 0.5f : 0.3f);   // 1.5 kit water_blast_r6 (A16): no flat ring beside the blast that killed it
                 return;
             }
             impulse.y = 0f; float il = impulse.magnitude;
@@ -1784,7 +1814,7 @@ namespace OpenZ
         /// <summary>M12 scorch mark. priority 0 contact (18-26 s), 1 impact (45-65 s), 2 destruction (90-130 s).</summary>
         public void Scorch(Vector3 at, float s, int priority = 1)
         {
-            if (!scorchMarks || s <= 0f) return;
+            if (!scorchMarks || s <= 0f || !float.IsNaN(UeFlatY)) return;   // 1.5 kit explosions_in_game_1_5: no scorch on the ground under a roof beat
             if (ScorchDecals.Available)
             {   // combatview: ONE scorch system (ScorchDecals: conforming grid, random size x0.7-1.4 / rotation / variant, same M12 lives)
                 ScorchDecals.Add(at, Mathf.Max(OpenZFxCatalog.ScorchMinRadius, OpenZFxCatalog.ScorchRadiusPerS * s), (ScorchKind)Mathf.Clamp(priority, 0, 2));

@@ -154,6 +154,13 @@ namespace OpenZ
         /// <summary>
         /// </summary>
         public static float FortBurnK = 0.4f;
+        /// <summary>
+        /// building (TeamLit _NightClass 2: no moonlit unit fill) instead of unit; and its cream a little darker by day (x TowerGunCreamK,
+        /// the subtle change). Off = the guns as before.</summary>
+        public static bool TowerGunNightAsFort = true;
+        public static float TowerGunCreamK = 0.92f;
+        static readonly int NightClassId = Shader.PropertyToID("_NightClass");
+        bool nightClassSet;
         public bool FortPalette { get => fortPalette; set { if (fortPalette == value) return; fortPalette = value; Apply(); } }
         /// <summary>1.3 item 16 (UnitView.BeginWreck): the fort palette takes the burn (Charred) like the rest of the paint; false = it keeps its
         /// cream whatever the burn (as before, the living tower gun).</summary>
@@ -164,7 +171,7 @@ namespace OpenZ
         public Team Team
         {
             get => team;
-            set { team = value; Apply(); }
+            set { team = value; fillOn = false; Apply(); }   // 1.5 vehicle_colour_fill: a direct set draws at once, as before (TeamPaint.Fill.cs)
         }
 
         void OnEnable() { robotBody = -1; Apply(); }
@@ -178,7 +185,7 @@ namespace OpenZ
             // Z's colours come from unlit 2D sprites; under 3D lighting the neutral 115 grey reads as charcoal, so the
             // neutral paint albedo is lifted to read as the same grey on screen (red/blue are saturated enough).
             if (team == Team.Neutral) { c *= 3.0f; c.a = 1; }   // x2.2 read khaki-brown under the warm key; toy-clean light warm grey
-            c = EasedPaint(c);                                                        // K389: a capture's ease (TeamPaint.Ease.cs; unchanged without one)
+            c = FillPaint(c);                                                         // 1.5 vehicle_colour_fill: a vehicle's fill (TeamPaint.Fill.cs), else K389's ease (TeamPaint.Ease.cs; unchanged without one)
             float k = 1f - 0.78f * charred;
             foreach (var r in GetComponentsInChildren<Renderer>(true))
             {
@@ -191,14 +198,16 @@ namespace OpenZ
                     r.GetPropertyBlock(block, i);
                     block.SetColor(TeamColorId, robot ? new Color(c.r * k * RobotTeamGain, c.g * k * RobotTeamGain, c.b * k * RobotTeamGain, c.a * k) : c * k);   // robots: their brighter team paint (RobotTeamGain)
                     // teamcolor_v2: vivid accent colour + neutral / owned flag, team rim / night glow, this part's team panel
-                    var viv = EasedVivid(TeamColors.VividLinear(team), mats[i]);                     // K389: a capture's ease (TeamPaint.Ease.cs)
+                    var viv = FillVivid(TeamColors.VividLinear(team), mats[i]);                      // 1.5 vehicle_colour_fill (TeamPaint.Fill.cs), else K389's ease (TeamPaint.Ease.cs)
                     block.SetVector(VividId, new Vector4(viv.x * k, viv.y * k, viv.z * k, viv.w));
-                    block.SetVector(GlowId, EasedGlow(TeamColors.GlowLinear(team)) * (k * glowLevel));
+                    block.SetVector(GlowId, FillGlow(TeamColors.GlowLinear(team)) * (k * glowLevel));   // 1.5 vehicle_colour_fill (TeamPaint.Fill.cs), else K389's ease
                     block.SetFloat(OzDeadTint.DeadId, robot ? deadLevel : 0f);                           // item 228: a dead robot's whole figure turns greyer, luminance kept, as its glows go out (TeamLit _OZDead, OzDeadTint.cs)
                     block.SetFloat(HeatId, robot ? heat : 0f);                                           // DV152 level 7: a robot in lava glows redder from the feet up (TeamLit _OZHeat, TeamPaint.Heat.cs); 0 on everything else
                     PanelFor(r, mats[i], out var panelRect, out var panelY);
                     block.SetVector(PanelId, panelRect); block.SetVector(PanelYId, panelY);
                     var fc = FortCream.linear; bool mine = host == this;   /* not the gunner under the gun */
+                    bool towerGun = fortPalette && mine && TowerGunNightAsFort;                                          // 1.5 fort_guns_night
+                    if (towerGun) fc *= TowerGunCreamK;
                     float fk = fortPaletteBurns ? k * FortBurnK : 1f;                                                    // 1.3 item 16: a dead tower gun's cream burns with the rest of its paint (before: the shader's cream ignored the burn: near white)
                     var fp = fortPalette && mine ? new Vector4(fc.r * fk, fc.g * fk, fc.b * fk, FortCreamRefLum) : Vector4.zero;   // TG2
                     if (!fortPalette && mine && FieldKhaki(mats[i]))
@@ -206,6 +215,7 @@ namespace OpenZ
                         var kc = PaintKhaki.TargetLinear; if (kc.a > 0f) fp = new Vector4(kc.r, kc.g, kc.b, FortCreamRefLum);
                     }
                     block.SetVector(FortPaintId, fp);
+                    if ((towerGun || nightClassSet) && mats[i] && mats[i].HasProperty(NightClassId)) block.SetFloat(NightClassId, towerGun ? 2f : mats[i].GetFloat(NightClassId));   // 1.5 fort_guns_night: the fort's night class (NightV2.ClassBuilding); back to the material's own once set
                     // a band at a fraction of their own mesh height (material _AccentFrom/_AccentTo)
                     var mat = mats[i];
                     if (mat && mat.HasProperty(AccentFromId))
@@ -227,6 +237,7 @@ namespace OpenZ
                     r.SetPropertyBlock(block, i);
                 }
             }
+            nightClassSet = fortPalette && TowerGunNightAsFort;                                           // 1.5 fort_guns_night
         }
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");

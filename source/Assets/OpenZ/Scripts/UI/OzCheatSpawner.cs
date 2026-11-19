@@ -13,7 +13,7 @@ namespace OpenZ
     /// no blocker, no input, no per-frame work beyond the Alt+P check.
     /// </summary>
     [DefaultExecutionOrder(-40)]
-    public class OzCheatSpawner : MonoBehaviour
+    public partial class OzCheatSpawner : MonoBehaviour
     {
         public static bool DevEnabled
         {
@@ -48,13 +48,16 @@ namespace OpenZ
         static readonly string[] Vehicles = { "jeep", OzLightTank.TileV1, OzLightTank.TileV2, OzMech.TileV1, OzMech.TileV2, ZMTank.Type, OzHeavyTank.TileV1, OzHeavyTank.TileV2, "apc", OzMlrs.TileV1, OzMlrs.TileV2, "crane" };   // 1.2 item 110: HEAVY v1 and HEAVY v2 side by side; 1.2 v2 units: LIGHT v1 and LIGHT v2; DV145: MEDIUM TANK after the mech; 1.2 v2 units: MLRS v1 and MLRS v2; MECH v1 and MECH v2
         static readonly string[] EvilHero = { ZEvilZod.Type };                                       // DV161: a robot of the blue team, the blue column's HERO section (Sim/ZEvilZod.cs)
         static readonly string[] Guns = { "gatling", OzGun.TileV1, OzGun.TileV2, "howitzer", "missile_cannon" };   // 1.2 v2 units: GUN v1 and GUN v2 where GUN was (ZBuildLists.Cannons' order; the sim's list untouched)
+        static readonly string[] BigTanks = { OzBigTanks.Mammoth, OzBigTanks.Bizon };
         const float Cell = 60f, Gap = 14f, Pad = 12f, Head = 22f, LabelH = 13f; const int Cols = 4;
 
         struct Entry { public RectTransform rt; public string type; public Team team; public Texture tex; }
         readonly List<Entry> entries = new List<Entry>();
         readonly List<RectTransform> panels = new List<RectTransform>();
         OpenZHud hud; ZGame game; bool built, shown;
+        string[] vehicles = Vehicles, bigs = new string[0];                                          // 1.5 testpanel_big_tanks: Vehicles + the big tanks whose switch is on (Build)
         Entry? drag; RawImage ghost; RectTransform ghostRt; Image hoverFrame;
+        RectTransform paintRt; OzText paintState; Image paintSwatch;
 
         static bool hooked;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -80,9 +83,11 @@ namespace OpenZ
             if (!game) game = ZGame.I;
             if (!hud || !hud.Root || !game || game.World == null) return;
             var kb = Keyboard.current;
+            HudRestoreTick();                                                                            // 1.5 N16: the interface back after a menu / the first-person view closed the panel (OzCheatSpawner.HudHide.cs)
             if (kb != null && kb.pKey.wasPressedThisFrame && kb.altKey.isPressed && !hud.Modal) Show(!shown);   // 1.3 item 28: Alt+P (left or right Alt; AltGr = Ctrl + right Alt counts too) shows / hides it, a plain P or Ctrl+P never
             if (!shown) return;
-            if (!hud.hudVisible || hud.Modal) { Show(false); return; }
+            if (HudCloses()) { Show(false); return; }                                                    // 1.5 N16: a menu, the first-person view, the interface shown again (OzCheatSpawner.HudHide.cs)
+            OwnCanvases();
             Interact();
         }
 
@@ -93,14 +98,18 @@ namespace OpenZ
             foreach (var p in panels) p.gameObject.SetActive(on);
             EndDrag();                                                                                   // item 226: P mid-drag, either way, ends the drag and hides the icon
             AudioDirector.UI(on ? "ui_confirm" : "ui_cancel");
+            HudForPanel(on);                                                                             // 1.5 N16: the rest of the interface hidden while it is open, back as it was after (OzCheatSpawner.HudHide.cs)
         }
 
         // ------------------------------------------------------------------ layout
         void Build()
         {
             built = true;
+            bigs = System.Array.FindAll(BigTanks, ZBigTanks.On); var vl = new List<string>(Vehicles); vl.AddRange(bigs); vehicles = vl.ToArray();   // 1.5 testpanel_big_tanks (Sim/ZBigTanks.cs read only)
             panels.Add(Column("CheatBlue", Team.Blue, OzPlayBlue.Active ? OzPlayBlue.CheatColumn(Team.Blue) : "BLUE · CPU", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(14f, -64f)));   // 1.2 item 11: as blue "BLUE · PLAYER"
             panels.Add(Column("CheatRed", Team.Red, OzPlayBlue.Active ? OzPlayBlue.CheatColumn(Team.Red) : "RED · PLAYER", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-14f, -64f)));     // 1.2 item 11: as blue "RED · CPU"
+            { float hMax = Mathf.Max(panels[0].sizeDelta.y, panels[1].sizeDelta.y), room = hud.Root.rect.height - 64f - 8f;   // 1.5 testpanel_big_tanks: both columns shrunk together only when the taller one would pass the bottom (100 % HUD: 1000 of 1008 px, never)
+              if (hMax > room && room > 100f) panels[0].localScale = panels[1].localScale = new Vector3(room / hMax, room / hMax, 1f); }
             panels.Add(NeutralRow());
             ghostRt = Hud.Node("CheatGhost", hud.Root);
             ghostRt.Anchor(Vector2.zero, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(Cell, Cell));
@@ -114,14 +123,14 @@ namespace OpenZ
             float w = Pad * 2f + Cols * Cell + (Cols - 1) * Gap;
             int extra = OzCheatShuttle.Offered(team) ? 1 : 0;                                              // DV118: the TRANSPORT section (UI/OzCheatShuttle.cs)
             int hero = team == Team.Blue && ZWorld.EvilZodDeviation ? 1 : 0;                               // DV161
-            int rows = Rows(Robots.Length) + Rows(Vehicles.Length) + Rows(Guns.Length) + extra * Rows(OzCheatShuttle.Types.Length) + hero * Rows(EvilHero.Length);   // 1.2 v2 units: the GUNS tiles (GUN v1 / v2)
+            int rows = Rows(Robots.Length) + Rows(vehicles.Length) + Rows(Guns.Length) + extra * Rows(OzCheatShuttle.Types.Length) + hero * Rows(EvilHero.Length);   // 1.2 v2 units: the GUNS tiles (GUN v1 / v2); 1.5 testpanel_big_tanks: vehicles (+ the big tanks)
             float h = Pad + Head + (3 + extra + hero) * (Head - 4f) + rows * (Cell + LabelH + Gap) + Pad * 0.5f;
             var p = Hud.Node(name, hud.Root); p.Anchor(anchor, pivot, pos, new Vector2(w, h));
             Hud.Plate(p, "md", Head + 6f, OzUi.Mark(team));
             Hud.Label(p, "Title", title, 12, OzUi.Ink, 0.16f).At(Pad, 8);
             float y = Pad + Head + 4f;
             y = Section(p, "ROBOT SQUADS", Robots, team, y);
-            y = Section(p, "VEHICLES", Vehicles, team, y);
+            y = Section(p, "VEHICLES", vehicles, team, y);                                                    // 1.5 testpanel_big_tanks: + MAMMOTH, BIZON (their own row)
             y = Section(p, "GUNS", Guns, team, y);                                                           // 1.2 v2 units: GUN v1 and GUN v2
             if (hero > 0) y = Section(p, "HERO", EvilHero, team, y);                                         // DV161: EvilZod (Sim/ZEvilZod.cs)
             if (OzCheatShuttle.Offered(team)) Section(p, "TRANSPORT", OzCheatShuttle.Types, team, y);       // DV118: the playable shuttle, dragged in as a full unit
@@ -131,7 +140,7 @@ namespace OpenZ
 
         RectTransform NeutralRow()
         {
-            int ng = Guns.Length + (OzCheatShuttle.Offered(Team.Neutral) ? OzCheatShuttle.Types.Length : 0), n = Mathf.Max(Vehicles.Length, ng);   // K256f: + the empty shuttle; 1.2 v2 units: the guns and the shuttle on a second line (18 tiles in one row would reach over the team columns at 1920 x 1080)
+            int ng = Guns.Length + (OzCheatShuttle.Offered(Team.Neutral) ? OzCheatShuttle.Types.Length : 0) + bigs.Length /* 1.5 testpanel_big_tanks: the empty big tanks on the 2nd line (8 of 12: the row keeps its width) */, n = Mathf.Max(Vehicles.Length, ng);   // K256f: + the empty shuttle; 1.2 v2 units: the guns and the shuttle on a second line (18 tiles in one row would reach over the team columns at 1920 x 1080)
             float w = Pad * 2f + n * Cell + (n - 1) * Gap, h = Pad + Head + 2f * (Cell + LabelH) + Gap + Pad * 0.5f, y2 = Pad + Head + Cell + LabelH + Gap;
             var p = Hud.Node("CheatNeutral", hud.Root); p.Anchor(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -86f), new Vector2(w, h));
             Hud.Plate(p, "md", Head + 6f, OzUi.Neutral);
@@ -141,8 +150,32 @@ namespace OpenZ
             i = 0;                                                                                           // 1.2 v2 units: the second line
             foreach (var t in Guns) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), y2);
             if (OzCheatShuttle.Offered(Team.Neutral)) foreach (var t in OzCheatShuttle.Types) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), y2);   // K256f: the empty shuttle (UI/OzCheatShuttle.cs)
+            foreach (var t in bigs) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), y2);                    // 1.5 testpanel_big_tanks: EMPTY MAMMOTH, BIZON after the shuttle
+            if (bigs.Length > 0) PaintSwitch(p, Pad + i * (Cell + Gap), y2);
             hud.AddBlocker(p);
             return p;
+        }
+
+        static readonly Color PaintGreen = new Color32(92, 98, 58, 255), PaintDesert = new Color32(176, 148, 104, 255);
+        /// <summary></summary>
+        void PaintSwitch(RectTransform p, float x, float y)
+        {
+            float w = 2f * Cell + Gap;
+            paintRt = Hud.Node("Cell_BigTankPaint", p).TL(x, y, w, Cell + LabelH);
+            var bg = Hud.Img(paintRt, "Bg", OzUi.A(OzUi.GM950, 0.75f)); bg.rectTransform.TL(0, 0, w, Cell);
+            Hud.Border(bg.transform, OzUi.A(OzUi.Neutral, 0.55f));
+            paintSwatch = Hud.Img(paintRt, "Swatch", PaintDesert); paintSwatch.raycastTarget = false; paintSwatch.rectTransform.TL(8, 12, 26, 36);   // 14k R24: DESERT is the default
+            Hud.Border(paintSwatch.transform, OzUi.A(OzUi.Ink, 0.5f));
+            Hud.Label(paintRt, "Title", "BIG TANK PAINT", 9, OzUi.A(OzUi.Ink, 0.7f), 0.08f).At(42, 13);
+            paintState = Hud.Label(paintRt, "State", "DESERT", 14, OzUi.Ink, 0.08f).At(42, 32);
+            Hud.Label(paintRt, "Name", "CLICK: DESERT / GREEN", 9, OzUi.A(OzUi.Ink, 0.85f), 0.08f).At(1, Cell + 1);
+            ShowPaint();
+        }
+        void ShowPaint()
+        {
+            bool d = OzBigTankPaintSwitch.Desert;
+            if (paintState != null) paintState.Set(d ? "DESERT" : "GREEN");
+            if (paintSwatch) paintSwatch.color = d ? PaintDesert : PaintGreen;
         }
 
         static int Rows(int n) => (n + Cols - 1) / Cols;
@@ -180,6 +213,12 @@ namespace OpenZ
             if (drag == null)
             {
                 if (!m.leftButton.wasPressedThisFrame) { V3Hover(mp); return; }                               // sound_v3
+                if (paintRt && OpenZHud.Contains(paintRt, mp))
+                {
+                    bool ok = OzBigTankPaintSwitch.Toggle(); ShowPaint();
+                    if (!ok) hud.Toast("GREEN PAINT MISSING", HudStyle.Danger);
+                    AudioDirector.UI(ok ? "ui_click" : "ui_error"); return;
+                }
                 foreach (var e in entries)
                     if (OpenZHud.Contains(e.rt, mp))
                     {

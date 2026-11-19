@@ -44,6 +44,10 @@ namespace OpenZ
                                    plate = true, plateHx = 0.64f, plateHz = 0.66f, plateRc = 0.18f, plateTop = 0.035f, plateBottom = -0.26f, lidR = 0.485f },
             ["heavy"] = new Spec { parent = "HeavyTankTurretYaw", prefix = "heavy_", center = new Vector3(0f, 0.758f, 0.92f), tilt = 0f,
                                    rOut = 0.44f, rIn = 0.35f, bottom = -0.04f, top = 0.36f, floor = 0.29f, plate = false, lidR = 0.425f },
+            [OzBigTanks.Mammoth] = new Spec { parent = "MammothTurretYaw", prefix = "mammoth_", center = new Vector3(0f, 1.0f, 0.4f), tilt = 0f,   // 1.5 DV180 / DV181: the modelled hatch (x_v2_HatchFrame) is used; the collar numbers are the fallback only
+                                   rOut = 0.50f, rIn = 0.40f, bottom = 0.005f, top = 0.11f, floor = -0.26f, plate = false, lidR = 0.485f },
+            [OzBigTanks.Bizon] = new Spec { parent = "BizonTurretYaw", prefix = "bizon_", center = new Vector3(0f, 1.0f, 0.4f), tilt = 0f,
+                                   rOut = 0.50f, rIn = 0.40f, bottom = 0.005f, top = 0.11f, floor = -0.26f, plate = false, lidR = 0.485f },
             // vehicles_nb_v1 NB24: the crane's cab roof hatch (imported m07_crane: roof y 0.045-0.06 GLB at x -0.4..-0.3, beside the boom
             // |z| <= 0.11 whose underside is 0.23 up): centre 0.689 / 0.537 / 0.702 of the Model mesh bounds (+z side, away from the door)
             ["crane"] = new Spec { parent = "Model", prefix = "crane_", useFrac = true, frac = new Vector3(0.689f, 0.537f, 0.702f), tilt = 0f,

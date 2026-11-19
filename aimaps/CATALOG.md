@@ -15,7 +15,6 @@
 | 13 · Hot n Steamy | Jungle | Yes | Yes |
 | 14 · Restoration | Jungle | Yes | Yes |
 | 15 · Swamp Fever | Jungle | Yes | Yes |
-| 18 · Bridge Game | City | Yes | Yes |
 | 19 · Mayhem | City | Yes | Yes |
 | 20 · Z | City | Yes | Yes |
 | 21 · Just Deserts | Desert | Yes | Yes |

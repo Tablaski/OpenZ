@@ -45,8 +45,8 @@ namespace OpenZ
         internal ZObject FpsTargetAtCentre(Camera c, ZObject u, float reachM)
         {
             if (!c || u == null || W == null || !game) return null;
-            var h = HoverAt(new Vector2(c.pixelWidth * 0.5f, c.pixelHeight * 0.5f));
-            if (h == null || h == u || h.Destroyed || h.Owner == game.player || h.Owner == Team.Neutral) return null;
+            var h = FpsHoverAt(u, new Vector2(c.pixelWidth * 0.5f, c.pixelHeight * 0.5f));   // 1.5 fps_in_ue: in the Unit editor the pick skips the unit's own side (View/OzFpsUe.cs); in a level it is HoverAt as before
+            if (h == null || h == u || h.Destroyed || h.Owner == SideOf(u) || h.Owner == Team.Neutral) return null;   // 1.5 fps_in_ue: the unit's own side (game.player in a level; in the Unit editor a blue unit fires at red)
             if (h.Kind != ZKind.Robot && h.Kind != ZKind.Vehicle && h.Kind != ZKind.Cannon && h.Kind != ZKind.Building) return null;
             var d = game.CenterWorld(h) - c.transform.position;
             if (Vector3.Dot(d, c.transform.forward) <= 0f || d.sqrMagnitude > reachM * reachM) return null;

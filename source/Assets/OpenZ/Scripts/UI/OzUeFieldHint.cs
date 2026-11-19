@@ -43,12 +43,14 @@ namespace OpenZ
 
         public void Tick()
         {
-            if (dirty)
+            if (dirty || (wrecksHeld && Time.unscaledTime >= recheckAt))
             {
                 dirty = false;
                 bool any = false;
                 foreach (var o in OzUePlayground.Placed()) { if (o != null) { any = true; break; } }
-                empty = !any;
+                wrecksHeld = !any && WrecksOnField();
+                if (wrecksHeld) recheckAt = Time.unscaledTime + 1f;                                  // they can go without a field change (sunk, swept): looked at again every second
+                empty = !any && !wrecksHeld;
             }
             bool want = empty && !OzUePlace.Busy;                                                  // never while a drop is dragged or armed
             if ((fadeTo > 0.5f) != want) { fadeFrom = shown; fadeTo = want ? 1f : 0f; fadeAt = Time.unscaledTime; }
@@ -57,6 +59,20 @@ namespace OpenZ
             shown = Mathf.Lerp(fadeFrom, fadeTo, k);
             cg.alpha = shown;
             root.gameObject.SetActiveFast(shown > 0.001f);
+        }
+
+        bool wrecksHeld; float recheckAt;
+
+        /// <summary>1.5 pass 4: a wreck lies on the field (a wreck object of the rules, a dying hull, or drawn wreck pieces).</summary>
+        static bool WrecksOnField()
+        {
+            var w = OzUnitEditor.I ? OzUnitEditor.I.World : null;
+            if (w != null)
+                foreach (var o in w.Objects)
+                    if (o.Type == OpenZ.Sim.ZWorld.WreckType && !o.Destroyed && o.KillAt < 0 && !OzUePlayground.IsObstacle(o)) return true;
+            foreach (var p in Object.FindObjectsByType<WreckPieces>(FindObjectsSortMode.None)) if (p && p.gameObject.activeInHierarchy) return true;
+            foreach (var v in Object.FindObjectsByType<UnitView>(FindObjectsSortMode.None)) if (v && v.Dying && v.gameObject.activeInHierarchy) return true;
+            return false;
         }
 
         /// <summary>The hint shows now (for the counted check).</summary>

@@ -19,7 +19,7 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/Carve river under bridges (open level)")]
         public static string Carve()
         {
-            var scene = EditorSceneManager.GetActiveScene(); string lv = scene.name.StartsWith("L17") ? "L17" : "L02";
+            var scene = EditorSceneManager.GetActiveScene(); string lv = OzCity.LevelOfScene(scene.name) ?? "L02";
             var w = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, Resources.Load<TextAsset>($"OpenZ/Maps/{lv}_grid").text, 1);
             var rects = new List<Rect>(); var log = new List<string>(); waterVerts = null;
             foreach (var o in w.Objects.Where(x => x.IsBridge))

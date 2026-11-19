@@ -21,7 +21,8 @@ namespace OpenZ.Multiplayer
             add("Minimum build seconds", current.MinimumBuildSeconds, next.MinimumBuildSeconds);
             add("Territory cap", current.TerritoryReductionCap, next.TerritoryReductionCap);
             add("Fort loser bonus", current.FortLoserMaximum, next.FortLoserMaximum);
-            add("Damaged tank smoke and oil", current.TankDamageEffects, next.TankDamageEffects);
+            add("Damaged tank oil trails", current.TankDamageEffects, next.TankDamageEffects);
+            add("Damaged tank shake", current.TankDamageShake, next.TankDamageShake);
             add("Radar loss", current.RadarLoss, next.RadarLoss);
             add("Shared build duration", current.Common.BuildDuration, next.Common.BuildDuration);
             add("Handicap enabled", current.HandicapEnabled, next.HandicapEnabled);

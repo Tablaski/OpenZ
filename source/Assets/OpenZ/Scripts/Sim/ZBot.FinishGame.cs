@@ -59,7 +59,7 @@ namespace OpenZ.Sim
                 }
                 if (f == null || fd > lim) continue;
                 TargetPoint(f, out int tx, out int ty);
-                if (!InSameRegion(u.LocX + 8, u.LocY + 8, tx, ty, u.Kind == ZKind.Robot)) continue;
+                if (!BotPairRegion(u, f, u.LocX + 8, u.LocY + 8, tx, ty)) continue;   // 1.5 DV199 (kit level18_rules): a big tank of the computer asks the live reachability on its own grid (Sim/ZBot.BigTanks.cs)
                 sent.Add(u); FortOf[u.Id] = f;
             }
             foreach (var u in sent)

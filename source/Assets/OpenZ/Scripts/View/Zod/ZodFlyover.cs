@@ -270,9 +270,15 @@ namespace OpenZ
             return s.sqrMagnitude > 1e-4f ? s.normalized : Vector3.right;
         }
 
-        void PlayDip()
+        /// <summary>1.5 round 3 (R3.2): a briefing stage may change the whoosh of a cut: the dip's gain for that shot (1 = as before;
+        /// 0 = no dip: the stage plays its own sound there). Null = every dip as before.</summary>
+        public static System.Func<string, float> DipHook;
+
+        void PlayDip(string shot = null)
         {   // sfx_batch_v1 ter_flyby_dip_whoosh (3 soft wind swells, UI bus at the start-whoosh level), a little lower while Zod speaks
-            float duck = VoiceOn != null && VoiceOn() ? DipDuck : 1f;
+            float g = DipHook != null && shot != null ? DipHook(shot) : 1f;
+            if (g <= 0f) return;
+            float duck = (VoiceOn != null && VoiceOn() ? DipDuck : 1f) * g;
             if (AudioDirector.Has("ter_flyby_dip_whoosh")) { AudioDirector.UI("ter_flyby_dip_whoosh", duck); return; }
             AudioDirector.UI("ui_level_preview", duck);
             if (!dipWarned) { dipWarned = true; Debug.LogWarning("[ZodFlyover] ter_flyby_dip_whoosh is not in the sound table (apply sfx_batch_v1): the dip plays the ui_level_preview cue"); }

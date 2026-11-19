@@ -150,7 +150,7 @@ namespace OpenZ
             catch (Exception e) { Debug.LogException(e); OzSfx.Ui("ui_error"); return; }
             if (d.ok) Drops++;
             if (!string.IsNullOrEmpty(d.why)) OzUeToast.Show(d.why, !d.ok);
-            if (d.ok && Armed && OzUePlayground.KindOf(id) == UeKind.Nuke) Disarm(false);                     // 1.3 item 2: one nuke per call, Shift does not keep it armed (its 30 s run now)
+            if (d.ok && Armed && OzUePlayground.KindOf(id) == UeKind.Nuke && !OzUeBlasts.Is(id) /* 1.5 ue_explosions_6 */) Disarm(false);                     // 1.3 item 2: one nuke per call, Shift does not keep it armed (its 30 s run now)
         }
 
         /// <summary>The editor closed: nothing armed, no listener of this session left.</summary>
@@ -241,7 +241,10 @@ namespace OpenZ
         {
             p = default;
             var cam = OzUeDraw.Cam; if (!cam || !ed || !ed.Game) return false;
-            if (!ed.Game.GroundPoint(cam.ScreenPointToRay(screen), out p)) return false;
+            var ray = cam.ScreenPointToRay(screen);
+            if (!ed.Game.GroundPoint(ray, out p)) return false;
+            DeckRay(ed.Game, ray, ref p);
+            OzUeBoxes.TopRay(ray, ref p);                                                                  // 1.5 ue_boxes: placing a BOX: the pointer on a box gives its top (View/OzUeObstacleView.Box.cs)                                                                  // 1.5 ue_flag_ghost_height: the pointer's point on the platform under it (View/OzUePlace.Surface.cs)
             var map = ed.World != null ? ed.World.Map : null;
             if (map != null) { float w = map.width * 2f, h = map.height * 2f; p.x = Mathf.Clamp(p.x, 1f, w - 1f); p.z = Mathf.Clamp(p.z, -(h - 1f), -1f); }
             p.y = 0f;
@@ -263,8 +266,9 @@ namespace OpenZ
             if (spots == null || spots.Count == 0) spots = new List<Vector3> { centre };
             if (OzUePlatformViews.Count > 0)
             {   // 1.3: with a ramp platform on the field the rings and the words lie on the deck, not under it (0 with none, as before)
-                var gm = OzUnitEditor.I.Game; centre.y = OzUePlatformViews.MarkY(gm, centre);
-                for (int i = 0; i < spots.Count; i++) { var s = spots[i]; s.y = OzUePlatformViews.MarkY(gm, s); spots[i] = s; }
+                var gm = OzUnitEditor.I.Game; centre.y = OnSurface(gm, centre, OzUePlatformViews.MarkY(gm, centre));   // 1.5 ue_flag_ghost_height: the preview on the surface the drop stands on (View/OzUePlace.Surface.cs)
+                for (int i = 0; i < spots.Count; i++) { var s = spots[i]; s.y = OnSurface(gm, s, OzUePlatformViews.MarkY(gm, s)); spots[i] = s; }
+                LastCentre = centre;
             }
             bool ok; string why;
             try { ok = OzUePlayground.CanDrop(id, team, centre, count, out why); } catch (Exception) { ok = true; why = null; }
@@ -273,8 +277,9 @@ namespace OpenZ
             Color ring = ok ? (neutral ? RingNeutral : OzUeUi.Ring(team)) : NoRoom;
             Color text = !ok ? NoRoom : neutral ? NeutralText : OzUeUi.TeamText(team);
             if (kind == UeKind.Platform) { PlatformPreview(id, centre, ok, why, armed); return; }             // 1.3: its wire outline at true size (View/OzUePlace.Platforms.cs)
-            if (kind == UeKind.Nuke) { NukePreview(centre, ok, why, armed); return; }                          // 1.3 item 2: the strike's ring (View/OzUePlace.Nuke.cs)
-            if (kind == UeKind.Obstacle)
+            if (kind == UeKind.Nuke) { if (OzUeBlasts.Is(id)) BlastPreview(id, centre, ok, why, armed); /* 1.5 ue_explosions_6 */ else NukePreview(centre, ok, why, armed); return; }                          // 1.3 item 2: the strike's ring (View/OzUePlace.Nuke.cs)
+            if (kind == UeKind.Obstacle && id == OzUePlayground.Box) BoxPreview(spots, ok);                // 1.5 ue_boxes: the cube on the level it will stand on (View/OzUePlace.Box.cs)
+            else if (kind == UeKind.Obstacle)
             {
                 Color holo = ok ? Color.Lerp(OzUeBackdrop.HiColor, HoloPale, 0.42f) : NoRoom;
                 float h = foot * 0.5f;
@@ -291,6 +296,7 @@ namespace OpenZ
                 foreach (var s in spots)
                 {
                     OzUeDraw.Ring(s, r, OzUi.A(ring, 0.9f * 0.6f), 4f, 3f, kind == UeKind.Flag ? 1f : 1.2f);
+                    if (kind == UeKind.Flag) FlagGhost(s, ring);                                              // 1.5 ue_flag_ghost_height: the flag standing at its height
                     if (kind != UeKind.Flag && kind != UeKind.Grenades) PlaceModel(id, Team.Neutral, s, FaceYaw(Team.Neutral), OzUeGhost.NeutralAlpha);   // the empty vehicle / gun: its grey ghost at 50 %
                 }
             }
@@ -323,7 +329,7 @@ namespace OpenZ
             string line;
             if (!ok) line = string.IsNullOrEmpty(why) ? "NO ROOM" : why;
             else if (kind == UeKind.Flag) line = "NEUTRAL FLAG";
-            else if (kind == UeKind.Obstacle) line = "HOLO OBSTACLE";
+            else if (kind == UeKind.Obstacle) line = id == OzUePlayground.Box ? BoxLine() : "HOLO OBSTACLE";
             else if (kind == UeKind.Grenades) line = "GRENADE CRATE";
             else if (neutral) line = "EMPTY " + OzUePlayground.FullName(id) + (spots.Count > 1 ? "  x" + spots.Count : "");
             else
@@ -336,7 +342,7 @@ namespace OpenZ
             // the whole preview, over the models or over the whole, the first that stays in the free field (View/OzUeWords.cs)
             var shape = kind == UeKind.Obstacle || kind == UeKind.Flag || neutral ? spots : members;
             float ringM = kind == UeKind.Obstacle ? foot * 0.71f : kind == UeKind.Flag ? 1.2f : kind == UeKind.Grenades ? 0.9f : OzUeMarks.SizeM(id) * 0.5f;
-            float tallM = kind == UeKind.Obstacle ? OzUePlayground.ObstacleHeightM : kind == UeKind.Flag || kind == UeKind.Shuttle ? 3.6f
+            float tallM = kind == UeKind.Obstacle ? (id == OzUePlayground.Box ? BoxTallM : OzUePlayground.ObstacleHeightM) : kind == UeKind.Flag || kind == UeKind.Shuttle ? 3.6f
                         : kind == UeKind.Robot || kind == UeKind.Hero ? 1.9f : 2.8f;
             Words(centre, shape, ringM, tallM, rangeM, rangeM > 0.1f && blastM > 0.6f ? blastM : 0f, armed, line, out float lineUp, out float hintUp);
             OzUeDraw.Label(centre, line, text, 12f, lineUp, true);
@@ -464,7 +470,7 @@ namespace OpenZ
             }
             modelsUsed[key] = n + 1;
             var g = OzUnitEditor.I ? OzUnitEditor.I.Game : null;
-            at.y = g ? g.GroundY(at.x, at.z) : 0f;
+            at.y = g ? OnSurface(g, at, g.GroundY(at.x, at.z)) : 0f;                                       // 1.5 ue_flag_ghost_height: on a platform its rules' height
             if (!m.go.activeSelf) m.go.SetActive(true);
             m.go.transform.SetPositionAndRotation(at, Quaternion.Euler(0f, faceYaw + m.modelYaw, 0f));
             Ghost(m, team, alpha);                                                                             // its team's see-through ghost (View/OzUePlace.Ghost.cs)

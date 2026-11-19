@@ -19,6 +19,9 @@ namespace OpenZ
     /// in em -> width in u), so the counted check can lay it out at every size of spec 2.1 in edit mode (SelfCheck) and a headless test
     /// can run it without the engine. Every number is prototype C round 2d's (DESIGN_SPEC section 4, measured in the running prototype).
     /// </summary>
+    // 1.5 ue_bar_r2 (tracker A13): TileBeside, ZoomWidth and the first fit step in LayDock
+    // 1.5 kit ue_bottom_left_r10 (FAILS A36): the zoom control left the bottom band (the BACKGROUND popover's VIEW row: Zoom.inMenu), so LayDock's first
+    // fit step (room for it beside the dock) is gone; the team switch 36 u with 13.5 u labels over a 28 u count row (TeamSegH, CountSegH)
     public static class OzUeBottomLayout
     {
         // ---------------------------------------------------------------------------------------------- the prototype's numbers (u)
@@ -28,11 +31,19 @@ namespace OpenZ
         public const float CellPadCount = 5f;                       // 1.4: X1..X20 fit the team column (the dock keeps its size)
         public const float TabPad = 11f, TabText = 11f, TabTrack = 0.10f;
         public const float TeamText = 11f, TeamTrack = 0.08f;
+        /// <summary>
+        /// RED / BLUE / NEUTRAL a 36 u well (34 u cells: the old 30 / 28 + 20 %), 13.5 u labels (11 + 23 %), 8 u padding; the count row
+        /// X1..X20 under it a 28 u well (its 11 u labels and its look kept), stretched to the same width; the column of the two centred on the
+        /// dock's plate (2 u free above and below at 72 u), the plate keeps its height.</summary>
+        public const float TeamSegH = 36f, TeamBigText = 13.5f, CellPadTeamBig = 8f, CountSegH = 28f;
         public const float TileLabelText = 11f, TileLabelTrack = 0f, TileLabelH = 13f, TileLabelGap = 1f;   // the dock's labels: letter spacing 0 (proto_c .dock .tile .lbl)
         /// <summary>How far a tile's label may reach past its cell on each side (u, at most half the tile gap less 1 u, so two neighbour
         /// labels stay 1 u apart): the game's font is wider than the prototype's label font, so ELECTRO and OBSTACLE keep the prototype's
         /// cells (48 and 53 u at 1920) instead of widening the dock; a label longer than that widens its cell.</summary>
         public const float LabelHang = 2f;
+        /// <summary>1.5 ue_bar_r2: with the smaller tiles (Dock.labelsInCell) every label keeps this much room inside its cell on each
+        /// side, so two labels stand a tile gap + 2 u apart (6 u at 40-44 u tiles) and never read as one word.</summary>
+        public const float LabelPad = 1f;
         public const float ExtrasCaptionW = 11f, ExtrasCaptionGap = 5f;
         public const float PinH = 28f, PinPad = 8f, PinText = 12f, PinTrack = 0.12f;
         public const float RailH = 32f, RailPad = 14f, RailGap = 10f, RailText = 12f, RailTrack = 0.20f, RailKeyH = 20f;
@@ -43,6 +54,10 @@ namespace OpenZ
         public const float ZoomW = 232f, ZoomH = 30f, ZoomPadL = 8f, ZoomPadR = 3f, ZoomGapIn = 4f, RulerW = 64f, ZoomBtn = 24f, ZoomPctMin = 31.9f;
         public const float ZoomText = 11f, ZoomTrack = 0.142f;     // the ruler's "5 M" and "100 %" (letter spacing 1.56 px at 11 px)
         public const float TileStd = 48f, TileShort = 46f, TileLarge = 56f, TileMin = 36f;
+        /// <summary>1.5 ue_bar_r2: the smallest tile the dock takes to leave the zoom control its place beside it (E030). 1.5 has
+        /// 10 tiles in VEHICLES (MAMMOTH, BIZON) and in SPECIAL (the seven explosions): at 1920 x 1080 the full 48 u tiles pushed the
+        /// zoom one row up. Labels stay 11 u; a label wider than its tile keeps widening its cell as before.</summary>
+        public const float TileBeside = 40f;
 
         public static readonly string[] TabWords = { "ROBOTS", "VEHICLES", "GUNS", "SPECIAL" };
         public static readonly string[] CountWords = { "X1", "X3", "X5", "X10", "X20" };
@@ -65,7 +80,7 @@ namespace OpenZ
             public string[] teamWords = { "RED", "BLUE", "NEUTRAL" };
             /// <summary>Per tab (robots, vehicles, guns, special) the tiles' labels.</summary>
             public string[][] tiles;
-            public string flagLabel = "FLAG", obstacleLabel = "OBSTACLE", grenadesLabel = "GRENADES", nukeLabel = "NUKE", platMidLabel = "PLATFORM", platHighLabel = "TOWER";   // 1.3 item 2: + NUKE; 1.3: + the two ramp platforms
+            public string flagLabel = "FLAG", obstacleLabel = "OBSTACLE", boxLabel = "BOX", grenadesLabel = "GRENADES", nukeLabel = "NUKE", platMidLabel = "PLATFORM", platHighLabel = "TOWER";   // 1.3 item 2: + NUKE; 1.3: + the two ramp platforms
             public Func<string, float, float, float> measure;
         }
 
@@ -80,8 +95,10 @@ namespace OpenZ
             public UeBox tileArea;
             public float[][] tileCells;                            // per tab, per tile: the cell's width (the art centred in it)
             public float extrasX, separatorX, captionX;
-            public UeBox caption, flagTile, obstacleTile, grenadesTile, nukeTile, platMidTile, platHighTile, pin;
+            public UeBox caption, flagTile, obstacleTile, boxTile, grenadesTile, nukeTile, platMidTile, platHighTile, pin;   // 1.5 ue_boxes: + BOX
             public bool narrow, large;
+            /// <summary>1.5 ue_bar_r2: the tiles were made smaller to leave the zoom beside the dock: every tile label inside its own cell.</summary>
+            public bool labelsInCell;
         }
 
         public sealed class Play
@@ -97,7 +114,10 @@ namespace OpenZ
         public sealed class Zoom
         {
             public UeBox plate; public float pctW; public bool low, stacked; public float[] buttonX = new float[4];
-            public string Where => low ? "beside the dock" : stacked ? "over the play bar's left end" : "at the play bar's height";
+            /// <summary>1.5 kit ue_bottom_left_r10 (FAILS A36): the control is the BACKGROUND popover's VIEW row (UI/OzUeBackdropMenu.cs, UI/OzUeZoomBar.cs),
+            /// not in the bottom band: plate is empty (0 x 0, over nothing); rowW its width there, buttonX from its left edge as before.</summary>
+            public bool inMenu; public float rowW;
+            public string Where => inMenu ? "in the BACKGROUND popover's VIEW row" : low ? "beside the dock" : stacked ? "over the play bar's left end" : "at the play bar's height";
         }
 
         public sealed class Out
@@ -148,6 +168,10 @@ namespace OpenZ
             d.large = Large(i.cw, i.ch); d.narrow = Narrow(i.cw, i.ch);
             float avail = i.cw - 2f * Gap;
             float t = d.large ? TileLarge : i.ch < 800f ? TileShort : TileStd, tp = TabPad;
+            // 1.5 ue_bar_r2 (tracker A13) shrank the tiles here (down to TileBeside) to leave the zoom control its place beside the dock. 1.5 kit ue_bottom_left_r10
+            // (FAILS A36): the zoom control is the BACKGROUND popover's VIEW row now and nothing needs that place: the fit rule below alone, as
+            // before ue_bar_r2 (the full 48 u tiles at 1920 x 1080, a label may hang LabelHang past its cell)
+            d.labelsInCell = false;
             for (; t >= TileMin; t -= 2f) if (DockWidth(i, d, t, tp) <= avail + 0.01f) break;
             if (t < TileMin)
             {
@@ -161,9 +185,11 @@ namespace OpenZ
             d.plate = new UeBox((i.cw - w) * 0.5f, i.ch - Gap - h, w, h);
             float top = Border + DockPadV, x = Border + DockPadL;
             float teamColW = Math.Max(d.teamWell.w, d.countWell.w);
-            float colY = top + (d.contentH - (SegH * 2f + TeamColGap)) * 0.5f;
-            d.teamWell = new UeBox(x, colY, teamColW, SegH);
-            d.countWell = new UeBox(x, colY + SegH + TeamColGap, teamColW, SegH);
+            // 1.5 kit ue_bottom_left_r10 (FAILS A36): the 36 u team switch over the 28 u count row (66 u), centred on the plate (2 u free above and below
+            // at 72 u); the plate keeps its height, so the stats box, the play bar and the bottom inset keep theirs
+            float colH = TeamSegH + TeamColGap + CountSegH, colY = Border + (h - 2f * Border - colH) * 0.5f;
+            d.teamWell = new UeBox(x, colY, teamColW, TeamSegH);
+            d.countWell = new UeBox(x, colY + TeamSegH + TeamColGap, teamColW, CountSegH);
             x += teamColW + d.sectionGap;
             d.tabsWell = new UeBox(x, top + (d.contentH - SegH) * 0.5f, d.tabsWell.w, SegH);
             x += d.tabsWell.w + d.sectionGap;
@@ -177,7 +203,8 @@ namespace OpenZ
             float fx = d.captionX + ExtrasCaptionW + ExtrasCaptionGap;
             d.flagTile = new UeBox(fx, palY, d.flagTile.w, palH);
             d.obstacleTile = new UeBox(fx + d.flagTile.w + d.tileGap, palY, d.obstacleTile.w, palH);
-            d.grenadesTile = new UeBox(d.obstacleTile.Right + d.tileGap, palY, d.grenadesTile.w, palH);   // the third extra: GRENADES
+            d.boxTile = new UeBox(d.obstacleTile.Right + d.tileGap, palY, d.boxTile.w, palH);               // 1.5 ue_boxes: BOX after OBSTACLE
+            d.grenadesTile = new UeBox(d.boxTile.Right + d.tileGap, palY, d.grenadesTile.w, palH);        // the third extra: GRENADES (1.5: after BOX)
             d.nukeTile = new UeBox(d.grenadesTile.Right + d.tileGap, palY, d.nukeTile.w, palH);            // 1.3 item 2: the fourth extra: NUKE
             d.platMidTile = new UeBox(d.nukeTile.Right + d.tileGap, palY, d.platMidTile.w, palH);          // 1.3: the two ramp platforms
             d.platHighTile = new UeBox(d.platMidTile.Right + d.tileGap, palY, d.platHighTile.w, palH);
@@ -193,6 +220,11 @@ namespace OpenZ
 
         /// <summary>One tile's cell (E047, proto_c `.dock .tile { min-width: var(--dt) }`): the tile side, or wider when the label (centred
         /// under the picture) would reach more than LabelHang past it on a side (at most half of the gap less 1 u).</summary>
+        /// <summary>1.5 ue_bar_r2: a cell of the dock: Cell as before, or with the smaller tiles the label inside it with LabelPad u on
+        /// each side (no hang into the gap).</summary>
+        static float CellOf(In i, Dock d, string label, float tile, float gap) =>
+            d.labelsInCell ? Math.Max(tile, W(i, label ?? "", TileLabelText, TileLabelTrack) + 2f * LabelPad) : Cell(i, label, tile, gap);
+
         public static float Cell(In i, string label, float tile, float gap)
         {
             float hang = Math.Min(LabelHang, Math.Max(0f, (gap - 1f) * 0.5f));
@@ -203,10 +235,10 @@ namespace OpenZ
         static float DockWidth(In i, Dock d, float t, float tp)
         {
             d.tile = t; d.tileGap = t >= 46f ? 5f : 4f; d.sectionGap = t >= 46f ? 10f : 8f; d.tabPad = tp;
-            float tw = Seg(i, i.teamWords, TeamText, TeamTrack, CellPadTeam, d.teamCells);
+            float tw = Seg(i, i.teamWords, TeamBigText, TeamTrack, Math.Min(CellPadTeamBig, tp), d.teamCells);            // 1.5 kit ue_bottom_left_r10 (A36): the bigger team switch; its padding never over the tab padding (the last fit step: 8, 6, 4 u), so the dock is no wider at its floor
             float cwell = Seg(i, CountWords, TeamText, TeamTrack, CellPadCount, d.countCells);
             float col = Math.Max(tw, cwell);
-            Seg(i, i.teamWords, TeamText, TeamTrack, CellPadTeam, d.teamCells, col);
+            Seg(i, i.teamWords, TeamBigText, TeamTrack, Math.Min(CellPadTeamBig, tp), d.teamCells, col);
             Seg(i, CountWords, TeamText, TeamTrack, CellPadCount, d.countCells, col);
             d.teamWell.w = col; d.countWell.w = col;
             d.tabsWell.w = Seg(i, TabWords, TabText, TabTrack, tp, d.tabCells);
@@ -218,19 +250,20 @@ namespace OpenZ
                 var labels = i.tiles[k] ?? new string[0];
                 if (d.tileCells[k] == null || d.tileCells[k].Length != labels.Length) d.tileCells[k] = new float[labels.Length];
                 float s = 0f;
-                for (int j = 0; j < labels.Length; j++) { d.tileCells[k][j] = Cell(i, labels[j], t, d.tileGap); s += d.tileCells[k][j] + (j > 0 ? d.tileGap : 0f); }
+                for (int j = 0; j < labels.Length; j++) { d.tileCells[k][j] = CellOf(i, d, labels[j], t, d.tileGap); s += d.tileCells[k][j] + (j > 0 ? d.tileGap : 0f); }
                 pw = Math.Max(pw, s);
             }
             d.tileArea.w = pw;                                                 // the widest tab: the dock never moves when the tab changes
             // the extras' labels (OBSTACLE, GRENADES) are wider than their tiles and stand side by side: each keeps inside its own cell
             // (no hang into the gap), so a full tile gap stays between them and they never read as one word
-            d.flagTile.w = Cell(i, i.flagLabel, t, 1f);
-            d.obstacleTile.w = Cell(i, i.obstacleLabel, t, 1f);
-            d.grenadesTile.w = Cell(i, i.grenadesLabel, t, 1f);
-            d.nukeTile.w = Cell(i, i.nukeLabel, t, 1f);
-            d.platMidTile.w = Cell(i, i.platMidLabel, t, 1f);
-            d.platHighTile.w = Cell(i, i.platHighLabel, t, 1f);
-            float extras = d.sectionGap + Border + d.sectionGap + ExtrasCaptionW + ExtrasCaptionGap + d.flagTile.w + d.tileGap + d.obstacleTile.w + d.tileGap + d.grenadesTile.w
+            d.flagTile.w = CellOf(i, d, i.flagLabel, t, 1f);
+            d.obstacleTile.w = CellOf(i, d, i.obstacleLabel, t, 1f);
+            d.boxTile.w = CellOf(i, d, i.boxLabel, t, 1f);                                                        // 1.5 ue_boxes
+            d.grenadesTile.w = CellOf(i, d, i.grenadesLabel, t, 1f);
+            d.nukeTile.w = CellOf(i, d, i.nukeLabel, t, 1f);
+            d.platMidTile.w = CellOf(i, d, i.platMidLabel, t, 1f);
+            d.platHighTile.w = CellOf(i, d, i.platHighLabel, t, 1f);
+            float extras = d.sectionGap + Border + d.sectionGap + ExtrasCaptionW + ExtrasCaptionGap + d.flagTile.w + d.tileGap + d.obstacleTile.w + d.tileGap + d.boxTile.w + d.tileGap + d.grenadesTile.w
                            + d.tileGap + d.nukeTile.w                                        // 1.3 item 2: + NUKE
                            + d.tileGap + d.platMidTile.w + d.tileGap + d.platHighTile.w;     // 1.3: + the two ramp platforms
             d.pin.w = Wc(i, PinWord, PinText, PinTrack) + 2f * PinPad + 2f * Border;
@@ -238,6 +271,13 @@ namespace OpenZ
         }
 
         // ---------------------------------------------------------------------------------------------- zoom / scale / fit (E030-E036)
+        /// <summary>1.5 ue_bar_r2: the zoom control's width (the same sum as LayZoom's).</summary>
+        public static float ZoomWidth(In i)
+        {
+            float pct = Math.Max(ZoomPctMin, W(i, "100 %", ZoomText, ZoomTrack));
+            return Border + ZoomPadL + RulerW + ZoomGapIn + pct + 2f + ZoomGapIn + 3f * (ZoomBtn + ZoomGapIn) + ZoomBtn + ZoomPadR + Border;
+        }
+
         static void LayZoom(In i, Out o)
         {
             var z = o.zoom;
@@ -245,10 +285,10 @@ namespace OpenZ
             float bx = Border + ZoomPadL + RulerW + ZoomGapIn + z.pctW + 2f + ZoomGapIn;
             for (int k = 0; k < 4; k++) z.buttonX[k] = bx + k * (ZoomBtn + ZoomGapIn);
             float w = z.buttonX[3] + ZoomBtn + ZoomPadR + Border;
-            var dock = o.dock;
-            z.low = i.dockOpen && !i.hidden && dock.plate.x >= Gap + w + Gap;
-            float y = z.low ? i.ch - Gap - ZoomH : i.ch - (o.insetB + PlayAbove) - ZoomH;
-            z.plate = new UeBox(i.insetL + Gap, y, w, ZoomH);
+            // The control is the BACKGROUND popover's VIEW row (UI/OzUeBackdropMenu.cs, UI/OzUeZoomBar.cs) and takes no room
+            // in the bottom band (an empty plate over nothing); the same buttons, the same keys (Home, the wheel, the middle-button turn)
+            z.inMenu = true; z.low = false; z.stacked = false; z.rowW = w;
+            z.plate = new UeBox(0f, 0f, 0f, 0f);
         }
 
         // ---------------------------------------------------------------------------------------------- the play bar (E021-E027)
@@ -276,8 +316,8 @@ namespace OpenZ
             // 1536 x 730 and 2560 x 1600 at 160 %), the zoom goes one row up, over the bar's left end, and the bar takes the free field's width
             float px = i.insetL + (i.cw - i.insetL - i.insetR) * 0.5f - barW * 0.5f;
             float free1 = i.cw - i.insetR - Gap;
-            o.zoom.stacked = !o.zoom.low && free1 - (i.insetL + Gap + o.zoom.plate.w + Gap) < barW;
-            float free0 = i.insetL + Gap + (o.zoom.low || o.zoom.stacked ? 0f : o.zoom.plate.w + Gap);
+            o.zoom.stacked = !o.zoom.inMenu && !o.zoom.low && free1 - (i.insetL + Gap + o.zoom.plate.w + Gap) < barW;   // 1.5 kit ue_bottom_left_r10: never (the zoom is in the popover)
+            float free0 = i.insetL + Gap + (o.zoom.inMenu || o.zoom.low || o.zoom.stacked ? 0f : o.zoom.plate.w + Gap);
             if (px < free0) px = free0;
             if (px + barW > free1) px = Math.Max(i.insetL + Gap, free1 - barW);
             p.plate = new UeBox(px, i.ch - (o.insetB + PlayAbove) - PlayH, barW, PlayH);

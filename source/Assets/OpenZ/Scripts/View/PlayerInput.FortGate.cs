@@ -66,15 +66,19 @@ namespace OpenZ
             var px = ground ? ZGame.WorldToPx(gp) : new Vector2Int(int.MinValue / 4, int.MinValue / 4);
             if (h != null && h.IsFort && !h.Destroyed && h.Owner != Team.Neutral && h.Owner != game.player)
             {
-                fortPartOf = h; fortPart = PartOf(h, ray, px, ground);
-                return h;
+                if (!FortUnder(h, ray)) { FortBesideFrames++; h = null; }                                // 1.5 N21: only its screen box, not the fort itself, is under the pointer (View/PlayerInput.FortTight.cs)
+                else
+                {
+                    fortPartOf = h; fortPart = PartOf(h, ray, px, ground);
+                    return h;
+                }
             }
             if (!(h == null || Scenery(h)) || !GateMovers()) return h;
             if (gateFortsOf != W) { gateForts.Clear(); foreach (var o in W.Objects) if (o.IsFort) gateForts.Add(o); gateFortsOf = W; }
             foreach (var f in gateForts)
             {
                 if (!f.CanEnterFort(game.player) || OzFogOfWar.Covers(f)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no ENTER cursor or order on a fort the fog hides
-                if ((ground && GroundGate(f, px.x, px.y)) || DoorBox(f, ray)) { fortPartOf = f; fortPart = FortPart.Gate; GateHoverFrames++; return f; }
+                if ((!FortTightOn && ground && GroundGate(f, px.x, px.y)) || DoorBox(f, ray)) { fortPartOf = f; fortPart = FortPart.Gate; GateHoverFrames++; return f; }   // 1.5 N21: the bare ground round the gate is no longer the fort (only its door's own picture)
             }
             return h;
         }
@@ -135,8 +139,9 @@ namespace OpenZ
             var fv = FactoryViews.I ? FactoryViews.I.For(f.Id) : null;
             if (!fv) return false;
             Vector3 a = fv.DoorMin, b = fv.DoorMax;
-            var lo = new Vector3(Mathf.Min(a.x, b.x) - GateSideM, Mathf.Min(Mathf.Min(a.y, b.y), 0f) - 1f, Mathf.Min(a.z, b.z) - GateInM);
-            var hi = new Vector3(Mathf.Max(a.x, b.x) + GateSideM, Mathf.Max(a.y, b.y) + GateTopM, Mathf.Min(a.z, b.z) + GateOutM);
+            float side = FortTightOn ? DoorSideTightM : GateSideM, top = FortTightOn ? DoorTopTightM : GateTopM, outM = FortTightOn ? DoorOutTightM : GateOutM;   // 1.5 N21: the door's own picture (View/PlayerInput.FortTight.cs)
+            var lo = new Vector3(Mathf.Min(a.x, b.x) - side, Mathf.Min(Mathf.Min(a.y, b.y), 0f) - (FortTightOn ? 0f : 1f), Mathf.Min(a.z, b.z) - GateInM);
+            var hi = new Vector3(Mathf.Max(a.x, b.x) + side, Mathf.Max(a.y, b.y) + top, Mathf.Min(a.z, b.z) + outM);
             var t = fv.transform; var o = t.InverseTransformPoint(ray.origin); var d = t.InverseTransformPoint(ray.origin + ray.direction) - o;
             return Slab(o, d, lo, hi);
         }

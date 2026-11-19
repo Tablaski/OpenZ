@@ -280,15 +280,23 @@ namespace OpenZ
         }
 
         // ================================================================== 2 / 3 the screen map and the rect audit
+        /// <summary>1.5 ue_bar_r2 (tracker A13): the E040 rect the screen map wants at 1920 x 1080: the laid dock's own width when it leaves the
+        /// zoom control its place beside it, centred, y 996, 72 u high (else the old sum, which then fails).</summary>
+        static Rect DockSpec(OzUeBottomLayout.Dock d, float platCells)
+        {
+            float w = d != null && d.plate.w <= 1920f - 2f * OzUeBottomLayout.Gap + 0.5f && d.tile >= OzUeBottomLayout.TileMin ? d.plate.w : 1219f + platCells;   // 1.5 kit ue_bottom_left_r10 (A36): no zoom beside it: the laid width inside the canvas
+            return new Rect((1920f - w) * 0.5f, 996, w, 72);
+        }
+
         static IEnumerator ScreenMap()
         {
             var cs = OzUnitEditor.CanvasSize;
             if (Mathf.Abs(cs.x - 1920f) > 1f || Mathf.Abs(cs.y - 1080f) > 1f) { Check(false, "2 the screen map needs a 1920 x 1080 canvas (it is " + cs.x + " x " + cs.y + ": UI SCALE 100 %?)"); yield break; }
             OzUePick.ClearInspect(); yield return 3;
             var dockLaid = OzUeControlsRoot.I != null && OzUeControlsRoot.I.Laid != null ? OzUeControlsRoot.I.Laid.dock : null;
-            float platCells = dockLaid != null ? dockLaid.platMidTile.w + dockLaid.platHighTile.w + 2f * dockLaid.tileGap : 0f;   // 1.3: the two ramp platforms' cells, as their labels measure
+            float platCells = dockLaid != null ? dockLaid.platMidTile.w + dockLaid.platHighTile.w + 2f * dockLaid.tileGap + dockLaid.boxTile.w + dockLaid.tileGap : 0f;   // 1.5 ue_boxes: + the BOX cell   // 1.3: the two ramp platforms' cells, as their labels measure
             var want = new (string id, Rect r)[] { ("E001 top bar", new Rect(0, 0, 1920, 40)), ("E010 counts plate", new Rect(12, 52, 143, 36)), ("E021 play bar", new Rect(424, 950, 638, 38)),
-                                                    ("E030 zoom control", new Rect(12, 1038, 232, 30)), ("E040 dock", new Rect(350.5f - platCells * 0.5f, 996, 1219f + platCells, 72)) /* the spec's 437,996 1046x72 + the GRENADES and NUKE extras' cells (1.3 item 2: + 5 + 48 u), the extras' labels inside their cells */, ("E050 stats box", new Rect(1486, 52, 422, 860)) };
+                                                    /* 1.5 kit ue_bottom_left_r10 (A36): no E030 zoom control in the band (the BACKGROUND popover's VIEW row) */ ("E040 dock", DockSpec(dockLaid, platCells)) /* 1.5 ue_bar_r2: centred at y 996, 72 u high, at most 1920 - 2 x (12 + the zoom + 12) wide (the zoom beside it); was the spec's 437,996 1046x72 + every added cell */, ("E050 stats box", new Rect(1486, 52, 422, 860)) };
             var panels = Panels();
             RectTransform dock = null;
             foreach (var w in want)
@@ -362,7 +370,7 @@ namespace OpenZ
                 bool same = hp.HasNumber && Math.Abs(hp.value - u.MaxHealth) < 0.5 && bt.HasNumber && Math.Abs(bt.value - u.build_time) < 0.5 && (!robot || (sq.HasNumber && Math.Abs(sq.value - u.group_amount) < 0.5));
                 if (same) good++; else sb.Append(' ').Append(id).Append(": HP ").Append(hp.value).Append(" / ").Append(u.MaxHealth).Append(", build ").Append(bt.value).Append(" / ").Append(u.build_time).Append(';');
             }
-            Check(n == 19 && good == n, "4 the OpenZ column = the game's own rows (health, build time, squad) for " + good + " of " + n + " units" + (good < n ? ":" + sb : ""));   // DV145: + the medium tank (7 robots, 8 vehicles, 4 guns)
+            Check(n == 21 /* 1.5 DV180 / DV181: + the Mammoth and the Bizon */ && good == n, "4 the OpenZ column = the game's own rows (health, build time, squad) for " + good + " of " + n + " units" + (good < n ? ":" + sb : ""));   // DV145: + the medium tank (7 robots, 8 vehicles, 4 guns)
             bool extra = OzUeSets.Cell(OzUePlayground.Heroes, UeStat.Health, UeSet.OpenZ).HasNumber && OzUeSets.Cell(OzUePlayground.Shuttle, UeStat.Health, UeSet.OpenZ).HasNumber;
             Check(extra, "4 the OpenZ column has the heroes' and the shuttle's health (live)");
             int shown = 0; var miss = new StringBuilder();

@@ -80,7 +80,7 @@ namespace OpenZ
                         sb.Append("unit.").Append(u.id).Append('.').Append(f.zod_fields[i]).Append('=').Append(u.zod_row[i].ToString("R", CultureInfo.InvariantCulture)).Append('\n');
                 }
             s.zodSettings = sb.ToString();
-            var zs = ZGatlingBuff.ParseZod(s.zodSettings);                           // DV147 / DV170: the ZodEngine set reads Zod's mech and Zod's gatling whatever the switches (Sim/ZMechHp.cs, Sim/ZGatlingBuff.cs)
+            var zs = ZMissileBuildTime.ParseZod(s.zodSettings);                      // DV147 / DV170 / 1.5 DV191: the ZodEngine set reads Zod's mech, Zod's gatling and Zod's missile cannon build time whatever the switches (Sim/ZMechHp.cs, Sim/ZGatlingBuff.cs, Sim/ZMissileBuildTime.cs)
             var zr = UeRules.ZodRules();
             // ---- Z-Wiki: value texts by the file's stat keys
             var keys = new UeStat[f != null ? f.stats.Length : 0];

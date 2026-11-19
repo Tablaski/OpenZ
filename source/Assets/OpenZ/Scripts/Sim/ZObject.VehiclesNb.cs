@@ -37,7 +37,7 @@ namespace OpenZ.Sim
         /// heavy tank = the first barrel's half, and the second barrel is loaded for HeavyPairGap s later.</summary>
         int HeavyPairFirst(double time, ZObject t, bool playerGiven, int tx, int ty)
         {
-            if (!ZWorld.HeavyPairDeviation || Kind != ZKind.Vehicle || Type != "heavy" || t == null) return Damage;
+            if (!ZWorld.HeavyPairDeviation || Kind != ZKind.Vehicle || (Type != "heavy" && !MammothPair) /* 1.5 DV180 / DV181: the Mammoth's two barrels one-two (Sim/ZBigTanks.cs) */ || t == null) return Damage;
             int first = Damage / 2;
             hpDamage = Damage - first; hpSecondAt = time + ZWorld.HeavyPairGap; hpTargetId = t.Id; hpPlayerGiven = playerGiven;
             hpTx = tx; hpTy = ty;
@@ -52,6 +52,7 @@ namespace OpenZ.Sim
             hpSecondAt = -1;
             if (!ZWorld.HeavyPairDeviation || Destroyed || Owner == Team.Neutral || Drivers.Count == 0) return;
             var t = World.Get(hpTargetId);
+            if (RamFireBarred(t)) return;   // 1.5 DV188 (kit ram_polish): Sim/ZObject.RamPolish.cs: the second barrel never at the ram target
             int tx, ty;
             if (t != null && !t.Destroyed && t.KillAt < 0 && t.Owner != Owner)
             {

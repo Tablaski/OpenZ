@@ -246,7 +246,7 @@ namespace OpenZ
         void Spread(Vector3 from, Vector3 dir, ZObject t, Vector3 aim, int n, float coneDeg, int id, int rangePx, bool killed)
         {
             var z = Fx; float gs = Mathf.Max(0.25f, ZGame.I.gameSpeed), speed = PelletMps * gs; float dist = (aim - from).magnitude;
-            float bodyR = t == null ? 0f : t.Kind == ZKind.Robot ? 0.55f : t.Type == "heavy" ? 2f : t.Kind == ZKind.Building ? 3f : 1.5f;
+            float bodyR = t == null ? 0f : t.Kind == ZKind.Robot ? 0.55f : t.Type == "heavy" ? 2f : OzBigTanks.Is(t.Type) ? 2.5f : t.Kind == ZKind.Building ? 3f : 1.5f;
             Vector3 u = Vector3.Cross(dir, Vector3.up).sqrMagnitude > 1e-4f ? Vector3.Cross(dir, Vector3.up).normalized : Vector3.right, v = Vector3.Cross(dir, u).normalized;
             float turn = (id * 0.6180339f + rangePx * 0.137f) % 1f * Mathf.PI * 2f, tan = Mathf.Tan(coneDeg * Mathf.Deg2Rad);
             float gy = ZGame.I.GroundY(aim.x, aim.z); int impacts = 0;

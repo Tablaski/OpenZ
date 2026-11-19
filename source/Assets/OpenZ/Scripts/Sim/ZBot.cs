@@ -149,6 +149,7 @@ namespace OpenZ.Sim
             CpuShuttleTick();                                 // DV138 the computer flies its shuttles: one step a second, Normal and Easy (Sim/ZBot.CpuShuttle.cs); with the switch off it returns at once
             CpuRepairTick();                                  // 1.2 item 13 DV137: the computer sends its strongest damaged vehicle to repair and back, once every 5 minutes (ZBot.CpuRepair.cs); with the switch off it returns at once
             DefendTick();                                     // DV136 the computer defends its frontier from 8:00: guards walk to their spots, hold 2 minutes, are released (ZBot.CpuDefend.cs); with the switch off it returns at once
+            BigTankDriveTick();                               // 1.5 DV202 (kit l18_cpu_bigtank_r2): the computer drives its own Mammoth / Bizon once a second (Sim/ZBot.BigTankDrive.cs); with the switch off it returns at once
             if (EasySlowTick()) return;                                                 // K434: the Easy computer's order rounds on a 1.3 x slower clock, production on today's (Sim/ZBot.EasySlow.cs); false = this tick below, untouched
             if (W.Time + TIME_EPS < nextAiTime) return;
             bool easy = Difficulty == ZBotDifficulty.Easy;
@@ -222,6 +223,7 @@ namespace OpenZ.Sim
                 if (o.CpuRepairHeld) continue;                                                 // DV137: a vehicle on its repair trip is no idle unit of the planner (its order rounds, DV37, DV56, DV72) until it is back (ZBot.CpuRepair.cs)
                 if (o.CpuDefendHeld) continue;                                                 // DV136: a guard of the frontier (on its way to its spot or holding it) is no idle unit of the planner either (ZBot.CpuDefend.cs)
                 if (o.IsShuttle) continue;                                                       // DV118: the CPU never uses the playable shuttle (Sim/ZWorld.Shuttle.cs)
+                if (BigTankDriveHeld(o)) continue;                                               // 1.5 DV202 (kit l18_cpu_bigtank_r2): the computer's own big tank is driven by its own round (Sim/ZBot.BigTankDrive.cs), not by these rounds
                 var wps = KnownWaypoints(o);
                 if (wps.Count > 0)
                 {
@@ -324,7 +326,7 @@ namespace OpenZ.Sim
                 foreach (var t in targets)
                 {
                     TargetPoint(t, out int tx, out int ty);
-                    if (!InSameRegion(ux, uy, tx, ty, robot)) continue;                 // :449-451
+                    if (!BotPairRegion(u, t, ux, uy, tx, ty)) continue;                  // :449-451; 1.5 DV199 (kit level18_rules): a big tank of the computer asks the live reachability on its own grid (Sim/ZBot.BigTanks.cs)
                     bool add = false;
                     switch (t.Kind)
                     {

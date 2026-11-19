@@ -14,15 +14,14 @@ Unity project, with every model, texture, sound and scene, is attached to each r
 
 ## Open, play and build
 
-1. Download **OpenZ_1.4_source_part1.zip** and **OpenZ_1.4_source_part2.zip** from the
-   [latest release](https://github.com/playopenz/OpenZ/releases/latest) and unzip both into the same place (they merge
-   into one `OpenZ_1.4_source` folder). In **Unity Hub** choose **Add → Add project from disk** and select that
-   folder (the one that holds `Assets/`, `Packages/` and `ProjectSettings/`). The first open rebuilds `Library/` and
-   takes a while.
-2. Open `Assets/OpenZ/Scenes/MainMenu.unity` and press **Play**. All four levels are also playable directly:
-   `L02_Desert.unity`, `L07_Volcanic.unity`, `L16_Jungle.unity` and `L17_CarPark.unity`.
+1. In the OpenZ-VK installer, select **Source + Unity**, choose a source revision, and prepare the resource package
+   pinned in its `SOURCE_RESOURCES.json`. The installer also accepts the corresponding local resource bundle.
+   In **Unity Hub**, choose **Add → Add project from disk** and select the workspace's `source/` directory. The
+   first open rebuilds `Library/` and takes a while.
+2. Open `Assets/OpenZ/Scenes/MainMenu.unity` and press **Play**. The five original levels are also playable directly:
+   `L02_Desert.unity`, `L07_Volcanic.unity`, `L16_Jungle.unity`, `L17_CarPark.unity` and `L18_BridgeGame.unity`.
 3. To make a standalone game, open **File → Build Profiles**, choose **Windows** and click **Build**. The scene list is
-   already set: Intro, MainMenu, L02_Desert, L07_Volcanic, L16_Jungle, L17_CarPark and UE_Playground (the Unit editor).
+   already includes the main menu, original levels, AI Maps, intro and Unit Editor.
    **OpenZ → Menu → Set Build Order (MainMenu first)** puts the menu and the levels first again if needed. The
    experimental Mac and Linux builds have their own menus under **OpenZ**, **Mac experimental** and **Linux experimental**
    (they need the editor's Mac or Linux Build Support module, Mono).

@@ -78,7 +78,7 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ classification
         public static bool Separable(ZObject o) => o != null && o.IsUnit && !o.ShuttleAirborne && !o.Destroyed && o.KillAt < 0 && !o.IsFortDefender;   // fort_defender_v1 DV41: on the roof, never in the ground traffic
         /// <summary>Never moves: cannons, empty (neutral) vehicles, units without speed.</summary>
-        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || o.IsShuttle || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned || o.EvilDashing;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
+        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || ZWorld.RamStillStatic(o) /* 1.5 DV195 (kit ram_chain_n24_n25): rammed / crushed: never moves */ || o.IsShuttle || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned || o.EvilDashing;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
         public static int Radius(ZObject o) => o.IsEvilZod ? ZEvilZod.BodyRadius : o.Kind == ZKind.Robot ? (o.Type == "tough" || o.Type == ZElectro.Type ? ToughRadius : RobotRadius) : o.Kind == ZKind.Vehicle ? VehicleRadiusOf(o.Type) : CannonRadius;   // electrobot_v1: Tough radius
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace OpenZ.Sim
         public static bool ChassisRadii = true;   // false = one 16 px radius for every vehicle (A/B for the stress test)
         public static int VehicleRadiusOf(string type) => !ChassisRadii ? VehicleRadius : type switch
         {
-            "crane" => 22, "apc" => 21, ZWorld.ShuttleType => ZWorld.ShuttleRadiusPx, "heavy" => 20, "missile_launcher" => 19, "medium" => 18, ZMTank.Type => 18, "light" => 17, _ => VehicleRadius,   // DV145: the medium tank keeps the mech's room (its tracks 4.3 m, between the light tank's and the heavy's)
+            "crane" => 22, "apc" => 21, ZWorld.ShuttleType => ZWorld.ShuttleRadiusPx, ZBigTanks.Mammoth => ZBigTanks.MammothRadiusPx, ZBigTanks.Bizon => ZBigTanks.BizonRadiusPx, "heavy" => 20,   /* 1.5 DV180 / DV181 */ "missile_launcher" => 19, "medium" => 18, ZMTank.Type => 18, "light" => 17, _ => VehicleRadius,   // DV145: the medium tank keeps the mech's room (its tracks 4.3 m, between the light tank's and the heavy's)
         };
         /// <summary>Minimum centre distance of two units (robots 12 px = 1.5 m, robot-vehicle 22 px, vehicles 32 px).</summary>
         public static int MinSpacing(ZObject a, ZObject b) => Radius(a) + Radius(b);
@@ -108,6 +108,7 @@ namespace OpenZ.Sim
             (SameSquad(a, b) && a.PathMode == WpMode.ForceMove && b.PathMode == WpMode.ForceMove) ||   // a fresh squad walking out of its factory door
             (SameSquad(a, b) && (a.ShuttleFileBound || b.ShuttleFileBound)) ||                         // DV118: a squad walking in file to the shuttle's back slots passes its own (Sim/ZWorld.ShuttleRamp.cs)
             ZWorld.RunOverPair(a, b) || ZWorld.RunOverPair(b, a) ||                                  // DV65: a moving enemy vehicle drives into the robot (ZWorld.RunOver.cs)
+            ZWorld.RamPair(a, b) || ZWorld.RamPair(b, a) ||                                          // 1.5 DV182: a ramming Mammoth and its target touch (Sim/ZObject.MammothRam.cs)
             YieldPair(a, b) || YieldPair(b, a) ||                                                    // vehicles first: a robot stepping aside for a moving vehicle of its team (ZYield.cs)
             Squeeze(a, b) || Squeeze(b, a) ||                                                        // DV66: a robot stepping out of a wedge past a parked hull (ZStuckGuard)
             OverlapPair(a, b) ||                                                                     // the option FRIENDLY UNITS OVERLAP: moving units of one team pass through each other (ZPathing.Overlap.cs)
@@ -400,6 +401,7 @@ namespace OpenZ.Sim
         public int ImpassCount(ZObject o, int locX, int locY)
         {
             var pf = W.Path;
+            using var gridKindHold = pf.Kind(W.GridKindOf(o));   // 1.5 DV192 / DV193 (kit sim_notes11): this unit's own grid kind
             int x = locX + 1, y = locY + 1, w = o.WidthPix - 2, h = o.HeightPix - 2;
             if (x < 0 || y < 0 || x + w >= pf.WidthPix || y + h >= pf.HeightPix) return 1000;
             int n = 0;

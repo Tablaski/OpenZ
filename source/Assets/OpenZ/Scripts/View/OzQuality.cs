@@ -7,6 +7,7 @@
 //    stays), main-light shadows (2048 / 1024, 2 cascades, 180 / 120 m), the additional-light shadow atlas (2048 / 1024), soft-shadow
 //    quality (medium / low) and the atmosphere ray-march (12 / 9 steps instead of 16; the per-pixel jitter hides the step count).
 //    Render scale stays 1.0 on every preset (full quality, never downscaled by a preset).
+//    1.5 kit issue8_resolution_low (GitHub issue 8): LOW draws the 3D picture within a pixel budget on big screens (View/OzLowScale.cs; on a Mac View/OzMacPerf.cs).
 //    Gameplay never changes. NIGHT LIGHT SHADOWS stays its own row (the one knob for night-light shadows).
 //    is on, OzLitePresets.cs lowers numbers and switches the game already had (sun shadow reach and steps, night lights,
 //    night-light shadows, rain with its depth layers; on LOW also the lamps' glow and beams; the table is OzLiteTable.cs) and
@@ -28,7 +29,7 @@ namespace OpenZ
         public const string FpsPref = "oz_fps_counter";
         public const string Label = "GRAPHICS QUALITY", FpsLabel = "FPS COUNTER";
         // version 1.1: one clause per thing MEDIUM / LOW give up (a cut that is taken out of OzLiteTable.cs takes its clause with it)
-        public const string Tip = "GRAPHICS QUALITY|High (default): the full look. Medium and Low are for slower PCs: softer shadows that end sooner when zoomed far out, less anti-aliasing (2x / off; the edge smoothing filter stays), lighter fog and ambient occlusion (half / off), fewer night lights that light the ground or cast shadows, thinner rain. Low gives up the most: its lamps also lose their glow and beams. Resolution, units, shots, sounds and the rules never change.|";
+        public const string Tip = "GRAPHICS QUALITY|High (default): the full look. Medium and Low are for slower PCs: softer shadows that end sooner when zoomed out, less anti-aliasing (2x / off; edge smoothing stays), lighter fog and ambient occlusion (half / off), fewer night lights and their shadows, thinner rain. Low gives up the most: lamps lose glow and beams, water its sun and fire glints, and big screens get a lighter 3D view (text stays sharp). Units and rules never change.|";
         public const string FpsTip = "FPS COUNTER|On shows the frame rate, the time of one frame for the processor and for the graphics chip, and the graphics preset in the top right corner. Detailed also splits the processor's time into the game's main work, the drawing work and the game's rules. Off is the default. Hidden in recordings.|";
         /// <summary>1.3 item 25: the three values of FPS COUNTER (oz_fps_counter 0 / 1 / 2).</summary>
         public static readonly string[] FpsNames = { "OFF", "ON", "DETAILED" };
@@ -231,29 +232,103 @@ namespace OpenZ
             var root = Hud.Node("Root", go.transform); root.Fill(); root.pivot = Vector2.zero;
             builtDetailed = OzQuality.FpsDetailed;
             var c = Hud.Chip(root, "FpsChip", new OzRect(OzAnchor.TR, OzLayout.RefW - Right - CurW, Y, CurW, H), "", OzUi.A(OzUi.GM900, 0.86f), OzUi.Amber, 10, 0.12f, OzUi.A(OzUi.AmberLo, 0.9f));
-            text = c.text; chipRt = root.Find("FpsChip") as RectTransform; placedY = Y; shown = "";
+            text = c.text; chipRt = root.Find("FpsChip") as RectTransform; placedY = Y; placedRight = Right; shown = "";   // 1.5 kit fps_chip_place_r3: built at home
         }
 
-        RectTransform chipRt; float placedY; int placedW, placedH; float placedScale = -1f;
+        RectTransform chipRt; float placedY, placedRight; int placedW, placedH; float placedScale = -1f;
         /// <summary>Checks: canvas units from the top at which the chip stands now (Y unless a panel lay there).</summary>
         public static float PlacedY;
-        /// <summary>The chip's place: under the MENU button (Y), and from there down in small steps until none of its five points
-        /// lies on a panel of the interface (a large interface scale, panels the player arranged). Looked at twice a second.</summary>
+        /// <summary>Checks (1.5 kit fps_chip_place_r3): canvas units from the screen's right edge to the chip's right edge now (Right at home).</summary>
+        public static float PlacedRight;
+        /// <summary>Checks (1.5 kit fps_chip_place_r3): the spot of the last look: home, band, corner top, corner bottom, slid, home (none clear),
+        /// editor bar, editor field, editor field slid, held (a dialog, the pause menu, the end screen or ARRANGE INTERFACE: it stays).</summary>
+        public static string PlacedSpot = "home";
+        /// <summary>1.5 kit fps_chip_place_r3: how far under MENU the chip may walk in a match (canvas units; MENU ends at 80 u at 160 %), the
+        /// corners' gap from the screen's edge, the slide step.</summary>
+        public const float BandDown = 120f, CornerGap = 8f, SlideStep = 24f;
+        readonly Vector3[] barCorners = new Vector3[4];
+
+        /// <summary>The chip's place, looked at twice a second. It NEVER floats mid-screen (1.5 kit fps_chip_place_r3, owner exe 13c;
+        /// before, a right side covered from top to bottom, as the Unit editor's STATS
+        /// box and TABLE, walked it 60 steps down to y 424, onto the unit list, and a dialog / the pause menu / the end screen did the same).
+        /// The Unit editor: in its top bar (EditorSpot). A match (MatchSpot): the first spot clear of every panel of the interface: (1) under
+        /// MENU, Y down to Y + BandDown in 6 u steps (a large interface scale, panels the player arranged); (2) the top-right corner; (3) the
+        /// bottom-right corner (and up to BandDown over it); (4) at Y slid left in SlideStep steps, never past the screen's middle; (5) none
+        /// clear: home (Y under MENU). A dialog, the pause menu, the end screen or ARRANGE INTERFACE (the HUD Modal) leaves it where it
+        /// stood; no HUD (the main menu, a loading screen): home.</summary>
         void Place()
         {
+            if (!chipRt) return;
             var hud = OpenZHud.I;
-            if (!chipRt || !hud || !hud.Canvas || !hud.hudVisible) return;
-            float k = Screen.height / 1080f, right = Screen.width - Right * k, left = right - CurW * k, y = Y;
-            for (int i = 0; i < 60; i++, y += 6f)
+            float k = Screen.height / 1080f, y = Y, right = Right; string spot = "home";
+            if (hud && hud.Canvas)
             {
-                float top = Screen.height - y * k, bottom = Screen.height - (y + H) * k;
-                if (bottom < 0f) { y = Y; break; }
-                if (!hud.IsOverUi(new Vector2(left + 1f, top - 1f)) && !hud.IsOverUi(new Vector2(right - 1f, top - 1f)) && !hud.IsOverUi(new Vector2(left + 1f, bottom + 1f))
-                    && !hud.IsOverUi(new Vector2(right - 1f, bottom + 1f)) && !hud.IsOverUi(new Vector2((left + right) * 0.5f, (top + bottom) * 0.5f))
-                    && !hud.IsOverUi(new Vector2(left + 1f, top + 5f * k)) && !hud.IsOverUi(new Vector2(right - 1f, top + 5f * k))) break;   // and 5 units of air above it
+                if (hud.Modal) { PlacedY = placedY; PlacedRight = placedRight; PlacedSpot = "held"; return; }
+                if (!EditorSpot(hud, k, ref right, ref y, ref spot)) MatchSpot(hud, k, ref right, ref y, ref spot);
             }
-            if (Mathf.Abs(y - placedY) > 0.01f) { placedY = y; chipRt.Place(new OzRect(OzAnchor.TR, OzLayout.RefW - Right - CurW, y, CurW, H)); }
-            PlacedY = placedY;
+            if (Mathf.Abs(y - placedY) > 0.01f || Mathf.Abs(right - placedRight) > 0.01f)
+            { placedY = y; placedRight = right; chipRt.Place(new OzRect(OzAnchor.TR, OzLayout.RefW - right - CurW, y, CurW, H)); }
+            PlacedY = placedY; PlacedRight = placedRight; PlacedSpot = spot;
+        }
+
+        /// <summary>A match's spots (Place): under MENU, the two right corners, slid left; none clear: home.</summary>
+        void MatchSpot(OpenZHud hud, float k, ref float right, ref float y, ref string spot)
+        {
+            float foot = OzLayout.RefH - CornerGap - H, half = Screen.width / k * 0.5f;
+            for (float t = Y; t <= Y + BandDown + 0.01f; t += 6f) if (Clear(hud, Right, t, k)) { y = t; spot = t > Y + 0.01f ? "band" : "home"; return; }
+            if (Clear(hud, Right, CornerGap, k)) { y = CornerGap; spot = "corner top"; return; }
+            for (float t = foot; t >= foot - BandDown - 0.01f; t -= 6f) if (Clear(hud, Right, t, k)) { y = t; spot = "corner bottom"; return; }
+            for (float r = Right + SlideStep; r + CurW <= half; r += SlideStep) if (Clear(hud, r, Y, k)) { right = r; spot = "slid"; return; }
+            spot = "home (none clear)";
+        }
+
+        /// <summary>The Unit editor (1.5 kit fps_chip_place_r3): the chip stands in the top bar's empty stretch between the crumb and RESET
+        /// STATS (OzUeTopBar.FreeStretch: nothing ever opens there; the TABLE, the STATS box, the help card and the windows all lie under the
+        /// bar), its right edge OzUeTopBar.Gap before RESET STATS, centred on the bar's buttons. Where the stretch is narrower than the chip (a
+        /// large interface scale on a small screen) it takes the free field's top-right corner (Right u from the field's right edge = the
+        /// STATS box, CornerGap u under the bar), slid left in SlideStep steps while a panel lies there, never past the field's middle.
+        /// False outside the editor.</summary>
+        bool EditorSpot(OpenZHud hud, float k, ref float right, ref float y, ref string spot)
+        {
+            var shell = OzUnitEditor.Active ? OzUeShellRoot.I : null;
+            var top = shell != null ? shell.Top : null;
+            if (top == null || !top.Root) return false;
+            float ppu = OzUnitEditor.PxPerUnit;
+            if (BarSpot(top.FreeStretch, CurW * k / ppu, H * k / ppu, out Rect r))
+            {
+                top.Root.GetWorldCorners(barCorners);                                                          // an overlay canvas: world = screen pixels; [1] = top-left
+                right = (Screen.width - (barCorners[1].x + r.xMax * ppu)) / k; y = (Screen.height - (barCorners[1].y - r.y * ppu)) / k; spot = "editor bar";
+                return true;
+            }
+            var f = OzUeInsets.FreeFieldScreen;                                                                 // pixels, origin bottom-left
+            float r0 = (Screen.width - f.xMax) / k + Right, y0 = (Screen.height - f.yMax) / k + CornerGap, mid = (Screen.width - f.center.x) / k;
+            right = r0; y = y0; spot = "editor field";
+            if (Clear(hud, r0, y0, k)) return true;
+            for (float rr = r0 + SlideStep; rr + CurW <= mid + 0.01f; rr += SlideStep) if (Clear(hud, rr, y0, k)) { right = rr; spot = "editor field slid"; return true; }
+            return true;
+        }
+
+        /// <summary>Pure (the plan check runs it at every size, UI/OzFpsChipProof.cs): the chip's rect (editor canvas units, top-left origin) in
+        /// the bar's empty stretch `free` for a chip w x h units: its right edge at the stretch's right end, centred on the stretch's height;
+        /// false when the stretch is narrower or lower than the chip.</summary>
+        internal static bool BarSpot(Rect free, float w, float h, out Rect r)
+        {
+            r = new Rect(free.xMax - w, free.y + (free.height - h) * 0.5f, w, h);
+            return w > 0f && h > 0f && free.width >= w && free.height >= h;
+        }
+
+        /// <summary>The chip's rect (its right edge `right` u from the screen's right, its top `y` u from the top) is clear: none of 15 points
+        /// (5 across its top, middle and bottom rows) nor the 2 points 5 u over it lies on a panel; the whole chip inside the screen.</summary>
+        bool Clear(OpenZHud hud, float right, float y, float k)
+        {
+            float r = Screen.width - right * k, l = r - CurW * k, top = Screen.height - y * k, bottom = Screen.height - (y + H) * k;
+            if (l < 0f || bottom < 0f || top > Screen.height) return false;
+            for (int i = 0; i <= 4; i++)
+            {
+                float x = Mathf.Lerp(l + 1f, r - 1f, i * 0.25f);
+                if (hud.IsOverUi(new Vector2(x, top - 1f)) || hud.IsOverUi(new Vector2(x, (top + bottom) * 0.5f)) || hud.IsOverUi(new Vector2(x, bottom + 1f))) return false;
+            }
+            return !hud.IsOverUi(new Vector2(l + 1f, Mathf.Min(Screen.height - 1f, top + 5f * k))) && !hud.IsOverUi(new Vector2(r - 1f, Mathf.Min(Screen.height - 1f, top + 5f * k)));   // and 5 units of air above it
         }
 
         static bool Hidden => !OzQuality.FpsOn || OzSettings.TakeArg || CaptureKit.CineActive;

@@ -212,6 +212,7 @@ namespace OpenZ
         {
             bool lava = s == FxSurface.Water && OzLava.SurfaceAt(at, out _);                                 // 1.3 level 7: no stone chips, a small pop
             if (!Enabled || (s == FxSurface.Water && !lava) || s == FxSurface.Unit || s == FxSurface.Metal) return;
+            if (!lava && OzHitFeedback.Miss(at, s)) return;                                                   // 1.5 kit hit_feedback_sounds_r8 (A31): a miss keeps its ground sound, quieter than a hit, on screen only, under the same caps (soft ground: imp_miss_ground; road / rock: imp_bullet_stone)
             float now = Time.unscaledTime; missTokens = Mathf.Min(4f, missTokens + (now - missAt) * 4f); missAt = now;
             if (missTokens < 1f || !Chance(0.35f)) return;
             missTokens -= 1f;
@@ -220,6 +221,7 @@ namespace OpenZ
         /// <summary>LegacyMatch.Shot: a round that hits a building also chips its masonry (imp_bullet_stone) when it lands (50 %).</summary>
         public static void ShotLanded(ZObject target, bool hit, Vector3 to, float flight)
         {
+            if (OzHitFeedback.On) return;                                                                     // 1.5 kit hit_feedback_sounds_r8 (A31): a round on a building has its own dull hit now (imp_hit_building), not the miss's stone chip
             if (!Enabled || !hit || target == null || target.Kind != ZKind.Building || !Chance(0.5f)) return;
             Later(Mathf.Max(0f, flight), () => AudioDirector.Fire("imp_bullet_stone", to, -1, 0.9f));
         }
@@ -259,7 +261,7 @@ namespace OpenZ
         {
             switch (t)
             {
-                case "heavy": case "howitzer": return 0.75f;
+                case OzBigTanks.Mammoth: case OzBigTanks.Bizon: case "heavy": case "howitzer": return 0.75f;
                 case "medium": case ZMTank.Type: return 0.9f;   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "gatling": case "jeep": return 1.25f;
                 default: return 1f;
@@ -444,7 +446,7 @@ namespace OpenZ
         sealed class VehState { public bool moving; public float movingSince, lastYaw, lastPitch, lastRoll; public bool init; }
         static readonly Dictionary<int, VehState> veh = new Dictionary<int, VehState>();
         static float vehNext;
-        static bool Tracked(string t) => t == "light" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher";   // DV145 the medium tank (Sim/ZMTank.cs)
+        static bool Tracked(string t) => t == "light" || t == ZMTank.Type || t == "heavy" || t == "missile_launcher" || OzBigTanks.Is(t);   // 1.5 DV180 / DV181   // DV145 the medium tank (Sim/ZMTank.cs)
         /// <summary>AudioDirector.Update (sound_v3 tick): the vehicles on screen: a brake hiss when a vehicle halts after driving 1.5 s
         /// (30 %), a track squeal when a tracked vehicle pivots in place (hull yaw over 60 deg/s while standing), a suspension creak on
         /// bumps (pitch / roll rate spikes, 4 %, one per vehicle per 2.5 s). Camera under 110 m. The table events carry cooldowns and voice limits.</summary>
@@ -468,11 +470,11 @@ namespace OpenZ
                 bool vis = close && o.Owner != Team.Neutral && OnScreen(p, 0.05f);
                 if (moving != s.moving)
                 {
-                    if (!moving && vis && Time.time - s.movingSince > 1.5f && Chance(0.3f)) AudioDirector.Fire("veh_brake", p, o.Id, 0.8f, o.Type == "jeep" ? 1.2f : o.Type == "heavy" ? 0.85f : 1f);
+                    if (!moving && vis && Time.time - s.movingSince > 1.5f && Chance(0.3f)) AudioDirector.Fire("veh_brake", p, o.Id, 0.8f, o.Type == "jeep" ? 1.2f : (o.Type == "heavy" || OzBigTanks.Is(o.Type)) ? 0.85f : 1f);
                     s.moving = moving; s.movingSince = Time.time;
                 }
                 if (!vis) continue;
-                if (!moving && Tracked(o.Type) && yawRate > 60f) AudioDirector.Fire("veh_tracks_squeal", p, o.Id, Mathf.Clamp01(yawRate / 160f), o.Type == "heavy" ? 0.85f : 1f);
+                if (!moving && Tracked(o.Type) && yawRate > 60f) AudioDirector.Fire("veh_tracks_squeal", p, o.Id, Mathf.Clamp01(yawRate / 160f), (o.Type == "heavy" || OzBigTanks.Is(o.Type)) ? 0.85f : 1f);
                 if (moving && tilt > 30f && Chance(0.04f) && Gate("susp:" + o.Id, 2.5f)) AudioDirector.Fire("veh_suspension", p, o.Id, 0.8f, o.Type == "jeep" ? 1.15f : 0.95f);
             }
         }
@@ -491,13 +493,13 @@ namespace OpenZ
         {
             if (!Enabled || v == null || v.Kind != ZKind.Vehicle || v.Destroyed) return;
             if (!Gate("shutdown:" + v.Id, 3f)) return;
-            AudioDirector.Fire("veh_engine_shutdown", p, v.Id, 1f, v.Type == "jeep" ? 1.15f : v.Type == "heavy" ? 0.85f : 1f);
+            AudioDirector.Fire("veh_engine_shutdown", p, v.Id, 1f, v.Type == "jeep" ? 1.15f : (v.Type == "heavy" || OzBigTanks.Is(v.Type)) ? 0.85f : 1f);
         }
         /// <summary>LegacyEngineAudio: the one tank.mp3 loop per chassis (light 1, heavy .82, MLRS .92, APC / crane 1.08; jeep = car.mp3 at 1).</summary>
         public static float EnginePitch(ZObject v)
         {
             if (v == null) return 1f;
-            switch (v.Type) { case "heavy": return 0.82f; case "missile_launcher": return 0.92f; case "apc": case "crane": return 1.08f; default: return 1f; }
+            switch (v.Type) { case "heavy": return 0.82f; case OzBigTanks.Mammoth: return 0.76f; case OzBigTanks.Bizon: return 0.66f; /* 1.5 DV180 / DV181: deeper; the Bizon a tractor diesel */ case "missile_launcher": return 0.92f; case "apc": case "crane": return 1.08f; default: return 1f; }
         }
 
         // ================================================================================================ buildings

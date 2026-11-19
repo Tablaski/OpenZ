@@ -118,6 +118,7 @@ namespace OpenZ
         sealed class Draped
         {
             public int nx, nz; public bool polar, zoneRules; public Vector3[] v; public Color[] c; public int filled;
+            public bool[] off; public float footY;                                              // ue_flag_anywhere: a ring on a ramp platform (FlagView.Deck.cs); null = as before
             public Mesh mesh; public MeshRenderer r; public bool queued;
         }
 
@@ -259,6 +260,7 @@ namespace OpenZ
         {
             if (o == null) return false;
             var basePos = game.CenterWorld(o);
+            DeckFoot(o, ref basePos);                                                            // ue_flag_anywhere: on a ramp platform, its height at the flag (FlagView.Deck.cs)
             if (game.StaticViews.TryGetValue(o.Id, out var go) && go && hidePrefabFlag)
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
             var f = NewFlag(o, basePos - Vector3.up * 0.05f, zonePole, poleHeight, poleRadius, clothSize, false);
@@ -484,6 +486,7 @@ namespace OpenZ
         {
             const int seg = 56, rings = 14; float R = pulseRadius + 1f;
             var d = new Draped { nx = seg, nz = rings + 1, polar = true, v = new Vector3[seg * (rings + 1)], c = new Color[seg * (rings + 1)] };
+            DeckRing(f, d);                                                                      // ue_flag_anywhere: on a ramp platform, draped on it (FlagView.Deck.cs)
             var o = f.root.position;
             for (int j = 0; j <= rings; j++)
                 for (int i = 0; i < seg; i++)
@@ -528,7 +531,7 @@ namespace OpenZ
             int n = d.v.Length;
             while (d.filled < n && budget-- > 0)
             {
-                var p = d.v[d.filled]; float y = Mathf.Min(game.GroundY(p.x, p.z), game.TerrainY(p.x, p.z) + 0.3f);   // never above the terrain (no domes over units)
+                var p = d.v[d.filled]; float y = d.off != null ? DeckY(d, p) : Mathf.Min(game.GroundY(p.x, p.z), game.TerrainY(p.x, p.z) + 0.3f);   // never above the terrain (no domes over units); ue_flag_anywhere: a ring on a ramp platform lies on it
                 // ZoneMarkers.cs:89: a surface well above the play floor is a cliff top or rock wall, not zone ground
                 if (d.zoneRules && y > 1.5f) d.c[d.filled].a = 0;
                 d.v[d.filled] = new Vector3(p.x, y + 0.07f, p.z);
@@ -543,6 +546,7 @@ namespace OpenZ
                 {
                     int a = j * d.nx + i, b = j * d.nx + (i + 1) % d.nx, c = a + d.nx, e = b + d.nx;
                     if (d.c[a].a + d.c[b].a + d.c[c].a + d.c[e].a <= 0f) continue;
+                    if (d.off != null && (d.off[a] || d.off[b] || d.off[c] || d.off[e])) continue;   // ue_flag_anywhere: no quad down a platform's wall
                     tris.Add(a); tris.Add(c); tris.Add(b); tris.Add(b); tris.Add(c); tris.Add(e);
                 }
             var m = Own(new Mesh { name = d.polar ? "FlagRing" : "ZoneWash" });
@@ -657,7 +661,7 @@ namespace OpenZ
         {
             Vector4 fw = Shader.GetGlobalVector(FogWindId);
             var wv = new Vector3(fw.x, 0, fw.z);
-            if (wv.sqrMagnitude < 0.01f) { var fb = game.level == "L17" ? fallbackWindCity : fallbackWind; wv = new Vector3(fb.x, 0, fb.z); }
+            if (wv.sqrMagnitude < 0.01f) { var fb = OzCity.Is(game.level) ? fallbackWindCity : fallbackWind; wv = new Vector3(fb.x, 0, fb.z); }
             float speed = Mathf.Max(wv.magnitude, 0.01f); windDir = wv / speed;
             windYaw = Mathf.Atan2(-windDir.z, windDir.x) * Mathf.Rad2Deg;                          // local +x (fly end) points downwind
             float s = Mathf.Clamp(speed / 3.35f, 0.25f, 1.6f) * windStrength;                        // desert (3, 1.5) = 1, city (1.2, 0.6) = 0.4

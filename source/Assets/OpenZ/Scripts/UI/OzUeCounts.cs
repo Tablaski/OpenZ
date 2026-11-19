@@ -35,7 +35,7 @@ namespace OpenZ
             ed.Hud.AddBlocker(Plate);
             Gear = HudButton.Make(Plate, "Gear", null, new Vector2(GearSize, GearSize), HudButtonKind.Small, 12, 0f);
             Hud.Icon(Gear.Content, "Icon", "gear", (GearSize - 14f) * 0.5f, (GearSize - 14f) * 0.5f, 14f, OzUi.Ink2);
-            Gear.Tooltip = OzUeW.Tip("Background", null, "Floor style, floor lines, name labels, motion");
+            Gear.Tooltip = OzUeW.Tip("Background", null, "Zoom, fit and camera turn; floor style, floor lines, name labels, motion");   // 1.5 kit ue_bottom_left_r10 (A36): + the VIEW row
             Gear.OnClick = c => { GearClicks++; OnGear?.Invoke(); };
             for (int k = 0; k < 2; k++)
             {

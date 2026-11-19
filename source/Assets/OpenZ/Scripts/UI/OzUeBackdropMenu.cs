@@ -8,26 +8,34 @@ namespace OpenZ
     /// the gear: the floor styles (the ten dark ones, and since 1.3 item 26 two light ones) as pictures drawn by the floor's own shader (OzUeFloorThumb.shader, the prototype's thumbnail
     /// camera), one click switches the floor at once; then SHOW: floor lines, name labels on every unit, floor light motion. It closes on a
     /// click outside, Esc (P4's Esc chain, priority EscPopover) or the gear again. 2 columns, 3 when two would not fit the canvas's height.
+    /// A VIEW header on top holds the zoom row (ruler, zoom %, out, fit, in, compass: UI/OzUeZoomBar.cs) at its right end.
     /// </summary>
     public sealed class OzUeBackdropMenu
     {
         public const float Width2 = 300f, Width3 = 440f, HeadH = 36f, ThumbLabelH = 22f, OptH = 22f;
+        /// <summary>1.5 kit ue_bottom_left_r10 (A36): the VIEW header's title, and the zoom row's gap to the header's right end (u; its own 4 u end pad
+        /// makes the last button's edge 10 u in, as the DAY / NIGHT switch).</summary>
+        public const string ViewWord = "VIEW";
+        public const float ViewRowRight = 6f;
         /// <summary>Checks: opened, style clicks.</summary>
         public static int Opens, Picks;
 
         OpenZHud hud;
         public RectTransform Panel;
-        RectTransform head1, head2;
-        OzText title, sub, show;
+        RectTransform head1, head2, headV;                                                                 // 1.5 kit ue_bottom_left_r10: + the VIEW header
+        OzText title, sub, show, viewTitle;
         readonly HudButton[] thumbs = new HudButton[OzUeBackdrop.StyleCount];
         readonly RawImage[] pics = new RawImage[OzUeBackdrop.StyleCount];
         readonly OzText[] names = new OzText[OzUeBackdrop.StyleCount];
         readonly Image[][] edges = new Image[OzUeBackdrop.StyleCount][];
         readonly Image[][] rings = new Image[OzUeBackdrop.StyleCount][];
         OzUeCheck lines, labels, motion;
+        OzUeSeg dayNight;                                                                                   // 1.5 ue_dust_night: DAY / NIGHT (View/OzUeNight.cs)
         bool open, built; int cols = 2; float panelW = Width2, panelH;
         RectTransform anchor;
         public bool IsOpen => open;
+        /// <summary>1.5 kit ue_bottom_left_r10 (A36): the VIEW header, the zoom row's parent (UI/OzUeControlsRoot.cs builds the row there).</summary>
+        public RectTransform ViewHead => headV;
         public UeBox Box { get; private set; }
 
         public void Build(OzUnitEditor ed, Transform popovers, RectTransform gear)
@@ -39,6 +47,12 @@ namespace OpenZ
             hud.AddBlocker(Panel);
             head1 = Header("Head", out title, "BACKGROUND", out sub, "floor style");
             head2 = Header("Show", out show, "SHOW", out _, null);
+            headV = Header("View", out viewTitle, ViewWord, out _, null);                                  // 1.5 kit ue_bottom_left_r10 (A36): the zoom row's header, on top
+            OzUeNight.Ensure(ed);                                                                               // 1.5 ue_dust_night: the DAY / NIGHT switch, default DAY
+            dayNight = new OzUeSeg(head1, "DayNight", OzUeNight.Words, 11f, 0.12f);
+            dayNight.SetTip(0, OzUeW.Tip("DAY", null, "The playground in daylight"));
+            dayNight.SetTip(1, OzUeW.Tip("NIGHT", null, "The levels' night: lamps, neon, searchlights and beacons on, moonlit light"));
+            dayNight.OnPick = k => OzUeNight.Set(k == 1);
             for (int i = 0; i < OzUeBackdrop.StyleCount; i++)
             {
                 int idx = i;
@@ -83,9 +97,18 @@ namespace OpenZ
             float pad = cols == 3 ? 8f : 10f, gap = cols == 3 ? 6f : 8f;
             float tw = (panelW - 2f * OzUeBottomLayout.Border - 2f * pad - (cols - 1) * gap) / cols, picH = (tw - 2f) * 9f / 16f, th = picH + 2f + ThumbLabelH;
             float x0 = OzUeBottomLayout.Border, y = OzUeBottomLayout.Border;
+            headV.TL(x0, y, panelW - 2f, HeadH);                                                      // 1.5 kit ue_bottom_left_r10 (A36): VIEW, the zoom row at its right end
+            viewTitle.At(12f, HeadH * 0.5f, OzH.L, true, 0f);
+            y += HeadH;
             head1.TL(x0, y, panelW - 2f, HeadH);
             title.At(12f, HeadH * 0.5f, OzH.L, true, 0f);
             if (sub != null) sub.At(12f + title.WidthAt("BACKGROUND") + 10f, HeadH * 0.5f, OzH.L, true, 0f);       // the header's 10 u gap (.ph)
+            if (dayNight != null)
+            {   // 1.5 ue_dust_night: the switch at the header's right end; the sub words step aside when they would touch it
+                float sx = panelW - 2f - 10f - OzUeNight.SegW;
+                dayNight.Layout(new UeBox(sx, (HeadH - OzUeNight.SegH) * 0.5f, OzUeNight.SegW, OzUeNight.SegH), OzUeNight.SegCells);
+                if (sub != null) sub.SetActive(12f + title.WidthAt("BACKGROUND") + 10f + sub.WidthAt("floor style") + 8f <= sx);
+            }
             y += HeadH + pad;
             int rows = (OzUeBackdrop.StyleCount + cols - 1) / cols;
             for (int i = 0; i < OzUeBackdrop.StyleCount; i++)
@@ -112,13 +135,14 @@ namespace OpenZ
         }
 
         /// <summary>The 2-column popover's height (spec E013: 722 u with 10 styles; 1.3 item 26: 828.9 u with 12. 3 columns: 601 u, 4 rows, as with 10).</summary>
+        /// 1.5 kit ue_bottom_left_r10 (A36): + the 36 u VIEW header on top: 864.9 u with 2 columns, 637 u with 3.
         public static float Height(int cols)
         {
             float pad = cols == 3 ? 8f : 10f, gap = cols == 3 ? 6f : 8f, w = cols == 3 ? Width3 : Width2;
             float tw = (w - 2f - 2f * pad - (cols - 1) * gap) / cols, th = (tw - 2f) * 9f / 16f + 2f + ThumbLabelH;
             int rows = (OzUeBackdrop.StyleCount + cols - 1) / cols;
             float og = cols == 3 ? 6f : 8f;
-            return 2f + HeadH + pad + rows * th + (rows - 1) * gap + pad + HeadH + og + 3f * OptH + 2f * og + (cols == 3 ? 10f : 12f);
+            return 2f + HeadH + HeadH + pad + rows * th + (rows - 1) * gap + pad + HeadH + og + 3f * OptH + 2f * og + (cols == 3 ? 10f : 12f);   // 1.5 kit ue_bottom_left_r10: + VIEW
         }
 
         float GearBottom() { var r = CanvasRect(anchor); return r.y + r.height; }
@@ -190,6 +214,7 @@ namespace OpenZ
             }
             Paint();
             lines.Set(OzUeBackdrop.FloorLines); labels.Set(OzUeBackdrop.NameLabels); motion.Set(OzUeBackdrop.Motion);
+            if (dayNight != null) { dayNight.Select(OzUeNight.Night ? 1 : 0); dayNight.Tick(); }               // 1.5 ue_dust_night
         }
     }
 }

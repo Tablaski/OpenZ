@@ -170,10 +170,13 @@ namespace OpenZ.Multiplayer
         void BuildBattleOptions(DuelRules rules, bool editable)
         {
             var panel = LobbyPopup("BATTLE OPTIONS", 340);
-            var smoke = Button(panel, "DAMAGED TANK SMOKE & OIL · " + (rules.TankDamageEffects ? "ON" : "OFF"), 30, 110, 860,
+            var oil = Button(panel, OzBattleOptions.DamageLabel + " · " + (rules.TankDamageEffects ? "ON" : "OFF"), 30, 110, 685,
                 () => { rules.TankDamageEffects = !rules.TankDamageEffects; EditLobbyRules(rules); }, rules.TankDamageEffects, editable);
+            var shake = Button(panel, OzBattleOptions.ShakeLabel + " · " + (rules.TankDamageShake ? "ON" : "OFF"), 730, 110, 685,
+                () => { rules.TankDamageShake = !rules.TankDamageShake; EditLobbyRules(rules); }, rules.TankDamageShake, editable);
             var help = Label(panel, "", 30, 270, 1380, 19, OzUi.Muted);
-            AddLobbyTip(smoke, help, "Damaged tanks smoke at yellow health and leak oil at red health while moving.");
+            AddLobbyTip(oil, help, OzBattleOptions.DamageTip);
+            AddLobbyTip(shake, help, OzBattleOptions.ShakeTip);
             Label(panel, "WHEN YOUR LAST RADAR IS LOST", 30, 179, 1350, 21, OzUi.Ink);
             string[] tips =
             {

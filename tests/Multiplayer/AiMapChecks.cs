@@ -13,8 +13,14 @@ static class AiMapChecks
         string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
         string settings=File.ReadAllText(Path.Combine(root,"source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
         check(OzAiMapCatalog.All.Select(m=>m.Id).Distinct().Count()==OzAiMapCatalog.All.Length,"Unique converted map identities");
-        check(OzAiMapCatalog.All.All(m=>!new[]{2,7,16,17}.Contains(m.Number)),"Already restored OpenZ campaign maps excluded");
-        check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==31,"31 solo campaign choices");
+        check(OzAiMapCatalog.All.All(m=>!new[]{2,7,16,17,18}.Contains(m.Number)),"Already restored OpenZ campaign maps excluded");
+        check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==30,"30 solo campaign choices");
+        foreach (string retired in new[] { "SM18", "SM18F" })
+        {
+            check(OzAiMapCatalog.Find(retired) == null && OzAiMapCatalog.RestoreSavedLevel(retired) == "L18",
+                "Retired Bridge Game converts saved selections to the official map");
+            reject(() => new DuelRules { Map = retired }.Validate(), "Retired Bridge Game cannot bypass duel selection");
+        }
         check(OzAiMapCatalog.All.Where(m=>m.Solo&&m.Balanced).All(m=>m.SoloException&&(m.Number==21||m.Number==27)),"Fixed solo files limited to approved exceptions");
         check(OzAiMapCatalog.Select(true,"Z EXPANSION","arctic").Select(m=>m.Number).SequenceEqual(new[]{27,28,29}),"Arctic expansion filtering and numeric order");
         var ballermans = OzAiMapCatalog.Find("SMBallermansMapV3");
@@ -123,8 +129,8 @@ static class AiMapChecks
     static void CheckCatalogV3(string root, string settings, Action<bool,string> check)
     {
         var entries = OzAiMapCatalog.Playable.ToArray();
-        check(entries.Length == 62 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
-            "62 unique AI maps without official duplicates");
+        check(entries.Length == 60 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
+            "60 unique AI maps without official duplicates");
         bool lavaRule = ZWorld.LavaDeviation, crocodileRule = ZWorld.CrocodileDeviation;
         ZWorld.LavaDeviation = true;
         ZWorld.CrocodileDeviation = true;

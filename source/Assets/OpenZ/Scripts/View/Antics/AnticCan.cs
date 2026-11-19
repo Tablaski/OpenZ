@@ -17,6 +17,7 @@ namespace OpenZ
         public static float DisposeAfter = 15f, Radius = 0.072f, HalfHeight = 0.013f, ClatterMin = 0.55f, ClatterGap = 0.08f;
         public static int MaxLive = 8;                                                             // k75c3: raised while a flyover's hold has many robots drinking (AnticDirector.FlyoverCanCap), 8 in play
         public static int Thrown, Clatters, Disposed, Sunk;
+        public float restAfter = 0.5f;
         public float clatterGain = 1f;                                                             // K248b: this piece's clatter gain (1 = a can; a headshot's head louder, UnitView.HeadPop.cs)
         public static readonly List<string> Log = new List<string>();
         static readonly List<AnticCan> live = new List<AnticCan>();
@@ -55,6 +56,7 @@ namespace OpenZ
                     if (!any) { b = new Bounds(lp, Vector3.zero); any = true; } else b.Encapsulate(lp);
                 }
             }
+            OzRestSurface.SkinBox(h, ref b, ref any);
             if (any)
             {
                 var box = hull.AddComponent<BoxCollider>(); box.center = b.center; box.size = b.size * 0.94f; box.sharedMaterial = Tin;
@@ -112,9 +114,10 @@ namespace OpenZ
                 float sp = rb.linearVelocity.magnitude;
                 bool still = landedAt >= 0f && (rb.IsSleeping() || (sp < 0.08f && rb.angularVelocity.magnitude < 0.3f));
                 restT = still ? restT + dt : 0f;
-                if (restT > 0.5f)
+                if (restT > restAfter)
                 {
                     frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
+                    OzRestSurface.Frozen(this);
                     var g = ZGame.I; float gy = g ? g.GroundY(p.x, p.z) : p.y;
                     Note($"rest {clatters} clatters, body {(p.y - gy) * 100f:F1} cm over GroundY");
                 }
@@ -151,6 +154,15 @@ namespace OpenZ
             string line = $"can #{id}: {s} at {age:F2} s";
             if (Log.Count < 80) Log.Add(line);
             if (AnticDirector.Verbose) Debug.Log("[OpenZ Antics] " + line);
+        }
+
+        /// <summary>1.5 kit robot_pieces_ground_r11b (A35): frozen at rest (kinematic).</summary>
+        public bool Frozen => frozen;
+        /// <summary>1.5 kit robot_pieces_ground_r11b (A35, OzRestWatch): what it lay on went: it falls again (and freezes and is seated where it lands).</summary>
+        public void Unfreeze()
+        {
+            if (!rb || popping || !frozen || sinkT >= 0f) return;
+            frozen = false; restT = 0f; rb.isKinematic = false; rb.interpolation = RigidbodyInterpolation.Interpolate; rb.WakeUp();
         }
 
         void OnDestroy() { live.Remove(this); }

@@ -904,6 +904,7 @@ namespace OpenZ.Sim
         void EnsureZoneMap()
         {
             var pf = W.Path;
+            using var gridKindHold = pf.Kind(ZPathFinder.GridZod);   // 1.5 DV192 / DV193 (kit sim_notes11): the zones are shared: Zod's grids
             if (zR != null && zVersion == pf.Version && zLanes == lanesVersion) return;     // (rebuilt with the lanes: EnsureLanes runs first in BeginTick)
             zVersion = pf.Version; zLanes = lanesVersion; ZoneBuilds++;
             double[] oldAct = null;
@@ -2162,6 +2163,7 @@ namespace OpenZ.Sim
             var wk = CreateObject("map_item", WreckType, tx * 16, ty * 16, Team.Neutral);
             wk.WidthPix = w * 16; wk.HeightPix = h * 16; wk.SetCords(tx * 16, ty * 16);
             wk.IsDestroyableImpass = true;
+            wk.VehicleWreck = true;   // 1.5 DV192 / DV193 (kit sim_notes11): the test wreck is a car wreck
             wk.MaxHealth = wk.Health = (int)(S.map_item_health * ZConst.MAX_UNIT_HEALTH);
             SetMapImpassables(wk);
             return wk;

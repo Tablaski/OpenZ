@@ -13,7 +13,7 @@ namespace OpenZ.Sim
     /// bug, collinear-point removal, tile-centre output + the exact end point). Runs synchronously; the world delivers the
     /// result one tick later like Zod's path thread.
     /// </summary>
-    public sealed class ZPathFinder
+    public sealed partial class ZPathFinder
     {
         public struct Info { public int side, diag; public bool passable; }
 
@@ -38,6 +38,7 @@ namespace OpenZ.Sim
             W = w; H = h; WidthPix = w * 16; HeightPix = h * 16;
             robot = new Info[w, h]; vehicle = new Info[w, h]; robotNoRocks = new Info[w, h]; vehicleNoRocks = new Info[w, h];
             robotRegion = new int[w, h]; vehicleRegion = new int[w, h];
+            KindReset(w, h);   // 1.5 DV192 / DV193 (kit sim_notes11): the Bizon's and the heavy tanks' grids (Sim/ZBigTanks.Ground.cs)
         }
 
         /// <summary>zpath_finding.cpp:417-471 (C float tile_speed, int weights = truncation)</summary>
@@ -60,6 +61,7 @@ namespace OpenZ.Sim
             robotNoRocks[x, y] = robot[x, y];
             vehicleNoRocks[x, y] = vehicle[x, y];
             if (t == PfTile.Water && WaterCost != 1f) { robot[x, y].side = robotNoRocks[x, y].side = (int)(float)(100 * (float)(speed * WaterCost)); robot[x, y].diag = robotNoRocks[x, y].diag = (int)((1.414 * 100) * (float)(speed * WaterCost)); }   // level 16: the swamp weighs double for robots
+            KindTileInfo(x, y, t);   // 1.5 DV192 / DV193 (kit sim_notes11)
         }
 
         /// <summary>zpath_finding.cpp:473-546: a vehicle tile weighs the sum of its 2x2 footprint.</summary>
@@ -92,6 +94,7 @@ namespace OpenZ.Sim
             vehicle[x, y].passable = !impassable;
             robotNoRocks[x, y].passable = !impassable || destroyable;
             vehicleNoRocks[x, y].passable = !impassable || destroyable;
+            KindImpass(x, y, impassable, destroyable);   // 1.5 DV192 / DV193 (kit sim_notes11)
         }
 
         public bool TileOnMap(int tx, int ty) => tx >= 0 && ty >= 0 && tx < W && ty < H;
@@ -103,15 +106,15 @@ namespace OpenZ.Sim
             vehicle[x, y].passable = vehicleNoRocks[x, y].passable = vehicles;
         }
         public bool TilePassable(int tx, int ty, bool isRobot) =>
-            TileOnMap(tx, ty) && (isRobot ? robot[tx, ty].passable : vehicle[tx, ty].passable);
+            TileOnMap(tx, ty) && (isRobot ? robot[tx, ty].passable : VG[tx, ty].passable);   // 1.5 DV192 / DV193 (kit sim_notes11): VG = the vehicle grid of the grid kind now
         /// <summary>OpenZ pathing layer: passability on one of the four grids (with / without destroyable rocks).</summary>
         public bool TilePassableGrid(int tx, int ty, bool isRobot, bool noRocks) => TileOnMap(tx, ty) && Grid(isRobot, noRocks)[tx, ty].passable;
         /// <summary>OpenZ pathing layer: the exact A* move rule (TileOk below); ex, ey == sx, sy tests the footprint alone.</summary>
         public bool StepOk(int sx, int sy, int ex, int ey, bool isRobot, bool noRocks) => TileOk(sx, sy, ex, ey, isRobot, Grid(isRobot, noRocks));
-        Info[,] Grid(bool isRobot, bool noRocks) => isRobot ? (noRocks ? robotNoRocks : robot) : (noRocks ? vehicleNoRocks : vehicle);
+        Info[,] Grid(bool isRobot, bool noRocks) => isRobot ? (noRocks ? robotNoRocks : robot) : (noRocks ? VGN : VG);   // 1.5 DV192 / DV193 (kit sim_notes11)
 
         // ------------------------------------------------------------------ regions (zpath_finding.cpp:159-285)
-        public void RebuildRegions() { BuildRegions(robot, robotRegion); BuildRegions(vehicle, vehicleRegion); }
+        public void RebuildRegions() { BuildRegions(robot, robotRegion); BuildRegions(vehicle, vehicleRegion); KindRegions(); }   // 1.5 DV192 / DV193 (kit sim_notes11)
 
         void BuildRegions(Info[,] info, int[,] region)
         {
@@ -142,7 +145,7 @@ namespace OpenZ.Sim
         {
             sx >>= 4; sy >>= 4; ex >>= 4; ey >>= 4;
             if (sx < 0 || sy < 0 || ex < 0 || ey < 0 || sx >= W || sy >= H || ex >= W || ey >= H) return true;
-            return isRobot ? robotRegion[sx, sy] == robotRegion[ex, ey] : vehicleRegion[sx, sy] == vehicleRegion[ex, ey];
+            return isRobot ? robotRegion[sx, sy] == robotRegion[ex, ey] : VR[sx, sy] == VR[ex, ey];   // 1.5 DV192 / DV193 (kit sim_notes11)
         }
 
         // ------------------------------------------------------------------ movement blocking (zpath_finding.cpp:629-698)
@@ -150,7 +153,7 @@ namespace OpenZ.Sim
         {
             stopX = stopY = 0;
             if (x < 0 || y < 0 || x + w >= WidthPix || y + h >= HeightPix) return true;
-            var tc = isRobot ? robot : vehicle;
+            var tc = isRobot ? robot : VG;   // 1.5 DV192 / DV193 (kit sim_notes11)
             int tx = x >> 4, ty = y >> 4, tw = w >> 4, th = h >> 4;
             if (w % 16 != 0) tw += 1;
             if (h % 16 != 0) th += 1;
@@ -216,7 +219,7 @@ namespace OpenZ.Sim
             if (!force && DirectPathPossible(sx, sy, ex, ey, isRobot, hasExplosives)) return 0;
             if (!InSameRegion(sx, sy, ex, ey, isRobot)) return 0;
             if (++nextThreadId == 0) nextThreadId++;
-            var tiles = isRobot ? (hasExplosives ? robotNoRocks : robot) : (hasExplosives ? vehicleNoRocks : vehicle);
+            var tiles = isRobot ? (hasExplosives ? robotNoRocks : robot) : (hasExplosives ? VGN : VG); /* 1.5 DV192 / DV193 (kit sim_notes11) */
             AStarRuns++;                                                                   // DV44 path budget (ZCommit.cs): searches per tick
             points = AStar(sx, sy, ex, ey, isRobot, tiles);
             return nextThreadId;
@@ -231,7 +234,7 @@ namespace OpenZ.Sim
             int distLeft = (int)Math.Sqrt(dx * dx + dy * dy);
             double hyp = Math.Abs(dx) > Math.Abs(dy) ? 1 / Math.Cos(Math.Atan2(Math.Abs(dy), Math.Abs(dx)))
                                                      : 1 / Math.Sin(Math.Atan2(Math.Abs(dy), Math.Abs(dx)));
-            var tc = isRobot ? (hasExplosives ? robotNoRocks : robot) : (hasExplosives ? vehicleNoRocks : vehicle);
+            var tc = isRobot ? (hasExplosives ? robotNoRocks : robot) : (hasExplosives ? VGN : VG); /* 1.5 DV192 / DV193 (kit sim_notes11) */
             double distCheck = (isRobot ? (8 + 8 + 1) : (16 + 8 + 1)) * hyp;
             int bc = isRobot ? 1 : 2;
             int A = -1 * (sy - ey), B = sx - ex, C = -1 * (A * sx + B * sy);
@@ -245,7 +248,7 @@ namespace OpenZ.Sim
                     for (int ty = cty - bc; ty <= cty + bc; ty++)
                     {
                         if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
-                        if (tc[tx, ty].passable) continue;
+                        if (tc[tx, ty].passable && !LavaLine(tx, ty)) continue;   // 1.5 DV192 amended N12b (kit sim_notes11): for the Bizon a lava tile is no straight line: the A* weighs it
                         int cx = tx * 16 + 8, cy = ty * 16 + 8;
                         if (distCheck >= Math.Abs(A * cx + B * cy + C)) return false;
                     }
@@ -324,6 +327,7 @@ namespace OpenZ.Sim
         List<(int, int)> AStar(int startPx, int startPy, int endPx, int endPy, bool isRobot, Info[,] t)
         {
             int sx = startPx / 16, sy = startPy / 16, ex = endPx / 16, ey = endPy / 16;
+            AmphEnds(ref sx, ref sy, ref ex, ref ey, isRobot, t);   // 1.5 DV192 amended N12b (kit sim_notes11): the Bizon's grid on a lava map: a closed end tile moves to an open one, the A* weighs the lava (Sim/ZBigTanks.Ground.cs)
             var result = new List<(int, int)>();
             if (!TileOk(sx, sy, sx, sy, isRobot, t) || !TileOk(ex, ey, ex, ey, isRobot, t)) { result.Add((endPx, endPy)); return result; }
             if (aOpen == null || aOpen.index.GetLength(0) != W || aOpen.index.GetLength(1) != H) { aOpen = new PArray(W, H); aClosed = new PArray(W, H); }

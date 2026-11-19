@@ -177,8 +177,8 @@ namespace OpenZ
             {
                 case "fort gun": return 1.6f;
                 case "howitzer": return 1.4f;
-                case "heavy": case "gun": return 1.2f;
-                case "light": case "medium": case ZMTank.Type: case "missile_launcher": case "missile_cannon": case "tough": return 1.0f;   // DV145 the medium tank (Sim/ZMTank.cs)
+                case "heavy": case "gun": case OzBigTanks.Mammoth: return 1.2f;   // 1.5 DV180 / DV181
+                case "light": case "medium": case ZMTank.Type: case OzBigTanks.Bizon: case "missile_launcher": case "missile_cannon": case "tough": return 1.0f;   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "grenade": return 0.9f;
                 case "pyro": case "electrobot": return 0.6f;
                 default: return 0.55f;

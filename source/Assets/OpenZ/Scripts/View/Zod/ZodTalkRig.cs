@@ -169,6 +169,7 @@ namespace OpenZ
             {
                 var clip = voice.clip;
                 float t = voice.timeSamples / (float)Mathf.Max(1, clip.frequency);
+                t = ZodBriefing.LineWarp(clip.name, t);                                                 // a clip with cut pauses: its curve and nods are seconds of the uncut line
                 if (clip != lastClip || t < lastTime) { lastTime = t - 1e-4f; lastClip = clip; }
                 if (curves.TryGetValue(clip.name, out var cl) && cl.jaw != null && cl.jaw.Length > 0)
                 {

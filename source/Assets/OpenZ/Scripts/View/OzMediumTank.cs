@@ -34,7 +34,7 @@ namespace OpenZ
 
         /// <summary>The weapon a shot is drawn and heard as: the medium tank fires the light tank's gun exactly (its shell, flash, smoke ring,
         /// sparks, launch and flight sounds, impact blast); every other type is itself.</summary>
-        public static string Gun(string type) => type == Type ? ZMTank.Gun : type;
+        public static string Gun(string type) => type == Type ? ZMTank.Gun : OzBigTanks.Gun(type);   // 1.5 DV180 / DV181: the Mammoth fires the heavy tank's gun, the Bizon this one's (View/OzBigTanks.cs)
 
         /// <summary>The medium tank in View/OzV2Units.cs (prefab, hatch frame, roof panel, lamp data). Its "two" keys are the same prefab: one model.</summary>
         public static readonly OzUnitModels Models = new OzUnitModels(Type, Key, Key, Dir, FrameNode, "tank_", "mtank", "mtank", "MEDIUM TANK",

@@ -15,7 +15,7 @@ namespace OpenZ
     /// grows 25 % and fades in 0.7 s with the game's electric fizzle. No collider: the camera's ground ray and the sim never see it
     /// (the sim has its own impassable tiles). The scan and the flicker stop while the game is paused.
     /// </summary>
-    public sealed class OzUeObstacleView : MonoBehaviour
+    public sealed partial class OzUeObstacleView : MonoBehaviour                                         // 1.5 ue_boxes: + View/OzUeObstacleView.Box.cs
     {
         public ZObject Obj { get; private set; }
         public bool Dying => dieAt >= 0f;
@@ -29,6 +29,7 @@ namespace OpenZ
             Obj = o;
             float w = o.WidthPix / 8f, d = o.HeightPix / 8f, h = OzUePlayground.ObstacleHeightM;
             centre = ZGame.PxToWorld(o.LocX + o.WidthPix * 0.5, o.LocY + o.HeightPix * 0.5); centre.y = 0f;
+            BoxBind(o, ref h, ref centre);                                                                   // 1.5 ue_boxes: a BOX: 4 m tall, drawn on its stack level
             size = new Vector4(w, h, d, 0f);
             transform.position = centre;
             var box = OzUeObstacleViews.BoxMesh(w, h, d); var pool = OzUeObstacleViews.PoolMesh(0.9f * Mathf.Max(w, d));
@@ -65,6 +66,8 @@ namespace OpenZ
             if (Dying) return true;
             dieAt = Time.unscaledTime; life = 0f;
             AudioDirector.Fire("electro_fizzle", centre + Vector3.up * 1.5f, Obj != null ? Obj.Id : -1);
+            if (OzUeStructureBreak.Obstacle(Obj, centre, size)) foreach (var r in parts) if (r) r.enabled = false;
+            BoxBrokeUp();                                                                                    // 1.5 ue_boxes: up on a stack: no floor pool under the shatter   // 1.5 ue_structure_destruction: the hologram shatters into its panels (View/OzUeStructureBreak.Holo.cs); off = the rising outline
             Debug.Log($"{OzUnitEditor.Tag} obstacle #{(Obj != null ? Obj.Id : -1)} destroyed: the hologram breaks up");
             return true;
         }
@@ -73,6 +76,7 @@ namespace OpenZ
         {
             OzUeObstacleViews.Frame();
             if (Obj == null) return;
+            if (!Dying) BoxFrame();                                                                          // 1.5 ue_boxes: a box's fall, tumble and landing
             if (Dying)
             {
                 life += Time.unscaledDeltaTime;
@@ -118,6 +122,7 @@ namespace OpenZ
             var v = go.AddComponent<OzUeObstacleView>();
             v.Bind(o);
             views[o.Id] = v;
+            OzUeStructureBreak.ClearFootprint(ZGame.PxToWorld(o.LocX, o.LocY), ZGame.PxToWorld(o.LocX + o.WidthPix, o.LocY + o.HeightPix));   // 1.5 ue_structure_destruction: no rubble inside the new box
             return v;
         }
 

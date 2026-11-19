@@ -126,9 +126,9 @@ namespace OpenZ.EditorTools
         static IDisposable Rule(bool on = true) => new Hold(on);
         sealed class Hold : IDisposable
         {
-            readonly bool ve = ZWorld.VehicleExitDeviation, calm = ZWorld.CalmStartDeviation;
-            public Hold(bool on) { ZWorld.VehicleExitDeviation = on; ZWorld.CalmStartDeviation = false; }       // as View/ZGame.cs at a start; the scenes act at once
-            public void Dispose() { ZWorld.VehicleExitDeviation = ve; ZWorld.CalmStartDeviation = calm; }
+            readonly bool ve = ZWorld.VehicleExitDeviation, calm = ZWorld.CalmStartDeviation, thrown = ZWorld.DriverThrownDeviation;   // 1.5 kit exit_leap_death: + DV179, held off (this check is DV171's 1.4 truth: K3 frees him at once)
+            public Hold(bool on) { ZWorld.VehicleExitDeviation = on; ZWorld.CalmStartDeviation = false; ZWorld.DriverThrownDeviation = false; }       // as View/ZGame.cs at a start; the scenes act at once; DV179 off (Editor/OzV15ExitLeapDeathCount.cs counts it)
+            public void Dispose() { ZWorld.VehicleExitDeviation = ve; ZWorld.CalmStartDeviation = calm; ZWorld.DriverThrownDeviation = thrown; }
         }
 
         static bool Has(List<ZEvent> l, ZEventType t, int a, int b) => l.Any(e => e.type == t && e.objId == a && e.otherId == b);

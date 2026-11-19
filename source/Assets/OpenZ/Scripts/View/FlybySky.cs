@@ -99,7 +99,7 @@ namespace OpenZ
                 if (ta) { try { json = JsonUtility.FromJson<SkyJson>(ta.text); } catch (System.Exception e) { Debug.LogWarning("[OpenZ FlybySky] " + JsonPath + ": " + e.Message); } }
             }
             if (json == null || json.levels == null) return null;
-            return level == "L17" ? json.levels.L17 : level == "L16" ? json.levels.L16 : level == "L02" ? json.levels.L02
+            return OzCity.Is(level) ? json.levels.L17 : level == "L16" ? json.levels.L16 : level == "L02" ? json.levels.L02
                  : OzVolcanic.Is(level) ? (json.levels.L07 != null && !string.IsNullOrEmpty(json.levels.L07.textureHi) ? json.levels.L07 : json.levels.L02) : null;   // level 7: the desert's dawn sky until its own is in: no entry = no sky and no sun disc
         }
 

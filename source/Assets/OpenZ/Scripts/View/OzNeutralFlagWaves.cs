@@ -96,7 +96,7 @@ namespace OpenZ
         /// <summary>The older capture beacon really draws in this level (FlagBeacons.cs): a live, enabled beacon in the loaded level
         /// and its own level switch on (its own test). Then it is the flags' one cue. Not there (a level loaded from the menu, as in
         /// the game) or switched off: the wave runs.</summary>
-        public bool BeaconHere => game && beacon && beacon.isActiveAndEnabled && (game.level == "L17" ? FlagBeacons.OnL17 : FlagBeacons.OnL02);
+        public bool BeaconHere => game && beacon && beacon.isActiveAndEnabled && (OzCity.Is(game.level) ? FlagBeacons.OnL17 : FlagBeacons.OnL02);
 
         void LateUpdate()
         {
@@ -241,6 +241,15 @@ namespace OpenZ
 
         /// <summary>The flags with a built ring: id, foot, whether a wave runs now.</summary>
         public IEnumerable<(int id, Vector3 foot, bool running)> Rings() { foreach (var w in waves.Values) if (w.mesh) yield return (w.id, w.foot, w.t0 >= 0f); }
+
+        /// <summary>1.5 ue_flag_anywhere: flag id's wave forgets its foot and its draped ring (the flag came down from a destroyed ramp platform,
+        /// View/FlagView.Deck.cs); its next wave is draped where it stands now. Nothing in a level calls it.</summary>
+        public static void Forget(int id)
+        {
+            if (!I || !I.waves.TryGetValue(id, out var w)) return;
+            if (w.mesh) Destroy(w.mesh);
+            I.waves.Remove(id);
+        }
 
         /// <summary>How far the drawn ring of flag id lies under the ground, worst over every cell centre and edge middle that is
         /// drawn (m; 0 or less = never under it), and how far above at most: the ring sampled against the ground again now.</summary>

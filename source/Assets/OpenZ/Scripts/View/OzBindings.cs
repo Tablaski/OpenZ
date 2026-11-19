@@ -15,6 +15,7 @@ namespace OpenZ
         ScrollUp, ScrollDown, ScrollLeft, ScrollRight, FactoryList, PlaceCannon, ExitCrew, LastMessage, HideHud, MinimalUi,
         RepairVehicles,
         Patrol, StopUnits, HoldPosition, HelpOverlay, ArrangeHud, RestartProduction,
+        TacticalPause,                                                                                 // 1.5 tactical_pause_megashake: the OPTIONS switch TACTICAL PAUSE's key (View/OzTacticalPause.cs)
     }
 
     /// <summary>
@@ -64,6 +65,7 @@ namespace OpenZ
             D(OzAction.HoldPosition, "Hold position (fire, never chase)", OrderSection, Key.H),
             D(OzAction.HelpOverlay, "Controls help (this list)", UiSection, Key.F1),
             D(OzAction.ArrangeHud, "Arrange the interface (drag the panels)", UiSection, Key.F2),   // OpenZHud.Arrange.cs
+            D(OzAction.TacticalPause, "Tactical pause: freeze / unfreeze time", UiSection, Key.Space),   // 1.5 tactical_pause_megashake: read only while TACTICAL PAUSE is on (View/OzTacticalPause.cs)
             D(OzAction.RestartProduction, OzForkOptions.RestartProductionLabel, OrderSection, Key.None),
         };
 
@@ -181,7 +183,8 @@ namespace OpenZ
         /// they fire on their key with or without Ctrl.</summary>
         /// <summary>
         /// repair order while the selection holds a damaged own vehicle, else to NEXT ROBOT, so it is not a conflict.</summary>
-        public static bool SharedKey(OzAction a, OzAction b) => (a == OzAction.RepairVehicles && b == OzAction.NextRobot) || (a == OzAction.NextRobot && b == OzAction.RepairVehicles);
+        public static bool SharedKey(OzAction a, OzAction b) => (a == OzAction.RepairVehicles && b == OzAction.NextRobot) || (a == OzAction.NextRobot && b == OzAction.RepairVehicles)
+            || OzTacticalPause.NoClash(a, b);                                                          // 1.5 tactical_pause_megashake: TACTICAL PAUSE never clashes while it is off, and shares SPACE with the last message on purpose
 
         public static bool ModifierBlind(OzAction a) => a == OzAction.HideHud || a == OzAction.LastMessage;
 

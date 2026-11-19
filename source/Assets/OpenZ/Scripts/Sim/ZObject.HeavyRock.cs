@@ -38,7 +38,7 @@ namespace OpenZ.Sim
         /// <summary>ProcessServer, right after the passive check and before the shot, every tick.</summary>
         void HeavyRockStep(double time)
         {
-            if (!ZWorld.HeavyRockDeviation || Type != "heavy" || Kind != ZKind.Vehicle) return;
+            if (!ZWorld.HeavyRockDeviation || !HeavyRockType || Kind != ZKind.Vehicle) return;   // 1.5 r14_r16: the heavy tank, the Mammoth and the Bizon (Sim/ZObject.BigRock.cs)
             if (hrRockId >= 0) { HeavyRockKeep(time); return; }
             if (!HeavyRockIdle || AttackObject != null) { hrCalmSince = time; return; }
             if (hrCalmSince < 0) hrCalmSince = time;
@@ -88,6 +88,7 @@ namespace OpenZ.Sim
         /// <summary>The nearest rock this tank clips that it can fire at (the first in the object list of equals), or null.</summary>
         ZObject HeavyRockPick()
         {
+            if (ZBigTanks.Is(Type)) return BigRockPick();                                          // 1.5 r14_r16: what a Mammoth / Bizon clips, from its bigger model (Sim/ZObject.BigRock.cs)
             int pct = ZWorld.HeavyRockDrawnPct, reach = ZWorld.HeavyRockReachPx(pct), back = ZWorld.HeavyRockRingBackPx(pct);
             int rx = CenterX, ry = CenterY;
             double fl = Math.Sqrt((double)FaceX * FaceX + (double)FaceY * FaceY);

@@ -183,7 +183,7 @@ namespace OpenZ.Multiplayer
                 var end = r.Game.CenterWorld(tank);
                 camera.focus = end - new Vector3(direction.x * 1.4f, 0, -direction.y * 1.4f);
                 camera.SetHeightImmediate(35);
-                r.Game.GetComponent<OpenZHud>()?.Toast("RED HEALTH · SMOKE AND OIL", OzUi.Amber, 2f);
+                r.Game.GetComponent<OpenZHud>()?.Toast("CRITICAL HEALTH · OIL TRAILS", OzUi.Amber, 2f);
                 yield return null;
                 WorldShot("damaged-tanks");
                 var owned = world.Zones.Single(zone => zone.Owner == Team.Red && zone.Contains(fort.CenterX, fort.CenterY));

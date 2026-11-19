@@ -40,8 +40,8 @@ namespace OpenZ
         };
 
         /// <summary>Each level's biome. A new level: one id and one biome here (an arctic level: Arctic).</summary>
-        public static readonly string[] LevelIds = { "L02", "L07", "L16", "L17" };
-        public static readonly int[] LevelBiome = { Desert, Lava, Jungle, City };
+        public static readonly string[] LevelIds = { "L02", "L07", "L16", "L17", "L18" };
+        public static readonly int[] LevelBiome = { Desert, Lava, Jungle, City, City };
         /// <summary>A level not in the table.</summary>
         public const int Fallback = Desert;
 

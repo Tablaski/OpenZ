@@ -1,12 +1,22 @@
-param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$Tag='v0.2.22')
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[string]$Tag)
 $ErrorActionPreference='Stop'
 $resourceRoot=Split-Path $PSScriptRoot -Parent
+$required=Get-Content -LiteralPath (Join-Path $resourceRoot 'SOURCE_RESOURCES.json') -Raw | ConvertFrom-Json
+if (!$Tag) { $Tag = $required.releaseTag }
+$marker=Get-Content -LiteralPath (Join-Path $resourceRoot 'source/Assets/OpenZ/Resources/OpenZ/resource_package.json') -Raw | ConvertFrom-Json
+if ($marker.version -ne $required.version -or $marker.upstream -ne $required.upstream) {
+    throw 'The local Unity resources do not match the pinned resource package.'
+}
 $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $tracked=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 & git -C $resourceRoot ls-files | ForEach-Object {[void]$tracked.Add($_)}
 if($LASTEXITCODE -ne 0){throw 'Cannot identify tracked source files.'}
-$files=@(Get-ChildItem -LiteralPath (Join-Path $resourceRoot 'source/Assets') -Recurse -File | Where-Object { -not $tracked.Contains($_.FullName.Substring($resourceRoot.Length+1).Replace('\','/')) -and $_.Name -notlike 'fork_build_resources.json*' -and $_.FullName -notmatch '[\\/]Menu[\\/]build_info\.json(\.meta)?$' })
+$files=@(Get-ChildItem -LiteralPath (Join-Path $resourceRoot 'source/Assets') -Recurse -File | Where-Object {
+    $relative = $_.FullName.Substring($resourceRoot.Length+1).Replace('\','/')
+    -not $tracked.Contains($relative) -and $relative -notmatch '^source/Assets/OpenZ/(Scripts|Shaders)(/|\.meta$)' -and
+        $_.Name -notlike 'fork_build_resources.json*' -and $relative -notmatch '/Menu/build_info\.json(\.meta)?$'
+})
 $plugin=Get-Item -LiteralPath (Join-Path $resourceRoot 'source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll')
 $files+= $plugin
 $archives=@(); $manifestFiles=@(); $group=@(); $length=0L; $part=0
@@ -27,6 +37,5 @@ foreach($file in ($files | Sort-Object FullName)) {
     $group+= $file;$length+=$file.Length
 }
 if($group.Count -gt 0){Write-ResourcePart $group}
-$required=Get-Content -LiteralPath (Join-Path $resourceRoot 'SOURCE_RESOURCES.json') -Raw | ConvertFrom-Json
 @{schema=2;version=$required.version;releaseTag=$Tag;archives=$archives;files=$manifestFiles} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'OpenZ-VK-source-resources.json') -Encoding utf8
 Write-Output ('PASS: '+$files.Count+' local Unity resource files and native dependency packaged; tracked sources are retrieved separately.')

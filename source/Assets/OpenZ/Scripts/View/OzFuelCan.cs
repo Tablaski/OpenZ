@@ -195,7 +195,7 @@ namespace OpenZ
             transform.SetPositionAndRotation(pos, rot); transform.localScale = baseScale; startPos = pos;
             gameObject.SetActive(true);
             col.enabled = true;
-            rb.isKinematic = false; rb.interpolation = RigidbodyInterpolation.Interpolate; rb.angularDamping = 0.3f;
+            rb.isKinematic = false; rb.interpolation = RigidbodyInterpolation.Interpolate; rb.angularDamping = 0.3f; rb.linearDamping = 0.05f;   // 14d: a pooled can starts undamped again
             rb.linearVelocity = v; rb.angularVelocity = w; rb.WakeUp();
             state = State.Flying;
         }
@@ -223,6 +223,11 @@ namespace OpenZ
             }
             if (state == State.Landed && !rb.isKinematic)
             {
+                if (SettleOn)
+                {   // 1.5 quick fix 14d: from SettleFromS after its landing the roll dies out over SettleOverS (it lies, then rests)
+                    float sk = Mathf.Clamp01((age - landedAt - SettleFromS) / SettleOverS);
+                    if (sk > 0f) { rb.linearDamping = Mathf.Lerp(0.05f, SettleLinDamp, sk); rb.angularDamping = Mathf.Lerp(1.1f, SettleAngDamp, sk); }
+                }
                 bool still = rb.IsSleeping() || (rb.linearVelocity.sqrMagnitude < 0.015f && rb.angularVelocity.sqrMagnitude < 0.36f);
                 stillT = still ? stillT + dt : 0f;
                 if (stillT > 0.35f || age - landedAt > 6f) Rest();
@@ -249,6 +254,7 @@ namespace OpenZ
             }
             // a later hard bounce: the same take, softer, skipped when it is not its turn
             if (n < 1.4f || sounds >= 5 || age - lastSound < 0.12f || waitingFirst > 0) return;
+            if (OffScreenGiveUp && OffScreen(at)) return;                                                    // 1.5 quick fix 14d: an off-screen bounce is never heard
             if (PlaySound(LandEvent, at, Mathf.Clamp(0.25f + n * 0.06f, 0.25f, 0.6f))) { if (batch != null) batch.bounceHeard++; }
         }
 
@@ -262,6 +268,17 @@ namespace OpenZ
             if (PlaySound(RollEvent, at, Mathf.Clamp(0.45f + hv.magnitude * 0.1f, 0.45f, 0.8f))) { rolls++; if (batch != null) batch.rollHeard++; }
         }
 
+        /// <summary>1.5 quick fix 14d (gate "fuel-can flood": 769 dst_fuel_can_land lines, 476 in one game second, all "DROP off screen", after a
+        /// Bizon died off screen on L02): every can landed ONCE; its first-landing sound waited its turn (FirstWait 0.9 s) and asked the
+        /// AudioDirector again EVERY frame, which refused it each time for being off screen (one log line each: 14 cans x ~55 frames). Now a
+        /// first landing off screen is asked once and given up (counted as not heard), an off-screen bounce is not asked. Off screen = the
+        /// AudioDirector's own test (AudioDirector.OffScreenNow). false = as before (proof only).</summary>
+        public static bool OffScreenGiveUp = true; public static int OffScreenFirsts;
+        /// <summary>1.5 quick fix 14d (same gate): on screen every can landed once, but 5-6 of the 14 kept rolling or rocking 0.2-0.5 m/s on
+        /// the road until the 6 s cap put them to rest. Now the roll dies out from SettleFromS s after the landing over SettleOverS s (damping
+        /// up to SettleLinDamp / SettleAngDamp), so they lie still by about 2.5 s. false = as before (proof only).</summary>
+        public static bool SettleOn = true; public static float SettleFromS = 1.2f, SettleOverS = 1f, SettleLinDamp = 3f, SettleAngDamp = 8f;
+        static bool OffScreen(Vector3 at) { var ad = AudioDirector.I; return ad && ad.OffScreenNow(AudioDirector.Has(LandEvent) ? LandEvent : FallbackEvent, at); }
         /// <summary>A first landing waiting for its turn: while any waits, no bounce or roll takes a turn (every landing is heard first).</summary>
         static int waitingFirst;
         void SetFirst(float at) { if (firstAt < 0f) waitingFirst++; firstAt = at; }
@@ -270,6 +287,7 @@ namespace OpenZ
         void TryFirstSound()
         {
             if (age - firstAt > FirstWait) { ClearFirst(); Dropped++; return; }                             // waited its turn too long
+            if (OffScreenGiveUp && OffScreen(firstPos)) { PlaySound(LandEvent, firstPos, firstVol); ClearFirst(); Dropped++; OffScreenFirsts++; return; }   // 1.5 quick fix 14d: off screen it is never heard: asked once (one log line), no retries
             float vol = firstVol * (1f - 0.3f * Mathf.Clamp01((age - firstAt) / FirstWait));
             if (PlaySound(LandEvent, firstPos, vol)) { ClearFirst(); if (batch != null) { batch.landHeard++; batch.firstHeard++; } }
         }

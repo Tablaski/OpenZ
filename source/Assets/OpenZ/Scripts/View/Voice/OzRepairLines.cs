@@ -19,7 +19,7 @@ namespace OpenZ
     public static class OzRepairLines
     {
         /// <summary>Every vehicle type a repair station can repair (ZObject.CanBeRepaired: any vehicle) and that has a repair pool.</summary>
-        public static readonly string[] Types = { "jeep", "light", "medium", ZMTank.Type, "heavy", "missile_launcher", "apc", "crane", "shuttle" };   // DV145: + the medium tank (its 15 lines: the mech's takes in its own voice colour)
+        public static readonly string[] Types = { "jeep", "light", "medium", ZMTank.Type, "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, /* 1.5 DV180 / DV181: the heavy tank's 15 takes */ "missile_launcher", "apc", "crane", "shuttle" };   // DV145: + the medium tank (its 15 lines: the mech's takes in its own voice colour)
         /// <summary>The lines of every pool, in the table's order.</summary>
         public static readonly string[] Lines =
         {

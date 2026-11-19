@@ -1139,6 +1139,7 @@ namespace OpenZ
             if (hatchExits.Count == 0 || !hatchExits.TryGetValue(g, out var st)) return false;
             float step = dt;
             if (step <= 0f && game && game.World != null && game.World.GameOver && st.phase < JumpPhase.Walk) step = Time.unscaledDeltaTime;   // the game over with its clock stopped: the jump ends on the real clock
+            if (HatchThrowStep(g, r, st, step)) return true;                                               // 1.5 DV179 (kit exit_leap_death): the hull destroyed before his take-off: thrown by its blast, as the rules hold him (View/BoardingView.HatchThrow.cs); not thrown: 1.4's steps below
             if (st.dead)
             {   // his robot died while this figure is drawn (HatchExitDeath put his own model where the figure is): the figure goes on until that
                 // model's death plays (UnitView.Die -> HatchExitDies shows the model in its place and StepGhost ends this walk); safety: 3 s
@@ -1146,7 +1147,7 @@ namespace OpenZ
                 if ((g.live && OpenZEnding.Holds(g.robotId)) || st.deadFor > 3f) { EndGhost(g, true); return true; }
                 if (st.phase == JumpPhase.Walk) { HatchDeadFollow(g); return true; }
             }
-            if (st.phase == JumpPhase.Walk) { HatchWalkSteps(g, st); return false; }
+            if (st.phase == JumpPhase.Walk) { if (!st.dead) OzExitLegIK.Mark(g.anim, g.go ? g.go.transform : null); HatchWalkSteps(g, st); return false; }   // 1.5 N2: his legs on the clips' foot goals on the walk on (View/OzExitLegIK.cs)
             if (!st.dead) HatchBailCheck(g, r, st);
             st.tau += step;
             st.lastStep = step;
@@ -1363,6 +1364,7 @@ namespace OpenZ
             var t = g.go.transform; var b = st.body;
             t.rotation = rot; t.localScale = Vector3.one * g.baseScale;
             g.rot = HatchFace(st.dir);
+            if (st.phase >= JumpPhase.Land && !st.dead) OzExitLegIK.Mark(g.anim, t);                          // 1.5 N2: from the touch on his legs on the clips' foot goals, knees to his front (View/OzExitLegIK.cs)
             HatchSample(g.anim, state, nt); g.clipNow = "jump";
             if (blendTo != null && blendW > 0f) HatchBlendTo(g.anim, blendTo, blendW);                      // vehicle_exit_gun: into his armed idle as his gun comes up (before he is placed: his soles stay planted)
             if (hips.HasValue) t.position += hips.Value - (b.ok ? b.hips.position : t.position + rot * b.crouch.hipsL);
@@ -1472,7 +1474,7 @@ namespace OpenZ
                 var px = ZGame.WorldToPx(p); var c = w.Map.ClassAt(px.x >> 4, px.y >> 4);
                 string jg = AudioDirector.JungleGround(p);
                 if (c == ZClass.Water || c == ZClass.DeepWater) ev = "rob_step_water";
-                else if (game.level == "L17" || c == ZClass.Road) ev = "rob_step_concrete";
+                else if (OzCity.Is(game.level) || c == ZClass.Road) ev = "rob_step_concrete";
                 else if (jg != null) { ev = jg == "mud" ? "rob_step_mud" : jg == "road" ? "rob_step_concrete" : "rob_step_grass"; alt = jg == "mud" ? "rob_step_grass" : "rob_step_sand"; }
             }
             if (!Voice(ev, p, emitter, HatchGroundStepGain) && alt != null) Voice(alt, p, emitter, HatchGroundStepGain);
@@ -1723,6 +1725,7 @@ namespace OpenZ
                 if (st.rec != null) st.rec.deathCarry = carry;
                 StartCoroutine(HatchCarryBody(g.live, carry));
             }
+            HatchThrowCarry(g, st);                                                                         // 1.5 DV179 (kit exit_leap_death): killed in the throw's flight: its velocity goes on with his death (View/BoardingView.HatchThrow.cs)
             ShowLive(g);
             int n = 0; foreach (var rr in g.live.GetComponentsInChildren<Renderer>()) if (rr.enabled && !(rr is ParticleSystemRenderer)) n++;
             HatchExitLastDieRenderers = n; HatchExitLastDieAt = lt.position; HatchExitLastDieFrom = from + (inHatch ? ", raised to the rim" : "") + (air ? ", in the air" : onHull ? ", on the hull" : "");

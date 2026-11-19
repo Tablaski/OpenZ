@@ -54,7 +54,7 @@ namespace OpenZ
         public static float AlanToBrad => (float)OzHeroCampPlan.AlanToBrad;
         /// <summary>How many times a grunt's height this robot is drawn (1 for every robot that is not a hero): the map's pick box,
         /// selection frame and health bar of a robot use it.</summary>
-        public static float Tall(ZObject o) => BoardingView.HatchFigureTall(o, TallOwn(o));   // 1.4 DV171 fix round 4: a driver growing out of a tank's hatch: his boxes at his drawn size (View/BoardingView.VehicleExit.cs)
+        public static float Tall(ZObject o) => BoardingView.HatchFigureTall(o, OzRobotScale.Times(TallOwn(o), o));   /* 1.5 R3.25: x the drawn robot size (TallOwn itself at 100 %, View/OzRobotScale.cs) */   // 1.4 DV171 fix round 4: a driver growing out of a tank's hatch: his boxes at his drawn size (View/BoardingView.VehicleExit.cs)
         static float TallOwn(ZObject o)
         {
             if (o != null && o.IsEvilZod) return OzEvilZodView.Tall;                                       // DV161

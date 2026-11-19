@@ -609,7 +609,7 @@ namespace OpenZ
             if (!loopOn && AudioDirector.I && !wet)
             {
                 var gm = ZGame.I;
-                string ev = gm && gm.level == "L17" ? "veh_wheels_asphalt" : "veh_wheels_sand";
+                string ev = gm && OzCity.Is(gm.level) ? "veh_wheels_asphalt" : "veh_wheels_sand";
                 if (ev == "veh_wheels_sand" && gm && gm.World != null && gm.World.Map != null)
                 {
                     int tx = (int)(at.x * 0.5f), ty = (int)(-at.z * 0.5f);

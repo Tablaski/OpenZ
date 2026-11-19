@@ -79,13 +79,13 @@ namespace OpenZ
 
         /// <summary>CombatView.MissileFired, right after the real rocket left `from` for `to` (delay = the sim's flight time in sim s,
         /// radiusPx = the missile's Zod splash radius): queues rockets 2-8 of the ripple.</summary>
-        public static void Follow(ZGame g, ZObject a, UnitView av, Vector3 from, Vector3 to, float delay, int radiusPx)
+        public static void Follow(ZGame g, ZObject a, UnitView av, Vector3 from, Vector3 to, float delay, int radiusPx, ZObject target = null)   // 1.5 DV210 (kit bridge_aim_further_r6): target = the sim's target (a bridge: the ripple stays on its deck)
         {
             if (!g || a == null || !av || av.Dying) return;
-            For(g).Queue(a, av, from, to, delay, radiusPx);
+            For(g).Queue(a, av, from, to, delay, radiusPx, target);
         }
 
-        void Queue(ZObject a, UnitView av, Vector3 from, Vector3 to, float delay, int radiusPx)
+        void Queue(ZObject a, UnitView av, Vector3 from, Vector3 to, float delay, int radiusPx, ZObject target)
         {
             float speed = Mathf.Max(0.25f, game.gameSpeed);
             var line = to - av.transform.position; line.y = 0f;
@@ -96,6 +96,7 @@ namespace OpenZ
             {   // golden-angle fill of the landing disc (never two rockets on one spot), stretched along the line of fire like a ripple
                 float r = spread * Mathf.Sqrt((i - 0.5f) / (Rockets - 1)), ang = turn + i * 2.39996f;
                 var p = to + right * (Mathf.Cos(ang) * r) + fwd * (Mathf.Sin(ang) * r * RangeStretch);
+                p = OzBridgeDeckHits.KeepOnDeck(target, av.transform.position, p);                  // 1.5 DV210 (kit bridge_aim_further_r6): at a bridge never short of 1.5 m past its near end (View/OzBridgeDeckHits.cs)
                 p.y = OzShuttleAim.SalvoEndY(to, p, game.GroundY(p.x, p.z) + 0.25f);                 // DV118: round the flying shuttle in the air
                 launches.Add(new Pending { at = Time.time + i * Spacing / speed, flight = Mathf.Max(0.05f, delay), d0 = d0, shooter = a.Id, index = i, to = p });
             }
@@ -166,7 +167,7 @@ namespace OpenZ
                 OpenZFxPlayer.QuietBlast = true;                                                       // cosmetic: no Exploded listeners (props, lamps, bloom flare)
                 try
                 {
-                    if (OpenZFxPlayer.VolleyExp2(l.shooter, at, l.id) && !OzShuttleBreakup.IsAirBurst(at, z.GroundAt(at), FxBlastKind.Rocket)) z.Exp2(at, 1.9f, Exp2Kind.Salvo, l.id, BlastS, FxBlastKind.Rocket);   // K256e: up in the air (at the flying shuttle) the gated blast
+                    if (OpenZFxPlayer.VolleyExp2(l.shooter, at, l.id) && !z.WetAt(at) && !OzShuttleBreakup.IsAirBurst(at, z.GroundAt(at), FxBlastKind.Rocket)) z.Exp2(at, 1.9f, Exp2Kind.Salvo, l.id, BlastS, FxBlastKind.Rocket);   // K256e: up in the air (at the flying shuttle) the gated blast   // 1.5 kit water_blast_r6 (A16): a rocket of the volley that lands in WATER is never the exp2 fireball (its flat ring, dust and burn mark lay on the bed under the water): it gets the water blast
                     else z.BlastSized(at, BlastS, BlastLegRadius, FxBlastKind.Rocket, l.id);
                 }
                 finally { OpenZFxPlayer.QuietBlast = false; }

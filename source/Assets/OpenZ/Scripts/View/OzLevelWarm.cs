@@ -149,6 +149,7 @@ namespace OpenZ
         static void Begin(string id)
         {
             level = id; load = null; list = null; finished = capped = missing = prepared = false;
+            OzBootTime.Mark("loading-screen warm list " + id + ": start");   // 1.5 kit player_reports_1111 P2
             total = steps = frames = coldDone = 0; workMs = longestMs = 0.0; startAt = Time.unscaledTime;
         }
 
@@ -157,6 +158,7 @@ namespace OpenZ
             finished = true; warmedLevel = missing ? null : level;
             LastLine = $"{level} loading screen: {what}";
             Debug.Log("[OpenZ LevelWarm] " + LastLine);
+            OzBootTime.Mark("loading-screen warm list " + level + ": end");   // 1.5 kit player_reports_1111 P2
         }
 
         // ------------------------------------------------------------------ 3. the shared list waits

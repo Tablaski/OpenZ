@@ -41,7 +41,7 @@ namespace OpenZ.Sim
     public partial class ZObject
     {
         /// <summary>DV171: a light, medium or heavy tank or the mech: the vehicles a driver enters through a roof hatch with a lid.</summary>
-        public bool IsHatchVehicle => Kind == ZKind.Vehicle && HasLid && !IsShuttle && (Type == "light" || Type == ZMTank.Type || Type == "heavy" || Type == ZMTank.Mech);
+        public bool IsHatchVehicle => Kind == ZKind.Vehicle && HasLid && !IsShuttle && (Type == "light" || Type == ZMTank.Type || Type == "heavy" || Type == ZMTank.Mech || ZBigTanks.Is(Type));   // 1.5 DV180 / DV181: the big tanks' turret hatch
 
         /// <summary>DV171: sim tick until which nobody climbs into this vehicle by himself (-1 = none).</summary>
         public long DriverOutLockUntilTick = -1;
@@ -63,6 +63,7 @@ namespace OpenZ.Sim
             if (!ZWorld.VehicleExitDeviation) { why = "off in 'Zod exact'"; return false; }
             if (!IsHatchVehicle) { why = "only a tank or the mech"; return false; }
             if (World == null || Destroyed || KillAt >= 0) { why = "destroyed"; return false; }
+            if (RamDoomed) { why = "destroyed"; return false; }                                           // 1.5 DV182: rammed by a Mammoth: no way out (Sim/ZObject.MammothRam.cs)
             if (Owner == Team.Neutral || Drivers.Count == 0) { why = "nobody inside"; return false; }
             if (!World.DuelAllowsUnit(DriverType)) { why = "crew type excluded by lobby rules"; return false; }
             if (!World.IsHumanTeam(Owner)) { why = "a computer team's vehicle"; return false; }
@@ -83,7 +84,7 @@ namespace OpenZ.Sim
         /// medium 520, heavy 670, mech 840. Fixed per type: integer ticks, deterministic, no view input. The view lands its figure on this tick
         /// (it moves and turns the landing until the arc clears the hull; none clears: a longer flight, LATE); the Play check measures the touch (H5). A
         /// change of these numbers is a kit change (vehicle_exit_jump kit/edits.py HOLDS). 0 = not a hatch vehicle.</summary>
-        public static int DriverOutHoldTicks(string type) => type == "light" ? 145 : type == ZMTank.Type ? 142 : type == "heavy" ? 136 : type == ZMTank.Mech ? 146 : 0;
+        public static int DriverOutHoldTicks(string type) => type == "light" ? 145 : type == ZMTank.Type ? 142 : type == "heavy" ? 136 : type == ZMTank.Mech ? 146 : type == ZBigTanks.Mammoth ? ZBigTanks.MammothExitHoldTicks : type == ZBigTanks.Bizon ? ZBigTanks.BizonExitHoldTicks : 0;   // 1.5 DV180 / DV181
 
         /// <summary>DV171 (fix round 2): the vehicle this robot climbed out of and the DV132 out moment it got then (-1: none). The hold ends early
         /// only for that hold (an APC's or the shuttle's later hold has another out moment).</summary>
@@ -96,7 +97,7 @@ namespace OpenZ.Sim
         /// <summary>DV171 fix round 4: a driver held while he climbs out of a tank or the mech is a target all the same (CanAttackObject, Sim/ZObject.cs,
         /// this rule's hold: DV132's shuttle and APC passengers stay nobody's target. A pure read; with nobody let out by EXIT DRIVER it is never
         /// true (the computer never uses it), so a bot match is the previous build's tick for tick.</summary>
-        public bool DriverOutTarget => ZWorld.VehicleExitDeviation && DriverOutHeld;
+        public bool DriverOutTarget => ZWorld.VehicleExitDeviation && (DriverOutHeld || DriverThrownHeld);   // 1.5 DV179 (kit exit_leap_death): a driver thrown by his hull's blast is a target while he lies (Sim/ZObject.DriverThrown.cs)
 
         /// <summary>DV171 final fix (review r3: an enemy jeep or tank ran over the held driver, knocked him and squashed him while his figure was
         /// still on the hull: the rules keep him on his ground spot during the hold, and DV65's run-over did not skip him): held by this rule's

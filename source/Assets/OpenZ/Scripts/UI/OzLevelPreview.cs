@@ -28,6 +28,7 @@ namespace OpenZ
             new OzLevelDef("L17", "L17_CarPark", "17", "CAR PARK", "NIGHT · CANAL FOG", "Wordmarks/mask_carpark",
                 "CAPTURE THE FLAGS TO TAKE TERRITORY. BREAK INTO THE BLUE FORT TO WIN.", "Capture the flags. Break into the blue fort.",
                 new[] { "16 ZONES", "14 FLAGS", "2 FORTS", "110×128 TILES" }),
+            OzLevelL18.Def,                                                                                     // 1.5 level 18 "Bridge Game", the fifth card, after the Car Park by number (kit level18_map, register_l18.py; UI/OzLevelL18.cs)
         };
     }
 
@@ -429,7 +430,8 @@ namespace OpenZ
             Prune(); if (waiting.Count == 0 && preparing == null) { queueStartAt = -1f; queueLogged = false; queueOrder.Clear(); ProofMaxAtOnce = 0; ProofAllReadySec = -1f; }   // item 23: a new menu, a new queue
             // the level card / select still = the first of the level's chosen loading stills (L02: sunrise canyon red fort, L17: car park
             // war machines at dusk), which replaced the old posters; the old poster is the fallback
-            p.Poster = Resources.Load<Texture2D>($"OpenZ/Loading/{level}_loading_1") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_preview") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_poster");
+            // 1.5: a level whose card has its own still (Menu/<id>_card, level 18: a frame of its blue briefing's flight) shows that one; its loading picture stays
+            p.Poster = Resources.Load<Texture2D>($"OpenZ/Menu/{level}_card") ?? Resources.Load<Texture2D>($"OpenZ/Loading/{level}_loading_1") ??Resources.Load<Texture2D>($"OpenZ/Menu/{level}_preview") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_poster");
             bool aiMap = OzAiMapCatalog.Find(level) != null;
             if (aiMap) p.Poster = Resources.Load<Texture2D>($"OpenZ/AiMaps/Posters/{level}_poster");
             bool light = OzMenuVideo.UseLight;                                                                // item 23: the light twins on a PC that needs them (a missing twin = its full clip)
@@ -461,7 +463,7 @@ namespace OpenZ
                     vp.source = VideoSource.Url; vp.url = Path.Combine(Application.temporaryCachePath, "openz_no_such_flyby_" + level + ".webm");
                     Debug.Log($"[OpenZ Menu] preview {level}: forced to fail for a check (url {vp.url})");
                 }
-                vp.prepareCompleted += v => { p.Prepared = true; Debug.Log($"[OpenZ Menu] preview {level}: prepared {(v.clip ? v.clip.name : v.url)} in {Time.unscaledTime - p.prepareStartAt:0.00} s ({v.width}x{v.height}, {v.frameRate:0.##} fps, {v.length:0.0} s)"); PumpPrepares(); };
+                vp.prepareCompleted += v => { p.Prepared = true; Debug.Log($"[OpenZ Menu] preview {level}: prepared {(v.clip ? v.clip.name : v.url)} in {Time.unscaledTime - p.prepareStartAt:0.00} s ({v.width}x{v.height}, {v.frameRate:0.##} fps, {v.length:0.0} s)"); OzBootTime.Once("flyby " + level, "menu flyby " + level + " prepared"); PumpPrepares(); };
                 vp.errorReceived += (v, msg) => p.OnVideoError(v, msg);                                          // item 31: one fixed line, never prepared again
                 vp.errorReceived += (v, msg) => PumpPrepares();                                                // item 23: a failed flyby lets the next one prepare
                 p.Player = vp; p.HasVideo = true; p.ApplyAudio();
@@ -576,5 +578,22 @@ namespace OpenZ
             float cy = cover.center.y + (OzMotion.Reduced ? 0f : (cover.height - h) * 0.45f * Mathf.Cos(t * 2f * Mathf.PI / 41f + seed * 0.6f));
             return new Rect(cx - w * 0.5f, cy - h * 0.5f, w, h);
         }
+#if UNITY_STANDALONE_OSX && !UNITY_EDITOR
+
+        // ---- 1.5 kit mac_perf_1_5b (GitHub issue 4; Mac player only, called by View/OzMacPerf.cs): a flyby that plays without one decoded
+        // picture (the reporter's iMac: "playing but no frame decoded 3.6 s after Play") gives up for this run: its level shows its still as
+        // after a VideoPlayer error (the menu moves on by the still's timer) and its decoder stops. Windows, Linux, editor: not built.
+        /// <summary>Seconds this flyby has played without a decoded picture (View/OzMacPerf.cs counts them, each menu frame capped).</summary>
+        internal float MacNoFrameSec;
+
+        /// <summary>This flyby shows its still from now on (as after a VideoPlayer error, without one); the next first prepare may start.</summary>
+        internal void MacGiveUp(string why)
+        {
+            if (Failed) return;
+            Failed = true; FailedLevels++; LastError = why; MacNoFrameSec = 0f;
+            try { if (Player) Player.Stop(); } catch (Exception) { }                                   // the decoder lets go at once
+            PumpPrepares();
+        }
+#endif
     }
 }

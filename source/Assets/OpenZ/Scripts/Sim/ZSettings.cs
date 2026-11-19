@@ -73,8 +73,10 @@ namespace OpenZ.Sim
             }
             ZEvilZod.Fill(s);                                                        // DV161: EvilZod's row, made from the rows of the text (Sim/ZEvilZod.cs)
             ZMTank.FillIfMissing(s);                                                 // DV145: a settings text without the medium tank's row gets the derived one (Sim/ZMTank.cs)
+            ZBigTanks.Fill(s);                                                       // 1.5 DV180 / DV181 (kit new_tanks): the Mammoth's and the Bizon's rows from the heavy, light and medium tank rows (Sim/ZBigTanks.cs)
             ZMechHp.Apply(s);                                                        // DV147: the mech's health x 0.95 while its switch is on (Sim/ZMechHp.cs)
             ZGatlingBuff.Apply(s);                                                   // DV170: the gatling's range x 1.10 (120 -> 132 px), damage per shot x 1.15 while its switch is on (Sim/ZGatlingBuff.cs)
+            ZMissileBuildTime.Apply(s);                                              // 1.5 DV191 (kit missile_build_time): the missile cannon's build time = the howitzer's x 1.4 while its switch is on (Sim/ZMissileBuildTime.cs)
             s.Globals();
             s.CensorSettings();
             return s;
@@ -132,6 +134,7 @@ namespace OpenZ.Sim
         {
             foreach (var n in new[] { "grunt", "psycho", "sniper", "pyro", "laser", "jeep", "gatling", "electrobot" }) Units[n].CensorNonMissileUnit();   // electrobot_v1: a direct hit
             foreach (var n in new[] { "tough", "light", "medium", ZMTank.Type, "heavy", "missile_launcher", "gun", "howitzer", "missile_cannon" }) Units[n].CensorMissileUnit();   // DV145 the medium tank (Sim/ZMTank.cs)
+            foreach (var n in ZBigTanks.Types) if (Units.TryGetValue(n, out var bigRow)) bigRow.CensorMissileUnit();   // 1.5 DV180 / DV181: shell tanks (Sim/ZBigTanks.cs)
             Units["apc"].CensorMissileUnit(); Units["crane"].CensorMissileUnit();          // "non weapon" block calls CensorMissileUnit in Zod
             foreach (var n in Cannons) Units[n].move_speed = 0;
             foreach (var u in Units.Values) u.CensorNegatives();

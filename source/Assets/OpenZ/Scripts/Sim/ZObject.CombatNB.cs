@@ -74,9 +74,13 @@ namespace OpenZ.Sim
 
         /// <summary>DV26: the building's wall tiles (rect-relative): its mesh coverage >= 40 % (the gate corridor 'o' included), from
         /// ZClearance.Mesh; a type without a table (bridges) = its whole rect.</summary>
+        (int dx, int dy)[] solidMine; int solidW = -1, solidH = -1;                                  // 1.5 pass C (15 Nov): this object's own tile list, looked up once
         (int dx, int dy)[] SolidTiles()
         {
-            if (solidTiles.TryGetValue(Type, out var s)) return s;
+            if (solidMine != null && solidW == WidthPix && solidH == HeightPix) return solidMine;
+            solidW = WidthPix; solidH = HeightPix;
+            string key = Type + "|" + WidthPix + "x" + HeightPix;                                   // 1.5 pass C: keyed by type AND size: L18's 4 x 12 canal bridges are 'bridge_vert' as the 4 x 6 one, and the first one's whole rect stood for all (their south half took no blast, no reach)
+            if (solidTiles.TryGetValue(key, out var s)) return solidMine = s;
             var l = new List<(int, int)>();
             if (ZClearance.Mesh.TryGetValue(Type, out var rows))
             {
@@ -88,8 +92,8 @@ namespace OpenZ.Sim
                     }
             }
             if (l.Count == 0) for (int y = 0; y < HeightPix >> 4; y++) for (int x = 0; x < WidthPix >> 4; x++) l.Add((x, y));
-            s = l.ToArray(); solidTiles[Type] = s;
-            return s;
+            s = l.ToArray(); solidTiles[key] = s;                                                    // 1.5 pass C: by type and size
+            return solidMine = s;
         }
 
         /// <summary>DV26: the point of the building's walls nearest to (x, y) (inside it when (x, y) is) and its squared distance.</summary>
@@ -112,6 +116,7 @@ namespace OpenZ.Sim
         /// <summary>Range test to o from (x, y): Zod's centre-to-centre points_within_distance, or (DV26) to a building's walls.</summary>
         internal bool InReach(ZObject o, int x, int y, double range)
         {
+            if (o.Kind == ZKind.MapItem && World != null && World.BoxFaceReach(o, x, y, range, out bool boxIn)) return boxIn;   // 1.5 N29 (kit ue_boxes_range_n29, DV194): a box's range is measured to its near face (Sim/ZWorld.UeBoxRange.cs)
             if (!o.ReachToWalls) return Within(x, y, o.CenterX, o.CenterY, range);
             return o.WallPoint(x, y, out _, out _) <= (long)(range * range);
         }
@@ -119,6 +124,7 @@ namespace OpenZ.Sim
         /// <summary>DV26: where a shell at building t is aimed from here: the nearest wall point, 4 px into the wall.</summary>
         void WallAim(ZObject t, out int tx, out int ty)
         {
+            if (BridgeDeckAim(t, out tx, out ty)) return;                                       // 1.5 DV210 (kit bridge_aim_further_r6): a bridge: on its deck 4-6 m past the near end, not at the entrance (Sim/ZObject.BridgeDeckAim.cs)
             t.WallPoint(CenterX, CenterY, out tx, out ty);
             int dx = t.CenterX - tx, dy = t.CenterY - ty;
             if (dx != 0 || dy != 0) { double l = Math.Sqrt((double)dx * dx + (double)dy * dy); tx += (int)Math.Round(dx / l * 4); ty += (int)Math.Round(dy / l * 4); }

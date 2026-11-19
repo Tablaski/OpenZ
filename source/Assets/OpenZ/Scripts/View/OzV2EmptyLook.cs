@@ -112,6 +112,7 @@ namespace OpenZ
             if (OzHeavyTank.IsV2(root)) return 1;
             if (OzLightTank.Models.IsV2(root)) return 2;
             if (OzMediumTank.Models.IsV2(root)) return 3;
+            if (OzBigTanks.MammothModels.IsV2(root) || OzBigTanks.BizonModels.IsV2(root)) return 3;   // 1.5 DV180 / DV181: their materials are the medium tank's (cloned): its empty look
             if (OzMlrs.Models.IsV2(root)) return 4;
             if (OzMech.Models.IsV2(root)) return 5;
             return 0;
@@ -220,7 +221,7 @@ namespace OpenZ
             if (mine && m && m.HasProperty(OzV2EmptyLook.LegacyId) && m.GetFloat(OzV2EmptyLook.LegacyId) > 0.5f)
             {
                 if (emptyKind < 0) { emptyKind = OzV2EmptyLook.KindOf(transform); emptyUnit = OzV2EmptyLook.UnitOf(transform); }
-                if (OzV2EmptyLook.Enabled && team == Team.Neutral && charred < OzV2EmptyLook.WreckFrom) style = emptyKind;
+                if (OzV2EmptyLook.Enabled && EmptyShown && charred < OzV2EmptyLook.WreckFrom) style = emptyKind;   // 1.5 vehicle_colour_fill: neutral, or a fill from / to neutral (TeamPaint.Fill.cs)
             }
             if (style > 0)
             {

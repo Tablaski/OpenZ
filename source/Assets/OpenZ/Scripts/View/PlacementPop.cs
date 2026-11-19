@@ -246,7 +246,7 @@ namespace OpenZ
         /// <summary>A ring of m12_dust puffs on the gun's footprint edge rolling outward over the ground (the gun "lands").</summary>
         void DustRing(OpenZFxPlayer z, ZGame game, Vector3 at, float s)
         {
-            var col = game != null && game.level == "L17" ? DustCity : OzVolcanic.Dust(DustDesert);
+            var col = game != null && OzCity.Is(game.level) ? DustCity : OzVolcanic.Dust(DustDesert);
             int n = Mathf.Max(6, Mathf.RoundToInt(ringPuffs * Mathf.Lerp(0.7f, 1f, s)));
             float phase = Random.value * Mathf.PI * 2f;
             for (int i = 0; i < n; i++)

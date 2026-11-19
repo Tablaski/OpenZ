@@ -225,7 +225,7 @@ namespace OpenZ.Sim
 
         /// <summary>1.4 speed-up 5: the farthest this unit's attack range reaches at any target (WithinAttackRadius: RangeTo, DV162's high
         /// ground included), px.</summary>
-        internal int NbRangeReach() => Math.Max(AttackRadius, ZWorld.HighGroundRange(AttackRadius));
+        internal int NbRangeReach() => Math.Max(AttackRadius, ZWorld.HighGroundRange(AttackRadius)) + TowerScanPad();   // 1.5 DV208 round 6 (kit tower_reach_fair_r6): a fort tower gun also reaches from its drawn tower (Sim/ZObject.TowerDrawnReach.cs)
 
         /// <summary>The farthest its agro reach goes (WithinAgroRadius: AgroReachTo = range + agro_distance, or the range if longer), px.</summary>
         internal int NbAgroReach() => Math.Max(AttackRadius + World.S.agro_distance, NbRangeReach());

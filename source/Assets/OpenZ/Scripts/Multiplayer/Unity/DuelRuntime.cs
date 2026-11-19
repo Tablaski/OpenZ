@@ -40,7 +40,7 @@ namespace OpenZ.Multiplayer
         public int UnitPreset;
         public string[] AllowedUnits;
         public string[] RedFortTurrets, BlueFortTurrets;
-        public bool TankDamageEffects;
+        public bool TankDamageEffects, TankDamageShake;
         public int RadarLoss;
         public string ProposalJson;
         public DuelRules ProposedRules => string.IsNullOrEmpty(ProposalJson) ? null : JsonUtility.FromJson<DuelLobbyData>(ProposalJson).ReadRules();
@@ -57,7 +57,7 @@ namespace OpenZ.Multiplayer
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap),
                 RedFortTurrets = r.FortTurretsFor(0), BlueFortTurrets = r.FortTurretsFor(1),
                 TankDynamics = r.TankDynamics, RobotDynamics = r.RobotDynamics, UnitPreset = (int)r.UnitPreset, AllowedUnits = r.AllowedUnits.ToArray(),
-                TankDamageEffects = r.TankDamageEffects, RadarLoss = (int)r.RadarLoss };
+                TankDamageEffects = r.TankDamageEffects, TankDamageShake = r.TankDamageShake, RadarLoss = (int)r.RadarLoss };
         }
         public DuelRules ReadRules()
         {
@@ -65,7 +65,7 @@ namespace OpenZ.Multiplayer
                 Common = Common.Read(), Handicap = Handicap.Read(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
                 RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
-                TankDamageEffects = TankDamageEffects, RadarLoss = (RadarLossRule)RadarLoss,
+                TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = (RadarLossRule)RadarLoss,
                 AllowedUnits = AllowedUnits == null ? new List<string>(DuelUnitRoster.All) : new List<string>(AllowedUnits) };
             rules.Validate(); return rules;
         }
@@ -184,7 +184,9 @@ namespace OpenZ.Multiplayer
         {
             var text = new StringBuilder("OpenZ-VK-0.2-duel-10-match-requests\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
-            foreach (string map in new[] { "L02", "L07", "L16", "L17" }.Concat(OzAiMapCatalog.All.Where(m=>m.Duel).Select(m=>m.Id))) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
+            var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
+                .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));
+            foreach (string map in maps) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
         }
         public void Host(string name, int port)
@@ -243,7 +245,9 @@ namespace OpenZ.Multiplayer
             {
                 try
                 {
-                    var saved = JsonUtility.FromJson<DuelLobbyData>(last).ReadRules();
+                    var stored = JsonUtility.FromJson<DuelLobbyData>(last);
+                    stored.Map = OzAiMapCatalog.RestoreSavedLevel(stored.Map);
+                    var saved = stored.ReadRules();
                     if (Resources.Load<TextAsset>("OpenZ/Maps/" + saved.Map + "_grid"))
                     {
                         ValidateArmies(saved);
@@ -591,8 +595,9 @@ namespace OpenZ.Multiplayer
             wireSentAtMatchStart = WireStateSent;
             matchStateReceived = 0;
             Status = "Loading both teams…"; Menus.ShowLoading();
-            string scene = View.Map == "L02" ? "L02_Desert" : View.Map == "L07" ? "L07_Volcanic" : View.Map == "L16" ? "L16_Jungle" : View.Map == "L19" ? "L19_Mayhem_Converted" : "L17_CarPark";
-            OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(OzAiMapCatalog.Find(View.Map)?.Scene ?? scene);
+            string scene = OzAiMapCatalog.Find(View.Map)?.Scene ?? OzLevelDef.All.FirstOrDefault(m => m.Id == View.Map)?.Scene
+                ?? (View.Map == "L19" ? "L19_Mayhem_Converted" : "L17_CarPark");
+            OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(scene);
         }
         void SceneLoaded(Scene scene, LoadSceneMode mode)
         {
@@ -630,6 +635,7 @@ namespace OpenZ.Multiplayer
             game.player = I.LocalTeam; game.blueBot = game.redBot = false;
             game.gameDifficulty = GameDifficulty.Hard; game.mayhem = false; game.gameSpeed = 1;
             ZWorld.L17CrewsDeviation = false; ZWorld.FortDoorGunDeviation = false;
+            ZWorld.L18StartShuttle = false;
         }
         public static void WorldCreated(ZGame game)
         {

@@ -90,9 +90,13 @@ namespace OpenZ
 
         // loading
         AsyncOperation loadOp; float loadStartAt, loadShown; OzText loadStage, loadPct, loadTip; Image loadFill; int loadLevel;
+        float loadHoldAt = -1f, loadReadyAt = -1f, loadLastMoveAt, loadLongestStill; int loadHoldFrames, loadFrames; bool loadLetIn;   // 1.5 loading_bar_real_r8 (TickLoadingHonest)
+        readonly System.Collections.Generic.HashSet<int> loadGone = new System.Collections.Generic.HashSet<int>();   // 1.5 loading_bar_real_r8 (r8b): hidden menu flybys released on this loading screen
+        System.Action<string> loadSfx;                                                                   // 1.5 loading_bar_real_r8: the loading sounds through LoadSfx (recorded for the check)
+        static readonly string[] LevelStages = { "LOADING TERRAIN", "DEPLOYING FORCES", "BRIEFING COMMANDERS" };                  // the bar's step words (as before)
 
         // ------------------------------------------------------------------ input (polled like OpenZHud)
-        sealed class Hot { public RectTransform rt; public View view; public Side side = Side.Any; public HudButton btn; public Action click; public Action<bool> hover; public string sfx = "ui_click"; }
+        sealed class Hot { public RectTransform rt; public View view; public Side side = Side.Any; public HudButton btn; public Action click; public Action<bool> hover; public string sfx = "ui_click"; public Action rclick; }   // rclick: 1.5 issue 8, a right click on the row (RESOLUTION)
         readonly List<Hot> hots = new List<Hot>(); Hot hotOver, hotDown; Vector2 lastMouse; float lastCardClickAt = -10f; int lastCardClick = -1;
 
         // ================================================================== lifecycle
@@ -101,7 +105,7 @@ namespace OpenZ
             Time.timeScale = 1f;                                                                            // the pause menu may have left it at 0
             OzPlayBlue.Disarm("the main menu");                                                            // 1.2 item 11: back on the menu no level is played as blue (the box stays as it is)
             OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
-            string last = PlayerPrefs.GetString(PrefLevel, "L02");
+            string last = OzAiMapCatalog.RestoreSavedLevel(PlayerPrefs.GetString(PrefLevel, "L02"));
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
             var lastAiMap = openedWithSelect ? OzAiMapCatalog.Find(last) : null;
             SetCampaignLevels(lastAiMap?.Solo == true, lastAiMap?.Solo == true && lastAiMap.Experimental);
@@ -335,6 +339,7 @@ namespace OpenZ
             AddCycle(p, toggles.Count, OzForceBarOption.Label, () => OzForceBarOption.Name, OzForceBarOption.Step);
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OptW - 2 * OzLayout.OptX - 130);
             AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, value => OzBattleOptions.SoloDamage = value);
+            AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, value => OzBattleOptions.SoloShake = value);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
             AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
@@ -466,6 +471,7 @@ namespace OpenZ
             optCpuHint.Set(OpenZDifficulty.Hint(d));
             foreach (var t in toggles)
             {
+                if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab(OzSettings.ResolutionName)); continue; }   // 1.5 issue 8: the value alone, no arrows (the mouse button sets the way: OzSettings.ResolutionClick)
                 if (t.cycleName != null) { t.value.Set(OzText.Tab($"◀  {t.cycleName()}  ▶")); continue; }
                 if (t.scale) { int pct = Mathf.RoundToInt(OzText.SavedScale * 100); t.value.Set(OzText.Tab($"◀  {pct}%  ▶")); continue; }
                 bool on = t.get();
@@ -1091,6 +1097,7 @@ namespace OpenZ
                     h.click();
                 }
             }
+            if (m.rightButton.wasPressedThisFrame && over != null && over.rclick != null) { if (!string.IsNullOrEmpty(over.sfx)) Sfx(over.sfx); over.rclick(); }   // 1.5 issue 8: a right click on a row that has one (RESOLUTION: one size smaller)
             float wheel = m.scroll.ReadValue().y;
             if (Mathf.Abs(wheel) > 0.01f && side == Side.Credits && view == View.Main) ScrollCredits(-Mathf.Sign(wheel) * 56f);
             if (Mathf.Abs(wheel) > 0.01f && side == Side.Roadmap && view == View.Main) ScrollRoadmap(-Mathf.Sign(wheel) * 56f);
@@ -1331,7 +1338,7 @@ namespace OpenZ
             if (hotOver?.btn != null) { hotOver.btn.Hovered = false; hotOver.btn.Refresh(); }
             BuildLoading(d);
             for (int i = 0; i < previews.Length; i++) if (i != focusCard) previews[i].Pause();
-            loadStartAt = OzMotion.Now; loadShown = 0f;
+            loadStartAt = OzMotion.Now; loadShown = 0f; BeginLoadBar(d.Id);                                // 1.5 loading_bar_real_r8
             OzLevelWarm.Prepare(d.Id);                                                                        // 6 Nov hang fix: the level's warm list is read BEFORE the held scene load (an async read after it never finished in the exe)
             loadOp = SceneManager.LoadSceneAsync(d.Scene, LoadSceneMode.Single);
             if (loadOp != null) loadOp.allowSceneActivation = false;
@@ -1413,6 +1420,8 @@ namespace OpenZ
             if (musicSrc) musicSrc.volume = MusicFallbackVolume * (1f - k);
             if (k >= 1f) foreach (var p in previews) p?.Pause();                                              // the loading screen shows the still: stop decoding
             float warm = ueLoading ? 1f : OzLevelWarm.Step((deployingOperation ?? levels[loadLevel]).Id);                                 // 1.4: the level's own shader list warms on this screen (View/OzLevelWarm.cs); the Unit editor's loading as before
+            LoadBarWarm = warm;                                                                              // 1.5 loading_bar_real_r8: the per-frame log's warm column
+            if (LoadBarHonest) { TickLoadingHonest(dt, warm); return; }                                      // 1.5 loading_bar_real_r8: the bar below is the one before (LoadBarHonest off)
             float target = Mathf.Min(loadOp == null ? 1f : Mathf.Clamp01(loadOp.progress / 0.9f), warm);
             float minT = Mathf.Clamp01((OzMotion.Now - loadStartAt) / Mathf.Max(0.1f, minLoadingTime));
             loadShown = Mathf.MoveTowards(loadShown, Mathf.Min(target, 0.25f + 0.75f * minT), dt * 1.6f);
@@ -1420,13 +1429,157 @@ namespace OpenZ
             int pct = Mathf.RoundToInt(loadShown * 100f);
             loadPct.Set(OzText.Tab(pct + "%"));
             loadStage.Set(loadShown < 0.48f ? "LOADING TERRAIN" : loadShown < 0.85f ? "DEPLOYING FORCES" : "BRIEFING COMMANDERS");
-            OzSoundV3.LoadingStage(loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2, loadShown, Sfx);   // sound_v3
+            OzSoundV3.LoadingStage(loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2, loadShown, loadSfx ??= LoadSfx);   // sound_v3 (1.5 loading_bar_real_r8: the same sounds, recorded)
             loadTip.Set(Tips[loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2]);
+            LoadBarShown = loadShown; LoadBarLabel = ueLoading ? UeStages[LoadStepOf(loadShown)] : LevelStages[LoadStepOf(loadShown)];   // the per-frame log's "before"
             if (loadOp != null && loadShown >= 0.999f && loadOp.progress >= 0.9f && warm >= 1f && !loadOp.allowSceneActivation)   // 1.4: and the level's warm list done (or capped)
             {
                 foreach (var p in previews) p?.Pause();
+                LoadBarLetIn = true; LoadBarLetInFrame = Time.frameCount; OzStartSplit.Begin(LoadBarLevel);   // 1.5 loading_bar_real_r8: the long first frame's split (one log line)
                 loadOp.allowSceneActivation = true;                                                           // ZGame.Awake reads oz_difficulty and oz_headstart
             }
+        }
+
+        // ================================================================== 1.5 kit loading_bar_real_r8 (FAILS A24): the bar tells the truth
+        // Before: the bar showed the scene read (progress / 0.9) and the level's warm list, 0..100 % in about 1.2-1.5 s, and let the level in at
+        // 100 %. The level's first frame (the engine's scene activation and every Awake incl. ZGame.Awake, the sceneLoaded handlers, every
+        // Start, the start work ahead OzStartAhead / OzLevelPerfTune, the first picture) is ONE frame of 5.5-8.4 s on exe 14c, drawn over the
+        // loading screen's last picture: "BRIEFING COMMANDERS 100%", standing still (kit level_start_spread_r7 measured it).
+        // Now the scene read fills 0..45 %, the warm list 45..72 %, and the level is let in at LoadBarHold (78 %) once the bar has stood there
+        // with the last step's words for LoadBarSettleS (and at least two drawn frames): the long first frame stands on that picture, the next
+        // picture is the level's own. The bar never goes back and never shows 100 % before the level's first picture. Every wait as before
+        // (the scene read; the warm list, capped by OzLevelWarm.MaxSeconds) plus the settle; LoadBarReadyCapS lets the level in whatever the
+        // bar says. No branch for the editor. Nothing in the level changes (no Sim file, no scene, no level code): the same first picture,
+        // flyover and sim timing; the loading screen stays up the settle's 0.25 s longer. Per-frame log: View/OzLoadBarLog.cs (-oz-loadbar-log).
+        // Sounds: each step's tick when its words appear; the done sound on the let-in frame only (before: at 100 %, also the let-in frame).
+        // Once ready and past minLoadingTime the last stretch to the hold runs by real time at the old speed: a slow PC waits no longer for it.
+        // NOT fixed here: the long first frame itself is one engine frame, nothing is drawn inside it, so the screen still stands still on this
+        // picture for its length (6-10 s on exe 15d); a bar that moves through it needs the level start split (kit README section 6).
+        /// <summary>Off = the bar as in exe 14c (0..100 %, the level let in at 100 %): the Play check's "before".</summary>
+        public static bool LoadBarHonest = true;
+        /// <summary>The bar's value while the level is let in (its long first frame is drawn over this picture); used within 0.5..0.8.</summary>
+        public static float LoadBarHold = 0.78f;
+        /// <summary>The bar's shares of the scene read and of the level's warm list (together under LoadBarHold).</summary>
+        public static float LoadBarShareScene = 0.45f, LoadBarShareWarm = 0.27f;
+        /// <summary>The hold's picture is on screen this long (s, and at least two frames) before the level is let in.</summary>
+        public static float LoadBarSettleS = 0.25f;
+        /// <summary>The bar's fastest rise (share of the bar per second; before 1.6).</summary>
+        public static float LoadBarSpeed = 0.9f;
+        /// <summary>Once the scene and the warm list are ready and minLoadingTime passed: the rise to the hold, per real second (frames up to 0.25 s,
+        /// not the menu's 0.1 s cap), the old bar's speed, so a slow loading screen adds no wait of its own.</summary>
+        public static float LoadBarSpeedReady = 1.6f;
+        /// <summary>The level goes in at most this long (s) after the scene and the warm list are ready and minLoadingTime passed, whatever the bar says.</summary>
+        public static float LoadBarReadyCapS = 4f;
+        /// <summary>The loading screens started (DEPLOY, UNIT EDITOR) and the bar on the newest one: the Play check and the per-frame log.</summary>
+        public static int LoadBarRun { get; private set; }
+        public static float LoadBarShown { get; private set; }
+        public static string LoadBarLabel { get; private set; } = "";
+        public static string LoadBarLevel { get; private set; } = "";
+        public static bool LoadBarLetIn { get; private set; }
+        public static float LoadBarStartAt { get; private set; } = -1f;
+        /// <summary>The level's warm list on the newest loading screen, 0..1 (1 = done, none, capped, or the Unit editor): the log's warm column.</summary>
+        public static float LoadBarWarm { get; private set; } = 1f;
+        /// <summary>Time.frameCount of the newest loading step tick, of the newest done sound, and of the let-in (-1 = none on this screen).</summary>
+        public static int LoadBarTickFrame { get; private set; } = -1;
+        public static int LoadBarDoneFrame { get; private set; } = -1;
+        public static int LoadBarLetInFrame { get; private set; } = -1;
+        /// <summary>
+        /// says plainly that a wait comes, in the tip's place (the step words stay). Step 2 (the start spread) is the real cure.</summary>
+        public const string LoadHoldTip = "BUILDING THE BATTLEFIELD · A FEW SECONDS", LoadHoldTipUe = "BUILDING THE PLAYGROUND · A FEW SECONDS";
+        /// <summary>The tip on the newest loading screen's picture (the per-frame log's HOLD rule).</summary>
+        public static string LoadBarTip { get; private set; } = "";
+        /// <summary>r8b: the menu's hidden flybys (not the one behind the loading picture, not the one fading) are released one per loading frame
+        /// once the loading picture covers the screen (the same OzLevelPreview.Release the menu's OnDestroy calls, earlier): their decoder stop and
+        /// RenderTextures leave the level's first frame. Off = as before (the Play check's "before").</summary>
+        public static bool LoadBarReleaseHidden = true;
+        /// <summary>Hidden flybys released on the newest loading screen before its let-in.</summary>
+        public static int LoadBarPreviewsReleased { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetLoadBar()
+        {
+            LoadBarHonest = true; LoadBarHold = 0.78f; LoadBarShareScene = 0.45f; LoadBarShareWarm = 0.27f; LoadBarSettleS = 0.25f; LoadBarSpeed = 0.9f; LoadBarSpeedReady = 1.6f; LoadBarReadyCapS = 4f;
+            LoadBarRun = 0; LoadBarShown = 0f; LoadBarLabel = LoadBarLevel = ""; LoadBarLetIn = false; LoadBarStartAt = -1f;
+            LoadBarWarm = 1f; LoadBarTickFrame = LoadBarDoneFrame = LoadBarLetInFrame = -1;
+            LoadBarTip = ""; LoadBarReleaseHidden = true; LoadBarPreviewsReleased = 0;
+        }
+
+        /// <summary>The loading screen's sounds (OzSoundV3.LoadingStage calls it): the menu's own Sfx, with the frame recorded for the check.</summary>
+        void LoadSfx(string id)
+        {
+            if (id == "ui_confirm") LoadBarDoneFrame = Time.frameCount; else if (id == "ui_count_tick") LoadBarTickFrame = Time.frameCount;
+            Sfx(id);
+        }
+
+        /// <summary>The step (0 terrain, 1 forces, 2 commanders) whose words, tip and step sound a bar value shows.</summary>
+        static int LoadStepOf(float shown) => !LoadBarHonest ? (shown < 0.48f ? 0 : shown < 0.85f ? 1 : 2)
+            : shown < 0.40f ? 0 : shown < Mathf.Clamp(LoadBarHold, 0.5f, 0.8f) - 0.0005f ? 1 : 2;
+
+        /// <summary>DEPLOY / UNIT EDITOR, before the scene load: a new loading screen's bar.</summary>
+        void BeginLoadBar(string id)
+        {
+            loadHoldAt = loadReadyAt = -1f; loadLastMoveAt = OzMotion.Now; loadLongestStill = 0f; loadHoldFrames = loadFrames = 0; loadLetIn = false;
+            LoadBarRun++; LoadBarShown = 0f; LoadBarLabel = ""; LoadBarLevel = id ?? ""; LoadBarLetIn = false; LoadBarStartAt = Time.realtimeSinceStartup;
+            LoadBarWarm = 1f; LoadBarTickFrame = LoadBarDoneFrame = LoadBarLetInFrame = -1;
+            LoadBarTip = ""; LoadBarPreviewsReleased = 0; loadGone.Clear();
+        }
+
+        /// <summary>r8b: one hidden menu flyby released this frame (see LoadBarReleaseHidden). Never the focus card's (the loading picture may be its
+        /// frame), never the menu background's or the one fading out (TickBackground still reads them); only once the loading picture is fully up.</summary>
+        void ReleaseHiddenPreview()
+        {
+            if (!LoadBarReleaseHidden || loadLetIn || previews == null || loadingCg == null || loadingCg.alpha < 0.999f) return;
+            for (int i = 0; i < previews.Length; i++)
+            {
+                var p = previews[i];
+                if (p == null || i == focusCard || i == loadLevel || i == bgLevel || i == bgFrom || !loadGone.Add(i)) continue;
+                LoadBarPreviewsReleased++;
+                try { p.Release(); }                                                                          // the menu's OnDestroy calls it again: a no-op then
+                catch (System.Exception e) { Debug.LogWarning("[OpenZ LoadBar] hidden flyby " + i + " not released early (the menu's teardown releases it): " + e.Message); }
+                return;                                                                                       // one a frame: every loading frame stays short
+            }
+        }
+
+        void TickLoadingHonest(float dt, float warm)
+        {
+            loadFrames++;
+            ReleaseHiddenPreview();                                                                         // r8b: the menu's teardown out of the level's first frame
+            float hold = Mathf.Clamp(LoadBarHold, 0.5f, 0.8f);
+            bool ready = (loadOp == null || loadOp.progress >= 0.9f) && warm >= 1f;                          // as before: the scene read and the warm list (capped) done
+            float minT = Mathf.Clamp01((OzMotion.Now - loadStartAt) / Mathf.Max(0.1f, minLoadingTime));
+            if (ready && minT >= 1f && loadReadyAt < 0f) loadReadyAt = OzMotion.Now;                         // the ready cap counts from the minimum time too (a check may hold the screen longer)
+            float sceneK = loadOp == null ? 1f : Mathf.Clamp01(loadOp.progress / 0.9f);
+            float real = Mathf.Min(LoadBarShareScene * sceneK + LoadBarShareWarm * Mathf.Clamp01(warm), hold - 0.02f);
+            float to = Mathf.Min(ready ? hold : real, hold * (0.3f + 0.7f * minT));                            // the minimum time as before: no hold before minLoadingTime
+            float rise = ready && minT >= 1f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) * Mathf.Max(LoadBarSpeed, LoadBarSpeedReady)   // ready: the last stretch by real time (a slow PC adds no wait)
+                                             : dt * LoadBarSpeed;
+            float was = loadShown;
+            if (!loadLetIn) loadShown = Mathf.Max(loadShown, Mathf.MoveTowards(loadShown, to, rise));        // never back
+            if (loadShown > was + 0.00001f) loadLastMoveAt = OzMotion.Now;
+            else loadLongestStill = Mathf.Max(loadLongestStill, OzMotion.Now - loadLastMoveAt);
+            bool atHold = ready && loadShown >= hold - 0.0005f;
+            if (atHold) { if (loadHoldAt < 0f) loadHoldAt = OzMotion.Now; loadHoldFrames++; }
+            int step = LoadStepOf(loadShown);
+            loadFill.fillAmount = loadShown;
+            loadPct.Set(OzText.Tab(Mathf.RoundToInt(loadShown * 100f) + "%"));
+            loadStage.Set(LevelStages[step]);
+            bool waitWords = loadHoldAt >= 0f;
+            loadTip.Set(waitWords ? LoadHoldTip : Tips[step]);
+            LoadBarShown = loadShown; LoadBarLabel = ueLoading ? UeStages[step] : LevelStages[step];
+            LoadBarTip = ueLoading ? (waitWords ? LoadHoldTipUe : UeTips[step]) : (waitWords ? LoadHoldTip : Tips[step]);
+            bool held = loadOp != null && !loadOp.allowSceneActivation;
+            bool settled = held && atHold && loadHoldFrames >= 2 && OzMotion.Now - loadHoldAt >= LoadBarSettleS;
+            bool capped = held && loadReadyAt >= 0f && OzMotion.Now - loadReadyAt >= LoadBarReadyCapS;      // a wait with a cap: the level goes in whatever the bar says
+            bool letNow = !loadLetIn && (settled || capped);
+            OzSoundV3.LoadingStage(step, (letNow || loadLetIn) ? 1f : loadShown, loadSfx ??= LoadSfx);       // sound_v3: each step's tick with its words; the done sound on the let-in frame only (as before)
+            if (!letNow) return;
+            if (previews != null) foreach (var p in previews) p?.Pause();
+            loadLetIn = true; LoadBarLetIn = true; LoadBarLetInFrame = Time.frameCount;
+            Debug.Log(FormattableString.Invariant($"[OpenZ LoadBar] {LoadBarLevel}: the level is let in at {Mathf.RoundToInt(loadShown * 100f)} % ({LoadBarLabel}) {Time.realtimeSinceStartup - LoadBarStartAt:0.00} s after the click, ")
+                      + FormattableString.Invariant($"{loadFrames} loading frames, the bar's longest still stretch {loadLongestStill:0.00} s{(settled ? "" : ", by the ready cap")}; its first frame is drawn over this picture; ")
+                      + FormattableString.Invariant($"hidden menu flybys released before the let-in {LoadBarPreviewsReleased}"));   // dots on every PC (the reader's format)
+            OzStartSplit.Begin(LoadBarLevel);                                                                 // 1.5 loading_bar_real_r8: the long first frame's split (one log line)
+            loadOp.allowSceneActivation = true;                                                               // ZGame.Awake reads oz_difficulty and oz_headstart
         }
 
         // ================================================================== quit
@@ -1437,7 +1590,7 @@ namespace OpenZ
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
 #else
-            Application.Quit();
+            OzQuit.Request("main menu QUIT");   // 1.5 kit player_reports_1111 P1: videos and sounds stopped, settings saved, "[OpenZ] quit: start", the quit watchdog, then Application.Quit (View/OzQuit.cs)
 #endif
         }
 

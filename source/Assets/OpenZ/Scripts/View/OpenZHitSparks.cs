@@ -482,6 +482,7 @@ namespace OpenZ
             int inWindow = 0;
             for (int j = 0; j < soundTimes.Length; j++) if (now - soundTimes[j] < 1f) inWindow++;
             if (inWindow >= maxSoundsPerSecond) return;
+            if (!OzHitFeedback.RicochetVoice(at)) return;                                                     // 1.5 kit hit_feedback_sounds_r8 (A31): the ricochets share the cap of impact voices at once (View/OzHitFeedback.cs)
             // robots: more pings off small plates; vehicles: more whining ricochets; snipers: always the long whine
             bool whine = kind == Kind.Sniper || R() < (surf == FxSurface.Unit ? 0.45f : 0.65f);
             var bank = whine ? Whine : Tink;

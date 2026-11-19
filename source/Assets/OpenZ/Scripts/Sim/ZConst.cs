@@ -39,6 +39,9 @@ namespace OpenZ.Sim
         /// <summary>DV113 (ZObject.PyroForceBurn.cs): the player gave this order with Ctrl held (force fire): a Pyro may flame the building or
         /// bridge it attacks. A mark on the order, not a part of it: Equals does not compare it.</summary>
         public bool forceFire;
+        /// <summary>1.5 DV178 SPRINT ORDER (Sim/ZObject.SprintOrder.cs): this MOVE order was given as a sprint: the unit moves x ZWorld.SprintPct / 100
+        /// while it is the unit's first waypoint (the rule's switch on). A mark on the order, not a part of it: Equals does not compare it.</summary>
+        public bool sprint;
 
         public static readonly ZWaypoint Cleared = new ZWaypoint { mode = WpMode.None, refId = -1 };
 

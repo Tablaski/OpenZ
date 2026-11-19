@@ -46,7 +46,7 @@ namespace OpenZ
         }
 
         /// <summary>The 20 types with lines: 7 robots, 8 crewed vehicles (medium = the mech, mtank = the medium tank), 4 cannons, the shuttle.</summary>
-        public static readonly string[] Types = { "grunt", "psycho", "tough", "sniper", "pyro", "laser", "electrobot", "jeep", "light", "medium", "mtank", "heavy",   // electrobot_v1: + electrobot; DV145: + the medium tank's own lines (Sim/ZMTank.Type; this file stays plain C# for the offline harness)
+        public static readonly string[] Types = { "grunt", "psycho", "tough", "sniper", "pyro", "laser", "electrobot", "jeep", "light", "medium", "mtank", "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, /* 1.5 DV180 / DV181 */   // electrobot_v1: + electrobot; DV145: + the medium tank's own lines (Sim/ZMTank.Type; this file stays plain C# for the offline harness)
                                                   "missile_launcher", "apc", "crane", "gun", "gatling", "howitzer", "missile_cannon", "shuttle" };   // DV118: the playable shuttle's lines
 
         /// <summary>One picker for the whole game (outlives a level restart, like DeathVoices.Shared).</summary>

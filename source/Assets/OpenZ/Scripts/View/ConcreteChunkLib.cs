@@ -124,7 +124,7 @@ namespace OpenZ
             return new Quaternion(a * Mathf.Sin((float)u2), a * Mathf.Cos((float)u2), b * Mathf.Sin((float)u3), b * Mathf.Cos((float)u3));
         }
 
-        static bool L17 => ZGame.I && ZGame.I.level == "L17";
+        static bool L17 => OzCity.Here;
         static readonly Color L02Outer = new Color(0.84f, 0.78f, 0.67f), L02Frac = new Color(0.89f, 0.78f, 0.61f);
         static readonly Color L17Outer = new Color(0.56f, 0.41f, 0.28f), L17Frac = new Color(0.50f, 0.42f, 0.35f);
         static readonly Color Scorch = new Color(0.22f, 0.19f, 0.17f);

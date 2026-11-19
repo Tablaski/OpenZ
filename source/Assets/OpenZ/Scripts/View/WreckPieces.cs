@@ -21,8 +21,8 @@ namespace OpenZ
     /// </summary>
     public class WreckPieces : MonoBehaviour
     {
-        public const int MaxGroups = 12, MaxLiveFull = 72, MaxLiveLight = 36;
-        /// <summary>The most pieces that live at once: 72 as before; 36 while WRECKS AND DEBRIS is LIGHT (1.3 item 40, View/OzLightRows.cs).</summary>
+        public const int MaxGroups = 12, MaxLiveFull = 176, MaxLiveLight = 36;   // 1.5 big_tanks_wreck_finer: 176 (was 72): two big tanks' finer breaks (up to 88 each) at once
+        /// <summary>The most pieces that live at once: 176 (1.5 big_tanks_wreck_finer; 72 before); 36 while WRECKS AND DEBRIS is LIGHT (1.3 item 40, View/OzLightRows.cs).</summary>
         public static int MaxLive => OzLightRows.WrecksLight ? MaxLiveLight : MaxLiveFull;
         /// <summary>1.3 item 40: the row went to LIGHT during play: the oldest pieces past the cap leave now, the way the cap lets them go.</summary>
         public static void TrimLive() { while (live.Count > MaxLive) { var old = live[0]; live.RemoveAt(0); if (old) old.Retire(); } }
@@ -33,6 +33,7 @@ namespace OpenZ
         public bool Fading => popping;
         WreckSinkGate.Ticket sinkTicket;                                                              // k93, item 154: its wait while on camera (View/WreckSinkGate.cs)
         Rigidbody rb; float age, life, burnUntil, smokeT, lastContact = -10f, fadeT, sinkDepth, massKg; int contacts, id; bool frozen, popping, landed; Vector3 sinkFrom;
+        float ozUnsupAt = -1f, ozWatchAt; bool ozRetireLate;
         /// <summary>The unit (sim id) this piece came from (counted checks).</summary>
         public int UnitId => id;
 
@@ -68,6 +69,7 @@ namespace OpenZ
                 if (mr.name.StartsWith("WheelSpin_OZ") && mr.transform.parent && mr.transform.parent.Find("OZ_WreckFragments") && !WheelSplit.Strips(type)) { mr.enabled = false; continue; }   // vehicles_nb_v1 NB23: the baked fragments already hold the wheels
                 if (mr.sharedMaterial && mr.sharedMaterial.renderQueue >= 2450) { mr.enabled = false; continue; }   // light cones, glows, decals: not debris
                 if (mr.name == "OZ_HoleCore" || mr.name == "OZ_AxleStub") { mr.enabled = false; continue; }
+                if (OzBigTankWreck.OwnPiece(mr)) { groups.Add(new List<Transform> { mr.transform }); continue; }   // 1.5 DV180 / DV181: a modelled wreck piece is its own piece (View/OzBigTankWreck.cs)
                 if (mr.transform.parent && mr.transform.parent.name == "OZ_WreckFragments")
                 {
                     Chunkify(mr.transform); groups.Add(new List<Transform> { mr.transform }); continue;
@@ -97,7 +99,7 @@ namespace OpenZ
             if (groups.Count == 0) return 0;
             // largest first, the smallest merged into the largest until the budget holds
             groups.Sort((a, b) => Verts(b).CompareTo(Verts(a)));
-            while (groups.Count > MaxGroups) { groups[0].AddRange(groups[groups.Count - 1]); groups.RemoveAt(groups.Count - 1); }
+            while (groups.Count > OzBigTankWreck.GroupCap(view, MaxGroups) /* 1.5 DV180 / DV181 */) { groups[0].AddRange(groups[groups.Count - 1]); groups.RemoveAt(groups.Count - 1); }
             var made = new List<(WreckPieces p, float mass)>(); int whooshes = 0;
             float reach = 2f;
             var all = WorldBounds(root, skip); if (all.size.sqrMagnitude > 0f) reach = Mathf.Max(2f, Mathf.Max(all.size.x, Mathf.Max(all.size.y, all.size.z)) * 0.55f);
@@ -105,7 +107,8 @@ namespace OpenZ
             {
                 var g = groups[i];
                 var b = new Bounds(); bool any = false;
-                foreach (var t in g) foreach (var r in t.GetComponents<Renderer>()) { if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds); }
+                bool ozGun = OzGunSeatWreck.Gun(view);
+                foreach (var t in g) foreach (var r in t.GetComponents<Renderer>()) { var rb0 = OzGunSeatWreck.World(r, ozGun); if (!any) { b = rb0; any = true; } else b.Encapsulate(rb0); }
                 if (!any || b.size.magnitude < 0.05f) continue;
                 var go = new GameObject("OZ_WreckPiece");
                 go.transform.position = b.center;
@@ -120,17 +123,18 @@ namespace OpenZ
                 body.interpolation = RigidbodyInterpolation.Interpolate; body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
                 var offset = b.center - centre; float len = Mathf.Max(0.001f, new Vector2(offset.x, offset.z).magnitude); if (len < 0.01f) { offset.x = 1f; len = 1f; }
                 float angle = i * 2.399f + centre.x * 0.13f;
-                float pw = 5.8f * (0.24f + 0.92f / (1f + offset.magnitude / reach)) * power;
+                float pw = 5.8f * (0.24f + 0.92f / (1f + offset.magnitude / reach)) * power * OzBigTankWreck.Spread(view, b.size);   // 1.5 big_tanks_wreck_finer: a big tank's small pieces a little wider
                 var v = new Vector3(offset.x / len * pw + Mathf.Cos(angle) * 0.65f,
-                                    (3.8f + i % 3 * 0.65f + 1.5f + Mathf.Clamp(offset.y / Mathf.Max(1f, offset.magnitude), -0.3f, 0.8f) * 2f) * Mathf.Lerp(0.7f, 1f, power),
+                                    (3.8f + i % 3 * 0.65f + 1.5f + Mathf.Clamp(offset.y / Mathf.Max(1f, offset.magnitude), -0.3f, 0.8f) * 2f) * (OzBizonCrushView.Crushed(view.Obj) ? 0.12f : Mathf.Lerp(0.7f, 1f, power)),   /* 1.5 DV183 (kit bizon_crush): crushed pieces lie under the tracks */
                                     offset.z / len * pw + Mathf.Sin(angle) * 0.65f);
-                if (Launchers.IsMatch(names)) { v.y += (8f + i % 3 * 1.6f) * power; v.x += Mathf.Sin(angle) * 2.4f; v.z += Mathf.Cos(angle) * 2.4f; }
+                if (Launchers.IsMatch(names) && !OzBizonCrushView.Crushed(view.Obj)) {   /* 1.5 DV183 (kit bizon_crush) */ v.y += (8f + i % 3 * 1.6f) * power; v.x += Mathf.Sin(angle) * 2.4f; v.z += Mathf.Cos(angle) * 2.4f; }
                 body.linearVelocity = v;
                 body.angularVelocity = new Vector3(Mathf.Sin(angle) * 4.3f, 1.4f * Mathf.Cos(angle), -Mathf.Cos(angle) * 4.3f);
+                if (OzBigTankWreck.Scatters(view)) OzBigTankWreck.Launch(view, body, b, centre, power, id, i, names, Launchers.IsMatch(names));
                 foreach (var r in go.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
                 var p = go.AddComponent<WreckPieces>();
                 p.rb = body; p.id = id; p.life = Lifetime(id, i); p.massKg = mass;
-                if (whooshes < 2 && Launchers.IsMatch(names)) { whooshes++; AudioDirector.Fire("dst_turret_toss", b.center, id); }   // the big parts whoosh up
+                if (whooshes < 2 && Launchers.IsMatch(names) && !OzBizonCrushView.Crushed(view.Obj))   /* 1.5 DV183 (kit bizon_crush) */ { whooshes++; AudioDirector.Fire("dst_turret_toss", b.center, id); }   // the big parts whoosh up
                 made.Add((p, mass));
                 live.Add(p);
                 OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, SolidSize(b.size), p.life - 1f, () => p && p.Fading);   // items 331 + 332: a big piece meets the rocks; 1.3 item 16: on a tower every piece (MeetStatics)
@@ -139,6 +143,7 @@ namespace OpenZ
             for (int i = 0; i < made.Count && i < 3; i++) made[i].p.burnUntil = 3.5f + ((RobotDeathRule.Hash(id, i, 21u) & 255u) / 255f) * 2.5f;   // burnPieces
             while (live.Count > MaxLive) { var old = live[0]; live.RemoveAt(0); if (old) old.Retire(); }
             AudioDirector.Fire("dst_debris_metal", centre, id);
+            if (OzBigTankWreck.IsBig(view)) { var rt = new List<Transform>(made.Count); foreach (var m in made) if (m.p) rt.Add(m.p.transform); OzBigTankWreck.Rattle(view, rt, centre, id); }   // 1.5 big_tanks_wreck_finer
             return made.Count;
         }
 
@@ -148,7 +153,7 @@ namespace OpenZ
         {
             if (!part) return false;
             var b = new Bounds(); bool any = false;
-            foreach (var r in part.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds); }
+            foreach (var r in part.GetComponentsInChildren<Renderer>()) { if (!r.enabled) continue; var rb0 = OzGunSeatWreck.World(r, OzGunSeatWreck.Fit); if (!any) { b = rb0; any = true; } else b.Encapsulate(rb0); }
             if (!any || b.size.magnitude < 0.05f) return false;
             var go = new GameObject("OZ_WreckPiece");
             go.transform.position = b.center;
@@ -680,21 +685,23 @@ namespace OpenZ
             {   // burning debris: fire + light, then smoke that fades
                 bool burning = age < burnUntil; smokeT = burning ? 0.3f : 0.6f;
                 var fxp = OpenZFxPlayer.I;
-                if (fxp && fxp.isActiveAndEnabled) smokeT = OzFireDesync.PieceBurn(fxp, id, life, massKg, age, smokeT, transform.position + Vector3.up * 0.3f, burning);   // item 400: each piece its own beat
+                if (fxp && fxp.isActiveAndEnabled && OzFireSource.Piece(transform, out var n33At) /* 1.5 N33 (kit fire_no_source_n33): the middle of a piece can lie in a gap between its parts (the smallest parts are merged into the largest piece): on a part of it; nothing drawn = no fire */) smokeT = OzFireDesync.PieceBurn(fxp, id, life, massKg, age, smokeT, n33At, burning);   // item 400: each piece its own beat
             }
-            if (!frozen && rb && (rb.IsSleeping() || age > life - 1.5f || age > 8f))
+            if (!frozen && rb && (rb.IsSleeping() || age > life - 1.5f || age > 8f) && OzWreckGround.PieceMayFreeze(this, rb, ref ozUnsupAt))
             {   // settled: stop simulating (sleeps), keep the pose
                 frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
                 foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             }
-            if (age > life && !popping && !WreckSinkGate.Hold(ref sinkTicket, id, gameObject, transform.position)) Retire();   // k93, item 154: off camera only, inside the cap (one wreck per unit id)
+            if (frozen && !popping) OzWreckGround.PieceWatch(this, ref ozWatchAt);   // 1.5 kit wreck_rest_ground_r6: a stopped piece whose support went falls
+            if (ozRetireLate && !popping && !OzWreckGround.Dropping(transform)) { ozRetireLate = false; Retire(); }   // 1.5 kit wreck_rest_ground_r6 (critic round): the live cap's sink after its landing
+            if (age > life && !popping && !WreckSinkGate.Hold(ref sinkTicket, id, gameObject, transform.position) && !OzWreckGround.SinkWaits(this)) Retire();   // k93, item 154: off camera only, inside the cap (one wreck per unit id)
         }
 
         /// <summary>
         /// over 2.5 s (a faint dust puff), then is destroyed.</summary>
         void Retire()
         {
-            if (popping || OzLavaMelt.Busy(transform)) return;                                                // level 7, kit LV5: melting: the cap cannot cut it short, its own life ends it after the melt
+            if (popping || OzLavaMelt.Busy(transform) || OzWreckGround.RetireWaits(this, ref ozRetireLate) /* 1.5 kit wreck_rest_ground_r6 (critic round): being brought down: it sinks after its landing, never from the air */) return;                                                // level 7, kit LV5: melting: the cap cannot cut it short, its own life ends it after the melt
             popping = true; live.Remove(this);
             if (rb) { rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None; }
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;

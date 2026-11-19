@@ -24,7 +24,7 @@ namespace OpenZ
         static readonly string[][] Groups =
         {
             new[] { "ROBOTS", "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", OzUeLiveStats.Heroes, ZEvilZod.Type },
-            new[] { "VEHICLES", "jeep", "light", "medium", ZMTank.Type, "heavy", "apc", "missile_launcher", "crane" },   // DV145 the medium tank (Sim/ZMTank.cs)
+            new[] { "VEHICLES", "jeep", "light", "medium", ZMTank.Type, "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, "apc", "missile_launcher", "crane" },   // DV145 the medium tank (Sim/ZMTank.cs)
             new[] { "GUNS", "gatling", "gun", "howitzer", "missile_cannon" },
             new[] { "TRANSPORT", OzUeLiveStats.Shuttle },
         };

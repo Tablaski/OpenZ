@@ -86,6 +86,7 @@ namespace OpenZ
                 {
                     var u = p.rows.Unit(id);
                     int dmg = u != null ? u.Damage : 0, g = (int)Math.Round(v, MidpointRounding.AwayFromZero);
+                    int dv212 = p.rules.smallArmsOn ? ZWorld.SmallArmsVsGrunt(id, 0) : 0; if (dv212 > 0 && g <= dv212) { p.ruleWrites++; return; }   // 1.5 DV212 (kit small_arms_balance_r8): at or under DV212's own value the sim hits with DV212's: the game's pair stays as it is
                     if (g > dmg) p.rules.pairs[(id, "grunt")] = g; else p.rules.pairs.Remove((id, "grunt"));
                     p.ruleWrites++;
                     return;

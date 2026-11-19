@@ -370,7 +370,8 @@ namespace OpenZ
             var beats = lib.Beats(id);
             float jokeLead = kind == Kind.Briefing && mode == Mode.Level && game && ZodShotList.QuietOpening(game.level) ? 0f : JokeLead(kind); preroll += jokeLead;
             var p = new Perf { kind = kind, id = id, line = line, beats = beats, clip = clip, layout = layout, preroll = preroll };
-            p.voiceEnd = Mathf.Min(clip.length, line.duration > 0f ? line.duration : clip.length);
+            float clipEnd = LineWarp(id, clip.length);                                                     // 1.5: a clip with cuts (level 18's trio line) ends at the line's own second
+            p.voiceEnd = Mathf.Min(clipEnd, line.duration > 0f ? line.duration : clipEnd);
             p.end = p.voiceEnd + beats.tail;
             WinSodaBegin(p);                                                                            // K439: the win line's can and giggles; the window waits for the last giggle (ZodBriefing.WinSoda.cs)
             if (kind == Kind.Briefing && mode == Mode.Level && game) { ZodShotList.BriefingRoom(game.level, line, ref preroll, p.voiceEnd, ref p.end); p.preroll = preroll; }   // ZodFlyover.L16.cs: the flyover's quiet opening and its last shot's room
@@ -385,7 +386,7 @@ namespace OpenZ
             stage.EnsureFeed(px.x, px.y);
             stage.SetLive(true);
             stage.SetFraming(beats.framing); stage.SnapFraming();
-            bool boysHost = BoysHost(kind, line) && BoysHostBegin(p);                                   // level 16: the two robots hold the briefing on their loungers
+            bool boysHost = (BoysHost(kind, line) && BoysHostBegin(p)) || TrioHostBegin(kind, p);                                   // level 16: the two robots hold the briefing on their loungers
             if (!boysHost)
             {
                 StartBoys(kind, line, preroll);                                                         // zod_briefings_v3: the two soldiers' backs, then the push-in
@@ -471,7 +472,7 @@ namespace OpenZ
                         if (p.kind == Kind.Victory || p.kind == Kind.Defeat) OzFortInferno.DuckAll(-24f, 2.5f, "zod " + p.id);
                     }
                 }
-                else if (voice.isPlaying) p.t = voice.timeSamples / (float)Mathf.Max(1, p.clip.frequency);
+                else if (voice.isPlaying) p.t = LineWarp(p.id, voice.timeSamples / (float)Mathf.Max(1, p.clip.frequency));
                 else p.t += dt;
                 // v2: the opening static gets out of the way of his first word (0.12 s fade). REVIEW fix: this block used to sit
                 // between the if and its else-if above, which advanced the preroll clock twice per frame (0.55 s preroll -> 0.28 s,
@@ -503,7 +504,7 @@ namespace OpenZ
             voice.volume = VoiceGain() * p.fade;
             StartLineTick(p);                                                                           // the announcer line in the quiet start of the level briefing
             comms.SetCue(p.voiceOn && p.fadeSpeed <= 0f ? ZodLibrary.CueAt(p.line, p.t) : null);
-            comms.SetVu(Mathf.Max(LoungerMouth01, stage ? Mathf.Max(stage.Mouth01, stage.AlanMouth01) : 0f));
+            comms.SetVu(Mathf.Max(Mathf.Max(LoungerMouth01, WatchMouth01), stage ? Mathf.Max(stage.Mouth01, stage.AlanMouth01) : 0f));
             if (stage) stage.Push = p.t / Mathf.Max(1f, p.voiceEnd);
             if (p.kind == Kind.Briefing) comms.SetProgress((p.t + p.preroll) / Mathf.Max(1f, p.end + p.preroll));
             if (voice.isPlaying && !paused && Time.unscaledTime >= nextDuck)

@@ -143,6 +143,7 @@ namespace OpenZ
             Add<OzUeControlsRoot>();                                                          // P2: dock, play bar, zoom, camera, floor
             Add<OzUeStatsRoot>();                                                             // P3: the STATS box, sets, table, balance, card
             Add<OzUeShellRoot>();                                                             // P4: top bar, dialogs, keys, placing, marks, files
+            Add<OzUePauseLook>();                                                             // 1.5 kit ue_pause_vignette_r8: the pause's eased vignette and dim (View/OzUePauseLook.cs)
             Add<OzBehaviorPanel>();
             w.EnableUnitTesting();
             Add<OzUnitTestingOverlay>();
@@ -219,7 +220,7 @@ namespace OpenZ
             if (I != this) return;
             OzUeStatics.RestoreAll();
             UiReady = null; PanelsHiddenChanged = null; PanelsHidden = false;
-            OzUeInsets.Reset(); OzUePlayground.Reset(); OzUePick.Reset(); OzUeObstacleViews.Reset(); OzUeCrateViews.Reset(); OzUeNuke.Reset(); OzUePlatformViews.Reset(); OzUeHooks.Reset();
+            OzUeInsets.Reset(); OzUePlayground.Reset(); OzUePick.Reset(); OzUeObstacleViews.Reset(); OzUeCrateViews.Reset(); OzUeNuke.Reset(); OzUeBlasts.Reset(); /* 1.5 ue_explosions_6 */ OzUePlatformViews.Reset(); OzUeHooks.Reset();
             I = null;
             Debug.Log($"{Tag} left the playground: every held static restored");
         }

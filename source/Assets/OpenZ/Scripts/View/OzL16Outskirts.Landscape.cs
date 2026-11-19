@@ -820,7 +820,7 @@ namespace OpenZ
                 {
                     if (!l.mats[s]) continue;
                     var rp = new RenderParams(l.mats[s]) { camera = cam, layer = l.layer, shadowCastingMode = l.cast, receiveShadows = true, lightProbeUsage = LightProbeUsage.BlendProbes, worldBounds = l.boxNow, motionVectorMode = MotionVectorGenerationMode.Camera };
-                    for (int o = 0; o < l.drawnNow; o += Batch) { Graphics.RenderMeshInstanced(rp, l.mesh, s, l.buf, Mathf.Min(Batch, l.drawnNow - o), o); LandCallsNow++; }
+                    if (SystemInfo.supportsInstancing) for (int o = 0; o < l.drawnNow; o += Batch) { Graphics.RenderMeshInstanced(rp, l.mesh, s, l.buf, Mathf.Min(Batch, l.drawnNow - o), o); LandCallsNow++; }
                 }
             }
         }

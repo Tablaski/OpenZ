@@ -43,6 +43,8 @@ namespace OpenZ
             { "light", new Words("Light tank with a cannon.", "Fastest tank, quick to reload", "Weakest armour of the tanks") },
             { "medium", new Words("Mech with rockets and a machine gun.", "Much tougher than the Light Tank", "Slower than the Light Tank") },
             { ZMTank.Type, new Words("Medium tank with a cannon.", "Tougher than the Mech, good all around", "Slower than the Mech") },   // DV145
+            { OzBigTanks.Mammoth, new Words("Huge tank with two cannons.", "Toughest hull, two shells a shot, reaches far", "Slow, long reload") },   // 1.5 DV180 / DV181
+            { OzBigTanks.Bizon, new Words("Huge tractor tank with a cannon.", "Thickest armour. The only vehicle that crosses water", "Short range, very slow. Lava slowly burns it") },
             { "heavy", new Words("Heavy tank with twin cannons.", "Best armour and range of the tanks", "Slowest tank, slow to reload") },
             { "apc", new Words("Armoured carrier for one robot squad.", "The squad rides and fires from inside", "Fires only the weapons of its crew") },
             { "missile_launcher", new Words("Mobile missile launcher.", "Biggest blast of any unit", "Slowest vehicle, longest to build") },

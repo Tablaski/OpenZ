@@ -243,6 +243,7 @@ namespace OpenZ
             }
             float dt = Time.deltaTime;
             if (job != null && (Time.time > jobUntil || game == null || game.World == null || game.World.GetAny(job.Id) == null)) End(job.Id);
+            if (OzRamStill.Holds(view.Obj)) { OzRamStill.CraneArmFrames++; return; }                   // 1.5 DV195 (kit ram_chain_n24_n25): rammed / crushed: the arm stands as it is
             if (st == St.Rest && job == null) return;                                                // at rest: the modelled rest pose, untouched
             stT += dt;
             bool moving = view.Obj.IsMoving;
@@ -640,7 +641,7 @@ namespace OpenZ
             var sp = surfAt + nOut * 0.02f;                                                            // on the surface, under the tool tip; the spray comes off the work
             CraneArm.TipSparkMax = Mathf.Max(CraneArm.TipSparkMax, Vector3.Distance(sp, tip));
             fx.WeldSparks(sp, nOut, Random.Range(0.85f, 1.05f)); CraneArm.Welds++;
-            AudioDirector.I?.Play("bld_repair_weld", sp, job.Id);
+            if (!OzCraneLandEnd.QuietWeld()) AudioDirector.I?.Play("bld_repair_weld", sp, job.Id);   // 1.5 kit crane_deck_sound_r3: no weld crackle while the owner's construction track plays
             if (Random.value < ArcChance && ElectricZaps.Arc(tip, sp, nOut, view.Obj.Id, ElectricZaps.Source.Crane)) CraneArm.Arcs++;   // the arc jumps from the tool to the work
         }
     }

@@ -34,6 +34,7 @@ namespace OpenZ
             if (!turret) return 0;
             if (GunV2Seat.NoChair(turret, type)) return 0;                                         // k92, item 140: the gun v2 has no chair (View/OzGun.K92.cs)
             int n = 0, tris = 0; var centre = turret.position;
+            OzGunSeatWreck.Fit = true; try {
             foreach (var mf in turret.GetComponentsInChildren<MeshFilter>())
             {
                 if (!mf.sharedMesh || !(mf.transform == turret || mf.name == "CannonTurretYaw_Surface")) continue;
@@ -59,6 +60,7 @@ namespace OpenZ
                 var t = turret.Find(nm);
                 if (t && WreckPieces.Single(t, centre, 1f, id)) n++;
             }
+            } finally { OzGunSeatWreck.Fit = false; }   // 1.5 kit gun_seat_wreck_r8
             if (n > 0)
             {
                 Broken++; Tris += tris;
@@ -112,8 +114,12 @@ namespace OpenZ
                 var dst = chairRoots.Contains(Find(tr[i])) ? seatTris : rest;
                 dst.Add(tr[i]); dst.Add(tr[i + 1]); dst.Add(tr[i + 2]);
             }
-            var mRest = Object.Instantiate(src); mRest.name = src.name + "_noseat"; mRest.SetTriangles(rest, 0, false);
-            var mSeat = Object.Instantiate(src); mSeat.name = src.name + "_seat"; mSeat.SetTriangles(seatTris, 0, true);
+            Mesh mRest, mSeat;
+            if (OzGunSeatWreck.On) { mRest = OzGunSeatWreck.Compact(src, rest, src.name + "_noseat", true); mSeat = OzGunSeatWreck.Compact(src, seatTris, src.name + "_seat", false); }
+            else {
+            mRest = Object.Instantiate(src); mRest.name = src.name + "_noseat"; mRest.SetTriangles(rest, 0, false);
+            mSeat = Object.Instantiate(src); mSeat.name = src.name + "_seat"; mSeat.SetTriangles(seatTris, 0, true);
+            }
             c = new[] { mRest, mSeat }; cache[src] = c;
             return c;
         }

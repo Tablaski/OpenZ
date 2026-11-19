@@ -507,7 +507,7 @@ namespace OpenZ
         /// between them). Positions from the level's own forts / bridges / flags; units staged like the P cheat (StageBattle).</summary>
         public IEnumerator MenuFlyby(int n, string dir, float seconds, int fps, int width, int height)
         {
-            var G = ZGame.I; var W = G.World; bool city = G.level == "L17";
+            var G = ZGame.I; var W = G.World; bool city = OzCity.Is(G.level);
             Vector3 A = Vector3.zero, B = Vector3.zero;
             foreach (var o in W.Objects) if (o.Kind == ZKind.Building && o.Type.StartsWith("fort")) { if (o.Owner == Team.Red) A = G.CenterWorld(o); else if (o.Owner == Team.Blue) B = G.CenterWorld(o); }
             var mid = ZGame.PxToWorld(W.Map.WidthPix / 2, W.Map.HeightPix / 2);

@@ -62,6 +62,7 @@ namespace OpenZ
                 case "light": return c.wLight;
                 case "medium": case ZMTank.Type: return c.wMedium;   // DV145 the medium tank (Sim/ZMTank.cs)
                 case "missile_launcher": return c.wMissile;
+                case OzBigTanks.Mammoth: case OzBigTanks.Bizon: return c.wHeavy;   // 1.5 DV180 / DV181
                 case "heavy": return c.wHeavy;
                 default: return c.wOther;
             }

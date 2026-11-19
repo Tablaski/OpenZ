@@ -39,6 +39,7 @@ namespace OpenZ
         public static IEnumerable<OzAiMap> Playable => All.Append(ChillyWillyV2);
 
         public static OzAiMap Find(string id) => Playable.FirstOrDefault(m => m.Id == id);
+        public static string RestoreSavedLevel(string id) => id == "SM18" || id == "SM18F" ? "L18" : id;
         public static bool IsDuelMap(string id) => Find(id)?.Duel == true;
         public static OzAiMap[] Select(bool solo, string group = "ALL", string world = "all", int sort = 0)
         {

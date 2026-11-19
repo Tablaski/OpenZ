@@ -26,12 +26,12 @@ namespace OpenZ
         public static string Shuttle => ZWorld.ShuttleType;
         /// <summary>The game's own build-menu order (ZSettings lists), DECISION D8 of the architecture.</summary>
         public static readonly string[] Robots = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };
-        public static readonly string[] Vehicles = { "jeep", "light", "medium", ZMTank.Type, "heavy", "apc", "missile_launcher", "crane" };   // DV145 the medium tank (Sim/ZMTank.cs)
+        public static readonly string[] Vehicles = { "jeep", "light", "medium", ZMTank.Type, "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, "apc",   /* 1.5 DV180 / DV181: Unit editor only */ "missile_launcher", "crane" };   // DV145 the medium tank (Sim/ZMTank.cs)
         public static readonly string[] Guns = { "gatling", "gun", "howitzer", "missile_cannon" };
         public static readonly string[] Special = { Heroes, ZEvilZod.Type, ZWorld.ShuttleType };   // DV161: EvilZod between the heroes and the shuttle (Sim/ZEvilZod.cs)
-        public static readonly string[] Extras = { Flag, Obstacle, Grenades, Nuke, PlatformMid, PlatformHigh };   // 1.3: + the two ramp platforms (View/OzUePlayground.Platforms.cs)
+        public static readonly string[] Extras = { Flag, Obstacle, Grenades, Nuke, PlatformMid, PlatformHigh, Box };
         /// <summary>The 22 units in game order (robots, vehicles, guns, heroes, EvilZod, shuttle).</summary>
-        public static readonly string[] Units = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", ZMTank.Type, "heavy", "apc",   // DV145 the medium tank (Sim/ZMTank.cs)
+        public static readonly string[] Units = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", ZMTank.Type, "heavy", OzBigTanks.Mammoth, OzBigTanks.Bizon, "apc",   /* 1.5 DV180 / DV181 */   // DV145 the medium tank (Sim/ZMTank.cs)
                                                   "missile_launcher", "crane", "gatling", "gun", "howitzer", "missile_cannon", Heroes, ZEvilZod.Type, ZWorld.ShuttleType };
         public const int ObstacleTiles = 3, ObstacleHp = 10000;
         public const float ObstacleHeightM = 3f;
@@ -62,9 +62,9 @@ namespace OpenZ
             if (id == Heroes) return UeKind.Hero;
             if (id == ZWorld.ShuttleType) return UeKind.Shuttle;
             if (id == Flag) return UeKind.Flag;
-            if (id == Obstacle) return UeKind.Obstacle;
+            if (id == Obstacle || id == Box) return UeKind.Obstacle;                                      // 1.5 ue_boxes: a box is an obstacle of the playground with its own id
             if (id == Grenades) return UeKind.Grenades;
-            if (id == Nuke) return UeKind.Nuke;
+            if (id == Nuke || OzUeBlasts.Is(id)) return UeKind.Nuke;   /* 1.5 ue_explosions_6 */
             if (IsPlatformId(id)) return UeKind.Platform;
             return UeKind.None;
         }
@@ -73,7 +73,7 @@ namespace OpenZ
         /// <summary>The flag and the obstacle are always neutral.</summary>
         public static bool AlwaysNeutral(string id) { var k = KindOf(id); return k == UeKind.Flag || k == UeKind.Obstacle || k == UeKind.Grenades || k == UeKind.Nuke || k == UeKind.Platform; }
         /// <summary>Not in the 1996 Z: the Electrobot, the heroes, the shuttle.</summary>
-        public static bool OpenZOnly(string id) => id == ZElectro.Type || id == ZEvilZod.Type || id == Heroes || id == ZWorld.ShuttleType || id == ZMTank.Type;   // DV145: the medium tank is OpenZ only too
+        public static bool OpenZOnly(string id) => id == ZElectro.Type || id == ZEvilZod.Type || id == Heroes || id == ZWorld.ShuttleType || id == ZMTank.Type || OzBigTanks.Is(id);   // 1.5 DV180 / DV181   // DV145: the medium tank is OpenZ only too
         /// <summary>
         /// Neutral = a unit of every side.</summary>
         public static Team TeamOnly(string id) => id == ZEvilZod.Type ? Team.Blue : id == Heroes ? Team.Red : Team.Neutral;
@@ -85,7 +85,7 @@ namespace OpenZ
         public static bool Offered(string id, out string why)
         {
             why = null;
-            bool on = id == ZEvilZod.Type ? ZWorld.EvilZodDeviation : id == ZElectro.Type ? ZWorld.ElectrobotDeviation : id == Heroes ? ZWorld.HeroSquadDeviation : id == ZWorld.ShuttleType ? ZWorld.ShuttlePlayableDeviation : id == ZMTank.Type ? ZWorld.MTankDeviation : KindOf(id) != UeKind.None;   // DV145: off in 'Zod exact' like the other OpenZ-only units
+            bool on = id == ZEvilZod.Type ? ZWorld.EvilZodDeviation : id == ZElectro.Type ? ZWorld.ElectrobotDeviation : id == Heroes ? ZWorld.HeroSquadDeviation : id == ZWorld.ShuttleType ? ZWorld.ShuttlePlayableDeviation : id == ZMTank.Type ? ZWorld.MTankDeviation : id == OzBigTanks.Mammoth ? ZWorld.MammothDeviation : id == OzBigTanks.Bizon ? ZWorld.BizonDeviation /* 1.5 DV180 / DV181 */ : KindOf(id) != UeKind.None;   // DV145: off in 'Zod exact' like the other OpenZ-only units
             if (!on) why = KindOf(id) == UeKind.None ? "Not a unit of the game." : "Off while the game plays the original Z rules.";
             return on;
         }
@@ -97,9 +97,9 @@ namespace OpenZ
                 case UeKind.Hero: return "HEROES";
                 case UeKind.Shuttle: return "SHUTTLE";
                 case UeKind.Flag: return "FLAG";
-                case UeKind.Obstacle: return "OBSTACLE";
+                case UeKind.Obstacle: return id == Box ? "BOX" : "OBSTACLE";
                 case UeKind.Grenades: return "GRENADES";
-                case UeKind.Nuke: return "NUKE";
+                case UeKind.Nuke: return OzUeBlasts.Is(id) ? OzUeBlasts.Short(id) : "NUKE";
                 case UeKind.Platform: return id == PlatformHigh ? "TOWER" : "PLATFORM";
                 case UeKind.None: return id ?? "";
             }
@@ -113,9 +113,9 @@ namespace OpenZ
                 case UeKind.Hero: { var k = ZHeroSquads.Get(ZHeroSquads.AlanBrad); return k != null ? k.Name : "ALAN & BRAD"; }
                 case UeKind.Shuttle: return "SHUTTLE";
                 case UeKind.Flag: return "FLAG";
-                case UeKind.Obstacle: return "OBSTACLE";
+                case UeKind.Obstacle: return id == Box ? "BOX" : "OBSTACLE";
                 case UeKind.Grenades: return "GRENADE CRATE";
-                case UeKind.Nuke: return "NUKE STRIKE";
+                case UeKind.Nuke: return OzUeBlasts.Is(id) ? OzUeBlasts.Full(id) : "NUKE STRIKE";
                 case UeKind.Platform: return id == PlatformHigh ? "HIGH PLATFORM" : "MEDIUM PLATFORM";
                 case UeKind.None: return id ?? "";
             }
@@ -132,9 +132,9 @@ namespace OpenZ
                 case UeKind.Hero: return "Hero squad";
                 case UeKind.Shuttle: return "Transport";
                 case UeKind.Flag: return "Capture flag";
-                case UeKind.Obstacle: return "Holo obstacle";
+                case UeKind.Obstacle: return id == Box ? "Holo box" : "Holo obstacle";
                 case UeKind.Grenades: return "Grenade crate";
-                case UeKind.Nuke: return "Nuke strike";
+                case UeKind.Nuke: return OzUeBlasts.Is(id) ? "Test explosion" : "Nuke strike";
                 case UeKind.Platform: return "Platform";
             }
             return "";
@@ -155,7 +155,7 @@ namespace OpenZ
             {
                 case UeKind.Vehicle: case UeKind.Gun: return 4f;
                 case UeKind.Shuttle: return 6f;
-                case UeKind.Obstacle: return ObstacleTiles * 2f;
+                case UeKind.Obstacle: return id == Box ? BoxSideM : ObstacleTiles * 2f;
                 case UeKind.Platform: return ZWorld.PlatformWideTiles * 2f;
             }
             return 2f;
@@ -205,7 +205,7 @@ namespace OpenZ
         static float CamYaw => Ed && Ed.Rts ? Ed.Rts.yaw : 0f;
 
         // ------------------------------------------------------------------------------------------------ drops
-        enum Spot { Ok, Neutral, Off, NoRoom, OnObstacle, ObstacleOverUnits, ObstacleOverFlag, ObstacleOverObstacle, ObstacleOverEmpty, NoWorld, OnPlatform, PlatformOverUnits, PlatformOverFlag, PlatformOverObstacle, PlatformOverEmpty }
+        enum Spot { Ok, Neutral, Off, NoRoom, OnObstacle, ObstacleOverUnits, ObstacleOverFlag, ObstacleOverObstacle, ObstacleOverEmpty, NoWorld, OnPlatform, PlatformOverUnits, PlatformOverFlag, PlatformOverObstacle, PlatformOverEmpty, BoxOverUnits, BoxOverFlag, BoxOverObstacle, BoxOverEmpty, BoxTooHigh }   // 1.5 ue_boxes: the box's refusals
 
         static string Words(Spot s)
         {
@@ -223,6 +223,7 @@ namespace OpenZ
                 case Spot.PlatformOverFlag: return "NO ROOM: A PLATFORM CANNOT OVERLAP THE FLAG";
                 case Spot.PlatformOverObstacle: return "NO ROOM: A PLATFORM CANNOT OVERLAP AN OBSTACLE OR ANOTHER PLATFORM";
                 case Spot.PlatformOverEmpty: return "NO ROOM: A PLATFORM CANNOT OVERLAP EMPTY HARDWARE";
+                case Spot.BoxOverUnits: case Spot.BoxOverFlag: case Spot.BoxOverObstacle: case Spot.BoxOverEmpty: case Spot.BoxTooHigh: return BoxWords(s);   // 1.5 ue_boxes
                 case Spot.NoRoom: case Spot.NoWorld: return "NO ROOM HERE";
             }
             return null;
@@ -326,7 +327,6 @@ namespace OpenZ
                 {
                     var t = FootTile(w, p, 1);
                     if (OnAnObstacle(w, t.x, t.y, 1)) return Spot.OnObstacle;
-                    if (OnAPlatform(w, t.x, t.y, 1)) return Spot.OnPlatform;
                     return FreeSpot(w, id, p, t.x, t.y, 1, true, true, out _, out _) ? Spot.Ok : Spot.NoRoom;
                 }
                 case UeKind.Grenades:
@@ -338,6 +338,7 @@ namespace OpenZ
                 }
                 case UeKind.Obstacle:
                 {
+                    if (id == Box) return TestBox(w, p);                                                    // 1.5 ue_boxes: on top of the boxes under it (View/OzUePlayground.Boxes.cs)
                     var t = FootTile(w, p, ObstacleTiles);
                     if (OnAPlatform(w, t.x, t.y, ObstacleTiles)) return Spot.OnPlatform;
                     if (w.ObstacleSpotFree(t.x, t.y, ObstacleTiles, out string why)) return Spot.Ok;
@@ -357,7 +358,7 @@ namespace OpenZ
             if (AlwaysNeutral(id)) team = Team.Neutral;
             var rule = TeamRule(id, team);
             if (rule != Spot.Ok) { why = Words(rule); return false; }
-            if (KindOf(id) == UeKind.Nuke) return OzUeNuke.CanCall(out why);                                 // 1.3 item 2: anywhere on the map, once its 30 s are up (View/OzUeNuke.cs)
+            if (OzUeBlasts.Is(id)) return OzUeBlasts.CanDrop(out why); /* 1.5 ue_explosions_6 */ if (KindOf(id) == UeKind.Nuke) return OzUeNuke.CanCall(out why);                                 // 1.3 item 2: anywhere on the map, once its 30 s are up (View/OzUeNuke.cs)
             if (!CapRoomNow(id, team, out why)) return false;                                                // not even one group fits the unit cap (View/OzUePlayground.Cap.cs)
             foreach (var p in Formation(id, count, centre, CamYaw))
             {
@@ -382,7 +383,7 @@ namespace OpenZ
             if (AlwaysNeutral(id)) team = Team.Neutral;
             var rule = TeamRule(id, team);
             if (rule != Spot.Ok) { d.why = Words(rule); Refused++; if (sound) AudioDirector.UI("ui_error"); Debug.Log($"{OzUnitEditor.Tag} drop of {id} refused: {d.why}"); return d; }
-            if (KindOf(id) == UeKind.Nuke) return NukeDrop(g, w, centre, sound, d);                         // 1.3 item 2: the bomber is called, nothing is placed (View/OzUePlayground.Nuke.cs)
+            if (OzUeBlasts.Is(id)) return BlastDrop(g, w, id, centre, sound, d); /* 1.5 ue_explosions_6 */ if (KindOf(id) == UeKind.Nuke) return NukeDrop(g, w, centre, sound, d);                         // 1.3 item 2: the bomber is called, nothing is placed (View/OzUePlayground.Nuke.cs)
             Spot firstBad = Spot.Ok;
             Vector3 soundAt = centre;
             string full = null;                                                                               // the unit cap (View/OzUeCap.cs, View/OzUePlayground.Cap.cs)
@@ -453,7 +454,7 @@ namespace OpenZ
                 {
                     var t = FootTile(w, p, 1);
                     if (OnAnObstacle(w, t.x, t.y, 1)) { why = Spot.OnObstacle; return null; }
-                    if (OnAPlatform(w, t.x, t.y, 1)) { why = Spot.OnPlatform; return null; }
+                    // ue_flag_anywhere: on a platform too (the deck or the ramp, never a rail); its view stands on it (View/FlagView.Deck.cs)
                     if (!FreeSpot(w, id, p, t.x, t.y, 1, true, true, out int tx, out int ty)) { why = Spot.NoRoom; return null; }
                     var f = w.CreateObject("map_item", "flag", tx * 16, ty * 16, Team.Neutral);    // the game's capture flag (in World.Flags)
                     FlagView.AddRuntimeFlag(f);
@@ -472,6 +473,7 @@ namespace OpenZ
                 }
                 case UeKind.Obstacle:
                 {
+                    if (id == Box) return MakeBox(w, p, out why);                                           // 1.5 ue_boxes: the Sim's box on its level + its hologram (View/OzUePlayground.Boxes.cs)
                     var t = FootTile(w, p, ObstacleTiles);
                     if (OnAPlatform(w, t.x, t.y, ObstacleTiles)) { why = Spot.OnPlatform; return null; }
                     var o = w.PlaceObstacle(t.x, t.y, ObstacleTiles, ObstacleHp, out string ow);
@@ -548,6 +550,7 @@ namespace OpenZ
             var input = In;
             if (input) foreach (var m in members) input.Selection.Remove(m);
             int n = w.RemoveNow(lead);
+            if (obst) w.BoxSettle();                                                                         // 1.5 ue_boxes: the boxes above a removed box fall at once, also while paused (Sim/ZWorld.UeBoxes.cs)
             foreach (var m in members) DropView(g, m.Id);
             OzUeCrateViews.Remove(g, lead.Id);                                                              // a grenade crate: its level view goes too (nothing for anything else)
             if (flag) FlagView.RemoveRuntimeFlag(lead);
@@ -613,7 +616,8 @@ namespace OpenZ
                 WreckViewsGone(w);                                                                           // 1.3 item 9: also a wreck's view the game's list does not hold, and one whose unit is dying
             });
             ClearStep("crates", () => OzUeCrateViews.Sweep(g, w));                                          // the views of crates collected or blown up (hidden, as in a level)
-            ClearStep("debris", () => SweepDebris());                                                       // run 11: wreck pieces, torn tracks, wheels, plates, barrels, chunks
+            ClearStep("debris", () => SweepDebris());
+            ClearStep("structure rubble", () => OzUeStructureBreak.ClearAll());
             var input = In; if (input) input.Selection.Clear();
             ClearLeft = CountLeftAfterClear(w);                                                              // 1.3 item 9: what is still drawn of units and wrecks (want 0)
             if (ClearLeft > 0) Debug.LogWarning($"{OzUnitEditor.Tag} CLEAR FIELD: {ClearLeft} unit or wreck view(s) still drawn");
@@ -729,7 +733,7 @@ namespace OpenZ
                     case UeKind.Vehicle: case UeKind.Gun: if (o.IsUnit && o.Type == id) n++; break;
                     case UeKind.Shuttle: if (o.IsShuttle) n++; break;
                     case UeKind.Flag: if (IsFlag(o)) n++; break;
-                    case UeKind.Obstacle: if (IsObstacle(o)) n++; break;
+                    case UeKind.Obstacle: if (IsObstacle(o) && IsBox(o) == (id == Box)) n++; break;   // 1.5 ue_boxes: boxes and obstacles counted apart
                     case UeKind.Grenades: if (IsCrate(o)) n++; break;
                     case UeKind.Platform: if (IsPlatform(o) && PlatformIdOf(o) == id) n++; break;
                 }
@@ -744,7 +748,7 @@ namespace OpenZ
             if (o.IsHero) return Heroes;
             if (o.IsShuttle) return ZWorld.ShuttleType;
             if (IsFlag(o)) return Flag;
-            if (IsObstacle(o)) return Obstacle;
+            if (IsObstacle(o)) return IsBox(o) ? Box : Obstacle;                                          // 1.5 ue_boxes
             if (IsCrate(o)) return Grenades;
             if (IsPlatform(o)) return PlatformIdOf(o);
             return Array.IndexOf(Units, o.Type) >= 0 ? o.Type : null;
@@ -827,6 +831,7 @@ namespace OpenZ
                 if (IsCrate(o)) { crates.Add(new Dictionary<string, object> { ["x"] = R2(c.x), ["z"] = R2(c.z), ["grenades"] = (double)o.Grenades }); continue; }   // "crates": [{"x", "z", "grenades"}]
                 if (IsFlag(o)) { flags.Add(new Dictionary<string, object> { ["x"] = R2(c.x), ["z"] = R2(c.z), ["owner"] = TeamKey(o.Owner) }); continue; }
                 if (IsPlatform(o)) { plats.Add(PlatformToTree(o)); continue; }                               // 1.3: "platforms": [{"id", "tx", "ty", "dir", "hp"}]
+                if (IsBox(o)) continue;                                                                       // 1.5 ue_boxes: the "boxes" block (BoxesToTree)
                 if (IsObstacle(o)) { obst.Add(new Dictionary<string, object> { ["tx"] = (double)(o.LocX >> 4), ["ty"] = (double)(o.LocY >> 4), ["hp"] = (double)o.Health }); continue; }
                 var id = IdOf(o); if (id == null) continue;
                 var hp = new List<object> { R2(Frac(o)) };
@@ -835,6 +840,7 @@ namespace OpenZ
             }
             var tree = new Dictionary<string, object> { ["items"] = items, ["flags"] = flags, ["obstacles"] = obst, ["crates"] = crates };
             if (plats.Count > 0) tree["platforms"] = plats;
+            BoxesToTree(tree);
             return tree;
         }
 
@@ -872,6 +878,7 @@ namespace OpenZ
                     if (Num(d, "hp", out double hp)) foreach (var o in r.made) o.Health = Mathf.Clamp((int)Math.Round(hp), 1, o.MaxHealth);
                     made += r.groups;
                 }
+            made += BoxesFromTree(root, ref skipped);                                                      // 1.5 ue_boxes: the boxes, lowest level first, after the obstacles
             if (root.TryGetValue("flags", out var fl) && fl is List<object> flags)
                 foreach (var e in flags)
                 {
@@ -926,9 +933,9 @@ namespace OpenZ
         internal static int SelfCheck(StringBuilder log)
         {
             int f = 0;
-            f += OzUnitEditor.Line(log, Same(Robots, ZSettings.Robots) && Same(Vehicles, ZSettings.Vehicles) && Same(Guns, ZBuildLists.Cannons),
+            f += OzUnitEditor.Line(log, Same(Robots, ZSettings.Robots) && Same(Array.FindAll(Vehicles, v => !OzBigTanks.Is(v)) /* 1.5 DV180 / DV181: not in the build lists */, ZSettings.Vehicles) && Same(Guns, ZBuildLists.Cannons),
                                    "palette order = the game's build lists (ZSettings.Robots, ZSettings.Vehicles, ZBuildLists.Cannons)");
-            f += OzUnitEditor.Line(log, Units.Length == 22 && new HashSet<string>(Units).Count == 22, $"22 distinct units in the palette ({Units.Length})");   // DV145: + the medium tank
+            f += OzUnitEditor.Line(log, Units.Length == 24 && new HashSet<string>(Units).Count == 24, $"24 distinct units in the palette ({Units.Length})");   // DV145: + the medium tank
             var st = Resources.Load<TextAsset>("OpenZ/default_settings");
             var s = st ? ZSettings.Parse(st.text) : null;
             int rows = 0; var missing = new List<string>();

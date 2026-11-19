@@ -13,7 +13,7 @@ namespace OpenZ.Multiplayer
     /// <summary>Command-line integration checks against the release executable's actual converted scenes.</summary>
     public sealed class AiMapGameplayProof : MonoBehaviour
     {
-        static readonly string[] Missions = { "SM04", "SM08", "SM13", "SM15", "SM18F", "SMChillyWillyV2" };
+        static readonly string[] Missions = { "SM04", "SM08", "SM13", "SM15", "SM19F", "SMChillyWillyV2" };
         string output;
         string recordingDirectory;
         int bridges, rocks, crates, crocodiles;

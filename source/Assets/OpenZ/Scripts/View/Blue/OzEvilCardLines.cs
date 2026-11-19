@@ -76,6 +76,12 @@ namespace OpenZ
                 new OzEvilCue("This city needs a new mayor!", 0f, 2.50f), new OzEvilCue("Me! And you found one!", 2.50f, 4.977f)),
             new OzEvilCardLine("evil_card_L17_2", "L17", "One city, two armies, zero parking spaces! Let's fix that!", 5.137f, 4.27f,
                 new OzEvilCue("One city, two armies, zero parking spaces!", 0f, 3.86f), new OzEvilCue("Let's fix that!", 3.86f, 5.137f)),
+            // other levels; the cue times (0.12 s before each sentence's first measured word) and the jolt (0.05 s before the stressed word) from the
+            // takes' measured words, as the lines above (evil_card_L18_2 stays on him: every level's second line).
+            new OzEvilCardLine("evil_card_L18_1", "L18", "A bridge too far? I blew up three! On purpose!", 4.337f, 3.03f,
+                new OzEvilCue("A bridge too far?", 0f, 1.66f), new OzEvilCue("I blew up three! On purpose!", 1.66f, 4.337f)),
+            new OzEvilCardLine("evil_card_L18_2", "L18", "Wrong button? There is no wrong button!", 3.217f, 1.87f,
+                new OzEvilCue("Wrong button?", 0f, 1.26f), new OzEvilCue("There is no wrong button!", 1.26f, 3.217f)),
         };
 
         /// <summary>

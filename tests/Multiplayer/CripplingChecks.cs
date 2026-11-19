@@ -32,6 +32,24 @@ static class CripplingChecks
             check(velocity.x * Math.Cos(radians) + velocity.y * Math.Sin(radians) > 19.9, "Forward/reverse travel reaches the requested quadrant at " + angle + " degrees");
         }
         var tank = world.CreateObject("vehicle", "light", x + 48, y + 48, Team.Red);
+        tank.MaxHealth = 1000;
+        tank.Health = 301;
+        check(!tank.ShowsCriticalTankDamage, "Critical damage stays off above 30% HP");
+        tank.Health = 300;
+        check(tank.ShowsCriticalTankDamage && tank.CriticalTankDamageSeverity == 0, "Critical damage starts at exactly 30% HP");
+        tank.Health = 225;
+        check(tank.CriticalTankDamageSeverity > .5f, "Critical damage intensifies rapidly as HP falls");
+        tank.Health = 75;
+        check(tank.CriticalTankDamageSeverity > .95f, "Critical damage peaks near zero HP");
+        tank.Health = 0;
+        check(!tank.ShowsCriticalTankDamage, "A dead tank does not shake or emit more oil");
+        tank.Health = tank.MaxHealth;
+        foreach (string type in ZBigTanks.Types)
+        {
+            var monster = world.CreateObject("vehicle", type, x, y, Team.Blue);
+            monster.Health = monster.MaxHealth / 5;
+            check(monster.ShowsCriticalTankDamage, type + " uses the same critical damage threshold");
+        }
         tank.BehaviorHeadingSet = true; tank.BehaviorHeading = 0;
         tank.SetTarget(tank.CenterX - 48, tank.CenterY);
         p.Set("", ZBehaviorKey.ReverseSpeed, 50); world.SetBehavior(p);

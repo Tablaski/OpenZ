@@ -42,7 +42,7 @@ namespace OpenZ
             if (hotOver?.btn != null) { hotOver.btn.Hovered = false; hotOver.btn.Refresh(); }
             BuildUnitEditorLoading();
             if (previews != null) foreach (var p in previews) p?.Pause();
-            loadStartAt = OzMotion.Now; loadShown = 0f;
+            loadStartAt = OzMotion.Now; loadShown = 0f; BeginLoadBar("UE");                                // 1.5 loading_bar_real_r8
             loadOp = SceneManager.LoadSceneAsync(scene, LoadSceneMode.Single);
             if (loadOp != null) loadOp.allowSceneActivation = false;
             else { Debug.LogWarning("[OpenZ Menu] async load refused: loading " + scene + " directly"); SceneManager.LoadScene(scene); }
@@ -79,8 +79,8 @@ namespace OpenZ
         {
             if (ueLoading && view == View.Loading && ueStage != null)
             {
-                int st = loadShown < 0.48f ? 0 : loadShown < 0.85f ? 1 : 2;                                   // the same steps as TickLoading's
-                ueStage.Set(UeStages[st]); ueTip.Set(UeTips[st]);
+                int st = LoadStepOf(loadShown);                                                                // the same steps as TickLoading's (1.5 loading_bar_real_r8)
+                ueStage.Set(UeStages[st]); ueTip.Set(LoadBarHonest && loadHoldAt >= 0f ? LoadHoldTipUe : UeTips[st]);   // r8b: the hold's words expect the wait
             }
             if (ueErrorUntil > 0f && OzMotion.Now > ueErrorUntil)
             {

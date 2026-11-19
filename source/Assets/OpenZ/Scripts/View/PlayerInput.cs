@@ -49,7 +49,7 @@ namespace OpenZ
             if (!cam) cam = FindFirstObjectByType<RtsCamera>();
         }
 
-        void OnDestroy() { realBounds.Clear(); }
+        void OnDestroy() { realBounds.Clear(); OzSilhouetteHull.Clear(); }
 
         // duel input capture
             void Update()
@@ -232,7 +232,7 @@ namespace OpenZ
             if (o.Kind == ZKind.Building && MeshRect(o, out var br)) return br;
             if (o.Type == ZWorld.DetailPropType && DetailPropHub.OfSim(o.Id) is DetailProp dp && dp && !dp.Broken)   // DV67: picked where the prop is drawn, its own height
                 return MinSize(BoxRect(c, dp.Foot, Mathf.Max(0.5f, dp.hitRadius), Mathf.Max(1f, dp.hitHeight)), 18f * UiK);
-            float h = o.Kind == ZKind.Robot ? 1.8f : o.Kind == ZKind.Building ? 6f : o.Kind == ZKind.MapItem ? (o.Type == "hut" || o.Type.StartsWith("map_object") ? 2.2f : 1.2f) : 2.2f;   // ZF4: base-prop huts / cacti / blocks stand ~2 m
+            float h = o.Kind == ZKind.Robot ? 1.8f : o.Kind == ZKind.Building ? 6f : o.Kind == ZKind.MapItem ? (o.Type == "hut" || o.Type.StartsWith("map_object", System.StringComparison.Ordinal) ? 2.2f : 1.2f) : 2.2f;   // ZF4: base-prop huts / cacti / blocks stand ~2 m; 1.5 issue 8: ordinal prefix
             var a = ZGame.PxToWorld(o.PosX, o.PosY); var b = ZGame.PxToWorld(o.PosX + o.WidthPix, o.PosY + o.HeightPix);
             float gy = game.GroundY((a.x + b.x) * 0.5f, (a.z + b.z) * 0.5f);
             if (o.Kind == ZKind.Cannon && game.Views.TryGetValue(o.Id, out var tv) && tv && tv.OnTower)
@@ -406,6 +406,7 @@ namespace OpenZ
                 if (cm)
                 {
                     var l2w = OzPlayableShuttle.FrameL2W(o, mb.t); Vector2 smn = new Vector2(float.MaxValue, float.MaxValue), smx = new Vector2(float.MinValue, float.MinValue);
+                    if (!OzSilhouetteHull.Rect(o.Id, sil, cm, l2w, ref smn, ref smx, ref ok))                    // 1.5 kit issue8_slow_chip_picture: only the points that can be the outline's edge, the same box to the last bit (View/OzSilhouetteHull.cs); false = every point, as before
                     for (int i = 0; i < sil.Length; i++)
                     {
                         var sp = cm.WorldToScreenPoint(l2w.MultiplyPoint3x4(sil[i])); if (sp.z < 0) continue;
@@ -568,11 +569,12 @@ namespace OpenZ
                 if (o.IsBridge && !forceBridge && !(craneSel && o.Destroyed)) continue;
                 bool interesting = o.Type == "flag" || o.Type == "grenades" || o.Kind == ZKind.Building || o.Type == "rock" || o.Type == ZWorld.WreckType /* l17_details_v1 DV39 */ ||
                                    o.Type == ZWorld.DetailPropType ||
-                                   o.Type == "hut" || o.Type.StartsWith("map_object") || /* ZF4 / BP3: huts (base props), cacti, boulders, blocks: Zod hovers every object (zplayer_events.cpp:129-141) */
+                                   o.Type == "hut" || o.Type.StartsWith("map_object", System.StringComparison.Ordinal) /* 1.5 issue 8: ordinal, the same answer for the ASCII type names without the culture lookup a frame per object */ || /* ZF4 / BP3: huts (base props), cacti, boulders, blocks: Zod hovers every object (zplayer_events.cpp:129-141) */
                                    ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && (BothSides || o.Owner != game.player)) ||   /* 1.2 item 6: every unit in the playground */
                                    (robotSel && o.Owner == game.player && o.CanTakePassengers(game.player));   // (11): an own APC with room
                 if (interesting && !(far && HoverFar(o, mp)) && ScreenRect(o).Contains(mp)) { if (o.IsUnit && !o.Destroyed) hu = o; else h = o; }   // 1.3 item 39: an object whose pick box cannot reach the pointer is not asked for it
             }
+            h = OzUeBoxes.Pick(Cam, mp, h);                                                              // 1.5 ue_boxes: the Unit editor's box on its level (View/OzUeObstacleView.Box.cs); h unchanged in every level
             return hu ?? h ?? OzUeHooks.PlatformUnder(mp);                                               // 1.3 the Unit editor: with Ctrl held the ramp platform under the pointer is the target (View/OzUeHooks.cs); null in every level
         }
 
@@ -609,7 +611,7 @@ namespace OpenZ
             if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && FortEnterClick(h, x, y, ctrl)) { wp.mode = WpMode.EnterFort; wp.attackTo = false; return wp; }   // 1.4: Zod's door, the gate zone, the fort's body without Ctrl (View/PlayerInput.FortGate.cs)
             if (h.Destroyed) { wp.refId = -1; return wp; }                                     // rubble: just move there
             // captures it, as in Zod); only Ctrl (force attack) attacks it
-            if ((h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrl) || OzUeHooks.PlainObstacleClick(h, ctrl)) { wp.refId = -1; return wp; }   // 1.2 item 6: the playground's holo obstacle too (Ctrl attacks it)
+            if ((h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrl) || OzUeHooks.PlainObstacleClick(h, ctrl)) { wp.refId = -1; W.BoxClickPoint(h, ref wp.x, ref wp.y); return wp; }   // 1.2 item 6: the playground's holo obstacle too (Ctrl attacks it)
             if (ZWorld.EmptyClickWaypoint(u, h, ctrl, ref wp)) return wp;                     // DV81: an empty vehicle or gun is attacked only with Ctrl held; without it robots enter (below), vehicles move next to it, guns get no order (Sim/ZWorld.EmptyTargets.cs)
             switch (u.Kind)
             {

@@ -12,6 +12,7 @@
 //                        streak layers (OzJungleWeather.RainLayers.cs) are thinned by the same share, so the depth stays as on HIGH
 //   lamp glow            LOW: the soft glow around each lamp head is not drawn (lens, bulb, painted pool and real light stay)
 //   lamp beams           LOW: the cone of light in the air under each lamp is not drawn
+//   water glints         LOW: the water's new sun lane, fire / lamp reflection and level 18's clear band round objects are not drawn
 // The engine-wide distance factor of far shapes (plants, rocks, sandbag walls) is NOT touched: lowering it hides things.
 // View only: no rule of the game reads any of it. Units, health bars, range rings, selection, flags, shots and sounds are as on HIGH.
 // OzLite.Off (never saved, 0 in a game) lets the measuring menu switch single cuts off to count what each one pays.
@@ -101,7 +102,8 @@ namespace OpenZ
                  + (Cut(OzLiteTable.CutNightShadows) ? $", night light shadows {OzLiteTable.SearchShadows[l]} + {OzLiteTable.NearbyShadows[l]}" : ", night light shadows as HIGH")
                  + (Cut(OzLiteTable.CutRain) ? $", rain {OzLiteTable.Rain[l] * 100f:0} %" : ", rain as HIGH")
                  + (Cut(OzLiteTable.CutLampGlow) && !OzLiteTable.Halos[l] ? ", no lamp glow" : ", lamp glow as HIGH")
-                 + (Cut(OzLiteTable.CutLampBeams) && !OzLiteTable.Beams[l] ? ", no lamp beams" : ", lamp beams as HIGH");
+                 + (Cut(OzLiteTable.CutLampBeams) && !OzLiteTable.Beams[l] ? ", no lamp beams" : ", lamp beams as HIGH")
+                 + (Cut(OzLiteTable.CutWater) && !OzLiteTable.WaterExtras[l] ? ", no water sun lane / fire reflection / clear band" : ", water as HIGH");
         }
     }
 
@@ -112,6 +114,8 @@ namespace OpenZ
     public sealed class OzLiteDriver : MonoBehaviour
     {
         static readonly Vector3[] Top = { new Vector3(0f, 1f, 0f), new Vector3(1f, 1f, 0f), new Vector3(0.5f, 1f, 0f) };
+        /// <summary>kit l18_perf_r3: the water shaders' switch of the new extras (x sun lane, y fire reflection, z clear band, w free).</summary>
+        public static readonly int IdWaterLite = Shader.PropertyToID("_OZWaterLite");
 
         bool staticsKept, reachWasOn; int nearby0, sharp0;
         NightLights nl; int nlReal0, nlShadow0; bool nlHalos0, nlBeams0;
@@ -145,6 +149,8 @@ namespace OpenZ
                 NightShadows.NearbySlots = ns ? Mathf.Min(nearby0, OzLiteTable.NearbyShadows[l]) : nearby0;
                 NightShadows.HighTierCount = ns ? Mathf.Min(sharp0, OzLiteTable.SharpShadows[l]) : sharp0;
                 ShadowDistanceByHeight.On = false;                                              // this object sets the reach on the preset's own file
+                bool water = OzLite.Cut(OzLiteTable.CutWater) && !OzLiteTable.WaterExtras[l];   // kit l18_perf_r3: LOW, the water's new extras off
+                Shader.SetGlobalVector(IdWaterLite, water ? Vector4.one : Vector4.zero);
             }
 
             // ---- the settings file of the preset in force
@@ -207,6 +213,7 @@ namespace OpenZ
                 staticsKept = false;
             }
             if (urp) { urp.shadowDistance = urpReach0; urp.shadowCascadeCount = urpSteps0; }
+            Shader.SetGlobalVector(IdWaterLite, Vector4.zero);                                   // kit l18_perf_r3: the water as on HIGH
             if (nl) { nl.maxRealLights = nlReal0; nl.maxShadowed = nlShadow0; nl.halos = nlHalos0; nl.beams = nlBeams0; }
             if (vl) { vl.maxRealLights = vlReal0; vl.maxEffectVehicles = vlCones0; }
             if (wx) { wx.dropsAtFull = wxDrops0; wx.splashesPerSecond = wxSplash0; }

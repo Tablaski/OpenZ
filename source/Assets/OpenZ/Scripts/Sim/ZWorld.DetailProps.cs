@@ -39,7 +39,7 @@ namespace OpenZ.Sim
             if (set == null) return;
             for (int k = 0; k < set.Uids.Length; k++)
             {
-                var t = set.Tiles[k];
+                var t = DetailPropTiles(set, k);                                            // 1.5 DV209 (kit traffic_lights_53): level 17's traffic lights at the kerb (Sim/ZWorld.TrafficLightsKerb.cs)
                 if (t == null || t.Length < 2) continue;
                 int x0 = int.MaxValue, y0 = int.MaxValue, x1 = int.MinValue, y1 = int.MinValue;
                 for (int i = 0; i + 1 < t.Length; i += 2) { x0 = Math.Min(x0, t[i]); y0 = Math.Min(y0, t[i + 1]); x1 = Math.Max(x1, t[i]); y1 = Math.Max(y1, t[i + 1]); }
@@ -48,7 +48,7 @@ namespace OpenZ.Sim
                 o.MaxHealth = o.Health = (int)(S.map_item_health * ZConst.MAX_UNIT_HEALTH);   // Zod map object HP
                 var block = new List<int>();
                 for (int i = 0; i + 1 < t.Length; i += 2)
-                    if (Path.TilePassable(t[i], t[i + 1], true) && !TileTakenByProp(t[i], t[i + 1]) && !TileHasObject(t[i], t[i + 1], o)) { block.Add(t[i]); block.Add(t[i + 1]); }
+                    if (!DetailPropKeepsPath(set, k) && Path.TilePassable(t[i], t[i + 1], true) && !TileTakenByProp(t[i], t[i + 1]) && !TileHasObject(t[i], t[i + 1], o)) { block.Add(t[i]); block.Add(t[i + 1]); }
                 o.BlockTiles = block.ToArray();
                 o.IsDestroyableImpass = o.BlockTiles.Length > 0;
                 if (o.IsDestroyableImpass) SetMapImpassables(o);

@@ -20,7 +20,7 @@ namespace OpenZ
             foreach (var o in platforms)
             {
                 if (Gone(o)) continue;
-                bool on = o == hover || (kind == UeInspect.Platform && insp == o);
+                bool on = (o == hover && !OzUePlace.Busy) || (kind == UeInspect.Platform && insp == o);   // 1.5 ue_flag_ghost_height: placing = the drop's preview only
                 var p = ZGame.PxToWorld(o.CenterX, o.CenterY);
                 float hx = o.WidthPix * ZConst.PX_TO_M * 0.5f, hz = o.HeightPix * ZConst.PX_TO_M * 0.5f;
                 if (on) OzUeDraw.RectOutline(p, hx + 0.3f, hz + 0.3f, OzUi.Ink, 5f, 4f, 1.5f);

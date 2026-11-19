@@ -10,7 +10,7 @@ namespace OpenZ.Sim
         Swim,       // a slow pass along its own stretch of water (decoration, 1.5 m/s)
         Warn,       // the warning: stands, the nose comes up, growl and bubbles
         Stalk,      // nose only, 4.5 m/s, the V wake
-        Rise,       // 0.6 s: head and back burst up
+        Rise,       // 0.2 s: head and back burst up (1.5 review R12: was 0.6 s)
         Lunge,      // 1.0 s: the bite falls 0.47 s in
         Thrash,     // 2.4 s: two rolls with the robot
         Drag,       // 1.33 s: under, tail last
@@ -92,7 +92,7 @@ namespace OpenZ.Sim
         public const double CrocWetSeconds = 3.0, CrocCheckEvery = 1.0, CrocStartMinM = 12.0, CrocStartMaxM = 16.0;
         public const int CrocStartChance = 25, CrocMaxHunts = 2;
         public const double CrocWarnSeconds = 1.0, CrocFirstSignSeconds = 3.75, CrocStalkMps = 4.5, CrocSlowMps = 1.5, CrocStalkTurnDeg = 90, CrocTurnDeg = 120, CrocLungeTurnDeg = 60, CrocStalkLimit = 6.0;
-        public const double CrocRiseM = 2.7, CrocRiseDeg = 25, CrocRiseSeconds = 0.6, CrocBiteSeconds = 0.47, CrocLungeSeconds = 1.0, CrocThrashSeconds = 2.4, CrocDragSeconds = 1.33, CrocDiveSeconds = 1.2, CrocWatchSeconds = 1.0;
+        public const double CrocRiseM = 2.7, CrocRiseDeg = 25, CrocRiseSeconds = 0.2 /* 1.5 owner review R12 (kit review_r8_r12): was 0.6; the stop and slow surfacing before the bite cut, it swims in and lunges */, CrocBiteSeconds = 0.47, CrocLungeSeconds = 1.0, CrocThrashSeconds = 2.4, CrocDragSeconds = 1.33, CrocDiveSeconds = 1.2, CrocWatchSeconds = 1.0;
         public const double CrocReachAlongM = 0.7, CrocReachNearM = 1.2, CrocReachSideM = 0.9, CrocSwitchM = 8;
         public const double CrocCoolKillMin = 30, CrocCoolKillMax = 40, CrocCoolMiss = 10, CrocCoolScared = 20, CrocScareM = 4.0, CrocBackAfter = 15, CrocBackAfterMiss = 4;
         public const double CrocHurryM = 14.0, CrocHurryFactor = 1.3, CrocHurryAfter = 2.0;

@@ -42,7 +42,7 @@ namespace OpenZ
             float flat = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(k * 1.15f));                        // the body flattens first,
             float sink = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((k - 0.70f) / (UnderK - 0.70f)));    // then runs down into the lava: measured from the lava line, not the feet
             float spread = Mathf.Lerp(1f, LavaMeltSpread, flat);
-            transform.localScale = new Vector3(spread, Mathf.Lerp(1f, lavaMeltFlat, flat), spread);
+            transform.localScale = OzRobotScale.Dying(this, new Vector3(spread, Mathf.Lerp(1f, lavaMeltFlat, flat), spread));   // 1.5 R3.25 (View/OzRobotScale.cs): from its drawn size (the same vector at 100 %)
             var p = deathFrom; p.y -= sink * lavaMeltDown; transform.position = p;
             if (paint)
             {
@@ -51,7 +51,7 @@ namespace OpenZ
                 if (k > 0.6f) { float c = Mathf.Floor((k - 0.6f) / 0.4f * 0.7f / 0.05f) * 0.05f; if (c > paint.Charred) paint.Charred = c; }   // Charred repaints: steps of 0.05, never every frame
             }
             // the wading ramp, its line on the lava, its top climbing from the band it had (the shins at the least) to the top of the body over the first 70 %: the head lights last, just before he goes under
-            float bodyTop = p.y + lavaMeltH * transform.localScale.y - lavaMeltY;
+            float bodyTop = p.y + lavaMeltH * OzRobotScale.Unscaled(this, transform.localScale.y) - lavaMeltY;   // 1.5 R3.25 (View/OzRobotScale.cs): lavaMeltH is already the drawn height (the same number at 100 %)
             if (OzLavaWade.I) OzLavaWade.I.Melting(this, lavaMeltY, Mathf.Lerp(lavaMeltTop0, Mathf.Max(0.2f, bodyTop * 1.1f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(k / 0.7f))));
             if (lavaMeltPops > 0 && k < UnderK && (lavaMeltPopT -= dt) <= 0f)
             {

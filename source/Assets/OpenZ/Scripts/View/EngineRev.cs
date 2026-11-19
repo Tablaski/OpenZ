@@ -30,9 +30,9 @@ namespace OpenZ
                 var clip = au.Clip(loop); if (!clip) continue;
                 last[u.Id] = Time.unscaledTime; n++;
                 float p0, p1;
-                switch (u.Type) { case "jeep": p0 = 0.95f; p1 = 1.45f; break; case "heavy": p0 = 0.58f; p1 = 0.92f; break; default: p0 = 0.72f; p1 = 1.12f; break; }
+                switch (u.Type) { case "jeep": p0 = 0.95f; p1 = 1.45f; break; case "heavy": p0 = 0.58f; p1 = 0.92f; break; case OzBigTanks.Mammoth: p0 = 0.54f; p1 = 0.86f; break; case OzBigTanks.Bizon: p0 = 0.46f; p1 = 0.78f; break; /* 1.5 DV180 / DV181 */ default: p0 = 0.72f; p1 = 1.12f; break; }
                 if (!inst) inst = new GameObject("OZ_EngineRev").AddComponent<EngineRev>();
-                inst.Play(clip, v.transform, p0 * Random.Range(0.96f, 1.04f), p1 * Random.Range(0.96f, 1.04f), u.Type == "heavy" ? 1.1f : 1f);
+                inst.Play(clip, v.transform, p0 * Random.Range(0.96f, 1.04f), p1 * Random.Range(0.96f, 1.04f), (u.Type == "heavy" || OzBigTanks.Is(u.Type)) ? 1.1f : 1f);
             }
         }
 

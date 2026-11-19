@@ -11,6 +11,8 @@
 - The local test script reported a Windows registry restoration error after all scenarios passed. The `openz://` association remained pointed at the tested build. This was a test-environment cleanup issue.
 - Pending manual checks: use a crane to repair a long bridge, board the Mammoth and Bizon through gameplay, exercise the tactical-pause binding with physical input, and play a match from two separate computers.
 - For a stable release, verify the published installer payloads and the 1.5 resource bundle on a clean Windows installation.
+- The published 0.2.34 updater imported source commit `f172fe76eeedcb0521d3266af77f98479b9039ff` without Git in a fresh workspace. It installed all five archives from the local 1.5 bundle, detected the required Unity editor, and confirmed that no download was needed on a second run. The lobby tank changes use the same resource pin and installer.
+- Independent Mammoth and Bizon permissions passed all four combinations in the 6,918 core and simulation checks. In the Windows x64 production build from clean commit `48f7842efdf4a1fa03a648c56cea7f170223b794`, the lobby toggles and both presets passed. Two Bridge Game duels each excluded a different tank. Both host and guest saw the permitted tank's model and no placement for the excluded tank. The solo Bridge Game proof still found both tanks.
 
 ## OpenZ-VK 0.2.40 duel chat
 

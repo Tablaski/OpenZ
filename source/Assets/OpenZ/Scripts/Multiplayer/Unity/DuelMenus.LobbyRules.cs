@@ -9,7 +9,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename, BattleOptions }
+        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename, BattleOptions, AiHelp }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
         bool customDynamicsOnly;
@@ -158,6 +158,7 @@ namespace OpenZ.Multiplayer
             if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
             if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.BattleOptions) { BuildBattleOptions(rules, editable); return; }
+            if (lobbyDialog == LobbyDialog.AiHelp) { BuildAiHelp(rules, editable); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
             var background = Hud.Img(panel, "LobbyRulesBackground", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;
@@ -191,6 +192,30 @@ namespace OpenZ.Multiplayer
                 var choice = Button(panel, OzBattleOptions.RadarName(option), 30 + i * 350, 210, 335,
                     () => { rules.RadarLoss = option; EditLobbyRules(rules); }, rules.RadarLoss == option, editable);
                 AddLobbyTip(choice, help, tips[i]);
+            }
+        }
+
+        void BuildAiHelp(DuelRules rules, bool editable)
+        {
+            var panel = LobbyPopup("AI HELP · HANDICAP", 490);
+            Label(panel, rules.HandicapEnabled ? "Applies to " + (R.View.NameForTeam(rules.HandicapSlot) ?? (rules.HandicapSlot == 0 ? "RED" : "BLUE")) + "."
+                : "Select a handicap player in the lobby to activate AI Help.", 30, 71, 1380, 20, OzUi.Ink);
+            Check("Manage idle units · 15 s", rules.AiIdleSeconds == 15, 30, 112, 690,
+                () => rules.AiIdleSeconds = rules.AiIdleSeconds == 15 ? 0 : 15);
+            Check("Manage idle units · 30 s", rules.AiIdleSeconds == 30, 740, 112, 690,
+                () => rules.AiIdleSeconds = rules.AiIdleSeconds == 30 ? 0 : 30);
+            Label(panel, "Warns 5 s before giving an order. Pauses after the order for 10 s or 20 s, respectively.", 30, 170, 1380, 18, OzUi.Muted);
+            Check("Manage constructions to avoid building grunts, jeeps or gatlings", rules.AiManageProduction, 30, 213, 1400,
+                () => rules.AiManageProduction = !rules.AiManageProduction);
+            Label(panel, "On enemy capture, replaces a weak build with the AI's preferred unit. Clears the queue.", 30, 271, 1380, 18, OzUi.Muted);
+            Check("Cancel constructions when factories are lost", rules.AiCancelProduction, 30, 314, 1400,
+                () => rules.AiCancelProduction = !rules.AiCancelProduction);
+            Label(panel, "Stops production and clears the queue on enemy capture. Takes priority over replacement.", 30, 372, 1380, 18, OzUi.Muted);
+
+            void Check(string name, bool selected, int x, int y, int width, Action toggle)
+            {
+                Button(panel, (selected ? "[X]  " : "[ ]  ") + name, x, y, width,
+                    () => { toggle(); EditLobbyRules(rules); }, selected, editable);
             }
         }
 

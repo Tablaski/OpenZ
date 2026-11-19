@@ -4,6 +4,13 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.3 (19 Nov 2026)
+
+- Solo — Gaming Options in mission selection lets you choose OpenZ or experimental Z Classic dynamics and set what happens when you have no working radar.
+- 1 vs 1 — AI Help can give idle units occasional orders, replace weak builds when a factory is captured, or cancel production on capture.
+- 1 vs 1 — Restart, map change, lobby return and rules proposals identify the player making the request and explain what each answer does.
+- 1 vs 1 — Opening an advanced TCP invitation in the game now connects directly to the lobby. Online invitations show how to open the game from the invitation page.
+
 ## OpenZ-VK 1.5.2 (19 Nov 2026)
 
 - Solo + 1 vs 1 — The in-match OpenZ-VK logo is larger, with no background panel.

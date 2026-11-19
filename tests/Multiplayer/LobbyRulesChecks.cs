@@ -42,6 +42,7 @@ static class LobbyRulesChecks
 
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Assets/OpenZ/Resources/OpenZ"));
         string settings = File.ReadAllText(Path.Combine(root, "default_settings.txt"));
+        CheckAiHelp(settings, File.ReadAllText(Path.Combine(root, "Maps", "L02_grid.json")), check, reject);
         foreach (string map in new[] { "L02", "L07", "L16", "L17" })
         {
             var configured = new DuelRules { Map = map };
@@ -94,5 +95,55 @@ static class LobbyRulesChecks
             reject(() => host.ConfigureDuel(new DuelRules { Map = map }, false), map + ": match roster cannot be replaced during play");
         }
         reject(() => ZWorld.DuelProfile(new ZBehaviorProfile { family = ZBehaviorFamily.Robots }.Encode(), ZBehaviorFamily.Tanks), "Wrong-family profile rejected");
+    }
+
+    static void CheckAiHelp(string settings, string map, Action<bool, string> check, Action<Action, string> reject)
+    {
+        var rules = new DuelRules { HandicapEnabled = true, HandicapSlot = 0, AiIdleSeconds = 15, AiManageProduction = true };
+        var invalid = rules.Copy(); invalid.AiIdleSeconds = 20;
+        reject(invalid.Validate, "AI Help rejects unsupported idle delays");
+        foreach (int seconds in new[] { 15, 30 })
+        {
+            rules.AiIdleSeconds = seconds;
+            var host = ZWorld.Create(settings, map);
+            host.ConfigureDuel(rules, false);
+            var unit = host.Objects.First(o => o.Owner == Team.Red && o.IsMobile && o.CanMove && !o.IsMinion);
+            host.UpdateDuelAiHelp();
+            host.Time = seconds - 5;
+            host.UpdateDuelAiHelp();
+            check(unit.AiHelpStatus == DuelAiStatus.IdleWarning, $"AI Help warns five seconds before the {seconds}s order");
+            host.Time = seconds;
+            host.UpdateDuelAiHelp();
+            check(unit.AiHelpStatus == DuelAiStatus.Ordered && unit.Waypoints.Count > 0, "AI Help gives the idle unit a bot order");
+            var guest = ZWorld.Create(settings, map);
+            guest.ConfigureDuel(rules, true);
+            DuelReplica.Apply(guest, DuelReplica.Capture(host));
+            check(guest.Get(unit.Id).AiHelpStatus == DuelAiStatus.Ordered, "AI Help status is available on the guest");
+            unit.Waypoints.Clear();
+            host.Time += 1;
+            host.UpdateDuelAiHelp();
+            int cooldown = seconds == 15 ? 10 : 20;
+            check(unit.AiHelpStatus == DuelAiStatus.CoolingDown && unit.AiHelpNextOrder == host.Time + cooldown,
+                $"AI Help pauses {cooldown}s after an order");
+            host.SendStop(Team.Red, unit);
+            check(unit.AiHelpStatus == DuelAiStatus.None, "A player order immediately clears the AI status");
+        }
+        foreach (bool cancel in new[] { false, true })
+        {
+            rules.AiCancelProduction = cancel;
+            var world = ZWorld.Create(settings, map);
+            world.ConfigureDuel(rules, false);
+            var flag = world.Flags.First(f => f.LinkedObjects.Any(b => b.IsProducer && !b.IsFort));
+            world.AwardZone(flag, Team.Red);
+            var factory = flag.LinkedObjects.First(b => b.IsProducer && !b.IsFort);
+            factory.Level = 4;
+            world.RestartBuilding(Team.Red, factory, factory.Type == "robot_factory" ? "grunt" : "jeep");
+            factory.AddBuildingQueue(factory.CurUnit);
+            world.AwardZone(flag, Team.Blue);
+            check(factory.Owner == Team.Blue && factory.Queue.Count == 0 &&
+                (cancel ? factory.CurUnit == null && factory.AiHelpFactoryFor == Team.Neutral
+                    : factory.CurUnit != null && factory.CurUnit != "grunt" && factory.CurUnit != "jeep" && factory.CurUnit != "gatling" &&
+                        factory.AiHelpFactoryFor == Team.Red), "AI Help applies the configured capture rule and clears the queue");
+        }
     }
 }

@@ -6,6 +6,23 @@ namespace OpenZ
 {
     internal static class OzBattleOptions
     {
+        internal const string SoloLabel = "GAMING OPTIONS", RadarLabel = "RADAR LOSS", SoloRadarKey = "oz_vk_solo_radar_loss";
+        internal static RadarLossRule SoloRadar
+        {
+            get
+            {
+                int value = PlayerPrefs.GetInt(SoloRadarKey, 0);
+                return value >= 0 && value <= (int)RadarLossRule.FogAndZoom ? (RadarLossRule)value : RadarLossRule.Off;
+            }
+            set { PlayerPrefs.SetInt(SoloRadarKey, (int)value); PlayerPrefs.Save(); }
+        }
+        internal static string RadarTip(RadarLossRule rule) => rule switch
+        {
+            RadarLossRule.Fog => "Hide enemy movement beyond your territory and units' sight.",
+            RadarLossRule.Zoom => "Lock the starting zoom and limit camera tilt.",
+            RadarLossRule.FogAndZoom => "Hide unseen enemies and lock zoom and tilt.",
+            _ => "Keep the standard OpenZ radar behavior."
+        };
         internal const string DamageLabel = "DAMAGED TANK OIL TRAILS", TankDamageKey = "oz_vk_tank_damage_effects";
         internal const string DamageTip = "Moving tanks leave oil trails at 30% health or less. Leaks intensify as health drops.";
         internal const string ShakeLabel = "DAMAGED TANK SHAKE", TankShakeKey = "oz_vk_tank_damage_shake";

@@ -49,8 +49,8 @@ namespace OpenZ.Multiplayer
             {
                 var popup = Panel("RETURN TO LOBBY", 455, 310, 1010, 410);
                 requestTime = Label(popup, "", 815, 42, 155, 42, OzUi.Amber);
-                Label(popup, R.MatchRequestOwner ? "Waiting for your opponent to reply." : "Your opponent asked to return to the lobby.", 40, 115, 925, 24, OzUi.Ink);
-                Label(popup, "Accepting ends this duel without a winner.", 40, 168, 925, 20, OzUi.Muted);
+                Label(popup, R.MatchRequestOwner ? "Waiting for " + R.OpponentName + "." : R.OpponentName + " asks to return to the lobby.", 40, 115, 925, 24, OzUi.Ink);
+                Label(popup, "Accept ends the duel without a winner. Decline resumes play.", 40, 168, 925, 20, OzUi.Muted);
                 Button(popup, "ACCEPT", 40, 260, 420, () => R.AnswerMatchRequest(true), true, !R.MatchRequestOwner);
                 Button(popup, "DECLINE", 540, 260, 420, () => R.AnswerMatchRequest(false), false, !R.MatchRequestOwner);
                 return;
@@ -93,8 +93,11 @@ namespace OpenZ.Multiplayer
                 image.raycastTarget = false;
             }
             Label(panel, selected?.Name ?? selectedId, 572, 545, 800, 24, OzUi.Ink);
-            Label(panel, R.MatchMapSuggested ? "Map suggested. Waiting for a reply." : R.MatchRequestOwner
-                ? "Select a map and suggest it to your opponent." : "Your opponent is choosing a map.", 572, 584, 1000, 18, OzUi.Muted);
+            string request = R.MatchRequestOwner
+                ? R.MatchMapSuggested ? "Waiting for " + R.OpponentName + "." : "Select a map to suggest to " + R.OpponentName + "."
+                : R.MatchMapSuggested ? R.OpponentName + " suggests this map. Accept starts it. Decline resumes this duel."
+                    : R.OpponentName + " is choosing a map.";
+            Label(panel, request, 572, 584, 1000, 18, OzUi.Muted);
             if (R.MatchRequestOwner)
                 Button(panel, "SUGGEST MAP", 1120, 625, 470, R.SuggestMatchMap, true, mayPick && R.MatchMap != null);
             else

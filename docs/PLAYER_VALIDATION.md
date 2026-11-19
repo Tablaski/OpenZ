@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.3 solo options and duel assistance
+
+- Pending visual and interaction checks: open Gaming Options in both solo catalogues, select tank and robot profiles, open the Discord link and verify each radar rule before and after losing radar.
+- Pending duel checks: verify host and guest handicap assignment, the five-second idle warning, the selected unit's green route, manual override and the 10/20 second cooldown. Capture factories with a weak build, a stronger build, and both production options enabled. Check the production badge and queue on both seats.
+- Pending Windows invitation checks: open the copied online invitation from a browser with the game closed and use Join in OpenZ. Open a TCP invitation with its protocol association registered. Check short named request text for restart, map changes, returning to the lobby and proposed settings.
+
 ## OpenZ-VK 1.5.2 HUD and AI Maps
 
 - Pending visual approval: check the larger transparent logo in the solo and duel HUD against bright and dark terrain.

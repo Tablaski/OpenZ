@@ -70,7 +70,7 @@ namespace OpenZ.Multiplayer
             if (proposed == null) { Label(panel, "No proposal pending. The host may have changed the settings.", 24, 100, 1400, 20, OzUi.Muted); return; }
             int id = R.View.ProposalId;
             var changes = DuelRuleChanges.Describe(R.Rules, proposed);
-            Label(panel, "Only ACCEPT changes the official settings and clears both READY confirmations.", 24, 72, 1400, 18, OzUi.Muted);
+            Label(panel, R.OpponentName + " proposes these rules. Accept applies them and clears READY. Decline keeps the current rules.", 24, 72, 1400, 18, OzUi.Muted);
             var content = Scroll(panel, 24, 120, 1432, 560, false, Math.Max(560, changes.Count * 40));
             for (int i = 0; i < changes.Count; i++) Label(content, changes[i], 12, i * 40 + 8, 1390, 18, OzUi.Ink);
             if (R.IsHost)

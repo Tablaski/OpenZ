@@ -64,6 +64,8 @@ namespace OpenZ
         struct Drawn { public OzBadgeState st; public OzProductionBadge badge; public Vector2 pos; public float s, up, down, left, right; }
         RectTransform badgeRoot;                                                                              // first child of Root: every mark draws above it
         readonly List<ItemMark> items = new List<ItemMark>(); int iUsed;
+        readonly List<(RectTransform rt, GameObject warning, GameObject robot)> aiBadges = new();
+        int aiBadgesUsed;
         readonly Dictionary<ZObject, int> groupOf = new Dictionary<ZObject, int>();
         SelectionOverlay rings;
         Image order; float orderShownFor = -100f; string orderGlyph;
@@ -179,7 +181,7 @@ namespace OpenZ
         void LateUpdate() { BoardingView.LateFirst(); long ozT0 = OzPerfNumbers.Now(); LateUpdateDraw(); OzPerfNumbers.OverlayDone(ozT0); }   // 1.3 item 38 (log only): the overlay's own time for the per-minute perf line; 1.4 DV171 fix round 5: BoardingView's frame first, once (a climbing driver's frame and bar on this frame's figure; View/BoardingView.VehicleExit.cs)
         void LateUpdateDraw()
         {
-            used = 0; bUsed = 0; lUsed = 0; iUsed = 0;
+            used = 0; bUsed = 0; lUsed = 0; iUsed = 0; aiBadgesUsed = 0;
             OzRadarBars.Tick(game); HoverRadarId = -1; HoverRadarAlpha = -1f;                                 // 1.4 radar_enemy_bars DV172: the radar rule's frame (the switches, the radar, the fade; View/OzRadarBars.cs), before any mark
             AboardBegin();                                                                                   // 1.2 item 2: the proof's list of shuttle name chips with who is aboard
             if (hud == null || game == null || game.World == null || !canvas || !canvas.enabled || hud.Modal) { HoverMember = null; HoverShownId = -1; HoverShown01 = -1f; Hide(); return; }
@@ -232,6 +234,15 @@ namespace OpenZ
                 if (br.width > 0 && br.height > 0) Draw(br, sf, open, OzUi.Amber, 1, false, -1, false, 1f);
             }
             if (buildingTimers) DrawBadges(cam, sf);
+            if (W.DuelAiIdleHelp)
+                foreach (var unit in W.Objects)
+                {
+                    if (unit.Owner != hud.Player || unit.AiHelpStatus == DuelAiStatus.None || unit.Destroyed || unit.KillAt >= 0) continue;
+                    if (unit.AiHelpStatus == DuelAiStatus.CoolingDown && Mathf.Repeat(Time.unscaledTime, .8f) >= .5f) continue;
+                    if (!UnitRect(cam, unit, out var rect)) continue;
+                    DrawAiBadge(Px(new Vector2(rect.center.x, rect.yMax), sf) + Vector2.up * 12,
+                        unit.AiHelpStatus == DuelAiStatus.IdleWarning);
+                }
             if (itemMarkers)
                 foreach (var o in W.Objects)
                 {
@@ -252,8 +263,32 @@ namespace OpenZ
             for (int i = bUsed; i < badges.Count; i++) badges[i].SetActive(false);
             for (int i = lUsed; i < lvlTags.Count; i++) lvlTags[i].SetActive(false);
             for (int i = iUsed; i < items.Count; i++) items[i].rt.gameObject.SetActiveFast(false);
+            for (int i = aiBadgesUsed; i < aiBadges.Count; i++) aiBadges[i].rt.gameObject.SetActiveFast(false);
             FactoryReminderTip();   // factory reminder (k247, UI/OzFactoryReminder.cs): its mouseover tip, drawn or hidden every frame
             if (hud == null || hud.Modal || !canvas || !canvas.enabled) { if (order) order.gameObject.SetActiveFast(false); if (rally) rally.gameObject.SetActiveFast(false); }
+        }
+
+        void DrawAiBadge(Vector2 position, bool warning)
+        {
+            if (aiBadgesUsed == aiBadges.Count)
+            {
+                var rt = Hud.Node("AI Help badge", root);
+                rt.anchorMin = rt.anchorMax = Vector2.zero;
+                rt.sizeDelta = new Vector2(62, 22);
+                var idle = Hud.Chip(rt, "Idle warning", new OzRect(0, 0, 62, 22), "⚠ IDLE", OzUi.GM950, OzUi.Amber, 12);
+                var ai = Hud.Chip(rt, "AI", new OzRect(10, 0, 42, 22), "AI", OzUi.GM950, OzUi.Ink, 12);
+                var icon = Hud.Img(ai.bg.transform.parent, "Robot head", Color.white);
+                icon.rectTransform.TL(25, 3, 15, 15);
+                icon.sprite = OzAiMapBadge.Robot();
+                icon.raycastTarget = false;
+                ai.text.At(8, 4);
+                aiBadges.Add((rt, idle.bg.transform.parent.gameObject, ai.bg.transform.parent.gameObject));
+            }
+            var badge = aiBadges[aiBadgesUsed++];
+            badge.rt.anchoredPosition = position;
+            badge.warning.SetActiveFast(warning);
+            badge.robot.SetActiveFast(!warning);
+            badge.rt.gameObject.SetActiveFast(true);
         }
 
         // ------------------------------------------------------------------ production badges (production_badge_v2)
@@ -405,6 +440,9 @@ namespace OpenZ
                 d.st.View.alpha *= OzShuttleBadgeFade.Alpha(d.st.Id, new Rect((p.x - d.left) * sf, (p.y - d.down) * sf, (d.left + d.right) * sf, (d.up + d.down) * sf), dt);   // K256e: under a flying shuttle's hull it fades
                 d.badge.Rt.anchoredPosition = SnapU(p, sf);                                                   // whole pixels
                 d.badge.Apply(ref d.st.View, sf, d.s);
+                var factory = W.Get(d.st.Id);
+                if (d.st.View.alpha > .01f && factory != null && !factory.Destroyed && factory.AiHelpFactoryFor == player)
+                    DrawAiBadge(p + Vector2.up * (d.up + 8), false);
                 bool remFlag = !string.IsNullOrEmpty(d.st.View.flag) && d.st.View.flagAlpha > 0.004f, remOn = d.st.Want && Reminding(d.st.Id);   // factory reminder (k247 + k247b): a cue flag on the plate, the mark this frame
                 d.badge.Reminder(remOn, d.st.View.compact, remFlag, now, sf, d.s);   // factory reminder (k247, UI/OzFactoryReminder.cs): the amber ring and the "!" chip, bouncing
                 if (remOn && OzBadgeArt.Available) ReminderTipAnchor(d.st.Id, d.badge.Rt.anchoredPosition, d.s, d.st.View.compact, remFlag, d.st.View.plateW);   // factory reminder tip (k247b, UI/OpenZUnitOverlay.ReminderTip.cs): its tip hangs under this "!"

@@ -427,6 +427,18 @@ namespace OpenZ.Sim
         }
 
         // ------------------------------------------------------------------ production
+        internal void AssistIdleUnits(List<ZObject> units)
+        {
+            var targets = new List<ZObject>();
+            CollectOurTargets_3(targets, true);
+            targets.RemoveAll(t => t.Owner == Team || (t.Owner == Team.Neutral && t.Type != "flag"));
+            MatchTargets_3(units, targets);
+            GiveOutOrders_3(units, targets);
+            aiList.Clear();
+            aiOrig.Clear();
+            LastRoundOrders.Clear();
+        }
+
         /// <summary>zbot.cpp:1372-1432: every own building except radar, repair and bridges (= ZObject.IsProducer); first
         /// preferred unit in its build list at its level; if that differs from the current production: STOP then START.</summary>
         public void ChooseBuildOrders()
@@ -435,14 +447,7 @@ namespace OpenZ.Sim
             foreach (var b in W.Objects)
             {
                 if (b.Owner != Team || b.Kind != ZKind.Building || !b.IsProducer) continue;
-                string pick = null;
-                foreach (var p in Preferred) if (ZBuildLists.InList(b.Type, b.BuildLevel, p) && W.DuelAllowsUnit(p)) { pick = p; break; }
-                pick = LaserPick(b, pick);                                                          // DV71: a Laser squad now and then
-                string zodPick = pick;                                                              // DV145: the pick before DV115 (MTankPick reads it)
-                pick = RobotMixPick(b, HeavyPick(b, pick));                                         // DV115: heavy tanks / missile launchers from 8:00, the robot squads in turn (ZBot.HeavyMix.cs)
-                pick = MechMixPick(b, zodPick, pick);                                               // DV145 the medium tank beside the mech; DV148: mech or medium tank, whichever its team has built fewer of, a coin when even (Sim/ZBot.MechMix.cs; off: DV145's MTankPick)
-                pick = ElectrobotPick(b, pick);                                                     // electrobot_v1 DV46: Zod's pick unless claimed
-                if(pick != null && !W.DuelAllowsUnit(pick)) { pick=zodPick; if(pick==null||!W.DuelAllowsUnit(pick)){var permitted=W.ProductionUnits(b);pick=permitted.Count>0?permitted[0]:null;} }
+                string pick = PickProduction(b);
                 if (pick == null || b.CurUnit == pick) continue;
                 if (b.Destroyed && ZWorld.RuinNoBuildDeviation) { RuinSkips++; continue; }         // DV155: no orders for a ruin (picked first, so every draw of the pick stays as before; Sim/ZWorld.RuinProduction.cs)
                 W.StopBuilding(Team, b);
@@ -450,6 +455,21 @@ namespace OpenZ.Sim
                 BuildChanges++; if (pick == "laser") LaserPicks++;
                 Log.Add($"{W.Time:F0}s {Team} {b.Type}({b.LocX / 16},{b.LocY / 16}) L{b.Level} -> build {pick}");
             }
+        }
+
+        internal string PickProduction(ZObject b)
+        {
+            string pick = null;
+            foreach (var p in Preferred)
+                if (ZBuildLists.InList(b.Type, b.BuildLevel, p) && W.DuelAllowsUnit(p)) { pick = p; break; }
+            string zodPick = LaserPick(b, pick);
+            pick = RobotMixPick(b, HeavyPick(b, zodPick));
+            pick = MechMixPick(b, zodPick, pick);
+            pick = ElectrobotPick(b, pick);
+            if (pick == null || W.DuelAllowsUnit(pick)) return pick;
+            if (zodPick != null && W.DuelAllowsUnit(zodPick)) return zodPick;
+            var permitted = W.ProductionUnits(b);
+            return permitted.Count > 0 ? permitted[0] : null;
         }
 
         /// <summary>OpenZ deviation DV71 "the CPU builds Lasers sometimes". Zod's preferred list (zbot.cpp:20-27) has no Laser, so a

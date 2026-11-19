@@ -5,6 +5,15 @@ using OpenZ.Multiplayer;
 
 namespace OpenZ.Sim
 {
+    public enum DuelAiStatus { None, IdleWarning, Ordered, CoolingDown }
+
+    public partial class ZObject
+    {
+        public DuelAiStatus AiHelpStatus;
+        public Team AiHelpFactoryFor { get; internal set; } = Team.Neutral;
+        internal double AiHelpNextOrder;
+    }
+
     public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild, BuildShortcut }
 
     [Serializable]
@@ -86,6 +95,7 @@ namespace OpenZ.Sim
                     return OnMap(order.X * 16L, order.Y * 16L) && world.PlaceCannon(team, o, order.X, order.Y, order.Index) != null;
                 default: return false;
             }
+
         }
         bool OnMap(long x, long y) => x >= 0 && y >= 0 && x < world.Map.WidthPix && y < world.Map.HeightPix;
     }
@@ -93,6 +103,10 @@ namespace OpenZ.Sim
     public sealed partial class ZWorld
     {
         DuelRules duelRules;
+        ZBot duelAiHelper;
+        readonly List<ZObject> duelAiReady = new List<ZObject>();
+        readonly List<ZObject> duelAiOffered = new List<ZObject>();
+        double nextDuelAiCheck;
         HashSet<string> soloAllowedUnits;
         bool soloRosterConfigured;
         readonly double[] duelFortReduction = new double[2];
@@ -110,6 +124,7 @@ namespace OpenZ.Sim
         public bool DuelTankDamageEffects => duelRules?.TankDamageEffects == true;
         public bool DuelTankDamageShake => duelRules?.TankDamageShake == true;
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
+        public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
         public bool DuelAllowsUnit(string type) => duelRules != null ? duelRules.Allows(type) : soloAllowedUnits == null || soloAllowedUnits.Contains(type);
         /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>
         public void ConfigureSoloUnits(IEnumerable<string> types)
@@ -150,7 +165,79 @@ namespace OpenZ.Sim
             SetBehavior(tanks); SetBehavior(robots);
             duelRules = rules.Copy(); DuelIsReplica = replica;
             Bots.Clear(); Array.Clear(TechBonus, 0, TechBonus.Length);
+            if (!replica && rules.HandicapEnabled && (rules.AiIdleSeconds > 0 || rules.AiManageProduction))
+                duelAiHelper = new ZBot(this, rules.HandicapSlot == 0 ? Team.Red : Team.Blue, 439);
             FilterProductionRoster();
+        }
+
+        internal void UpdateDuelAiHelp()
+        {
+            int idleSeconds = duelRules?.AiIdleSeconds ?? 0;
+            if (duelAiHelper == null || idleSeconds == 0 || GameOver || Time < nextDuelAiCheck) return;
+            nextDuelAiCheck = Time + .2;
+            foreach (var unit in Objects)
+            {
+                bool eligible = unit.Owner == duelAiHelper.Team && unit.IsMobile && unit.CanMove && !unit.Destroyed &&
+                    unit.KillAt < 0 && !unit.IsMinion && !unit.IsShuttle && !unit.IsFortDefender && !unit.HoldPosition && !unit.Patrolling;
+                if (!eligible)
+                {
+                    unit.AiHelpStatus = DuelAiStatus.None;
+                    unit.AiHelpNextOrder = 0;
+                    continue;
+                }
+                bool busy = unit.Waypoints.Count > 0 || unit.IsMoving || unit.AttackObject != null;
+                if (busy)
+                {
+                    if (unit.AiHelpStatus == DuelAiStatus.CoolingDown && Time < unit.AiHelpNextOrder) continue;
+                    if (unit.AiHelpStatus != DuelAiStatus.Ordered) unit.AiHelpStatus = DuelAiStatus.None;
+                    unit.AiHelpNextOrder = 0;
+                    continue;
+                }
+                if (unit.AiHelpStatus == DuelAiStatus.Ordered)
+                {
+                    unit.AiHelpStatus = DuelAiStatus.CoolingDown;
+                    unit.AiHelpNextOrder = Time + (idleSeconds == 15 ? 10 : 20);
+                }
+                if (unit.AiHelpNextOrder == 0) unit.AiHelpNextOrder = Time + idleSeconds;
+                if (Time >= unit.AiHelpNextOrder)
+                {
+                    duelAiOffered.Add(unit);
+                    duelAiReady.Add(unit);
+                }
+                else if (unit.AiHelpStatus != DuelAiStatus.CoolingDown && Time >= unit.AiHelpNextOrder - 5)
+                    unit.AiHelpStatus = DuelAiStatus.IdleWarning;
+            }
+            if (duelAiReady.Count == 0) return;
+            duelAiHelper.AssistIdleUnits(duelAiReady);
+            foreach (var unit in duelAiOffered)
+            {
+                unit.AiHelpStatus = unit.Waypoints.Count > 0 ? DuelAiStatus.Ordered : DuelAiStatus.None;
+                unit.AiHelpNextOrder = unit.Waypoints.Count > 0 ? 0 : Time + idleSeconds;
+            }
+            duelAiReady.Clear();
+            duelAiOffered.Clear();
+        }
+
+        static bool WeakProduction(string type) => type == "grunt" || type == "jeep" || type == "gatling";
+
+        internal bool ApplyDuelAiOnCapture(ZObject building, Team previousOwner, Team capturingTeam)
+        {
+            if (previousOwner == capturingTeam) return false;
+            building.AiHelpFactoryFor = Team.Neutral;
+            if (duelRules?.HandicapEnabled != true || previousOwner != (duelRules.HandicapSlot == 0 ? Team.Red : Team.Blue) ||
+                capturingTeam == Team.Neutral || building.Destroyed || !building.IsProducer || building.IsFort) return false;
+            if (duelRules.AiCancelProduction)
+            {
+                StopBuilding(capturingTeam, building);
+                return true;
+            }
+            if (!duelRules.AiManageProduction || !WeakProduction(building.CurUnit)) return false;
+            string pick = duelAiHelper.PickProduction(building);
+            if (pick == null || WeakProduction(pick))
+                pick = ProductionUnits(building).FirstOrDefault(type => !WeakProduction(type));
+            if (pick == null || !RestartBuilding(capturingTeam, building, pick)) return false;
+            building.AiHelpFactoryFor = previousOwner;
+            return true;
         }
         void FilterProductionRoster()
         {

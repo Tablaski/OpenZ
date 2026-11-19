@@ -422,6 +422,7 @@ namespace OpenZ.Sim
             HeroRegenTick(dt);                                                      // DV112: the heroes' self-repair (Sim/ZHeroSquad.Kh4.cs)
             ProneTargetTick(dt);                                                    // DV122: every sniper's stance, a rule (Sim/ZObject.ProneTarget.cs)
             CheckFlagCaptures();
+            UpdateDuelAiHelp();
             FlagStepOffTick();                                                      // 1.5 DV184 (kit vehicle_off_flag): a vehicle at rest on the flag it captured, no order: one short roll off it (Sim/ZObject.FlagStepOff.cs)
             rp = ZRuleProf.Enter(ZRuleProf.Combat); ProcessMissiles(); ZRuleProf.Exit(rp);   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
             UnitTesting?.FinishRespawns();
@@ -858,6 +859,7 @@ namespace OpenZ.Sim
             if (!CanSetWaypoints(o) || o.IsMinion || o.Destroyed) return false;
             if (RamStillRefuses(o)) return false;                                   // 1.5 DV195 (kit ram_chain_n24_n25): rammed / crushed: no order any more (Sim/ZObject.RamChain.cs)
             if (o.IsShuttle) return ShuttleOrder(team, o, list);                                   // DV118: a move order is the shuttle's flight target; a CPU team's order is refused (Sim/ZWorld.Shuttle.cs)
+            if (DuelAiIdleHelp) { o.AiHelpStatus = DuelAiStatus.None; o.AiHelpNextOrder = 0; }
             if (RepairInPlaceDeviation) o.RepairBayOnOrder(IsHumanTeam(team));                    // DV62: a player's order calls a vehicle off the repair pad
             L17CrewForget(o);                                                       // 1.4 DV171 final fix: a new order: no start crew's ENTER left to turn into a walk at an EXIT (Sim/ZObject.VehicleExit.cs)
             o.ClearOrderModes(); foreach (var m in o.Minions) m?.ClearOrderModes();                // DV68: any new order ends a patrol / hold

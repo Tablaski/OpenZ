@@ -51,6 +51,8 @@ namespace OpenZ.Multiplayer
         }
         public bool HandicapEnabled;
         public int HandicapSlot;
+        public int AiIdleSeconds;
+        public bool AiManageProduction, AiCancelProduction;
         public DuelArmySettings Handicap = new DuelArmySettings();
         public string TankDynamics = "", RobotDynamics = "";
         public DuelUnitPreset UnitPreset = DuelUnitPreset.OpenZ;
@@ -127,6 +129,7 @@ namespace OpenZ.Multiplayer
         {
             Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
             TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = RadarLoss,
+            AiIdleSeconds = AiIdleSeconds, AiManageProduction = AiManageProduction, AiCancelProduction = AiCancelProduction,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
             RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
             BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
@@ -140,6 +143,7 @@ namespace OpenZ.Multiplayer
             if (!IsMapAllowed(Map))
                 throw new ArgumentException("Unknown duel map.");
             if (!Enum.IsDefined(typeof(RadarLossRule), RadarLoss)) throw new ArgumentException("Invalid radar loss rule.");
+            if (AiIdleSeconds != 0 && AiIdleSeconds != 15 && AiIdleSeconds != 30) throw new ArgumentException("Invalid AI idle delay.");
             if (!InRange(TerritoryBonus, 0, .9) || !InRange(MinimumBuildSeconds, .1, 600))
                 throw new ArgumentException("Invalid territory rule.");
             if (!InRange(TerritoryReductionCap, 0, 1)) throw new ArgumentException("Invalid territory cap.");

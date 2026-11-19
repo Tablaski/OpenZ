@@ -7,7 +7,7 @@ namespace OpenZ
 {
     public partial class OpenZMainMenu
     {
-        HudButton soloAllowedButton, soloTankDynamicsButton, soloRobotDynamicsButton;
+        HudButton soloAllowedButton, soloGamingButton;
         HudButton catalogButton;
         bool aiCampaign, experimentalCampaign;
         bool[] aiPreviewVisible;
@@ -50,21 +50,11 @@ namespace OpenZ
                 if (soloAllowedButton != null && soloAllowedButton.Rt)
                     soloAllowedButton.Label.Set("Allowed units · " + Multiplayer.DuelUnitRoster.Name(OzSoloAllowedUnits.Read().UnitPreset));
             }), null, soloAllowedButton, "ui_menu_select");
-            float width = Mathf.Min(304, (CW - 730) / 2);
-            soloTankDynamicsButton = BuildSoloDynamicsButton(parent, ZBehaviorFamily.Tanks, CW - 698 - width, width);
-            soloRobotDynamicsButton = BuildSoloDynamicsButton(parent, ZBehaviorFamily.Robots, CW - 714 - 2 * width, width);
-        }
-
-        HudButton BuildSoloDynamicsButton(RectTransform parent, ZBehaviorFamily family, float x, float width)
-        {
-            string label = family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel;
-            string Caption() => label + " · " + OzBehaviorLibrary.Selected(family).name;
-            var button = HudButton.Make(parent, label, Caption(), new Vector2(width, 58), HudButtonKind.Large, 16);
-            button.Rt.Place(new OzRect(x, 210, width, 58));
-            OzForkOptions.Highlight(button, label);
-            AddHot(button.Rt, View.Select, () => OzBehaviorOptions.Show(family, () => button.Label.Set(Caption())),
-                null, button, "ui_menu_select");
-            return button;
+            const string label = OzBattleOptions.SoloLabel;
+            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(300, 58), HudButtonKind.Large, 17);
+            soloGamingButton.Rt.Place(new OzRect(CW - 998, 210, 300, 58));
+            OzForkOptions.Highlight(soloGamingButton, label);
+            AddHot(soloGamingButton.Rt, View.Select, OzBehaviorOptions.ShowGaming, null, soloGamingButton, "ui_menu_select");
         }
 
         void SetCampaignLevels(bool converted, bool experimental = false)
@@ -141,8 +131,10 @@ namespace OpenZ
 
         internal void ProofOpenSoloDynamics(ZBehaviorFamily family)
         {
-            var button = family == ZBehaviorFamily.Tanks ? soloTankDynamicsButton : soloRobotDynamicsButton;
-            ProofClickAt(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
+            ProofClickAt(RectTransformUtility.WorldToScreenPoint(null, soloGamingButton.Rt.TransformPoint(soloGamingButton.Rt.rect.center)));
+            string label = family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel;
+            FindFirstObjectByType<OzBehaviorOptions>().GetComponentsInChildren<UnityEngine.UI.Button>()
+                .Single(button => button.name == label).onClick.Invoke();
         }
 
         internal void ProofSwitchMapCatalog() =>

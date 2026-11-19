@@ -47,7 +47,8 @@ namespace OpenZ
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
             label == ChatLabel || label == OzSoloAllowedUnits.Label || label == RestartProductionLabel || label == OzBuildKeys.Label ||
-            label == OzBattleOptions.DamageLabel || label == OzBattleOptions.ShakeLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
+            label == OzBattleOptions.DamageLabel || label == OzBattleOptions.ShakeLabel || label == OzBattleOptions.SoloLabel ||
+            label == OzBattleOptions.RadarLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
             label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||
             label == DuelBinaryEventsLabel || label == DuelCompressionLabel;

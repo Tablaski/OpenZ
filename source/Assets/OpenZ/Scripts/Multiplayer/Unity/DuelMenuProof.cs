@@ -353,6 +353,7 @@ namespace OpenZ.Multiplayer
             }
             finally
             {
+                OzBehaviorOptions.Dismiss();
                 if (previous == null) PlayerPrefs.DeleteKey(key);
                 else PlayerPrefs.SetString(key, previous);
                 PlayerPrefs.Save();

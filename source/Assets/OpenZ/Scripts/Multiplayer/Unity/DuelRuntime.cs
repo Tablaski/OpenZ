@@ -43,6 +43,8 @@ namespace OpenZ.Multiplayer
         public string[] RedFortTurrets, BlueFortTurrets;
         public bool TankDamageEffects, TankDamageShake;
         public int RadarLoss;
+        public int AiIdleSeconds;
+        public bool AiManageProduction, AiCancelProduction;
         public string ProposalJson;
         public DuelRules ProposedRules => string.IsNullOrEmpty(ProposalJson) ? null : JsonUtility.FromJson<DuelLobbyData>(ProposalJson).ReadRules();
         public int ProposalId;
@@ -59,7 +61,8 @@ namespace OpenZ.Multiplayer
                 RedFortTurrets = r.FortTurretsFor(0), BlueFortTurrets = r.FortTurretsFor(1),
                 TankDynamics = r.TankDynamics, RobotDynamics = r.RobotDynamics, UnitPreset = (int)r.UnitPreset, AllowedUnits = r.AllowedUnits.ToArray(),
                 ExcludeMammoth = r.ExcludeMammoth, ExcludeBizon = r.ExcludeBizon,
-                TankDamageEffects = r.TankDamageEffects, TankDamageShake = r.TankDamageShake, RadarLoss = (int)r.RadarLoss };
+                TankDamageEffects = r.TankDamageEffects, TankDamageShake = r.TankDamageShake, RadarLoss = (int)r.RadarLoss,
+                AiIdleSeconds = r.AiIdleSeconds, AiManageProduction = r.AiManageProduction, AiCancelProduction = r.AiCancelProduction };
         }
         public DuelRules ReadRules()
         {
@@ -68,6 +71,7 @@ namespace OpenZ.Multiplayer
                 RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
                 TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = (RadarLossRule)RadarLoss,
+                AiIdleSeconds = AiIdleSeconds, AiManageProduction = AiManageProduction, AiCancelProduction = AiCancelProduction,
                 ExcludeMammoth = ExcludeMammoth || UnitPreset == (int)DuelUnitPreset.Z1996,
                 ExcludeBizon = ExcludeBizon || UnitPreset == (int)DuelUnitPreset.Z1996,
                 AllowedUnits = AllowedUnits == null ? new List<string>(DuelUnitRoster.All) : new List<string>(AllowedUnits) };
@@ -174,7 +178,7 @@ namespace OpenZ.Multiplayer
             if (invitation != null)
             {
                 if (invitation.IndexOf("room=", StringComparison.OrdinalIgnoreCase) >= 0) ConnectOnline(PlayerPrefs.GetString("oz_duel_name", "PLAYER"), false, invitation);
-                else Menus.SetInvitation(invitation);
+                else Join(PlayerPrefs.GetString("oz_duel_name", "PLAYER"), invitation);
             }
         }
         void OnDestroy() { Close(); SceneManager.sceneLoaded -= SceneLoaded; if (I == this) I = null; }
@@ -869,10 +873,13 @@ namespace OpenZ.Multiplayer
             if (IsHost) BeginRestartRequest(true);
             else { peer.Send(new DuelPacket(DuelMessage.RestartRequest, Array.Empty<byte>())); Menus.NotifyChat("Restart requested. Waiting for your opponent."); }
         }
+        internal string OpponentName =>
+            ((IsHost ? View?.GuestName : View?.HostName) ?? "Your opponent").Replace('<', '‹').Replace('>', '›');
+
         void AskRestart(Action yes, Action no)
         {
             restartPromptOpen = true;
-            OzConfirm.Ask("RESTART THIS DUEL?", "YOUR OPPONENT WANTS TO RESTART THE SAME LEVEL.", () => { restartPromptOpen = false; if (Connected && Playing && Game && !Game.World.GameOver) yes(); }, id => OzSfx.Ui(id), 1100, () => { restartPromptOpen = false; if (Connected) no(); });
+            OzConfirm.Ask("RESTART THIS DUEL?", OpponentName + " asks to restart this map.\nYES starts over. NO keeps the current duel.", () => { restartPromptOpen = false; if (Connected && Playing && Game && !Game.World.GameOver) yes(); }, id => OzSfx.Ui(id), 1100, () => { restartPromptOpen = false; if (Connected) no(); });
         }
         void BeginRestartRequest(bool local)
         {

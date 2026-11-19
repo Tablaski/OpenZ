@@ -28,6 +28,9 @@ namespace OpenZ.Multiplayer
             add("Handicap enabled", current.HandicapEnabled, next.HandicapEnabled);
             add("Handicap team", current.HandicapSlot == 0 ? "RED" : "BLUE", next.HandicapSlot == 0 ? "RED" : "BLUE");
             add("Handicap build duration", current.Handicap.BuildDuration, next.Handicap.BuildDuration);
+            add("AI Help idle delay (seconds, 0 = off)", current.AiIdleSeconds, next.AiIdleSeconds);
+            add("AI Help replace weak production", current.AiManageProduction, next.AiManageProduction);
+            add("AI Help cancel captured production", current.AiCancelProduction, next.AiCancelProduction);
             add("Unit preset", current.UnitPreset, next.UnitPreset);
             foreach (string type in DuelUnitRoster.Lobby) add("Allow " + type, current.Allows(type), next.Allows(type));
             if (current.TankDynamics != next.TankDynamics) changes.Add("Tank dynamics: profile changed");

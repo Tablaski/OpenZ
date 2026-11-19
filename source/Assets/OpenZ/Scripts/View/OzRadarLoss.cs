@@ -89,7 +89,7 @@ namespace OpenZ
                 Contacts.Clear(); knownRadars.Clear(); meshCache.Clear();
                 nextSight = -1;
             }
-            var rule = world.DuelRadarLoss;
+            var rule = world.HasDuelRules ? world.DuelRadarLoss : OzBattleOptions.SoloRadar;
             bool enabled = rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
                 !CaptureKit.DemoRun && !ZodBriefing.BriefingActive && (!DuelRuntime.Active || DuelRuntime.I.Playing);
             if (!enabled)

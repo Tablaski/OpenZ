@@ -16,7 +16,7 @@ namespace OpenZ
             icon.raycastTarget = false;
         }
 
-        static Sprite Robot()
+        internal static Sprite Robot()
         {
             if (robot) return robot;
             var texture = new Texture2D(32, 32, TextureFormat.RGBA32, false) { name = "AI robot head" };

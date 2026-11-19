@@ -1,5 +1,6 @@
 using System;
 using OpenZ.Sim;
+using OpenZ.Multiplayer;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -13,15 +14,21 @@ namespace OpenZ
     {
         static OzBehaviorOptions instance;
         static int closedFrame = -1;
+        Action returnToGaming;
         public static bool CapturesInput => instance || closedFrame == Time.frameCount;
         public static void Show(ZBehaviorFamily family, Action changed = null)
+            => Open(options => options.Build(family, changed));
+
+        internal static void ShowGaming() => Open(options => options.BuildGaming());
+
+        static void Open(Action<OzBehaviorOptions> build)
         {
             if (Multiplayer.DuelRuntime.Active) return;
             Dismiss();
             var go = new GameObject("OpenZ-VK profile picker", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) { layer = 5 };
             instance = go.AddComponent<OzBehaviorOptions>();
             DontDestroyOnLoad(go);
-            instance.Build(family, changed);
+            build(instance);
             OzSfx.Ui("ui_panel_open");
         }
         public static void Dismiss()
@@ -35,10 +42,11 @@ namespace OpenZ
         void Update()
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            { OzSfx.Ui("ui_cancel"); Dismiss(); }
+            { OzSfx.Ui("ui_cancel"); Close(); }
         }
+        void Close() { Dismiss(); returnToGaming?.Invoke(); }
         void OnDestroy() { if (instance == this) instance = null; }
-        void Build(ZBehaviorFamily family, Action changed)
+        RectTransform Sheet()
         {
             var canvas = GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = 1150;
             var scaler = GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -54,6 +62,48 @@ namespace OpenZ
             Hud.Plate(panel, "md", 0, OzForkOptions.Brand);
             var logo = Resources.Load<Sprite>("OpenZ/Kit/Wordmarks/wm_openz_vk_menu");
             if (logo) { var image = Hud.Img(panel, "OpenZ-VK logo", Color.white); image.sprite = logo; image.preserveAspect = true; image.rectTransform.TL(26, 18, 220, 72); image.raycastTarget = false; }
+            return panel;
+        }
+
+        void BuildGaming()
+        {
+            var panel = Sheet();
+            Hud.Label(panel, "Title", "GAMING OPTIONS · SOLO", 30, OzForkOptions.Accent).At(275, 35, OzH.L, false, 785);
+            Hud.Label(panel, "Help", "These settings apply to your next solo mission.", 18, OzUi.Ink).At(28, 113, OzH.L, false, 1044);
+            foreach (var family in new[] { ZBehaviorFamily.Tanks, ZBehaviorFamily.Robots })
+            {
+                string label = family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel;
+                int y = family == ZBehaviorFamily.Tanks ? 158 : 222;
+                var row = MakeButton(panel, label, label + " · " + OzBehaviorLibrary.Selected(family).name, 28, y, 1044, 52,
+                    () => Open(options =>
+                    {
+                        options.returnToGaming = ShowGaming;
+                        options.Build(family, ShowGaming);
+                    }));
+                OzForkOptions.Highlight(row, label);
+            }
+            Hud.Label(panel, "Classic note", "Z Classic is experimental and still far from finished. Give it a try!", 19, OzUi.Ink)
+                .At(28, 300, OzH.L, false, 1044);
+            var feedback = MakeButton(panel, "Discord feedback", "SHARE YOUR FEEDBACK ON OPENZ / ZZONE DISCORD", 28, 337, 1044, 52,
+                () => Application.OpenURL("https://discord.gg/WjFqg35PsE"));
+            if (feedback.Label.graphic is TMPro.TMP_Text tmp) tmp.fontStyle |= TMPro.FontStyles.Bold;
+            else if (feedback.Label.graphic is Text legacy) legacy.fontStyle = FontStyle.Bold;
+            Hud.Label(panel, "Radar", "WHEN YOU HAVE NO WORKING RADAR", 22, OzForkOptions.Accent).At(28, 427, OzH.L, false, 1044);
+            for (int i = 0; i < 4; i++)
+            {
+                var rule = (RadarLossRule)i;
+                int y = 467 + i * 65;
+                var row = MakeButton(panel, "Radar " + rule, (OzBattleOptions.SoloRadar == rule ? "✓ " : "") + OzBattleOptions.RadarName(rule),
+                    28, y, 275, 46, () => { OzBattleOptions.SoloRadar = rule; ShowGaming(); });
+                OzForkOptions.Highlight(row, OzBattleOptions.RadarLabel);
+                Hud.Label(panel, "Radar help " + rule, OzBattleOptions.RadarTip(rule), 17, OzUi.Ink).At(320, y + 12, OzH.L, false, 750);
+            }
+            MakeButton(panel, "CLOSE", "CLOSE", 28, 757, 1044, 44, Dismiss);
+        }
+
+        void Build(ZBehaviorFamily family, Action changed)
+        {
+            var panel = Sheet();
             Hud.Label(panel, "Title", family == ZBehaviorFamily.Tanks ? "TANK DYNAMICS" : "ROBOT DYNAMICS", 30, OzForkOptions.Accent).At(275, 35, OzH.L, false, 785);
             Hud.Label(panel, "Help", "Choose a profile for the next solo match. Tanks and robots are independent.", 18, OzUi.Ink).At(28, 113, OzH.L, false, 1044);
             Hud.Label(panel, "Lobby rule", "Multiplayer profiles are selected by the host in the lobby and stay fixed for the match.", 16, OzUi.Muted).At(28, 150, OzH.L, false, 1044);
@@ -67,12 +117,12 @@ namespace OpenZ
             {
                 var profile = choices[i]; bool selected = profile.id == OzBehaviorLibrary.SelectedId(family);
                 var row = MakeButton(content, "PROFILE " + profile.id, (selected ? "SELECTED  ·  " : "") + profile.name, 0, i * 102, 1028, 62,
-                    () => { OzBehaviorLibrary.Select(profile); changed?.Invoke(); OzSfx.Ui("ui_confirm"); Dismiss(); });
+                    () => { OzBehaviorLibrary.Select(profile); OzSfx.Ui("ui_confirm"); Dismiss(); changed?.Invoke(); });
                 OzForkOptions.Highlight(row, family == ZBehaviorFamily.Tanks ? OzBehaviorLibrary.TanksLabel : OzBehaviorLibrary.RobotsLabel);
                 Hud.Label(content, "Help " + profile.id, Description(profile), 15, OzUi.Muted).At(14, i * 102 + 72, OzH.L, false, 1000);
             }
             Hud.Label(panel, "Save hint", "Create and save custom profiles in Unit Editor > Dynamics.", 16, OzUi.Muted).At(28, 718, OzH.L, false, 1044);
-            MakeButton(panel, "CLOSE", "CLOSE", 28, 757, 1044, 44, () => { OzSfx.Ui("ui_cancel"); Dismiss(); });
+            MakeButton(panel, "CLOSE", "CLOSE", 28, 757, 1044, 44, () => { OzSfx.Ui("ui_cancel"); Close(); });
         }
         static string Description(ZBehaviorProfile profile)
         {

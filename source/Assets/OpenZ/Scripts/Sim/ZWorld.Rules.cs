@@ -134,8 +134,10 @@ namespace OpenZ.Sim
             bool radar = false;
             foreach (var b in flag.LinkedObjects)
             {
+                var previousOwner = b.Owner;
                 SetOwnerZod(b, team);
-                if (b.SetBuildingDefaultProduction()) Emit(ZEventType.ProductionChanged, b);
+                if (!ApplyDuelAiOnCapture(b, previousOwner, team) && b.SetBuildingDefaultProduction())
+                    Emit(ZEventType.ProductionChanged, b);
                 if (b.Type == "radar") radar = true;
             }
             if (z != null) z.Owner = team;
@@ -321,14 +323,16 @@ namespace OpenZ.Sim
             // OpenZ duel command: Build
             if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.Build, Unit = unit });
             if (!Owns(team, b)) return false;
-            bool ok = b.SetBuildingProduction(unit); if (ok) Emit(ZEventType.ProductionChanged, b); return ok;
+            bool ok = b.SetBuildingProduction(unit);
+            if (ok) { b.AiHelpFactoryFor = Team.Neutral; Emit(ZEventType.ProductionChanged, b); }
+            return ok;
         }
         public bool StopBuilding(Team team, ZObject b)
         {
             // OpenZ duel command: StopBuild
             if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.StopBuild });
             if (!Owns(team, b)) return false;
-            b.StopBuildingProduction(); Emit(ZEventType.ProductionChanged, b); return true;
+            b.StopBuildingProduction(); b.AiHelpFactoryFor = Team.Neutral; Emit(ZEventType.ProductionChanged, b); return true;
         }
         public bool RestartBuilding(Team team, ZObject b, string unit)
         {

@@ -15,7 +15,7 @@ namespace OpenZ
         public PlayerInput input;
         public Material overlayMaterial;
         Mesh ring, dot;
-        Material selMat, minionMat, markerMat, pathMat;
+        Material selMat, minionMat, markerMat, pathMat, aiPathMat;
         // Enemy target markers stay red
         static readonly Color SelColor = new Color(0.30f, 1f, 0.42f, 0.95f);
         Mesh selRing;
@@ -169,25 +169,33 @@ namespace OpenZ
                     Leg(g, pa, paDeck, pb, pbDeck, 0.7f, 1.6f, 0.1f, 0.14f, markerMat);
                     Draw(ring, pa + Vector3.up * 0.1f, 0.8f, markerMat); Draw(ring, pb + Vector3.up * 0.1f, 0.8f, markerMat);
                 }
-                if (!showPath) continue;
+                bool aiOrder = o.AiHelpStatus == DuelAiStatus.Ordered;
+                if (!showPath && !aiOrder) continue;
+                if (aiOrder && !aiPathMat) aiPathMat = Tinted(pathMat, Hdr(new Color(.25f, 1f, .49f, .95f), 1.3f), 4);
+                var routeMaterial = aiOrder ? aiPathMat : pathMat;
                 if (o.IsShuttle && ShuttleRoute(g, o, queuing)) continue;                                   // K387: in the air (or taking off, or a Shift queue) a shuttle's route runs from the ship in the sky down to its goal (SelectionOverlay.ShuttleRoute.cs)
                 // waypoint path: current target, remaining path points, then the queued waypoints
                 var prev = g.CenterWorld(o); bool prevDeck = OnDeck(prev), d;
                 var pts = legPts; pts.Clear(); legDeck.Clear();
                 if (o.IsMoving) { pts.Add(Px(g, o.CurrentTarget.x, o.CurrentTarget.y, out d)); legDeck.Add(d); }
                 if (o.PathPoints != null) foreach (var p in o.PathPoints) { pts.Add(Px(g, p.x, p.y, out d)); legDeck.Add(d); }
+                if (aiOrder && pts.Count == 0 && o.Waypoints.Count > 0)
+                {
+                    pts.Add(Px(g, o.Waypoints[0].x, o.Waypoints[0].y, out d));
+                    legDeck.Add(d);
+                }
                 for (int i = 1; i < o.Waypoints.Count; i++) { pts.Add(Px(g, o.Waypoints[i].x, o.Waypoints[i].y, out d)); legDeck.Add(d); }
                 for (int i = 0; i < pts.Count; i++)
                 {
-                    Leg(g, prev, prevDeck, pts[i], legDeck[i], 0.8f, 1.2f, 0.1f, 0.12f, pathMat);
+                    Leg(g, prev, prevDeck, pts[i], legDeck[i], 0.8f, 1.2f, 0.1f, 0.12f, routeMaterial);
                     prev = pts[i]; prevDeck = legDeck[i];
                 }
                 // while Shift-queuing
                 float mAge = now - input.MarkerTime, markLife = OpenZUnitOverlay.OrderMarkLife;
-                if (queuing || (mAge >= 0f && mAge < markLife))
+                if (aiOrder || queuing || (mAge >= 0f && mAge < markLife))
                 {
-                    float ms = queuing ? 0.45f : 0.45f * (mAge < 0.12f ? Mathf.Lerp(0.6f, 1.3f, mAge / 0.12f) : Mathf.Lerp(1.3f, 1.05f, (mAge - 0.12f) / (markLife - 0.12f)));
-                    for (int i = 0; i < o.Waypoints.Count; i++) Draw(ring, Px(g, o.Waypoints[i].x, o.Waypoints[i].y, out d) + Vector3.up * 0.08f, ms, pathMat);
+                    float ms = aiOrder || queuing ? 0.45f : 0.45f * (mAge < 0.12f ? Mathf.Lerp(0.6f, 1.3f, mAge / 0.12f) : Mathf.Lerp(1.3f, 1.05f, (mAge - 0.12f) / (markLife - 0.12f)));
+                    for (int i = 0; i < o.Waypoints.Count; i++) Draw(ring, Px(g, o.Waypoints[i].x, o.Waypoints[i].y, out d) + Vector3.up * 0.08f, ms, routeMaterial);
                 }
                 // Shift-queued orders (not sent yet): brighter dots + a marker ring at every waypoint. 1.2 item 9 (DV135): their line goes on
                 // from where the list that will be sent goes on: the end of the order the queue is added to, or the unit itself when nothing

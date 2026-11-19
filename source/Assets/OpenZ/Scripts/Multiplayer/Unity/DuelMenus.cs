@@ -49,7 +49,8 @@ namespace OpenZ.Multiplayer
         public void Refresh() { dirty = true; }
         public void ShowConnect() { page = Page.Connect; dirty = true; }
         public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
-        public void ShowLobby() { page = Page.Lobby; dirty = true; }
+        string invitationNotice;
+        public void ShowLobby() { invitationNotice = null; page = Page.Lobby; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
         public void ShowInGameMenu() { if (R.MatchMenusBlocked) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
@@ -299,7 +300,12 @@ namespace OpenZ.Multiplayer
             if (R.IsHost)
             {
                 Button(root, "SWAP RED / BLUE", 1210, 40, 216, R.SwapTeams, false, inLobby && R.Connected && R.View.GuestName != null);
-                Button(root, "COPY INVITATION", 1440, 40, 183, () => GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port)), false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
+                Button(root, "COPY INVITATION", 1440, 40, 183, () =>
+                {
+                    GUIUtility.systemCopyBuffer = R.Invitation(address, R.OnlineMode ? 0 : int.Parse(port));
+                    invitationNotice = R.OnlineMode ? "Link copied. Your friend can open it and click Join in OpenZ." : "Link copied. Your friend can open it in OpenZ.";
+                    dirty = true;
+                }, false, !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom));
             }
             Button(root, "CHANGE NAME", 1635, 40, 195, () =>
             {
@@ -345,7 +351,7 @@ namespace OpenZ.Multiplayer
                     (R.View.ReadyForTeam(team) ? "READY" : "NOT READY"), 820, 967 + team * 23, 540, 16,
                     rules.HandicapEnabled && rules.HandicapSlot == team ? OzUi.AlertText : OzUi.Ink);
             Button(root, "LEAVE", 80, 1000, 250, Leave);
-            Label(root, R.ReleaseWarning.Length > 0 ? R.ReleaseWarning : rules.HasStartingArmies ? R.Status : "Each team needs a starting squad, vehicle or turret before READY.", 360, 1020, 950, 16, OzUi.AlertText);
+            Label(root, R.ReleaseWarning.Length > 0 ? R.ReleaseWarning : rules.HasStartingArmies ? invitationNotice ?? R.Status : "Each team needs a starting squad, vehicle or turret before READY.", 360, 1020, 950, 16, OzUi.AlertText);
             Button(root, (R.IsHost ? R.View.HostReady : R.View.GuestReady) ? "NOT READY" : "READY", 1390, 980, 440, R.Ready, true, R.Connected && official.HasStartingArmies && lobbyDraft == null);
             if (pickerGroup >= 0) BuildUnitPicker(rules, editable);
             if (lobbyDialog == LobbyDialog.OpenZMaps) BuildOpenZMapPicker(rules, mapEditable, mapRevision);
@@ -376,6 +382,7 @@ namespace OpenZ.Multiplayer
         void BuildHandicap(DuelRules rules, bool editable)
         {
             var panel = Panel("HANDICAP", 820, 520, 1010, 265);
+            Button(panel, "AI HELP", 540, 12, 225, () => { lobbyDialog = LobbyDialog.AiHelp; dirty = true; });
             Button(panel, rules.HandicapEnabled ? "DISABLE" : "DISABLED", 790, 12, 195, () => { if (rules.HandicapEnabled) rules.HandicapEnabled = false; else rules.EnableHandicap(rules.HandicapSlot); EditLobbyRules(rules); }, false, editable);
             if (!generals) generals = OzFactionPosters.Open(transform);
             for (int i = 0; i < 2; i++)

@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 7;
+        public const int Schema = 8;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -74,6 +74,7 @@ namespace OpenZ
                 foreach (string unit in OzBuildKeys.Units) Add(OzBuildKeys.Preference(unit), "Int");
                 Add(OzBattleOptions.TankDamageKey, "Int");
                 Add(OzBattleOptions.TankShakeKey, "Int");
+                Add(OzBattleOptions.SoloRadarKey, "Int");
                 Add(OzTacticalPause.PrefKey, "Int");
                 Add(OzBindings.DefOf(OzAction.TacticalPause).pref, "Int");
                 Add(OzRobotSizeOption.Pref, "Int");

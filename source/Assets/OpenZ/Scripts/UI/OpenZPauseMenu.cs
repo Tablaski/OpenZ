@@ -61,14 +61,17 @@ namespace OpenZ
             if (OzKit.Available) Hud.Shadow(pausePanel, "Panels/pause_panel_mask");
             var pp = Hud.Kit(pausePanel, "Plate", "Panels/pause_panel", new OzRect(0, 0, OzLayout.PauseW, OzLayout.PauseH), null);
             if (!OzKit.Available) pp.color = HudStyle.Slate;
+            bool duel = OpenZ.Multiplayer.DuelRuntime.Active;
             var ms = OzKit.GetSprite("Wordmarks/mask_paused");
-            if (ms != null)
+            if (duel)
+                Hud.Label(pausePanel, "MatchMenu", "MATCH MENU", 56, OzUi.Ink, 0.02f).At(OzLayout.PauseWordX, OzLayout.PauseWordY, OzH.L, false, OzLayout.PauseBtnW);
+            else if (ms != null)
             {
                 float k = OzLayout.PauseWordCap / 118f;                                                      // the stencil mask is cap 118 u at native size
                 Hud.Kit(pausePanel, "Paused", "Wordmarks/mask_paused", new OzRect(OzLayout.PauseWordX, OzLayout.PauseWordY, ms.rect.width * 0.5f * k, ms.rect.height * 0.5f * k), OzUi.Ink, Image.Type.Simple);
             }
             else Hud.Label(pausePanel, "Paused", "PAUSED", 77, OzUi.Ink, -0.02f).At(OzLayout.PauseWordX, OzLayout.PauseWordY + 2);
-            sub = Hud.Label(pausePanel, "Sub", "", 11, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.PauseSubX, OzLayout.PauseSubY, OzH.L, false, 400);
+            sub = Hud.Label(pausePanel, "Sub", "", 11, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.PauseSubX, duel ? 98 : OzLayout.PauseSubY, OzH.L, false, 400);
             int bi = 0;
             HudButton Big(string label, HudButtonStyle st, Action act)
             {
@@ -324,7 +327,8 @@ namespace OpenZ
                 int id = i;
                 float bw = unitWidth * weights[i];
                 string label = i == buildKeysTab ? OzBuildKeys.Label : i == MicrophoneTab ? "MICROPHONE" : OzSettingTips.TabNames[i];
-                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.14f);
+                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.06f);
+                b.Label.At(bw * .5f, OzLayout.OptTabH * .5f, OzH.C, true, bw - 8f);
                 OzForkOptions.Highlight(b, label);
                 b.Rt.Place(new OzRect(tabX, OzLayout.OptTabY, bw, OzLayout.OptTabH));
                 tabX += bw + OzLayout.OptTabGap;

@@ -157,14 +157,16 @@ namespace OpenZ.Multiplayer
                     {
                         var pause = FindFirstObjectByType<OpenZPauseMenu>();
                         if (!pause || !pause.IsOpen || r.Game.paused || Time.timeScale != 1) throw new Exception("Native options menu paused or replaced the duel.");
+                        if (OzTacticalPause.TakesLastMessageKey || OzTacticalPause.Busy) throw new Exception("Solo tactical pause is active in the duel.");
                         foreach (var field in new[] { "bOptions", "bControls", "bReport" })
                             if (typeof(OpenZPauseMenu).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause) == null) throw new Exception("Missing normal menu option: " + field);
                         for (int tab = 0; tab < OzSettingTips.TabNames.Length; tab++) pause.ProofOptTab(tab);
                         pause.ProofOptTab(0);
                         DuelProofCapture.Save(Path.Combine(folder, role + "-menu.png"), true); menuCaptured = true;
                         var tabs = (System.Collections.Generic.List<HudButton>)typeof(OpenZPauseMenu).GetField("optTabBtns", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
-                        if (tabs.Count != 5 || tabs[4].Label.text != "MICROPHONE") throw new Exception("Missing native microphone options tab.");
-                        tabs[4].OnClick(new HudClick());
+                        var microphone = tabs.SingleOrDefault(tab => tab.Label.text == "MICROPHONE");
+                        if (microphone == null || !tabs.Any(tab => tab.Label.text == OzBuildKeys.Label)) throw new Exception("Missing microphone or build keys options tab.");
+                        microphone.OnClick(new HudClick());
                     }
                     if (!microphoneCaptured && w.Time > 8.4)
                     {

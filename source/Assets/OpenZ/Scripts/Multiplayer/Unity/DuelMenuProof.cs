@@ -213,7 +213,6 @@ namespace OpenZ.Multiplayer
                         Capture("connection"); Click("CREATE MATCH"); break;
                     case 4:
                         if (r.Rules.HandicapEnabled) throw new Exception("Handicap enabled by default.");
-                        if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture)) throw new Exception("Missing native unit portraits.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
                         if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "", "", "", "" }))
@@ -233,6 +232,9 @@ namespace OpenZ.Multiplayer
                     case 7: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;
                     case 8:
                         if (r.Rules.Common.StartingUnits[3] != "heavy") throw new Exception("Shared outside slot was not set.");
+                        var heavySlot = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "ARMY SLOT 1:3");
+                        if (!heavySlot.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture))
+                            throw new Exception("The populated heavy-tank slot is missing its portrait.");
                         Click("HANDICAP PLAYER 0"); break;
                     case 9:
                         if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 0 || r.Rules.Handicap.StartingUnits.Count != 0) throw new Exception("Red handicap did not start with empty slots.");
@@ -251,9 +253,10 @@ namespace OpenZ.Multiplayer
                             throw new Exception("Shared slot edit did not propagate to the handicap army.");
                         SelectMap("L16"); break;
                     case 15: Capture("jungle-map"); SelectMap("L17"); break;
-                    case 16: Capture("car-park-map"); SelectMap("L07"); break;
-                    case 17: Capture("volcanic-map"); SelectMap("L02"); break;
+                    case 16: Capture("car-park-map"); SelectMap("L18"); break;
+                    case 17: Capture("bridge-game-map"); SelectMap("L07"); break;
                     case 18:
+                        Capture("volcanic-map");
                         if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Map selection reset the custom armies.");
                         Click("DISABLE"); break;
                     case 19:
@@ -313,7 +316,7 @@ namespace OpenZ.Multiplayer
                         Capture("lobby-allowed-z1996");Click("OpenZ");break;
                     case 34:Click("CLOSE");break;
                     case 35:
-                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, four maps, independent fort popup, army pickers, additive handicap, unchanged construction times, microphone controls and dropdown; solo/duel converted-map galleries, Arctic/City filters, sorting, expansion tab and closing.");
+                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, five official maps, independent fort popup, army pickers, additive handicap, construction times, microphone controls and dropdown; solo/duel AI Maps galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
             }

@@ -57,7 +57,7 @@ namespace OpenZ
             Hud.Label(panel,"Help","Open the installer and repair or update this installation.\nFor a source build, prepare the required Unity resources and build again.\nYour saved preferences are preserved.",22,OzUi.Muted).At(48,345,OzH.L,false,1100);
             var kit = HudButton.Make(panel,"QUIT","QUIT",new Vector2(1100,60),HudButtonKind.Large,24,.05f,HudButtonStyle.Normal);
             kit.Rt.TL(48,550,1100,60); kit.Bg.raycastTarget=true;
-            var button=kit.Rt.gameObject.AddComponent<Button>();button.targetGraphic=kit.Bg;button.onClick.AddListener(()=>Application.Quit(2));
+            var button=kit.Rt.gameObject.AddComponent<Button>();button.targetGraphic=kit.Bg;button.onClick.AddListener(ExitIncompatible);
             var args=Environment.GetCommandLineArgs();int proof=Array.IndexOf(args,"-oz-resource-proof");
             if(proof>=0&&proof+1<args.Length)StartCoroutine(CaptureMismatch(args[proof+1]));
         }
@@ -66,7 +66,12 @@ namespace OpenZ
             Directory.CreateDirectory(folder);yield return new WaitForSecondsRealtime(2);yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(folder,"resource-package-mismatch.png"));
             File.WriteAllText(Path.Combine(folder,"result.txt"),"PASS: resource mismatch blocked the player. "+Problem);
-            yield return new WaitForSecondsRealtime(.5f);Application.Quit(2);
+            yield return new WaitForSecondsRealtime(.5f);ExitIncompatible();
+        }
+        static void ExitIncompatible()
+        {
+            OzQuit.ExitCode = 2;
+            OzQuit.Request("incompatible OpenZ-VK resource package");
         }
         void LateUpdate() { Time.timeScale = 0; AudioListener.pause = true; }
     }

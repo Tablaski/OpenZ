@@ -44,7 +44,8 @@ namespace OpenZ.Multiplayer
             var result = failure == null ? "PASS: production identity, both changelog tabs, native AI map videos, Bridge Game, tactical pause, independent oil and shake." : "FAIL: " + failure;
             File.WriteAllText(Path.Combine(folder, "result.txt"), result);
             Debug.Log(result);
-            Application.Quit(failure == null ? 0 : 1);
+            OzQuit.ExitCode = failure == null ? 0 : 1;
+            OzQuit.Request("OpenZ-VK release proof complete");
         }
 
         IEnumerator CheckRelease()

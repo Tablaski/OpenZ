@@ -38,7 +38,7 @@ namespace OpenZ
         /// <summary>MenuRules, before the commander's own rules. True = the blue card owns the window this frame (his rules wait).</summary>
         bool BlueCommsRules(string view, float now)
         {
-            bool want = view == "Select" && OzPlayBlue.BoxOn && !GameBoot.TestMode && !Automated;
+            bool want = view == "Select" && !menu.ShowingAiMaps && OzPlayBlue.BoxOn && !GameBoot.TestMode && !Automated;
             if (want)
             {
                 if (perf != null)

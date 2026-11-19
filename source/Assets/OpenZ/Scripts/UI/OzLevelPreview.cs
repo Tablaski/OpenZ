@@ -411,28 +411,29 @@ namespace OpenZ
         public const float MenuFlybyVolume = 0.22f;
         /// <summary>The flybys are heard quietly in the menu: the clip's own sound track (battle and world sounds) at a low level,
         /// scaled by the effects volume setting. Silent when the clip has no sound track. Call before Prepare.</summary>
+        readonly bool silent;
         void ApplyAudio()
         {
             if (!Player) return;
             var c = Player.clip;
-            if (c == null || c.audioTrackCount == 0) { Player.audioOutputMode = VideoAudioOutputMode.None; return; }
+            if (silent || c == null || c.audioTrackCount == 0) { Player.audioOutputMode = VideoAudioOutputMode.None; return; }
             Player.audioOutputMode = VideoAudioOutputMode.Direct;
             Player.controlledAudioTrackCount = 1;
             Player.EnableAudioTrack(0, true);
             Player.SetDirectAudioVolume(0, Mathf.Clamp01(MenuFlybyVolume * OzAudio.EffectsLin(PlayerPrefs.GetFloat("oz_vol_effects", 1f))));
         }
 
-        OzLevelPreview(string level) { Level = level; }
+        OzLevelPreview(string level, bool silent) { Level = level; this.silent = silent; }
 
         public static OzLevelPreview Create(Transform host, string level)
         {
-            var p = new OzLevelPreview(level);
+            bool aiMap = OzAiMapCatalog.Find(level) != null;
+            var p = new OzLevelPreview(level, aiMap);
             Prune(); if (waiting.Count == 0 && preparing == null) { queueStartAt = -1f; queueLogged = false; queueOrder.Clear(); ProofMaxAtOnce = 0; ProofAllReadySec = -1f; }   // item 23: a new menu, a new queue
             // the level card / select still = the first of the level's chosen loading stills (L02: sunrise canyon red fort, L17: car park
             // war machines at dusk), which replaced the old posters; the old poster is the fallback
             // 1.5: a level whose card has its own still (Menu/<id>_card, level 18: a frame of its blue briefing's flight) shows that one; its loading picture stays
             p.Poster = Resources.Load<Texture2D>($"OpenZ/Menu/{level}_card") ?? Resources.Load<Texture2D>($"OpenZ/Loading/{level}_loading_1") ??Resources.Load<Texture2D>($"OpenZ/Menu/{level}_preview") ?? Resources.Load<Texture2D>($"OpenZ/Menu/{level}_poster");
-            bool aiMap = OzAiMapCatalog.Find(level) != null;
             if (aiMap) p.Poster = Resources.Load<Texture2D>($"OpenZ/AiMaps/Posters/{level}_poster");
             bool light = OzMenuVideo.UseLight;                                                                // item 23: the light twins on a PC that needs them (a missing twin = its full clip)
             var clip = aiMap ? Resources.Load<VideoClip>($"OpenZ/AiMaps/Videos/{level}_preview") : LoadClip($"{level}_preview", light);
@@ -555,7 +556,13 @@ namespace OpenZ
         public void Release()
         {
             live.Remove(this); waiting.Remove(this); queued = false; if (preparing == this) preparing = null;   // item 23
-            if (Player) { Player.Stop(); Player.targetTexture = null; }
+            if (Player)
+            {
+                Player.Stop();
+                Player.targetTexture = null;
+                UnityEngine.Object.Destroy(Player.gameObject);
+                Player = null;
+            }
             if (Frame) { Frame.Release(); UnityEngine.Object.Destroy(Frame); }
             if (blurChain != null) { foreach (var b in blurChain) if (b) { b.Release(); UnityEngine.Object.Destroy(b); } blurChain = null; }
         }

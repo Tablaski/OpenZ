@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.2 HUD and AI Maps
+
+- Pending visual approval: check the larger transparent logo in the solo and duel HUD against bright and dark terrain.
+- Pending manual checks: open AI Maps in solo and 1 vs 1 and watch the on-screen cards animate without clicking. Browse across the carousel and scroll the gallery. Select a different map and check that only its video appears behind the selection. In solo, switch to AI Maps while a commander is speaking and confirm that AI Maps plays without map commentary for either faction. Check that commentary still works in the official campaign.
+
 ## OpenZ-VK 1.5.1 and OpenZ 1.5
 
 - Passed locally: 6,902 simulation and core checks, native WebRTC loopback, 44 installer checks, and preparation and reuse of the complete 1.5 resource package. The published 0.2.22 and 0.2.34 installers also passed resource discovery, migration and reuse against a simulated release feed with the 1.5.1 and 1.6.1 pins.

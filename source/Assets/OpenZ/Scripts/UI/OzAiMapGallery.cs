@@ -20,8 +20,15 @@ namespace OpenZ
         readonly Dictionary<string,Texture> previews=new Dictionary<string,Texture>();
         readonly List<Texture> generatedPreviews=new List<Texture>();
         RectTransform root;
-        OzLevelPreview flyby;
-        RawImage flybyImage;
+        const float ViewportHeight = 570;
+        const float RowHeight = 244;
+        readonly Dictionary<string, OzLevelPreview> flybys = new Dictionary<string, OzLevelPreview>();
+        readonly List<(string id, RawImage image, float top)> videoCards = new List<(string, RawImage, float)>();
+        readonly HashSet<string> visibleFlybys = new HashSet<string>();
+        readonly List<string> hiddenFlybys = new List<string>();
+        RectTransform cardGrid;
+        string selectedFlyby;
+        RawImage flybyImage, flybyBackdrop;
         Action<OzLevelDef> apply;
         Action closed;
         static Sprite warning;
@@ -51,7 +58,9 @@ namespace OpenZ
         public static OzLevelDef Definition(string id) => OzAiMapCatalog.Find(id) is OzAiMap map ? Definition(map) : OzLevelDef.All.FirstOrDefault(d=>d.Id==id);
         void Build()
         {
-            ReleaseFlyby();
+            videoCards.Clear();
+            selectedFlyby = null;
+            flybyImage = flybyBackdrop = null;
             foreach(var go in content) { go.SetActive(false); Destroy(go); } content.Clear();
             var shade=Hud.Img(root,"Modal background",new Color(0,0,0,.94f)); shade.rectTransform.Fill(); shade.raycastTarget=true; content.Add(shade.gameObject);
             var panel=Hud.Node("Gallery",root); panel.TL(80,70,1760,940); content.Add(panel.gameObject);
@@ -73,17 +82,27 @@ namespace OpenZ
             var maps = group == "OPENZ" ? OzLevelDef.All.Where(d => world == "all" || World(d.Id) == world).ToArray()
                 : OzAiMapCatalog.Select(solo, group, world, sort).Select(Definition).ToArray();
             Label(panel,maps.Length+" MAPS",24,278,800,15,OzUi.Muted);
-            var viewport=Hud.Node("Map viewport",panel); viewport.TL(24,310,1120,570); viewport.gameObject.AddComponent<RectMask2D>();
+            var viewport=Hud.Node("Map viewport",panel); viewport.TL(24,310,1120,ViewportHeight); viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>(); background.color=OzUi.GM950;
-            var grid=Hud.Node("Cards",viewport); grid.TL(0,0,1120,Mathf.Max(570,Mathf.Ceil(maps.Length/4f)*244));
+            var grid=Hud.Node("Cards",viewport); grid.TL(0,0,1120,Mathf.Max(ViewportHeight,Mathf.Ceil(maps.Length/4f)*RowHeight));
+            cardGrid = grid;
             var scroll=viewport.gameObject.AddComponent<ScrollRect>(); scroll.viewport=viewport; scroll.content=grid; scroll.horizontal=false; scroll.vertical=true; scroll.movementType=ScrollRect.MovementType.Clamped; scroll.scrollSensitivity=40; scroll.verticalNormalizedPosition=scrollPosition; scroll.onValueChanged.AddListener(p=>scrollPosition=p.y);
             for(int i=0;i<maps.Length;i++)
             {
                 var map=maps[i]; var entry=OzAiMapCatalog.Find(map.Id); bool active=selected==map.Id;
-                var card=Button(grid,"",i%4*280,i/4*244,266,()=>{selected=map.Id;Build();},active,true,230);
+                float top = i / 4 * RowHeight;
+                var card=Button(grid,"",i%4*280,top,266,()=>{selected=map.Id;Build();},active,true,230);
                 card.name = "MAP " + map.Id;
                 var mini=Hud.Node("Minimap",card).gameObject.AddComponent<RawImage>(); mini.texture=Preview(map.Id); float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float width=Mathf.Min(250,155*ratio),height=width/ratio; mini.rectTransform.TL(8+(250-width)/2,8+(155-height)/2,width,height); mini.raycastTarget=false;
                 if(mini.texture) mini.uvRect=new Rect(0,0,1,1);
+                if (entry != null)
+                {
+                    var video = Hud.Node("Preview video", card).gameObject.AddComponent<RawImage>();
+                    video.rectTransform.TL(8, 8, 250, 155);
+                    video.raycastTarget = false;
+                    video.enabled = false;
+                    videoCards.Add((map.Id, video, top + 8));
+                }
                 InlineTitle(card,"Map title",entry?.Title ?? map.Id+" · "+map.Name,10,166,246,32,17);
                 Label(card,World(map.Id).ToUpperInvariant()+" · "+(entry?.Variant ?? "OPENZ"),10,204,246,12,OzUi.Muted);
                 if(entry!=null && !solo && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
@@ -93,6 +112,15 @@ namespace OpenZ
             if(chosen!=null)
             {
                 var entry=OzAiMapCatalog.Find(selected);
+                selectedFlyby = chosen.Id;
+                if (entry != null)
+                {
+                    flybyBackdrop = Hud.Node("Selected map background", panel).gameObject.AddComponent<RawImage>();
+                    flybyBackdrop.rectTransform.TL(1160, 278, 588, 582);
+                    flybyBackdrop.color = new Color(1, 1, 1, .2f);
+                    flybyBackdrop.raycastTarget = false;
+                    flybyBackdrop.enabled = false;
+                }
                 InlineTitle(panel,"Selected map title",entry?.Title ?? chosen.Id+" · "+chosen.Name,1180,292,550,42,25);
                 var mini=Hud.Node("Selected minimap",panel).gameObject.AddComponent<RawImage>(); mini.texture=Preview(selected); mini.raycastTarget=false;
                 float ratio = mini.texture ? (float)mini.texture.width / mini.texture.height : 1;
@@ -102,9 +130,7 @@ namespace OpenZ
                 window.TL(1314, 642, 272, 153);
                 flybyImage = window.gameObject.AddComponent<RawImage>();
                 flybyImage.raycastTarget = false;
-                flyby = OzLevelPreview.Create(window, selected);
-                flybyImage.texture = flyby.Poster ? flyby.Poster : Texture2D.blackTexture;
-                flyby.PlayFrom(0, true);
+                flybyImage.texture = Texture2D.blackTexture;
                 if (entry != null) OzAiMapBadge.Stamp(window, 272);
                 Label(panel, (entry?.Group ?? "OPENZ") + " · " + World(selected).ToUpperInvariant(), 1180, 805, 550, 14, OzUi.Amber);
                 Button(panel, solo ? "DEPLOY" : "APPLY MAP", 1180, 875, 550, () => Deploy(chosen, apply), true, editable);
@@ -148,18 +174,56 @@ namespace OpenZ
         }
         void Update()
         {
+            visibleFlybys.Clear();
+            if (selectedFlyby != null)
+            {
+                var selectedPreview = ShowFlyby(selectedFlyby);
+                var frame = selectedPreview.Sharp;
+                SetVideo(flybyImage, frame ? frame : Texture2D.blackTexture);
+                if (flybyBackdrop) SetVideo(flybyBackdrop, frame);
+            }
+            float scrollTop = cardGrid.anchoredPosition.y;
+            foreach (var card in videoCards)
+            {
+                bool visible = card.top < scrollTop + ViewportHeight && card.top + card.image.rectTransform.rect.height > scrollTop;
+                Texture frame = null;
+                if (visible)
+                {
+                    var preview = ShowFlyby(card.id);
+                    if (preview.StallGuard() && preview.ShowingVideo) frame = preview.Frame;
+                }
+                SetVideo(card.image, frame);
+            }
+            hiddenFlybys.Clear();
+            foreach (var pair in flybys)
+                if (!visibleFlybys.Contains(pair.Key))
+                {
+                    pair.Value.Release();
+                    hiddenFlybys.Add(pair.Key);
+                }
+            foreach (var id in hiddenFlybys) flybys.Remove(id);
             OzLevelPreview.PumpPrepares();
-            if (flybyImage && flyby?.Sharp is Texture frame) flybyImage.texture = frame;
             if (Keyboard.current?.escapeKey.wasPressedThisFrame == true) Close();
         }
 
-        void ReleaseFlyby()
+        OzLevelPreview ShowFlyby(string id)
         {
-            flyby?.Release();
-            flyby = null;
-            flybyImage = null;
+            visibleFlybys.Add(id);
+            if (flybys.TryGetValue(id, out var preview)) return preview;
+            preview = OzLevelPreview.Create(transform, id);
+            preview.PlayFrom(0, true);
+            flybys.Add(id, preview);
+            return preview;
+        }
+
+        static void SetVideo(RawImage image, Texture frame)
+        {
+            image.enabled = frame;
+            image.texture = frame;
+            if (frame) image.uvRect = OzLevelPreview.Cover((float)frame.width / frame.height,
+                image.rectTransform.rect.width / image.rectTransform.rect.height);
         }
         void Close() { IsOpen=false; var callback=closed; closed=null; gameObject.SetActive(false); Destroy(gameObject); callback?.Invoke(); }
-        void OnDestroy() { ReleaseFlyby(); IsOpen=false; foreach(var texture in generatedPreviews) if(texture) Destroy(texture); closed?.Invoke(); }
+        void OnDestroy() { foreach (var preview in flybys.Values) preview.Release(); IsOpen=false; foreach(var texture in generatedPreviews) if(texture) Destroy(texture); closed?.Invoke(); }
     }
 }

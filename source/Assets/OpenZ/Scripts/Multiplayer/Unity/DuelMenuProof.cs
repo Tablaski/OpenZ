@@ -291,7 +291,8 @@ namespace OpenZ.Multiplayer
                         var gallery = FindFirstObjectByType<OzAiMapGallery>();
                         var mini = gallery.GetComponentsInChildren<RawImage>().Single(i => i.name == "Selected minimap");
                         var video = gallery.GetComponentsInChildren<RawImage>().Single(i => i.name == "Map video");
-                        var decoder = gallery.GetComponentInChildren<UnityEngine.Video.VideoPlayer>();
+                        var decoder = gallery.GetComponentsInChildren<UnityEngine.Video.VideoPlayer>()
+                            .SingleOrDefault(p => p.targetTexture == video.texture);
                         if (!decoder || !decoder.isLooping || !decoder.isPlaying || !(video.texture is RenderTexture)
                             || mini.rectTransform.rect.height <= video.rectTransform.rect.height)
                             throw new Exception("The duel AI Maps gallery must show a looping preview and a larger minimap.");

@@ -10,7 +10,9 @@ namespace OpenZ
         HudButton soloAllowedButton, soloTankDynamicsButton, soloRobotDynamicsButton;
         HudButton catalogButton;
         bool aiCampaign, experimentalCampaign;
+        bool[] aiPreviewVisible;
         int officialCard, aiCard, experimentalCard;
+        internal bool ShowingAiMaps => aiCampaign;
 
         void BuildSelectionWordmark(RectTransform parent)
         {
@@ -72,6 +74,7 @@ namespace OpenZ
             levels = converted ? OzAiMapCatalog.Select(true).Where(map => map.Experimental == experimental)
                 .Select(OzAiMapGallery.Definition).ToArray() : OzLevelDef.All;
             int count = levels.Length;
+            aiPreviewVisible = converted ? new bool[count] : null;
             cardPeekK = new float[count];
             liveK = new float[count];
             cardHoverK = new float[count];
@@ -110,6 +113,7 @@ namespace OpenZ
             SetCampaignLevels(converted, experimental);
             focusCard = Mathf.Clamp(experimental ? experimentalCard : converted ? aiCard : officialCard, 0, levels.Length - 1);
             hoverCard = bgLevel = bgFrom = -1;
+            lastCardClick = -1;
             carFirst = 0;
             hsOpen = false;
             hsBlocks = null;
@@ -117,6 +121,19 @@ namespace OpenZ
             if (root) root.gameObject.SetActive(false);
             Build();
             FocusCard(focusCard, true, true);
+        }
+
+        void TickAiCardPreview(int i)
+        {
+            bool visible = i == focusCard || !carOn || OzLevelCarousel.InWindow(carSlots, carVis, i, carScroll);
+            var preview = previews[i];
+            if (visible != aiPreviewVisible[i])
+            {
+                aiPreviewVisible[i] = visible;
+                if (!visible) preview.Pause();
+                else if (i != bgLevel) preview.PlayFrom(-1, true);
+            }
+            if (visible) preview.StallGuard();
         }
 
         public void ProofOpenSoloAllowed() =>

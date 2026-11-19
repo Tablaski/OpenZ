@@ -628,7 +628,8 @@ namespace OpenZ
             if (BlueCommsRules(view, now)) return;                                                     // 1.2 item 48: PLAY AS BLUE ticked: no Zod on the battlefield screen, the blue channel's card (ZodBriefing.BlueComms.cs)
             if (perf != null)
             {
-                bool leave = perf.kind == Kind.Greeting ? view != "Main" || side != "None" : perf.kind == Kind.Quip && view != "Select";
+                bool leave = perf.kind == Kind.Greeting ? view != "Main" || side != "None"
+                    : perf.kind == Kind.Quip && (view != "Select" || menu.ShowingAiMaps);
                 if (leave && perf.fadeSpeed <= 0f) { perf.Abort(0.3f); Debug.Log("[ZodCameo] menu view changed: " + perf.id + " fades out"); }
                 return;
             }
@@ -641,7 +642,7 @@ namespace OpenZ
                 StartPerf(Kind.Greeting, "zod_menu_greeting", ZodLayout.Menu(), linePreroll);
                 return;
             }
-            if (view == "Select" && fFocus != null)
+            if (view == "Select" && !menu.ShowingAiMaps && fFocus != null)
             {
                 int f = MenuFocus();
                 if (f != lastFocus) { lastFocus = f; focusSince = now; }

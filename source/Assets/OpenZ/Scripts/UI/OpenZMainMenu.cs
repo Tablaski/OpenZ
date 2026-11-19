@@ -952,6 +952,17 @@ namespace OpenZ
         /// <summary>Show level `to` in the background: start its clip at `t` and cross-fade from the current one.</summary>
         void SwitchBg(int to, double t, bool loop, float fade, bool keepPlaying = false)
         {
+            if (aiCampaign && view == View.Select)
+            {
+                bgLevel = to;
+                bgFrom = -1;
+                bgWaitFrame = false;
+                bgRotateFrom = false;
+                bgShownAt = OzMotion.Now;
+                if (!aiPreviewVisible[to]) previews[to].PlayFrom(-1, true);
+                aiPreviewVisible[to] = true;
+                return;
+            }
             if (to == bgLevel && keepPlaying) { if (previews[to].VideoOk) previews[to].Player.isLooping = loop; return; }
             if (to != bgLevel) { if (bgFrom >= 0 && bgFrom != to) { if (bgRotateFrom) previews[bgFrom].NextClip(); else previews[bgFrom].Pause(); } bgFrom = bgLevel; bgLevel = to; }   // 1.4: a cut still pending (a second switch within its wait for the first frame): the level it was leaving stops now, as that cut would have (TickBackground), never left decoding unseen
             bgRotateFrom = false;
@@ -1269,6 +1280,7 @@ namespace OpenZ
             TickCarousel(dt);                                                                                // 1.3 item 30: the carousel's slide, arrows and page bars (UI/OpenZMainMenu.Carousel.cs)
             for (int i = 0; i < cards.Length; i++)
             {
+                if (aiCampaign) TickAiCardPreview(i);
                 var c = cards[i]; var p = previews[i];
                 bool on = i == focusCard;
                 // brightens its picture and draws a faint outline (peek), it never moves the selection
@@ -1284,7 +1296,7 @@ namespace OpenZ
                 SetAlpha(c.frameH, OzKit.GetSprite("Select/card_frame_hover") != null ? e + HoverCardK * pk : 0f);
                 c.previewChip.alpha = previewAny(i) ? e : 0f;                                             // a level without a picture or clip shows no PREVIEW chip
                 // image: poster at 72 % brightness, 55 % saturation (grey wash) until hovered; the clip fades in over it
-                bool showLive = on && p.ShowingVideo && bgLevel == i;
+                bool showLive = p.ShowingVideo && (aiCampaign ? aiPreviewVisible[i] : on && bgLevel == i);
                 cardLiveK[i] = Mathf.MoveTowards(cardLiveK[i], showLive ? 1f : 0f, dt / 0.3f);
                 var still = p.Poster != null ? p.Poster : (p.VideoOk && p.Player.frame >= 0 ? (Texture)p.Frame : null);
                 float ca = (float)c.w / Mathf.Max(1f, c.imgH), br = Mathf.Lerp(0.72f, 1f, Mathf.Max(e, 0.55f * pk));
@@ -1304,7 +1316,7 @@ namespace OpenZ
                 }
                 else c.live.enabled = false;
                 SetAlpha(c.desat, 0.22f * (1f - Mathf.Max(e, 0.55f * pk)));
-                bool prog = on && p.ShowingVideo && bgLevel == i;
+                bool prog = showLive;
                 c.progTrack.enabled = prog; c.progFill.enabled = prog;
                 if (prog) c.progFill.fillAmount = p.Progress;
             }

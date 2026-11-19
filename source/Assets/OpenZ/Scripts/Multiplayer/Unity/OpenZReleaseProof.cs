@@ -126,7 +126,7 @@ namespace OpenZ.Multiplayer
                 Require(intact && intact.name.Contains("city_long"), "The native long bridge prefab is missing.");
                 bridge.DoAutoRepair = true;
                 bridge.NextAutoRepairTime = world.Time + 1000;
-                var craneOrder = game.input.OrderFor(crane, bridge, bridge.CenterX, bridge.CenterY);
+                var craneOrder = OpenZHud.I.input.OrderFor(crane, bridge, bridge.CenterX, bridge.CenterY);
                 Require(craneOrder.mode == WpMode.CraneRepair && world.SendWaypoints(game.player, crane, new[] { craneOrder }), "The crane could not take the bridge repair order.");
                 game.gameSpeed = 2;
                 foreach (var step in WaitFor(() => crane.CraneWorking || !bridge.Destroyed, "crane starting its bridge repair", 55)) yield return step;
@@ -190,7 +190,7 @@ namespace OpenZ.Multiplayer
                 .First(p => world.Path.TilePassable(p.Item1, p.Item2, false));
             var robot = world.CreateRobotGroup("psycho", spot.Item1 * 16, spot.Item2 * 16, game.player, 1);
             Require(robot != null && game.SpawnUnitView(robot), "The boarding proof could not place a robot.");
-            var order = game.input.OrderFor(robot, vehicle, vehicle.CenterX, vehicle.CenterY);
+            var order = OpenZHud.I.input.OrderFor(robot, vehicle, vehicle.CenterX, vehicle.CenterY);
             Require(order.mode == WpMode.Enter && world.SendWaypoints(game.player, robot, new[] { order }), "Could not order a robot to board " + vehicle.Type);
             foreach (var step in WaitFor(() => vehicle.Owner == game.player && vehicle.Drivers.Count > 0, "boarding " + vehicle.Type, 25)) yield return step;
         }

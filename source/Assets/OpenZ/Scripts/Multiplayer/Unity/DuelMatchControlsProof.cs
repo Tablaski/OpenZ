@@ -72,7 +72,7 @@ namespace OpenZ.Multiplayer
                 if (online) r.ConnectOnline("HOST", true, ""); else r.Host("HOST", 27889);
                 var rules = DuelRuntime.Defaults("L02");
                 rules.Common.FortTurrets = new[] { "gatling", "gun", "howitzer", "missile_cannon" };
-                rules.Common.StartingUnits.Add("light");
+                rules.Common.StartingUnits[0] = "light";
                 rules.TankDamageEffects = true;
                 rules.RadarLoss = RadarLossRule.FogAndZoom;
                 rules.TankDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();

@@ -144,11 +144,18 @@ namespace OpenZ.Multiplayer
                     Require(world.SendWaypoints(game.player, tank, new[] { ZWaypoint.Move(tank.CenterX + 32, tank.CenterY) }), "The captured tank rejected a movement order: " + type);
                 }
 
+                var binding = OzBindings.DefOf(OzAction.TacticalPause);
+                int? savedKey = PlayerPrefs.HasKey(binding.pref) ? PlayerPrefs.GetInt(binding.pref) : (int?)null;
+                var background = InputSystem.settings.backgroundBehavior;
+                InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+                PlayerPrefs.DeleteKey(binding.pref);
+                OzBindings.Reload();
                 OzTacticalPause.On = true;
                 var keyboard = InputSystem.AddDevice<Keyboard>();
                 try
                 {
                     var key = OzBindings.KeyOf(OzAction.TacticalPause);
+                    Require(key == Key.Space, "The default tactical-pause key is not Space.");
                     keyboard.MakeCurrent();
                     InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
                     foreach (var step in WaitFor(() => OzTacticalPause.Frozen, "tactical freeze from the configured key")) yield return step;
@@ -159,10 +166,17 @@ namespace OpenZ.Multiplayer
                     Require(world.StartBuilding(game.player, fort, differentUnit) && world.SendStop(game.player, crane), "Tactical pause refused an order or production change.");
                     yield return new WaitForSecondsRealtime(.4f);
                     Require(world.Time == time, "The simulation moved during tactical pause.");
+                    keyboard.MakeCurrent();
                     InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
                     foreach (var step in WaitFor(() => !OzTacticalPause.Busy && world.Time > time, "tactical resume from the configured key")) yield return step;
                 }
-                finally { InputSystem.RemoveDevice(keyboard); }
+                finally
+                {
+                    InputSystem.RemoveDevice(keyboard);
+                    InputSystem.settings.backgroundBehavior = background;
+                    if (savedKey.HasValue) PlayerPrefs.SetInt(binding.pref, savedKey.Value);
+                    OzBindings.Reload();
+                }
                 Debug.Log("[Release proof] Tactical pause froze and resumed the real Bridge Game simulation.");
                 CheckDamage(game);
             }

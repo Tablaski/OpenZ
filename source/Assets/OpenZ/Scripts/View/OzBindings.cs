@@ -65,8 +65,8 @@ namespace OpenZ
             D(OzAction.HoldPosition, "Hold position (fire, never chase)", OrderSection, Key.H),
             D(OzAction.HelpOverlay, "Controls help (this list)", UiSection, Key.F1),
             D(OzAction.ArrangeHud, "Arrange the interface (drag the panels)", UiSection, Key.F2),   // OpenZHud.Arrange.cs
-            D(OzAction.TacticalPause, "Tactical pause: freeze / unfreeze time", UiSection, Key.Space),   // 1.5 tactical_pause_megashake: read only while TACTICAL PAUSE is on (View/OzTacticalPause.cs)
             D(OzAction.RestartProduction, OzForkOptions.RestartProductionLabel, OrderSection, Key.None),
+            D(OzAction.TacticalPause, "Tactical pause: freeze / unfreeze time", UiSection, Key.Space),   // 1.5 tactical_pause_megashake: read only while TACTICAL PAUSE is on (View/OzTacticalPause.cs)
         };
 
         static Def D(OzAction a, string label, string section, Key k, bool ctrl = false, bool hold = false)

@@ -10,7 +10,7 @@ namespace OpenZ.Multiplayer.Editor
 {
     public static class DuelBuild
     {
-        [MenuItem("OpenZ/Multiplayer/Build Windows POC")]
+        [MenuItem("OpenZ/Multiplayer/Build Windows Release")]
         public static void Windows()
         {
             ValidateScriptBindings();
@@ -40,12 +40,20 @@ namespace OpenZ.Multiplayer.Editor
             EditorUserBuildSettings.allowDebugging = false;
             EditorUserBuildSettings.connectProfiler = false;
             EditorUserBuildSettings.buildWithDeepProfilingSupport = false;
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            string previousVersion = PlayerSettings.bundleVersion;
+            BuildReport report;
+            try
             {
-                scenes = scenes,
-                target = BuildTarget.StandaloneWindows64, locationPathName = output,
-                options = BuildOptions.CompressWithLz4
-            });
+                PlayerSettings.bundleVersion = OzForkVersion.Number;
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    target = BuildTarget.StandaloneWindows64, locationPathName = output,
+                    options = BuildOptions.CompressWithLz4,
+                    extraScriptingDefines = new[] { OpenZ.EditorTools.OpenZReleaseBuild.Define }
+                });
+            }
+            finally { PlayerSettings.bundleVersion = previousVersion; }
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(output), "BUILD_RESULT.txt"), report.summary.result + "\nErrors: " + report.summary.totalErrors + "\n" + output);
             if (report.summary.result != BuildResult.Succeeded) throw new Exception("Duel player build failed: " + report.summary.result);
             string notices = Path.Combine(Application.dataPath, "../Packages/org.openz.datachannel/Third Party Notices.txt");

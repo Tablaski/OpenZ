@@ -24,7 +24,7 @@ namespace OpenZ
         public bool IsOpen { get; private set; }
         OpenZHud hud; ZGame game; Canvas canvas; RectTransform root, pausePanel, sidePanel, optionsRoot, controlsRoot, optMainPage;
         CanvasGroup rootCg; Image dim; OzPost post; float openAt = -10f, closeAt = -10f; bool closing, wasPaused; float prevScale = 1f;
-        OzText sub; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport;
+        OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch;
         bool showControls;
         readonly List<HudButton> speedBtns = new List<HudButton>();
         public static readonly float[] Speeds = { 0.25f, 0.5f, 0.75f, 1f, 1.5f, 2f, 4f };   // rising; also the steps of the + and - keys (OzSpeedKeys)
@@ -81,7 +81,7 @@ namespace OpenZ
                 else b.Rt.Place(new OzRect(OzLayout.PauseBtnX, OzLayout.PauseBtnY0 + OzLayout.PauseBtnStep * bi++, OzLayout.PauseBtnW, OzLayout.PauseBtnH));
                 b.Priority = 100; b.OnClick = c => act(); return b;
             }
-            bResume = Big("RESUME", HudButtonStyle.Primary, Close);
+            bResume = Big(duel ? "BACK TO MATCH" : "RESUME", HudButtonStyle.Primary, Close);
             Hud.Keycap(bResume.Content, "Esc", "ESC", OzLayout.PauseBtnW - 10, (OzLayout.PauseBtnH - 14) * 0.5f);
             bOptions = Big("OPTIONS", HudButtonStyle.Normal, () => { if (showControls) OzSfx.Ui("ui_tab_switch"); showControls = false; });
             bControls = Big("CONTROLS", HudButtonStyle.Normal, () => { if (!showControls) OzSfx.Ui("ui_tab_switch"); showControls = true; buildKeyOptions?.Cancel(); });
@@ -90,7 +90,23 @@ namespace OpenZ
             {
                 bRestart.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.RequestRestart(); };
                 bRestart.Tooltip = "Ask your opponent to restart this map. Both players must agree.";
-                Big("SURRENDER", HudButtonStyle.Danger, () => OzConfirm.Ask("SURRENDER THE DUEL?", "YOUR FORT WILL EXPLODE. YOUR OPPONENT WINS.", () => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Surrender(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+                float row = 119 + 45 * bi;
+                float halfWidth = (OzLayout.PauseBtnW - 8) * .5f;
+                var surrender = Big("SURRENDER", HudButtonStyle.Danger, () => OzConfirm.Ask("SURRENDER THE DUEL?", "YOUR FORT WILL EXPLODE. YOUR OPPONENT WINS.", () => { Close(); OpenZ.Multiplayer.DuelRuntime.I.Surrender(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+                surrender.Rt.TL(OzLayout.PauseBtnX, row, halfWidth, 41);
+                bi--;
+                bPauseMatch = Big("PAUSE MATCH", HudButtonStyle.Normal, () =>
+                {
+                    var runtime = OpenZ.Multiplayer.DuelRuntime.I;
+                    if (!runtime.CanPauseMatch) return;
+                    OzConfirm.Ask("This will annoy your opponent.", "Pause the game ?", () =>
+                    {
+                        if (!runtime.CanPauseMatch) return;
+                        Close();
+                        runtime.RequestPauseMatch();
+                    }, id => OzSfx.Ui(id), canvas.sortingOrder + 10);
+                });
+                bPauseMatch.Rt.TL(OzLayout.PauseBtnX + halfWidth + 8, row, halfWidth, 41);
                 Big(OpenZ.Multiplayer.DuelRuntime.I.IsHost ? "CHANGE MAP" : "ASK TO CHANGE MAP", HudButtonStyle.Normal,
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
@@ -104,7 +120,7 @@ namespace OpenZ
             bReport = HudButton.Make(pausePanel, "BtnReportBug", "REPORT A BUG  ↗", new Vector2(OzLayout.PauseBtnW, 36f), HudButtonKind.Small, 11, 0.16f);
             bReport.Rt.Place(new OzRect(OzLayout.PauseBtnX, OpenZ.Multiplayer.DuelRuntime.Active ? 482 : OzLayout.PauseBtnY0 + OzLayout.PauseBtnStep * bi + 4f, OzLayout.PauseBtnW, 36f));
             bReport.Priority = 100; bReport.OnClick = c => OzFeedback.Open("pause menu");
-            Hud.Label(pausePanel, "Foot", OpenZ.Multiplayer.DuelRuntime.Active ? "ONLINE MATCH CONTINUES WHILE THIS MENU IS OPEN" : "GAME TIME IS FROZEN WHILE PAUSED", 9, OzUi.Dim, 0.2f, OzStyle.Plain).At(OzLayout.PauseBtnX, OzLayout.PauseFootY);
+            matchMenuFoot = Hud.Label(pausePanel, "Foot", duel ? "ONLINE MATCH CONTINUES WHILE THIS MENU IS OPEN" : "GAME TIME IS FROZEN WHILE PAUSED", 9, OzUi.Dim, 0.2f, OzStyle.Plain).At(OzLayout.PauseBtnX, OzLayout.PauseFootY);
 
             // ---- side panel: options / controls
             sidePanel = Hud.Node("SidePanel", root).Place(new OzRect(OzAnchor.TC, cx + OzLayout.OptionsDX, OzLayout.PauseY, OzLayout.PauseW, OzLayout.PauseH));
@@ -458,6 +474,13 @@ namespace OpenZ
             if (Time.unscaledTime < audioRetryUntil && Time.unscaledTime > nextAudioRetry) { nextAudioRetry = Time.unscaledTime + 2f; OzAudio.Apply(); }   // the audio table may load after the HUD
             if (IsOpen)
             {
+                if (bPauseMatch != null)
+                {
+                    var runtime = OpenZ.Multiplayer.DuelRuntime.I;
+                    if (bPauseMatch.Interactable != runtime.CanPauseMatch)
+                    { bPauseMatch.Interactable = runtime.CanPauseMatch; bPauseMatch.Refresh(); }
+                    matchMenuFoot.Set(runtime.MatchPaused ? "MATCH PAUSED" : "ONLINE MATCH CONTINUES WHILE THIS MENU IS OPEN");
+                }
                 float k = OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short)));
                 rootCg.alpha = k; if (post != null) post.Weight = k;
                 pausePanel.localScale = sidePanel.localScale = Vector3.one * Mathf.Lerp(0.96f, 1f, k);

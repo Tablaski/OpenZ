@@ -8,6 +8,7 @@ Invite a friend to a 1 vs 1 duel with a magic link, try optional production rule
 
 - OpenZ 1.5 brings Bridge Game, the Mammoth and Bizon tanks, and tactical pause in solo battles. The official Bridge Game replaces both AI versions in solo and 1 vs 1.
 - In 1 vs 1, the host can exclude the Mammoth and Bizon separately under Allowed Units. Excluded tanks do not appear on Bridge Game.
+- In 1 vs 1, either player can pause from the match menu after confirming. Both armies, cameras and the match clock stop. The menus, chat and voice stay available. The player who paused can resume the match.
 - Turn on Damaged Tank Shake, Damaged Tank Oil Trails, or both. Each effect starts at 30% health and intensifies as health drops. Oil trails appear while tanks move.
 - AI Maps previews now cut between wide map views, low passes between forts and sweeping views of each battlefield's landmarks.
 - The 1 vs 1 match menu now makes it clear that the battle keeps running, with more space around the options tab labels.

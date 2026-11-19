@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -53,7 +54,7 @@ namespace OpenZ.Multiplayer
                 catch (Exception error) { Finish("FAIL: " + error); yield break; }
                 yield return item;
             }
-            if (!done) Finish("PASS: fort placement, map decline and acceptance, chat, frozen rules, reconnection and consensual lobby return.");
+            if (!done) Finish("PASS: manual pause from both seats, confirmation and ownership, frozen time and inputs, menus, chat and voice, fort placement, map changes, reconnection while paused and lobby return.");
         }
         IEnumerable Run()
         {
@@ -71,6 +72,7 @@ namespace OpenZ.Multiplayer
                 if (online) r.ConnectOnline("HOST", true, ""); else r.Host("HOST", 27889);
                 var rules = DuelRuntime.Defaults("L02");
                 rules.Common.FortTurrets = new[] { "gatling", "gun", "howitzer", "missile_cannon" };
+                rules.Common.StartingUnits.Add("light");
                 rules.TankDamageEffects = true;
                 rules.RadarLoss = RadarLossRule.FogAndZoom;
                 rules.TankDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();
@@ -124,6 +126,8 @@ namespace OpenZ.Multiplayer
                 r.Menus.CloseOverlay();
             }
             foreach (var step in Sync("pause-menu")) yield return step;
+            foreach (var step in CheckManualPause(true)) yield return step;
+            foreach (var step in CheckManualPause(false)) yield return step;
             if (!host) r.RequestMapChange();
             foreach (var step in WaitFor(() => r.CurrentMatchRequest == DuelRuntime.MatchRequestKind.Map, "guest map request")) yield return step;
             yield return new WaitForSecondsRealtime(.25f);
@@ -235,15 +239,22 @@ namespace OpenZ.Multiplayer
                     foreach (var frame in CaptureRadarReveal(world, scout, enemy, loss, camera)) yield return frame;
                 }
                 yield return null;
-                r.ProofInterruptMatch();
+                r.RequestPauseMatch();
             }
+            foreach (var step in WaitFor(() => r.MatchPaused, "pause before interruption", radarVideo ? 85 : 13)) yield return step;
+            Shot("paused-before-interruption");
+            foreach (var step in Sync("paused-before-interruption")) yield return step;
+            if (host) r.ProofInterruptMatch();
             foreach (var step in WaitFor(() => r.ConnectionInterrupted, "connection interruption", radarVideo ? 85 : 13)) yield return step;
             yield return null;
             Shot("reconnect-countdown");
-            foreach (var step in WaitFor(() => r.Playing && r.Connected && !r.MatchSuspended, "reconnection and full state sync", 34)) yield return step;
+            foreach (var step in WaitFor(() => r.Playing && r.Connected && !r.ConnectionInterrupted, "reconnection and full state sync", 34)) yield return step;
+            Check(r.MatchPaused && r.OwnsMatchPause == host, "Reconnection changed the manual pause or its owner.");
             yield return null;
             Shot("reconnected");
             foreach (var step in Sync("reconnected")) yield return step;
+            if (host) r.ResumePausedMatch();
+            foreach (var step in WaitFor(() => !r.MatchSuspended, "resume after reconnection")) yield return step;
             if (!host) r.RequestLobbyReturn();
             foreach (var step in WaitFor(() => r.CurrentMatchRequest == DuelRuntime.MatchRequestKind.Lobby, "return request")) yield return step;
             yield return null;
@@ -253,6 +264,79 @@ namespace OpenZ.Multiplayer
             foreach (var step in WaitFor(() => r.View?.Phase == (int)DuelPhase.Lobby && SceneManager.GetActiveScene().name == "MainMenu", "lobby return", 30)) yield return step;
             yield return new WaitForSecondsRealtime(.4f);
             Shot("returned");
+        }
+
+        IEnumerable CheckManualPause(bool hostPauses)
+        {
+            var r = Runtime;
+            string label = hostPauses ? "host-manual-pause" : "guest-manual-pause";
+            bool owner = host == hostPauses;
+            if (owner)
+            {
+                r.Menus.ShowInGameMenu();
+                yield return null;
+                var menu = FindFirstObjectByType<OpenZPauseMenu>();
+                var pauseButton = typeof(OpenZPauseMenu).GetField("bPauseMatch", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(menu) as HudButton;
+                Check(menu && menu.IsOpen && pauseButton != null && pauseButton.Interactable, "The match menu did not offer pause.");
+                pauseButton.OnClick(default);
+                Check(OzConfirm.IsOpen && !r.MatchPaused, "Pause took effect before confirmation.");
+                OzConfirm.ProofAnswer(false);
+                Check(!r.MatchPaused && menu.IsOpen, "Declining pause changed the match.");
+                yield return null;
+                pauseButton.OnClick(default);
+                OzConfirm.ProofAnswer(true);
+            }
+            foreach (var step in WaitFor(() => r.MatchPaused, label)) yield return step;
+            yield return null;
+            Check(Time.timeScale == 0 && r.OwnsMatchPause == owner && r.MatchPausePlayer == (hostPauses ? "HOST" : "GUEST"), "The pause was not synchronized to the correct player.");
+            var world = r.Game.World;
+            var camera = FindFirstObjectByType<RtsCamera>();
+            var focus = camera.focus;
+            var position = camera.transform.position;
+            double time = world.Time;
+            var unit = world.Objects.First(o => o.IsUnit && o.IsMobile && o.Owner == r.LocalTeam);
+            var fort = world.Objects.First(o => o.IsFort && o.Owner == r.LocalTeam);
+            camera.DragPixels(new Vector2(120, -50));
+            camera.ZoomBy(.5f);
+            camera.SetHeightImmediate(20);
+            Check(RtsCamera.InputLocked && !world.SendWaypoints(r.LocalTeam, unit, new[] { ZWaypoint.Move(unit.CenterX + 64, unit.CenterY) }) &&
+                !world.AddBuildingQueue(r.LocalTeam, fort, "grunt"), "A gameplay input was accepted during pause.");
+            if (!owner) r.ResumePausedMatch();
+            yield return new WaitForSecondsRealtime(.25f);
+            Check(r.MatchPaused && world.Time == time && camera.focus == focus && camera.transform.position == position, "Camera, time or pause ownership changed while paused.");
+            Check(r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "RESUME MATCH") == owner, "Resume button has the wrong owner.");
+            Shot(label);
+
+            Click("MATCH MENU");
+            yield return null;
+            var nativeMenu = FindFirstObjectByType<OpenZPauseMenu>();
+            Check(nativeMenu && nativeMenu.IsOpen, "Match menu is inaccessible while paused.");
+            nativeMenu.OpenOptions(OpenZPauseMenu.MicrophoneTab);
+            yield return null;
+            Check(nativeMenu.IsOpen, "Microphone menu is inaccessible while paused.");
+            r.Menus.CloseOverlay();
+            yield return null;
+            Click("CHAT");
+            yield return null;
+            Check(r.Menus.GetComponentsInChildren<InputField>().Any(), "Chat is inaccessible while paused.");
+            r.SendChat(label + " " + role);
+            int received = r.Voice.FramesReceived;
+            var tone = new float[DuelVoiceCodec.FrameSamples];
+            for (int i = 0; i < tone.Length; i++) tone[i] = .005f * Mathf.Sin(2 * Mathf.PI * 440 * i / DuelVoiceCodec.SampleRate);
+            foreach (var step in WaitFor(() =>
+            {
+                r.Voice.SendProofFrame(tone);
+                return r.Voice.FramesReceived > received && r.Chat.Any(line => line.Contains(label + " " + Other));
+            }, "chat and voice while paused")) yield return step;
+            Check(r.MatchPaused && world.Time == time, "Communication advanced match time.");
+            r.Menus.CloseOverlay();
+            yield return null;
+            Shot(label + "-communication");
+            foreach (var step in Sync(label + "-communication")) yield return step;
+            if (owner) Click("RESUME MATCH");
+            foreach (var step in WaitFor(() => !r.MatchPaused && world.Time > time, "authoritative resume")) yield return step;
+            Shot(label + "-resumed");
+            foreach (var step in Sync(label + "-resumed")) yield return step;
         }
         IEnumerable Sync(string shot) => WaitFor(() => File.Exists(FileFor(Other, shot, ".png")), shot + " on both sides", 30);
         IEnumerable WaitFor(Func<bool> ready, string message, double seconds = 12)

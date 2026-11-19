@@ -5,6 +5,8 @@ using System.Linq;
 using System.Reflection;
 using OpenZ.Sim;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
 
 namespace OpenZ.Multiplayer
 {
@@ -41,7 +43,7 @@ namespace OpenZ.Multiplayer
                 }
             }
             finally { (checks as IDisposable)?.Dispose(); }
-            var result = failure == null ? "PASS: production identity, both changelog tabs, native AI map videos, Bridge Game, tactical pause, independent oil and shake." : "FAIL: " + failure;
+            var result = failure == null ? "PASS: production identity, both changelog tabs, native AI map videos, Bridge Game crane repair and tank boarding, tactical-pause key, independent oil and shake." : "FAIL: " + failure;
             File.WriteAllText(Path.Combine(folder, "result.txt"), result);
             Debug.Log(result);
             OzQuit.ExitCode = failure == null ? 0 : 1;
@@ -108,24 +110,59 @@ namespace OpenZ.Multiplayer
                     world.Objects.Any(o => o.Type == ZBigTanks.Bizon && o.Owner == Team.Neutral), "The native Bridge Game starting vehicles are missing.");
                 var bridges = world.Objects.Where(o => o.IsBridge && o.Destroyed && OzBridgeKit.Tiles(o) >= OzBridgeKit.LongFromTiles).ToArray();
                 Require(bridges.Length >= 3, "Bridge Game is missing its three breached long bridges.");
-                var bridge = bridges[0];
+                var repair = (from candidate in bridges
+                              from unit in world.Objects
+                              where unit.Type == "crane" && (unit.Owner == game.player || unit.Owner == Team.Neutral) &&
+                                    unit.CraneLandEndPick(candidate, out _, out _)
+                              orderby (candidate.CenterX - unit.CenterX) * (candidate.CenterX - unit.CenterX) +
+                                      (candidate.CenterY - unit.CenterY) * (candidate.CenterY - unit.CenterY)
+                              select (bridge: candidate, crane: unit)).FirstOrDefault();
+                var (bridge, crane) = repair;
+                Require(bridge != null && crane != null, "No starting crane could reach a breached bridge.");
+                if (crane.Owner == Team.Neutral)
+                    foreach (var step in BoardVehicle(game, crane)) yield return step;
                 var rulesView = game.GetComponent<RulesView>();
                 var intact = OzBridgeKit.Prefab(game, bridge, "intact");
                 Require(intact && intact.name.Contains("city_long"), "The native long bridge prefab is missing.");
-                bridge.SetHealth(bridge.MaxHealth);
-                world.UpdateObjectHealth(bridge);
+                bridge.DoAutoRepair = true;
+                bridge.NextAutoRepairTime = world.Time + 1000;
+                var craneOrder = game.input.OrderFor(crane, bridge, bridge.CenterX, bridge.CenterY);
+                Require(craneOrder.mode == WpMode.CraneRepair && world.SendWaypoints(game.player, crane, new[] { craneOrder }), "The crane could not take the bridge repair order.");
+                game.gameSpeed = 2;
+                foreach (var step in WaitFor(() => crane.CraneWorking || !bridge.Destroyed, "crane starting its bridge repair", 55)) yield return step;
+                Require(crane.CraneWorking && crane.CraneLandEndDry(bridge, crane.CenterX, crane.CenterY), "The crane did not repair from the bank.");
+                foreach (var step in WaitFor(() => !bridge.Destroyed, "crane completing its bridge repair", 55)) yield return step;
+                game.gameSpeed = 1;
                 foreach (var step in WaitFor(() => rulesView.BridgeModels(bridge)[0].activeInHierarchy, "restored long bridge")) yield return step;
                 Require(world.Path.TilePassable(bridge.CenterX / 16, bridge.CenterY / 16, false), "The restored bridge rejected vehicle pathing.");
-                Debug.Log("[Release proof] Official Bridge Game deployed with both big tanks. Long bridge visual and pathing recovered.");
+                Debug.Log("[Release proof] Crane repaired the official long bridge from the bank. Visual and pathing recovered.");
+
+                foreach (string type in ZBigTanks.Types)
+                {
+                    var tank = world.Objects.Single(unit => unit.Type == type && unit.Owner == Team.Neutral);
+                    foreach (var step in BoardVehicle(game, tank)) yield return step;
+                    Require(world.SendWaypoints(game.player, tank, new[] { ZWaypoint.Move(tank.CenterX + 32, tank.CenterY) }), "The captured tank rejected a movement order: " + type);
+                }
 
                 OzTacticalPause.On = true;
-                OzTacticalPause.TestPress();
-                foreach (var step in WaitFor(() => OzTacticalPause.Frozen, "tactical freeze")) yield return step;
-                double time = world.Time;
-                yield return new WaitForSecondsRealtime(.4f);
-                Require(world.Time == time, "The simulation moved during tactical pause.");
-                OzTacticalPause.TestPress();
-                foreach (var step in WaitFor(() => !OzTacticalPause.Busy && world.Time > time, "tactical resume")) yield return step;
+                var keyboard = InputSystem.AddDevice<Keyboard>();
+                try
+                {
+                    var key = OzBindings.KeyOf(OzAction.TacticalPause);
+                    keyboard.MakeCurrent();
+                    InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
+                    foreach (var step in WaitFor(() => OzTacticalPause.Frozen, "tactical freeze from the configured key")) yield return step;
+                    double time = world.Time;
+                    InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+                    var fort = world.Objects.First(o => o.IsFort && o.Owner == game.player);
+                    var differentUnit = world.ProductionUnits(fort).First(type => type != fort.CurUnit);
+                    Require(world.StartBuilding(game.player, fort, differentUnit) && world.SendStop(game.player, crane), "Tactical pause refused an order or production change.");
+                    yield return new WaitForSecondsRealtime(.4f);
+                    Require(world.Time == time, "The simulation moved during tactical pause.");
+                    InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
+                    foreach (var step in WaitFor(() => !OzTacticalPause.Busy && world.Time > time, "tactical resume from the configured key")) yield return step;
+                }
+                finally { InputSystem.RemoveDevice(keyboard); }
                 Debug.Log("[Release proof] Tactical pause froze and resumed the real Bridge Game simulation.");
                 CheckDamage(game);
             }
@@ -143,6 +180,19 @@ namespace OpenZ.Multiplayer
                 OzMotion.Reduced = reduced;
                 PlayerPrefs.Save();
             }
+        }
+
+        static IEnumerable BoardVehicle(ZGame game, ZObject vehicle)
+        {
+            var world = game.World;
+            int tx = vehicle.CenterX / 16, ty = vehicle.CenterY / 16;
+            var spot = new[] { (tx - 3, ty), (tx + 3, ty), (tx, ty - 3), (tx, ty + 3) }
+                .First(p => world.Path.TilePassable(p.Item1, p.Item2, false));
+            var robot = world.CreateRobotGroup("psycho", spot.Item1 * 16, spot.Item2 * 16, game.player, 1);
+            Require(robot != null && game.SpawnUnitView(robot), "The boarding proof could not place a robot.");
+            var order = game.input.OrderFor(robot, vehicle, vehicle.CenterX, vehicle.CenterY);
+            Require(order.mode == WpMode.Enter && world.SendWaypoints(game.player, robot, new[] { order }), "Could not order a robot to board " + vehicle.Type);
+            foreach (var step in WaitFor(() => vehicle.Owner == game.player && vehicle.Drivers.Count > 0, "boarding " + vehicle.Type, 25)) yield return step;
         }
 
         static void CheckDamage(ZGame game)

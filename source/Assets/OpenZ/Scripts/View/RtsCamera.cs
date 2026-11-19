@@ -130,7 +130,7 @@ namespace OpenZ
         /// (Replay / next level / menu load a new scene, which releases it), the player cannot move the view: WASD / arrows, screen-edge
         /// scroll, middle-button drag, wheel zoom and every FlyTo (minimap clicks, message / factory toasts, Space, group double taps,
         /// next-unit keys) are ignored. Only the ending's own camera (follow, ZoomTo, yaw) moves it. Counters for the Play check.</summary>
-        public static bool InputLocked => OpenZEnding.LocksCamera;
+        public static bool InputLocked => OpenZEnding.LocksCamera || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused;
         public static int LockedFlyTos, LockedInputs;
         // clamped area never arrived (the focus is clamped every frame, the target was not), and keys were ignored while flying. Now the
         // target is clamped with the focus, any pan key cancels a fly-to or a follow, and a fly-to ends after FlyTimeout s at the latest.
@@ -162,7 +162,7 @@ namespace OpenZ
         // duel camera input capture
             void Update()
         {
-            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
+            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return;
             if (!Application.isPlaying) { Place(); return; }
             if (OzFpsView.HoldsCamera) return;                                                   // 1.4 fps_view: the first-person view has the camera (View/OzFpsView.cs); false while it is off
             if (targetHeight < 0) targetHeight = height;
@@ -357,7 +357,7 @@ namespace OpenZ
 
         void OnDisable() { FreeLookOff(); if (Application.isPlaying && confineSet) { Cursor.lockState = CursorLockMode.None; confineSet = false; } }   // another camera takes over (briefing flight, cinematic modes): the free look ends with it
 
-        public void SetHeightImmediate(float h) { height = targetHeight = Mathf.Clamp(h, minHeight, maxHeight); zoomVel = 0; Place(); }
+        public void SetHeightImmediate(float h) { if (OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return; height = targetHeight = Mathf.Clamp(h, minHeight, maxHeight); zoomVel = 0; Place(); }
 
         /// <summary>Touch and gamepad (OzTouch.cs): move the view as if the ground were dragged by px screen pixels (two fingers: their
         /// travel; a stick: against its push). Metres per pixel as the middle-button drag measures them at the screen centre, the

@@ -54,7 +54,7 @@ namespace OpenZ
         // duel input capture
             void Update()
         {
-            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
+            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return;
             var mouse = Mouse.current; var kb = Keyboard.current;
             if (mouse == null || kb == null || game == null || game.World == null) return;
             OzOrderWatch.Tick(game.World);                                                              // 1.3 item 29: one log line for an order that leaves units standing (View/OzOrderWatch.cs)

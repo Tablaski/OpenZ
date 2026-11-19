@@ -33,6 +33,7 @@ namespace OpenZ.Multiplayer
 
         MatchState matchRequest;
         int matchRequestSequence;
+        int matchPauseSeat = -1;
         double matchDeadline, connectionDeadline = -1;
         Task<IDuelPeer> recoveryTask;
         bool recoveryStarted, recoveryAwaitingSync;
@@ -44,10 +45,65 @@ namespace OpenZ.Multiplayer
         internal bool MatchMapSuggested => matchRequest?.Suggested == true;
         internal string MatchMap => matchRequest?.Map;
         internal bool ConnectionInterrupted => connectionDeadline >= 0;
-        internal bool MatchSuspended => matchRequest != null || ConnectionInterrupted;
+        internal bool MatchMenusBlocked => matchRequest != null || ConnectionInterrupted;
+        internal bool MatchSuspended => MatchMenusBlocked || MatchPaused;
+        internal static bool MatchPlayPaused => Active && I.MatchPaused;
+        internal bool MatchPaused => matchPauseSeat >= 0;
+        internal bool OwnsMatchPause => matchPauseSeat == LocalSeat;
+        internal string MatchPausePlayer => matchPauseSeat == 0 ? View?.HostName : View?.GuestName;
+        internal bool CanPauseMatch => CanRequest && !MatchSuspended && !restartPromptOpen && !restartPending;
         internal double MatchRequestSeconds => Math.Max(0, matchDeadline - Now);
         internal double ReconnectSeconds => Math.Max(0, connectionDeadline - Now);
         bool CanRequest => Connected && Playing && Game && !Game.World.GameOver && !ConnectionInterrupted;
+
+        internal void RequestPauseMatch()
+        {
+            if (!CanPauseMatch) return;
+            if (IsHost) PublishMatchPause(LocalSeat);
+            else peer.Send(new DuelPacket(DuelMessage.MatchPause, new byte[] { 1 }));
+        }
+
+        internal void ResumePausedMatch()
+        {
+            if (!CanRequest || !OwnsMatchPause || MatchMenusBlocked) return;
+            if (IsHost) PublishMatchPause(-1);
+            else peer.Send(new DuelPacket(DuelMessage.MatchPause, new byte[] { 0 }));
+        }
+
+        void ReceiveMatchPause(DuelPacket packet)
+        {
+            if (!Playing || !Game || Game.World.GameOver || packet.Payload.Length != 1) return;
+            byte value = packet.Payload[0];
+            if (!IsHost)
+            {
+                if (value <= 2) SetMatchPause(value - 1);
+            }
+            else if (value == 1 && CanPauseMatch) PublishMatchPause(1);
+            else if (value == 0 && matchPauseSeat == 1 && CanRequest && !MatchMenusBlocked) PublishMatchPause(-1);
+        }
+
+        void PublishMatchPause(int seat)
+        {
+            SetMatchPause(seat);
+            // Deliver the final match time and battlefield state before announcing the pause.
+            if (MatchPaused) SendState(DuelMessage.Delta, false);
+            SendMatchPause();
+        }
+
+        void SendMatchPause() => peer.Send(new DuelPacket(DuelMessage.MatchPause, new[] { (byte)(matchPauseSeat + 1) }));
+
+        void SetMatchPause(int seat)
+        {
+            if (matchPauseSeat == seat) return;
+            matchPauseSeat = seat;
+            if (Game && Game.World != null)
+            {
+                Game.World.DuelOrdersPaused = MatchPaused;
+                if (MatchPaused) OpenZHud.I?.Production?.Close();
+            }
+            Time.timeScale = MatchPaused ? 0 : 1;
+            Menus?.Refresh();
+        }
 
         internal void RequestMapChange() => RequestMatchAction(MatchRequestKind.Map, RequestAction.Open);
         internal void RequestLobbyReturn() => RequestMatchAction(MatchRequestKind.Lobby, RequestAction.Open);
@@ -234,6 +290,7 @@ namespace OpenZ.Multiplayer
             {
                 pendingEvents.Clear();
                 SendState(DuelMessage.MatchReconnectState, true);
+                SendMatchPause();
             }
         }
 
@@ -266,6 +323,7 @@ namespace OpenZ.Multiplayer
 
         void ClearMatchRequest()
         {
+            SetMatchPause(-1);
             matchRequest = null;
             connectionDeadline = -1;
             recoveryStarted = recoveryAwaitingSync = false;

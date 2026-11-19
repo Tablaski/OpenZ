@@ -186,7 +186,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-0.2-duel-10-match-requests\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-duel-11-match-pause\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
                 .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));
@@ -549,7 +549,7 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.Command:
                     if (!IsHost || !Game) break;
                     if (Playing && !MatchSuspended) guestOrders.Execute(ReadJson<DuelOrder>(packet));
-                    else if (startAt >= 0 && View.PlanningSeconds > 0) guestOrders.QueueOpeningOrder(ReadJson<DuelOrder>(packet));
+                    else if (!Playing && startAt >= 0 && View.PlanningSeconds > 0) guestOrders.QueueOpeningOrder(ReadJson<DuelOrder>(packet));
                     break;
                 case DuelMessage.Delta:
                 case DuelMessage.DeltaBinaryEvents:
@@ -567,7 +567,7 @@ namespace OpenZ.Multiplayer
                     if (IsHost || !Game || !Game.World.GameOver || !localEndReady) throw new InvalidDataException("Unexpected lobby return.");
                     ReturnToLobbyScene(); break;
                 case DuelMessage.RestartRequest:
-                    if (!Playing || !Game || Game.World.GameOver || MatchSuspended) break;
+                    if (!Playing || !Game || Game.World.GameOver || MatchMenusBlocked) break;
                     if (IsHost) BeginRestartRequest(false);
                     else AskRestart(() => peer.Send(new DuelPacket(DuelMessage.RestartReply, new byte[] { 1 })), () => peer.Send(new DuelPacket(DuelMessage.RestartReply, new byte[] { 0 })));
                     break;
@@ -583,7 +583,9 @@ namespace OpenZ.Multiplayer
                     if (restartPromptOpen) OzConfirm.Dismiss();
                     Menus.NotifyChat(Encoding.UTF8.GetString(packet.Payload)); break;
                 case DuelMessage.Surrender:
-                    if (IsHost && Playing && Game) Game.World.DuelSurrender(View.TeamSlot(1)); break;
+                    if (IsHost && Playing && Game) ApplySurrender(1); break;
+                case DuelMessage.MatchPause:
+                    ReceiveMatchPause(packet); break;
                 case DuelMessage.MatchRequest:
                 case DuelMessage.MatchRequestState:
                     ReceiveMatchRequest(packet); break;
@@ -668,7 +670,7 @@ namespace OpenZ.Multiplayer
         {
             ZGame.RuleTicksLastFrame = 0; ZGame.RuleMsLastFrame = 0;
             if (!Active) return false;
-            game.gameSpeed = 1; game.paused = false; Time.timeScale = 1;
+            game.gameSpeed = 1; game.paused = false; Time.timeScale = I.MatchPaused ? 0 : 1;
             if (!I.Playing || !I.Connected || I.MatchSuspended) return true;
             if (I.IsHost)
             {
@@ -863,7 +865,7 @@ namespace OpenZ.Multiplayer
 
         public void RequestRestart()
         {
-            if (!Connected || !Playing || !Game || Game.World.GameOver || MatchSuspended) return;
+            if (!Connected || !Playing || !Game || Game.World.GameOver || MatchMenusBlocked) return;
             if (IsHost) BeginRestartRequest(true);
             else { peer.Send(new DuelPacket(DuelMessage.RestartRequest, Array.Empty<byte>())); Menus.NotifyChat("Restart requested. Waiting for your opponent."); }
         }
@@ -907,7 +909,13 @@ namespace OpenZ.Multiplayer
         public void Surrender()
         {
             if (!Playing || !Game) return;
-            if (IsHost) Game.World.DuelSurrender(View.TeamSlot(0)); else peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
+            if (IsHost) ApplySurrender(0); else peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
+        }
+
+        void ApplySurrender(int seat)
+        {
+            if (MatchPaused) PublishMatchPause(-1);
+            Game.World.DuelSurrender(View.TeamSlot(seat));
         }
         void Fail(string reason) { if (restartPromptOpen) OzConfirm.Dismiss(); Disconnect(); Status = reason; Playing = false; Menus.ShowError(); }
         public void ReportError(string reason) => Fail(reason);

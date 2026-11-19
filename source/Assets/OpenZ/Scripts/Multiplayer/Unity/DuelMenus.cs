@@ -52,7 +52,7 @@ namespace OpenZ.Multiplayer
         public void ShowLobby() { page = Page.Lobby; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
-        public void ShowInGameMenu() { if (R.MatchSuspended) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
+        public void ShowInGameMenu() { if (R.MatchMenusBlocked) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
         public void ShowCommunications() { OpenChat(); }
         public void CloseOverlay() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Entry; dirty = true; }
         public void NotifyChat(string message)
@@ -62,7 +62,7 @@ namespace OpenZ.Multiplayer
             if (notices.Count > 4) notices.RemoveAt(0);
             if (page == Page.Entry) dirty = true;
         }
-        public void OpenChat() { if (R.MatchSuspended) return; FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
+        public void OpenChat() { if (R.MatchMenusBlocked) return; FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
         void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
@@ -94,7 +94,7 @@ namespace OpenZ.Multiplayer
                         if (key.keyCode != Key.Escape) PlayerPrefs.SetInt(bindingTalk ? "oz_duel_talk_key" : "oz_duel_chat_key", (int)key.keyCode);
                         bindingChat = bindingTalk = false; PlayerPrefs.Save(); dirty = true; break;
                     }
-            if (!R.MatchSuspended && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
+            if (!R.MatchMenusBlocked && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
                 var pause = FindFirstObjectByType<OpenZPauseMenu>();
                 if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
@@ -172,6 +172,7 @@ namespace OpenZ.Multiplayer
             if (originalMenu) originalMenu.enabled = page == Page.Entry;
             if (page == Page.Entry)
             {
+                if (R.MatchPaused && !pauseWasOpen) BuildPausedMatch();
                 if (SceneManager.GetActiveScene().name != "MainMenu" && R.InMatch) ping = Label(root, "PING", 1370, 34, 390, 17, OzUi.Go);
                 if (R.Planning)
                 {
@@ -221,6 +222,18 @@ namespace OpenZ.Multiplayer
                 Button(root, "BACK TO MENU", 180, 470, 400, Leave);
                 Button(root, "ADVANCED TCP/IP", 180, 565, 600, () => { Leave(); advanced = true; onlineSettings = false; ShowConnect(); });
             }
+        }
+
+        void BuildPausedMatch()
+        {
+            var panel = Hud.Img(root, "Paused match", OzUi.GM950);
+            panel.rectTransform.TL(710, 457, 500, 166);
+            Label(panel.transform, "MATCH PAUSED", 24, 16, 452, 28, OzUi.Ink);
+            Label(panel.transform, R.OwnsMatchPause ? "You paused the match." : R.MatchPausePlayer + " paused the match.",
+                24, 60, 452, 18, OzUi.Muted).Body(24, 60, 452);
+            Button(panel.transform, "MATCH MENU", 24, 104, 145, ShowInGameMenu);
+            Button(panel.transform, "CHAT", 179, 104, 102, OpenChat);
+            if (R.OwnsMatchPause) Button(panel.transform, "RESUME MATCH", 291, 104, 185, R.ResumePausedMatch, true);
         }
         void BuildConnect()
         {

@@ -98,10 +98,11 @@ namespace OpenZ.Sim
         readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
-        public bool DuelDefersOrders => DuelIsReplica || DuelForward != null;
+        internal bool DuelOrdersPaused { get; set; }
+        public bool DuelDefersOrders => DuelIsReplica || DuelForward != null || DuelOrdersPaused;
         internal bool DuelSend(Team team, ZObject unit, DuelOrder order)
         {
-            if (unit == null || unit.Owner != team || unit.Destroyed || GameOver || DuelForward == null) return false;
+            if (DuelOrdersPaused || unit == null || unit.Owner != team || unit.Destroyed || GameOver || DuelForward == null) return false;
             order.ObjectId = unit.Id; return DuelForward(order);
         }
         internal bool HasDuelRules => duelRules != null;

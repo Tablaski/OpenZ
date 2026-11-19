@@ -309,13 +309,22 @@ namespace OpenZ.Multiplayer
                     case 31:
                         Click("Allowed units · "+DuelUnitRoster.Name(r.Rules.UnitPreset));break;
                     case 32:
-                        if(r.Menus.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=22)throw new Exception("Lobby unit catalogue changed.");
-                        Capture("lobby-allowed-openz");Click("Z 1996");break;
+                        if(r.Menus.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=DuelUnitRoster.Lobby.Length ||
+                            !ZBigTanks.Types.All(r.Rules.Allows))throw new Exception("Lobby OpenZ roster is missing a big tank.");
+                        Capture("lobby-allowed-openz");Click("ALLOWED UNIT "+ZBigTanks.Mammoth);break;
                     case 33:
-                        if(r.Rules.UnitPreset!=DuelUnitPreset.Z1996||r.Rules.Allows("electrobot"))throw new Exception("Shared lobby preset does not apply.");
-                        Capture("lobby-allowed-z1996");Click("OpenZ");break;
-                    case 34:Click("CLOSE");break;
+                        if(r.Rules.UnitPreset!=DuelUnitPreset.Custom||r.Rules.Allows(ZBigTanks.Mammoth)||!r.Rules.Allows(ZBigTanks.Bizon))throw new Exception("Mammoth cannot be excluded independently.");
+                        Click("ALLOWED UNIT "+ZBigTanks.Bizon);break;
+                    case 34:
+                        if(ZBigTanks.Types.Any(r.Rules.Allows))throw new Exception("Both big tanks should be excluded.");
+                        Click("Z 1996");break;
                     case 35:
+                        if(r.Rules.UnitPreset!=DuelUnitPreset.Z1996||r.Rules.Allows("electrobot")||ZBigTanks.Types.Any(r.Rules.Allows))throw new Exception("Shared lobby preset does not apply.");
+                        Capture("lobby-allowed-z1996");Click("OpenZ");break;
+                    case 36:
+                        if(!ZBigTanks.Types.All(r.Rules.Allows))throw new Exception("OpenZ preset did not restore both big tanks.");
+                        Click("CLOSE");break;
+                    case 37:
                         File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, five official maps, independent fort popup, army pickers, additive handicap, construction times, microphone controls and dropdown; solo/duel AI Maps galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }

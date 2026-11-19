@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using OpenZ.Sim;
 
 namespace OpenZ.Multiplayer
 {
@@ -11,6 +13,7 @@ namespace OpenZ.Multiplayer
         public static readonly string[] All = { "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot",
             "jeep", "light", "medium", "mtank", "heavy", "apc", "missile_launcher", "crane",
             "gatling", "gun", "howitzer", "missile_cannon", "heroes", "evilzod", "shuttle" };
+        public static readonly string[] Lobby = All.Concat(ZBigTanks.Types).ToArray();
         public static readonly string[] Z1996 = { "grunt", "psycho", "sniper", "tough", "pyro", "laser",
             "jeep", "light", "mtank", "heavy", "apc", "missile_launcher", "crane", "gatling", "gun", "howitzer", "missile_cannon" };
         public static bool Known(string type) => Array.IndexOf(All, type) >= 0;

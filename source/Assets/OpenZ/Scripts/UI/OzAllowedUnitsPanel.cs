@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using OpenZ.Multiplayer;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,15 +18,18 @@ namespace OpenZ
                 Button(panel,DuelUnitRoster.Name(preset),24+index++*340,92,320,46,()=>{rules.SetUnitPreset(selected);changed();},rules.UnitPreset==preset,editable,solo);
             }
             Label(panel,"Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply.",24,146,1410,16,OzUi.Ink);
-            Label(panel,rules.AllowedUnits.Count+"/"+DuelUnitRoster.All.Length+" allowed · Z 1996 includes all three tanks and excludes OpenZ additions such as the Medium Mech.",24,173,1410,14,OzUi.Muted);
+            var roster = solo ? DuelUnitRoster.All : DuelUnitRoster.Lobby;
+            string hint = solo ? "Z 1996 includes all three tanks and excludes OpenZ additions such as the Medium Mech." :
+                "Mammoth and Bizon can be captured on Bridge Game.";
+            Label(panel,roster.Count(rules.Allows)+"/"+roster.Length+" allowed · "+hint,24,173,1410,14,OzUi.Muted);
             var viewport=Hud.Node("Allowed units viewport",panel);viewport.TL(24,205,1432,560);viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>();background.color=OzUi.GM950;
             var content=Hud.Node("Allowed units",viewport);content.TL(0,0,1432,4*140);
             var scroll=viewport.gameObject.AddComponent<ScrollRect>();scroll.viewport=viewport;scroll.content=content;scroll.horizontal=false;scroll.vertical=true;scroll.movementType=ScrollRect.MovementType.Clamped;scroll.scrollSensitivity=40;
             scroll.verticalNormalizedPosition=scrollPosition;scroll.onValueChanged.AddListener(p=>scrolled(p.y));
-            for(index=0;index<DuelUnitRoster.All.Length;index++)
+            for(index=0;index<roster.Length;index++)
             {
-                string type=DuelUnitRoster.All[index];bool allowed=rules.Allows(type);
+                string type=roster[index];bool allowed=rules.Allows(type);
                 var tile=Button(content,DuelMenus.UnitName(type),index%6*238,index/6*140,224,130,()=>{rules.SetUnitAllowed(type,!allowed);changed();},false,editable,solo);
                 tile.name="ALLOWED UNIT "+type;DuelMenus.Portrait(tile,type,77,28,70);
                 Label(tile,allowed?"ALLOWED":"EXCLUDED",10,8,204,13,allowed?(Color)OzUi.Go:OzUi.Muted);

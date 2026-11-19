@@ -36,6 +36,14 @@ namespace OpenZ
             StumpsShown = StumpsHidden = 0;
             if (g == null || g.World == null || !OzCity.IsBridgeGame(g.level)) return;
             var w = g.World;
+            var placements = w.HasDuelRules ? GameObject.Find("ZodObjects") : null;
+            if (placements)
+                foreach (var spot in ZWorld.L18BigTankSpots)
+                {
+                    if (w.DuelAllowsUnit(spot.to) || w.Objects.Exists(o => o.IsUnit && o.Source?.x == spot.tx && o.Source.y == spot.ty)) continue;
+                    var placement = placements.transform.Find($"{spot.from}_{spot.tx}_{spot.ty}");
+                    if (placement) placement.gameObject.SetActive(false);
+                }
             var env = GameObject.Find("Environment");
             var root = env ? env.transform.Find(StumpsRoot) : null;
             if (root)
@@ -54,7 +62,7 @@ namespace OpenZ
                     if (on) StumpsShown++; else StumpsHidden++;
                 }
             int drivers = 0;
-            foreach (var d in w.L18BigTankDrivers) if (!d.Destroyed && g.SpawnUnitView(d)) drivers++;   // DV198 EMPTY start: the replaced tanks' drivers beside the empty big tanks (made after the map: no scene object)
+            foreach (var d in w.L18BigTankDrivers) if (w.Get(d.Id) == d && !d.Destroyed && g.SpawnUnitView(d)) drivers++;   // DV198 EMPTY start: the replaced tanks' drivers beside the empty big tanks (made after the map: no scene object)
             string tanks = "";
             foreach (var t in w.L18BigTanks) tanks += $" {t.Type} of {t.Owner} at ({t.LocX / 16},{t.LocY / 16}){(t.Drivers.Count > 0 ? " crewed" : " empty")};";
             Debug.Log($"[OpenZ] level 18 rules: river stumps (DV197) {w.L18Stumps.Count} in the rules, {StumpsShown} shown, {StumpsHidden} hidden{(root ? "" : " (no Environment/" + StumpsRoot + " in the scene: run menu OpenZ/L18 Bridge Game/10 River stumps)")}; "

@@ -107,6 +107,11 @@ namespace OpenZ.Multiplayer.Editor
             var read = JsonUtility.FromJson<DuelLobbyData>(JsonUtility.ToJson(DuelLobbyData.From(lobby))).ReadRules();
             if (!read.HandicapEnabled || read.HandicapSlot != 1 || read.Handicap.StartingUnits.Count != rules.Handicap.StartingUnits.Count)
                 throw new Exception("Unity lobby serialization loses the optional handicap.");
+            rules.SetUnitAllowed(ZBigTanks.Bizon, false);
+            lobby.ChangeRules(0, rules);
+            read = JsonUtility.FromJson<DuelLobbyData>(JsonUtility.ToJson(DuelLobbyData.From(lobby))).ReadRules();
+            if (!read.Allows(ZBigTanks.Mammoth) || read.Allows(ZBigTanks.Bizon) || read.UnitPreset != DuelUnitPreset.Custom)
+                throw new Exception("Unity lobby serialization loses independent map tank restrictions.");
             rules.SetUnitPreset(DuelUnitPreset.Z1996); rules.SetUnitAllowed("heavy", false);
             var tanks = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, name = "Wire tank profile", master = 100 };
             tanks.Set("light", ZBehaviorKey.RedShake, 2.5);

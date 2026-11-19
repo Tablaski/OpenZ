@@ -1,4 +1,4 @@
-param([string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly, [switch]$MatchControls, [switch]$RadarVideo)
+param([string]$Map='L02', [string]$Executable=(Join-Path $PSScriptRoot '..\builds\OpenZ-Release\openz-vk.exe'), [switch]$Online, [switch]$RelayOnly, [switch]$MatchControls, [switch]$RadarVideo, [ValidateSet('mammoth','bizon')][string]$ExcludeMapTank)
 $ErrorActionPreference='Stop'
 $duelExecutable=(Resolve-Path -LiteralPath $Executable).Path
 $proofPrefix = if ($Online) { 'proof-online-' } else { 'proof-' }
@@ -24,6 +24,7 @@ foreach ($role in @('host','guest')) {
     if ($RelayOnly) { $duelArguments += '-oz-duel-relay-only' }
     if ($MatchControls -or $RadarVideo) { $duelArguments += '-oz-duel-match-controls' }
     if ($RadarVideo) { $duelArguments += '-oz-duel-radar-video' }
+    if ($ExcludeMapTank) { $duelArguments += @('-oz-duel-exclude-map-tank',$ExcludeMapTank) }
     $players+=Start-Process -FilePath $duelExecutable -ArgumentList $duelArguments -WindowStyle Hidden -PassThru
 }
 Write-Output $proofFolder

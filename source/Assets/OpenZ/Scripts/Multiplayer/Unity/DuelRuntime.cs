@@ -39,6 +39,7 @@ namespace OpenZ.Multiplayer
         public string TankDynamics, RobotDynamics;
         public int UnitPreset;
         public string[] AllowedUnits;
+        public bool ExcludeMammoth, ExcludeBizon;
         public string[] RedFortTurrets, BlueFortTurrets;
         public bool TankDamageEffects, TankDamageShake;
         public int RadarLoss;
@@ -57,6 +58,7 @@ namespace OpenZ.Multiplayer
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap),
                 RedFortTurrets = r.FortTurretsFor(0), BlueFortTurrets = r.FortTurretsFor(1),
                 TankDynamics = r.TankDynamics, RobotDynamics = r.RobotDynamics, UnitPreset = (int)r.UnitPreset, AllowedUnits = r.AllowedUnits.ToArray(),
+                ExcludeMammoth = r.ExcludeMammoth, ExcludeBizon = r.ExcludeBizon,
                 TankDamageEffects = r.TankDamageEffects, TankDamageShake = r.TankDamageShake, RadarLoss = (int)r.RadarLoss };
         }
         public DuelRules ReadRules()
@@ -66,6 +68,8 @@ namespace OpenZ.Multiplayer
                 RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
                 TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = (RadarLossRule)RadarLoss,
+                ExcludeMammoth = ExcludeMammoth || UnitPreset == (int)DuelUnitPreset.Z1996,
+                ExcludeBizon = ExcludeBizon || UnitPreset == (int)DuelUnitPreset.Z1996,
                 AllowedUnits = AllowedUnits == null ? new List<string>(DuelUnitRoster.All) : new List<string>(AllowedUnits) };
             rules.Validate(); return rules;
         }

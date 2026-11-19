@@ -29,7 +29,7 @@ namespace OpenZ.Multiplayer
             add("Handicap team", current.HandicapSlot == 0 ? "RED" : "BLUE", next.HandicapSlot == 0 ? "RED" : "BLUE");
             add("Handicap build duration", current.Handicap.BuildDuration, next.Handicap.BuildDuration);
             add("Unit preset", current.UnitPreset, next.UnitPreset);
-            foreach (string type in DuelUnitRoster.All) add("Allow " + type, current.Allows(type), next.Allows(type));
+            foreach (string type in DuelUnitRoster.Lobby) add("Allow " + type, current.Allows(type), next.Allows(type));
             if (current.TankDynamics != next.TankDynamics) changes.Add("Tank dynamics: profile changed");
             if (current.RobotDynamics != next.RobotDynamics) changes.Add("Robot dynamics: profile changed");
             for (int seat = 0; seat < 2; seat++)

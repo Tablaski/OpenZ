@@ -12,7 +12,7 @@ namespace OpenZ.Multiplayer
     /// <summary>Opt-in executable integration proof; inactive in ordinary games.</summary>
     public sealed class DuelProofRunner : MonoBehaviour
     {
-        string role, folder;
+        string role, folder, excludedTank;
         double began;
         bool joined, ordered, surrendered, finished, captured, lobbyCaptured, menuShown, menuCaptured, menuClosed, arenaMade, damaged;
         double connectedAt = -1, lastVoice;
@@ -22,6 +22,7 @@ namespace OpenZ.Multiplayer
         bool microphoneCaptured, microphoneDevicesCaptured;
         bool forceProofStarted, forceProofDone;
         bool proposalSent, proposalChecked;
+        bool bridgeRosterChecked;
         double noticeSeenAt = -1;
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Install()
@@ -36,6 +37,8 @@ namespace OpenZ.Multiplayer
                 return;
             }
             var proof = go.AddComponent<DuelProofRunner>(); proof.role = args[option + 1]; proof.folder = args[option + 2];
+            int tankOption = Array.IndexOf(args, "-oz-duel-exclude-map-tank");
+            if (tankOption >= 0 && tankOption + 1 < args.Length) proof.excludedTank = args[tankOption + 1];
             proof.began = Time.realtimeSinceStartupAsDouble;
             Application.logMessageReceived += proof.OnLog;
         }
@@ -58,6 +61,7 @@ namespace OpenZ.Multiplayer
                         var args = Environment.GetCommandLineArgs(); int mapOption = Array.IndexOf(args, "-oz-duel-proof-map");
                         if (mapOption >= 0 && mapOption + 1 < args.Length) r.ChangeRules(DuelRuntime.Defaults(args[mapOption + 1]));
                         var factoryRules = r.Rules;
+                        if (excludedTank != null) factoryRules.SetUnitAllowed(excludedTank, false);
                         DuelMissionDefaults.ApplyOutsidePreset(factoryRules, new[] { "light", "heavy", "pyro", "laser" });
                         factoryRules.TankDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Tanks).Encode();
                         factoryRules.RobotDynamics = OzBehaviorLibrary.Native(ZBehaviorFamily.Robots).Encode();
@@ -115,6 +119,25 @@ namespace OpenZ.Multiplayer
                 if (r.Playing && r.Game)
                 {
                     var w = r.Game.World;
+                    if (excludedTank != null && !bridgeRosterChecked)
+                    {
+                        if (!w.L18Map || !ZBigTanks.Is(excludedTank)) throw new Exception("Map tank proof requires Bridge Game and a big tank.");
+                        foreach (var spot in ZWorld.L18BigTankSpots)
+                        {
+                            bool allowed = spot.to != excludedTank;
+                            var tank = w.Objects.SingleOrDefault(o => o.Type == spot.to);
+                            if (r.Rules.Allows(spot.to) != allowed || (tank != null) != allowed)
+                                throw new Exception("Bridge Game did not apply the match rules for " + spot.to);
+                            if (allowed && (!r.Game.Views.TryGetValue(tank.Id, out var view) || !view.gameObject.activeInHierarchy))
+                                throw new Exception("Allowed map tank has no visible representation: " + spot.to);
+                            var root = GameObject.Find("ZodObjects");
+                            var placement = root ? root.transform.Find($"{spot.from}_{spot.tx}_{spot.ty}") : null;
+                            if (!allowed && placement && placement.gameObject.activeInHierarchy)
+                                throw new Exception("Excluded map tank left a visible map placement: " + spot.to);
+                        }
+                        bridgeRosterChecked = true;
+                        Debug.Log("[DUEL PROOF] Bridge Game applied independent map tank permissions, including visible models.");
+                    }
                     if (!chatSent && w.Time > 2) { r.SendChat("Hello from " + role); chatSent = true; }
                     var notice = r.Menus.GetComponentsInChildren<Button>().FirstOrDefault(b => b.name == "Incoming chat");
                     if (notice && noticeSeenAt < 0) noticeSeenAt = Time.realtimeSinceStartupAsDouble;

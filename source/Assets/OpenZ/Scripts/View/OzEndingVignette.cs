@@ -45,7 +45,7 @@ namespace OpenZ
         {
             if (lossHint >= 0) return lossHint == 1;
             var g = ZGame.I; var w = g ? g.World : null;
-            return w != null && w.GameOver && w.Winner != g.player;
+            return w != null && w.GameOver && !w.IsWinningSeat(g.player);
         }
 
         void Awake()

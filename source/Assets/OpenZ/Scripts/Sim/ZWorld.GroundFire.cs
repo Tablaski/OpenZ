@@ -75,7 +75,7 @@ namespace OpenZ.Sim
             long r2 = (long)GroundFireRadiusPx * GroundFireRadiusPx;
             foreach (var f in GroundFires)
             {
-                if (f.team == o.Owner || (f.team == Team.Neutral && !o.IsRobot)) continue;           // DV163: a dragon's fire burns robots of both teams, never a vehicle
+                if (AreAllied(f.team, o.Owner) || (f.team == Team.Neutral && !o.IsRobot)) continue;           // DV163: a dragon's fire burns robots of both teams, never a vehicle
                 long dx = f.x - o.CenterX, dy = f.y - o.CenterY;
                 if (dx * dx + dy * dy <= r2) return f;
             }

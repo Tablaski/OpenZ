@@ -80,7 +80,7 @@ namespace OpenZ
             if (w.Winner == Team.Neutral) return;                                                     // a draw: nobody's fort falls
             foreach (var f in w.Objects)
             {
-                if (!f.IsFort || f.Destroyed || f.Owner == Team.Neutral || f.Owner == w.Winner) continue;
+                if (!f.IsFort || f.Destroyed || f.Owner == Team.Neutral || w.IsWinningSeat(f.Owner)) continue;
                 w.Events.Add(new ZEvent { type = ZEventType.Death, objId = f.Id, otherId = -1, x = f.CenterX, y = f.CenterY });
                 Injected++; fell.Add(f.Id);
                 Debug.Log($"[OpenZ] game over with the {f.Owner} fort standing (last unit lost without dying): it falls now (combat_nb_v1 NB30)");

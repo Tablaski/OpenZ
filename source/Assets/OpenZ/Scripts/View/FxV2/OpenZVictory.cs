@@ -100,7 +100,7 @@ namespace OpenZ
             allowId = null; OpenZCelebrate.End();                                            // endgame_ui_v1: no line passes after the screen; the crowd fades out
             OpenZEnding.OnEndScreen();                                                       // endings_v1: camera back to the player, held deaths finish
             OzFortInferno.DuckAll(-14f, 1f, "end screen");
-            bool won = game && game.World != null && game.World.Winner == game.player;
+            bool won = game && game.World != null && game.World.IsWinningSeat(game.player);
             bool draw = game && game.World != null && game.World.Winner == Team.Neutral;
             if (!draw) AudioDirector.UI(won ? "ter_victory_sfx" : "ter_defeat_sfx");
             if (!draw) AudioDirector.UI(won ? "ui_victory_hit" : "ui_defeat_hit");                         // sound_v3: the hit also with music off            // the sting with the screen

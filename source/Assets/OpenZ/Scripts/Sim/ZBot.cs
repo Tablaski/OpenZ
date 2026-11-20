@@ -255,20 +255,20 @@ namespace OpenZ.Sim
                 switch (t.Kind)
                 {
                     case ZKind.MapItem:
-                        if (t.Type == "flag" && t.Owner != Team) targets.Add(t);
+                        if (t.Type == "flag" && !W.AreAllied(t.Owner, Team)) targets.Add(t);
                         if (t.Type == "grenades") targets.Add(t);
                         break;
                     case ZKind.Building:
-                        if (t.IsFort) { if (t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t); }
+                        if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t); }
                         else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed) targets.Add(t); }
                         if (CraneJob(t)) targets.Add(t);
                         break;
                     case ZKind.Cannon: case ZKind.Vehicle:
                         if (t.CanBeEntered()) targets.Add(t);
-                        else if (allOut && t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t);
+                        else if (allOut && !W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t);
                         break;
                     case ZKind.Robot:
-                        if (allOut && t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t);
+                        if (allOut && !W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t);
                         break;
                 }
             }
@@ -331,11 +331,11 @@ namespace OpenZ.Sim
                     switch (t.Kind)
                     {
                         case ZKind.MapItem:
-                            if (t.Type == "flag" && t.Owner != Team) add = true;
+                            if (t.Type == "flag" && !W.AreAllied(t.Owner, Team)) add = true;
                             if (t.Type == "grenades" && u.CanPickupGrenades()) add = true;
                             break;
                         case ZKind.Building:
-                            if (t.IsFort) { if (t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed) add = true; }
+                            if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) add = true; }
                             else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed && u.CanBeRepaired()) add = true; }
                             if (CraneJob(t) && u.Kind == ZKind.Vehicle && u.Type == "crane") add = true;
                             break;
@@ -390,11 +390,11 @@ namespace OpenZ.Sim
             switch (t.Kind)
             {
                 case ZKind.MapItem:
-                    if (t.Type == "flag" && t.Owner != Team) mode = WpMode.Move;
+                    if (t.Type == "flag" && !W.AreAllied(t.Owner, Team)) mode = WpMode.Move;
                     if (t.Type == "grenades") mode = WpMode.PickupGrenades;
                     break;
                 case ZKind.Building:
-                    if (t.IsFort) { if (t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed) mode = WpMode.EnterFort; }
+                    if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) mode = WpMode.EnterFort; }
                     else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed) mode = WpMode.UnitRepair; }
                     if (CraneJob(t)) mode = WpMode.CraneRepair;
                     break;

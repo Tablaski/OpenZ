@@ -89,7 +89,7 @@ namespace OpenZ
                     }
                 }
             }
-            int result = w.Winner == Player ? 1 : w.Winner == Team.Neutral ? 0 : -1;
+            int result = w.IsWinningSeat(Player) ? 1 : w.Winner == Team.Neutral ? 0 : -1;
             var inp = new MusicInput
             {
                 dt = Mathf.Min(dt, 0.1f), gameDt = paused ? 0f : simDt, playDt = paused ? 0f : Mathf.Min(dt, 0.1f), enabled = MusicOn, paused = paused, battle = danger != Danger.Calm,
@@ -121,7 +121,7 @@ namespace OpenZ
             mv3 = null; mv3Retiring = false; mv3LastSimTime = -1;
             Debug.Log("[MusicV3] retired: the music_v3 voices are stopped, music_v2 plays");
             if (game != null && game.World != null && game.World.GameOver && MusicOn)                       // after the game over UpdateMusic no longer switches: music_v2's end music now
-            { bool won = game.World.Winner == Player; PlayMusic(Def(EndMusicId(won)), -1, 2f, EndMusicDb(won)); }
+            { bool won = game.World.IsWinningSeat(Player); PlayMusic(Def(EndMusicId(won)), -1, 2f, EndMusicDb(won)); }
         }
 
         /// <summary>The drama shuffle bag (MusicCore.DramaLast / DramaBag) goes into the saved settings after every pick, so the next

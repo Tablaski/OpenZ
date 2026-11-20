@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using OpenZ;
 using OpenZ.Multiplayer;
 using OpenZ.Sim;
 
@@ -49,5 +51,45 @@ static class MultiplayerRoomChecks
         larger.RemoveHuman(host, extra);
         check(larger.StartBlocker == MatchStartBlocker.None, "Removing the extra human resolves the capacity conflict");
         reject(() => larger.SelectMap(host, "SM18"), "Solo-only maps stay outside multiplayer setup");
+        CheckCoop(check, reject);
+    }
+
+    static void CheckCoop(Action<bool, string> check, Action<Action, string> reject)
+    {
+        const string host = "host", guest = "guest";
+        var room = new MultiplayerRoom(host, "Host", "SMP03M01");
+        room.Join(guest, "Guest");
+        room.AssignHuman(host, guest, 1, 0);
+        room.SetBot(host, 2, 0, ZBotDifficulty.Easy);
+        room.SetReady(host, room.Revision, true);
+        room.SetReady(guest, room.Revision, true);
+        reject(() => room.Launch(host), "A cooperative room still requires an opposing alliance");
+
+        room.SetBot(host, 2, 1, ZBotDifficulty.Easy);
+        room.SetReady(host, room.Revision, true);
+        room.SetReady(guest, room.Revision, true);
+        room.Launch(host);
+        room.MarkLoaded(host, room.Revision);
+        room.MarkLoaded(guest, room.Revision);
+
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
+        var settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
+        var grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SMP03M01_grid.json"));
+        var world = ZWorld.Create(settings, grid, 12);
+        room.ConfigureWorld(world, 12);
+        var red = world.Objects.First(o => o.Owner == Team.Red && o.IsUnit && o.CanAttack());
+        var blue = world.Objects.First(o => o.Owner == Team.Blue && o.IsUnit && o.CanAttack());
+        var blueFort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Blue);
+        check(room.HumanTeam(host) == Team.Red && room.HumanTeam(guest) == Team.Blue &&
+            world.AreAllied(Team.Red, Team.Blue) && !world.AreAllied(Team.Red, Team.Green),
+            "Co-op allies retain separate owners and face the opposing bot");
+        check(!red.CanAttackObject(blue) && !blueFort.CanEnterFort(Team.Red),
+            "Co-op allies cannot target each other or enter each other's forts");
+        world.Tick(ZConst.TICK);
+        check(!world.GameOver, "The opposing bot keeps the co-op match running");
+        check(world.SurrenderSkirmish(Team.Green), "Eliminating the last opposing seat resolves co-op");
+        for (int tick = 0; tick < 150; tick++) world.Tick(ZConst.TICK);
+        check(world.IsWinningSeat(Team.Red) && world.IsWinningSeat(Team.Blue) &&
+            !world.IsWinningSeat(Team.Green), "Both co-op seats share victory");
     }
 }

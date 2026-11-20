@@ -46,6 +46,7 @@ namespace OpenZ.Multiplayer
         public MatchStartBlocker StartBlocker => MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
             .Concat(bots.Keys.Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
         public bool CanLaunch => !Launched && StartBlocker == MatchStartBlocker.None &&
+            ActiveAlliances().Distinct().Skip(1).Any() &&
             members.Values.All(member => !member.Seat.MayUsePlayerCommands || member.Ready);
         public bool MatchLoaded => Launched && members.Values.All(member => !member.Seat.MayUsePlayerCommands || loaded.Contains(member.Id));
 
@@ -136,7 +137,7 @@ namespace OpenZ.Multiplayer
         public void Launch(string sender)
         {
             RequireHostSetup(sender);
-            if (!CanLaunch) throw new InvalidOperationException("All starts must be filled and active humans must be ready.");
+            if (!CanLaunch) throw new InvalidOperationException("All starts must be filled, at least two alliances must compete, and active humans must be ready.");
             Launched = true;
         }
 
@@ -166,11 +167,28 @@ namespace OpenZ.Multiplayer
         {
             if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
                 throw new InvalidOperationException("The loaded battlefield must match the launched room.");
-            var alliances = members.Values.Where(member => member.Seat.MayUsePlayerCommands).Select(member => member.Alliance)
-                .Concat(bots.Values.Select(bot => bot.Alliance));
-            if (alliances.Distinct().Count() != Starts) throw new InvalidOperationException("Free-for-all requires a distinct alliance per position.");
-            world.ConfigureSkirmishBots(Bots.Select(bot => ((Team)(bot.Position + 1), bot.Difficulty)), seed);
+            if (ActiveAlliances().Distinct().Count() != Starts)
+                throw new InvalidOperationException("Free-for-all requires a distinct alliance per position.");
+            ConfigureWorld(world, seed);
         }
+
+        public void ConfigureWorld(ZWorld world, int seed)
+        {
+            if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
+                throw new InvalidOperationException("The loaded battlefield must match the launched room.");
+
+            int[] alliances = new int[Starts];
+            foreach (var member in members.Values.Where(member => member.Seat.MayUsePlayerCommands))
+                alliances[member.Seat.Position] = member.Alliance;
+            foreach (var bot in bots.Values)
+                alliances[bot.Position] = bot.Alliance;
+
+            world.ConfigureSkirmishBots(Bots.Select(bot => ((Team)(bot.Position + 1), bot.Difficulty)), seed);
+            world.SetSkirmishAlliances(alliances);
+        }
+
+        IEnumerable<int> ActiveAlliances() => members.Values.Where(member => member.Seat.MayUsePlayerCommands)
+            .Select(member => member.Alliance).Concat(bots.Values.Select(bot => bot.Alliance));
 
         void InvalidateReady()
         {

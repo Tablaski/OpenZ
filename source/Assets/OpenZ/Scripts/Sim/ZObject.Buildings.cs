@@ -111,7 +111,7 @@ namespace OpenZ.Sim
         public bool GetRepairCenter(out int x, out int y) { x = LocX + 32; y = LocY + 32; return Type == "repair"; }
 
         // ------------------------------------------------------------------ rules
-        public bool CanEnterFort(Team team) => IsFort && team != Owner && !Destroyed;                     // bfort.cpp:483-489
+        public bool CanEnterFort(Team team) => IsFort && team != Owner && !Destroyed && World?.AreAllied(team, Owner) != true;                     // bfort.cpp:483-489
         public bool CanBeRepairedByCrane(Team team) =>                                                     // zobject.cpp:4494-4504
             Kind == ZKind.Building && !IsFort &&
             (Destroyed ? ZWorld.CraneAnyRuinDeviation || Owner == Team.Neutral || team == Owner            // DV74: a destroyed building / bridge in any zone (Zod: own or neutral)

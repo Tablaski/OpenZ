@@ -120,7 +120,7 @@ namespace OpenZ.Sim
         public bool HasExplosives() => HasExplosivesFlag || Grenades > 0 || (Leader != null && Leader.Grenades > 0);   // :4511-4519
         public bool CanAttackObject(ZObject o)                                                          // :4767-4777
         {
-            if (o == null || !CanAttack() || o.Destroyed || Owner == o.Owner) return false;
+            if (o == null || !CanAttack() || o.Destroyed || Owner == o.Owner || World?.AreAllied(Owner, o.Owner) == true) return false;
             if (RamFireBarred(o)) return false;   // 1.5 DV188 (kit ram_polish): Sim/ZObject.RamPolish.cs: no fire at the ram / crush target, none from a doomed vehicle
             if (World.UnitTesting != null && (World.UnitTesting.Held(this) || World.UnitTesting.Held(o))) return false;
             if (o.ExitOutAt >= 0 && o.World != null && o.ExitWalking(o.World.Time) && !o.DriverOutTarget) return false;   // DV132: still getting out of the shuttle / an APC: nobody's target yet (Sim/ZObject.ExitWalk.cs); 1.4 DV171 fix round 4: a driver climbing out of a tank or the mech is a target all the same (Sim/ZObject.VehicleExit.cs)

@@ -4,6 +4,10 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.14 (20 Nov 2026)
+
+- Multiplayer Skirmish — Assign humans and bots to teams in the online lobby. Join a friend against bots or put bots on both sides. Allies keep their own units and colors and share victory.
+
 ## OpenZ-VK 1.5.13 (20 Nov 2026)
 
 - Multiplayer Skirmish — Play free-for-all on 23 converted AI Maps for 3, 4 or 8 starting positions. Play locally against bots or use an invitation to play with a friend and bots.

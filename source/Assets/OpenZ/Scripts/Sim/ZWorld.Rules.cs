@@ -114,7 +114,7 @@ namespace OpenZ.Sim
             foreach (var f in Flags)
                 foreach (var o in Objects)
                 {
-                    if (o.Owner == Team.Neutral || f.Owner == o.Owner) continue;
+                    if (o.Owner == Team.Neutral || AreAllied(f.Owner, o.Owner)) continue;
                     if (o.IsShuttle) continue;                                                                 // DV118: the shuttle never takes a flag (Sim/ZWorld.Shuttle.cs)
                     if (!(o.Kind == ZKind.Vehicle || o.Kind == ZKind.Robot) || o.IsFortDefender) continue;   // fort_defender_v1 DV41
                     if (!f.IntersectsObject(o) || !FlagCaptureAllowed(f)) continue;                     // 1.2 item 6: the playground's 1 s hold after a change (Sim/ZWorld.Playground.cs; 0 = the game's rule)
@@ -286,9 +286,10 @@ namespace OpenZ.Sim
             nextEndCheck = Time + 1.0;
             var teams = new HashSet<Team>();
             foreach (var o in Objects) if (o.IsUnit && o.Owner != Team.Neutral && !o.Destroyed && !o.IsFortDefender) teams.Add(o.Owner);   // fort_defender_v1 DV41
-            if (teams.Count > 1) return;
-            GameOver = true; Winner = teams.Count == 1 ? teams.First() : Team.Neutral;
-            Events.Add(new ZEvent { type = ZEventType.GameOver, value = teams.Count == 1 ? (float)Winner : -1 });
+            var winner = teams.Count == 0 ? Team.Neutral : teams.Min();
+            if (teams.Any(team => !AreAllied(winner, team))) return;
+            GameOver = true; Winner = winner;
+            Events.Add(new ZEvent { type = ZEventType.GameOver, value = winner != Team.Neutral ? (float)winner : -1 });
             if (EndFreezeDeviation) FreezeAfterGameOver();                                     // endgame_ui_v1 (DV10)
         }
 

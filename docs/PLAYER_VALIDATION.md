@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.14 skirmish teams
+
+- Pending two-PC check: assign both humans to Team 1 and the bot to another team on P03M01. Confirm the guest sees the team choices and that changing a team clears Ready. Confirm allied targeting and flag captures are blocked, allied forts remain intact on a shared victory, and both humans see and hear the victory result.
+- Pending regression checks: use four or eight starts with mixed human and bot teams, change bot difficulty without changing its team, test the vote and return-to-lobby paths, reject a launch with everyone on one team, and repeat a free-for-all and a legacy duel.
+
 ## OpenZ-VK 1.5.12 multiplayer map filters
 
 - Pending compiled-game check: open Multiplayer, create a duel and browse the AI Maps gallery through 2, 3, 4 and 8 Players. Check the terrain filters, tactical owner colors, preview-only status and that the official map selection remains unchanged when returning from a larger format. Apply a two-player map and confirm the guest receives it. Verify the Solo gallery and invitation flow.

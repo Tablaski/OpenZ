@@ -65,8 +65,26 @@ namespace OpenZ.Multiplayer
         internal void SetRoomBot(int seat, ZBotDifficulty? difficulty)
         {
             if (room == null) return;
-            if (difficulty.HasValue) room.SetBot(RoomHostId, seat, seat, difficulty.Value);
+            if (difficulty.HasValue)
+            {
+                int alliance = room.Bots.Where(bot => bot.Position == seat).Select(bot => bot.Alliance).DefaultIfEmpty(seat).Single();
+                room.SetBot(RoomHostId, seat, alliance, difficulty.Value);
+            }
             else room.RemoveBot(RoomHostId, seat);
+            PublishRoom();
+        }
+
+        internal void CycleRoomAlliance(int seat)
+        {
+            if (room == null) return;
+            var member = room.Members.FirstOrDefault(candidate => candidate.Seat.Position == seat);
+            if (member.Id != null)
+                room.AssignHuman(RoomHostId, member.Id, seat, (member.Alliance + 1) % room.Starts);
+            else
+            {
+                var bot = room.Bots.Single(candidate => candidate.Position == seat);
+                room.SetBot(RoomHostId, seat, (bot.Alliance + 1) % room.Starts, bot.Difficulty);
+            }
             PublishRoom();
         }
 
@@ -153,6 +171,13 @@ namespace OpenZ.Multiplayer
         {
             // World creation precedes the load barrier. Only the host configures the bots.
             if (IsHost) return;
+            var snapshot = JoinedRoom;
+            var alliances = new int[OzAiMapCatalog.Find(snapshot.Map).Starts];
+            foreach (var member in snapshot.Humans.Where(member => member.Position >= 0))
+                alliances[member.Position] = member.Alliance;
+            foreach (var bot in snapshot.Bots)
+                alliances[bot.Position] = bot.Alliance;
+            world.SetSkirmishAlliances(alliances);
             roomGuest.AttachBattlefield(world);
             world.DuelForward = order => Playing && Connected && !world.SkirmishEliminated(LocalTeam) && roomGuest.SendOrder(order);
         }
@@ -173,7 +198,7 @@ namespace OpenZ.Multiplayer
         {
             if (IsHost)
             {
-                room.ConfigureFreeForAllWorld(Game.World, 19);
+                room.ConfigureWorld(Game.World, 19);
                 roomHost.AttachBattlefield(Game.World);
                 if (!roomHost.PublishBattlefield()) throw new IOException("Could not send the opening battlefield.");
             }
@@ -269,7 +294,12 @@ namespace OpenZ.Multiplayer
             FillRoomBots();
             foreach (var member in room.Members.Where(member => member.Seat.MayUsePlayerCommands))
                 room.SetReady(member.Id, room.Revision, true);
-            LaunchRoom();
+            if (room.CanLaunch) LaunchRoom();
+            else
+            {
+                PublishRoom();
+                ReturnToLobbyScene();
+            }
         }
 
         void ShowRoomVote(RoomVoteState state)

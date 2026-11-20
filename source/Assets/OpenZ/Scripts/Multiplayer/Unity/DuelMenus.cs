@@ -219,7 +219,7 @@ namespace OpenZ.Multiplayer
             else if (page == Page.Microphone) BuildMicrophone();
             else if (page == Page.End)
             {
-                bool won = R.Game.World.Winner == R.LocalTeam;
+                bool won = R.Game.World.IsWinningSeat(R.LocalTeam);
                 Label(root, won ? "VICTORY" : "DEFEAT", 180, 300, 1400, 56, won ? OzUi.Go : OzUi.AlertText);
                 Label(root, "THE DUEL HAS ENDED", 180, 390, 1400, 24, OzUi.Ink);
                 Button(root, "BACK TO MENU", 180, 500, 600, Leave, true);
@@ -338,14 +338,24 @@ namespace OpenZ.Multiplayer
                 var team = (Team)(seat + 1);
                 var difficulty = hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (ZBotDifficulty?)bot.Difficulty).FirstOrDefault()
                     ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Difficulty;
+                int? alliance = seat >= 2
+                    ? hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (int?)bot.Alliance).SingleOrDefault()
+                        ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Alliance
+                    : memberName != null ? hostMember?.Alliance ?? guestMember?.Alliance : null;
+                if (alliance.HasValue)
+                {
+                    string label = "TEAM " + (alliance.Value + 1);
+                    if (hosted != null) Button(seats, label, 665, y, 125, () => R.CycleRoomAlliance(seat), height: 34);
+                    else Label(seats, label, 665, y + 6, 125, 17, OzUi.Muted);
+                }
                 if (seat >= 2)
                 {
                     BuildSkirmishBotRow(seats, seat, y, difficulty, hosted != null ? value => R.SetRoomBot(seat, value) : null, true);
                     continue;
                 }
-                Label(seats, TeamColors.Name(team) + "   " + (memberName ?? "OPEN SLOT"), 30, y + 6, 525, 19, OzUi.TeamText(team));
+                Label(seats, TeamColors.Name(team) + "   " + (memberName ?? "OPEN SLOT"), 30, y + 6, 455, 19, OzUi.TeamText(team));
                 if (memberName != null)
-                    Label(seats, ready ? "READY" : "NOT READY", 610, y + 6, 180, 17, ready ? OzUi.Go : OzUi.Muted);
+                    Label(seats, ready ? "READY" : "NOT READY", 495, y + 6, 150, 17, ready ? OzUi.Go : OzUi.Muted);
             }
             Label(seats, invitationNotice ?? R.ConnectionStatus, 30, 399, 780, 18, OzUi.Muted);
             if (hosted != null)
@@ -362,7 +372,7 @@ namespace OpenZ.Multiplayer
             {
                 Button(seats, "LAUNCH MATCH", 360, 490, 430, R.LaunchRoom, true, R.Connected && hosted.CanLaunch);
                 if (R.Connected && !hosted.CanLaunch)
-                    Label(seats, "Fill every starting position and have both players ready.", 30, 549, 780, 16, OzUi.Muted);
+                    Label(seats, "Fill every position, assign opposing teams, and have both players ready.", 30, 549, 780, 16, OzUi.Muted);
             }
             BuildLobbyChat();
             Button(root, "LEAVE LOBBY", 80, 1005, 300, Leave);
@@ -423,16 +433,16 @@ namespace OpenZ.Multiplayer
         void BuildSkirmishBotRow(RectTransform roster, int seat, float y, ZBotDifficulty? level, Action<ZBotDifficulty?> set, bool removable)
         {
             var team = (Team)(seat + 1);
-            Label(roster, TeamColors.Name(team) + (level.HasValue ? "   AI BOT" : "   OPEN SLOT"), 30, y + 6, 370, 19, OzUi.TeamText(team));
+            Label(roster, TeamColors.Name(team) + (level.HasValue ? "   AI BOT" : "   OPEN SLOT"), 30, y + 6, removable ? 275 : 370, 19, OzUi.TeamText(team));
             if (set == null)
             {
-                if (level.HasValue) Label(roster, level.Value.ToString().ToUpperInvariant(), 610, y + 6, 175, 17, OzUi.Muted);
+                if (level.HasValue) Label(roster, level.Value.ToString().ToUpperInvariant(), removable ? 495 : 610, y + 6, 145, 17, OzUi.Muted);
                 return;
             }
-            Button(roster, "EASY", 405, y, 110, () => set(ZBotDifficulty.Easy), level == ZBotDifficulty.Easy, height: 34);
-            Button(roster, "NORMAL", 525, y, 130, () => set(ZBotDifficulty.Normal), level == ZBotDifficulty.Normal, height: 34);
+            Button(roster, "EASY", removable ? 315 : 405, y, removable ? 90 : 110, () => set(ZBotDifficulty.Easy), level == ZBotDifficulty.Easy, height: 34);
+            Button(roster, "NORMAL", removable ? 410 : 525, y, removable ? 110 : 130, () => set(ZBotDifficulty.Normal), level == ZBotDifficulty.Normal, height: 34);
             if (removable)
-                Button(roster, "REMOVE", 665, y, 125, () => set(null), enabled: level.HasValue, height: 34);
+                Button(roster, "REMOVE", 525, y, 125, () => set(null), enabled: level.HasValue, height: 34);
         }
 
         void BuildOnlineSettings()

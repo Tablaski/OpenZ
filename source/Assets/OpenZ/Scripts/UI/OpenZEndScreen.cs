@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using OpenZ.Sim;
 using UnityEngine;
@@ -147,7 +148,7 @@ namespace OpenZ
             OzEndingVignette.Release();
             if (hud) hud.SetVisible(false);                                                              // critic: the HUD stayed drawn over the end screen
             var W = game.World; var me = hud.Player;
-            kind = winner == Team.Neutral ? "draw" : winner == me ? "victory" : "defeat";
+            kind = winner == Team.Neutral ? "draw" : W.AreAllied(winner, me) ? "victory" : "defeat";
             win = kind == "victory";
             canvas.gameObject.SetActive(true);
             post = kind == "victory" ? new OzPost("OZ_EndScreen", -45f, -0.9f, 0.35f) : kind == "defeat" ? new OzPost("OZ_EndScreen", -70f, -1.1f, 0.45f) : new OzPost("OZ_EndScreen", -60f, -1f, 0.4f);
@@ -155,7 +156,10 @@ namespace OpenZ
             float cx = OzLayout.RefW * 0.5f;
             string level = OzAiMapCatalog.Find(game.level) is OzAiMap converted ? converted.Name.ToUpperInvariant() : game.level == "L19" ? "MAYHEM" : game.level == "L17" ? "THE CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameEndName : game.level == "L16" ? "THE JUNGLE" : OzVolcanic.Is(game.level) ? OzVolcanic.EndName : "THE DESERT";
             string lvlCode = game.level;
-            Team enemy = W.Map.skirmish && winner != Team.Neutral && winner != me ? winner : me == Team.Red ? Team.Blue : Team.Red;
+            Team enemy = W.Map.skirmish
+                ? W.Objects.Where(o => o.IsFort && o.Owner != Team.Neutral && !W.AreAllied(o.Owner, me))
+                    .Select(o => o.Owner).OrderByDescending(owner => owner == winner).FirstOrDefault()
+                : me == Team.Red ? Team.Blue : Team.Red;
 
             dimImage = null;
             if (kind != "victory")

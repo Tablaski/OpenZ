@@ -30,8 +30,8 @@ namespace OpenZ.Multiplayer
             return uri.GetLeftPart(UriPartial.Authority);
         }
     }
-    [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint; }
-    [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; }
+    [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint; public bool skirmish; public int skirmishProtocol; }
+    [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; public bool skirmish; public int id; }
     [Serializable] sealed class DuelIceServer { public string[] urls; public string username, credential; }
     [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, relayRemainingBytes, error; }
     [Serializable] sealed class DuelSignal { public string type, sdp; }
@@ -95,13 +95,22 @@ namespace OpenZ.Multiplayer
                 }
             }
         }
-        public async Task<IDuelPeer> ConnectAsync(string service, bool host, string invitation, string fingerprint, string name, bool relayOnly)
+        public async Task<IDuelPeer> ConnectAsync(string service, bool host, string invitation, string fingerprint, string name, bool relayOnly, bool skirmish = false)
         {
             serviceUrl = DuelOnlineSettings.ValidateService(service);
             hostSeat = host; versionFingerprint = fingerprint; localName = name; forceRelay = relayOnly;
             var room = await Post<DuelRoomResponse>(host ? serviceUrl + "/rooms" : serviceUrl + "/rooms/" + ReadCode(invitation) + "/join",
-                new DuelOnlineRequest { name = name, fingerprint = fingerprint }).ConfigureAwait(false);
+                new DuelOnlineRequest { name = name, fingerprint = fingerprint, skirmish = skirmish, skirmishProtocol = 1 }).ConfigureAwait(false);
             RoomCode = room.room; Secret = room.secret; seatToken = room.seat;
+            if (skirmish && !room.skirmish) throw new IOException("The invitation service needs the multiplayer update before it can host Skirmish.");
+            if (room.skirmish)
+            {
+                var address = new Uri(serviceUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/rooms/" + RoomCode + "/socket");
+                var connection = new SkirmishOnline(room.id, seatToken, Secret, versionFingerprint, name,
+                    data => Post<SkirmishSignal>(serviceUrl + "/rooms/" + RoomCode + "/sfu", data, seatToken), stop.Token);
+                try { await connection.Start(address).ConfigureAwait(false); return connection; }
+                catch { connection.Dispose(); throw; }
+            }
             return await ConnectTransport(false).ConfigureAwait(false);
         }
 

@@ -1,3 +1,5 @@
+import { SkirmishRoom } from "./skirmish.js";
+
 const STUN = [{ urls: ["stun:stun.cloudflare.com:3478"], username: "", credential: "" }];
 const ROOM_LIFETIME = 30 * 60 * 1000;
 const CONNECTED_ROOM_LIFETIME = 6 * 60 * 60 * 1000;
@@ -23,12 +25,12 @@ export function billingPeriod(day, now = Date.now()) {
 
 export class RelayBudget {
   constructor(ctx, env) { this.ctx = ctx; this.env = env; }
-  fetch() { return this.ctx.blockConcurrencyWhile(() => this.check()); }
-  async check() {
+  fetch(request) { return this.ctx.blockConcurrencyWhile(() => this.check(request && new URL(request.url).pathname === "/monitor")); }
+  async check(monitor = false) {
     const unavailable = { allowed: false, reason: "unavailable" };
     try {
       const env = this.env, now = Date.now();
-      if (env.TURN_ENABLED !== "true") return json({ allowed: false, reason: "disabled" });
+      if (env.TURN_ENABLED !== "true" && env.SFU_ENABLED !== "true") return json({ allowed: false, reason: "disabled" });
       const limit = Number(env.TURN_BUDGET_BYTES);
       // Require explicit configuration; never silently guess the billing cycle.
       if (!/^[a-f0-9]{32}$/i.test(env.CF_ACCOUNT_ID || "") || !env.CF_ANALYTICS_TOKEN ||
@@ -71,8 +73,8 @@ export class RelayBudget {
       // Global issuance cap, in addition to the per-network request limit.
       // Temporary credentials can be extracted from any public client.
       state.grants = state.grants.filter(time => time > now - 3600000);
-      const reason = state.peak >= limit ? "budget" : state.grants.length >= 120 ? "busy" : "";
-      if (!reason) state.grants.push(now);
+      const reason = state.peak >= limit ? "budget" : !monitor && state.grants.length >= 120 ? "busy" : "";
+      if (!reason && !monitor) state.grants.push(now);
       await this.ctx.storage.put("budget", state);
       await this.ctx.storage.setAlarm(period.end);
       return json({ allowed: !reason, reason, relayRemainingBytes: String(Math.max(0, limit - state.peak)) });
@@ -101,13 +103,13 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url);
-      if (request.method === "GET" && url.pathname === "/health") return json({ service: "OpenZ Duel", version: 1 });
+      if (request.method === "GET" && url.pathname === "/health") return json({ service: "OpenZ Duel", version: 1, skirmishProtocol: 1 });
       const invitation = url.pathname.slice(1);
       if (request.method === "GET" && validRoom(invitation)) {
-        return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Join an OpenZ duel</title><style>body{background:#171d20;color:#edf0df;font:20px system-ui;max-width:620px;margin:12vh auto;padding:24px}a{display:block;background:#d8a33c;color:#171d20;padding:18px;text-align:center;border-radius:6px;text-decoration:none;font-weight:bold}code{overflow-wrap:anywhere}p{line-height:1.6}</style><h1>Your OpenZ invitation</h1><p>Your friend is waiting. Open the game to join.</p><a href="openz://join?room=${invitation}">Join in OpenZ</a><p>Already in the game? Paste this code in <strong>1VS1 → Play Online</strong>:</p><p><code>${invitation}</code></p><p>The invitation opens only with OpenZ installed and invitation links enabled.</p></html>`, { headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
+        return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Join an OpenZ game</title><style>body{background:#171d20;color:#edf0df;font:20px system-ui;max-width:620px;margin:12vh auto;padding:24px}a{display:block;background:#d8a33c;color:#171d20;padding:18px;text-align:center;border-radius:6px;text-decoration:none;font-weight:bold}code{overflow-wrap:anywhere}p{line-height:1.6}</style><h1>Your OpenZ invitation</h1><p>Open the game to join the lobby.</p><a href="openz://join?room=${invitation}">Join in OpenZ</a><p>Already in the game? Paste this code in <strong>Multiplayer</strong>.</p><p><code>${invitation}</code></p><p>The invitation opens only with OpenZ installed and invitation links enabled.</p></html>`, { headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
       }
       const create = url.pathname === "/rooms" && request.method === "POST";
-      const match = url.pathname.match(/^\/rooms\/(OPNZ-[A-F0-9]{24})\/(join|socket|ice)$/);
+      const match = url.pathname.match(/^\/rooms\/(OPNZ-[A-F0-9]{24})\/(join|socket|ice|sfu)$/);
       if (!create && !match) return json({ error: "Unknown invitation or endpoint." }, 404);
       // Bound room creation, failed joins and socket handshakes by network origin.
       const ip = request.headers.get("CF-Connecting-IP") || "local";
@@ -150,11 +152,13 @@ export class DuelRoom {
       if (path === "/create") {
         if (room) return json({ error: "Room already exists." }, 409);
         if (!validPlayer(data)) return json({ error: "Invalid player or game version." }, 400);
+        if (data.skirmish === true) return new SkirmishRoom(this.ctx, this.env).create(request.headers.get("X-Room-Code"), data);
         room = { code: request.headers.get("X-Room-Code"), secret: randomToken(), fingerprint: data.fingerprint, expires: Date.now() + ROOM_LIFETIME,
           host: { seat: randomToken() }, guest: null };
         await this.ctx.storage.put("room", room); await this.ctx.storage.setAlarm(room.expires);
         return json({ room: room.code, secret: room.secret, seat: room.host.seat, role: "host" });
       }
+      if (room?.skirmish) return await new SkirmishRoom(this.ctx, this.env).handle(room, path, data, request, validPlayer);
       if (!room || Date.now() >= room.expires) return json({ error: "This invitation has expired. Ask your opponent for a new one." }, 404);
       if (path === "/join") {
         if (room.guest) return json({ error: "This room is already full. Ask for a new invitation." }, 409);
@@ -218,6 +222,7 @@ export class DuelRoom {
     } catch { return json({ error: "Invalid room request." }, 400); }
   }
   async webSocketMessage(socket, message) {
+    if (socket.deserializeAttachment()?.skirmish) return this.ctx.blockConcurrencyWhile(() => new SkirmishRoom(this.ctx, this.env).message(socket, message));
     const state = socket.deserializeAttachment();
     if (typeof message !== "string" || message.length > 62000 || ++state.count > 6) { socket.close(1008, "Invalid signaling message."); return; }
     socket.serializeAttachment(state);
@@ -228,6 +233,7 @@ export class DuelRoom {
     } catch { socket.close(1008, "Invalid connection offer."); }
   }
   async webSocketClose(socket) {
+    if (socket.deserializeAttachment()?.skirmish) return this.ctx.blockConcurrencyWhile(() => new SkirmishRoom(this.ctx, this.env).left(socket));
     const state = socket.deserializeAttachment();
     for (const peer of this.ctx.getWebSockets(state.role === "host" ? "guest" : "host")) {
       try { peer.send(JSON.stringify({ type: "left" })); } catch { /* The other player may already have left. */ }
@@ -236,6 +242,8 @@ export class DuelRoom {
   }
   async webSocketError(socket) { await this.webSocketClose(socket); }
   async alarm() {
+    const room = await this.ctx.storage.get("room");
+    if (room?.skirmish) return this.ctx.blockConcurrencyWhile(() => new SkirmishRoom(this.ctx, this.env).alarm(room));
     for (const socket of this.ctx.getWebSockets()) socket.close(1000, "Invitation expired.");
     await this.ctx.storage.deleteAll();
   }

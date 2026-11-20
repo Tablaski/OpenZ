@@ -116,7 +116,8 @@ namespace OpenZ.Multiplayer
         public float PingMs { get; private set; }
         public DuelLobbyData View { get; private set; }
         internal string LocalLobbyName => (IsHost ? View?.HostName : View?.GuestName) ?? localName;
-        internal Team LocalTeam => SkirmishRoom ? (IsHost ? Team.Red : Team.Blue) :
+        internal Team LocalTeam => SkirmishRoom ? (IsHost ? Team.Red :
+            (Team)((JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1) + 1)) :
             View.TeamSlot(IsHost ? 0 : 1) == 0 ? Team.Red : Team.Blue;
         public DuelRules Rules => View?.ReadRules() ?? Defaults("L02");
         public readonly List<string> Chat = new List<string>();
@@ -163,8 +164,8 @@ namespace OpenZ.Multiplayer
         double perfMatchStart, perfAt;
         long perfLastSend, perfLastArrival, perfLastReceive;
         static readonly double PerfTickMs = 1000.0 / Stopwatch.Frequency;
-        int QueuedSendBytes => peer is DuelRtcPeer rtc ? rtc.PendingSendBytes : peer is DuelTcpPeer tcp ? tcp.PendingSendBytes : 0;
-        int QueuedReceiveBytes => peer is DuelRtcPeer rtc ? rtc.PendingReceiveBytes : peer is DuelTcpPeer tcp ? tcp.PendingReceiveBytes : 0;
+        int QueuedSendBytes => RoomTransport?.PendingSendBytes ?? (peer is DuelRtcPeer rtc ? rtc.PendingSendBytes : peer is DuelTcpPeer tcp ? tcp.PendingSendBytes : 0);
+        int QueuedReceiveBytes => RoomTransport?.PendingReceiveBytes ?? (peer is DuelRtcPeer rtc ? rtc.PendingReceiveBytes : peer is DuelTcpPeer tcp ? tcp.PendingReceiveBytes : 0);
         readonly DuelDeltaSender sender = new DuelDeltaSender();
         DuelDeltaReceiver receiver = new DuelDeltaReceiver();
         DuelOrderReceiver hostOrders, guestOrders;
@@ -243,7 +244,7 @@ namespace OpenZ.Multiplayer
                 cancellation = new CancellationTokenSource(); online = new DuelOnline(cancellation.Token);
                 string service = DuelOnlineSettings.CurrentService;
                 connectTask = online.ConnectAsync(service, host, invitation, Fingerprint(), name,
-                    Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only"));
+                    Environment.GetCommandLineArgs().Contains("-oz-duel-relay-only"), skirmish);
                 Status = "Connecting…"; Menus.ShowLobby();
             }
             catch (Exception error) { Fail(error.Message); }
@@ -396,11 +397,13 @@ namespace OpenZ.Multiplayer
                 if (connectTask != null && connectTask.IsCompleted)
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
-                    lastReceive = Now; Status = OnlineMode ? (OnlinePeer.UsesRelay ? "Connected via relay" : "Connected directly") : "Connected";
-                    if (room != null) ConnectRoomGuest();
+                    lastReceive = Now; Status = RoomTransport != null ? "Waiting for players…" :
+                        OnlinePeer != null ? (OnlinePeer.UsesRelay ? "Connected via relay" : "Connected directly") : "Connected";
+                    if (RoomTransport != null) Menus.Refresh();
                     else if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;
+                if (RoomTransport != null) { UpdateOnlineRoom(); return; }
                 if (restartPromptOpen && (!Playing || !Game || Game.World.GameOver)) OzConfirm.Dismiss();
                 if (IsHost && restartPending && Now > restartDeadline) { if (restartPromptOpen) OzConfirm.Dismiss(); else FinishRestartRequest(false); }
                 if (peer.Closed && !Playing) { Fail(peer.Failure ?? "Connection closed"); return; }
@@ -851,7 +854,7 @@ namespace OpenZ.Multiplayer
                 " frameTimingSamples={49} mainMaxMs={50:F1} renderMaxMs={51:F1} gpuMaxMs={52:F1} presentWaitMaxMs={53:F1}" +
                 " snapshotTargetHz={54} receiveBudgetMs={55} interpolationMs={56} motionHoldFrames={57} motionCaptureMaxMs={58:F2}" +
                 " wireStateKBps={59:F1} hostBinaryEvents={60} hostCompression={61} build={16}",
-                OzForkVersion.Number, IsHost ? "host" : "guest", OnlineMode ? (OnlinePeer.UsesRelay ? "TURN" : "direct") : "TCP",
+                OzForkVersion.Number, IsHost ? "host" : "guest", TransportLabel,
                 perf.Frames / elapsed, perf.WorstFrame, perf.SendTicks * sendMs, perf.ReceiveTicks * receiveMs,
                 perf.Sent / elapsed, perf.Received / elapsed, perf.SendBytes / 1024.0 / elapsed, perf.ReceiveBytes / 1024.0 / elapsed,
                 QueuedSendBytes, QueuedReceiveBytes, PingMs, GC.CollectionCount(0) - perf.GcStart, Game ? Game.World.Objects.Count : 0, LocalRelease,
@@ -879,19 +882,22 @@ namespace OpenZ.Multiplayer
         public void ReadyForLobby()
         {
             if (!Connected || !Playing || !Game || !Game.World.GameOver || localEndReady) return;
-            localEndReady = true; Menus.NotifyChat("Ready for lobby. Waiting for your opponent to finish viewing statistics.");
+            localEndReady = true; Menus.NotifyChat("Ready for lobby. Waiting for the other players to finish viewing statistics.");
             if (IsHost) TryReturnToLobby(); else peer.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>()));
         }
         void TryReturnToLobby()
         {
-            if (!localEndReady || !remoteEndReady) return;
+            if (!localEndReady) return;
             if (SkirmishRoom)
             {
-                room.ReturnToLobby(RoomHostId);
+                if (room == null || room.Members.Any(member => member.Id != RoomHostId && member.Seat.MayUsePlayerCommands &&
+                    int.TryParse(member.Id, out int id) && !roomDeparted.Contains(id) && !roomEndReady.Contains(id))) return;
+                ReturnRoomToLobby();
                 PublishRoom();
                 ReturnToLobbyScene();
                 return;
             }
+            if (!remoteEndReady) return;
             lobby.ReturnToLobby();
             peer.Send(new DuelPacket(DuelMessage.ReturnLobby, Array.Empty<byte>()));
             PublishLobby(); ReturnToLobbyScene();
@@ -982,7 +988,8 @@ namespace OpenZ.Multiplayer
             hostOrders = guestOrders = null;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
             capture = new DuelReplica.CaptureBuffer();
-            room = null; roomHost = null; roomGuest = null;
+            ClearOnlineRoom();
+            room = null; roomGuest = null;
             ClearRoomVote();
         }
         void Disconnect()

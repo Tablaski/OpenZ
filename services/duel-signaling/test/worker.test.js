@@ -22,6 +22,67 @@ async function roomWithBudget(decision = { allowed: true }) {
   const guest = await (await room.fetch(post("join", { name: "Guest", fingerprint }))).json();
   return { room, env, host, guest };
 }
+
+test("one Skirmish invitation admits eight authenticated humans and routes direct SDP to one peer", async () => {
+  const ctx = context(), sockets = new Map();
+  ctx.getWebSockets = tag => tag === "skirmish" ? [...sockets.values()] : [sockets.get(Number(tag.replace("skirmish-", "")))].filter(Boolean);
+  const room = new DuelRoom(ctx, {});
+  const host = await (await room.fetch(post("create", { name: "Host", fingerprint, skirmish: true }))).json();
+  function attach(id) {
+    let state = { skirmish: true, id };
+    const messages = [];
+    const socket = { messages, deserializeAttachment: () => state, serializeAttachment: value => { state = value; },
+      send: message => messages.push(JSON.parse(message)), close: () => sockets.delete(id) };
+    sockets.set(id, socket);
+    return socket;
+  }
+  const hostSocket = attach(host.id);
+  assert.equal((await room.fetch(post("join", { name: "Old guest", fingerprint }))).status, 409);
+  for (let id = 2; id <= 8; id++) {
+    const guest = await (await room.fetch(post("join", { name: `Guest ${id}`, fingerprint, skirmishProtocol: 1 }))).json();
+    assert.equal(guest.room, host.room);
+    assert.equal(guest.id, id);
+    attach(id);
+  }
+  assert.equal((await room.fetch(post("join", { name: "Ninth player", fingerprint, skirmishProtocol: 1 }))).status, 409);
+  await room.webSocketMessage(hostSocket, JSON.stringify({ type: "offer", id: 8, epoch: 1, sdp: "offer" }));
+  assert.deepEqual(sockets.get(8).messages, [{ type: "offer", id: 1, epoch: 1, sdp: "offer" }]);
+  assert.deepEqual(sockets.get(2).messages, []);
+  await room.webSocketMessage(sockets.get(8), JSON.stringify({ type: "answer", id: 1, epoch: 1, sdp: "answer" }));
+  assert.deepEqual(hostSocket.messages, [{ type: "answer", id: 8, epoch: 1, sdp: "answer" }]);
+});
+
+test("an active SFU room closes its publications and signals direct fallback when its shared budget closes", async () => {
+  const ctx = context(), signals = [], calls = [];
+  const socket = { send: text => signals.push(JSON.parse(text)) };
+  ctx.getWebSockets = () => [socket];
+  let allowed = true;
+  const room = new DuelRoom(ctx, { SFU_ENABLED: "true", SFU_APP_ID: "app", SFU_APP_SECRET: "server-secret",
+    RELAY_BUDGET: { idFromName: key => key, get: () => ({ fetch: async () => new Response(JSON.stringify({ allowed })) }) } });
+  const host = await (await room.fetch(post("create", { name: "Host", fingerprint, skirmish: true }))).json();
+  await withFetch(async (url, request) => {
+    assert.equal(request.headers.Authorization, "Bearer server-secret");
+    calls.push({ url, method: request.method, body: request.body && JSON.parse(request.body) });
+    if (url.endsWith("/sessions/new")) return Response.json({ sessionId: "host-session" });
+    if (url.endsWith("/establish")) return Response.json({ dataChannel: { id: 0 }, sessionDescription: { type: "offer", sdp: "test offer" } });
+    if (url.endsWith("/datachannels/new")) return Response.json({ dataChannels: [
+      { dataChannelName: "openz-game", id: 2 }, { dataChannelName: "openz-voice", id: 4 }
+    ] });
+    return Response.json({});
+  }, async () => {
+    const api = (type, options = {}, seat = host.seat) => room.fetch(post("sfu", { type, epoch: 1, ...options }, seat));
+    assert.equal((await api("setup", {}, "wrong-seat")).status, 403);
+    assert.deepEqual(await (await api("setup")).json(), { sdp: "test offer", game: 0 });
+    assert.equal((await api("answer", { sdp: "test answer" })).status, 200);
+    assert.deepEqual(await (await api("publish")).json(), { game: 2, voice: 4 });
+    allowed = false;
+    await room.alarm();
+    assert.equal(signals.at(-1).sfu, false);
+    assert.equal(signals.at(-1).epoch, 2);
+    assert.deepEqual(calls.at(-1).body, { dataChannels: [{ id: 2 }, { id: 4 }] });
+    assert.equal((await api("setup")).status, 409);
+  });
+});
 test("billing cycle clamps month ends, handles leap years and uses the configured day", () => {
   assert.equal(billingPeriod("15", Date.parse("2026-11-14T23:59:59Z")).start, "2026-10-15");
   assert.equal(billingPeriod("15", Date.parse("2026-11-15T00:00:00Z")).start, "2026-11-15");

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OpenZ.Sim;
@@ -9,10 +10,24 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelRuntime
     {
-        const string RoomHostId = "host", RoomGuestId = "guest";
+        const string RoomHostId = "host";
         MultiplayerRoom room;
-        MultiplayerRoomHostLink roomHost;
         MultiplayerRoomGuestLink roomGuest;
+        readonly Dictionary<int, MultiplayerRoomHostLink> roomLinks = new Dictionary<int, MultiplayerRoomHostLink>();
+        readonly HashSet<int> roomDeparted = new HashSet<int>(), roomEndReady = new HashSet<int>();
+        readonly DuelReplica.CaptureBuffer roomCapture = new DuelReplica.CaptureBuffer();
+        DuelDeltaSender roomDelta;
+        SkirmishNetworkTuning roomTuning;
+        int roomEpoch, roomDrainIndex, roomEndReadyEpoch = -1;
+        bool roomFullState, roomReplicaChanged;
+        double roomRetuneAt, roomRouteChangedAt;
+        double roomStateArrival, roomStateInterval, roomStateJitter;
+        float roomSimulationPeak;
+        long roomWireBytes;
+        internal SkirmishOnline RoomTransport => peer as SkirmishOnline;
+        internal bool RoomCanLaunch => room?.CanLaunch == true && RoomTransport != null && roomLinks.Count != 0 &&
+            RoomTransport.Remotes.All(link => link.Ready && roomLinks.ContainsKey(link.Id));
+        int RoomPosition => IsHost ? 0 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
         MapChangeVote roomVote;
         string roomVoteMap;
         int loadedRoomRevision = -1, roomVoteSequence;
@@ -31,16 +46,11 @@ namespace OpenZ.Multiplayer
             FillRoomBots();
         }
 
-        void ConnectRoomGuest()
-        {
-            room.Join(RoomGuestId, peer.RemoteName);
-            roomHost = new MultiplayerRoomHostLink(room, peer, RoomGuestId);
-            PublishRoom();
-        }
+        static string RoomGuest(int id) => id.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         void PublishRoom()
         {
-            if (roomHost != null && !roomHost.Publish()) throw new IOException("Could not send the room snapshot.");
+            foreach (var link in roomLinks.Values) link.Publish();
             Menus.Refresh();
         }
 
@@ -100,21 +110,22 @@ namespace OpenZ.Multiplayer
 
         internal void LaunchRoom()
         {
-            if (!Connected || room?.CanLaunch != true) return;
+            if (!Connected || !RoomCanLaunch) return;
+            RoomTransport.Lock(true);
             room.Launch(RoomHostId);
             PublishRoom();
             LoadRoomMap(room.Map, room.Revision);
         }
 
-        bool HandleRoomPacket(DuelPacket packet)
+        bool HandleRoomPacket(DuelPacket packet, SkirmishOnline.Link sender = null)
         {
             switch (packet.Kind)
             {
                 case DuelMessage.RoomCommand:
                 case DuelMessage.RoomOrder:
-                    if (roomHost?.Receive(packet) == true && packet.Kind == DuelMessage.RoomCommand)
+                    if (sender != null && roomLinks.TryGetValue(sender.Id, out var link) && link.Receive(packet, false) && packet.Kind == DuelMessage.RoomCommand)
                     {
-                        Menus.Refresh();
+                        PublishRoom();
                         if (room.MatchLoaded && !Playing) StartRoomPlay();
                     }
                     return true;
@@ -127,12 +138,20 @@ namespace OpenZ.Multiplayer
                     if (JoinedRoom.Launched && (!session || loadedRoomRevision != JoinedRoom.Revision)) LoadRoomMap(JoinedRoom.Map, JoinedRoom.Revision);
                     else if (!JoinedRoom.Launched && session) ReturnToLobbyScene();
                     else if (JoinedRoom.MatchLoaded && Game && !Playing) StartRoomPlay();
+                    else if (JoinedRoom.Launched && !JoinedRoom.MatchLoaded && roomLoadedScene) AcknowledgeRoomLoad();
                     return true;
                 case DuelMessage.RoomBattlefield:
-                    roomGuest?.Receive(packet);
+                    if (roomGuest?.Receive(packet) == true)
+                    {
+                        matchStateReceived += packet.WirePayloadLength;
+                        RecordDiagnosticState(packet.ReceivedAtTicks, 0, 0);
+                        RecordRoomMotion(packet.ReceivedAtTicks);
+                        roomReplicaChanged = true;
+                    }
                     return true;
                 case DuelMessage.RoomVoteRequest:
-                    if (room != null && packet.Payload.Length <= 512) ReceiveRoomVoteRequest(ReadJson<RoomVoteRequest>(packet), Team.Blue);
+                    if (room != null && room.Launched && sender != null && roomLinks.ContainsKey(sender.Id) && packet.Payload.Length <= 512)
+                        ReceiveRoomVoteRequest(ReadJson<RoomVoteRequest>(packet), room.HumanTeam(RoomGuest(sender.Id)));
                     return true;
                 case DuelMessage.RoomVoteState:
                     if (roomGuest != null && packet.Payload.Length <= 512) ShowRoomVote(ReadJson<RoomVoteState>(packet));
@@ -150,6 +169,227 @@ namespace OpenZ.Multiplayer
             }
         }
 
+        void UpdateOnlineRoom()
+        {
+            var transport = RoomTransport;
+            if (transport.Closed) { Fail(transport.Failure ?? "The room connection closed."); return; }
+            var remotes = transport.Remotes;
+            if (transport.Epoch != roomEpoch)
+            {
+                roomEpoch = transport.Epoch;
+                roomRouteChangedAt = Now;
+                roomLinks.Clear();
+                roomFullState = true;
+                roomWireBytes = 0;
+                roomStateArrival = 0;
+                motionHistory.Reset();
+                roomRetuneAt = Now + 1;
+                Status = transport.Route == "SFU" ? "Preparing the relay…" : "Preparing direct connections…";
+                if (roomEpoch > 1) Menus.NotifyChat("Switching to direct connections…");
+                Menus.Refresh();
+                return;
+            }
+            if (IsHost) UpdateRoomParticipants(remotes);
+            if (peer == null) return;
+
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            for (int count = 0; remotes.Length > 0 && count < 256; count++)
+            {
+                var sender = remotes[roomDrainIndex++ % remotes.Length];
+                if (roomDrainIndex >= 256) roomDrainIndex %= remotes.Length;
+                if (!sender.Ready || !sender.TryReceive(out var packet))
+                {
+                    if (count >= remotes.Length && (System.Diagnostics.Stopwatch.GetTimestamp() - start) * PerfTickMs >= .5) break;
+                    if (count >= remotes.Length * 2) break;
+                    continue;
+                }
+                sender.LastPacketAt = Now;
+                ReadOnlineRoom(sender, packet);
+                if (peer == null) return;
+                if ((System.Diagnostics.Stopwatch.GetTimestamp() - start) * PerfTickMs >= ReceiveBudgetMs) break;
+            }
+
+            foreach (var link in remotes.Where(link => link.Ready))
+            {
+                if (link.LastPacketAt == 0) link.LastPacketAt = Now;
+                if (!link.StallReported && Now - link.LastPacketAt > (session && !Playing ? 180 : 20))
+                {
+                    link.StallReported = true;
+                    transport.ReportStalled(link);
+                }
+                if (Now - link.LastPing < 1) continue;
+                link.LastPing = Now;
+                link.Send(new DuelPacket(DuelMessage.Ping, BitConverter.GetBytes(Now)));
+            }
+            PingMs = (float)remotes.Select(link => link.Ping).DefaultIfEmpty().Max();
+            if (!IsHost && roomGuest != null && remotes.Any(link => link.Ready)) Status = "Connected · " + transport.Route;
+            UpdateRoomVote();
+            if (Game && session && !IsHost)
+            {
+                if (roomReplicaChanged) { SyncClientViews(); roomReplicaChanged = false; }
+                if (localEndReady && roomEndReadyEpoch != roomEpoch && transport.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>())))
+                    roomEndReadyEpoch = roomEpoch;
+            }
+            if (Playing)
+            {
+                RecordDiagnosticQueue(QueuedReceiveBytes);
+                RecordDiagnosticFrame(Time.unscaledDeltaTime * 1000);
+                if (!IsHost) ReceiveBudgetMs = Time.unscaledDeltaTime > .025f ? 2 : QueuedReceiveBytes > 32 * 1024 ? 5 : DefaultReceiveBudgetMs;
+            }
+        }
+
+        void RecordRoomMotion(long arrival)
+        {
+            if (!Playing || arrival <= 0) return;
+            double milliseconds = arrival * PerfTickMs;
+            if (roomStateArrival > 0)
+            {
+                double interval = Math.Min(250, Math.Max(0, milliseconds - roomStateArrival));
+                roomStateJitter += .15 * (Math.Abs(interval - roomStateInterval) - roomStateJitter);
+                roomStateInterval += .15 * (interval - roomStateInterval);
+            }
+            roomStateArrival = milliseconds;
+            InterpolationMs = Mathf.Clamp((int)(roomStateInterval + 2 * roomStateJitter), 70, 220);
+            CaptureMotion(arrival);
+        }
+
+        void UpdateRoomParticipants(SkirmishOnline.Link[] remotes)
+        {
+            bool changed = false;
+            foreach (var link in remotes.Where(link => link.Ready))
+            {
+                if (roomLinks.ContainsKey(link.Id)) continue;
+                string id = RoomGuest(link.Id);
+                if (!room.Members.Any(member => member.Id == id))
+                {
+                    if (room.Launched)
+                    {
+                        link.Send(new DuelPacket(DuelMessage.Disconnect, Array.Empty<byte>()));
+                        continue;
+                    }
+                    room.Join(id, link.RemoteName, replaceBot: true);
+                }
+                var hostLink = new MultiplayerRoomHostLink(room, link, id, roomEpoch * 1000000);
+                if (Playing) hostLink.AttachBattlefield(Game.World);
+                roomLinks.Add(link.Id, hostLink);
+                changed = true;
+            }
+            if (Now - roomRouteChangedAt > 2)
+            {
+                foreach (var member in room.Members.Where(member => member.Id != RoomHostId))
+                {
+                    int id = int.Parse(member.Id, System.Globalization.CultureInfo.InvariantCulture);
+                    if (remotes.Any(link => link.Id == id) || !roomDeparted.Add(id)) continue;
+                    if (Playing) Game.World.SurrenderSkirmish(room.HumanTeam(member.Id));
+                    else if (room.Launched) { ReturnRoomToLobby(); ReturnToLobbyScene(); }
+                    if (!room.Launched) room.RemoveHuman(RoomHostId, member.Id);
+                    roomLinks.Remove(id);
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                if (!room.Launched) FillRoomBots();
+                PublishRoom();
+                TryReturnToLobby();
+            }
+            Status = roomLinks.Count == 0 ? "Waiting for players…" : "Connected · " + RoomTransport.Route;
+        }
+
+        void ReadOnlineRoom(SkirmishOnline.Link sender, DuelPacket packet)
+        {
+            if (IsHost && !roomLinks.ContainsKey(sender.Id)) return;
+            switch (packet.Kind)
+            {
+                case DuelMessage.Ping:
+                    if (packet.Payload.Length == 8) sender.Send(new DuelPacket(DuelMessage.Pong, packet.Payload));
+                    return;
+                case DuelMessage.Pong:
+                    if (packet.Payload.Length != 8 || BitConverter.ToDouble(packet.Payload, 0) != sender.LastPing) return;
+                    double sample = (Now - sender.LastPing) * 1000;
+                    sender.Jitter += (.2 * (Math.Abs(sample - sender.Ping) - sender.Jitter));
+                    sender.Ping = sender.Ping == 0 ? sample : sender.Ping + .25 * (sample - sender.Ping);
+                    sender.BasePing = Math.Min(sender.BasePing, sender.Ping);
+                    return;
+                case DuelMessage.Chat:
+                    if (packet.Payload.Length > 1024) return;
+                    string text = System.Text.Encoding.UTF8.GetString(packet.Payload);
+                    if (text.Length > 240 || text.Any(char.IsControl)) return;
+                    int id = sender.Id;
+                    if (IsHost) SendJson(DuelMessage.RoomChat, new RoomChat { Sender = id, Name = sender.RemoteName, Text = text });
+                    NotifyRoomChat(sender.RemoteName, text);
+                    return;
+                case DuelMessage.RoomChat:
+                    if (IsHost || packet.Payload.Length > 2048) return;
+                    var chat = ReadJson<RoomChat>(packet);
+                    if (chat != null && chat.Sender != RoomTransport.Id && chat.Name?.Length <= 32 && chat.Text?.Length <= 240)
+                        NotifyRoomChat(chat.Name, chat.Text);
+                    return;
+                case DuelMessage.Surrender:
+                    if (IsHost && Playing && Game) Game.World.SurrenderSkirmish(room.HumanTeam(RoomGuest(sender.Id)));
+                    return;
+                case DuelMessage.EndReady:
+                    if (IsHost && Playing && Game && Game.World.GameOver && room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
+                    { roomEndReady.Add(sender.Id); TryReturnToLobby(); }
+                    return;
+                case DuelMessage.MatchStats:
+                    if (!IsHost && Game && Game.World.GameOver) Handle(packet);
+                    return;
+                case DuelMessage.Disconnect:
+                    if (!IsHost) Fail("The host is no longer accepting participants for this match.");
+                    return;
+                case DuelMessage.RoomSnapshot:
+                case DuelMessage.RoomBattlefield:
+                case DuelMessage.RoomVoteState:
+                    if (!IsHost) HandleRoomPacket(packet, sender);
+                    return;
+                case DuelMessage.RoomCommand:
+                case DuelMessage.RoomOrder:
+                case DuelMessage.RoomVoteRequest:
+                    if (IsHost) HandleRoomPacket(packet, sender);
+                    return;
+            }
+        }
+
+        [Serializable] sealed class RoomChat { public int Sender; public string Name, Text; }
+
+        void NotifyRoomChat(string name, string text)
+        {
+            string line = name + " : " + text;
+            AddChat(line);
+            Menus.NotifyChat(line.Replace("<", "‹").Replace(">", "›"));
+        }
+
+        void ReturnRoomToLobby()
+        {
+            room.ReturnToLobby(RoomHostId);
+            foreach (int id in roomDeparted) room.RemoveHuman(RoomHostId, RoomGuest(id));
+            roomDeparted.Clear();
+            roomEndReady.Clear();
+            RoomTransport.Lock(false);
+            FillRoomBots();
+        }
+
+        void ClearOnlineRoom()
+        {
+            roomLinks.Clear();
+            roomDeparted.Clear();
+            roomEndReady.Clear();
+            roomEpoch = roomDrainIndex = 0;
+            roomLoadedScene = false;
+            roomReplicaChanged = false;
+            roomDelta = null;
+        }
+
+        bool roomLoadedScene;
+        int roomLoadAcknowledgedEpoch = -1;
+
+        void AcknowledgeRoomLoad()
+        {
+            if (RoomPosition >= 0 && roomLoadAcknowledgedEpoch != roomEpoch && roomGuest.MarkLoaded())
+                roomLoadAcknowledgedEpoch = roomEpoch;
+        }
+
         void LoadRoomMap(string mapId, int revision)
         {
             var map = OzAiMapCatalog.Find(mapId);
@@ -158,6 +398,9 @@ namespace OpenZ.Multiplayer
             Game = null;
             Playing = sentGameOver = finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             pendingEvents.Clear();
+            roomLoadedScene = false;
+            roomLoadAcknowledgedEpoch = -1;
+            roomEndReadyEpoch = -1;
             startAt = -1;
             loadedRoomRevision = revision;
             session = loadStarted = true;
@@ -184,9 +427,10 @@ namespace OpenZ.Multiplayer
 
         void FinishRoomLoading()
         {
+            roomLoadedScene = true;
             if (!IsHost)
             {
-                if (!roomGuest.MarkLoaded()) throw new IOException("Could not acknowledge the battlefield load.");
+                AcknowledgeRoomLoad();
                 return;
             }
             room.MarkLoaded(RoomHostId, room.Revision);
@@ -199,34 +443,58 @@ namespace OpenZ.Multiplayer
             if (IsHost)
             {
                 room.ConfigureWorld(Game.World, 19);
-                roomHost.AttachBattlefield(Game.World);
-                if (!roomHost.PublishBattlefield()) throw new IOException("Could not send the opening battlefield.");
+                foreach (var link in roomLinks.Values) link.AttachBattlefield(Game.World);
+                roomDelta = new DuelDeltaSender();
+                roomTuning = new SkirmishNetworkTuning();
+                roomFullState = true;
+                roomSimulationPeak = 0;
+                roomRetuneAt = Now + 1;
+                roomWireBytes = RoomTransport.StatePayloadBytesSent;
             }
             startAt = lastSnapshot = Now;
             Playing = true;
             Menus.CloseOverlay();
             BeginPerformance();
+            roomStateArrival = roomStateJitter = 0;
+            roomStateInterval = 1000d / DefaultSnapshotHz;
+            matchStateReceived = 0;
+            wireSentAtMatchStart = WireStateSent;
         }
 
         void DriveRoom(ZGame game)
         {
             if (!IsHost) return;
+            var links = RoomTransport.Remotes;
+            if (room.Members.Count(member => member.Id != RoomHostId && !roomDeparted.Contains(int.Parse(member.Id))) != roomLinks.Count ||
+                links.Any(link => roomLinks.ContainsKey(link.Id) && !link.Ready)) return;
             game.DuelAdvance(Time.unscaledDeltaTime);
-            if (pendingEvents.Count > DuelEventCodec.MaxEvents)
+            roomSimulationPeak = Math.Max(roomSimulationPeak, ZGame.RuleMsLastFrame);
+            double now = Now;
+            int queued = QueuedSendBytes;
+            if (now >= roomRetuneAt)
             {
-                Fail("Too many pending network events.");
-                return;
+                long bytes = RoomTransport.StatePayloadBytesSent;
+                double bytesPerSecond = Math.Max(0, bytes - roomWireBytes) / (1 + now - roomRetuneAt);
+                roomTuning.Update(queued, links.Select(link => link.Jitter).DefaultIfEmpty().Max(),
+                    links.Select(link => link.Ping - link.BasePing).Where(growth => growth > 0).DefaultIfEmpty().Max(),
+                    roomSimulationPeak, bytesPerSecond, roomLinks.Count, RoomTransport.Route == "SFU");
+                roomSimulationPeak = 0;
+                roomWireBytes = bytes;
+                roomRetuneAt = now + 1;
+                SnapshotHz = roomTuning.Hz;
             }
-            if (game.World.GameOver && !sentGameOver || Now - lastSnapshot >= 1d / SnapshotHz && QueuedSendBytes < 256 * 1024)
+            if (roomLinks.Count == 0) { pendingEvents.Clear(); return; }
+            if ((roomFullState || game.World.GameOver && !sentGameOver || now - lastSnapshot >= 1d / SnapshotHz) && queued < 64 * 1024)
             {
-                if (!roomHost.PublishBattlefield(events: pendingEvents))
-                {
-                    Fail("The connection cannot keep up with battlefield updates.");
-                    return;
-                }
-                pendingEvents.Clear();
-                lastSnapshot = Now;
+                var delta = roomDelta.CaptureImmutable(roomCapture.Capture(game.World), roomFullState);
+                int eventCount = Math.Min(pendingEvents.Count, DuelEventCodec.MaxEvents);
+                var events = eventCount == pendingEvents.Count ? pendingEvents : pendingEvents.GetRange(0, eventCount);
+                roomFullState = !RoomTransport.Send(MultiplayerRoomPackets.Battlefield(room.Revision, delta, events, compress: true));
+                if (roomFullState) return;
+                pendingEvents.RemoveRange(0, eventCount);
+                lastSnapshot = now;
                 sentGameOver = game.World.GameOver;
+                RecordDiagnosticState(0, 0, 0);
             }
         }
 
@@ -289,7 +557,7 @@ namespace OpenZ.Multiplayer
             SendJson(DuelMessage.RoomVoteState, state);
             ShowRoomVote(state);
             if (result != MapChangeResult.Apply) return;
-            room.ReturnToLobby(RoomHostId);
+            ReturnRoomToLobby();
             room.SelectMap(RoomHostId, state.Map);
             FillRoomBots();
             foreach (var member in room.Members.Where(member => member.Seat.MayUsePlayerCommands))

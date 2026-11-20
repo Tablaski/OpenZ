@@ -18,5 +18,5 @@
   ],
   // Configure TURN_BILLING_DAY as a server-side secret with the setup helper.
   // Missing account/analytics secrets or billing day leaves direct play available.
-  "vars": { "TURN_ENABLED": "true", "TURN_TTL": "21600", "TURN_BUDGET_BYTES": "900000000000" }
+  "vars": { "TURN_ENABLED": "true", "TURN_TTL": "21600", "TURN_BUDGET_BYTES": "900000000000", "SFU_ENABLED": "true" }
 }

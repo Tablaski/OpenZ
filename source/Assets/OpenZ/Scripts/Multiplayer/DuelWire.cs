@@ -11,7 +11,7 @@ namespace OpenZ.Multiplayer
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
         Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport,
         DeltaBinaryEvents, DeltaCompressed, Rename, MatchRequest, MatchRequestState, MatchReconnectState, MatchReconnectReady, MatchPause,
-        RoomCommand, RoomSnapshot, RoomOrder, RoomBattlefield, RoomVoteRequest, RoomVoteState
+        RoomCommand, RoomSnapshot, RoomOrder, RoomBattlefield, RoomVoteRequest, RoomVoteState, RoomBattlefieldCompressed, RoomChat
     }
 
     public sealed class DuelPacket
@@ -19,6 +19,7 @@ namespace OpenZ.Multiplayer
         public readonly DuelMessage Kind;
         public readonly byte[] Payload;
         internal readonly bool Compress;
+        internal DuelPacket PackedRoomBattlefield;
         internal int WirePayloadLength;
         // Local transport timestamp. It is set before publishing a received delta to the game thread.
         internal long ReceivedAtTicks;
@@ -39,13 +40,20 @@ namespace OpenZ.Multiplayer
         const int MinCompressedDelta = 1024, MaxCompressedDelta = 128 * 1024;
         const int CompressionHeader = 5, MinimumSavings = 32;
 
-        internal static bool IsDelta(DuelMessage kind) => kind == DuelMessage.Delta || kind == DuelMessage.DeltaBinaryEvents;
+        internal static bool IsDelta(DuelMessage kind) => kind == DuelMessage.Delta || kind == DuelMessage.DeltaBinaryEvents || kind == DuelMessage.RoomBattlefield;
 
         // Called from the ordered transport writers, outside the game thread.
         internal static DuelPacket PackDelta(DuelPacket packet)
         {
+            if (packet.Kind != DuelMessage.RoomBattlefield || !packet.Compress) return CompressDelta(packet, MaxCompressedDelta);
+            // A direct room sends the same immutable state to every guest.
+            lock (packet) return packet.PackedRoomBattlefield ??= CompressDelta(packet, MaxPayload);
+        }
+
+        static DuelPacket CompressDelta(DuelPacket packet, int limit)
+        {
             int size = packet.Payload.Length;
-            if (!packet.Compress || !IsDelta(packet.Kind) || size < MinCompressedDelta || size > MaxCompressedDelta) return packet;
+            if (!packet.Compress || !IsDelta(packet.Kind) || size < MinCompressedDelta || size > limit) return packet;
             using (var buffer = new MemoryStream())
             using (var header = new BinaryWriter(buffer))
             {
@@ -53,22 +61,25 @@ namespace OpenZ.Multiplayer
                 header.Write(size);
                 using (var compressor = new DeflateStream(buffer, CompressionLevel.Fastest, true))
                     compressor.Write(packet.Payload, 0, size);
-                return buffer.Length <= size - MinimumSavings ? new DuelPacket(DuelMessage.DeltaCompressed, buffer.ToArray()) : packet;
+                var kind = packet.Kind == DuelMessage.RoomBattlefield ? DuelMessage.RoomBattlefieldCompressed : DuelMessage.DeltaCompressed;
+                return buffer.Length <= size - MinimumSavings ? new DuelPacket(kind, buffer.ToArray()) : packet;
             }
         }
 
         internal static DuelPacket UnpackDelta(DuelPacket packet)
         {
-            if (packet.Kind != DuelMessage.DeltaCompressed) return packet;
+            if (packet.Kind != DuelMessage.DeltaCompressed && packet.Kind != DuelMessage.RoomBattlefieldCompressed) return packet;
             var body = packet.Payload;
-            if (body.Length <= CompressionHeader || body.Length > MaxCompressedDelta || body[0] > 1)
+            int limit = packet.Kind == DuelMessage.RoomBattlefieldCompressed ? MaxPayload : MaxCompressedDelta;
+            if (body.Length <= CompressionHeader || body.Length > limit || body[0] > 1)
                 throw new InvalidDataException("Invalid compressed state header.");
             using (var buffer = new MemoryStream(body, false))
             using (var header = new BinaryReader(buffer))
             {
-                var kind = header.ReadBoolean() ? DuelMessage.DeltaBinaryEvents : DuelMessage.Delta;
+                bool binary = header.ReadBoolean();
+                var kind = packet.Kind == DuelMessage.RoomBattlefieldCompressed ? DuelMessage.RoomBattlefield : binary ? DuelMessage.DeltaBinaryEvents : DuelMessage.Delta;
                 int size = header.ReadInt32();
-                if (size < MinCompressedDelta || size > MaxCompressedDelta || body.Length > size - MinimumSavings)
+                if (size < MinCompressedDelta || size > limit || body.Length > size - MinimumSavings)
                     throw new InvalidDataException("Invalid compressed state length.");
                 var payload = new byte[size];
                 using (var decompressor = new DeflateStream(buffer, CompressionMode.Decompress))

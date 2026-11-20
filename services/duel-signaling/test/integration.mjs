@@ -6,6 +6,7 @@ const fetchMock = createFetchMock(); fetchMock.disableNetConnect();
 fetchMock.get("https://api.cloudflare.com").intercept({ path: "/client/v4/graphql", method: "POST" })
   .reply(200, { data: { viewer: { accounts: [{ turn: [{ sum: { egressBytes: 899000000000 } }], sfu: [{ sum: { egressBytes: 1000000000 } }] }] } } });
 const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL("../src/worker.js", import.meta.url)), fetchMock,
+  modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
   compatibilityDate: "2025-11-01", durableObjects: { ROOMS: { className: "DuelRoom", useSQLite: true }, LIMITS: { className: "RequestLimit", useSQLite: true }, RELAY_BUDGET: { className: "RelayBudget", useSQLite: true } },
   bindings: { TURN_ENABLED: "true", CF_ACCOUNT_ID: "a".repeat(32), CF_ANALYTICS_TOKEN: "mock-analytics-token", TURN_BILLING_DAY: "1", TURN_BUDGET_BYTES: "900000000000", TURN_KEY_ID: "mock-key", TURN_API_TOKEN: "mock-generation-token" } });
 const fingerprint = "A".repeat(64);
@@ -30,4 +31,36 @@ try {
   fetchMock.assertNoPendingInterceptors();
   a.close(); b.close();
   console.log("PASS: real Workers runtime, SQLite room state, authenticated WebSockets, bidirectional signaling and shared TURN/SFU budget cutoff without contacting a real relay.");
+
+  const skirmish = await (await post("/rooms", { name: "Host", fingerprint, skirmish: true })).json();
+  const roomPath = `/rooms/${skirmish.room}`;
+  async function connect(member) {
+    const response = await mf.dispatchFetch(`https://local${roomPath}/socket`, { headers: { Upgrade: "websocket", Authorization: "Bearer " + member.seat } });
+    const socket = response.webSocket;
+    const firstRoster = nextMessage(socket);
+    socket.accept();
+    return { socket, roster: await firstRoster };
+  }
+  const creator = await connect(skirmish);
+  assert.equal(creator.roster.players.length, 1);
+  const guests = [];
+  for (let id = 2; id <= 8; id++) {
+    const hostRoster = nextMessage(creator.socket);
+    const member = await (await post(roomPath + "/join", { name: `Guest ${id}`, fingerprint, skirmishProtocol: 1 })).json();
+    const guest = await connect(member);
+    guests.push(guest.socket);
+    assert.equal(guest.roster.players.length, id);
+    assert.equal((await hostRoster).players.length, id);
+  }
+  const directOffer = nextMessage(guests.at(-1));
+  creator.socket.send(JSON.stringify({ type: "offer", epoch: 1, id: 8, sdp: "eight-player-offer" }));
+  assert.deepEqual(await directOffer, { type: "offer", id: 1, epoch: 1, sdp: "eight-player-offer" });
+  const directAnswer = nextMessage(creator.socket);
+  guests.at(-1).send(JSON.stringify({ type: "answer", epoch: 1, id: 1, sdp: "eight-player-answer" }));
+  assert.deepEqual(await directAnswer, { type: "answer", id: 8, epoch: 1, sdp: "eight-player-answer" });
+  const departed = nextMessage(creator.socket);
+  guests.pop().close();
+  assert.equal((await departed).players.length, 7);
+  creator.socket.close();
+  console.log("PASS: real Workers runtime, one Skirmish invitation for eight humans, scoped direct signaling and departure updates.");
 } finally { await mf.dispose(); }

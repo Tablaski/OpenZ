@@ -338,17 +338,16 @@ namespace OpenZ.Multiplayer
                 var team = (Team)(seat + 1);
                 var difficulty = hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (ZBotDifficulty?)bot.Difficulty).FirstOrDefault()
                     ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Difficulty;
-                int? alliance = seat >= 2
-                    ? hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (int?)bot.Alliance).SingleOrDefault()
-                        ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Alliance
-                    : memberName != null ? hostMember?.Alliance ?? guestMember?.Alliance : null;
+                int? alliance = memberName != null ? hostMember?.Alliance ?? guestMember?.Alliance :
+                    hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (int?)bot.Alliance).SingleOrDefault()
+                        ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Alliance;
                 if (alliance.HasValue)
                 {
                     string label = "TEAM " + (alliance.Value + 1);
                     if (hosted != null) Button(seats, label, 665, y, 125, () => R.CycleRoomAlliance(seat), height: 34);
                     else Label(seats, label, 665, y + 6, 125, 17, OzUi.Muted);
                 }
-                if (seat >= 2)
+                if (seat > 0 && memberName == null)
                 {
                     BuildSkirmishBotRow(seats, seat, y, difficulty, hosted != null ? value => R.SetRoomBot(seat, value) : null, true);
                     continue;
@@ -357,6 +356,9 @@ namespace OpenZ.Multiplayer
                 if (memberName != null)
                     Label(seats, ready ? "READY" : "NOT READY", 495, y + 6, 150, 17, ready ? OzUi.Go : OzUi.Muted);
             }
+            int waitingForSeat = hosted?.Members.Count(member => member.Seat.Position < 0) ??
+                joined.Humans.Count(member => member.Position < 0 && !member.Observer);
+            if (waitingForSeat > 0) Label(seats, "Choose a larger map. Waiting for a starting position: " + waitingForSeat, 30, 462, 760, 17, OzUi.Muted);
             Label(seats, invitationNotice ?? R.ConnectionStatus, 30, 399, 780, 18, OzUi.Muted);
             if (hosted != null)
                 Button(seats, "COPY INVITATION", 30, 428, 340, () =>
@@ -367,12 +369,13 @@ namespace OpenZ.Multiplayer
                 }, enabled: !string.IsNullOrEmpty(R.OnlineRoom), height: 36);
             bool localReady = hosted?.Members.First(member => member.Id == hosted.HostId).Ready ??
                 joined.Humans.First(member => member.Local).Ready;
-            Button(seats, localReady ? "CANCEL READY" : "READY", 30, 490, 300, () => R.SetRoomReady(!localReady), enabled: R.Connected);
+            Button(seats, localReady ? "CANCEL READY" : "READY", 30, 490, 300, () => R.SetRoomReady(!localReady),
+                enabled: R.Connected && (hosted != null || joined.Humans.Any(member => member.Local && member.Position >= 0)));
             if (hosted != null)
             {
-                Button(seats, "LAUNCH MATCH", 360, 490, 430, R.LaunchRoom, true, R.Connected && hosted.CanLaunch);
-                if (R.Connected && !hosted.CanLaunch)
-                    Label(seats, "Fill every position, assign opposing teams, and have both players ready.", 30, 549, 780, 16, OzUi.Muted);
+                Button(seats, "LAUNCH MATCH", 360, 490, 430, R.LaunchRoom, true, R.RoomCanLaunch);
+                if (R.Connected && !R.RoomCanLaunch)
+                    Label(seats, "Fill every position, assign opposing teams, and have all players ready.", 30, 549, 780, 16, OzUi.Muted);
             }
             BuildLobbyChat();
             Button(root, "LEAVE LOBBY", 80, 1005, 300, Leave);

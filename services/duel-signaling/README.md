@@ -1,9 +1,9 @@
 # OpenZ online invitations
 
-This service connects two players without exchanging IP addresses. It never
-transports simulation or voice traffic. Those use encrypted libdatachannel
-WebRTC connections, directly where possible and through TURN while the shared
-allowance is available. No relay password or Google account is required.
+This service handles magic invitations for 1 vs 1 and up to eight humans in
+Skirmish. Game and voice traffic use encrypted libdatachannel WebRTC. Duels
+retain direct connections and TURN. Skirmish prefers Realtime SFU and falls
+back to a direct host-to-guest connection for each guest.
 
 ## Deploy the free invitation service
 
@@ -85,6 +85,25 @@ not revoke already-issued credentials or disconnect active relays. Six-hour
 credentials preserve the existing match-duration behavior; no mid-match renewal
 is available. A new match can use direct STUN when the relay is unavailable.
 Workers/Durable Objects Free limits can also make invitations unavailable.
+
+## Enable Realtime SFU for Skirmish
+
+Create a Realtime SFU application in the same Cloudflare account as the TURN
+key and analytics guard. Set `SFU_APP_ID` and `SFU_APP_SECRET` using Wrangler's
+interactive secret prompts. The Worker uses these credentials for Cloudflare's
+Connection API. The compiled game receives only its negotiated channel IDs and
+SDP. `SFU_ENABLED` in `wrangler.jsonc` enables selection when these secrets are
+configured. Deploy the Worker before using OpenZ-VK 1.5.15 Skirmish online.
+Players continue to join with the same HTTPS invitation or room code.
+
+SFU setup checks the same account-wide budget used by TURN. Active SFU rooms
+recheck it every minute. If the budget is closed or usage cannot be verified,
+the Worker closes the publications and instructs the room to reconnect directly
+with STUN. This path uses no new paid relay allocation. A network that blocks
+direct ICE may require the participant to leave. The 900 GB cutoff comes from
+provider analytics, which can be delayed. Already-issued duel TURN credentials
+remain subject to their original expiry. The 100 GB margin covers likely
+reporting delay without guaranteeing zero billing.
 
 ## Transport and operational limits
 

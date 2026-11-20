@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -41,6 +42,7 @@ namespace OpenZ.Multiplayer
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcSetLocalDescription(int pc, string type);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcSetRemoteDescription(int pc, string sdp, string type);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcGetLocalDescription(int pc, StringBuilder sdp, int size);
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcSetStateChangeCallback(int pc, GatheringCallback callback);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcCreateDataChannelEx(int pc, string label, ref ChannelInit init);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] [return: MarshalAs(UnmanagedType.I1)] internal static extern bool rtcIsOpen(int channel);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] [return: MarshalAs(UnmanagedType.I1)] internal static extern bool rtcIsClosed(int channel);
@@ -51,6 +53,25 @@ namespace OpenZ.Multiplayer
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcClosePeerConnection(int pc);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcDeletePeerConnection(int pc);
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)] internal static extern int rtcDeleteDataChannel(int channel);
+
+        internal static int CreateConnection(string[] servers, bool relayOnly = false)
+        {
+            var strings = servers.Select(Marshal.StringToHGlobalAnsi).ToArray();
+            var pointers = Marshal.AllocHGlobal(IntPtr.Size * strings.Length);
+            try
+            {
+                Marshal.Copy(strings, 0, pointers, strings.Length);
+                var config = new Configuration { IceServers = pointers, IceServersCount = strings.Length,
+                    DisableAutoNegotiation = true, TransportPolicy = relayOnly ? 1 : 0, MaxMessageSize = 65536 };
+                return Check(rtcCreatePeerConnection(ref config));
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(pointers);
+                foreach (var pointer in strings) Marshal.FreeHGlobal(pointer);
+            }
+        }
+
         internal static int Check(int result)
         {
             if (result < 0) throw new InvalidOperationException("WebRTC operation failed (" + result + ").");

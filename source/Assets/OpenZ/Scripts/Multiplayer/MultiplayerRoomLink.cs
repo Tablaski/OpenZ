@@ -63,7 +63,7 @@ namespace OpenZ.Multiplayer
             Decode<RoomSnapshot>(packet, DuelMessage.RoomSnapshot, MaxSnapshotBytes);
         public static RoomOrder ReadOrder(DuelPacket packet) => Decode<RoomOrder>(packet, DuelMessage.RoomOrder, MaxSnapshotBytes);
 
-        public static DuelPacket Battlefield(int revision, DuelDelta delta, IReadOnlyList<ZEvent> events)
+        public static DuelPacket Battlefield(int revision, DuelDelta delta, IReadOnlyList<ZEvent> events, bool compress = false)
         {
             var payload = DuelDeltaCodec.Encode(delta);
             using var stream = new MemoryStream();
@@ -73,7 +73,7 @@ namespace OpenZ.Multiplayer
             writer.Write(payload);
             DuelEventCodec.Write(writer, events ?? Array.Empty<ZEvent>());
             if (stream.Length > DuelWire.MaxPayload) throw new InvalidDataException("Room battlefield exceeds its size limit.");
-            return new DuelPacket(DuelMessage.RoomBattlefield, stream.ToArray());
+            return new DuelPacket(DuelMessage.RoomBattlefield, stream.ToArray(), compress);
         }
 
         public static DuelDelta ReadBattlefield(DuelPacket packet, int revision, out ZEvent[] events)
@@ -120,15 +120,16 @@ namespace OpenZ.Multiplayer
         ZWorld battlefield;
         Team guestTeam;
         DuelOrderReceiver orders;
-        readonly DuelReplica.CaptureBuffer capture = new DuelReplica.CaptureBuffer();
+        DuelReplica.CaptureBuffer capture;
         DuelDeltaSender deltaSender;
         bool sendFull;
 
-        public MultiplayerRoomHostLink(MultiplayerRoom room, IDuelPeer peer, string authenticatedGuest)
+        public MultiplayerRoomHostLink(MultiplayerRoom room, IDuelPeer peer, string authenticatedGuest, int initialSequence = 0)
         {
             this.room = room ?? throw new ArgumentNullException(nameof(room));
             this.peer = peer ?? throw new ArgumentNullException(nameof(peer));
             guest = authenticatedGuest;
+            sequence = initialSequence;
             if (guest == room.HostId || !room.Members.Any(member => member.Id == guest))
                 throw new ArgumentException("The connection must belong to a joined guest.", nameof(authenticatedGuest));
         }
@@ -151,7 +152,7 @@ namespace OpenZ.Multiplayer
             return peer.Send(MultiplayerRoomPackets.Snapshot(view));
         }
 
-        public bool Receive(DuelPacket packet)
+        public bool Receive(DuelPacket packet, bool publish = true)
         {
             try
             {
@@ -172,7 +173,7 @@ namespace OpenZ.Multiplayer
             catch (ArgumentException) { return false; }
             catch (InvalidOperationException) { return false; }
             catch (InvalidDataException) { return false; }
-            Publish();
+            if (publish) Publish();
             return true;
         }
 
@@ -185,13 +186,15 @@ namespace OpenZ.Multiplayer
             orders = guestTeam == Team.Neutral ? null : new DuelOrderReceiver(world, guestTeam);
             battlefield = world;
             battlefieldRevision = room.Revision;
-            deltaSender = new DuelDeltaSender();
+            deltaSender = null;
             sendFull = true;
         }
 
         public bool PublishBattlefield(bool full = false, IReadOnlyList<ZEvent> events = null)
         {
             if (battlefield == null || !room.MatchLoaded || room.Revision != battlefieldRevision) return false;
+            capture ??= new DuelReplica.CaptureBuffer();
+            deltaSender ??= new DuelDeltaSender();
             var delta = deltaSender.CaptureImmutable(capture.Capture(battlefield), sendFull || full);
             sendFull = !peer.Send(MultiplayerRoomPackets.Battlefield(battlefieldRevision, delta, events));
             return !sendFull;

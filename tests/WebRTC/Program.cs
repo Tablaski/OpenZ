@@ -4,6 +4,7 @@ using System.Text.Json;
 
 string native = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../source/Packages/org.openz.datachannel/Plugins/x86_64/datachannel.dll"));
 NativeLibrary.SetDllImportResolver(typeof(DuelRtcPeer).Assembly, (name, assembly, path) => name == "datachannel" ? NativeLibrary.Load(native) : IntPtr.Zero);
+if (args.Contains("--sfu-loopback")) { await SfuLoopback.Run(); return; }
 bool relayOnly = args.Contains("--relay");
 string[] hostServers = Array.Empty<string>(), guestServers = Array.Empty<string>();
 if (relayOnly)

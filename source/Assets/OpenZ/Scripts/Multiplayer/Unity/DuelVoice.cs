@@ -19,6 +19,9 @@ namespace OpenZ.Multiplayer
         readonly ConcurrentQueue<float> playback = new ConcurrentQueue<float>();
         UdpClient udp;
         DuelRtcPeer online;
+        SkirmishOnline skirmish;
+        bool HasVoiceConnection => udp != null || online != null || skirmish != null;
+        double roomVoiceUntil;
         IPEndPoint destination;
         IPAddress expectedAddress;
         byte[] token;
@@ -73,7 +76,7 @@ namespace OpenZ.Multiplayer
         }
         public string Status { get; private set; } = "Microphone muted";
         public int FramesReceived => Volatile.Read(ref receivedFrames);
-        internal void SendProofFrame(float[] frame) { if (udp != null || online != null) Send(1, DuelVoiceCodec.Encode(frame)); }
+        internal void SendProofFrame(float[] frame) { if (HasVoiceConnection) Send(1, DuelVoiceCodec.Encode(frame)); }
         public enum MicrophoneMode { Mute, AlwaysOn, TapToSpeak }
         public MicrophoneMode Mode { get; private set; }
         MicrophoneMode lastLiveMode = MicrophoneMode.AlwaysOn;
@@ -109,13 +112,14 @@ namespace OpenZ.Multiplayer
                     tapped = resumeTalk;
                     retryMicrophoneAt = 0;
                     StopPlayback();
-                    if (udp != null || online != null) StartPlayback();
+                    if (HasVoiceConnection) StartPlayback();
                 }
-                if (!r || !r.Connected) { if (udp != null || online != null) StopVoice(); }
+                if (!r || !r.Connected) { if (HasVoiceConnection) StopVoice(); }
                 else
                 {
-                    if (udp == null && online == null) StartVoice(r);
+                    if (!HasVoiceConnection) StartVoice(r);
                     if (online != null) while (online.TryReceiveVoice(out var samples)) BufferVoice(samples);
+                    if (skirmish != null) while (skirmish.TryReceiveVoice(out var samples)) BufferVoice(samples);
                     if (Time.realtimeSinceStartupAsDouble - lastProbe > 1)
                     { lastProbe = Time.realtimeSinceStartupAsDouble; Send(0, Array.Empty<byte>()); }
                 }
@@ -156,7 +160,9 @@ namespace OpenZ.Multiplayer
                         for (int c = 0; c < channels; c++) frame[i] += raw[i * channels + c];
                         frame[i] = Mathf.Clamp(frame[i] / channels * gain, -1, 1); peak = Mathf.Max(peak, Mathf.Abs(frame[i]));
                     }
-                    if (talking && Send(1, DuelVoiceCodec.Encode(frame)))
+                    double now = Time.realtimeSinceStartupAsDouble;
+                    if (skirmish != null && peak >= .015f) roomVoiceUntil = now + .20;
+                    if (talking && (skirmish == null || now < roomVoiceUntil) && Send(1, DuelVoiceCodec.Encode(frame)))
                         transmitUntil = Time.realtimeSinceStartupAsDouble + .15;
                     readPosition = (readPosition + frame.Length) % microphone.samples; available -= frame.Length;
                 }
@@ -172,7 +178,8 @@ namespace OpenZ.Multiplayer
         void StartVoice(DuelRuntime runtime)
         {
             online = runtime.OnlinePeer;
-            if (online == null)
+            skirmish = runtime.RoomTransport;
+            if (online == null && skirmish == null)
             {
                 token = Encoding.ASCII.GetBytes(runtime.VoiceSecret); expectedAddress = runtime.PeerAddress;
                 udp = new UdpClient(runtime.IsHost ? runtime.TcpPort + 1 : 0); udp.Client.Blocking = false;
@@ -193,6 +200,7 @@ namespace OpenZ.Multiplayer
         bool Send(byte kind, byte[] payload)
         {
             if (online != null) return kind == 1 && online.SendVoice(payload);
+            if (skirmish != null) return kind == 1 && skirmish.SendVoice(payload);
             if (destination == null || udp == null) return false;
             var packet = new byte[HeaderSize + payload.Length];
             packet[0] = (byte)'O'; packet[1] = (byte)'Z'; packet[2] = (byte)'V'; packet[3] = 1;
@@ -246,7 +254,7 @@ namespace OpenZ.Multiplayer
         }
         void StopVoice()
         {
-            StopMicrophone(); var socket = udp; udp = null; socket?.Dispose(); destination = null; online = null;
+            StopMicrophone(); var socket = udp; udp = null; socket?.Dispose(); destination = null; online = null; skirmish = null;
             sendSequence = 0; receivedSequence = -1;
             StopPlayback();
         }

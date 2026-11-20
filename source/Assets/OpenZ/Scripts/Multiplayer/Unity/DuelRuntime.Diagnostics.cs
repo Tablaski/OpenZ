@@ -25,7 +25,7 @@ namespace OpenZ.Multiplayer
         internal int ReceiveBudgetMs { get; private set; } = DefaultReceiveBudgetMs;
         internal int InterpolationMs { get; private set; }
         internal int InterpolationDelayMs { get; private set; } = DefaultInterpolationDelayMs;
-        internal string TransportLabel => OnlinePeer != null ? (OnlinePeer.UsesRelay ? "TURN" : "DIRECT") : "TCP";
+        internal string TransportLabel => RoomTransport?.Route ?? (OnlinePeer != null ? (OnlinePeer.UsesRelay ? "TURN" : "DIRECT") : "TCP");
         internal int DiagnosticCount { get; private set; }
         internal int DiagnosticRevision { get; private set; }
         internal float? SyncRateHz { get; private set; }

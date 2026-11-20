@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.15 Skirmish network
+
+- Pending deployed SFU and compiled-game check: use the same magic link on three Windows PCs. Verify all names, positions, readiness, voice and chat. Launch P03M01, verify orders from every seat and check that surrender affects the correct participant. Repeat on an eight-start map with up to eight humans and with mixed bot teams.
+- Pending direct fallback check: on staging with an intentionally closed relay allowance, verify the same invitation and a match with three humans. During a relayed match, close the allowance and verify the direct reconnect, full battlefield update, continued orders, vote and return to lobby. Record what happens if a player's network blocks direct connections.
+- Pending performance comparison: record updates per second, RTT, jitter, queue depth, snapshot payload and frame time on the same map at 3, 4 and 8 humans. Compare the original 1 vs 1 with STUN/TURN and check the relay's usage across multiple matches.
+
 ## OpenZ-VK 1.5.14 skirmish teams
 
 - Pending two-PC check: assign both humans to Team 1 and the bot to another team on P03M01. Confirm the guest sees the team choices and that changing a team clears Ready. Confirm allied targeting and flag captures are blocked, allied forts remain intact on a shared victory, and both humans see and hear the victory result.

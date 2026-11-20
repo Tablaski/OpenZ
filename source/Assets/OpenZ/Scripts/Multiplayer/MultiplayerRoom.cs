@@ -59,13 +59,18 @@ namespace OpenZ.Multiplayer
             members.Add(hostId, new RoomMember(hostId, DuelLobby.NormalizeName(hostName), new MatchSeatAssignment(MatchSeatRole.Human, 0), 0));
         }
 
-        public void Join(string id, string name)
+        public void Join(string id, string name, bool replaceBot = false)
         {
             RequireSetup();
             if (string.IsNullOrWhiteSpace(id) || members.ContainsKey(id)) throw new ArgumentException("Invalid or duplicate participant identity.", nameof(id));
             int position = -1;
             for (int candidate = 0; candidate < Starts; candidate++)
                 if (!Occupied(candidate)) { position = candidate; break; }
+            if (position < 0 && replaceBot && bots.Count > 0)
+            {
+                position = bots.Keys.Min();
+                bots.Remove(position);
+            }
             members.Add(id, new RoomMember(id, DuelLobby.NormalizeName(name), new MatchSeatAssignment(MatchSeatRole.Human, position), position));
             InvalidateReady();
         }
@@ -123,6 +128,14 @@ namespace OpenZ.Multiplayer
             foreach (int position in bots.Keys.Where(position => position >= Starts).ToArray()) bots.Remove(position);
             foreach (var member in members.Values.Where(member => member.Seat.Position >= Starts).ToArray())
                 members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, -1), -1);
+            foreach (var member in members.Values.Where(member => member.Seat.Role == MatchSeatRole.Human && member.Seat.Position < 0).ToArray())
+                for (int position = 0; position < Starts; position++)
+                {
+                    if (members.Values.Any(other => other.Seat.Position == position)) continue;
+                    bots.Remove(position);
+                    members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, position), position);
+                    break;
+                }
             InvalidateReady();
         }
 

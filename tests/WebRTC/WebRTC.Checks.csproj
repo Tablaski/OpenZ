@@ -7,5 +7,7 @@
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/DuelVoiceCodec.cs" Link="Core/DuelVoiceCodec.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/DuelWire.cs" Link="Core/DuelWire.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/IDuelPeer.cs" Link="Core/IDuelPeer.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/SkirmishSfu.cs" Link="Core/SkirmishSfu.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/SkirmishNetworkTuning.cs" Link="Core/SkirmishNetworkTuning.cs" />
   </ItemGroup>
 </Project>

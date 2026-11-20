@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,14 +37,9 @@ namespace OpenZ.Multiplayer
         public DuelRtcPeer(string[] servers, bool relayOnly, string secret, string fingerprint, string name)
         {
             this.secret = secret; this.fingerprint = fingerprint; this.name = name; this.relayOnly = relayOnly;
-            var strings = servers.Select(Marshal.StringToHGlobalAnsi).ToArray();
-            var pointers = Marshal.AllocHGlobal(IntPtr.Size * strings.Length);
             try
             {
-                Marshal.Copy(strings, 0, pointers, strings.Length);
-                var config = new DuelRtcNative.Configuration { IceServers = pointers, IceServersCount = strings.Length,
-                    DisableAutoNegotiation = true, TransportPolicy = relayOnly ? 1 : 0, MaxMessageSize = 65536 };
-                pc = DuelRtcNative.Check(DuelRtcNative.rtcCreatePeerConnection(ref config));
+                pc = DuelRtcNative.CreateConnection(servers, relayOnly);
                 Gatherings[pc] = gathered;
                 DuelRtcNative.Check(DuelRtcNative.rtcSetGatheringStateChangeCallback(pc, Gathering));
                 var init = new DuelRtcNative.ChannelInit { Negotiated = true, ManualStream = true, Stream = 0 };
@@ -54,7 +48,6 @@ namespace OpenZ.Multiplayer
                 voice = DuelRtcNative.Check(DuelRtcNative.rtcCreateDataChannelEx(pc, "openz-voice-v1", ref init));
             }
             catch { Dispose(); throw; }
-            finally { Marshal.FreeHGlobal(pointers); foreach (var pointer in strings) Marshal.FreeHGlobal(pointer); }
         }
 #if UNITY_5_3_OR_NEWER
         [AOT.MonoPInvokeCallback(typeof(DuelRtcNative.GatheringCallback))]
@@ -80,7 +73,9 @@ namespace OpenZ.Multiplayer
         {
             if (Closed || packet?.Payload == null || packet.Payload.Length > DuelWire.MaxPayload) return false;
             if (Interlocked.Add(ref queuedBytes, packet.Payload.Length + 12) > Budget) { Fail("Your opponent's connection is too slow."); return false; }
-            outgoing.Enqueue(new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone(), packet.Compress)); return true;
+            outgoing.Enqueue(packet.Kind == DuelMessage.RoomBattlefield && packet.Compress
+                ? packet : new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone(), packet.Compress));
+            return true;
         }
         public bool TryReceive(out DuelPacket packet)
         {
@@ -213,10 +208,10 @@ namespace OpenZ.Multiplayer
         readonly byte[] header = new byte[12];
         byte[] frame;
         int headerCount, frameCount;
-        public System.Collections.Generic.IEnumerable<DuelPacket> Add(byte[] bytes, int length)
+        public System.Collections.Generic.IEnumerable<DuelPacket> Add(byte[] bytes, int length, int offset = 0)
         {
-            if (bytes == null || length < 1 || length > bytes.Length) throw new InvalidDataException("Invalid data channel fragment.");
-            int offset = 0;
+            if (bytes == null || offset < 0 || length < 1 || length > bytes.Length - offset) throw new InvalidDataException("Invalid data channel fragment.");
+            length += offset;
             while (offset < length)
             {
                 if (frame == null)

@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { decodeNative } = require('./Convert-AiMaps.cjs');
+const { decodeMultiplayer } = require('./Convert-AiMaps.cjs');
 
 const root = process.argv[2];
 if (!root) throw new Error('Usage: node tools/Check-MultiplayerMaps.cjs <Zod Engine directory>');
@@ -20,7 +20,7 @@ for (const file of fs.readdirSync(root).sort()) {
         const world = worlds[bytes[58]];
         if (!world) throw new Error('Unknown terrain palette');
         const palette = fs.readFileSync(path.join(root, 'assets', 'planets', `${world}.tileinfo`));
-        const map = decodeNative(bytes, file, palette);
+        const map = decodeMultiplayer(bytes, file, palette);
         const forts = map.objects.filter((object) => object.kind.startsWith('building:fort'));
         const startingOwners = new Set(forts.map((fort) => fort.owner));
         const diagnostics = [];

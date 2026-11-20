@@ -34,6 +34,8 @@ The 23 selected native files and grids are packaged. Multiplayer AI Maps present
 
 The host may launch only when every map start has exactly one human or bot, with at least one active human. Extra humans must be assigned as observers or leave the room. Reduce the roster or choose a larger map for an over-capacity setup. Fill an empty start with a bot or choose a smaller map. Observers never consume a map start and cannot issue game orders, surrender, request a map change or vote on it.
 
+The room state implements host-owned map and seat edits, independent bot difficulty, alliances, observer assignments, revision-bound human readiness and a locked setup after launch. A smaller map leaves humans outside its capacity unassigned and clears out-of-range bots. The loading barrier waits for every active human, with observers and bots excluded. Connection identities must come from the authenticated transport when the room is wired to invitations, lobby controls and match loading.
+
 Ghost is an optional spectator mode. A ghost can switch between surviving human players, follow their camera, zoom and cursor, or move independently. Provide a button and keyboard shortcut to toggle following, recenter on the selected player and switch between their fog view and full visibility. AI seats are excluded from the follow list. If no human remains, use free camera while the bots finish. Ghosts use their own text and voice channels during the match. Keep the world updates the observer already receives and relay only the extra view state for the selected human.
 
 ## Validation awaiting a compiled game

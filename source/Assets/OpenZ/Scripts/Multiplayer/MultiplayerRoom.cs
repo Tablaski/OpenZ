@@ -1,0 +1,194 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using OpenZ.Sim;
+
+namespace OpenZ.Multiplayer
+{
+    internal readonly struct RoomMember
+    {
+        public readonly string Id, Name;
+        public readonly MatchSeatAssignment Seat;
+        public readonly int Alliance;
+        public readonly bool Ready;
+
+        public RoomMember(string id, string name, MatchSeatAssignment seat, int alliance, bool ready = false)
+        {
+            Id = id; Name = name; Seat = seat; Alliance = alliance; Ready = ready;
+        }
+
+        public RoomMember WithReady(bool ready) => new RoomMember(Id, Name, Seat, Alliance, ready);
+    }
+
+    internal readonly struct RoomBot
+    {
+        public readonly int Position, Alliance;
+        public readonly ZBotDifficulty Difficulty;
+
+        public RoomBot(int position, int alliance, ZBotDifficulty difficulty)
+        { Position = position; Alliance = alliance; Difficulty = difficulty; }
+    }
+
+    /// <summary>Authoritative room setup. Callers supply the authenticated sender's connection identity.</summary>
+    internal sealed class MultiplayerRoom
+    {
+        readonly Dictionary<string, RoomMember> members = new Dictionary<string, RoomMember>(StringComparer.Ordinal);
+        readonly Dictionary<int, RoomBot> bots = new Dictionary<int, RoomBot>();
+        readonly HashSet<string> loaded = new HashSet<string>(StringComparer.Ordinal);
+
+        public string HostId { get; }
+        public string Map { get; private set; }
+        public int Starts { get; private set; }
+        public int Revision { get; private set; }
+        public bool Launched { get; private set; }
+        public RoomMember[] Members => members.Values.ToArray();
+        public RoomBot[] Bots => bots.Values.OrderBy(bot => bot.Position).ToArray();
+        public MatchStartBlocker StartBlocker => MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
+            .Concat(bots.Keys.Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
+        public bool CanLaunch => !Launched && StartBlocker == MatchStartBlocker.None &&
+            members.Values.All(member => !member.Seat.MayUsePlayerCommands || member.Ready);
+        public bool MatchLoaded => Launched && members.Values.All(member => !member.Seat.MayUsePlayerCommands || loaded.Contains(member.Id));
+
+        public MultiplayerRoom(string hostId, string hostName, string map)
+        {
+            if (string.IsNullOrWhiteSpace(hostId)) throw new ArgumentException("Missing host identity.", nameof(hostId));
+            HostId = hostId;
+            Starts = MapStarts(map);
+            Map = map;
+            members.Add(hostId, new RoomMember(hostId, DuelLobby.NormalizeName(hostName), new MatchSeatAssignment(MatchSeatRole.Human, 0), 0));
+        }
+
+        public void Join(string id, string name)
+        {
+            RequireSetup();
+            if (string.IsNullOrWhiteSpace(id) || members.ContainsKey(id)) throw new ArgumentException("Invalid or duplicate participant identity.", nameof(id));
+            int position = -1;
+            for (int candidate = 0; candidate < Starts; candidate++)
+                if (!Occupied(candidate)) { position = candidate; break; }
+            members.Add(id, new RoomMember(id, DuelLobby.NormalizeName(name), new MatchSeatAssignment(MatchSeatRole.Human, position), position));
+            InvalidateReady();
+        }
+
+        public void AssignHuman(string sender, string id, int position, int alliance)
+        {
+            RequireHostSetup(sender);
+            CheckPosition(position, alliance);
+            var member = Member(id);
+            if (member.Seat.Position == position && member.Alliance == alliance) return;
+            if (Occupied(position, id)) throw new InvalidOperationException("The starting position is occupied.");
+            members[id] = new RoomMember(id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, position), alliance);
+            InvalidateReady();
+        }
+
+        public void AssignObserver(string sender, string id)
+        {
+            RequireHostSetup(sender);
+            var member = Member(id);
+            if (member.Seat.Role == MatchSeatRole.Observer) return;
+            members[id] = new RoomMember(id, member.Name, new MatchSeatAssignment(MatchSeatRole.Observer, -1), -1);
+            InvalidateReady();
+        }
+
+        public void SetBot(string sender, int position, int alliance, ZBotDifficulty difficulty)
+        {
+            RequireHostSetup(sender);
+            CheckPosition(position, alliance);
+            if (difficulty != ZBotDifficulty.Normal && difficulty != ZBotDifficulty.Easy) throw new ArgumentOutOfRangeException(nameof(difficulty));
+            if (members.Values.Any(member => member.Seat.Position == position)) throw new InvalidOperationException("The starting position is occupied.");
+            if (bots.TryGetValue(position, out var existing) && existing.Alliance == alliance && existing.Difficulty == difficulty) return;
+            bots[position] = new RoomBot(position, alliance, difficulty);
+            InvalidateReady();
+        }
+
+        public void RemoveBot(string sender, int position)
+        {
+            RequireHostSetup(sender);
+            if (bots.Remove(position)) InvalidateReady();
+        }
+
+        public void RemoveHuman(string sender, string id)
+        {
+            RequireHostSetup(sender);
+            if (id == HostId) throw new InvalidOperationException("The host cannot be removed from their own room.");
+            if (members.Remove(id)) InvalidateReady();
+        }
+
+        public void SelectMap(string sender, string map)
+        {
+            RequireHostSetup(sender);
+            if (map == Map) return;
+            Starts = MapStarts(map);
+            Map = map;
+            foreach (int position in bots.Keys.Where(position => position >= Starts).ToArray()) bots.Remove(position);
+            foreach (var member in members.Values.Where(member => member.Seat.Position >= Starts).ToArray())
+                members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, -1), -1);
+            InvalidateReady();
+        }
+
+        public void SetReady(string sender, int revision, bool ready)
+        {
+            RequireSetup();
+            var member = Member(sender);
+            if (revision != Revision || !member.Seat.MayUsePlayerCommands) throw new InvalidOperationException("Stale room revision or inactive participant.");
+            members[sender] = member.WithReady(ready);
+        }
+
+        public void Launch(string sender)
+        {
+            RequireHostSetup(sender);
+            if (!CanLaunch) throw new InvalidOperationException("All starts must be filled and active humans must be ready.");
+            Launched = true;
+        }
+
+        public void ReturnToLobby(string sender)
+        {
+            RequireHost(sender);
+            if (!Launched) return;
+            Launched = false;
+            loaded.Clear();
+            InvalidateReady();
+        }
+
+        public void MarkLoaded(string sender, int revision)
+        {
+            if (!Launched || revision != Revision || !Member(sender).Seat.MayUsePlayerCommands)
+                throw new InvalidOperationException("Stale load acknowledgment or inactive participant.");
+            loaded.Add(sender);
+        }
+
+        void InvalidateReady()
+        {
+            Revision++;
+            foreach (var member in members.Values.Where(member => member.Ready).ToArray()) members[member.Id] = member.WithReady(false);
+        }
+
+        static int MapStarts(string map)
+        {
+            var entry = OzAiMapCatalog.Find(map);
+            if (entry != null && entry.Starts > 2) return entry.Starts;
+            if (DuelRules.IsMapAllowed(map)) return 2;
+            throw new ArgumentException("Unknown multiplayer map.", nameof(map));
+        }
+
+        RoomMember Member(string id) => members.TryGetValue(id, out var member) ? member : throw new ArgumentException("Unknown participant.", nameof(id));
+        bool Occupied(int position, string except = null) => bots.ContainsKey(position) || members.Values.Any(member => member.Id != except && member.Seat.Position == position);
+
+        void CheckPosition(int position, int alliance)
+        {
+            if (position < 0 || position >= Starts) throw new ArgumentOutOfRangeException(nameof(position));
+            if (alliance < 0 || alliance >= 8) throw new ArgumentOutOfRangeException(nameof(alliance));
+        }
+
+        void RequireSetup()
+        {
+            if (Launched) throw new InvalidOperationException("The match setup has already been launched.");
+        }
+
+        void RequireHost(string sender)
+        {
+            if (sender != HostId) throw new InvalidOperationException("Only the room creator can change this setting.");
+        }
+
+        void RequireHostSetup(string sender) { RequireHost(sender); RequireSetup(); }
+    }
+}

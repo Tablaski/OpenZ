@@ -64,6 +64,7 @@ namespace OpenZ.Sim
         bool[] ReadLowPits()
         {
             if (Map == null || string.IsNullOrEmpty(Map.file)) return null;
+            if (Map.aiMap && Map.file == L18MapFile) return null;
             foreach (var row in LowPitData)
             {
                 if (row.File != Map.file || row.W != Map.width || row.H != Map.height) continue;

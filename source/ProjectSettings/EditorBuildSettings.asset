@@ -69,6 +69,12 @@ EditorBuildSettings:
     path: Packages/org.openz.aimaps/Scenes/SM15_Converted.unity
     guid: 2505b79310aae8a40820485baf235874
   - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM18_Converted.unity
+    guid: 1ef4dc7e3dfdbc941b78da6e49d73eb2
+  - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM18F_Converted.unity
+    guid: 3f594e81ac309c64cb6c5158850b6b50
+  - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM19_Converted.unity
     guid: c3d1cf2eed93a9446983dcbf8eee8e74
   - enabled: 1

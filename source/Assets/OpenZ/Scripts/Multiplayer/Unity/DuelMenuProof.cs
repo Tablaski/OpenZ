@@ -186,7 +186,7 @@ namespace OpenZ.Multiplayer
                     if (mapPickerStep++ == 0) Click("MAP " + pendingMap);
                     else
                     {
-                        var flyby = r.Menus.GetComponentsInChildren<RawImage>().Single(i => i.name == "OpenZ flyby");
+                        var flyby = r.Menus.GetComponentsInChildren<RawImage>().Single(i => i.name == "Map flyby");
                         if (!flyby.texture) throw new Exception("Missing OpenZ preview for " + pendingMap);
                         Click("APPLY MAP");
                         if (r.Rules.Map != pendingMap) throw new Exception("Picker did not apply " + pendingMap);
@@ -214,6 +214,8 @@ namespace OpenZ.Multiplayer
                     case 4:
                         if (r.Rules.HandicapEnabled) throw new Exception("Handicap enabled by default.");
                         if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap" && i.texture)) throw new Exception("Missing complete tactical map.");
+                        if (!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "Map flyby" && i.texture))
+                            throw new Exception("Missing official map preview in the lobby.");
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
                         if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "", "", "", "" }))
                             throw new Exception("Incorrect opening order or starting army defaults.");
@@ -326,6 +328,19 @@ namespace OpenZ.Multiplayer
                         if(!ZBigTanks.Types.All(r.Rules.Allows))throw new Exception("OpenZ preset did not restore both big tanks.");
                         Click("CLOSE");break;
                     case 37:
+                        Click("AI MAPS"); ClickGallery("CITY"); break;
+                    case 38:
+                        ClickGallery("MAP SM18F"); ClickGallery("APPLY MAP");
+                        next = Time.realtimeSinceStartupAsDouble + 2.5; break;
+                    case 39:
+                        var lobbyFlyby = r.Menus.GetComponentsInChildren<RawImage>().Single(i => i.name == "Map flyby");
+                        var lobbyDecoder = r.Menus.GetComponentsInChildren<UnityEngine.Video.VideoPlayer>()
+                            .SingleOrDefault(p => p.targetTexture == lobbyFlyby.texture);
+                        if (r.Rules.Map != "SM18F" || !lobbyDecoder || !lobbyDecoder.isPlaying ||
+                            !lobbyDecoder.isLooping || lobbyDecoder.clip?.name != "SM18F_preview")
+                            throw new Exception("The lobby is not looping the applied AI Bridge Game preview.");
+                        Capture("lobby-ai-bridge-game"); break;
+                    case 40:
                         File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, five official maps, independent fort popup, army pickers, additive handicap, construction times, microphone controls and dropdown; solo/duel AI Maps galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }

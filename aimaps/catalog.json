@@ -216,6 +216,38 @@
       "objects": 256
     },
     {
+      "id": "SM18",
+      "file": "p02_bb_orig18.map",
+      "name": "Bridge Game",
+      "world": "city",
+      "number": 18,
+      "balanced": false,
+      "solo": true,
+      "duel": false,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "2e844227d715f93cfb3e9765755e4ea4afadb6a4ec5c3108242f4abd5082d4fc",
+      "width": 128,
+      "height": 120,
+      "objects": 612
+    },
+    {
+      "id": "SM18F",
+      "file": "p02_bb_orig18_fixed.map",
+      "name": "Bridge Game",
+      "world": "city",
+      "number": 18,
+      "balanced": true,
+      "solo": false,
+      "duel": true,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "00b324cd6e5b0ea2e055919d792a31618cf7ea9fa30f8a61535dca5242aa32c5",
+      "width": 128,
+      "height": 120,
+      "objects": 604
+    },
+    {
       "id": "SM19",
       "file": "p02_bb_orig19.map",
       "name": "Mayhem",

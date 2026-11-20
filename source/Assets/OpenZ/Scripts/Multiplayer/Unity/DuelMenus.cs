@@ -134,7 +134,7 @@ namespace OpenZ.Multiplayer
                     : "OPENING ORDERS IN " + Math.Ceiling(Math.Max(0, R.Countdown - seconds)));
             }
             planningTime?.Set("GIVE OPENING ORDERS · MATCH STARTS IN " + Math.Ceiling(R.Countdown));
-            TickOpenZMapPreview();
+            TickLobbyFlyby();
         }
         void Build()
         {
@@ -152,8 +152,8 @@ namespace OpenZ.Multiplayer
                 if (generals) { generals.Close(false); generals = null; }
             }
             if (root) { root.gameObject.SetActive(false); Destroy(root.gameObject); }
-            if (lobbyDialog != LobbyDialog.OpenZMaps) ReleaseOpenZMapPreview();
-            openZMapImage = null;
+            if (page != Page.Lobby || R.View == null) ReleaseLobbyFlyby();
+            lobbyFlybyImage = null;
             ping = loading = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = null; chatField = null;
             speakerValue = windowsOutput = chatVoiceStatus = null;
             chatHistory = null;
@@ -234,7 +234,7 @@ namespace OpenZ.Multiplayer
             var panel = Hud.Img(root, "Paused match", OzUi.GM950);
             panel.rectTransform.TL(710, 457, 500, 166);
             Label(panel.transform, "MATCH PAUSED", 24, 16, 452, 28, OzUi.Ink);
-            Label(panel.transform, R.OwnsMatchPause ? "You paused the match." : R.MatchPausePlayer + " paused the match.",
+            Label(panel.transform, R.OwnsMatchPause ? $"Hold Esc for {OpenZPauseMenu.DuelEscapeHoldSeconds} seconds to resume." : R.MatchPausePlayer + " paused the match.",
                 24, 60, 452, 18, OzUi.Muted).Body(24, 60, 452);
             Button(panel.transform, "MATCH MENU", 24, 104, 145, ShowInGameMenu);
             Button(panel.transform, "CHAT", 179, 104, 102, OpenChat);
@@ -334,8 +334,8 @@ namespace OpenZ.Multiplayer
             });
             Button(left, "AI MAPS", 359, 87, 315, () =>
                 OzAiMapGallery.Open(false, mapEditable, rules.Map, definition => ApplyLobbyMap(rules, mapRevision, definition.Id)));
-            var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + rules.Map + "_poster");
-            if (poster) { var raw = Hud.Node("Mission", left).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.rectTransform.TL(24, 142, 650, 178); raw.raycastTarget = false; raw.uvRect = OzLevelPreview.Cover((float)poster.width / poster.height, 650f / 178); }
+            if (lobbyDialog != LobbyDialog.OpenZMaps)
+                BuildLobbyFlyby(left, rules.Map, new OzRect(24, 142, 650, 178), mute: true);
             Label(left, "OPENING ORDERS · " + (rules.PlanningSeconds == 0 ? "OFF" : rules.PlanningSeconds + " s"), 24, 551, 445, 17, OzUi.Ink);
             Button(left, "−", 505, 537, 78, () => { rules.PlanningSeconds--; EditLobbyRules(rules); }, false, editable && rules.PlanningSeconds > 0);
             Button(left, "+", 593, 537, 78, () => { rules.PlanningSeconds++; EditLobbyRules(rules); }, false, editable && rules.PlanningSeconds < DuelRules.MaxPlanningSeconds);
@@ -464,7 +464,7 @@ namespace OpenZ.Multiplayer
         }
         void OnDestroy()
         {
-            ReleaseOpenZMapPreview();
+            ReleaseLobbyFlyby();
             if (mapPreview) Destroy(mapPreview);
             if (generals && generals.isActiveAndEnabled) generals.Close(false);
         }

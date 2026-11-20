@@ -4,6 +4,12 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.9 (20 Nov 2026)
+
+- Solo + 1 vs 1 — Bridge Game is available in both the OpenZ and AI Maps catalogues. AI Maps uses the original conversion in Solo and the balanced conversion in 1 vs 1.
+- 1 vs 1 — The lobby shows the selected map's video preview for both catalogues.
+- 1 vs 1 — Click Pause Match or hold Esc for 2 seconds to pause directly. The player who paused can resume with the button or by holding Esc again.
+
 ## OpenZ-VK 1.5.8 (20 Nov 2026)
 
 - Solo + 1 vs 1 — Units excluded under Allowed Units no longer leave unusable models at their starting positions, including empty vehicles and guns.

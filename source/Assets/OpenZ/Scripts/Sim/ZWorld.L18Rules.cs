@@ -45,7 +45,7 @@ namespace OpenZ.Sim
         /// <summary>The decoded level 18 map file (Resources/OpenZ/Maps/L18_grid.json "file").</summary>
         public const string L18MapFile = "p02_bb_orig18.map";
         /// <summary>This world plays level 18's map.</summary>
-        public bool L18Map => Map != null && string.Equals(Map.file, L18MapFile, StringComparison.OrdinalIgnoreCase);
+        public bool L18Map => Map != null && !Map.aiMap && string.Equals(Map.file, L18MapFile, StringComparison.OrdinalIgnoreCase);
 
         // ------------------------------------------------------------------ DV197 the two river stumps
         /// <summary>DV197 switch (off = Zod: the pools are open water everywhere).</summary>

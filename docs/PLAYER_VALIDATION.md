@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.9 Bridge Game AI Maps
+
+- Pending in-game check: select Bridge Game from both catalogues in solo and 1 vs 1. Verify the AI previews and deployments, and check that solo uses the original conversion and 1 vs 1 uses the balanced conversion. Replay the AI mission in solo and reopen a hosted AI lobby to confirm the selection stays in AI Maps.
+- Pending lobby check: switch between an official map and an AI map from both seats. Verify the correct clip plays muted in the lobby, the AI stamp follows the selection, and the tactical view still shows the starting armies.
+- Pending pause check: tap Escape to open and close the match menu. From each seat, click Pause Match once or hold Escape for two seconds to pause. Check that a held key only triggers once, its release does not open the menu, and only the player who paused can resume with the button or another hold. Check cancellation during chat, confirmation dialogs and focus loss.
+
 ## OpenZ-VK 1.5.8 starting units and match network display
 
 - Pending in-game check: on an Arctic AI Map with a neutral Medium Mech, use the OpenZ roster and board it with a robot. Replay with the Z 1996 roster and check the model, minimap marker and boarding target are absent. Compare both seats in 1 vs 1. Verify the Medium Tank remains available with the Z 1996 roster.

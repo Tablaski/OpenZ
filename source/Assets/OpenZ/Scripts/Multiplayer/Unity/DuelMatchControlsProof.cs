@@ -279,12 +279,8 @@ namespace OpenZ.Multiplayer
                 var pauseButton = typeof(OpenZPauseMenu).GetField("bPauseMatch", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(menu) as HudButton;
                 Check(menu && menu.IsOpen && pauseButton != null && pauseButton.Interactable, "The match menu did not offer pause.");
                 pauseButton.OnClick(default);
-                Check(OzConfirm.IsOpen && !r.MatchPaused, "Pause took effect before confirmation.");
-                OzConfirm.ProofAnswer(false);
-                Check(!r.MatchPaused && menu.IsOpen, "Declining pause changed the match.");
-                yield return null;
-                pauseButton.OnClick(default);
-                OzConfirm.ProofAnswer(true);
+                Check(!OzConfirm.IsOpen && !menu.IsOpen, "Clicking Pause Match did not directly request the pause.");
+                if (host) Check(r.MatchPaused, "The host did not pause immediately.");
             }
             foreach (var step in WaitFor(() => r.MatchPaused, label)) yield return step;
             yield return null;

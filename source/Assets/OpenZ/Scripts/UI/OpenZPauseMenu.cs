@@ -25,6 +25,9 @@ namespace OpenZ
         OpenZHud hud; ZGame game; Canvas canvas; RectTransform root, pausePanel, sidePanel, optionsRoot, controlsRoot, optMainPage;
         CanvasGroup rootCg; Image dim; OzPost post; float openAt = -10f, closeAt = -10f; bool closing, wasPaused; float prevScale = 1f;
         OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch;
+        internal const int DuelEscapeHoldSeconds = 2;
+        double duelEscapeStarted = -1;
+        bool duelEscapeStartedPaused;
         bool showControls;
         readonly List<HudButton> speedBtns = new List<HudButton>();
         public static readonly float[] Speeds = { 0.25f, 0.5f, 0.75f, 1f, 1.5f, 2f, 4f };   // rising; also the steps of the + and - keys (OzSpeedKeys)
@@ -99,14 +102,11 @@ namespace OpenZ
                 {
                     var runtime = OpenZ.Multiplayer.DuelRuntime.I;
                     if (!runtime.CanPauseMatch) return;
-                    OzConfirm.Ask("This will annoy your opponent.", "Pause the game ?", () =>
-                    {
-                        if (!runtime.CanPauseMatch) return;
-                        Close();
-                        runtime.RequestPauseMatch();
-                    }, id => OzSfx.Ui(id), canvas.sortingOrder + 10);
+                    Close();
+                    runtime.RequestPauseMatch();
                 });
                 bPauseMatch.Rt.TL(OzLayout.PauseBtnX + halfWidth + 8, row, halfWidth, 41);
+                bPauseMatch.Tooltip = $"Pause the match now. You can also hold Esc for {DuelEscapeHoldSeconds} seconds.";
                 Big(OpenZ.Multiplayer.DuelRuntime.I.IsHost ? "CHANGE MAP" : "ASK TO CHANGE MAP", HudButtonStyle.Normal,
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
@@ -449,25 +449,78 @@ namespace OpenZ
             microphoneBinding = false; if (microphonePage && MicrophoneVoice) MicrophoneVoice.Monitoring = false;
             PlayerPrefs.Save();                                                                              // menu_exe_v1: sliders / speed saved when the menu closes
             game.paused = wasPaused;
-            Time.timeScale = prevScale > 0f ? prevScale : 1f;
+            Time.timeScale = Multiplayer.DuelRuntime.MatchPlayPaused ? 0f : prevScale > 0f ? prevScale : 1f;
         }
 
         // duel menu keyboard ownership
-            void Update()
+        bool CanOpenFromEscape => !(hud.EndScreen && hud.EndScreen.IsShown) && !(hud.Production && hud.Production.IsOpen) &&
+            !(hud.Rally && hud.Rally.Armed) && hud.input.Placing == null && !hud.ArrangeOwnsEsc;
+
+        bool DuelEscape(Keyboard keyboard, bool enabled)
         {
-            if (OzBehaviorOptions.CapturesInput) return;
-            if (OpenZ.Multiplayer.DuelRuntime.CapturesInput) return;
-            if (hud == null || game == null || game.World == null) return;
+            if (!enabled || !Application.isFocused || (!IsOpen && !CanOpenFromEscape))
+            {
+                duelEscapeStarted = -1;
+                return false;
+            }
+            var key = keyboard.escapeKey;
+            if (duelEscapeStarted < 0 && !key.wasPressedThisFrame) return false;
+            var runtime = Multiplayer.DuelRuntime.I;
+            if (runtime.MatchMenusBlocked || runtime.Menus.IsTyping)
+            {
+                duelEscapeStarted = -1;
+                return false;
+            }
+            double now = Time.realtimeSinceStartupAsDouble;
+            if (key.wasPressedThisFrame)
+            {
+                duelEscapeStarted = now;
+                duelEscapeStartedPaused = runtime.MatchPaused;
+            }
+            if (duelEscapeStartedPaused != runtime.MatchPaused || (!key.isPressed && !key.wasReleasedThisFrame))
+            {
+                duelEscapeStarted = -1;
+                return false;
+            }
+            if (now - duelEscapeStarted >= DuelEscapeHoldSeconds)
+            {
+                duelEscapeStarted = -1;
+                if (runtime.MatchPaused ? runtime.OwnsMatchPause && runtime.Connected : runtime.CanPauseMatch)
+                {
+                    Close();
+                    if (runtime.MatchPaused) runtime.ResumePausedMatch();
+                    else runtime.RequestPauseMatch();
+                }
+                return false;
+            }
+            if (!key.wasReleasedThisFrame) return false;
+            duelEscapeStarted = -1;
+            return true;
+        }
+
+        void Update()
+        {
+            if (OzBehaviorOptions.CapturesInput || Multiplayer.DuelRuntime.CapturesInput || hud == null || game == null || game.World == null)
+            {
+                duelEscapeStarted = -1;
+                return;
+            }
             var kb = Keyboard.current; var m = Mouse.current;
-            bool esc = kb != null && kb.escapeKey.wasPressedThisFrame && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
+            bool esc = kb != null && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
             if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
             if (OzForkOptions.CaptureChatBinding()) esc = false;
             if (IsOpen && !showControls && optTab == buildKeysTab && !OzConfirm.Blocks && buildKeyOptions?.Capture() == true) esc = false;
             if (microphoneBinding) { TickMicrophoneBinding(); esc = false; }
+            if (Multiplayer.DuelRuntime.Active && Multiplayer.DuelRuntime.I.Playing) esc = DuelEscape(kb, esc);
+            else
+            {
+                duelEscapeStarted = -1;
+                esc = esc && kb.escapeKey.wasPressedThisFrame;
+            }
             if (esc)
             {
                 if (IsOpen) Close();
-                else if (!(hud.EndScreen && hud.EndScreen.IsShown) && !(hud.Production && hud.Production.IsOpen) && !(hud.Rally && hud.Rally.Armed) && hud.input.Placing == null && !hud.ArrangeOwnsEsc) Open();
+                else if (CanOpenFromEscape) Open();
             }
             TickMicrophone();
             ApplyShake();

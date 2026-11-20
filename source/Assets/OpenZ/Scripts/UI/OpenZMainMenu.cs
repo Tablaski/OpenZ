@@ -105,7 +105,7 @@ namespace OpenZ
             Time.timeScale = 1f;                                                                            // the pause menu may have left it at 0
             OzPlayBlue.Disarm("the main menu");                                                            // 1.2 item 11: back on the menu no level is played as blue (the box stays as it is)
             OzLevelStats.Disarm("the main menu");                                                          // 1.2 item 60: back on the menu no level plays Custom stats, every rule value a Custom level set is back (the choice stays as it is)
-            string last = OzAiMapCatalog.RestoreSavedLevel(PlayerPrefs.GetString(PrefLevel, "L02"));
+            string last = PlayerPrefs.GetString(PrefLevel, "L02");
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
             var lastAiMap = openedWithSelect ? OzAiMapCatalog.Find(last) : null;
             SetCampaignLevels(lastAiMap?.Solo == true, lastAiMap?.Solo == true && lastAiMap.Experimental);

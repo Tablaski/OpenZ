@@ -254,7 +254,6 @@ namespace OpenZ.Multiplayer
                 try
                 {
                     var stored = JsonUtility.FromJson<DuelLobbyData>(last);
-                    stored.Map = OzAiMapCatalog.RestoreSavedLevel(stored.Map);
                     var saved = stored.ReadRules();
                     if (Resources.Load<TextAsset>("OpenZ/Maps/" + saved.Map + "_grid"))
                     {

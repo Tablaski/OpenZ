@@ -17,8 +17,9 @@ namespace OpenZ.Multiplayer
         float allowedScroll = 1, dynamicsScroll = 1;
         string openZMapId, presetName, presetStatus;
         string nameDraft, renameStatus;
-        OzLevelPreview openZMapPreview;
-        RawImage openZMapImage;
+        OzLevelPreview lobbyFlyby;
+        RawImage lobbyFlybyImage;
+        bool lobbyFlybySuspended, lobbyFlybyMuted;
         public const string ArmyPresetsPreference = "oz_duel_outside_army_presets";
 
         [Serializable] sealed class ArmyPreset { public string name; public string[] units; }
@@ -54,15 +55,7 @@ namespace OpenZ.Multiplayer
                 card.name = "MAP " + level.Id;
             }
             var selected = OzLevelDef.All.First(d => d.Id == openZMapId);
-            if (openZMapPreview?.Level != selected.Id)
-            {
-                ReleaseOpenZMapPreview();
-                openZMapPreview = OzLevelPreview.Create(transform, selected.Id);
-                openZMapPreview.PlayFrom(OzLevelPreview.PosterTime, true);
-            }
-            openZMapImage = Hud.Node("OpenZ flyby", panel).gameObject.AddComponent<RawImage>();
-            openZMapImage.rectTransform.TL(466, 102, 1068, 600);
-            openZMapImage.raycastTarget = false;
+            BuildLobbyFlyby(panel, selected.Id, new OzRect(466, 102, 1068, 600), mute: false);
             Label(panel, selected.Name + " · " + selected.Mood, 466, 724, 735, 21, OzUi.Ink);
             Button(panel, "APPLY MAP", 1224, 715, 310, () =>
             {
@@ -72,25 +65,48 @@ namespace OpenZ.Multiplayer
             }, true, editable);
         }
 
-        void TickOpenZMapPreview()
+        void BuildLobbyFlyby(Transform parent, string mapId, OzRect rect, bool mute)
         {
-            if (!openZMapImage || openZMapPreview == null) return;
-            OzLevelPreview.PumpPrepares();
-            var texture = openZMapPreview.Sharp;
-            openZMapImage.texture = texture;
-            openZMapImage.enabled = texture;
-            if (!texture) return;
-            var cover = OzLevelPreview.Cover((float)texture.width / texture.height, 1068f / 600);
-            openZMapImage.uvRect = openZMapPreview.VideoOk ? cover : OzLevelPreview.KenBurns(cover, OzMotion.Now, 0);
+            if (lobbyFlyby?.Level != mapId || lobbyFlybyMuted != mute)
+            {
+                ReleaseLobbyFlyby();
+                lobbyFlyby = OzLevelPreview.Create(transform, mapId, mute);
+                lobbyFlybyMuted = mute;
+                lobbyFlyby.PlayFrom(OzLevelPreview.PosterTime, true);
+            }
+            lobbyFlybyImage = Hud.Node("Map flyby", parent).gameObject.AddComponent<RawImage>();
+            lobbyFlybyImage.rectTransform.Place(rect);
+            lobbyFlybyImage.raycastTarget = false;
+            if (OzAiMapCatalog.Find(mapId) != null) OzAiMapBadge.Stamp(lobbyFlybyImage.rectTransform, rect.w);
         }
 
-        void ReleaseOpenZMapPreview()
+        void TickLobbyFlyby()
         {
-            if (openZMapPreview == null) return;
-            var video = openZMapPreview.Player;
-            openZMapPreview.Release();
-            if (video) Destroy(video.gameObject);
-            openZMapPreview = null;
+            if (!lobbyFlybyImage || lobbyFlyby == null) return;
+            bool galleryOpen = OzAiMapGallery.IsOpen;
+            if (galleryOpen != lobbyFlybySuspended)
+            {
+                lobbyFlybySuspended = galleryOpen;
+                if (galleryOpen) lobbyFlyby.Pause();
+                else lobbyFlyby.PlayFrom(OzLevelPreview.PosterTime, true);
+            }
+            if (galleryOpen) return;
+            OzLevelPreview.PumpPrepares();
+            var texture = lobbyFlyby.Sharp;
+            lobbyFlybyImage.texture = texture;
+            lobbyFlybyImage.enabled = texture;
+            if (!texture) return;
+            var size = lobbyFlybyImage.rectTransform.sizeDelta;
+            var cover = OzLevelPreview.Cover((float)texture.width / texture.height, size.x / size.y);
+            lobbyFlybyImage.uvRect = lobbyFlyby.VideoOk ? cover : OzLevelPreview.KenBurns(cover, OzMotion.Now, 0);
+        }
+
+        void ReleaseLobbyFlyby()
+        {
+            if (lobbyFlyby == null) return;
+            lobbyFlyby.Release();
+            lobbyFlyby = null;
+            lobbyFlybySuspended = false;
         }
 
         static ArmyPresets ReadArmyPresets()

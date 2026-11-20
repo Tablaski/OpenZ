@@ -26,6 +26,7 @@
 - After a replacement release has been verified, remove obsolete local player builds and release ZIPs at the user's request. Keep the current release, source assets, map packages and backups of untracked resources.
 - Name the converted-map catalog AI Maps in solo and multiplayer. Use the AI stamp and robot head on AI map previews. Offer Allowed units on solo mission selection as well as in the lobby; keep solo choices separate from host-owned multiplayer rules.
 - On every OpenZ rebase, compare newly available official 3D levels against the AI Maps catalog by original map identity. Remove duplicate AI variants, including rebalanced variants, from solo and 1 vs 1. Use the official level in both selectors and migrate saved selections to its ID.
+- Approved exception for Bridge Game: keep the official OpenZ level alongside the AI Maps variants `SM18` (solo) and `SM18F` (1 vs 1). Preserve each selection's map ID.
 - During a rebase, identify functional conflicts between upstream and fork behavior, including game rules, defaults and menus. Reconcile both where practical. If a conflict requires choosing a behavior, notify the user before resolving it. Group related decisions in one request, explain the concrete effect of each choice, and continue independent work while awaiting the answer.
 
 - Use `dev` for development and `main` for stable versions. Do not create extra branches unless requested.

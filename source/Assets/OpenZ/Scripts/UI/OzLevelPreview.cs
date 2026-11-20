@@ -425,10 +425,10 @@ namespace OpenZ
 
         OzLevelPreview(string level, bool silent) { Level = level; this.silent = silent; }
 
-        public static OzLevelPreview Create(Transform host, string level)
+        public static OzLevelPreview Create(Transform host, string level, bool mute = false)
         {
             bool aiMap = OzAiMapCatalog.Find(level) != null;
-            var p = new OzLevelPreview(level, aiMap);
+            var p = new OzLevelPreview(level, aiMap || mute);
             Prune(); if (waiting.Count == 0 && preparing == null) { queueStartAt = -1f; queueLogged = false; queueOrder.Clear(); ProofMaxAtOnce = 0; ProofAllReadySec = -1f; }   // item 23: a new menu, a new queue
             // the level card / select still = the first of the level's chosen loading stills (L02: sunrise canyon red fort, L17: car park
             // war machines at dusk), which replaced the old posters; the old poster is the fallback

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using OpenZ.Multiplayer;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -50,7 +51,7 @@ namespace OpenZ
         readonly List<Image> markPool = new List<Image>(); int markUsed;
         readonly List<Image> unitPool = new List<Image>(); int unitUsed;
         readonly List<Image> bldPool = new List<Image>(); int bldUsed;
-        sealed class RadarMarker { public Image Ring, Sweep; public ZObject Radar; public float Diameter; }
+        sealed class RadarMarker { public Image Ring, Sweep, Dot; public ZObject Radar; public float Diameter; }
         readonly List<RadarMarker> radarMarkers = new List<RadarMarker>();
         int radarUsed;
         sealed class Ping { public Image img; public float t0, delay, r0, r1, dur; public Color c; public Vector2 at; }
@@ -257,7 +258,7 @@ namespace OpenZ
 
             // marker layer (guide 9.5): buildings in the owner colour, flags, then every unit (Zod draws every object)
             bldUsed = unitUsed = radarUsed = 0;
-            bool highlightRadars = OzMapReadabilityOptions.Radars;
+            bool highlightRadars = OzRadarLoss.RuleFor(W) != RadarLossRule.Off && OzMapReadabilityOptions.Radars;
             foreach (var o in W.Objects)
             {
                 if (o.Kind == ZKind.Building && !o.IsBridge && !OzRadarLoss.Covers(o))
@@ -268,7 +269,7 @@ namespace OpenZ
                     var a = PxToLocal(o.LocX + o.WidthPix * 0.1f, o.LocY + o.HeightPix * 0.1f); var b = PxToLocal(o.LocX + o.WidthPix * 0.9f, o.LocY + o.HeightPix * 0.9f);
                     im.rectTransform.anchoredPosition = new Vector2(a.x, b.y); im.rectTransform.sizeDelta = new Vector2(Mathf.Max(4f, b.x - a.x), Mathf.Max(4f, a.y - b.y));
                     if (highlightRadars && o.Type == "radar" && !o.Destroyed && o.KillAt < 0 && !OzFogOfWar.Covers(o))
-                        MarkRadar(o, Mathf.Max(im.rectTransform.sizeDelta.x, im.rectTransform.sizeDelta.y));
+                        MarkRadar(o, im.rectTransform.sizeDelta);
                 }
                 else if (o.Kind == ZKind.MapItem && o.Type == "flag" && !o.Destroyed)
                 {
@@ -327,6 +328,7 @@ namespace OpenZ
             for (int i = bldUsed; i < bldPool.Count; i++) bldPool[i].gameObject.SetActiveFast(false);
             for (int i = unitUsed; i < unitPool.Count; i++) unitPool[i].gameObject.SetActiveFast(false);
             for (int i = radarUsed; i < radarMarkers.Count; i++) radarMarkers[i].Ring.transform.parent.gameObject.SetActiveFast(false);
+            if (radarUsed > 0 && radarLayer.GetSiblingIndex() != markers.childCount - 1) radarLayer.SetAsLastSibling();
         }
 
         Image RadarRing(RectTransform parent, string name, Color color)
@@ -338,22 +340,29 @@ namespace OpenZ
             return ring;
         }
 
-        void MarkRadar(ZObject radar, float buildingSize)
+        void MarkRadar(ZObject radar, Vector2 buildingSize)
         {
             if (radarUsed == radarMarkers.Count)
             {
                 var root = Hud.Node("Radar", radarLayer); root.Fill();
-                var sweep = RadarRing(root, "Sweep", OzUi.Amber);
+                var sweep = RadarRing(root, "Sweep", Color.white);
                 var ring = RadarRing(root, "Marker", OzUi.Ink);
-                radarMarkers.Add(new RadarMarker { Ring = ring, Sweep = sweep });
+                var dot = Hud.Img(root, "Sweep origin", Color.white);
+                dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = Vector2.zero;
+                dot.rectTransform.pivot = new Vector2(.5f, .5f);
+                dot.raycastTarget = false;
+                dot.gameObject.SetActive(false);
+                radarMarkers.Add(new RadarMarker { Ring = ring, Sweep = sweep, Dot = dot });
             }
             var mark = radarMarkers[radarUsed++];
             mark.Radar = radar;
-            mark.Diameter = Mathf.Max(12f, buildingSize * 1.42f + 2f);
+            mark.Diameter = Mathf.Max(12f, Mathf.Max(buildingSize.x, buildingSize.y) * 1.42f + 2f);
             mark.Ring.transform.parent.gameObject.SetActiveFast(true);
             var center = PxToLocal(radar.CenterX, radar.CenterY);
             mark.Ring.rectTransform.anchoredPosition = mark.Sweep.rectTransform.anchoredPosition = center;
             mark.Ring.rectTransform.sizeDelta = Vector2.one * mark.Diameter;
+            mark.Dot.rectTransform.anchoredPosition = center;
+            mark.Dot.rectTransform.sizeDelta = buildingSize * .8f;
         }
 
         void DrawRadarSweeps()
@@ -368,10 +377,11 @@ namespace OpenZ
                 float elapsed = Mathf.Repeat(now + (radar.Id % 11) * .29f, period);
                 bool visible = animate && radar.Owner == hud.Player && !radar.Destroyed && radar.KillAt < 0 && elapsed < sweepTime;
                 mark.Sweep.gameObject.SetActiveFast(visible);
+                mark.Dot.gameObject.SetActiveFast(visible);
                 if (!visible) continue;
                 float progress = elapsed / sweepTime;
                 mark.Sweep.rectTransform.sizeDelta = Vector2.one * (mark.Diameter + 36f * progress);
-                mark.Sweep.color = OzUi.A(OzUi.Amber, .65f * (1f - progress));
+                mark.Sweep.color = OzUi.A(Color.white, .65f * (1f - progress));
             }
         }
 

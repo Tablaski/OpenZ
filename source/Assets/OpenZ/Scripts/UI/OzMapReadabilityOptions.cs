@@ -7,7 +7,7 @@ namespace OpenZ
     {
         public const string FlagLabel = "FLAG SIZE", BorderLabel = "DOTTED TERRITORY BORDERS";
         public const string RadarLabel = "MINIMAP RADARS", RadarPref = "oz_vk_minimap_radars";
-        public const string RadarTip = "MINIMAP RADARS|Highlight visible radars and show a periodic sweep from active radars you own. Reduced motion keeps the markers and hides the sweep.|";
+        public const string RadarTip = "MINIMAP RADARS|With a Radar Loss Consequence selected, highlight visible radars and show a white sweep from active radars you own. Reduced motion keeps the outlines.|";
         public const string FlagPref = "oz_flag_size", BorderPref = "oz_territory_borders";
         public const string FlagTip = "FLAG SIZE|Display flags and their poles at x1 (original), x2 or x4. Applies immediately to territory and fort flags, including flags added in the Unit Editor. Capture distance, territory ownership and gameplay are unchanged.|";
         public const string BorderTip = "DOTTED TERRITORY BORDERS|Show bright round LED boundaries in each territory owner's colour, or grey for neutral territory, like Zod Engine's zone markers. The marks follow the ground and water, skip walls/buildings and recolour immediately after a capture. Choose OFF, x1, x2 or x4. Visual only; applies immediately and is saved.|";

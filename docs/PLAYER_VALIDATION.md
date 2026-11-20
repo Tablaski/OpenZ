@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.6 radar sweep
+
+- Pending solo and 1 vs 1 check: select Radar Loss Off with Minimap Radars enabled and compare the minimap with stock OpenZ, including Mayhem's original fog reveal in solo. Test Fog, Zoom Lock and Fog + Zoom, and check that a friendly radar's marker lights up white during each white sweep and returns to its team color between sweeps. Check Reduced Motion, the local Minimap Radars toggle, and that a guest's display follows the host's selected consequence.
+
 ## OpenZ-VK 1.5.5 radar visibility
 
 - Pending solo and 1 vs 1 check: with Zoom Lock and Fog + Zoom, lose the last radar, verify the wider 82.5 m overhead view and try wheel, touch or gamepad zoom. Capture or rebuild a radar and check normal zoom returns. Check that Fog and Off keep normal camera behavior.

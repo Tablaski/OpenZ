@@ -76,6 +76,8 @@ namespace OpenZ
             (obj.IsUnit || obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag") &&
             !I.Visible(obj.CenterX, obj.CenterY);
 
+        internal static RadarLossRule RuleFor(ZWorld world) => world.HasDuelRules ? world.DuelRadarLoss : OzBattleOptions.SoloRadar;
+
         internal bool Visible(int x, int y) => !Fog || Sight == null || Sight.ShownAtPx(x, y) >= OzFowMask.Revealed;
 
         void Update()
@@ -89,7 +91,7 @@ namespace OpenZ
                 Contacts.Clear(); knownRadars.Clear(); meshCache.Clear();
                 nextSight = -1;
             }
-            var rule = world.HasDuelRules ? world.DuelRadarLoss : OzBattleOptions.SoloRadar;
+            var rule = RuleFor(world);
             bool enabled = rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
                 !CaptureKit.DemoRun && !ZodBriefing.BriefingActive && (!DuelRuntime.Active || DuelRuntime.I.Playing);
             if (!enabled)

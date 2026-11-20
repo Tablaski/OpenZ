@@ -187,7 +187,7 @@ namespace OpenZ.Multiplayer
                         pause.ProofOptTab(0);
                         DuelProofCapture.Save(Path.Combine(folder, role + "-menu.png"), true); menuCaptured = true;
                         var tabs = (System.Collections.Generic.List<HudButton>)typeof(OpenZPauseMenu).GetField("optTabBtns", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
-                        var microphone = tabs.SingleOrDefault(tab => tab.Label.text == "MICROPHONE");
+                        var microphone = tabs.SingleOrDefault(tab => tab.Label.text == OzForkOptions.AudioDevicesLabel);
                         if (microphone == null || !tabs.Any(tab => tab.Label.text == OzBuildKeys.Label)) throw new Exception("Missing microphone or build keys options tab.");
                         microphone.OnClick(new HudClick());
                     }

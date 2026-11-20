@@ -335,15 +335,15 @@ namespace OpenZ
             buildKeysTab = OzSettingTips.TabNames.Length + (duel ? 1 : 0);
             int n = buildKeysTab + 1;
             float unitWidth = (w - OzLayout.OptTabGap * (n - 1)) / n;
-            float[] weights = duel ? new[] { .75f, .75f, 1f, 1f, 1.3f, 1.2f } : new[] { .8f, .8f, 1f, 1.1f, 1.3f };
+            float[] weights = duel ? new[] { .65f, .65f, .9f, .95f, 1.75f, 1.1f } : new[] { .8f, .8f, 1f, 1.1f, 1.3f };
             optTabBtns.Clear();
             float tabX = x;
             for (int i = 0; i < n; i++)
             {
                 int id = i;
                 float bw = unitWidth * weights[i];
-                string label = i == buildKeysTab ? OzBuildKeys.Label : i == MicrophoneTab ? "MICROPHONE" : OzSettingTips.TabNames[i];
-                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.06f);
+                string label = i == buildKeysTab ? OzBuildKeys.Label : i == MicrophoneTab ? OzForkOptions.AudioDevicesLabel : OzSettingTips.TabNames[i];
+                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, i == MicrophoneTab && duel ? 9 : 11, 0.06f);
                 b.Label.At(bw * .5f, OzLayout.OptTabH * .5f, OzH.C, true, bw - 8f);
                 OzForkOptions.Highlight(b, label);
                 b.Rt.Place(new OzRect(tabX, OzLayout.OptTabY, bw, OzLayout.OptTabH));

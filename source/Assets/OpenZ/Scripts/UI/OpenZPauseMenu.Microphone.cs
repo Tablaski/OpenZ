@@ -12,7 +12,7 @@ namespace OpenZ
         public const int MicrophoneTab = 4;
         RectTransform microphonePage, microphoneTrack, microphoneDevices, microphoneDeviceContent;
         Image microphoneGainFill, microphoneThumb, microphoneMeter;
-        OzText microphoneGainText, microphoneLevelText, microphoneStatus;
+        OzText microphoneGainText, microphoneLevelText, microphoneStatus, speakerVolumeText, windowsOutputText;
         HudButton microphoneToggle, microphoneDevice, microphoneKey;
         bool microphoneBinding, microphoneDragging;
         float microphoneDeviceScroll, microphoneDeviceExtent;
@@ -20,11 +20,11 @@ namespace OpenZ
         public bool MicrophoneBinding => microphoneBinding;
         DuelVoice MicrophoneVoice => DuelRuntime.I ? DuelRuntime.I.Voice : null;
 
-        HudButton MicrophoneButton(string name, string text, float y, Action action, float height = 42)
+        HudButton MicrophoneButton(string name, string text, float y, Action action, float height = 42, float offset = 0, float width = 0)
         {
-            float w = OzLayout.PauseW - 2 * OzLayout.OptX;
+            float w = width > 0 ? width : OzLayout.PauseW - 2 * OzLayout.OptX;
             var b = HudButton.Make(microphonePage, name, text, new Vector2(w, height), HudButtonKind.Small, 12, .04f);
-            b.Rt.TL(OzLayout.OptX, y, w, height); b.Priority = 100; b.OnClick = c => action();
+            b.Rt.TL(OzLayout.OptX + offset, y, w, height); b.Priority = 100; b.OnClick = c => action();
             b.LabelColor = OzForkOptions.Accent; b.Refresh();
             return b;
         }
@@ -33,25 +33,40 @@ namespace OpenZ
         {
             microphonePage = Hud.Node("TabMicrophone", optionsRoot); microphonePage.Fill();
             float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * x;
-            microphoneToggle = MicrophoneButton("MicrophoneMute", "", 90, () => MicrophoneVoice.SetMode((DuelVoice.MicrophoneMode)(((int)MicrophoneVoice.Mode + 1) % 3)));
-            Hud.Label(microphonePage, "InputDeviceLabel", "INPUT DEVICE", 11, OzUi.Muted).At(x, 150);
-            microphoneDevice = MicrophoneButton("MicrophoneDevice", "", 174, ToggleMicrophoneDevices, 54);
+            microphoneToggle = MicrophoneButton("MicrophoneMute", "", 85, () => MicrophoneVoice.CycleMode(), 35);
+            Hud.Label(microphonePage, "InputDeviceLabel", "INPUT DEVICE", 11, OzUi.Muted).At(x, 128);
+            microphoneDevice = MicrophoneButton("MicrophoneDevice", "", 148, ToggleMicrophoneDevices, 40);
             microphoneDevice.Tooltip = "Choose the microphone used for voice chat. System default follows Windows.";
-            microphoneGainText = Hud.Label(microphonePage, "MicrophoneGainLabel", "", 12, OzUi.Ink).At(x, 252);
-            microphoneTrack = Hud.Node("MicrophoneGainTrack", microphonePage); microphoneTrack.TL(x, 284, w, 10);
+            microphoneGainText = Hud.Label(microphonePage, "MicrophoneGainLabel", "", 12, OzUi.Ink).At(x, 207);
+            microphoneTrack = Hud.Node("MicrophoneGainTrack", microphonePage); microphoneTrack.TL(x, 233, w, 10);
             var track = Hud.Img(microphoneTrack, "Track", OzUi.GM950); track.rectTransform.Fill();
             microphoneGainFill = Hud.Img(microphoneTrack, "Gain", OzUi.Amber); microphoneGainFill.rectTransform.Fill();
             microphoneThumb = Hud.Kit(microphoneTrack, "Thumb", "Buttons/slider_thumb", new OzRect(0, -5, 14, 20), null, Image.Type.Simple);
-            var hot = MicrophoneButton("MicrophoneGainHotspot", "", 272, () => { }, 34); hot.Bg.enabled = false;
-            Hud.Label(microphonePage, "GainMinimum", "0%", 10, OzUi.Muted).At(x, 310);
-            Hud.Label(microphonePage, "GainMaximum", "400%", 10, OzUi.Muted).At(x + w, 310, OzH.R, false, 60);
-            microphoneLevelText = Hud.Label(microphonePage, "MicrophoneLevelLabel", "", 12, OzUi.Ink).At(x, 348);
-            var meter = Hud.Img(microphonePage, "MicrophoneLevelTrack", OzUi.GM950); meter.rectTransform.TL(x, 380, w, 16);
+            var hot = MicrophoneButton("MicrophoneGainHotspot", "", 221, () => { }, 34); hot.Bg.enabled = false;
+            microphoneLevelText = Hud.Label(microphonePage, "MicrophoneLevelLabel", "", 12, OzUi.Ink).At(x, 269);
+            var meter = Hud.Img(microphonePage, "MicrophoneLevelTrack", OzUi.GM950); meter.rectTransform.TL(x, 291, w, 12);
             microphoneMeter = Hud.Img(meter.transform, "MicrophoneLevel", OzUi.Go); microphoneMeter.rectTransform.Fill();
-            microphoneStatus = Hud.Label(microphonePage, "MicrophoneStatus", "", 11, OzUi.Muted).Body(x, 412, w);
-            microphoneKey = MicrophoneButton("MicrophoneTalkKey", "", 486, () => microphoneBinding = true);
-            Hud.Label(microphonePage, "MicrophoneHint", "Tap the shortcut to start/stop speaking in Tap to speak mode.\nThe input meter also works while muted.", 11, OzUi.Muted).Body(x, 544, w);
+            microphoneStatus = Hud.Label(microphonePage, "MicrophoneStatus", "", 11, OzUi.Muted).Body(x, 312, w);
+            microphoneKey = MicrophoneButton("MicrophoneTalkKey", "", 345, () => microphoneBinding = true, 36);
+            speakerVolumeText = Hud.Label(microphonePage, "SpeakerVolume", "", 12, OzUi.Ink).At(x, 407);
+            MicrophoneButton("SpeakerDown", "−", 392, () => StepSpeakerVolume(-.1f), 32, w - 94, 44);
+            MicrophoneButton("SpeakerUp", "+", 392, () => StepSpeakerVolume(.1f), 32, w - 44, 44);
+            if (OzWindowsSound.Available)
+            {
+                windowsOutputText = Hud.Label(microphonePage, "WindowsOutput", "", 11, OzUi.Ink).At(x, 459);
+                MicrophoneButton("WindowsVolumeDown", "−", 444, () => OzWindowsSound.StepVolume(-.1f), 32, w - 94, 44);
+                MicrophoneButton("WindowsVolumeUp", "+", 444, () => OzWindowsSound.StepVolume(.1f), 32, w - 44, 44);
+                float half = (w - 6) / 2;
+                MicrophoneButton("WindowsMute", "TOGGLE WINDOWS MUTE", 490, OzWindowsSound.ToggleMute, 36, 0, half);
+                MicrophoneButton("WindowsMixer", "WINDOWS MIXER", 490, OzWindowsSound.OpenMixer, 36, half + 6, half);
+                MicrophoneButton("WindowsAudio", "CHOOSE OUTPUT IN WINDOWS", 536, OzWindowsSound.OpenSettings, 40);
+            }
             microphonePage.gameObject.SetActive(false);
+        }
+        void StepSpeakerVolume(float step)
+        {
+            MicrophoneVoice.SpeakerVolume += step;
+            PlayerPrefs.Save();
         }
 
         void ToggleMicrophoneDevices()
@@ -62,7 +77,7 @@ namespace OpenZ
                 Destroy(microphoneDevices.gameObject); microphoneDeviceButtons.Clear(); microphoneDeviceScroll = 0;
             }
             float w = OzLayout.PauseW - 2 * OzLayout.OptX;
-            microphoneDevices = Hud.Node("MicrophoneDevices", microphonePage); microphoneDevices.TL(OzLayout.OptX, 230, w, 320);
+            microphoneDevices = Hud.Node("MicrophoneDevices", microphonePage); microphoneDevices.TL(OzLayout.OptX, 190, w, 320);
             var bg = Hud.Img(microphoneDevices, "Background", OzUi.GM950); bg.rectTransform.Fill();
             microphoneDevices.gameObject.AddComponent<RectMask2D>();
             var hit = HudButton.Make(microphoneDevices, "DeviceListHit", null, new Vector2(w, 320), HudButtonKind.Small);
@@ -110,7 +125,7 @@ namespace OpenZ
             microphoneToggle.Label.Set("MICROPHONE: " + voice.ModeName + " · CLICK TO CHANGE");
             string device = voice.Device;
             microphoneDevice.Label.Set((device.Length > 36 ? device.Substring(0, 33) + "…" : device) + "  ▼");
-            microphoneGainText.Set("INPUT VOLUME: " + Mathf.RoundToInt(voice.Gain * 100) + "%");
+            microphoneGainText.Set("MICROPHONE GAIN: " + Mathf.RoundToInt(voice.Gain * 100) + "%");
             microphoneGainFill.rectTransform.anchorMax = new Vector2(voice.Gain / 4, 1);
             microphoneThumb.rectTransform.anchoredPosition = new Vector2(microphoneTrack.rect.width * voice.Gain / 4 - 7, 5);
             microphoneMeter.rectTransform.anchorMax = new Vector2(voice.InputLevel, 1);
@@ -118,6 +133,8 @@ namespace OpenZ
             microphoneLevelText.Set("TEST YOUR MICROPHONE: " + Mathf.RoundToInt(voice.InputLevel * 100) + "%");
             microphoneStatus.Set(voice.Status);
             microphoneKey.Label.Set(microphoneBinding ? "PRESS A KEY · ESC TO CANCEL" : "TAP TO SPEAK: " + voice.TalkKey);
+            speakerVolumeText.Set("VOICE PLAYBACK: " + Mathf.RoundToInt(voice.SpeakerVolume * 100) + "%");
+            windowsOutputText?.Set(OzWindowsSound.OutputStatus);
             var mouse = Mouse.current;
             if (mouse == null || OzConfirm.Blocks) return;
             bool devicesOpen = microphoneDevices && microphoneDevices.gameObject.activeSelf;

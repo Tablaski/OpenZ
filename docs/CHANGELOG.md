@@ -4,6 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.4 (20 Nov 2026)
+
+- 1 vs 1 — Voice chat keeps transmitting while you type. The lobby chat shows your microphone gain, input level and transmission status.
+- 1 vs 1 — Microphone / Speakers in the lobby and pause menu lets you adjust voice playback, restore Windows sound if it is muted and open the Windows output selector or volume mixer.
+
 ## OpenZ-VK 1.5.3 (19 Nov 2026)
 
 - Solo — Gaming Options in mission selection lets you choose OpenZ or experimental Z Classic dynamics and set what happens when you have no working radar.

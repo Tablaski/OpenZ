@@ -265,10 +265,10 @@ namespace OpenZ.Multiplayer
                             r.Rules.BuildSeconds(0, 100, .5, 1) != 75 || r.Rules.BuildSeconds(1, 100, .5, 1) != 75)
                             throw new Exception("Army configuration changed construction times.");
                         Capture("shared-rules-restored");
-                        Click("SETUP"); break;
+                        Click(OzForkOptions.AudioDevicesLabel); break;
                     case 20:
                         if (!r.Voice.Monitoring || r.Voice.MicrophoneEnabled) throw new Exception("Microphone preview must meter locally while muted.");
-                        var gain = r.Menus.GetComponentsInChildren<Slider>().Single();
+                        var gain = r.Menus.GetComponentsInChildren<Slider>().Single(s => s.name == "MicrophoneGain");
                         if (gain.minValue != 0 || gain.maxValue != 4 || gain.value != r.Voice.Gain) throw new Exception("Incorrect microphone gain slider.");
                         Capture("microphone-settings");
                         Click("MICROPHONE: " + r.Voice.Device + "  ▼"); break;

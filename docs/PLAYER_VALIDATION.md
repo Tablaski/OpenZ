@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.4 duel audio
+
+- Pending two-PC check: verify both players can hear each other in the lobby with Always On, while typing and while entering and leaving audio setup. In Tap to Speak, start and stop with the chosen shortcut, continue typing while transmitting and confirm that typing the shortcut character does not toggle the microphone. Check Mute, input gain, clipping and the lobby transmission indicator.
+- Pending Windows audio check: open Microphone / Speakers from the lobby and pause menu, adjust voice playback, change Windows volume and unmute the default output. Switch between a headset and speakers, then confirm game sound and voice resume on the selected output and voice playback volume survives a restart.
+
 ## OpenZ-VK 1.5.3 solo options and duel assistance
 
 - Pending visual and interaction checks: open Gaming Options in both solo catalogues, select tank and robot profiles, open the Discord link and verify each radar rule before and after losing radar.

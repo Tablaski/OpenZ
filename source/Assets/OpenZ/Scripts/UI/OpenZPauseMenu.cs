@@ -24,7 +24,7 @@ namespace OpenZ
         public bool IsOpen { get; private set; }
         OpenZHud hud; ZGame game; Canvas canvas; RectTransform root, pausePanel, sidePanel, optionsRoot, controlsRoot, optMainPage;
         CanvasGroup rootCg; Image dim; OzPost post; float openAt = -10f, closeAt = -10f; bool closing, wasPaused; float prevScale = 1f;
-        OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch;
+        OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch, skirmishSurrender;
         internal const int DuelEscapeHoldSeconds = 2;
         double duelEscapeStarted = -1;
         bool duelEscapeStartedPaused;
@@ -111,6 +111,17 @@ namespace OpenZ
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
             }
+            else if (game.World?.Map.skirmish == true)
+                skirmishSurrender = Big("SURRENDER", HudButtonStyle.Danger, () =>
+                {
+                    if (game.World.SkirmishEliminated(game.player)) return;
+                    OzConfirm.Ask("SURRENDER THIS MATCH?", "YOUR FORT WILL BE LOST. YOU CAN WATCH UNTIL THE MATCH ENDS.", () =>
+                    {
+                        hud.Production?.Close();
+                        Close();
+                        game.World.SurrenderSkirmish(game.player);
+                    }, id => OzSfx.Ui(id), canvas.sortingOrder + 10);
+                });
             bQuit = Big("QUIT TO MAIN MENU", HudButtonStyle.Danger, () => OzConfirm.Ask("QUIT TO THE MAIN MENU?", "THIS MATCH ENDS HERE AND ITS PROGRESS IS LOST.", () => { OzSfx.Ui("ui_back"); OzScenes.MainMenu(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             if (OpenZ.Multiplayer.DuelRuntime.Active)
             {
@@ -421,6 +432,11 @@ namespace OpenZ
             public void Open()
         {
             if (IsOpen || hud == null || (hud.EndScreen && hud.EndScreen.IsShown)) return;
+            if (skirmishSurrender != null)
+            {
+                skirmishSurrender.Interactable = !game.World.SkirmishEliminated(game.player);
+                skirmishSurrender.Refresh();
+            }
             IsOpen = true; closing = false; openAt = OzMotion.Now;
             wasPaused = game.paused; prevScale = Time.timeScale;
             if (!OpenZ.Multiplayer.DuelRuntime.Active) { game.paused = true; Time.timeScale = 0f; }

@@ -33,9 +33,11 @@ namespace OpenZ
 
         void UpdatePeaks(ZWorld w)
         {
-            int r = 0, b = 0; foreach (var z in w.Zones) { if (z.Owner == Team.Red) r++; else if (z.Owner == Team.Blue) b++; }
+            int r = 0, b = 0, g = 0;
+            foreach (var z in w.Zones) { if (z.Owner == Team.Red) r++; else if (z.Owner == Team.Blue) b++; else if (z.Owner == Team.Green) g++; }
             if (r > Get(PeakZones, Team.Red)) PeakZones[Team.Red] = r;
             if (b > Get(PeakZones, Team.Blue)) PeakZones[Team.Blue] = b;
+            if (g > Get(PeakZones, Team.Green)) PeakZones[Team.Green] = g;
         }
 
         public void OnEvent(ZWorld w, ZEvent e)
@@ -153,7 +155,7 @@ namespace OpenZ
             float cx = OzLayout.RefW * 0.5f;
             string level = OzAiMapCatalog.Find(game.level) is OzAiMap converted ? converted.Name.ToUpperInvariant() : game.level == "L19" ? "MAYHEM" : game.level == "L17" ? "THE CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameEndName : game.level == "L16" ? "THE JUNGLE" : OzVolcanic.Is(game.level) ? OzVolcanic.EndName : "THE DESERT";
             string lvlCode = game.level;
-            Team enemy = me == Team.Red ? Team.Blue : Team.Red;
+            Team enemy = W.Map.skirmish && winner != Team.Neutral && winner != me ? winner : me == Team.Red ? Team.Blue : Team.Red;
 
             dimImage = null;
             if (kind != "victory")

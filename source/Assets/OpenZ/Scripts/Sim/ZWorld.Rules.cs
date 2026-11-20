@@ -252,8 +252,23 @@ namespace OpenZ.Sim
         }
 
         // ------------------------------------------------------------------ elimination + game end (zserver.cpp:277-367, 1675-1729)
+        int skirmishEliminated;
+
+        public bool SkirmishEliminated(Team team) => Map.skirmish && (skirmishEliminated & (1 << (int)team)) != 0;
+
+        public bool SurrenderSkirmish(Team team)
+        {
+            if (!Map.skirmish || GameOver || team == Team.Neutral || SkirmishEliminated(team)) return false;
+            var fort = Objects.FirstOrDefault(o => o.IsFort && o.Owner == team && !o.Destroyed);
+            if (fort == null) return false;
+            fort.SetHealth(0);
+            UpdateObjectHealth(fort);
+            return true;
+        }
+
         void EliminateTeam(ZObject fort, Team team)
         {
+            if (Map.skirmish) skirmishEliminated |= 1 << (int)team;
             Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY, value = (float)team });
             foreach (var o in Objects.ToList())
                 if (o != fort && o.Owner == team && o.Kind != ZKind.MapItem && !o.Destroyed && o.MaxHealth > 0) { o.SetHealth(0); UpdateObjectHealth(o); }

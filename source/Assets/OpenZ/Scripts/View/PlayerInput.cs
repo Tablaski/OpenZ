@@ -57,6 +57,14 @@ namespace OpenZ
             if (OpenZ.Multiplayer.DuelRuntime.CapturesInput || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return;
             var mouse = Mouse.current; var kb = Keyboard.current;
             if (mouse == null || kb == null || game == null || game.World == null) return;
+            if (game.World.SkirmishEliminated(game.player))
+            {
+                Selection.Clear();
+                pending.Clear();
+                Hover = null;
+                if (Placing != null) CancelPlace();
+                return;
+            }
             OzOrderWatch.Tick(game.World);                                                              // 1.3 item 29: one log line for an order that leaves units standing (View/OzOrderWatch.cs)
             for (int i = 0; i < Selection.Count; i++)                                                   // a selected squad leader died: keep the squad selected (its new leader)
             {

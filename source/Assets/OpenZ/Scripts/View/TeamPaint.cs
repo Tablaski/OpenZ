@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace OpenZ
 {
-    /// <summary>Z teams: the player is RED, the CPU is BLUE, neutral is GREY (there is never a green team).</summary>
-    public enum Team { Neutral = 0, Red = 1, Blue = 2 }
+    /// <summary>Stable owner identities used by the simulation and the map format.</summary>
+    public enum Team { Neutral = 0, Red = 1, Blue = 2, Green = 3 }
 
     public static class TeamColors
     {
@@ -12,6 +12,7 @@ namespace OpenZ
         // (Zod's raw sprite keys 223,0,0 / 19,55,251 / 115,115,115 read neon on lit 3D models.)
         public static readonly Color Red = new Color32(176, 40, 30, 255);
         public static readonly Color Blue = new Color32(47, 79, 168, 255);
+        public static readonly Color Green = new Color32(55, 128, 63, 255);
         public static readonly Color Neutral = new Color32(122, 116, 106, 255);
 
         // default 0 = red). VIEW ONLY: the player's side (sim Red) is drawn blue and the CPU (sim Blue) red on every unit,
@@ -25,12 +26,14 @@ namespace OpenZ
         }
         /// <summary>The team whose COLOUR is drawn for sim team t (Red and Blue trade places when Swap is on).</summary>
         // duel stable team colours
-            public static Team Shown(Team t) => OpenZ.Multiplayer.DuelRuntime.Active ? t : !Swap || t == Team.Neutral ? t : t == Team.Red ? Team.Blue : Team.Red;
+        public static Team Shown(Team t) => OpenZ.Multiplayer.DuelRuntime.Active ||
+            (ZGame.I && ZGame.I.level == OzAiMapCatalog.ThreePlayerSkirmish.Id) || !Swap
+            ? t : t switch { Team.Red => Team.Blue, Team.Blue => Team.Red, _ => t };
         /// <summary>1.2 item 11: a text or a voice line written for the red player names the wrong colours: the colours are swapped, or the
         /// human is blue (PLAY AS BLUE, View/OzPlayBlue.cs). Then the texts are turned (Words) and voice takes that name a colour are left out.</summary>
         public static bool WordsFlip => Swap || OzPlayBlue.Active;
         /// <summary>"RED" / "BLUE" as displayed (neutral: "NEUTRAL").</summary>
-        public static string Name(Team t) { var s = Shown(t); return s == Team.Red ? "RED" : s == Team.Blue ? "BLUE" : "NEUTRAL"; }
+        public static string Name(Team t) => Shown(t) switch { Team.Red => "RED", Team.Blue => "BLUE", Team.Green => "GREEN", _ => "NEUTRAL" };
         /// <summary>Kit / portrait key of the displayed colour: "red" / "blue" / "neutral".</summary>
         public static string Key(Team t) { var s = Shown(t); return s == Team.Red ? "red" : s == Team.Blue ? "blue" : "neutral"; }
         static readonly System.Text.RegularExpressions.Regex ColourWord = new System.Text.RegularExpressions.Regex(@"\b(red|blue)(s?)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -73,16 +76,18 @@ namespace OpenZ
         }
         static readonly System.Collections.Generic.Dictionary<Sprite, Sprite> swapped = new System.Collections.Generic.Dictionary<Sprite, Sprite>();
 
-        public static Color Of(Team t) { t = Shown(t); return t == Team.Red ? Red : t == Team.Blue ? Blue : Neutral; }
+        public static Color Of(Team t) => Shown(t) switch { Team.Red => Red, Team.Blue => Blue, Team.Green => Green, _ => Neutral };
         public static Color Paint(Team t) => Of(t);
 
         // rims, LINEAR (TeamPaint sets them with SetVector, no second sRGB -> linear step). Same hues as above (brick red,
         // royal blue), lighter so they read at 60-70 m. w of VividLinear: 1 = neutral, 2 = owned (0 = not set = v1 look).
         public static Vector4 VividLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.45f, 0.038f, 0.024f, 2f)
-                                                    : t == Team.Blue ? new Vector4(0.035f, 0.14f, 0.60f, 2f) : new Vector4(0f, 0f, 0f, 1f);
+                                                    : t == Team.Blue ? new Vector4(0.035f, 0.14f, 0.60f, 2f)
+                                                    : t == Team.Green ? new Vector4(0.08f, 0.48f, 0.12f, 2f) : new Vector4(0f, 0f, 0f, 1f);
         /// <summary>Team rim by day / night and the faint night glow of the panels (linear; red lifted: dark red vanishes at night).</summary>
         public static Vector4 GlowLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.80f, 0.075f, 0.045f, 1f)
-                                                   : t == Team.Blue ? new Vector4(0.06f, 0.22f, 0.85f, 1f) : Vector4.zero;
+                                                   : t == Team.Blue ? new Vector4(0.06f, 0.22f, 0.85f, 1f)
+                                                   : t == Team.Green ? new Vector4(0.12f, 0.68f, 0.18f, 1f) : Vector4.zero;
         /// <summary>Ground team discs (TeamReadability, sRGB): brighter than the paint so the ring reads on sand and concrete.</summary>
         static readonly Color discRed = new Color32(228, 62, 44, 255), discBlue = new Color32(60, 128, 245, 255);
         /// <summary>Disc colour of sim team Red / Blue as displayed (Swap trades them).</summary>
@@ -91,7 +96,7 @@ namespace OpenZ
         public static readonly Color DiscEmpty = new Color(0.86f, 0.86f, 0.84f, 1f);
 
         public static Team Parse(string owner) =>
-            owner == "red" ? Team.Red : owner == "blue" ? Team.Blue : Team.Neutral;
+            owner == "red" ? Team.Red : owner == "blue" ? Team.Blue : owner == "green" ? Team.Green : Team.Neutral;
     }
 
     /// <summary>

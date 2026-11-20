@@ -51,6 +51,7 @@ namespace OpenZ
         string UnrankedWhy()
         {
             if (OpenZ.Multiplayer.DuelRuntime.Active) return "ONLINE DUEL · NOT IN THE SOLO TABLE";
+            if (game.World.Map.skirmish) return "LOCAL SKIRMISH";
             var customStats = OzLevelStats.UnrankedWhy(); if (customStats != null) return customStats;      // 1.2 item 60: a Custom stats match, won or lost, is not compared with the others (CUSTOM STATS · NOT IN THE TABLE)
             if (kind == "defeat") return "WIN THE LEVEL TO ENTER THE TABLE";
             if (kind != "victory") return "A DRAW DOES NOT ENTER THE TABLE";

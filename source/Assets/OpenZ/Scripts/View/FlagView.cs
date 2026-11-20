@@ -335,7 +335,13 @@ namespace OpenZ
         }
 
         /// <summary>Light colour for flashes (brighter than the paint so it reads as light on the ground and walls).</summary>
-        static Color LightColor(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? new Color(1f, 0.34f, 0.22f) : t == Team.Blue ? new Color(0.36f, 0.52f, 1f) : new Color(0.95f, 0.92f, 0.85f);
+        static Color LightColor(Team t) => TeamColors.Shown(t) switch
+        {
+            Team.Red => new Color(1f, 0.34f, 0.22f),
+            Team.Blue => new Color(0.36f, 0.52f, 1f),
+            Team.Green => new Color(0.51f, 0.91f, 0.40f),
+            _ => new Color(0.95f, 0.92f, 0.85f),
+        };
 
         // ================================================================== meshes
         const int ClothCols = 16, ClothRows = 8;

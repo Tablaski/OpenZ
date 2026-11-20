@@ -79,8 +79,17 @@ namespace OpenZ
             // The demo used to force 4x here, and PlayerPrefs survive editor restarts, so one leftover demo flag made the whole game
             // run 4x. A faster demo only through the explicit pref oz_demo_speed.
             bool demo = PlayerPrefs.GetInt("oz_botmatch", 0) == 1 || CaptureKit.DemoRun;
-            if (demo) blueBot = redBot = true;
-            OzPlayBlue.Sides(this, demo);                                                         // 1.2 item 11 PLAY AS BLUE (experimental, off by default): a level DEPLOY armed with the box on: the human blue, the CPU red (View/OzPlayBlue.cs)
+            bool skirmish = level == OzAiMapCatalog.ThreePlayerSkirmish.Id;
+            if (skirmish)
+            {
+                demo = blueBot = redBot = false;
+                player = Team.Red;
+            }
+            else
+            {
+                if (demo) blueBot = redBot = true;
+                OzPlayBlue.Sides(this, demo);
+            }
             gameSpeed = StartSpeed(gameSpeed, demo, PlayerPrefs.GetFloat("oz_demo_speed", 1f));
             Debug.Log($"[OpenZ] time base: gameSpeed {gameSpeed} timeScale {Time.timeScale} tick {ZConst.TICK} s, bots red {redBot} blue {blueBot}, demo {demo}");
             if (PlayerPrefs.HasKey(OpenZDifficulty.Key)) { gameDifficulty = OpenZDifficulty.Level; difficulty = OpenZDifficulty.Bot(gameDifficulty); }   // menu choice (0 = Hard, 1 = Easy, 2 = Medium)
@@ -239,8 +248,16 @@ namespace OpenZ
             // duel game creation
             OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this); OzSoloAllowedUnits.Apply(this);
             Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
-            if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });   // same seeding as the headless bot match
-            if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });
+            if (skirmish)
+            {
+                var setup = OpenZ.Multiplayer.DuelRuntime.I?.Menus;
+                World.ConfigureThreePlayerSkirmish(setup?.SkirmishBlue ?? ZBotDifficulty.Normal, setup?.SkirmishGreen ?? ZBotDifficulty.Normal, seed);
+            }
+            else
+            {
+                if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });
+                if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });
+            }
             foreach (var b in World.Bots) Debug.Log($"[OpenZ] CPU {b.Team}: {b.Difficulty}{(b.Difficulty == ZBotDifficulty.Easy ? $" (waits {ZBot.EASY_START_DELAY:0} s, max wave {ZBot.EASY_MAX_WAVE}, max attackers {ZBot.EASY_MAX_ATTACKERS})" : " (Zod bot)")}");
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;
@@ -358,7 +375,7 @@ namespace OpenZ
             public void ApplyTechBonus()
         {
             if (OpenZ.Multiplayer.DuelRuntime.Active) return;
-            if (World == null) return;
+            if (World == null || World.Map.skirmish) return;
             for (int i = 0; i < World.TechBonus.Length; i++) World.TechBonus[i] = 0;
             if (!(blueBot && redBot)) World.TechBonus[(int)player] = OpenZDifficulty.TechBonus(gameDifficulty);
             World.SetCpuBuildFaster(IsMayhem, player, blueBot, redBot);

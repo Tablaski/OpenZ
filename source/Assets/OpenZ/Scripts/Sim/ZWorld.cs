@@ -99,7 +99,22 @@ namespace OpenZ.Sim
         }
 
         // ------------------------------------------------------------------ object creation (zserver.cpp:623-833)
-        static Team ParseOwner(string o) => o == "red" ? Team.Red : o == "blue" ? Team.Blue : Team.Neutral;
+        static Team ParseOwner(string owner) => owner switch
+        {
+            "red" => Team.Red,
+            "blue" => Team.Blue,
+            "green" => Team.Green,
+            _ => Team.Neutral,
+        };
+
+        public void ConfigureThreePlayerSkirmish(ZBotDifficulty blue, ZBotDifficulty green, int seed)
+        {
+            if (!Map.skirmish || Bots.Count != 0 || !Objects.Where(o => o.IsFort).Select(o => o.Owner)
+                .OrderBy(owner => owner).SequenceEqual(new[] { Team.Red, Team.Blue, Team.Green }))
+                throw new InvalidOperationException("The local skirmish requires three distinct forts and an empty bot roster.");
+            Bots.Add(new ZBot(this, Team.Blue, ZBot.SeedFor(Team.Blue, seed)) { Difficulty = blue });
+            Bots.Add(new ZBot(this, Team.Green, ZBot.SeedFor(Team.Green, seed)) { Difficulty = green });
+        }
 
         /// <summary>
         /// driver) on both sides, so they no longer race to the fort flags at 0 s (the west one sits against a rock wall: blocked

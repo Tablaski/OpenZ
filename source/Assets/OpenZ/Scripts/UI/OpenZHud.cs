@@ -637,6 +637,7 @@ namespace OpenZ
 
         void BuildTopBar()
         {
+            if (W.Map.skirmish) { BuildSkirmishTopBar(); return; }
             top = Hud.Node("TopStrip", Root).Place(OzHudLayout.At(OzPanel.Status, OzLayout.TopStrip));
             AddBlocker(top);
             if (OzKit.GetSprite("Panels/topbar") != null)
@@ -700,6 +701,7 @@ namespace OpenZ
 
         void RefreshTopBar()
         {
+            if (W.Map.skirmish) { RefreshSkirmishTopBar(); return; }
             float now = OzMotion.Now;
             if (now >= nextTop)
             {

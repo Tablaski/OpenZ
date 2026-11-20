@@ -30,4 +30,10 @@
 
 ## Validation awaiting a compiled game
 
+### P03M01 local skirmish
+
+Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native map and grid. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the package scene and tactical image and registers the scene in Build Settings. Only then does Play 1 vs 1 show **Local Skirmish with Bots**. This entry is offline and only offers free-for-all on P03M01.
+
+The headless check confirms all three native forts, independent Easy and Normal bot settings, surrender with two surviving opponents, and a green victory. Manual validation still covers the actual 3D conversion, pathing, green map markers, the Force Bar options, the observer camera and the result screen.
+
 Verify invitation entry, room capacity, AI skill setup, one-human free-for-all, two-human cooperation, mixed-alliance victory, surrender into observation, kicking and expiry of the re-entry block, vote notification and map reload. Verify every converted scene after its data, rendering, navigation and starting units are integrated. Run the existing duel and solo regression checks on the same compiled game. HUD approval precedes implementation and runtime validation.

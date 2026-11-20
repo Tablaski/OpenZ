@@ -16,6 +16,22 @@ namespace OpenZ.EditorTools
     public static class OzAiMapBake
     {
         const string Package = "Packages/org.openz.aimaps/";
+        public static void Skirmish()
+        {
+            var entry = OzAiMapCatalog.ThreePlayerSkirmish;
+            var reports = new List<string>();
+            Bake(entry, reports);
+            var scenes = EditorBuildSettings.scenes.ToList();
+            if (!scenes.Any(scene => scene.path == entry.ScenePath))
+            {
+                scenes.Add(new EditorBuildSettingsScene(entry.ScenePath, true));
+                EditorBuildSettings.scenes = scenes.ToArray();
+            }
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[AI Maps] " + reports.Single());
+        }
+
         public static void All()
         {
             Directory.CreateDirectory("../aimaps/Scenes"); Directory.CreateDirectory("../aimaps/Materials"); Directory.CreateDirectory("../aimaps/Resources/OpenZ/AiMaps/Previews");

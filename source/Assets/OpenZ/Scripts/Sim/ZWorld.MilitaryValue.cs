@@ -7,7 +7,7 @@ namespace OpenZ.Sim
         /// <summary>Normal production seconds of surviving offensive mobile units; a robot squad is counted once.</summary>
         public double MilitaryValue(Team team)
         {
-            if (team != Team.Red && team != Team.Blue) return 0;
+            if (team != Team.Red && team != Team.Blue && (team != Team.Green || !Map.skirmish)) return 0;
             double value = 0;
             foreach (var unit in Objects)
                 if (unit.Owner == team && unit.IsMobile && !unit.IsMinion && !unit.IsFortDefender && unit.Type != "crane" && unit.CanAttack())

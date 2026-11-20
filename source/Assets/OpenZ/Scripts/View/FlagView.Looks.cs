@@ -336,7 +336,7 @@ namespace OpenZ
 
         /// <summary>The enemy ring's colour: the team's ground-disc colour (TeamColors.DiscRed / DiscBlue, brighter than the paint so a
         /// </summary>
-        static Color RingColor(Team t) => t == Team.Red ? TeamColors.DiscRed : t == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
+        static Color RingColor(Team t) => t == Team.Red ? TeamColors.DiscRed : t == Team.Blue ? TeamColors.DiscBlue : t == Team.Green ? OzUi.Mark(t) : TeamColors.DiscEmpty;
 
         static Color32 Col32(Color c, float a) =>
             new Color32((byte)(Mathf.Clamp01(c.r) * 255f + 0.5f), (byte)(Mathf.Clamp01(c.g) * 255f + 0.5f), (byte)(Mathf.Clamp01(c.b) * 255f + 0.5f), (byte)(Mathf.Clamp01(a) * 255f + 0.5f));

@@ -29,11 +29,11 @@ namespace OpenZ
 
         public static Color A(Color32 c, float a) { Color k = c; k.a = a; return k; }
         /// <summary>UI mark colour of a team (brackets, dots, minimap): RED_HI / BLUE_HI / NEUTRAL.</summary>
-        public static Color Mark(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? RedHi : t == Team.Blue ? BlueHi : Neutral;
+        public static Color Mark(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? RedHi : t == Team.Blue ? BlueHi : t == Team.Green ? new Color32(135, 207, 106, 255) : Neutral;
         /// <summary>Team paint for chips and strength bars: RED / BLUE / NEUTRAL_DEEP.</summary>
-        public static Color TeamPaint(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? Red : t == Team.Blue ? Blue : NeutralDeep;
+        public static Color TeamPaint(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? Red : t == Team.Blue ? Blue : t == Team.Green ? TeamColors.Green : NeutralDeep;
         /// <summary>Team-coloured text (only for type >= 14 u, guide 2.1).</summary>
-        public static Color TeamText(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? RedText : t == Team.Blue ? BlueText : NeutralText;
+        public static Color TeamText(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? RedText : t == Team.Blue ? BlueText : t == Team.Green ? new Color32(166, 218, 135, 255) : NeutralText;
         public static string Hex(Color32 c) => $"#{c.r:X2}{c.g:X2}{c.b:X2}";
     }
 

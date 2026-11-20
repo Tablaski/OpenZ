@@ -1,5 +1,5 @@
 // Test harness only. The game uses Unity's own Team and JsonUtility implementations.
-namespace OpenZ { public enum Team { Neutral = 0, Red = 1, Blue = 2 } }
+namespace OpenZ { public enum Team { Neutral = 0, Red = 1, Blue = 2, Green = 3 } }
 namespace UnityEngine
 {
     public static class JsonUtility

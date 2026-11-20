@@ -36,6 +36,7 @@ static class Program
     }
     static async Task Run()
     {
+        SkirmishChecks.Run(Check);
         MapChangeVoteChecks.Run(Check);
         MotionInterpolationChecks.Run(Check);
         var lobby = new DuelLobby();

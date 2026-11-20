@@ -35,10 +35,12 @@ namespace OpenZ
         };
         public static readonly OzAiMap ChillyWillyV2 = new OzAiMap(
             "SMChillyWillyV2", "Chilly Willy", "arctic", "vk_chilly_willy.map", 0, true, false, false, false, forkOriginal: true);
+        public static readonly OzAiMap ThreePlayerSkirmish = new OzAiMap(
+            "SMP03M01", "Desert · P03M01", "desert", "p03_bb_p03m01.map", 0, false, false, false, false);
         public static IEnumerable<OzAiMap> V2 => LandV2.Concat(VolcanicV2).Append(ChillyWillyV2);
         public static IEnumerable<OzAiMap> Playable => All.Append(ChillyWillyV2);
 
-        public static OzAiMap Find(string id) => Playable.FirstOrDefault(m => m.Id == id);
+        public static OzAiMap Find(string id) => id == ThreePlayerSkirmish.Id ? ThreePlayerSkirmish : Playable.FirstOrDefault(m => m.Id == id);
         public static bool IsDuelMap(string id) => Find(id)?.Duel == true;
         public static OzAiMap[] Select(bool solo, string group = "ALL", string world = "all", int sort = 0)
         {

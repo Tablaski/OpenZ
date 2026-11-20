@@ -114,7 +114,7 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ demo switch
         /// <summary>Zod seeds per team as used by ZGame / OpenZBotMatch (red = seed, blue = seed + 101).</summary>
-        public static int SeedFor(Team team, int seed) => team == Team.Blue ? seed + 101 : seed;
+        public static int SeedFor(Team team, int seed) => team switch { Team.Blue => unchecked(seed + 101), Team.Green => unchecked(seed + 202), _ => seed };
 
         /// <summary>
         /// Adds CPU players to the world: every team except <paramref name="human"/> (Z: the player is red, the CPU blue);

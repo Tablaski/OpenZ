@@ -1,5 +1,5 @@
 using System;
-using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -63,23 +63,34 @@ namespace OpenZ.Multiplayer
             Decode<RoomSnapshot>(packet, DuelMessage.RoomSnapshot, MaxSnapshotBytes);
         public static RoomOrder ReadOrder(DuelPacket packet) => Decode<RoomOrder>(packet, DuelMessage.RoomOrder, MaxSnapshotBytes);
 
-        public static DuelPacket Battlefield(int revision, DuelDelta delta)
+        public static DuelPacket Battlefield(int revision, DuelDelta delta, IReadOnlyList<ZEvent> events)
         {
             var payload = DuelDeltaCodec.Encode(delta);
-            if (payload.Length > DuelWire.MaxPayload - sizeof(int)) throw new InvalidDataException("Room battlefield exceeds its size limit.");
-            var framed = new byte[sizeof(int) + payload.Length];
-            BinaryPrimitives.WriteInt32LittleEndian(framed, revision);
-            payload.CopyTo(framed, sizeof(int));
-            return new DuelPacket(DuelMessage.RoomBattlefield, framed);
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+            writer.Write(revision);
+            writer.Write(payload.Length);
+            writer.Write(payload);
+            DuelEventCodec.Write(writer, events ?? Array.Empty<ZEvent>());
+            if (stream.Length > DuelWire.MaxPayload) throw new InvalidDataException("Room battlefield exceeds its size limit.");
+            return new DuelPacket(DuelMessage.RoomBattlefield, stream.ToArray());
         }
 
-        public static DuelDelta ReadBattlefield(DuelPacket packet, int revision)
+        public static DuelDelta ReadBattlefield(DuelPacket packet, int revision, out ZEvent[] events)
         {
+            events = null;
             var bytes = packet?.Payload;
-            if (packet?.Kind != DuelMessage.RoomBattlefield || bytes == null || bytes.Length <= sizeof(int) || bytes.Length > DuelWire.MaxPayload)
+            if (packet?.Kind != DuelMessage.RoomBattlefield || bytes == null || bytes.Length <= 2 * sizeof(int) || bytes.Length > DuelWire.MaxPayload)
                 throw new InvalidDataException("Invalid room battlefield packet.");
-            if (BinaryPrimitives.ReadInt32LittleEndian(bytes) != revision) return null;
-            return DuelDeltaCodec.Decode(bytes.AsSpan(sizeof(int)).ToArray());
+            using var stream = new MemoryStream(bytes, false);
+            using var reader = new BinaryReader(stream);
+            if (reader.ReadInt32() != revision) return null;
+            int length = reader.ReadInt32();
+            if (length <= 0 || length > stream.Length - stream.Position) throw new InvalidDataException("Invalid room battlefield delta length.");
+            var delta = DuelDeltaCodec.Decode(reader.ReadBytes(length));
+            events = DuelEventCodec.Read(reader);
+            if (stream.Position != stream.Length) throw new InvalidDataException("Unexpected data after room battlefield events.");
+            return delta;
         }
 
         static DuelPacket Encode(DuelMessage kind, object value, int maxBytes)
@@ -178,11 +189,11 @@ namespace OpenZ.Multiplayer
             sendFull = true;
         }
 
-        public bool PublishBattlefield(bool full = false)
+        public bool PublishBattlefield(bool full = false, IReadOnlyList<ZEvent> events = null)
         {
             if (battlefield == null || !room.MatchLoaded || room.Revision != battlefieldRevision) return false;
             var delta = deltaSender.CaptureImmutable(capture.Capture(battlefield), sendFull || full);
-            sendFull = !peer.Send(MultiplayerRoomPackets.Battlefield(battlefieldRevision, delta));
+            sendFull = !peer.Send(MultiplayerRoomPackets.Battlefield(battlefieldRevision, delta, events));
             return !sendFull;
         }
     }
@@ -206,7 +217,9 @@ namespace OpenZ.Multiplayer
             catch (InvalidDataException) { return false; }
             if (incoming.Starts < 2 || incoming.Starts > 8 || incoming.Revision < 0 || incoming.Sequence <= 0 ||
                 string.IsNullOrEmpty(incoming.Map) || incoming.Humans == null || incoming.Bots == null ||
-                incoming.Humans.Any(member => member == null) || incoming.Bots.Any(bot => bot == null) ||
+                OzAiMapCatalog.Find(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
+                incoming.Humans.Any(member => member == null || member.Position < -1 || member.Position >= incoming.Starts) ||
+                incoming.Bots.Any(bot => bot == null || bot.Position < 0 || bot.Position >= incoming.Starts) ||
                 incoming.Humans.Count(member => member.Local) != 1 || incoming.Humans.Count(member => member.Host) != 1 ||
                 (View != null && (incoming.Sequence <= View.Sequence || incoming.Revision < View.Revision))) return false;
             View = incoming;
@@ -228,9 +241,10 @@ namespace OpenZ.Multiplayer
             if (battlefield == null || View?.MatchLoaded != true || View.Revision != battlefieldRevision) return false;
             try
             {
-                var delta = MultiplayerRoomPackets.ReadBattlefield(packet, battlefieldRevision);
-                if (!deltaReceiver.ApplyOwned(delta)) return false;
+                var delta = MultiplayerRoomPackets.ReadBattlefield(packet, battlefieldRevision, out var events);
+                if (delta == null || !deltaReceiver.ApplyOwned(delta)) return false;
                 DuelReplica.ApplyDelta(battlefield, delta);
+                battlefield.Events.AddRange(events);
                 return true;
             }
             catch (InvalidDataException) { deltaReceiver = new DuelDeltaReceiver(); return false; }

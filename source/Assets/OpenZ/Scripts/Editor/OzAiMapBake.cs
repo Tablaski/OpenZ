@@ -18,18 +18,27 @@ namespace OpenZ.EditorTools
         const string Package = "Packages/org.openz.aimaps/";
         public static void Skirmish()
         {
-            var entry = OzAiMapCatalog.ThreePlayerSkirmish;
+            Directory.CreateDirectory("../aimaps/Scenes");
+            Directory.CreateDirectory("../aimaps/Resources/OpenZ/AiMaps/Previews");
             var reports = new List<string>();
-            Bake(entry, reports);
             var scenes = EditorBuildSettings.scenes.ToList();
-            if (!scenes.Any(scene => scene.path == entry.ScenePath))
+            foreach (var entry in OzAiMapCatalog.MultiplayerMaps)
             {
-                scenes.Add(new EditorBuildSettingsScene(entry.ScenePath, true));
-                EditorBuildSettings.scenes = scenes.ToArray();
+                Bake(entry, reports);
+                Debug.Log("[AI Maps] " + reports[reports.Count - 1]);
+                int index = scenes.FindIndex(scene => scene.path == entry.ScenePath);
+                var enabled = new EditorBuildSettingsScene(entry.ScenePath, true);
+                if (index < 0) scenes.Add(enabled);
+                else scenes[index] = enabled;
             }
-            AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[AI Maps] " + reports.Single());
+            foreach (var entry in OzAiMapCatalog.MultiplayerMaps)
+                if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(entry.ScenePath) ||
+                    !Resources.Load<Texture2D>("OpenZ/AiMaps/Previews/" + entry.Id))
+                    throw new InvalidOperationException("Missing converted scene or preview for " + entry.Id);
+            EditorBuildSettings.scenes = scenes.ToArray();
+            AssetDatabase.SaveAssets();
+            Debug.Log("[AI Maps] Verified " + reports.Count + " multiplayer scenes and previews.");
         }
 
         public static void All()
@@ -74,7 +83,7 @@ namespace OpenZ.EditorTools
             Physics.SyncTransforms();
             foreach(var o in map.objects)
             {
-                int count=(int)spawn.Invoke(null,new[]{JsonUtility.FromJson(JsonUtility.ToJson(o),objectType),(object)(entry.World=="city"),objects.transform,random});
+                int count=(int)spawn.Invoke(null,new[]{JsonUtility.FromJson(JsonUtility.ToJson(o),objectType),(object)(entry.World=="city"),objects.transform,random,entry.World=="arctic"});
                 if(count==0) throw new Exception("No view for "+entry.File+" "+o.kind+" at "+o.x+","+o.y);
                 spawned+=count;
             }
@@ -110,7 +119,7 @@ namespace OpenZ.EditorTools
                 var field=behaviour.GetType().GetField("level",BindingFlags.Public|BindingFlags.Instance);
                 if(field!=null && field.FieldType==typeof(string) && !field.IsInitOnly) field.SetValue(behaviour,entry.Id);
             }
-            EditorSceneManager.SaveScene(scene,entry.ScenePath);
+            if (!EditorSceneManager.SaveScene(scene,entry.ScenePath)) throw new IOException("Could not save " + entry.ScenePath);
             reports.Add(entry.Id+" | "+entry.File+" | "+entry.World+" | "+map.width+"x"+map.height+" | "+map.objects.Count+" source objects | "+spawned+" views | "+rocks+" raised rocks | PASS");
         }
         static Bounds Bounds(Renderer[] renderers) { if(renderers.Length==0) throw new Exception("Missing obstacle mesh"); var bounds=renderers[0].bounds; foreach(var renderer in renderers) bounds.Encapsulate(renderer.bounds); return bounds; }

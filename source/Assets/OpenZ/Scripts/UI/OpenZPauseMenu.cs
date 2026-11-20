@@ -24,7 +24,7 @@ namespace OpenZ
         public bool IsOpen { get; private set; }
         OpenZHud hud; ZGame game; Canvas canvas; RectTransform root, pausePanel, sidePanel, optionsRoot, controlsRoot, optMainPage;
         CanvasGroup rootCg; Image dim; OzPost post; float openAt = -10f, closeAt = -10f; bool closing, wasPaused; float prevScale = 1f;
-        OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch, skirmishSurrender;
+        OzText sub, matchMenuFoot; HudButton bResume, bOptions, bControls, bRestart, bQuit, bReport, bPauseMatch, skirmishSurrender, skirmishMapVote;
         internal const int DuelEscapeHoldSeconds = 2;
         double duelEscapeStarted = -1;
         bool duelEscapeStartedPaused;
@@ -65,6 +65,7 @@ namespace OpenZ
             var pp = Hud.Kit(pausePanel, "Plate", "Panels/pause_panel", new OzRect(0, 0, OzLayout.PauseW, OzLayout.PauseH), null);
             if (!OzKit.Available) pp.color = HudStyle.Slate;
             bool duel = OpenZ.Multiplayer.DuelRuntime.Active;
+            bool onlineSkirmish = duel && OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom;
             var ms = OzKit.GetSprite("Wordmarks/mask_paused");
             if (duel)
                 Hud.Label(pausePanel, "MatchMenu", "MATCH MENU", 56, OzUi.Ink, 0.02f).At(OzLayout.PauseWordX, OzLayout.PauseWordY, OzH.L, false, OzLayout.PauseBtnW);
@@ -88,8 +89,9 @@ namespace OpenZ
             Hud.Keycap(bResume.Content, "Esc", "ESC", OzLayout.PauseBtnW - 10, (OzLayout.PauseBtnH - 14) * 0.5f);
             bOptions = Big("OPTIONS", HudButtonStyle.Normal, () => { if (showControls) OzSfx.Ui("ui_tab_switch"); showControls = false; });
             bControls = Big("CONTROLS", HudButtonStyle.Normal, () => { if (!showControls) OzSfx.Ui("ui_tab_switch"); showControls = true; buildKeyOptions?.Cancel(); });
-            bRestart = Big("RESTART LEVEL", HudButtonStyle.Normal, () => OzConfirm.Ask("RESTART THE LEVEL?", "THE MATCH STARTS OVER FROM THE BEGINNING.", () => OzScenes.Restart(), id => OzSfx.Ui(id), canvas.sortingOrder + 10));
-            if (OpenZ.Multiplayer.DuelRuntime.Active)
+            if (!onlineSkirmish)
+                bRestart = Big("RESTART LEVEL", HudButtonStyle.Normal, () => OzConfirm.Ask("RESTART THE LEVEL?", "THE MATCH STARTS OVER FROM THE BEGINNING.", () => OzScenes.Restart(), id => OzSfx.Ui(id), canvas.sortingOrder + 10));
+            if (duel && !onlineSkirmish)
             {
                 bRestart.OnClick = c => { Close(); OpenZ.Multiplayer.DuelRuntime.I.RequestRestart(); };
                 bRestart.Tooltip = "Ask your opponent to restart this map. Both players must agree.";
@@ -112,6 +114,7 @@ namespace OpenZ
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
             }
             else if (game.World?.Map.skirmish == true)
+            {
                 skirmishSurrender = Big("SURRENDER", HudButtonStyle.Danger, () =>
                 {
                     if (game.World.SkirmishEliminated(game.player)) return;
@@ -119,13 +122,17 @@ namespace OpenZ
                     {
                         hud.Production?.Close();
                         Close();
-                        game.World.SurrenderSkirmish(game.player);
+                        if (onlineSkirmish) OpenZ.Multiplayer.DuelRuntime.I.Surrender();
+                        else game.World.SurrenderSkirmish(game.player);
                     }, id => OzSfx.Ui(id), canvas.sortingOrder + 10);
                 });
+                if (onlineSkirmish)
+                    skirmishMapVote = Big("PROPOSE MAP CHANGE", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowRoomVote());
+            }
             bQuit = Big("QUIT TO MAIN MENU", HudButtonStyle.Danger, () => OzConfirm.Ask("QUIT TO THE MAIN MENU?", "THIS MATCH ENDS HERE AND ITS PROGRESS IS LOST.", () => { OzSfx.Ui("ui_back"); OzScenes.MainMenu(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             if (OpenZ.Multiplayer.DuelRuntime.Active)
             {
-                bQuit.OnClick = c => OzConfirm.Ask("LEAVE THE DUEL?", "YOU WILL DISCONNECT FROM YOUR OPPONENT.", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), id => OzSfx.Ui(id), canvas.sortingOrder + 10);
+                bQuit.OnClick = c => OzConfirm.Ask(onlineSkirmish ? "LEAVE THE MATCH?" : "LEAVE THE DUEL?", "YOU WILL DISCONNECT FROM THE OTHER PLAYER.", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), id => OzSfx.Ui(id), canvas.sortingOrder + 10);
             }
             // system browser (OzFeedback, Application.OpenURL); the game stays paused, nothing else changes. The HUD plays ui_click.
             bReport = HudButton.Make(pausePanel, "BtnReportBug", "REPORT A BUG  ↗", new Vector2(OzLayout.PauseBtnW, 36f), HudButtonKind.Small, 11, 0.16f);
@@ -436,6 +443,12 @@ namespace OpenZ
             {
                 skirmishSurrender.Interactable = !game.World.SkirmishEliminated(game.player);
                 skirmishSurrender.Refresh();
+            }
+            if (skirmishMapVote != null)
+            {
+                var runtime = OpenZ.Multiplayer.DuelRuntime.I;
+                skirmishMapVote.Interactable = runtime.RoomCanVote || runtime.RoomVoteMap != null;
+                skirmishMapVote.Refresh();
             }
             IsOpen = true; closing = false; openAt = OzMotion.Now;
             wasPaused = game.paused; prevScale = Time.timeScale;

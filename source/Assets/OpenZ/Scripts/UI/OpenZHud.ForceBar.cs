@@ -16,10 +16,10 @@ namespace OpenZ
         double forceRedBoost, forceBlueBoost;
         bool forceValueMode;
         float forceShare = .5f;
-        static readonly Team[] skirmishTeams = { Team.Red, Team.Blue, Team.Green };
-        readonly OzText[] skirmishSeats = new OzText[3], skirmishUnits = new OzText[3], skirmishPower = new OzText[3];
-        readonly RectTransform[] skirmishSegments = new RectTransform[3];
-        readonly double[] skirmishShares = new double[3], skirmishScores = new double[3];
+        int skirmishSeatCount;
+        readonly OzText[] skirmishSeats = new OzText[8], skirmishUnits = new OzText[8], skirmishPower = new OzText[8];
+        readonly RectTransform[] skirmishSegments = new RectTransform[8];
+        readonly double[] skirmishShares = new double[8], skirmishScores = new double[8];
         RectTransform skirmishUnitRow, skirmishPowerRow, skirmishRail;
         OzText skirmishClock, skirmishStatus;
 
@@ -37,13 +37,15 @@ namespace OpenZ
             Hud.Label(skirmishPowerRow, "Metric", "ATTACKING POWER", 14, OzUi.Ink).At(16, 10, OzH.L, true, 166);
             skirmishRail = Hud.Node("BalanceRail", top); skirmishRail.TL(194, 109, 720, 4);
             Hud.Img(skirmishRail, "Track", OzUi.GM950).rectTransform.Fill();
-            for (int i = 0; i < skirmishTeams.Length; i++)
+            skirmishSeatCount = OzAiMapCatalog.Find(game.level)?.Starts ?? 3;
+            float column = 720f / skirmishSeatCount;
+            for (int i = 0; i < skirmishSeatCount; i++)
             {
-                var team = skirmishTeams[i];
-                float x = 314 + i * 240;
-                skirmishSeats[i] = Hud.Label(top, "Participant", "", 18, OzUi.TeamText(team)).At(x, 44, OzH.C, true, 228);
-                skirmishUnits[i] = Hud.Label(skirmishUnitRow, "Count", "", 18, OzUi.Ink).At(x, 10, OzH.C, true, 228);
-                skirmishPower[i] = Hud.Label(skirmishPowerRow, "Score", "", 18, OzUi.Ink).At(x, 10, OzH.C, true, 228);
+                var team = (Team)(i + 1);
+                float x = 194 + (i + .5f) * column;
+                skirmishSeats[i] = Hud.Label(top, "Participant", "", skirmishSeatCount > 4 ? 12 : 18, OzUi.TeamText(team)).At(x, 44, OzH.C, true, column - 3);
+                skirmishUnits[i] = Hud.Label(skirmishUnitRow, "Count", "", 18, OzUi.Ink).At(x, 10, OzH.C, true, column - 3);
+                skirmishPower[i] = Hud.Label(skirmishPowerRow, "Score", "", skirmishSeatCount > 4 ? 14 : 18, OzUi.Ink).At(x, 10, OzH.C, true, column - 3);
                 skirmishSegments[i] = Hud.Img(skirmishRail, "Share", OzUi.Mark(team)).rectTransform;
             }
         }
@@ -53,7 +55,7 @@ namespace OpenZ
             float now = OzMotion.Now;
             if (now < nextTop) return;
             nextTop = now + .1f;
-            var mode = OzForceBarOption.ForMatch(false);
+            var mode = OzForceBarOption.ForMatch(Multiplayer.DuelRuntime.Active);
             bool showUnits = mode != OzForceBarOption.Mode.AttackingPower;
             bool showPower = mode != OzForceBarOption.Mode.Units;
             bool both = showUnits && showPower;
@@ -65,9 +67,9 @@ namespace OpenZ
             skirmishClock.Set(UnitInfo.Clock(W.Time));
             skirmishStatus.Set(W.SkirmishEliminated(Player) ? "OBSERVING" : "");
             double total = 0;
-            for (int i = 0; i < skirmishTeams.Length; i++)
+            for (int i = 0; i < skirmishSeatCount; i++)
             {
-                var team = skirmishTeams[i];
+                var team = (Team)(i + 1);
                 bool eliminated = W.SkirmishEliminated(team);
                 skirmishSeats[i].Set($"{i + 1} · {TeamColors.Name(team)}{(eliminated ? " · OUT" : team == Player ? " · YOU" : "")}");
                 int units = eliminated ? 0 : W.UnitCount(team);
@@ -76,11 +78,13 @@ namespace OpenZ
                 total += skirmishShares[i] = showPower ? skirmishScores[i] : units;
             }
             float x = 0;
-            for (int i = 0; i < skirmishTeams.Length; i++)
+            for (int i = 0; i < skirmishSeatCount; i++)
             {
                 double score = skirmishScores[i];
-                double opponent = Math.Max(skirmishScores[(i + 1) % 3], skirmishScores[(i + 2) % 3]);
-                skirmishPower[i].Set(W.SkirmishEliminated(skirmishTeams[i]) ? "—" : $"{Math.Round(score):0}  {ForcePercent(ZForceComparison.RelativePercent(score, opponent))}");
+                double opponent = 0;
+                for (int j = 0; j < skirmishSeatCount; j++)
+                    if (j != i) opponent = Math.Max(opponent, skirmishScores[j]);
+                skirmishPower[i].Set(W.SkirmishEliminated((Team)(i + 1)) ? "—" : $"{Math.Round(score):0}  {ForcePercent(ZForceComparison.RelativePercent(score, opponent))}");
                 float width = total > 0 ? (float)(720 * skirmishShares[i] / total) : 0;
                 skirmishSegments[i].TL(x, 0, width, 4);
                 x += width;

@@ -54,7 +54,7 @@ namespace OpenZ.Multiplayer
         internal bool CanPauseMatch => CanRequest && !MatchSuspended && !restartPromptOpen && !restartPending;
         internal double MatchRequestSeconds => Math.Max(0, matchDeadline - Now);
         internal double ReconnectSeconds => Math.Max(0, connectionDeadline - Now);
-        bool CanRequest => Connected && Playing && Game && !Game.World.GameOver && !ConnectionInterrupted;
+        bool CanRequest => !SkirmishRoom && Connected && Playing && Game && !Game.World.GameOver && !ConnectionInterrupted;
 
         internal void RequestPauseMatch()
         {

@@ -29,7 +29,7 @@ namespace OpenZ
         /// <summary>The team whose COLOUR is drawn for sim team t (Red and Blue trade places when Swap is on).</summary>
         // duel stable team colours
         public static Team Shown(Team t) => OpenZ.Multiplayer.DuelRuntime.Active ||
-            (ZGame.I && ZGame.I.level == OzAiMapCatalog.ThreePlayerSkirmish.Id) || !Swap
+            (ZGame.I && ZGame.I.World?.Map.skirmish == true) || !Swap
             ? t : t switch { Team.Red => Team.Blue, Team.Blue => Team.Red, _ => t };
         /// <summary>1.2 item 11: a text or a voice line written for the red player names the wrong colours: the colours are swapped, or the
         /// human is blue (PLAY AS BLUE, View/OzPlayBlue.cs). Then the texts are turned (Words) and voice takes that name a colour are left out.</summary>

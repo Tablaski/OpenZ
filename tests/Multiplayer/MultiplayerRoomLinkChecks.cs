@@ -90,8 +90,10 @@ static class MultiplayerRoomLinkChecks
         greenFort.SetHealth(0);
         world.UpdateObjectHealth(greenFort);
         world.Tick(ZConst.TICK);
-        check(host.PublishBattlefield() && DeliverGuest() && replica.SkirmishEliminated(Team.Green) && !replica.GameOver,
-            "The guest receives Green's elimination while the two human forces continue playing");
+        var elimination = new ZEvent { type = ZEventType.TeamEliminated, objId = greenFort.Id, value = (float)Team.Green };
+        check(host.PublishBattlefield(events: new[] { elimination }) && DeliverGuest() &&
+            replica.SkirmishEliminated(Team.Green) && !replica.GameOver && replica.Events.Contains(elimination),
+            "The guest receives Green's elimination state and event while the two human forces continue playing");
         var corruptBattlefield = new byte[16];
         BitConverter.GetBytes(room.Revision).CopyTo(corruptBattlefield, 0);
         check(!guest.Receive(new DuelPacket(DuelMessage.RoomBattlefield, corruptBattlefield)) &&
@@ -99,5 +101,25 @@ static class MultiplayerRoomLinkChecks
             "After malformed battlefield data the guest can recover from a full snapshot");
         room.ReturnToLobby("host-link");
         check(!host.Receive(previousMatchOrder), "Returning to the lobby rejects old battlefield traffic");
+
+        room.SelectMap("host-link", "SMP08M01");
+        for (int seat = 2; seat < room.Starts; seat++) room.SetBot("host-link", seat, seat, ZBotDifficulty.Normal);
+        check(host.Publish() && DeliverGuest() && guest.View.Starts == 8 && guest.View.Bots.Length == 6,
+            "The same connection can switch to an eight-start room with six bots");
+        room.SetReady("host-link", room.Revision, true);
+        check(guest.SetReady(true) && DeliverHost() && DeliverGuest() && guest.View.CanLaunch,
+            "The eight-start map requires both humans and all six bots");
+        room.Launch("host-link");
+        check(host.Publish() && DeliverGuest(), "The guest receives the new launch revision");
+        var largeGrid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SMP08M01_grid.json"));
+        var largeWorld = ZWorld.Create(settings, largeGrid, 12);
+        var largeReplica = ZWorld.Create(settings, largeGrid, 12);
+        guest.AttachBattlefield(largeReplica);
+        room.MarkLoaded("host-link", room.Revision);
+        check(guest.MarkLoaded() && DeliverHost() && DeliverGuest(), "The eight-start battlefield uses the same load barrier");
+        room.ConfigureFreeForAllWorld(largeWorld, 12);
+        host.AttachBattlefield(largeWorld);
+        check(host.PublishBattlefield() && DeliverGuest() && largeReplica.Objects.Count(o => o.IsFort) == 8 &&
+            largeReplica.Bots.Count == 0 && largeWorld.Bots.Count == 6, "The largest opening battlefield fits on the wire and replicates all eight forts");
     }
 }

@@ -277,11 +277,18 @@ namespace OpenZ
             // buttons + hint
             BuildScore(accent, sx0);                                                                     // score, rank and the level's table (OpenZEndScreen.Score.cs)
             bool duelMatch = OpenZ.Multiplayer.DuelRuntime.Active;
-            string primary = duelMatch ? "RETURN TO LOBBY" : win ? "CONTINUE" : "RETRY";
+            bool localSkirmish = !duelMatch && W.Map.skirmish;
+            string primary = duelMatch ? "RETURN TO LOBBY" : localSkirmish ? "PLAY AGAIN" : win ? "CONTINUE" : "RETRY";
             if (duelMatch)
             {
+                string leave = OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom ? "LEAVE MATCH" : "LEAVE DUEL";
                 Button(0, primary, cx - 270, 310, HudButtonStyle.Primary, () => OpenZ.Multiplayer.DuelRuntime.I.ReadyForLobby(), "RETURN TO LOBBY|Return when both players have finished viewing the match statistics.|ENTER");
-                Button(1, "LEAVE DUEL", cx + 50, 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), "LEAVE DUEL|Disconnect and return to the main menu.|ESC");
+                Button(1, leave, cx + 50, 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), leave + "|Disconnect and return to the main menu.|ESC");
+            }
+            else if (localSkirmish)
+            {
+                Button(0, primary, cx - 270, 310, HudButtonStyle.Primary, OzScenes.Restart, "PLAY AGAIN|Play this skirmish again.|ENTER");
+                Button(1, "MAIN MENU", cx + 50, 220, HudButtonStyle.Normal, OzScenes.MainMenu, "MAIN MENU|Return to the main menu.|ESC");
             }
             else
             {
@@ -293,8 +300,8 @@ namespace OpenZ
             Button(2, "MAIN MENU", cx + 110, 220, HudButtonStyle.Normal, OzScenes.MainMenu, OzScenes.HasMenu ? "MAIN MENU|Back to the front end.|ESC" : "MAIN MENU|The front end is not in the build yet: this loads the first level.|ESC");
             }
             focusRing = Hud.Kit(root, "Focus", "Buttons/btn_l_focus", new OzRect(OzAnchor.TC, cx - 104, OzLayout.EndButtonsY - 4, 208, 58), OzUi.Amber);
-            focusRing.enabled = OzKit.Available; focus = duelMatch ? 0 : 1;
-            hint = Hud.Label(root, "Hint", duelMatch ? "ENTER  RETURN TO LOBBY     ESC  LEAVE DUEL" : $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
+            focusRing.enabled = OzKit.Available; focus = duelMatch || localSkirmish ? 0 : 1;
+            hint = Hud.Label(root, "Hint", duelMatch ? "ENTER  RETURN TO LOBBY     ESC  LEAVE" : $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
             hint.At(0, OzLayout.EndHintY, OzH.C, false, 800);
             hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 1); hint.rectTransform.pivot = new Vector2(0.5f, 1);
             hint.rectTransform.anchoredPosition = new Vector2(0, -(OzLayout.EndHintY + 0.3635f * 9 - 8.1f));

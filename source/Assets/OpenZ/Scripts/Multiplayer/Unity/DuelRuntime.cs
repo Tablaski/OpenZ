@@ -116,7 +116,8 @@ namespace OpenZ.Multiplayer
         public float PingMs { get; private set; }
         public DuelLobbyData View { get; private set; }
         internal string LocalLobbyName => (IsHost ? View?.HostName : View?.GuestName) ?? localName;
-        internal Team LocalTeam => View.TeamSlot(IsHost ? 0 : 1) == 0 ? Team.Red : Team.Blue;
+        internal Team LocalTeam => SkirmishRoom ? (IsHost ? Team.Red : Team.Blue) :
+            View.TeamSlot(IsHost ? 0 : 1) == 0 ? Team.Red : Team.Blue;
         public DuelRules Rules => View?.ReadRules() ?? Defaults("L02");
         public readonly List<string> Chat = new List<string>();
         public ZGame Game { get; private set; }
@@ -232,12 +233,13 @@ namespace OpenZ.Multiplayer
         }
         async Task<IDuelPeer> AcceptTcp() => await DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token);
         async Task<IDuelPeer> ConnectTcp(string address, int port, string name) => await DuelTcpPeer.ConnectAsync(address, port, secret, Fingerprint(), name, cancellation.Token);
-        public void ConnectOnline(string name, bool host, string invitation)
+        public void ConnectOnline(string name, bool host, string invitation, bool skirmish = false)
         {
             Close(); IsHost = host; OnlineMode = true; localName = name;
             try
             {
-                if (host) { lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, HostDefaults()); View = DuelLobbyData.From(lobby); }
+                if (host && skirmish) CreateSkirmishRoom(name);
+                else if (host) { lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, HostDefaults()); View = DuelLobbyData.From(lobby); }
                 cancellation = new CancellationTokenSource(); online = new DuelOnline(cancellation.Token);
                 string service = DuelOnlineSettings.CurrentService;
                 connectTask = online.ConnectAsync(service, host, invitation, Fingerprint(), name,
@@ -395,7 +397,8 @@ namespace OpenZ.Multiplayer
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
                     lastReceive = Now; Status = OnlineMode ? (OnlinePeer.UsesRelay ? "Connected via relay" : "Connected directly") : "Connected";
-                    if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
+                    if (room != null) ConnectRoomGuest();
+                    else if (IsHost) { lobby.Join(1, peer.RemoteName); PublishLobby(); } else Menus.Refresh();
                 }
                 if (peer == null) return;
                 if (restartPromptOpen && (!Playing || !Game || Game.World.GameOver)) OzConfirm.Dismiss();
@@ -426,7 +429,7 @@ namespace OpenZ.Multiplayer
                     if (budgetReached || count == 256) perf.DrainLimitFrames++;
                 }
                 double responseTimeout = session && !Playing ? 180 : 15;
-                if (Playing && Game && !Game.World.GameOver)
+                if (!SkirmishRoom && Playing && Game && !Game.World.GameOver)
                 {
                     UpdateMatchRequests(peer.Closed || Now - lastReceive > 3);
                     if (peer == null) return;
@@ -436,6 +439,12 @@ namespace OpenZ.Multiplayer
                 {
                     lastPing = pendingPing = Now;
                     peer.Send(new DuelPacket(DuelMessage.Ping, BitConverter.GetBytes(pendingPing)));
+                }
+                if (SkirmishRoom)
+                {
+                    UpdateRoomVote();
+                    if (Game && session && !IsHost) SyncClientViews();
+                    return;
                 }
                 if (IsHost && lobby.Phase == DuelPhase.Loading && !loadStarted)
                 { loadStarted = true; session = true; LoadScene(); }
@@ -498,6 +507,7 @@ namespace OpenZ.Multiplayer
         }
         void Handle(DuelPacket packet)
         {
+            if (HandleRoomPacket(packet)) return;
             switch (packet.Kind)
             {
                 case DuelMessage.DiagnosticsReport:
@@ -521,7 +531,7 @@ namespace OpenZ.Multiplayer
                     if (packet.Payload.Length > 1024) throw new InvalidDataException("Chat too large.");
                     string message = Encoding.UTF8.GetString(packet.Payload);
                     if (message.Length > 240 || message.Any(char.IsControl)) throw new InvalidDataException("Invalid chat.");
-                    string receivedChat = (IsHost ? View.GuestName : View.HostName) + " : " + message;
+                    string receivedChat = (SkirmishRoom ? peer.RemoteName : IsHost ? View.GuestName : View.HostName) + " : " + message;
                     AddChat(receivedChat); Menus.NotifyChat(receivedChat.Replace("<", "‹").Replace(">", "›")); break;
                 case DuelMessage.Lobby:
                     if (IsHost) throw new InvalidDataException("Guest cannot publish a lobby.");
@@ -598,7 +608,12 @@ namespace OpenZ.Multiplayer
                     if (restartPromptOpen) OzConfirm.Dismiss();
                     Menus.NotifyChat(Encoding.UTF8.GetString(packet.Payload)); break;
                 case DuelMessage.Surrender:
-                    if (IsHost && Playing && Game) ApplySurrender(1); break;
+                    if (IsHost && Playing && Game)
+                    {
+                        if (SkirmishRoom) Game.World.SurrenderSkirmish(Team.Blue);
+                        else ApplySurrender(1);
+                    }
+                    break;
                 case DuelMessage.MatchPause:
                     ReceiveMatchPause(packet); break;
                 case DuelMessage.MatchRequest:
@@ -631,13 +646,14 @@ namespace OpenZ.Multiplayer
             if (!session || !Connected || !Game) yield break;
             lastReceive = Now;
             Game.DuelBindStartingViews();
-            if (!IsHost || View.TeamsSwapped)
+            if (!IsHost || View?.TeamsSwapped == true)
             {
                 var camera = FindFirstObjectByType<RtsCamera>();
                 var fort = Game.World.Objects.FirstOrDefault(o => o.IsFort && o.Owner == LocalTeam);
                 if (camera && fort != null) { camera.focus = ZGame.PxToWorld(fort.CenterX, fort.CenterY); camera.Place(); }
             }
-            if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Loaded, Array.Empty<byte>()));
+            if (SkirmishRoom) FinishRoomLoading();
+            else if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Loaded, Array.Empty<byte>()));
             else { lobby.MarkLoaded(0, View.Revision, Now); ScheduleStart(); }
         }
         void ScheduleStart()
@@ -661,7 +677,13 @@ namespace OpenZ.Multiplayer
         public static void WorldCreated(ZGame game)
         {
             if (!Active) return;
-            var runtime = I; runtime.Game = game; game.World.ConfigureDuel(runtime.Rules, !runtime.IsHost);
+            var runtime = I; runtime.Game = game;
+            if (runtime.SkirmishRoom)
+            {
+                runtime.AttachRoomWorld(game.World);
+                return;
+            }
+            game.World.ConfigureDuel(runtime.Rules, !runtime.IsHost);
             if (runtime.IsHost)
             {
                 game.World.DuelApplyStartingArmies();
@@ -687,6 +709,7 @@ namespace OpenZ.Multiplayer
             if (!Active) return false;
             game.gameSpeed = 1; game.paused = false; Time.timeScale = I.MatchPaused ? 0 : 1;
             if (!I.Playing || !I.Connected || I.MatchSuspended) return true;
+            if (I.SkirmishRoom) { I.DriveRoom(game); return true; }
             if (I.IsHost)
             {
                 game.DuelAdvance(Math.Min(Time.unscaledDeltaTime, Now - I.startAt));
@@ -862,6 +885,13 @@ namespace OpenZ.Multiplayer
         void TryReturnToLobby()
         {
             if (!localEndReady || !remoteEndReady) return;
+            if (SkirmishRoom)
+            {
+                room.ReturnToLobby(RoomHostId);
+                PublishRoom();
+                ReturnToLobbyScene();
+                return;
+            }
             lobby.ReturnToLobby();
             peer.Send(new DuelPacket(DuelMessage.ReturnLobby, Array.Empty<byte>()));
             PublishLobby(); ReturnToLobbyScene();
@@ -927,7 +957,9 @@ namespace OpenZ.Multiplayer
         public void Surrender()
         {
             if (!Playing || !Game) return;
-            if (IsHost) ApplySurrender(0); else peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
+            if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
+            else if (SkirmishRoom) Game.World.SurrenderSkirmish(LocalTeam);
+            else ApplySurrender(0);
         }
 
         void ApplySurrender(int seat)
@@ -950,6 +982,8 @@ namespace OpenZ.Multiplayer
             hostOrders = guestOrders = null;
             commandSequence = 0; receiver = new DuelDeltaReceiver(); pendingEvents.Clear(); Chat.Clear();
             capture = new DuelReplica.CaptureBuffer();
+            room = null; roomHost = null; roomGuest = null;
+            ClearRoomVote();
         }
         void Disconnect()
         {

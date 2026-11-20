@@ -28,7 +28,7 @@
 - P06 is deferred. The sole local file with that prefix, `p06_Merged_Map.map`, has eight distinct owned forts and is an eight-start layout.
 - P08 has two files, including Hunters.
 
-The 23 selected native files and grids are packaged. Multiplayer AI Maps presents 2, 3, 4 and 8 starting-position filters. The duel only accepts two-start maps. The larger layouts are available as tactical previews while their scenes and match paths are being developed. Run `node tools/Convert-AiSkirmish.cjs --check` to verify the grid outputs and catalogue against the packaged maps.
+The 23 selected native files, grids, scenes and previews are packaged. Multiplayer AI Maps presents 2, 3, 4 and 8 starting-position filters. The duel accepts two-start maps. Local and online Skirmish expose the converted three-, four- and eight-start maps. Run `node tools/Convert-AiSkirmish.cjs --check` to verify the grids and catalogue against the packaged maps.
 
 ## Active seats and Ghost
 
@@ -36,16 +36,16 @@ The host may launch only when every map start has exactly one human or bot, with
 
 The room state implements host-owned map and seat edits, independent bot difficulty, alliances, observer assignments, revision-bound human readiness and a locked setup after launch. A smaller map leaves humans outside its capacity unassigned and clears out-of-range bots. The loading barrier waits for every active human, with observers and bots excluded. Connection identities must come from the authenticated transport when the room is wired to invitations, lobby controls and match loading.
 
-The host and guest room links exchange size-bounded room snapshots, ready messages, loading acknowledgments, player orders and battlefield deltas over the existing packet framing. The room link binds commands to the connected guest and omits connection identities from snapshots. The headless P03M01 flow uses a launched room to assign Red and Blue to the two humans and spawn the selected Green bot in free-for-all. The guest receives Green's state and elimination without simulating a bot, and its accepted orders use the existing authoritative order receiver. The menu, invitation flow, scene bootstrap and update loop still need to use this room path.
+The online Skirmish path uses the existing invitation, WebRTC peer, microphone and chat. The two humans occupy Red and Blue, and the host can set each remaining position to open, Easy or Normal. Both humans must be ready and every start must be filled. The links exchange room snapshots, load acknowledgments, authenticated orders, battlefield deltas and events. Only the host runs the simulation. The map vote runs on the host, accepts ballots from surviving humans and reloads the accepted map for both participants. This path supports free-for-all with two humans. The expanded lobby, alliances, assigned ghosts, moderation and transport for more human clients remain pending.
 
 Ghost is an optional spectator mode. A ghost can switch between surviving human players, follow their camera, zoom and cursor, or move independently. Provide a button and keyboard shortcut to toggle following, recenter on the selected player and switch between their fog view and full visibility. AI seats are excluded from the follow list. If no human remains, use free camera while the bots finish. Ghosts use their own text and voice channels during the match. Keep the world updates the observer already receives and relay only the extra view state for the selected human.
 
 ## Validation awaiting a compiled game
 
-### P03M01 local skirmish
+### Skirmish maps and online match flow
 
-Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native maps, grids and catalogue. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the P03M01 package scene and tactical image and registers the scene in Build Settings. Only then does Multiplayer show **Local Skirmish with Bots**. This entry is offline and only offers free-for-all on P03M01.
+Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native maps, grids and catalogue. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the 23 package scenes and previews and enables them in Build Settings. Multiplayer offers **Local Skirmish with Bots**, and the online setup offers **Create Online Skirmish**.
 
-The headless check confirms all three native forts, independent Easy and Normal bot settings, surrender with two surviving opponents, and a green victory. Manual validation still covers the actual 3D conversion, pathing, green map markers, the Force Bar options, the observer camera and the result screen.
+The headless checks start every map with a bot at each non-human position. They also cover Easy and Normal settings, surrender with two survivors, a Green victory and an authenticated guest command and elimination event on P03M01. Unity imported and registered all 23 scenes. Manual validation still covers the live invitation and relay, online launch and return, synchronized map reload and veto, terrain rendering and navigation, the three Force Bar modes, free camera after surrender and the results screen.
 
 Verify invitation entry, room capacity, AI skill setup, one-human free-for-all, two-human cooperation, mixed-alliance victory, surrender into observation, kicking and expiry of the re-entry block, vote notification and map reload. Verify every converted scene after its data, rendering, navigation and starting units are integrated. Run the existing duel and solo regression checks on the same compiled game. HUD approval precedes implementation and runtime validation.

@@ -8,7 +8,6 @@ const gridRoot = path.join(packageRoot, 'Resources/OpenZ/Maps');
 const catalogPath = path.resolve(__dirname, '../source/Assets/OpenZ/Scripts/Multiplayer/OzAiMapCatalog.Multiplayer.cs');
 const worlds = ['desert', 'volcanic', 'arctic', 'jungle', 'city'];
 const owners = ['neutral', 'red', 'blue', 'green', 'yellow', 'purple', 'teal', 'white', 'black'];
-const pilot = 'SMP03M01';
 
 function identity(file) {
     const match = /^p0([348])_(?:bb_p0\1m(\d\d)|([a-z0-9_]+))\.map$/i.exec(file);
@@ -44,7 +43,7 @@ function prepare(source) {
             object.owner = owners[object.owner];
         }
         map.aiMap = true;
-        if (id === pilot) map.skirmish = true;
+        map.skirmish = true;
         const terrainName = world[0].toUpperCase() + world.slice(1);
         const name = code ? `${terrainName} · ${code}` : id === 'SMP08SCHUNTERS' ? 'Hunters'
             : file.slice(4, -4).split('_').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');

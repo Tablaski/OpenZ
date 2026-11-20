@@ -52,6 +52,9 @@ static class SkirmishChecks
                 var forts = world.Objects.Where(o => o.IsFort).Select(o => (int)o.Owner).OrderBy(owner => owner);
                 check(forts.SequenceEqual(Enumerable.Range(1, starts)), entry.Id + " retains each native fort owner");
                 check(!DuelRules.IsMapAllowed(entry.Id), entry.Id + " remains unavailable to a two-seat duel");
+                world.ConfigureSkirmishBots(Enumerable.Range(2, starts - 1).Select(position => ((Team)position, ZBotDifficulty.Normal)), 12);
+                for (int tick = 0; tick < 240; tick++) world.Tick(ZConst.TICK);
+                check(world.Bots.Count == starts - 1 && !world.GameOver, entry.Id + " runs with a bot at every non-human start");
             }
         }
         check(OzAiMapCatalog.SelectMultiplayer(8, "ALL", "jungle", 0).Single().Name == "Hunters", "Terrain and capacity filters combine");

@@ -79,7 +79,8 @@ namespace OpenZ
             // The demo used to force 4x here, and PlayerPrefs survive editor restarts, so one leftover demo flag made the whole game
             // run 4x. A faster demo only through the explicit pref oz_demo_speed.
             bool demo = PlayerPrefs.GetInt("oz_botmatch", 0) == 1 || CaptureKit.DemoRun;
-            bool skirmish = level == OzAiMapCatalog.ThreePlayerSkirmish.Id;
+            var skirmishMap = OzAiMapCatalog.Find(level);
+            bool skirmish = skirmishMap?.Starts >= 3;
             if (skirmish)
             {
                 demo = blueBot = redBot = false;
@@ -248,10 +249,11 @@ namespace OpenZ
             // duel game creation
             OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this); OzSoloAllowedUnits.Apply(this);
             Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
-            if (skirmish)
+            if (skirmish && !OpenZ.Multiplayer.DuelRuntime.Active)
             {
                 var setup = OpenZ.Multiplayer.DuelRuntime.I?.Menus;
-                World.ConfigureThreePlayerSkirmish(setup?.SkirmishBlue ?? ZBotDifficulty.Normal, setup?.SkirmishGreen ?? ZBotDifficulty.Normal, seed);
+                World.ConfigureSkirmishBots(Enumerable.Range(1, skirmishMap.Starts - 1)
+                    .Select(position => ((Team)(position + 1), setup?.SkirmishBotLevel(position) ?? ZBotDifficulty.Normal)), seed);
             }
             else
             {

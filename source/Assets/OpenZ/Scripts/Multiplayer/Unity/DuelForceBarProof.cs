@@ -14,12 +14,12 @@ namespace OpenZ.Multiplayer
         internal static IEnumerator Run(string folder, string role, Action complete)
         {
             var hud = OpenZHud.I;
-            bool saved = PlayerPrefs.HasKey(OzForceBarOption.Pref);
-            int original = PlayerPrefs.GetInt(OzForceBarOption.Pref, 0);
+            bool saved = PlayerPrefs.HasKey(OzForceBarOption.DuelPref);
+            int original = PlayerPrefs.GetInt(OzForceBarOption.DuelPref, 0);
             bool hadEdge = PlayerPrefs.HasKey("oz_edge_scroll"); int edge = PlayerPrefs.GetInt("oz_edge_scroll", 1);
             try
             {
-                OzForceBarOption.MilitaryValue = false;
+                if (OzForceBarOption.ForMatch(true)) OzForceBarOption.StepMatch(true);
                 yield return new WaitForSecondsRealtime(.4f);
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-count.png"), true);
                 var pause = UnityEngine.Object.FindFirstObjectByType<OpenZPauseMenu>();
@@ -43,7 +43,7 @@ namespace OpenZ.Multiplayer
                 foreach (var row in rows)
                     if ((string)row.GetType().GetField("label").GetValue(row) == OzForceBarOption.Label)
                     { ((HudButton)row.GetType().GetField("row").GetValue(row)).OnClick(new HudClick()); clicked = true; break; }
-                if (!clicked || !OzForceBarOption.MilitaryValue) throw new Exception("Native force bar option does not switch to military value.");
+                if (!clicked || !OzForceBarOption.ForMatch(true)) throw new Exception("Native force bar option does not switch to military value.");
                 yield return new WaitForSecondsRealtime(.2f);
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-options.png"), true);
                 pause.Close(); DuelRuntime.I.Menus.CloseOverlay();
@@ -68,7 +68,7 @@ namespace OpenZ.Multiplayer
             finally
             {
                 if (hud) { hud.SetFortProductionBoost(Team.Red, 0); hud.SetFortProductionBoost(Team.Blue, 0); }
-                if (saved) PlayerPrefs.SetInt(OzForceBarOption.Pref, original); else PlayerPrefs.DeleteKey(OzForceBarOption.Pref);
+                if (saved) PlayerPrefs.SetInt(OzForceBarOption.DuelPref, original); else PlayerPrefs.DeleteKey(OzForceBarOption.DuelPref);
                 if(hadEdge)PlayerPrefs.SetInt("oz_edge_scroll",edge);else PlayerPrefs.DeleteKey("oz_edge_scroll");
                 PlayerPrefs.Save(); OzForceBarOption.Reload();
             }

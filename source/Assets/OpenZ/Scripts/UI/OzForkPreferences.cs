@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 12;
+        public const int Schema = 13;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -70,6 +70,8 @@ namespace OpenZ
                 Add("oz_demo_speed", "Float");
                 Add("oz_dev", "Int");
                 Add("oz_duel_chat_key", "Int");
+                Add(OzForceBarOption.Pref, "Int");
+                Add(OzForceBarOption.DuelPref, "Int");
                 Add(Multiplayer.DuelRuntime.LastHostedRulesPreference, "String");
                 foreach (string unit in OzBuildKeys.Units) Add(OzBuildKeys.Preference(unit), "Int");
                 Add(OzBattleOptions.TankDamageKey, "Int");

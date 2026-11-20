@@ -94,16 +94,16 @@ static class Program
         openingLobby.Join(0, "Host"); openingLobby.Join(1, "Guest");
         Check(openingLobby.Rules.PlanningSeconds == 0, "Opening orders must be off by default");
         var openingRules = openingLobby.Rules;
-        openingRules.PlanningSeconds = 10;
+        openingRules.PlanningSeconds = 20;
         Check(DuelRuleChanges.Describe(openingLobby.Rules, openingRules).Count == 1, "Opening order time missing from lobby proposals");
         openingLobby.ChangeRules(0, openingRules);
-        openingRules.PlanningSeconds = 11;
-        Reject(openingRules.Validate, "Opening orders exceeded 10 seconds");
+        openingRules.PlanningSeconds = 21;
+        Reject(openingRules.Validate, "Opening orders exceeded 20 seconds");
         openingRules.PlanningSeconds = -1;
         Reject(openingRules.Validate, "Opening orders accepted a negative duration");
         openingLobby.SetReady(0, openingLobby.Revision, true); openingLobby.SetReady(1, openingLobby.Revision, true);
         openingLobby.MarkLoaded(0, openingLobby.Revision, 20); openingLobby.MarkLoaded(1, openingLobby.Revision, 30);
-        Check(openingLobby.StartAt == 43 && !openingLobby.Advance(42.999) && openingLobby.Advance(43),
+        Check(openingLobby.StartAt == 53 && !openingLobby.Advance(52.999) && openingLobby.Advance(53),
             "The match must wait for the complete opening order period after both sides load");
         Reject(() => new DuelRules { TerritoryBonus = double.NaN }.Validate(), "NaN rule accepted");
         var invalid = new DuelRules(); invalid.Common.StartingUnits.Add("unknown");

@@ -7,7 +7,6 @@ namespace OpenZ.Multiplayer
     {
         DuelRules lobbyDraft;
         int draftRevision;
-        int fortSeat, fortMount;
         int lastProposalWait;
 
         void EditLobbyRules(DuelRules rules)
@@ -78,37 +77,6 @@ namespace OpenZ.Multiplayer
                 Button(panel, "ACCEPT ALL", 750, 710, 330, () => { R.ResolveProposal(id, true); lobbyDialog = LobbyDialog.None; dirty = true; }, true);
                 Button(panel, "DECLINE", 1100, 710, 330, () => { R.ResolveProposal(id, false); lobbyDialog = LobbyDialog.None; dirty = true; });
             }
-        }
-        void BuildFortPlacement(DuelRules rules, bool editable)
-        {
-            var panel = LobbyPopup("FORT TURRETS");
-            Label(panel, "Choose up to four turrets for each team. The strongest cover the fort entrance.", 24, 72, 1420, 18, OzUi.Ink);
-            Label(panel, editable ? R.IsHost ? "Host changes apply immediately to both lobby previews." : "Your draft only. Send your grouped proposal when finished." : "Current settings. Use PREPARE SETTINGS in the lobby to propose changes.", 24, 104, 1420, 16, OzUi.Muted);
-            for (int seat = 0; seat < 2; seat++)
-            {
-                float x = 30 + seat * 730;
-                Color color = seat == 0 ? new Color(.8f, .24f, .18f) : new Color(.2f, .5f, .9f);
-                Label(panel, seat == 0 ? "RED FORT · HOST" : "BLUE FORT · CLIENT", x, 150, 680, 23, color);
-                var mounts = rules.FortTurretsFor(seat);
-                for (int mount = 0; mount < 4; mount++)
-                {
-                    int selectedSeat = seat, selectedMount = mount;
-                    float mx = x + 34 + mount % 2 * 380, my = 210 + mount / 2 * 170;
-                    var button = Button(panel, UnitName(mounts[mount]), mx, my, 230, () => { fortSeat = selectedSeat; fortMount = selectedMount; dirty = true; }, fortSeat == seat && fortMount == mount, true, 86);
-                    button.name = "FORT MOUNT " + seat + ":" + mount;
-                    Portrait(button, mounts[mount], 90, 0, 48, seat == 0 ? Team.Red : Team.Blue);
-                    Label(panel, DuelRuleChanges.MountName(mount), mx, my + 91, 250, 14, OzUi.Muted);
-                }
-            }
-            Label(panel, (fortSeat == 0 ? "RED" : "BLUE") + " · " + DuelRuleChanges.MountName(fortMount), 30, 545, 1400, 20, OzUi.Amber);
-            for (int i = 0; i < 5; i++)
-            {
-                string type = i == 0 ? "" : DuelRules.AllowedFortTurrets[i - 1];
-                var button = Button(panel, UnitName(type), 30 + i * 286, 590, 268, () => { rules.SetFortTurret(fortSeat, fortMount, type); EditLobbyRules(rules); }, rules.FortTurretsFor(fortSeat)[fortMount] == type, editable && (type == "" || rules.Allows(type)), 110);
-                button.name = "FORT CANNON " + type;
-                Portrait(button, type, 102, 8, 62);
-            }
-            Label(panel, "The next strongest turret covers the nearest road or bridge from the available rear slots.", 30, 738, 1400, 16, OzUi.Muted);
         }
     }
 }

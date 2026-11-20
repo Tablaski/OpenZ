@@ -9,7 +9,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Forts, Proposal, OpenZMaps, ArmyPresets, Rename, BattleOptions, AiHelp }
+        enum LobbyDialog { None, Units, Dynamics, Proposal, OpenZMaps, ArmyPresets, Rename, AiHelp }
         LobbyDialog lobbyDialog;
         ZBehaviorFamily dynamicsFamily;
         bool customDynamicsOnly;
@@ -30,7 +30,7 @@ namespace OpenZ.Multiplayer
             if (R.View == null || R.View.Revision != revision || R.View.Phase != (int)DuelPhase.Lobby || rules.Map == id) return;
             // Keep edits made to a guest draft while a separate map gallery was open.
             rules = (lobbyDraft ?? rules).Copy();
-            rules.Map = id;
+            rules.SelectMap(id);
             if (!R.IsHost && lobbyDraft == null) R.ProposeRules(rules, revision);
             else EditLobbyRules(rules);
         }
@@ -170,10 +170,8 @@ namespace OpenZ.Multiplayer
         void BuildLobbyRules(DuelRules rules, bool editable)
         {
             if (lobbyDialog == LobbyDialog.Rename) { BuildRename(); return; }
-            if (lobbyDialog == LobbyDialog.Forts) { BuildFortPlacement(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.Proposal) { BuildProposalReview(); return; }
             if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
-            if (lobbyDialog == LobbyDialog.BattleOptions) { BuildBattleOptions(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.AiHelp) { BuildAiHelp(rules, editable); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
@@ -184,31 +182,11 @@ namespace OpenZ.Multiplayer
             else BuildDynamics(panel, rules, editable);
         }
 
-        void BuildBattleOptions(DuelRules rules, bool editable)
-        {
-            var panel = LobbyPopup("BATTLE OPTIONS", 340);
-            var oil = Button(panel, OzBattleOptions.DamageLabel + " · " + (rules.TankDamageEffects ? "ON" : "OFF"), 30, 110, 685,
-                () => { rules.TankDamageEffects = !rules.TankDamageEffects; EditLobbyRules(rules); }, rules.TankDamageEffects, editable);
-            var shake = Button(panel, OzBattleOptions.ShakeLabel + " · " + (rules.TankDamageShake ? "ON" : "OFF"), 730, 110, 685,
-                () => { rules.TankDamageShake = !rules.TankDamageShake; EditLobbyRules(rules); }, rules.TankDamageShake, editable);
-            var help = Label(panel, "", 30, 270, 1380, 19, OzUi.Muted);
-            AddLobbyTip(oil, help, OzBattleOptions.DamageTip);
-            AddLobbyTip(shake, help, OzBattleOptions.ShakeTip);
-            Label(panel, "WHEN YOUR LAST RADAR IS LOST", 30, 179, 1350, 21, OzUi.Ink);
-            for (int i = (int)RadarLossRule.Off; i <= (int)RadarLossRule.FogAndZoom; i++)
-            {
-                var option = (RadarLossRule)i;
-                var choice = Button(panel, OzBattleOptions.RadarName(option), 30 + i * 350, 210, 335,
-                    () => { rules.RadarLoss = option; EditLobbyRules(rules); }, rules.RadarLoss == option, editable);
-                AddLobbyTip(choice, help, OzBattleOptions.RadarTip(option));
-            }
-        }
-
         void BuildAiHelp(DuelRules rules, bool editable)
         {
-            var panel = LobbyPopup("AI HELP · HANDICAP", 490);
+            var panel = LobbyPopup("AI HELP · PLAYER ADVANTAGE", 490);
             Label(panel, rules.HandicapEnabled ? "Applies to " + (R.View.NameForTeam(rules.HandicapSlot) ?? (rules.HandicapSlot == 0 ? "RED" : "BLUE")) + "."
-                : "Select a handicap player in the lobby to activate AI Help.", 30, 71, 1380, 20, OzUi.Ink);
+                : "Select a player under Player Advantage to activate AI Help.", 30, 71, 1380, 20, OzUi.Ink);
             Check("Manage idle units · 15 s", rules.AiIdleSeconds == 15, 30, 112, 690,
                 () => rules.AiIdleSeconds = rules.AiIdleSeconds == 15 ? 0 : 15);
             Check("Manage idle units · 30 s", rules.AiIdleSeconds == 30, 740, 112, 690,
@@ -257,39 +235,6 @@ namespace OpenZ.Multiplayer
         {
             OzAllowedUnitsPanel.Build(panel,rules,editable,()=>EditLobbyRules(rules),allowedScroll,p=>allowedScroll=p,false);
         }
-        void BuildLobbyDynamics(DuelRules rules, bool editable)
-        {
-            var tanks = ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks);
-            var robots = ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots);
-            bool classic = tanks.id == "zod-classic" && robots.id == "zod-classic";
-            bool native = tanks.id == "native" && robots.id == "native";
-            var toggle = Button(root, classic ? "Z CLASSIC DYNAMICS" : native ? "OPENZ DYNAMICS" : "CUSTOM DYNAMICS", 845, 40, 235, () =>
-            {
-                rules.TankDynamics = classic ? "" : ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();
-                rules.RobotDynamics = classic ? "" : ZBehaviorProfile.Classic(ZBehaviorFamily.Robots).Encode();
-                EditLobbyRules(rules);
-            }, classic, editable);
-            var help = Label(root, "", 845, 173, 980, 15, OzUi.Muted);
-            AddLobbyTip(toggle, help, "OpenZ uses its standard combat. Z Classic brings back classic dodges and gives lighter vehicles quicker escapes.");
-            var custom = Button(root, "CUSTOM", 1090, 40, 105, () =>
-            {
-                dynamicsFamily = OzBehaviorLibrary.SavedProfiles.Any(p => p.family == ZBehaviorFamily.Tanks) ? ZBehaviorFamily.Tanks : ZBehaviorFamily.Robots;
-                dynamicsType = 0;
-                customDynamicsOnly = true;
-                lobbyDialog = LobbyDialog.Dynamics;
-                pickerGroup = -1;
-                dirty = true;
-            }, !native && !classic, editable && OzBehaviorLibrary.SavedProfiles.Count > 0);
-            AddLobbyTip(custom, help, "Choose saved tank and robot profiles from the Unit Editor.");
-            Button(root, "DYNAMICS", 1595, 91, 235, () =>
-            {
-                customDynamicsOnly = false;
-                lobbyDialog = LobbyDialog.Dynamics;
-                pickerGroup = -1;
-                dirty = true;
-            }, false, true, 37);
-        }
-
         static void AddLobbyTip(RectTransform target, OzText label, string text)
         {
             var trigger = target.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();

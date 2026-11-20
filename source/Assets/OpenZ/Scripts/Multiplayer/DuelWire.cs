@@ -33,7 +33,7 @@ namespace OpenZ.Multiplayer
     /// </summary>
     public static class DuelWire
     {
-        public const int Version = 3, MaxPayload = 4 * 1024 * 1024;
+        public const int Version = 4, MaxPayload = 4 * 1024 * 1024;
         const uint Magic = 0x31445A4F; // OZ D1
         const int MinCompressedDelta = 1024, MaxCompressedDelta = 128 * 1024;
         const int CompressionHeader = 5, MinimumSavings = 32;

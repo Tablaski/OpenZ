@@ -77,38 +77,32 @@ must be registered as fork additions rather than mixed into upstream rows.
 
 ## Territorial advantage and optional cap
 
-Original OpenZ duration is base time × (1 − 0.5 × owned flag fraction), with the
-existing building-damage factor. This is not a comparison with the other team's
-flag count. The VK cap limits only the territorial reduction: min(original
-reduction, chosen cap). OFF — ORIGINAL adds no cap. Choices are OFF, 40%, 30%, 25%
-and 20%. For example, at 80% flag ownership, original production takes 60% of base
-time; a 25% cap makes it take 75%. At 20% ownership, it still takes 90% in both
-cases. Territorial advantage is never removed by switching the cap off.
+Original OpenZ reduces build time by 50% times the fraction of flags owned.
+The cap limits that reduction and defaults to 50%, which preserves the original
+rule. The slider goes down to 10%. In progressive mode the leading army's cap
+decreases linearly from 50% to the chosen setting at a +50% offensive production
+value lead. The trailing army retains the original cap in progressive mode.
+The signed army gap is visible in Offensive Units Production Value on the force bar.
 
-## Optional fort loser bonus
+## Optional fort construction speedup
 
-OFF by default; selectable maximum reductions are 30%, 50% and 75%. It uses the
-normal cumulative production seconds of surviving offensive mobile units. Robot
-squads count once; cranes, unarmed units, turrets and buildings do not count. APCs
-count because their crew can attack. Unit health does not discount normal value.
+The fort speedup ranges from Off to 500% of the opponent's effective territorial
+speed bonus. For example, a 20% reduction in enemy build time gives the enemy
++25% speed. A full 500% setting grants the trailing fort +125% speed. The fort
+uses whichever gives it the faster build time, its normal territorial bonus or
+the catch-up boost. Building damage and Player Advantage still apply, and speed
+changes preserve completed work.
 
-Let enemy lead = enemy value / own value − 1. The reduction is maximum ×
-clamp((lead − 0.30) / 0.60, 0, 1). At the 50% maximum: +30% lead gives 0%, +50%
-gives 16.7%, +70% gives 33.3%, and +90% or more gives 50%. Both empty gives zero;
-only the weaker side can receive a bonus; an empty army against a nonempty army
-receives the configured maximum. No territory threshold applies.
-
-Only the fort benefits. The factor multiplies the normal territory/damage/handicap
-duration, respecting the minimum build duration. Changes preserve the fraction of
-work already completed. The force comparison bar shows the actual bonus with a
-label/glow; it works in either unit-count or offensive-value display mode.
-
+The boost starts as soon as the army trails. Increasing progressively reaches
+full strength at a −20% army gap. With progression disabled the configured boost
+applies in full from the first deficit. Optional Nerfed Howitzers widens shell
+dispersion equally for both teams.
 ## Duel flow
 
 Escape contains Restart level followed by Surrender, with no chat entry. Restart
 asks the opponent and reloads the same map/rules after consent, using the normal
 two-player loading barrier. Decline/expiry leaves the game running and notifies
-both peers. Protocol version 2 rejects incompatible older peers.
+both peers. Both peers must run compatible builds.
 
 Chat and the microphone menu sit to the right of the RVBG/1–0 command bar. Chat's
 shortcut is bound in OPTIONS > GAME. Microphone offers Always on, Tap to speak

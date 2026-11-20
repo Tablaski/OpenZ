@@ -51,7 +51,7 @@ namespace OpenZ
                 SetFortProductionBoost(Team.Red, W.DuelFortLoserReduction(Team.Red));
                 SetFortProductionBoost(Team.Blue, W.DuelFortLoserReduction(Team.Blue));
             }
-            bool valueMode = OzForceBarOption.MilitaryValue;
+            bool valueMode = OzForceBarOption.ForMatch(W.HasDuelRules);
             if (forceValueMode != valueMode)
             {
                 forceValueMode = valueMode; shownRed = shownBlue = int.MinValue;
@@ -77,7 +77,7 @@ namespace OpenZ
             forceRedHot.Tooltip = TeamColors.Name(Team.Red) + " FORCE|" + description + "\n" + reference + "\nUnits: " + redUnits + "/70." + BoostTip(forceRedBoost) + "|";
             forceBlueHot.Tooltip = TeamColors.Name(Team.Blue) + " FORCE|" + description + "\n" + reference + "\nUnits: " + blueUnits + "/70." + BoostTip(forceBlueBoost) + "|";
         }
-        static string BoostTip(double reduction) => reduction > 0 ? "\nLooser bonus applied: fort construction time −" + (reduction * 100).ToString("0.#") + "%." : "";
+        static string BoostTip(double reduction) => reduction > 0 ? "\nCatch-up boost applied: fort construction time −" + (reduction * 100).ToString("0.#") + "%." : "";
 
         static string ForcePercent(double percent)
         {
@@ -123,7 +123,7 @@ namespace OpenZ
             if (!active) { glow.color = Color.clear; return; }
             float pulse = OzMotion.Reduced ? .25f : .2f + .08f * Mathf.Sin(Time.unscaledTime * 3);
             glow.color = OzUi.A(OzUi.Amber, pulse);
-            label.Set("LOOSER BONUS −" + (reduction * 100).ToString("0.#") + "%");
+            label.Set("FORT BOOST −" + (reduction * 100).ToString("0.#") + "%");
         }
     }
 }

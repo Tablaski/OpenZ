@@ -89,15 +89,12 @@ static class SimulationChecks
             var host = ZWorld.Create(settings, json);
             host.Bots.Add(new ZBot(host, Team.Blue, 1));
             host.TechBonus[1] = 5;
-            var rules = new DuelRules { Map = map, TankDamageShake = true };
+            var rules = new DuelRules { Map = map, NerfedHowitzers = true };
             rules.EnableHandicap(0); rules.Handicap.BuildDuration = .8;
             host.ConfigureDuel(rules, false);
-            check(host.DuelTankDamageShake && !host.DuelTankDamageEffects,
-                map + ": the host can enable shake without enabling oil trails");
-            rules.TankDamageShake = false;
-            rules.TankDamageEffects = true;
-            check(host.DuelTankDamageShake && !host.DuelTankDamageEffects,
-                map + ": edits outside the match cannot change frozen damage effects");
+            check(host.DuelNerfedHowitzers, map + ": the host can enable wider howitzer scatter");
+            rules.NerfedHowitzers = false;
+            check(host.DuelNerfedHowitzers, map + ": edits outside the match cannot change frozen artillery rules");
             check(host.Bots.Count == 0 && host.TechBonus.All(b => b == 0), map + ": solo advantages retained");
             rules.Handicap.BuildDuration = .1;
             check(host.DuelConfiguration.Handicap.BuildDuration == .8, map + ": caller mutated match rules");

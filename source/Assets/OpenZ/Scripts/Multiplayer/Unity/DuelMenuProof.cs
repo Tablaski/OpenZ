@@ -139,7 +139,7 @@ namespace OpenZ.Multiplayer
                             Capture("solo-selection");menu.ProofOpenSoloAllowed();break;
                         case 8:
                             ClickSoloUnits("Z 1996");break;
-                        case 9:
+                    case 9:
                             if(OzSoloAllowedUnits.Read().UnitPreset!=DuelUnitPreset.Z1996||OzSoloAllowedUnits.Read().Allows("electrobot") ||
                                 OzSoloAllowedUnits.Read().Allows("medium") || !new[] { "light", "mtank", "heavy" }.All(OzSoloAllowedUnits.Read().Allows))
                                 throw new Exception("Solo Z 1996 roster did not include the three original tanks.");
@@ -219,76 +219,89 @@ namespace OpenZ.Multiplayer
                         if (!r.Rules.Common.FortTurrets.SequenceEqual(new[] { "howitzer", "missile_cannon", "", "" })) throw new Exception("Incorrect default fort cannons.");
                         if (r.Rules.PlanningSeconds != 0 || !r.Rules.Common.StartingUnits.SequenceEqual(new[] { "", "", "", "" }))
                             throw new Exception("Incorrect opening order or starting army defaults.");
-                        var fortButton = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "FORT PLACEMENT · RED / BLUE");
-                        var fortLabel = fortButton.transform.Find("Content/Label") as RectTransform;
-                        var fortRect = fortButton.GetComponent<RectTransform>();
-                        if (!fortLabel || Mathf.Abs(fortLabel.TransformPoint(fortLabel.rect.center).y - fortRect.TransformPoint(fortRect.rect.center).y) > 2)
-                            throw new Exception("Fort placement label is not vertically centered.");
-                        Capture("shared-rules"); Click("FORT PLACEMENT · RED / BLUE"); break;
+                        if (!r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "COPY INVITATION" && b.IsInteractable()))
+                            throw new Exception("Missing modal invitation while waiting.");
+                        Capture("invitation");
+                        var hosted = (DuelLobby)typeof(DuelRuntime).GetField("lobby", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(r);
+                        hosted.Join(1, "GUEST");
+                        r.ChangeRules(r.Rules);
+                        break;
                     case 5:
-                        if (r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("FORT MOUNT ")) != 8)
-                            throw new Exception("Fort popup must expose four mounts for each team.");
-                        Capture("fort-unit-picker"); Click("FORT CANNON howitzer"); Click("CLOSE"); break;
+                        if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "COPY INVITATION"))
+                            throw new Exception("Invitation stayed open after the guest joined.");
+                        Click("STARTING ARMIES"); break;
                     case 6:
-                        Click("ARMY SLOT 1:3"); break;
-                    case 7: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;
+                        if (r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("ARMY SLOT 0:")) != 4 ||
+                            r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap"))
+                            throw new Exception("Starting Armies must have four shared turrets and the map must stay on Map.");
+                        Capture("shared-rules"); Click("ARMY SLOT 0:0"); break;
+                    case 7:
+                        CheckPicker(true); Capture("fort-unit-picker"); Click("SELECT howitzer"); break;
                     case 8:
+                        Click("ARMY SLOT 1:3"); break;
+                    case 9: CheckPicker(false); Capture("outside-unit-picker"); Click("SELECT heavy"); break;
+                    case 10:
                         if (r.Rules.Common.StartingUnits[3] != "heavy") throw new Exception("Shared outside slot was not set.");
                         var heavySlot = r.Menus.GetComponentsInChildren<Button>().Single(b => b.name == "ARMY SLOT 1:3");
                         if (!heavySlot.GetComponentsInChildren<RawImage>().Any(i => i.name == "Portrait" && i.texture))
                             throw new Exception("The populated heavy-tank slot is missing its portrait.");
-                        Click("HANDICAP PLAYER 0"); break;
-                    case 9:
+                        Click("BALANCING OPTIONS"); break;
+                    case 11: Click("PLAYER ADVANTAGE 0"); break;
+                    case 12:
                         if (!r.Rules.HandicapEnabled || r.Rules.HandicapSlot != 0 || r.Rules.Handicap.StartingUnits.Count != 0) throw new Exception("Red handicap did not start with empty slots.");
                         Capture("handicap-active"); Click("ARMY SLOT 2:0"); break;
-                    case 10: CheckPicker(false); Capture("handicap-unit-picker"); Click("SELECT jeep"); break;
-                    case 11:
+                    case 13: CheckPicker(false); Capture("handicap-unit-picker"); Click("SELECT jeep"); break;
+                    case 14:
                         if (r.Rules.Handicap.StartingUnits[0] != "jeep" || r.Rules.EffectiveFor(0).StartingUnits.Count != r.Rules.EffectiveFor(1).StartingUnits.Count + 1)
                             throw new Exception("Handicap units are not additive.");
-                        Capture("handicap-unit-added"); Click("HANDICAP PLAYER 1"); break;
-                    case 12:
+                        Capture("handicap-unit-added"); Click("PLAYER ADVANTAGE 1"); break;
+                    case 15:
                         if (r.Rules.HandicapSlot != 1 || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Switching the beneficiary lost the extras.");
-                        Click("ARMY SLOT 1:3"); break;
-                    case 13: Click("EMPTY SLOT"); break;
-                    case 14:
+                        Click("STARTING ARMIES"); break;
+                    case 16: Click("ARMY SLOT 1:3"); break;
+                    case 17: Click("EMPTY SLOT"); break;
+                    case 18:
                         if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.EffectiveFor(1).StartingUnits.Count != r.Rules.EffectiveFor(0).StartingUnits.Count + 1)
                             throw new Exception("Shared slot edit did not propagate to the handicap army.");
-                        SelectMap("L16"); break;
-                    case 15: Capture("jungle-map"); SelectMap("L17"); break;
-                    case 16: Capture("car-park-map"); SelectMap("L18"); break;
-                    case 17: Capture("bridge-game-map"); SelectMap("L07"); break;
-                    case 18:
+                        Click("MAP"); break;
+                    case 19: SelectMap("L16"); break;
+                    case 20: Capture("jungle-map"); SelectMap("L17"); break;
+                    case 21: Capture("car-park-map"); SelectMap("L18"); break;
+                    case 22: Capture("bridge-game-map"); SelectMap("L07"); break;
+                    case 23:
                         Capture("volcanic-map");
                         if (r.Rules.Common.StartingUnits[3] != "" || r.Rules.Handicap.StartingUnits[0] != "jeep") throw new Exception("Map selection reset the custom armies.");
-                        Click("DISABLE"); break;
-                    case 19:
+                        Click("BALANCING OPTIONS"); break;
+                    case 24: Click("PLAYER ADVANTAGE OFF"); break;
+                    case 25:
                         if (r.Rules.HandicapEnabled) throw new Exception("Cannot disable handicap.");
                         if (r.Rules.TerritoryBonus != .5 || r.Rules.Common.BuildDuration != 1 || r.Rules.Handicap.BuildDuration != 1 ||
                             r.Rules.BuildSeconds(0, 100, .5, 1) != 75 || r.Rules.BuildSeconds(1, 100, .5, 1) != 75)
                             throw new Exception("Army configuration changed construction times.");
                         Capture("shared-rules-restored");
                         Click(OzForkOptions.AudioDevicesLabel); break;
-                    case 20:
+                    case 26:
                         if (!r.Voice.Monitoring || r.Voice.MicrophoneEnabled) throw new Exception("Microphone preview must meter locally while muted.");
                         var gain = r.Menus.GetComponentsInChildren<Slider>().Single(s => s.name == "MicrophoneGain");
                         if (gain.minValue != 0 || gain.maxValue != 4 || gain.value != r.Voice.Gain) throw new Exception("Incorrect microphone gain slider.");
                         Capture("microphone-settings");
                         Click("MICROPHONE: " + r.Voice.Device + "  ▼"); break;
-                    case 21:
+                    case 27:
                         var choices = r.Menus.GetComponentsInChildren<ScrollRect>().Single().content.GetComponentsInChildren<Button>();
                         if (choices.Length != Microphone.devices.Length + 1 || !choices.Any(b => b.name == "System default") || Microphone.devices.Any(d => !choices.Any(b => b.name == d)))
                             throw new Exception("Microphone dropdown does not contain every input device.");
                         Capture("microphone-devices"); Click("System default"); break;
-                    case 22: Click("BACK"); break;
-                    case 23:
-                        if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "Toggle microphone")) throw new Exception("Lobby microphone controls were not restored.");
-                        Click("AI MAPS"); break;
-                    case 24:
+                    case 28: Click("BACK"); break;
+                    case 29:
+                        if (r.Voice.Monitoring || !r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "ALWAYS ON")) throw new Exception("Lobby microphone controls were not restored.");
+                        Click("MAP"); break;
+                    case 30: Click("AI MAPS"); break;
+                    case 31:
                         CheckGallery(); Capture("ai-maps-duel"); ClickGallery("ARCTIC"); break;
-                    case 25:
+                    case 32:
                         CheckGallery(); ClickGallery("MAP SM09");
                         next = Time.realtimeSinceStartupAsDouble + 2.5; break;
-                    case 26:
+                    case 33:
                         CheckGallery();
                         var gallery = FindFirstObjectByType<OzAiMapGallery>();
                         var mini = gallery.GetComponentsInChildren<RawImage>().Single(i => i.name == "Selected minimap");
@@ -300,39 +313,41 @@ namespace OpenZ.Multiplayer
                             throw new Exception("The duel AI Maps gallery must show a looping preview and a larger minimap.");
                         Capture("ai-maps-1v1-full");
                         break;
-                    case 27:
+                    case 34:
                         ClickGallery("SORT: NUMBER"); ClickGallery("CITY"); CheckGallery(); Capture("ai-maps-city"); ClickGallery("CLOSE"); break;
-                    case 28:
+                    case 35:
                         if (OzAiMapGallery.IsOpen) throw new Exception("Gallery did not close.");
                         OzAiMapGallery.Open(true, true, OzAiMapCatalog.All.First(m => m.SoloException).Id, _ => { }); break;
-                    case 29:
+                    case 36:
                         CheckGallery(); Capture("ai-maps-solo"); ClickGallery("Z EXPANSION"); break;
-                    case 30:
+                    case 37:
                         CheckGallery(); Capture("ai-maps-expansion"); ClickGallery("CLOSE"); break;
-                    case 31:
-                        Click("Allowed units · "+DuelUnitRoster.Name(r.Rules.UnitPreset));break;
-                    case 32:
+                    case 38:
+                        Click("BATTLE RULES"); break;
+                    case 39: Click("CUSTOM ALLOWED UNITS"); break;
+                    case 40:
                         if(r.Menus.GetComponentsInChildren<Button>().Count(b=>b.name.StartsWith("ALLOWED UNIT "))!=DuelUnitRoster.Lobby.Length ||
                             !ZBigTanks.Types.All(r.Rules.Allows))throw new Exception("Lobby OpenZ roster is missing a big tank.");
                         Capture("lobby-allowed-openz");Click("ALLOWED UNIT "+ZBigTanks.Mammoth);break;
-                    case 33:
+                    case 41:
                         if(r.Rules.UnitPreset!=DuelUnitPreset.Custom||r.Rules.Allows(ZBigTanks.Mammoth)||!r.Rules.Allows(ZBigTanks.Bizon))throw new Exception("Mammoth cannot be excluded independently.");
                         Click("ALLOWED UNIT "+ZBigTanks.Bizon);break;
-                    case 34:
+                    case 42:
                         if(ZBigTanks.Types.Any(r.Rules.Allows))throw new Exception("Both big tanks should be excluded.");
                         Click("Z 1996");break;
-                    case 35:
+                    case 43:
                         if(r.Rules.UnitPreset!=DuelUnitPreset.Z1996||r.Rules.Allows("electrobot")||ZBigTanks.Types.Any(r.Rules.Allows))throw new Exception("Shared lobby preset does not apply.");
                         Capture("lobby-allowed-z1996");Click("OpenZ");break;
-                    case 36:
+                    case 44:
                         if(!ZBigTanks.Types.All(r.Rules.Allows))throw new Exception("OpenZ preset did not restore both big tanks.");
                         Click("CLOSE");break;
-                    case 37:
-                        Click("AI MAPS"); ClickGallery("CITY"); break;
-                    case 38:
+                    case 45:
+                        Click("MAP"); break;
+                    case 46: Click("AI MAPS"); ClickGallery("CITY"); break;
+                    case 47:
                         ClickGallery("MAP SM18F"); ClickGallery("APPLY MAP");
                         next = Time.realtimeSinceStartupAsDouble + 2.5; break;
-                    case 39:
+                    case 48:
                         var lobbyFlyby = r.Menus.GetComponentsInChildren<RawImage>().Single(i => i.name == "Map flyby");
                         var lobbyDecoder = r.Menus.GetComponentsInChildren<UnityEngine.Video.VideoPlayer>()
                             .SingleOrDefault(p => p.targetTexture == lobbyFlyby.texture);
@@ -340,8 +355,8 @@ namespace OpenZ.Multiplayer
                             !lobbyDecoder.isLooping || lobbyDecoder.clip?.name != "SM18F_preview")
                             throw new Exception("The lobby is not looping the applied AI Bridge Game preview.");
                         Capture("lobby-ai-bridge-game"); break;
-                    case 40:
-                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, five official maps, independent fort popup, army pickers, additive handicap, construction times, microphone controls and dropdown; solo/duel AI Maps galleries, Arctic/City filters, sorting, expansion tab and closing.");
+                    case 49:
+                        File.WriteAllText(Path.Combine(folder, "result.txt"), "PASS: native main menu, five official maps, shared fort slots and an invitation modal, army pickers, additive player advantage, construction times, microphone controls and dropdown; solo/duel AI Maps galleries, Arctic/City filters, sorting, expansion tab and closing.");
                         step = -1; r.Close(); StartCoroutine(Exit(0)); break;
                 }
             }

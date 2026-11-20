@@ -32,13 +32,13 @@ namespace OpenZ
             get => PlayerPrefs.GetInt(TankDamageKey, 0) != 0;
             set { PlayerPrefs.SetInt(TankDamageKey, value ? 1 : 0); PlayerPrefs.Save(); }
         }
-        internal static bool Damage(ZWorld world) => world.HasDuelRules ? world.DuelTankDamageEffects : SoloDamage;
+        internal static bool Damage(ZWorld world) => SoloDamage;
         internal static bool SoloShake
         {
             get => PlayerPrefs.GetInt(TankShakeKey, 0) != 0;
             set { PlayerPrefs.SetInt(TankShakeKey, value ? 1 : 0); PlayerPrefs.Save(); }
         }
-        internal static bool Shake(ZWorld world) => world.HasDuelRules ? world.DuelTankDamageShake : SoloShake;
+        internal static bool Shake(ZWorld world) => SoloShake;
         internal static string RadarName(RadarLossRule rule) => rule switch
         {
             RadarLossRule.Fog => "FOG OF WAR",

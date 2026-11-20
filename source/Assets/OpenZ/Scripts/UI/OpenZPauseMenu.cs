@@ -206,12 +206,9 @@ namespace OpenZ
             if (!OpenZ.Multiplayer.DuelRuntime.Active)
                 AddToggle(p, toggles.Count, OzTacticalPause.Label, () => OzTacticalPause.On, v => OzTacticalPause.On = v);
             AddToggle(p, toggles.Count, OzForceBarOption.Label, null, null, true);
-            { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.Step(c.right || c.shift ? -1 : Arrow(fb)); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.Step(-1); }
-            if (!OpenZ.Multiplayer.DuelRuntime.Active)
-            {
-                AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, v => OzBattleOptions.SoloDamage = v);
-                AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, v => OzBattleOptions.SoloShake = v);
-            }
+            { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active); }
+            AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, v => OzBattleOptions.SoloDamage = v);
+            AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, v => OzBattleOptions.SoloShake = v);
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
             { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
             AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
@@ -611,7 +608,7 @@ namespace OpenZ
                 if (t.label == OzVehicleSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzVehicleSizeOption.Name}  ▶")); continue; }   // VEHICLE SIZE: 60 to 100 %
                 if (t.label == OzRobotSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzRobotSizeOption.Name}  ▶")); continue; }   // 1.5 R3.25 ROBOT SIZE: 60 to 100 %
                 if (t.label == OzRangeRingsOption.Label) { t.value.Set(OzText.Tab($"◀  {OzRangeRingsOption.Name}  ▶")); continue; }   // 1.4 RANGE RINGS: FADE / ALWAYS
-                if (t.label == OzForceBarOption.Label) { t.value.Set(OzText.Tab($"◀  {OzForceBarOption.Name}  ▶")); continue; }
+                if (t.label == OzForceBarOption.Label) { t.value.Set(OzText.Tab($"◀  {OzForceBarOption.MatchName(OpenZ.Multiplayer.DuelRuntime.Active)}  ▶")); continue; }
                 if (CamRowValue(t)) continue;                                                              // 1.4: MIDDLE MOUSE and SCROLL SPEED (UI/OpenZPauseMenu.CamControls.cs)
                 if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab(OzSettings.ResolutionName)); continue; }   // 1.5 issue 8: the value alone, no arrows (the mouse button sets the way: OzSettings.ResolutionClick)
                 if (t.chatter && t.robots) { t.value.Set(OzText.Tab($"◀  {AudioDirector.RobotChatter.Names[AudioDirector.RobotChatter.Level]}  ▶")); continue; }

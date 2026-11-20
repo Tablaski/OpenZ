@@ -837,7 +837,10 @@ namespace OpenZ.Sim
                 }
                 else
                 {
-                    tx += BehaviorScatter(AimScatter(World.Rng.Next(32) - 16)); ty += BehaviorScatter(AimScatter(World.Rng.Next(32) - 16));
+                    // Duel howitzers can land well outside the target's blast radius with the wider spread enabled.
+                    int scatter = Type == "howitzer" && World.DuelNerfedHowitzers ? Math.Max(32, (DamageRadius * 5 + 3) / 4) : 16;
+                    tx += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
+                    ty += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
                     ChargeRocketAim(t, ref tx, ref ty);                                                  // DV121: a Tough's rocket at a vehicle that drives at him aims true (Sim/ZObject.JeepCharge.cs)
                     HeavyRockAim(t, ref tx, ref ty);                                                     // DV164: at the rock's drawn foot (Sim/ZObject.HeavyRock.cs)
                     ShellOverCover(t, ref tx, ref ty); ShuttleKickAimPast(t, m, ref tx, ref ty);   // DV129: at a flipping shuttle some are aimed past its hull (Sim/ZWorld.ShuttleKick.cs)                                  // DV122: a flat shell at a kneeling / lying sniper may skim over him (Sim/ZObject.ProneTarget.cs)

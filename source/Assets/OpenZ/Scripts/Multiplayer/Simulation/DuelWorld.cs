@@ -110,6 +110,7 @@ namespace OpenZ.Sim
         HashSet<string> soloAllowedUnits;
         bool soloRosterConfigured;
         bool soloExcludeMammoth, soloExcludeBizon;
+        readonly double[] duelTerritoryReduction = new double[2];
         readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
@@ -122,8 +123,8 @@ namespace OpenZ.Sim
         }
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
-        public bool DuelTankDamageEffects => duelRules?.TankDamageEffects == true;
-        public bool DuelTankDamageShake => duelRules?.TankDamageShake == true;
+        internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true;
+
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
         public bool DuelAllowsUnit(string type)
@@ -177,7 +178,26 @@ namespace OpenZ.Sim
             Bots.Clear(); Array.Clear(TechBonus, 0, TechBonus.Length);
             if (!replica && rules.HandicapEnabled && (rules.AiIdleSeconds > 0 || rules.AiManageProduction))
                 duelAiHelper = new ZBot(this, rules.HandicapSlot == 0 ? Team.Red : Team.Blue, 439);
+            ApplyDuelFactoryTech();
+            DuelUpdateFortBonus();
             FilterProductionRoster();
+        }
+
+        public int MapFactoryTech(string factoryType) =>
+            Objects.Where(o => o.Type == factoryType).Select(o => o.Level + 1).DefaultIfEmpty(0).Max();
+
+        void ApplyDuelFactoryTech()
+        {
+            int vehicleDefault = MapFactoryTech("vehicle_factory"), robotDefault = MapFactoryTech("robot_factory");
+            bool vehicles = duelRules.VehicleTech > 0 && vehicleDefault > 0, robots = duelRules.RobotTech > 0 && robotDefault > 0;
+            foreach (var building in Objects)
+            {
+                if (vehicles && building.IsFort) building.Level = duelRules.VehicleTech - 1;
+                else if (vehicles && building.Type == "vehicle_factory")
+                    building.Level = Math.Max(0, building.Level + duelRules.VehicleTech - vehicleDefault);
+                else if (robots && building.Type == "robot_factory")
+                    building.Level = Math.Max(0, building.Level + duelRules.RobotTech - robotDefault);
+            }
         }
 
         internal void UpdateDuelAiHelp()
@@ -255,43 +275,65 @@ namespace OpenZ.Sim
             // The same neutral technology policy applies to both human seats.
             foreach (var b in Objects) if (b.IsProducer)
             {
-                b.Queue.RemoveAll(t => !DuelAllowsUnit(t));
-                if (b.CurUnit != null && !DuelAllowsUnit(b.CurUnit)) { b.StopBuildingProduction(false); b.SetBuildingDefaultProduction(); }
+                b.Queue.RemoveAll(t => !DuelAllowsUnit(t) || (duelRules != null && !ZBuildLists.InList(b.Type, b.BuildLevel, t)));
+                if (b.CurUnit != null && (!DuelAllowsUnit(b.CurUnit) || (duelRules != null && !ZBuildLists.InList(b.Type, b.BuildLevel, b.CurUnit)))) { b.StopBuildingProduction(false); b.SetBuildingDefaultProduction(); }
                 b.RecalcBuildTime();
             }
         }
 
+        (double territory, double fort) DuelProductionReductions(Team team, double own, double other)
+        {
+            double lead = ZForceComparison.RelativePercent(own, other);
+            double territory = duelRules.TerritoryTimeReduction(TeamFlagFraction(team), lead);
+            if (duelRules.FortSpeedup <= 0)
+                return (territory, duelRules.FortLoserReduction(own, other));
+            if (lead >= 0) return (territory, 0);
+            var opponent = team == Team.Red ? Team.Blue : Team.Red;
+            double opponentReduction = duelRules.TerritoryTimeReduction(TeamFlagFraction(opponent), -lead);
+            double speed = duelRules.FortCatchupSpeed(-lead, opponentReduction);
+            double fortTime = Math.Min(1 - territory, 1 / speed);
+            return (territory, 1 - fortTime / (1 - territory));
+        }
+
         public double DuelFortLoserReduction(Team team)
         {
-            if (duelRules == null || (team != Team.Red && team != Team.Blue)) return 0;
-            return duelRules.FortLoserReduction(MilitaryValue(team), MilitaryValue(team == Team.Red ? Team.Blue : Team.Red));
+            if (duelRules?.UsesDynamicProduction != true || (team != Team.Red && team != Team.Blue)) return 0;
+            if (!DuelIsReplica) return duelFortReduction[team == Team.Red ? 0 : 1];
+            return DuelProductionReductions(team, MilitaryValue(team), MilitaryValue(team == Team.Red ? Team.Blue : Team.Red)).fort;
         }
+
         internal void DuelUpdateFortBonus()
         {
-            if (duelRules == null || DuelIsReplica || duelRules.FortLoserMaximum <= 0) return;
+            if (duelRules?.UsesDynamicProduction != true || DuelIsReplica) return;
+            double red = MilitaryValue(Team.Red), blue = MilitaryValue(Team.Blue);
             for (int slot = 0; slot < 2; slot++)
             {
                 Team team = slot == 0 ? Team.Red : Team.Blue;
-                double reduction = DuelFortLoserReduction(team);
-                if (Math.Abs(reduction - duelFortReduction[slot]) < .0000001) continue;
-                duelFortReduction[slot] = reduction;
-                foreach (var fort in Objects)
-                    if (fort.IsFort && fort.Owner == team && !fort.Destroyed && fort.Building && fort.CurUnit != null)
-                    {
-                        double progress = fort.ProductionProgress;
-                        double duration = DuelBuildSeconds(fort, S.Unit(fort.CurUnit)?.build_time ?? 0);
-                        fort.BInit = Time - progress * duration; fort.BFinal = fort.BInit + duration;
-                    }
+                var (territory, fort) = DuelProductionReductions(team, slot == 0 ? red : blue, slot == 0 ? blue : red);
+                bool territoryChanged = Math.Abs(territory - duelTerritoryReduction[slot]) > .0000001;
+                bool fortChanged = Math.Abs(fort - duelFortReduction[slot]) > .0000001;
+                if (!territoryChanged && !fortChanged) continue;
+                duelTerritoryReduction[slot] = territory;
+                duelFortReduction[slot] = fort;
+                foreach (var building in Objects)
+                    if (building.IsProducer && building.Owner == team && !building.Destroyed && building.Building &&
+                        building.CurUnit != null && (territoryChanged || building.IsFort))
+                        building.DuelUpdateProductionTime(building.ProductionProgress);
             }
         }
 
         internal double DuelBuildSeconds(ZObject building, int seconds)
         {
             if (duelRules == null) throw new InvalidOperationException("Not a duel world.");
-            double duration = duelRules.BuildSeconds(building.Owner == Team.Blue ? 1 : 0, seconds,
-                Math.Max(0, Math.Min(1, building.ZoneOwnage)),
-                building.MaxHealth > 0 ? Math.Max(0, Math.Min(1, (double)building.Health / building.MaxHealth)) : 1);
-            return building.IsFort ? Math.Max(duelRules.MinimumBuildSeconds, duration * (1 - DuelFortLoserReduction(building.Owner))) : duration;
+            int slot = building.Owner == Team.Blue ? 1 : 0;
+            bool hasTeam = building.Owner == Team.Red || building.Owner == Team.Blue;
+            double territory = hasTeam && duelRules.UsesDynamicProduction && !DuelIsReplica
+                ? duelTerritoryReduction[slot]
+                : duelRules.TerritoryTimeReduction(Math.Max(0, Math.Min(1, building.ZoneOwnage)), 0);
+            double fort = building.IsFort && hasTeam ? duelFortReduction[slot] : 0;
+            double health = building.MaxHealth > 0 ? Math.Max(0, Math.Min(1, (double)building.Health / building.MaxHealth)) : 1;
+            double armyDuration = (duelRules.HandicapEnabled && duelRules.HandicapSlot == slot ? duelRules.Handicap : duelRules.Common).BuildDuration;
+            return Math.Max(duelRules.MinimumBuildSeconds, seconds * (1 - territory) * (1 - fort) * (1 + 1.25 * (1 - health)) * armyDuration);
         }
     }
 
@@ -304,13 +346,15 @@ namespace OpenZ.Sim
             if (ZoneOwnage == fraction) return true;
             double progress = ProductionProgress;
             ZoneOwnage = fraction;
-            if (IsProducer && CurUnit != null && Building)
-            {
-                double duration = World.DuelBuildSeconds(this, World.S.Unit(CurUnit)?.build_time ?? 0);
-                BInit = World.Time - progress * duration;
-                BFinal = BInit + duration;
-            }
+            if (IsProducer && CurUnit != null && Building) DuelUpdateProductionTime(progress);
             return true;
+        }
+
+        internal void DuelUpdateProductionTime(double progress)
+        {
+            double duration = World.DuelBuildSeconds(this, World.S.Unit(CurUnit)?.build_time ?? 0);
+            BInit = World.Time - progress * duration;
+            BFinal = BInit + duration;
         }
     }
 }

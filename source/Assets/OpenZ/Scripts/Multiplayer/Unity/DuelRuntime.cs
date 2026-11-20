@@ -35,13 +35,15 @@ namespace OpenZ.Multiplayer
         public int Revision, Phase, HandicapSlot, PlanningSeconds;
         public bool HostReady, GuestReady, HandicapEnabled, TeamsSwapped;
         public double TerritoryBonus, MinimumBuildSeconds, FortLoserMaximum, TerritoryReductionCap;
+        public double FortSpeedup;
+        public bool ProgressiveTerritoryCap, ProgressiveFortSpeedup, NerfedHowitzers;
+        public int VehicleTech, RobotTech;
         public DuelArmyData Common, Handicap;
         public string TankDynamics, RobotDynamics;
         public int UnitPreset;
         public string[] AllowedUnits;
         public bool ExcludeMammoth, ExcludeBizon;
         public string[] RedFortTurrets, BlueFortTurrets;
-        public bool TankDamageEffects, TankDamageShake;
         public int RadarLoss;
         public int AiIdleSeconds;
         public bool AiManageProduction, AiCancelProduction;
@@ -57,20 +59,24 @@ namespace OpenZ.Multiplayer
             return new DuelLobbyData { Map = r.Map, PlanningSeconds = r.PlanningSeconds, HostName = l.Name(0), GuestName = l.Name(1), Revision = l.Revision,
                 Phase = (int)l.Phase, HostReady = l.Ready(0), GuestReady = l.Ready(1), HandicapEnabled = r.HandicapEnabled, TeamsSwapped = l.TeamsSwapped,
                 HandicapSlot = r.HandicapSlot, TerritoryBonus = r.TerritoryBonus, MinimumBuildSeconds = r.MinimumBuildSeconds, FortLoserMaximum = r.FortLoserMaximum, TerritoryReductionCap = r.TerritoryReductionCap,
+                FortSpeedup = r.FortSpeedup, ProgressiveTerritoryCap = r.ProgressiveTerritoryCap, ProgressiveFortSpeedup = r.ProgressiveFortSpeedup,
+                NerfedHowitzers = r.NerfedHowitzers, VehicleTech = r.VehicleTech, RobotTech = r.RobotTech,
                 Common = DuelArmyData.From(r.Common), Handicap = DuelArmyData.From(r.Handicap),
-                RedFortTurrets = r.FortTurretsFor(0), BlueFortTurrets = r.FortTurretsFor(1),
+                RedFortTurrets = r.RedFortTurrets, BlueFortTurrets = r.BlueFortTurrets,
                 TankDynamics = r.TankDynamics, RobotDynamics = r.RobotDynamics, UnitPreset = (int)r.UnitPreset, AllowedUnits = r.AllowedUnits.ToArray(),
                 ExcludeMammoth = r.ExcludeMammoth, ExcludeBizon = r.ExcludeBizon,
-                TankDamageEffects = r.TankDamageEffects, TankDamageShake = r.TankDamageShake, RadarLoss = (int)r.RadarLoss,
+                RadarLoss = (int)r.RadarLoss,
                 AiIdleSeconds = r.AiIdleSeconds, AiManageProduction = r.AiManageProduction, AiCancelProduction = r.AiCancelProduction };
         }
         public DuelRules ReadRules()
         {
             var rules = new DuelRules { Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
+                FortSpeedup = FortSpeedup, ProgressiveTerritoryCap = ProgressiveTerritoryCap, ProgressiveFortSpeedup = ProgressiveFortSpeedup,
+                NerfedHowitzers = NerfedHowitzers, VehicleTech = VehicleTech, RobotTech = RobotTech,
                 Common = Common.Read(), Handicap = Handicap.Read(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
-                RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null ? null : (string[])BlueFortTurrets.Clone(),
+                RedFortTurrets = RedFortTurrets == null || RedFortTurrets.Length == 0 ? null : (string[])RedFortTurrets.Clone(), BlueFortTurrets = BlueFortTurrets == null || BlueFortTurrets.Length == 0 ? null : (string[])BlueFortTurrets.Clone(),
                 TankDynamics = TankDynamics ?? "", RobotDynamics = RobotDynamics ?? "", UnitPreset = (DuelUnitPreset)UnitPreset,
-                TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = (RadarLossRule)RadarLoss,
+                RadarLoss = (RadarLossRule)RadarLoss,
                 AiIdleSeconds = AiIdleSeconds, AiManageProduction = AiManageProduction, AiCancelProduction = AiCancelProduction,
                 ExcludeMammoth = ExcludeMammoth || UnitPreset == (int)DuelUnitPreset.Z1996,
                 ExcludeBizon = ExcludeBizon || UnitPreset == (int)DuelUnitPreset.Z1996,
@@ -258,17 +264,23 @@ namespace OpenZ.Multiplayer
                     if (Resources.Load<TextAsset>("OpenZ/Maps/" + saved.Map + "_grid"))
                     {
                         ValidateArmies(saved);
-                        ZWorld.DuelProfile(saved.TankDynamics, ZBehaviorFamily.Tanks);
-                        ZWorld.DuelProfile(saved.RobotDynamics, ZBehaviorFamily.Robots);
+                        saved.TankDynamics = saved.RobotDynamics = "";
+                        saved.TankDynamics = saved.RobotDynamics = "";
+                        saved.RedFortTurrets = saved.BlueFortTurrets = null;
+                        if (saved.FortLoserMaximum > 0)
+                        {
+                            // Match the previous time cut at a +25% enemy speed bonus, up to the new limit.
+                            saved.FortSpeedup = Math.Min(5, (1 / (1 - saved.FortLoserMaximum) - 1) / .25);
+                            saved.FortLoserMaximum = 0;
+                            saved.ProgressiveFortSpeedup = true;
+                        }
+                        if (saved.TerritoryReductionCap < .1) saved.TerritoryReductionCap = .1;
                         return saved;
                     }
                 }
                 catch (Exception error) { Debug.LogWarning("[OpenZ Duel] Could not restore owned match rules: " + error.Message); }
             }
-            var rules = Defaults("L02");
-            rules.TankDynamics = OzBehaviorLibrary.Selected(ZBehaviorFamily.Tanks).Encode();
-            rules.RobotDynamics = OzBehaviorLibrary.Selected(ZBehaviorFamily.Robots).Encode();
-            return rules;
+            return Defaults("L02");
         }
         void SaveHostedRules()
         {

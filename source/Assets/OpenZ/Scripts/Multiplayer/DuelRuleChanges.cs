@@ -21,13 +21,17 @@ namespace OpenZ.Multiplayer
             add("Minimum build seconds", current.MinimumBuildSeconds, next.MinimumBuildSeconds);
             add("Territory cap", current.TerritoryReductionCap, next.TerritoryReductionCap);
             add("Fort loser bonus", current.FortLoserMaximum, next.FortLoserMaximum);
-            add("Damaged tank oil trails", current.TankDamageEffects, next.TankDamageEffects);
-            add("Damaged tank shake", current.TankDamageShake, next.TankDamageShake);
+            add("Progressive territory cap", current.ProgressiveTerritoryCap, next.ProgressiveTerritoryCap);
+            add("Fort construction speedup (%)", current.FortSpeedup * 100, next.FortSpeedup * 100);
+            add("Progressive fort speedup", current.ProgressiveFortSpeedup, next.ProgressiveFortSpeedup);
+            add("Nerfed howitzers", current.NerfedHowitzers, next.NerfedHowitzers);
+            add("Vehicle factory maximum tech", Tech(current.VehicleTech), Tech(next.VehicleTech));
+            add("Robot factory maximum tech", Tech(current.RobotTech), Tech(next.RobotTech));
             add("Radar loss", current.RadarLoss, next.RadarLoss);
             add("Shared build duration", current.Common.BuildDuration, next.Common.BuildDuration);
-            add("Handicap enabled", current.HandicapEnabled, next.HandicapEnabled);
-            add("Handicap team", current.HandicapSlot == 0 ? "RED" : "BLUE", next.HandicapSlot == 0 ? "RED" : "BLUE");
-            add("Handicap build duration", current.Handicap.BuildDuration, next.Handicap.BuildDuration);
+            add("Player advantage", current.HandicapEnabled, next.HandicapEnabled);
+            add("Player advantage team", current.HandicapSlot == 0 ? "RED" : "BLUE", next.HandicapSlot == 0 ? "RED" : "BLUE");
+            add("Player advantage build duration", current.Handicap.BuildDuration, next.Handicap.BuildDuration);
             add("AI Help idle delay (seconds, 0 = off)", current.AiIdleSeconds, next.AiIdleSeconds);
             add("AI Help replace weak production", current.AiManageProduction, next.AiManageProduction);
             add("AI Help cancel captured production", current.AiCancelProduction, next.AiCancelProduction);
@@ -48,6 +52,7 @@ namespace OpenZ.Multiplayer
             }
             return changes;
         }
+        static string Tech(int level) => level == 0 ? "MAP DEFAULT" : level.ToString(CultureInfo.InvariantCulture);
         static string Value(object value) => value is string text && text.Length == 0 ? "EMPTY" : Convert.ToString(value, CultureInfo.InvariantCulture);
     }
 }

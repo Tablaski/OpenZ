@@ -73,7 +73,7 @@ namespace OpenZ.Multiplayer
                 var rules = DuelRuntime.Defaults("L02");
                 rules.Common.FortTurrets = new[] { "gatling", "gun", "howitzer", "missile_cannon" };
                 rules.Common.StartingUnits[0] = "light";
-                rules.TankDamageEffects = true;
+                rules.NerfedHowitzers = true;
                 rules.RadarLoss = RadarLossRule.FogAndZoom;
                 rules.TankDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();
                 rules.RobotDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Robots).Encode();
@@ -92,13 +92,12 @@ namespace OpenZ.Multiplayer
             Shot("lobby-dynamics");
             if (host)
             {
-                Click("FORT PLACEMENT · RED / BLUE"); yield return null;
-                Check(r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("FORT MOUNT ")) == 8, "Eight turret slots missing.");
+                Click("STARTING ARMIES"); yield return null;
+                Check(r.Menus.GetComponentsInChildren<Button>().Count(b => b.name.StartsWith("ARMY SLOT 0:")) == 4, "Four shared turret slots missing.");
+                Check(!r.Menus.GetComponentsInChildren<RawImage>().Any(i => i.name == "TacticalMap"), "The minimap belongs on Map.");
                 Shot("fort-slots");
-                Click("CLOSE"); yield return null;
-                Click("BATTLE OPTIONS"); yield return null;
+                Click("BATTLE RULES"); yield return null;
                 Shot("battle-options");
-                Click("CLOSE");
             }
             r.Ready();
             foreach (var step in WaitFor(() => r.Playing && r.Game && r.Game.World.Time > 1, "opening gameplay", 65)) yield return step;
@@ -155,7 +154,7 @@ namespace OpenZ.Multiplayer
             yield return null;
             if (!host) Click("ACCEPT");
             foreach (var step in WaitFor(() => r.Playing && r.Game && r.View.Map == "L16" && r.Game.World.Time > 1, "replacement map", 70)) yield return step;
-            Check(r.Rules.TankDamageEffects && r.Rules.RadarLoss == RadarLossRule.FogAndZoom &&
+            Check(r.Rules.NerfedHowitzers && r.Rules.RadarLoss == RadarLossRule.FogAndZoom &&
                 r.Rules.FortTurretsFor(0).Length == 4, "Frozen rules changed during map replacement.");
             int borderX = 0, borderY = 0;
             if (host)

@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.10 duel lobby and balancing
+
+- Pending two-PC lobby check: copy the invitation before the guest joins, check that the window closes when they arrive, rename from each seat and verify both Ready states stay visible while switching tabs. Scroll a conversation with several wrapped messages and try Mute, Always On and Tap to Speak with the input meter and gain shown.
+- Pending setup check: verify that only Map shows the tactical inset, flybys start automatically, tech changes apply independently to the map’s factories, and resets restore forts and factories. Edit four common fort turrets, then load and save the separate near-fort unit preset. Submit and accept a guest proposal across tabs.
+- Pending match check: verify Opening Orders Off, 1 s and 20 s from both seats, including the notification countdown. Check army-gap thresholds at 20% and 50%, preservation of production progress and the wider howitzer spread only when enabled. Compare the default force bar in a duel with the unchanged solo preference. Return to the lobby after choosing Z Classic and confirm OpenZ is selected. Check damaged-tank effects in local Game options.
+
 ## OpenZ-VK 1.5.9 Bridge Game AI Maps
 
 - Pending in-game check: select Bridge Game from both catalogues in solo and 1 vs 1. Verify the AI previews and deployments, and check that solo uses the original conversion and 1 vs 1 uses the balanced conversion. Replay the AI mission in solo and reopen a hosted AI lobby to confirm the selection stays in AI Maps.

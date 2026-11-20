@@ -4,6 +4,14 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.10 (20 Nov 2026)
+
+- 1 vs 1 — The lobby has separate tabs for maps, starting armies, balancing and battle rules. Both players’ readiness, chat history and microphone controls are visible across tabs. The invitation window explains how to bring a second player into the match.
+- 1 vs 1 — The map tab shows the tactical map and the map’s default tech levels. Adjust vehicle and robot factories separately or restore the map defaults. Opening Orders can run for up to 20 seconds, with an in-match countdown.
+- 1 vs 1 — Set four shared fort turrets and save or reuse presets for the extra units that start near each fort.
+- 1 vs 1 — Use the offensive production-value gap to tune progressive territory caps and earlier fort catch-up. The force bar shows this gap by default. The optional Nerfed Howitzers rule gives howitzer shells a wider spread.
+- 1 vs 1 — Each new lobby match starts with OpenZ dynamics selected. Z Classic and custom profiles are available in Battle Rules.
+
 ## OpenZ-VK 1.5.9 (20 Nov 2026)
 
 - Solo + 1 vs 1 — Bridge Game is available in both the OpenZ and AI Maps catalogues. AI Maps uses the original conversion in Solo and the balanced conversion in 1 vs 1.

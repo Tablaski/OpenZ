@@ -26,14 +26,18 @@ namespace OpenZ.Multiplayer
     [Serializable]
     public sealed class DuelRules
     {
-        public const int MaxPlanningSeconds = 10;
+        public const int MaxPlanningSeconds = 20;
         public string Map = "L02";
         public int PlanningSeconds;
         public double TerritoryBonus = .5;
         public double MinimumBuildSeconds = 1;
         public double FortLoserMaximum;
         public double TerritoryReductionCap = 1;
-        public bool TankDamageEffects, TankDamageShake;
+        public double FortSpeedup;
+        public bool ProgressiveTerritoryCap, ProgressiveFortSpeedup, NerfedHowitzers;
+        // Zero means the map defines that category's maximum.
+        public int VehicleTech, RobotTech;
+        public bool UsesDynamicProduction => ProgressiveTerritoryCap || FortSpeedup > 0 || FortLoserMaximum > 0;
         public RadarLossRule RadarLoss;
         public DuelArmySettings Common = new DuelArmySettings();
         // Null keeps the legacy shared mounts until a team is edited independently.
@@ -128,7 +132,9 @@ namespace OpenZ.Multiplayer
         public DuelRules Copy() => new DuelRules
         {
             Map = Map, PlanningSeconds = PlanningSeconds, TerritoryBonus = TerritoryBonus, MinimumBuildSeconds = MinimumBuildSeconds, FortLoserMaximum = FortLoserMaximum, TerritoryReductionCap = TerritoryReductionCap,
-            TankDamageEffects = TankDamageEffects, TankDamageShake = TankDamageShake, RadarLoss = RadarLoss,
+            FortSpeedup = FortSpeedup, ProgressiveTerritoryCap = ProgressiveTerritoryCap, ProgressiveFortSpeedup = ProgressiveFortSpeedup,
+            NerfedHowitzers = NerfedHowitzers, VehicleTech = VehicleTech, RobotTech = RobotTech,
+            RadarLoss = RadarLoss,
             AiIdleSeconds = AiIdleSeconds, AiManageProduction = AiManageProduction, AiCancelProduction = AiCancelProduction,
             Common = Common.Copy(), Handicap = Handicap.Copy(), HandicapEnabled = HandicapEnabled, HandicapSlot = HandicapSlot,
             RedFortTurrets = RedFortTurrets == null ? null : (string[])RedFortTurrets.Clone(),
@@ -148,6 +154,9 @@ namespace OpenZ.Multiplayer
                 throw new ArgumentException("Invalid territory rule.");
             if (!InRange(TerritoryReductionCap, 0, 1)) throw new ArgumentException("Invalid territory cap.");
             if (!InRange(FortLoserMaximum, 0, .75)) throw new ArgumentException("Invalid fort loser bonus.");
+            if (!InRange(FortSpeedup, 0, 5)) throw new ArgumentException("Invalid fort speedup.");
+            if (VehicleTech < 0 || VehicleTech > 6 || RobotTech < 0 || RobotTech > 6)
+                throw new ArgumentException("Invalid factory technology.");
             if (HandicapSlot != 0 && HandicapSlot != 1) throw new ArgumentException("Invalid handicap seat.");
             CheckArmy(Common); CheckArmy(Handicap);
             foreach (var turrets in new[] { RedFortTurrets, BlueFortTurrets })
@@ -202,6 +211,27 @@ namespace OpenZ.Multiplayer
             if (ownValue == 0) return FortLoserMaximum;
             double lead = enemyValue / ownValue - 1;
             return FortLoserMaximum * Math.Max(0, Math.Min(1, (lead - .3) / .6));
+        }
+
+        public double TerritoryTimeReduction(double flagFraction, double ownLeadPercent)
+        {
+            double cap = Math.Min(.5, TerritoryReductionCap);
+            if (ProgressiveTerritoryCap) cap = .5 + (cap - .5) * Math.Max(0, Math.Min(1, ownLeadPercent / 50));
+            return Math.Min(TerritoryBonus * flagFraction, cap);
+        }
+
+        public double FortCatchupSpeed(double enemyLeadPercent, double opponentTimeReduction)
+        {
+            if (enemyLeadPercent <= 0) return 1;
+            double strength = ProgressiveFortSpeedup ? Math.Min(1, enemyLeadPercent / 20) : 1;
+            return 1 + FortSpeedup * strength * (1 / (1 - opponentTimeReduction) - 1);
+        }
+
+        public void SelectMap(string map)
+        {
+            if (Map == map) return;
+            Map = map;
+            VehicleTech = RobotTech = 0;
         }
 
         public double BuildSeconds(int slot, double baseSeconds, double flagFraction, double healthFraction)
@@ -330,6 +360,7 @@ namespace OpenZ.Multiplayer
         public void ReturnToLobby()
         {
             Require(DuelPhase.Playing);
+            rules.TankDynamics = rules.RobotDynamics = "";
             Array.Clear(ready, 0, 2); Array.Clear(loaded, 0, 2); StartAt = -1; Phase = DuelPhase.Lobby; Revision++;
         }
 
@@ -341,7 +372,7 @@ namespace OpenZ.Multiplayer
             if (map != null)
             {
                 var next = rules.Copy();
-                next.Map = map;
+                next.SelectMap(map);
                 next.Validate();
                 rules = next;
                 Revision++;

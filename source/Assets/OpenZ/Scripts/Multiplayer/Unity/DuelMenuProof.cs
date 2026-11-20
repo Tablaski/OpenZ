@@ -200,7 +200,7 @@ namespace OpenZ.Multiplayer
                         var mainMenu = FindFirstObjectByType<OpenZMainMenu>();
                         if (!FindObjectsByType<Transform>(FindObjectsSortMode.None).Any(t => t.name == "Item_PLAY SOLO")) throw new Exception("Missing PLAY SOLO entry.");
                         if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "1VS1")) throw new Exception("Old floating duel button is still present.");
-                        Capture("main-menu"); ClickMainItem("PLAY 1 VS 1"); break;
+                        Capture("main-menu"); ClickMainItem("MULTIPLAYER"); break;
                     case 1:
                         Capture("online-connection");
                         if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "ONLINE SETTINGS")) Click("ONLINE SETTINGS");

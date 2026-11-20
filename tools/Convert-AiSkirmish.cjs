@@ -1,25 +1,93 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { decodeMultiplayer } = require('./Convert-AiMaps.cjs');
+const { decodeMultiplayer, sha } = require('./Convert-AiMaps.cjs');
 
-const file = 'p03_bb_p03m01.map';
-const source = process.argv[2];
-if (!source) throw new Error('Usage: node tools/Convert-AiSkirmish.cjs <Zod Engine directory>');
 const packageRoot = path.resolve(__dirname, '../aimaps');
-const palette = fs.readFileSync(path.join(packageRoot, 'Sources~/palettes/desert.tileinfo'));
-const input = fs.readFileSync(path.join(source, file));
-const map = decodeMultiplayer(input, file, palette);
-const owners = ['neutral', 'red', 'blue', 'green'];
-const forts = map.objects.filter((object) => object.kind.startsWith('building:fort'));
-if (map.planet !== 'desert' || forts.length !== 3 || ![1, 2, 3].every((owner) => forts.some((fort) => fort.owner === owner))) {
-    throw new Error(`${file} does not have the expected three desert forts`);
+const nativeRoot = path.join(packageRoot, 'Sources~/maps');
+const gridRoot = path.join(packageRoot, 'Resources/OpenZ/Maps');
+const catalogPath = path.resolve(__dirname, '../source/Assets/OpenZ/Scripts/Multiplayer/OzAiMapCatalog.Multiplayer.cs');
+const worlds = ['desert', 'volcanic', 'arctic', 'jungle', 'city'];
+const owners = ['neutral', 'red', 'blue', 'green', 'yellow', 'purple', 'teal', 'white', 'black'];
+const pilot = 'SMP03M01';
+
+function identity(file) {
+    const match = /^p0([348])_(?:bb_p0\1m(\d\d)|([a-z0-9_]+))\.map$/i.exec(file);
+    if (!match) throw new Error(`Unsupported multiplayer filename: ${file}`);
+    const [, count, number, name] = match;
+    const suffix = number ? `M${number}` : name.replace(/_/g, '').toUpperCase();
+    return { id: `SMP0${count}${suffix}`, starts: Number(count), code: number ? `P0${count}M${number}` : null };
 }
-for (const object of map.objects) {
-    if (!owners[object.owner]) throw new Error(`Unsupported owner ${object.owner} in ${file}`);
-    object.owner = owners[object.owner];
+
+function prepare(source) {
+    const results = [];
+    const ids = new Set();
+    for (const file of fs.readdirSync(source).sort()) {
+        if (!/^p0[348].*\.map$/i.test(file)) continue;
+        const { id, starts, code } = identity(file);
+        if (ids.has(id)) throw new Error(`Duplicate multiplayer map ID: ${id}`);
+        ids.add(id);
+
+        const input = fs.readFileSync(path.join(source, file));
+        const world = worlds[input[58]];
+        if (!world) throw new Error(`Unknown terrain palette in ${file}`);
+        const palette = fs.readFileSync(path.join(packageRoot, 'Sources~/palettes', `${world}.tileinfo`));
+        const map = decodeMultiplayer(input, file, palette);
+        const forts = map.objects.filter(object => object.kind.startsWith('building:fort'));
+        const fortOwners = [...new Set(forts.map(fort => fort.owner))].sort((a, b) => a - b);
+        if (forts.length !== starts || !fortOwners.every((owner, index) => owner === index + 1) || fortOwners.length !== starts) {
+            throw new Error(`${file}: expected ${starts} distinct starting owners, found ${fortOwners.join(', ')}`);
+        }
+        for (const object of map.objects) {
+            if (object.owner !== 0 && !fortOwners.includes(object.owner)) {
+                throw new Error(`${file}: ${object.kind} at ${object.x},${object.y} has owner ${object.owner} without a fort`);
+            }
+            object.owner = owners[object.owner];
+        }
+        map.aiMap = true;
+        if (id === pilot) map.skirmish = true;
+        const terrainName = world[0].toUpperCase() + world.slice(1);
+        const name = code ? `${terrainName} · ${code}` : id === 'SMP08SCHUNTERS' ? 'Hunters'
+            : file.slice(4, -4).split('_').map(word => word[0].toUpperCase() + word.slice(1)).join(' ');
+        results.push({ meta: { id, name, file, world, starts }, input, map });
+    }
+    for (const capacity of [3, 4, 8]) {
+        if (!results.some(({meta}) => meta.starts === capacity)) throw new Error(`No maps with ${capacity} starting positions in ${source}`);
+    }
+    return results;
 }
-map.aiMap = true;
-map.skirmish = true;
-fs.writeFileSync(path.join(packageRoot, 'Sources~/maps', file), input);
-fs.writeFileSync(path.join(packageRoot, 'Resources/OpenZ/Maps/SMP03M01_grid.json'), JSON.stringify(map) + '\n');
-console.log(`${file}: ${map.width}×${map.height}, ${map.objects.length} objects, three starting forts`);
+
+function run(args) {
+    const check = args.includes('--check');
+    const paths = args.filter(arg => arg !== '--check');
+    if (paths.length > 1 || paths.some(arg => arg.startsWith('--'))) {
+        throw new Error('Usage: node tools/Convert-AiSkirmish.cjs [Zod Engine directory] [--check]');
+    }
+    const results = prepare(paths[0] ?? nativeRoot);
+    function writeOrVerify(file, bytes) {
+        if (fs.existsSync(file) && (Buffer.isBuffer(bytes)
+            ? fs.readFileSync(file).equals(bytes)
+            : fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n') === bytes)) return;
+        if (check) throw new Error(`Missing or out of date: ${path.relative(packageRoot, file)}`);
+        fs.writeFileSync(file, bytes);
+    }
+    for (const { meta, input, map } of results) {
+        const grid = path.join(gridRoot, `${meta.id}_grid.json`);
+        writeOrVerify(path.join(nativeRoot, meta.file), input);
+        writeOrVerify(grid, JSON.stringify(map) + '\n');
+        const metaFile = `${grid}.meta`;
+        if (!fs.existsSync(metaFile)) {
+            const guid = sha(`openz-vk:multiplayer:${meta.id}`).slice(0, 32);
+            writeOrVerify(metaFile, `fileFormatVersion: 2\nguid: ${guid}\nTextScriptImporter:\n  externalObjects: {}\n  userData:\n  assetBundleName:\n  assetBundleVariant:\n`);
+        }
+    }
+    const rows = results.map(({meta}) => {
+        const { id, name, world, file, starts } = meta;
+        return `            new OzAiMap(${[id, name, world, file].map(value => JSON.stringify(value)).join(', ')}, 0, false, false, false, false, starts: ${starts}),`;
+    });
+    writeOrVerify(catalogPath, `// Generated by tools/Convert-AiSkirmish.cjs from the native multiplayer maps.\nnamespace OpenZ\n{\n    public static partial class OzAiMapCatalog\n    {\n        public static readonly OzAiMap[] MultiplayerMaps =\n        {\n${rows.join('\n')}\n        };\n    }\n}\n`);
+    console.log(`${check ? 'Verified' : 'Prepared'} ${results.length} map grids: ` + [3, 4, 8]
+        .map(starts => `${results.filter(({meta}) => meta.starts === starts).length} × ${starts} starts`).join(', '));
+}
+
+if (require.main === module) run(process.argv.slice(2));
+module.exports = { prepare };

@@ -207,7 +207,7 @@ namespace OpenZ.Multiplayer
             var wordmark = Hud.Kit(root, "ForkWordmark", "Wordmarks/wm_openz_vk_menu", new OzRect(80, 4, 300, 100), null, Image.Type.Simple);
             wordmark.preserveAspect = true; wordmark.enabled = wordmark.sprite != null;
             if (!wordmark.sprite) Label(root, "OpenZ-VK", 80, 40, 370, 57, OzForkOptions.Brand);
-            Label(root, page == Page.Skirmish ? "LOCAL SKIRMISH" : "DUEL · 1VS1", 80, 108, 800, 22, OzUi.Ink);
+            Label(root, page == Page.Skirmish ? "LOCAL SKIRMISH" : page == Page.Connect ? "MULTIPLAYER" : "DUEL · 1 VS 1", 80, 108, 800, 22, OzUi.Ink);
             ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
             if (page == Page.Connect) BuildConnect();
             else if (page == Page.Skirmish) BuildSkirmish();

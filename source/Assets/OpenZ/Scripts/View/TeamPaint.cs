@@ -3,7 +3,7 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>Stable owner identities used by the simulation and the map format.</summary>
-    public enum Team { Neutral = 0, Red = 1, Blue = 2, Green = 3 }
+    public enum Team { Neutral = 0, Red = 1, Blue = 2, Green = 3, Yellow = 4, Purple = 5, Teal = 6, White = 7, Black = 8 }
 
     public static class TeamColors
     {
@@ -13,6 +13,8 @@ namespace OpenZ
         public static readonly Color Red = new Color32(176, 40, 30, 255);
         public static readonly Color Blue = new Color32(47, 79, 168, 255);
         public static readonly Color Green = new Color32(55, 128, 63, 255);
+        static readonly Color Yellow = new Color32(202, 150, 39, 255), Purple = new Color32(130, 75, 164, 255),
+            Teal = new Color32(47, 157, 155, 255), White = new Color32(224, 224, 215, 255), Black = new Color32(64, 68, 78, 255);
         public static readonly Color Neutral = new Color32(122, 116, 106, 255);
 
         // default 0 = red). VIEW ONLY: the player's side (sim Red) is drawn blue and the CPU (sim Blue) red on every unit,
@@ -33,7 +35,11 @@ namespace OpenZ
         /// human is blue (PLAY AS BLUE, View/OzPlayBlue.cs). Then the texts are turned (Words) and voice takes that name a colour are left out.</summary>
         public static bool WordsFlip => Swap || OzPlayBlue.Active;
         /// <summary>"RED" / "BLUE" as displayed (neutral: "NEUTRAL").</summary>
-        public static string Name(Team t) => Shown(t) switch { Team.Red => "RED", Team.Blue => "BLUE", Team.Green => "GREEN", _ => "NEUTRAL" };
+        public static string Name(Team t) => Shown(t) switch
+        {
+            Team.Red => "RED", Team.Blue => "BLUE", Team.Green => "GREEN", Team.Yellow => "YELLOW", Team.Purple => "PURPLE",
+            Team.Teal => "TEAL", Team.White => "WHITE", Team.Black => "BLACK", _ => "NEUTRAL",
+        };
         /// <summary>Kit / portrait key of the displayed colour: "red" / "blue" / "neutral".</summary>
         public static string Key(Team t) { var s = Shown(t); return s == Team.Red ? "red" : s == Team.Blue ? "blue" : "neutral"; }
         static readonly System.Text.RegularExpressions.Regex ColourWord = new System.Text.RegularExpressions.Regex(@"\b(red|blue)(s?)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -76,7 +82,13 @@ namespace OpenZ
         }
         static readonly System.Collections.Generic.Dictionary<Sprite, Sprite> swapped = new System.Collections.Generic.Dictionary<Sprite, Sprite>();
 
-        public static Color Of(Team t) => Shown(t) switch { Team.Red => Red, Team.Blue => Blue, Team.Green => Green, _ => Neutral };
+        public static Color Of(Team t) => OriginalPaint(Shown(t));
+
+        internal static Color OriginalPaint(Team t) => t switch
+        {
+            Team.Red => Red, Team.Blue => Blue, Team.Green => Green, Team.Yellow => Yellow, Team.Purple => Purple,
+            Team.Teal => Teal, Team.White => White, Team.Black => Black, _ => Neutral,
+        };
         public static Color Paint(Team t) => Of(t);
 
         // rims, LINEAR (TeamPaint sets them with SetVector, no second sRGB -> linear step). Same hues as above (brick red,
@@ -95,8 +107,7 @@ namespace OpenZ
         public static Color DiscBlue => Swap ? discRed : discBlue;
         public static readonly Color DiscEmpty = new Color(0.86f, 0.86f, 0.84f, 1f);
 
-        public static Team Parse(string owner) =>
-            owner == "red" ? Team.Red : owner == "blue" ? Team.Blue : owner == "green" ? Team.Green : Team.Neutral;
+        public static Team Parse(string owner) => Sim.ZMapData.ParseOwner(owner);
     }
 
     /// <summary>

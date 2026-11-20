@@ -9,15 +9,15 @@ namespace OpenZ
     {
         public const string ExperimentalGroup = "EXPERIMENTAL";
         public readonly string Id, Name, World, File;
-        public readonly int Number;
+        public readonly int Number, Starts;
         public readonly bool Solo, Duel, Balanced, SoloException, ForkOriginal, Experimental;
         public string Scene => Id + "_Converted";
         public string ScenePath => "Packages/org.openz.aimaps/Scenes/" + Scene + ".unity";
         public string Group => Experimental ? ExperimentalGroup : ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
         public string Title => (Number > 0 ? Number.ToString("00") + " · " : "") + Name;
         public string Variant => "V3";
-        public OzAiMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false, bool experimental = false)
-        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; Experimental=experimental; }
+        public OzAiMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false, bool experimental = false, int starts = 2)
+        { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; Experimental=experimental; Starts=starts; }
     }
 
     public static partial class OzAiMapCatalog
@@ -35,19 +35,25 @@ namespace OpenZ
         };
         public static readonly OzAiMap ChillyWillyV2 = new OzAiMap(
             "SMChillyWillyV2", "Chilly Willy", "arctic", "vk_chilly_willy.map", 0, true, false, false, false, forkOriginal: true);
-        public static readonly OzAiMap ThreePlayerSkirmish = new OzAiMap(
-            "SMP03M01", "Desert · P03M01", "desert", "p03_bb_p03m01.map", 0, false, false, false, false);
+        public static OzAiMap ThreePlayerSkirmish => Find("SMP03M01");
         public static IEnumerable<OzAiMap> V2 => LandV2.Concat(VolcanicV2).Append(ChillyWillyV2);
         public static IEnumerable<OzAiMap> Playable => All.Append(ChillyWillyV2);
 
-        public static OzAiMap Find(string id) => id == ThreePlayerSkirmish.Id ? ThreePlayerSkirmish : Playable.FirstOrDefault(m => m.Id == id);
+        public static OzAiMap Find(string id) => Playable.FirstOrDefault(m => m.Id == id) ?? Array.Find(MultiplayerMaps, m => m.Id == id);
         public static bool IsDuelMap(string id) => Find(id)?.Duel == true;
+        public static OzAiMap[] SelectMultiplayer(int starts, string group, string world, int sort) => starts == 2
+            ? Select(false, group, world, sort)
+            : Sort(MultiplayerMaps.Where(m => m.Starts == starts && (world == "all" || m.World == world)), sort);
+
         public static OzAiMap[] Select(bool solo, string group = "ALL", string world = "all", int sort = 0)
         {
             var maps = Playable.Where(m => (solo ? m.Solo : m.Duel) && (group == "ALL" || m.Group == group) && (world == "all" || m.World == world));
-            return (sort == 1 ? maps.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase).ThenBy(m => m.Number)
+            return Sort(maps, sort);
+        }
+
+        static OzAiMap[] Sort(IEnumerable<OzAiMap> maps, int sort) =>
+            (sort == 1 ? maps.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase).ThenBy(m => m.Number)
                 : sort == 2 ? maps.OrderBy(m => m.World).ThenBy(m => m.Number == 0 ? 999 : m.Number).ThenBy(m => m.Name)
                 : maps.OrderBy(m => m.Number == 0 ? 999 : m.Number).ThenBy(m => m.Name)).ToArray();
-        }
     }
 }

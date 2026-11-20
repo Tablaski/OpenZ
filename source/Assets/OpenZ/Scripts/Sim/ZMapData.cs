@@ -46,6 +46,13 @@ namespace OpenZ.Sim
 
         public static ZMapData FromJson(string json) => UnityEngine.JsonUtility.FromJson<ZMapData>(json);
 
+        public static Team ParseOwner(string owner) => owner switch
+        {
+            "red" => Team.Red, "blue" => Team.Blue, "green" => Team.Green, "yellow" => Team.Yellow,
+            "purple" => Team.Purple, "teal" => Team.Teal, "white" => Team.White, "black" => Team.Black,
+            _ => Team.Neutral,
+        };
+
         public ZClass ClassAt(int tx, int ty) =>
             tx < 0 || ty < 0 || tx >= width || ty >= height ? ZClass.Impassable : (ZClass)classes[ty * width + tx];
 

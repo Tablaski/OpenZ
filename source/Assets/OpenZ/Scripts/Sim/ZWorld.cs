@@ -99,14 +99,7 @@ namespace OpenZ.Sim
         }
 
         // ------------------------------------------------------------------ object creation (zserver.cpp:623-833)
-        static Team ParseOwner(string owner) => owner switch
-        {
-            "red" => Team.Red,
-            "blue" => Team.Blue,
-            "green" => Team.Green,
-            _ => Team.Neutral,
-        };
-
+        static Team ParseOwner(string owner) => ZMapData.ParseOwner(owner);
         public void ConfigureThreePlayerSkirmish(ZBotDifficulty blue, ZBotDifficulty green, int seed)
         {
             if (!Map.skirmish || Bots.Count != 0 || !Objects.Where(o => o.IsFort).Select(o => o.Owner)

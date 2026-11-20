@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using OpenZ;
+using OpenZ.Multiplayer;
 using OpenZ.Sim;
 
 static class SkirmishChecks
@@ -11,6 +12,8 @@ static class SkirmishChecks
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
         var entry = OzAiMapCatalog.ThreePlayerSkirmish;
         string settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
+        CheckMapFilters(root, settings, check);
+        CheckMatchSeats(check);
         string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
         var world = ZWorld.Create(settings, grid, 12);
         var teams = new[] { Team.Red, Team.Blue, Team.Green };
@@ -33,5 +36,46 @@ static class SkirmishChecks
         world.UpdateObjectHealth(blue);
         for (int i = 0; i < 150; i++) world.Tick(ZConst.TICK);
         check(world.GameOver && world.Winner == Team.Green, "The last remaining contender wins, including green");
+    }
+
+    static void CheckMapFilters(string root, string settings, Action<bool, string> check)
+    {
+        check(OzAiMapCatalog.SelectMultiplayer(2, "ALL", "all", 0).SequenceEqual(OzAiMapCatalog.Select(false)), "Two-start filter preserves the duel catalogue");
+        foreach (var (starts, expected) in new[] { (3, 10), (4, 11), (8, 2) })
+        {
+            var maps = OzAiMapCatalog.SelectMultiplayer(starts, "ALL", "all", 0);
+            check(maps.Length == expected, $"The {starts}-start filter lists all {expected} maps");
+            foreach (var entry in maps)
+            {
+                string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+                var world = ZWorld.Create(settings, grid, 12);
+                var forts = world.Objects.Where(o => o.IsFort).Select(o => (int)o.Owner).OrderBy(owner => owner);
+                check(forts.SequenceEqual(Enumerable.Range(1, starts)), entry.Id + " retains each native fort owner");
+                check(!DuelRules.IsMapAllowed(entry.Id), entry.Id + " remains unavailable to a two-seat duel");
+            }
+        }
+        check(OzAiMapCatalog.SelectMultiplayer(8, "ALL", "jungle", 0).Single().Name == "Hunters", "Terrain and capacity filters combine");
+        check(OzAiMapCatalog.SelectMultiplayer(6, "ALL", "all", 0).Length == 0, "Deferred P06 stays outside the map selector");
+    }
+
+    static void CheckMatchSeats(Action<bool, string> check)
+    {
+        var human = new MatchSeatAssignment(MatchSeatRole.Human, 0);
+        var extra = new MatchSeatAssignment(MatchSeatRole.Human, -1);
+        var bot1 = new MatchSeatAssignment(MatchSeatRole.Bot, 1);
+        var bot2 = new MatchSeatAssignment(MatchSeatRole.Bot, 2);
+        var observer = new MatchSeatAssignment(MatchSeatRole.Observer, -1);
+        MatchStartBlocker Start(params MatchSeatAssignment[] assignments) => MultiplayerMatchSeats.Check(3, assignments);
+        check(Start(human, bot1, observer) == MatchStartBlocker.EmptyStartingPositions, "Ghosts cannot fill a map start");
+        check(Start(human, bot1, bot2, extra) == MatchStartBlocker.UnassignedPlayer, "A human in excess prevents launch");
+        check(Start(human, bot1, bot2, new MatchSeatAssignment(MatchSeatRole.Human, 3)) == MatchStartBlocker.UnassignedPlayer,
+            "A human cannot use an old position after switching to a smaller map");
+        check(Start(human, bot1, bot2, observer) == MatchStartBlocker.None, "Enough active seats plus observers can launch");
+        check(Start(human, human, bot1, bot2) == MatchStartBlocker.InvalidAssignment, "A starting place cannot be shared");
+        check(Start(new MatchSeatAssignment(MatchSeatRole.Bot, 0), bot1, bot2, observer) == MatchStartBlocker.NoActiveHuman,
+            "The room requires an active human");
+        check(human.MayUsePlayerCommands && !observer.MayUsePlayerCommands && !bot1.MayUsePlayerCommands, "Only assigned humans have player commands");
+        check(observer.MayFollow(human) && !observer.MayFollow(bot1) && !observer.MayFollow(observer), "Ghost can follow an active human only");
+        check(observer.SharesMatchChatWith(observer) && !observer.SharesMatchChatWith(human) && !human.SharesMatchChatWith(observer), "Observer and active match chat are separate");
     }
 }

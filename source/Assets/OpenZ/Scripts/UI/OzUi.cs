@@ -29,7 +29,11 @@ namespace OpenZ
 
         public static Color A(Color32 c, float a) { Color k = c; k.a = a; return k; }
         /// <summary>UI mark colour of a team (brackets, dots, minimap): RED_HI / BLUE_HI / NEUTRAL.</summary>
-        public static Color Mark(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? RedHi : t == Team.Blue ? BlueHi : t == Team.Green ? new Color32(135, 207, 106, 255) : Neutral;
+        public static Color Mark(Team t) => TeamColors.Shown(t) switch
+        {
+            Team.Red => RedHi, Team.Blue => BlueHi, Team.Green => new Color32(135, 207, 106, 255),
+            Team.Neutral => Neutral, var owner => Color.Lerp(TeamColors.OriginalPaint(owner), Color.white, .25f),
+        };
         /// <summary>Team paint for chips and strength bars: RED / BLUE / NEUTRAL_DEEP.</summary>
         public static Color TeamPaint(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? Red : t == Team.Blue ? Blue : t == Team.Green ? TeamColors.Green : NeutralDeep;
         /// <summary>Team-coloured text (only for type >= 14 u, guide 2.1).</summary>

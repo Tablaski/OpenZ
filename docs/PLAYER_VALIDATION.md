@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.12 multiplayer map filters
+
+- Pending compiled-game check: open Multiplayer, create a duel and browse the AI Maps gallery through 2, 3, 4 and 8 Players. Check the terrain filters, tactical owner colors, preview-only status and that the official map selection remains unchanged when returning from a larger format. Apply a two-player map and confirm the guest receives it. Verify the Solo gallery and invitation flow.
+
 ## OpenZ-VK 1.5.11 force bar
 
 - Pending compiled-game check: in Solo and 1 vs 1, switch between Units, Attacking Power and Both using Game options. Check that unit counts carry only the unit limit, that each percentage sits next to its attacking power score in both power views, and that the second row clears the territory tab. Check the two local preferences independently after restarting, including a migrated 1.5.10 preference, and verify the display at 16:9 and ultrawide resolutions.

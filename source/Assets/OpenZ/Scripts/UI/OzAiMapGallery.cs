@@ -14,8 +14,10 @@ namespace OpenZ
     {
         public static bool IsOpen { get; private set; }
         bool solo, editable;
-        string selected, group, world = "all";
+        string selected, officialSelection, group, world = "all";
         int sort;
+        int starts = 2;
+        static readonly int[] MultiplayerCapacities = { 2, 3, 4, 8 };
         float scrollPosition=1;
         readonly Dictionary<string,Texture> previews=new Dictionary<string,Texture>();
         readonly List<Texture> generatedPreviews=new List<Texture>();
@@ -42,7 +44,7 @@ namespace OpenZ
             var entry = OzAiMapCatalog.Find(selected);
             gallery.solo=solo; gallery.editable=editable; gallery.apply=apply; gallery.closed=closed;
             bool selectable = entry != null && (solo ? entry.Solo : entry.Duel);
-            gallery.selected = selectable ? selected : null;
+            gallery.selected = gallery.officialSelection = selectable ? selected : null;
             gallery.group = selectable ? entry.Group : "Z ORIGINAL";
             var canvas=go.GetComponent<Canvas>(); canvas.renderMode=RenderMode.ScreenSpaceOverlay; // Above DuelCanvas (1000), including its full-screen input blocker.
             canvas.sortingOrder=1100;
@@ -68,19 +70,34 @@ namespace OpenZ
             var wordmark=Hud.Kit(panel,"ForkWordmark","Wordmarks/wm_openz_vk_menu",new OzRect(24,8,160,48),null,Image.Type.Simple);
             wordmark.preserveAspect=true; wordmark.enabled=wordmark.sprite!=null;
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
-            InlineTitle(panel,"Gallery title",solo ? "AI MAPS · SOLO" : "AI MAPS · 1 VS 1",24,65,1400,44,30);
+            InlineTitle(panel,"Gallery title",solo ? "AI MAPS · SOLO" : "AI MAPS · MULTIPLAYER",24,65,1400,44,30);
             Button(panel,"CLOSE",1510,20,220,Close);
             var groups = solo
                 ? new[] { "Z ORIGINAL", "Z EXPANSION", "OPENZ-VK", OzAiMap.ExperimentalGroup }
                 : new[] { "Z ORIGINAL", "Z EXPANSION", "MULTIPLAYER", "OPENZ", OzAiMap.ExperimentalGroup };
             float tabStep = Mathf.Min(420, 1726f / groups.Length);
-            for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*tabStep,118,tabStep-20,()=>{group=value;scrollPosition=1;Build();},group==value); }
+            if (solo || starts == 2)
+                for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*tabStep,118,tabStep-20,()=>{group=value;scrollPosition=1;Build();},group==value); }
+            else
+                Label(panel, $"{starts} STARTING POSITIONS · TACTICAL PREVIEWS", 24, 132, 1100, 17, OzUi.Muted);
             var worlds=new[]{"all","desert","volcanic","arctic","jungle","city"};
             for(int i=0;i<worlds.Length;i++) { string value=worlds[i]; Button(panel,value.ToUpperInvariant(),24+i*222,180,210,()=>{world=value;scrollPosition=1;Build();},world==value); }
             Button(panel,"SORT: "+new[]{"NUMBER","NAME","WORLD"}[sort],1380,180,350,()=>{sort=(sort+1)%3;scrollPosition=1;Build();});
-            Label(panel,solo ? "Solo campaigns and OpenZ-VK maps." : editable ? "The host must approve any change to the official map selection." : "READ ONLY · browse the converted maps.",24,240,1700,16,OzUi.Muted);
-            var maps = group == "OPENZ" ? OzLevelDef.All.Where(d => world == "all" || World(d.Id) == world).ToArray()
-                : OzAiMapCatalog.Select(solo, group, world, sort).Select(Definition).ToArray();
+            if (solo) Label(panel,"Solo campaigns and OpenZ-VK maps.",24,240,1700,16,OzUi.Muted);
+            else for (int i = 0; i < MultiplayerCapacities.Length; i++)
+            {
+                int capacity = MultiplayerCapacities[i];
+                Button(panel, $"{capacity} PLAYERS", 24 + i * 205, 234, 193, () =>
+                {
+                    if (starts == capacity) return;
+                    starts = capacity;
+                    selected = capacity == 2 ? officialSelection : null;
+                    scrollPosition = 1;
+                    Build();
+                }, starts == capacity, height: 34);
+            }
+            var maps = group == "OPENZ" && starts == 2 ? OzLevelDef.All.Where(d => world == "all" || World(d.Id) == world).ToArray()
+                : (solo ? OzAiMapCatalog.Select(true, group, world, sort) : OzAiMapCatalog.SelectMultiplayer(starts, group, world, sort)).Select(Definition).ToArray();
             Label(panel,maps.Length+" MAPS",24,278,800,15,OzUi.Muted);
             var viewport=Hud.Node("Map viewport",panel); viewport.TL(24,310,1120,ViewportHeight); viewport.gameObject.AddComponent<RectMask2D>();
             var background=viewport.gameObject.AddComponent<Image>(); background.color=OzUi.GM950;
@@ -95,7 +112,7 @@ namespace OpenZ
                 card.name = "MAP " + map.Id;
                 var mini=Hud.Node("Minimap",card).gameObject.AddComponent<RawImage>(); mini.texture=Preview(map.Id); float ratio=mini.texture ? (float)mini.texture.width/mini.texture.height : 1; float width=Mathf.Min(250,155*ratio),height=width/ratio; mini.rectTransform.TL(8+(250-width)/2,8+(155-height)/2,width,height); mini.raycastTarget=false;
                 if(mini.texture) mini.uvRect=new Rect(0,0,1,1);
-                if (entry != null)
+                if (entry != null && entry.Starts == 2)
                 {
                     var video = Hud.Node("Preview video", card).gameObject.AddComponent<RawImage>();
                     video.rectTransform.TL(8, 8, 250, 155);
@@ -104,16 +121,17 @@ namespace OpenZ
                     videoCards.Add((map.Id, video, top + 8));
                 }
                 InlineTitle(card,"Map title",entry?.Title ?? map.Id+" · "+map.Name,10,166,246,32,17);
-                Label(card,World(map.Id).ToUpperInvariant()+" · "+(entry?.Variant ?? "OPENZ"),10,204,246,12,OzUi.Muted);
-                if(entry!=null && !solo && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
+                Label(card, World(map.Id).ToUpperInvariant()+" · "+(entry?.Starts > 2 ? entry.Starts + " PLAYERS" : entry?.Variant ?? "OPENZ"),10,204,246,12,OzUi.Muted);
+                if(entry!=null && !solo && entry.Starts == 2 && !entry.Balanced) Icon(card,WarningSprite(),10,10,28);
             }
             if(maps.Length==0) Label(grid,"No maps in this filter.",24,40,1000,22,OzUi.Muted);
             var chosen=maps.FirstOrDefault(map => map.Id == selected);
             if(chosen!=null)
             {
                 var entry=OzAiMapCatalog.Find(selected);
-                selectedFlyby = chosen.Id;
-                if (entry != null)
+                bool previewOnly = entry?.Starts > 2;
+                if (!previewOnly) selectedFlyby = chosen.Id;
+                if (entry != null && !previewOnly)
                 {
                     flybyBackdrop = Hud.Node("Selected map background", panel).gameObject.AddComponent<RawImage>();
                     flybyBackdrop.rectTransform.TL(1160, 278, 588, 582);
@@ -126,17 +144,28 @@ namespace OpenZ
                 float ratio = mini.texture ? (float)mini.texture.width / mini.texture.height : 1;
                 float w = Mathf.Min(540, 287 * ratio), h = w / ratio;
                 mini.rectTransform.TL(1180 + (540 - w) / 2, 344 + (287 - h) / 2, w, h);
-                var window = Hud.Node("Map video", panel);
-                window.TL(1314, 642, 272, 153);
-                flybyImage = window.gameObject.AddComponent<RawImage>();
-                flybyImage.raycastTarget = false;
-                flybyImage.texture = Texture2D.blackTexture;
-                if (entry != null) OzAiMapBadge.Stamp(window, 272);
-                Label(panel, (entry?.Group ?? "OPENZ") + " · " + World(selected).ToUpperInvariant(), 1180, 805, 550, 14, OzUi.Amber);
-                Button(panel, solo ? "DEPLOY" : "APPLY MAP", 1180, 875, 550, () => Deploy(chosen, apply), true, editable);
+                if (previewOnly)
+                {
+                    OzAiMapBadge.Stamp(mini.rectTransform, w);
+                    Label(panel, $"{entry.Starts} PLAYERS · {entry.World.ToUpperInvariant()}", 1180, 670, 550, 18, OzUi.Amber);
+                    Label(panel, "Tactical preview. This lobby supports two players.", 1180, 723, 550, 18, OzUi.Ink);
+                }
+                else
+                {
+                    var window = Hud.Node("Map video", panel);
+                    window.TL(1314, 642, 272, 153);
+                    flybyImage = window.gameObject.AddComponent<RawImage>();
+                    flybyImage.raycastTarget = false;
+                    flybyImage.texture = Texture2D.blackTexture;
+                    if (entry != null) OzAiMapBadge.Stamp(window, 272);
+                    Label(panel, (entry?.Group ?? "OPENZ") + " · " + World(selected).ToUpperInvariant(), 1180, 805, 550, 14, OzUi.Amber);
+                }
+                Button(panel, solo ? "DEPLOY" : "APPLY MAP", 1180, 875, 550, () => Deploy(chosen, apply), true, editable && !previewOnly);
             }
             else Label(panel,"Select a map to inspect its layout.",1180,355,550,22,OzUi.Muted);
-            Label(panel,"Source layout preview · lobby army rules apply in 1v1",24,902,1120,14,OzUi.Muted);
+            Label(panel, !solo && starts > 2 ? "Source layout preview · more than two starting positions"
+                : !solo && !editable ? "READ ONLY · browse the converted maps"
+                : "Source layout preview · lobby army rules apply in 1 vs 1",24,902,1120,14,OzUi.Muted);
         }
         void Deploy(OzLevelDef map, Action<OzLevelDef> deploy)
         {

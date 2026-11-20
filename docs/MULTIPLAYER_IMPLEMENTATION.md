@@ -28,11 +28,19 @@
 - P06 is deferred. The sole local file with that prefix, `p06_Merged_Map.map`, has eight distinct owned forts and is an eight-start layout.
 - P08 has two files, including Hunters.
 
+The 23 selected native files and grids are packaged. Multiplayer AI Maps presents 2, 3, 4 and 8 starting-position filters. The duel only accepts two-start maps. The larger layouts are available as tactical previews while their scenes and match paths are being developed. Run `node tools/Convert-AiSkirmish.cjs --check` to verify the grid outputs and catalogue against the packaged maps.
+
+## Active seats and Ghost
+
+The host may launch only when every map start has exactly one human or bot, with at least one active human. Extra humans must be assigned as observers or leave the room. Reduce the roster or choose a larger map for an over-capacity setup. Fill an empty start with a bot or choose a smaller map. Observers never consume a map start and cannot issue game orders, surrender, request a map change or vote on it.
+
+Ghost is an optional spectator mode. A ghost can switch between surviving human players, follow their camera, zoom and cursor, or move independently. Provide a button and keyboard shortcut to toggle following, recenter on the selected player and switch between their fog view and full visibility. AI seats are excluded from the follow list. If no human remains, use free camera while the bots finish. Ghosts use their own text and voice channels during the match. Keep the world updates the observer already receives and relay only the extra view state for the selected human.
+
 ## Validation awaiting a compiled game
 
 ### P03M01 local skirmish
 
-Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native map and grid. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the package scene and tactical image and registers the scene in Build Settings. Only then does Play 1 vs 1 show **Local Skirmish with Bots**. This entry is offline and only offers free-for-all on P03M01.
+Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native maps, grids and catalogue. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the P03M01 package scene and tactical image and registers the scene in Build Settings. Only then does Multiplayer show **Local Skirmish with Bots**. This entry is offline and only offers free-for-all on P03M01.
 
 The headless check confirms all three native forts, independent Easy and Normal bot settings, surrender with two surviving opponents, and a green victory. Manual validation still covers the actual 3D conversion, pathing, green map markers, the Force Bar options, the observer camera and the result screen.
 

@@ -367,7 +367,9 @@ namespace OpenZ
 
         void DrawRadarSweeps()
         {
-            const float period = 3.4f, sweepTime = 2.1f;
+            if (radarUsed == 0) return;
+            const float sweepTime = 2.1f;
+            float period = OzMapReadabilityOptions.RadarSweepSeconds;
             bool animate = !OzMotion.Reduced;
             float now = OzMotion.Now;
             for (int i = 0; i < radarUsed; i++)

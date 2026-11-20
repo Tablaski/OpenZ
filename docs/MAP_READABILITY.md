@@ -19,6 +19,8 @@ player chooses their own presentation; no simulation or network rules change.
   active friendly radars, and the radar's marker lights up white during the
   sweep. Reduced Motion keeps the outlines. Radar Loss set to Off uses the
   standard OpenZ minimap.
+- **RADAR SWEEP INTERVAL**: Choose 3, 5 or 10 seconds between sweeps from each
+  active friendly radar. The default is 3 seconds.
 
 The reference is local Zod Engine's `ZMap::SetupAllZoneInfo` and `DoZoneEffects`
 in `src/zmap.cpp`: owner-coloured markers along passable perimeter tiles, with

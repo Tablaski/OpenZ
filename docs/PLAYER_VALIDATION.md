@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.7 radar sweep interval
+
+- Pending manual check: cycle through 3, 5 and 10 seconds in the main menu and the pause menu. Time consecutive sweeps from the same radar in Solo and 1 vs 1, check the value survives a restart, and verify that two 1 vs 1 players can use different intervals.
+
 ## OpenZ-VK 1.5.6 radar sweep
 
 - Pending solo and 1 vs 1 check: select Radar Loss Off with Minimap Radars enabled and compare the minimap with stock OpenZ, including Mayhem's original fog reveal in solo. Test Fog, Zoom Lock and Fog + Zoom, and check that a friendly radar's marker lights up white during each white sweep and returns to its team color between sweeps. Check Reduced Motion, the local Minimap Radars toggle, and that a guest's display follows the host's selected consequence.

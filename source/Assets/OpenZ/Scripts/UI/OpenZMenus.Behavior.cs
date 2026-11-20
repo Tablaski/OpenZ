@@ -11,6 +11,7 @@ namespace OpenZ
             AddCycle(p, toggles.Count, OzMapReadabilityOptions.FlagLabel, () => OzMapReadabilityOptions.FlagName, OzMapReadabilityOptions.StepFlag);
             AddCycle(p, toggles.Count, OzMapReadabilityOptions.BorderLabel, () => OzMapReadabilityOptions.BorderName, OzMapReadabilityOptions.StepBorder);
             AddToggle(p, toggles.Count, OzMapReadabilityOptions.RadarLabel, () => OzMapReadabilityOptions.Radars, value => OzMapReadabilityOptions.Radars = value);
+            AddCycle(p, toggles.Count, OzMapReadabilityOptions.RadarSweepLabel, () => OzMapReadabilityOptions.RadarSweepName, OzMapReadabilityOptions.StepRadarSweep);
         }
     }
     public partial class OpenZPauseMenu
@@ -33,6 +34,10 @@ namespace OpenZ
             borderSize.row.OnClick = c => OzMapReadabilityOptions.StepBorder(c.right || c.shift ? -1 : Arrow(borderSize));
             borderSize.row.OnRightClick = c => OzMapReadabilityOptions.StepBorder(-1);
             AddToggle(p, toggles.Count, OzMapReadabilityOptions.RadarLabel, () => OzMapReadabilityOptions.Radars, value => OzMapReadabilityOptions.Radars = value);
+            AddToggle(p, toggles.Count, OzMapReadabilityOptions.RadarSweepLabel, null, null, true);
+            var radarSweep = toggles[toggles.Count - 1];
+            radarSweep.row.OnClick = c => OzMapReadabilityOptions.StepRadarSweep(c.right || c.shift ? -1 : Arrow(radarSweep));
+            radarSweep.row.OnRightClick = c => OzMapReadabilityOptions.StepRadarSweep(-1);
         }
     }
 }

@@ -4,6 +4,10 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.7 (20 Nov 2026)
+
+- Solo + 1 vs 1 — Choose a radar sweep interval of 3, 5 or 10 seconds in Options → Game.
+
 ## OpenZ-VK 1.5.6 (20 Nov 2026)
 
 - Solo + 1 vs 1 — With a Radar Loss Consequence selected, owned radar markers light up white as their white sweep expands. Selecting Off restores the standard OpenZ radar markers and minimap behavior.

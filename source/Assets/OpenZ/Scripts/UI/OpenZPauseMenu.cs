@@ -535,6 +535,7 @@ namespace OpenZ
             {
                 if (t.label == OzForkOptions.ChatLabel) { t.value.Set(OzForkOptions.ChatName); continue; }
                 if (t.label == OzMapReadabilityOptions.BorderLabel) { t.value.Set(OzMapReadabilityOptions.BorderName); continue; }
+                if (t.label == OzMapReadabilityOptions.RadarSweepLabel) { t.value.Set(OzText.Tab($"◀  {OzMapReadabilityOptions.RadarSweepName}  ▶")); continue; }
                 if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }
                 if (t.label == OzBehaviorLibrary.RobotsLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Robots)); continue; }
                 if (t.label == OzMapReadabilityOptions.FlagLabel) { t.value.Set(OzText.Tab("◀  " + OzMapReadabilityOptions.FlagName + "  ▶")); continue; }

@@ -38,6 +38,7 @@ static class Program
     {
         SkirmishChecks.Run(Check);
         MultiplayerRoomChecks.Run(Check, Reject);
+        MultiplayerRoomLinkChecks.Run(Check);
         MapChangeVoteChecks.Run(Check);
         MotionInterpolationChecks.Run(Check);
         var lobby = new DuelLobby();

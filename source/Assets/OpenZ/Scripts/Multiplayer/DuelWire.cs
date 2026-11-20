@@ -10,7 +10,8 @@ namespace OpenZ.Multiplayer
     {
         Hello = 1, Welcome, Lobby, ChangeRules, Ready, Chat, Load, Loaded, Start,
         Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport,
-        DeltaBinaryEvents, DeltaCompressed, Rename, MatchRequest, MatchRequestState, MatchReconnectState, MatchReconnectReady, MatchPause
+        DeltaBinaryEvents, DeltaCompressed, Rename, MatchRequest, MatchRequestState, MatchReconnectState, MatchReconnectReady, MatchPause,
+        RoomCommand, RoomSnapshot, RoomOrder, RoomBattlefield
     }
 
     public sealed class DuelPacket

@@ -156,6 +156,22 @@ namespace OpenZ.Multiplayer
             loaded.Add(sender);
         }
 
+        public Team HumanTeam(string id)
+        {
+            var seat = Member(id).Seat;
+            return Launched && seat.MayUsePlayerCommands ? (Team)(seat.Position + 1) : Team.Neutral;
+        }
+
+        public void ConfigureFreeForAllWorld(ZWorld world, int seed)
+        {
+            if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
+                throw new InvalidOperationException("The loaded battlefield must match the launched room.");
+            var alliances = members.Values.Where(member => member.Seat.MayUsePlayerCommands).Select(member => member.Alliance)
+                .Concat(bots.Values.Select(bot => bot.Alliance));
+            if (alliances.Distinct().Count() != Starts) throw new InvalidOperationException("Free-for-all requires a distinct alliance per position.");
+            world.ConfigureSkirmishBots(Bots.Select(bot => ((Team)(bot.Position + 1), bot.Difficulty)), seed);
+        }
+
         void InvalidateReady()
         {
             Revision++;

@@ -100,13 +100,19 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ object creation (zserver.cpp:623-833)
         static Team ParseOwner(string owner) => ZMapData.ParseOwner(owner);
-        public void ConfigureThreePlayerSkirmish(ZBotDifficulty blue, ZBotDifficulty green, int seed)
+        public void ConfigureThreePlayerSkirmish(ZBotDifficulty blue, ZBotDifficulty green, int seed) =>
+            ConfigureSkirmishBots(new[] { (Team.Blue, blue), (Team.Green, green) }, seed);
+
+        internal void ConfigureSkirmishBots(IEnumerable<(Team Team, ZBotDifficulty Difficulty)> assignments, int seed)
         {
             if (!Map.skirmish || Bots.Count != 0 || !Objects.Where(o => o.IsFort).Select(o => o.Owner)
                 .OrderBy(owner => owner).SequenceEqual(new[] { Team.Red, Team.Blue, Team.Green }))
                 throw new InvalidOperationException("The local skirmish requires three distinct forts and an empty bot roster.");
-            Bots.Add(new ZBot(this, Team.Blue, ZBot.SeedFor(Team.Blue, seed)) { Difficulty = blue });
-            Bots.Add(new ZBot(this, Team.Green, ZBot.SeedFor(Team.Green, seed)) { Difficulty = green });
+            var bots = assignments.ToArray();
+            if (bots.Length > 2 || bots.Any(bot => bot.Team < Team.Red || bot.Team > Team.Green) ||
+                bots.Select(bot => bot.Team).Distinct().Count() != bots.Length)
+                throw new ArgumentException("Invalid bot assignments for this skirmish.", nameof(assignments));
+            foreach (var bot in bots) Bots.Add(new ZBot(this, bot.Team, ZBot.SeedFor(bot.Team, seed)) { Difficulty = bot.Difficulty });
         }
 
         /// <summary>

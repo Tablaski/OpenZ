@@ -4,7 +4,12 @@ namespace UnityEngine
 {
     public static class JsonUtility
     {
-        public static T FromJson<T>(string json) => System.Text.Json.JsonSerializer.Deserialize<T>(json,
+        public static string ToJson(object value) => System.Text.Json.JsonSerializer.Serialize(value,
             new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+        public static T FromJson<T>(string json)
+        {
+            try { return System.Text.Json.JsonSerializer.Deserialize<T>(json, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }); }
+            catch (System.Text.Json.JsonException error) { throw new System.ArgumentException("Invalid JSON.", error); }
+        }
     }
 }

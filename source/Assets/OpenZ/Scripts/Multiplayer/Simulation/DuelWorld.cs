@@ -39,10 +39,15 @@ namespace OpenZ.Sim
         double windowStart;
         int windowCount;
         public DuelOrderReceiver(ZWorld world, int slot)
+            : this(world, slot == 0 ? Team.Red : slot == 1 ? Team.Blue : throw new ArgumentOutOfRangeException(nameof(slot))) { }
+
+        internal DuelOrderReceiver(ZWorld world, Team team)
         {
             this.world = world ?? throw new ArgumentNullException(nameof(world));
-            if (slot != 0 && slot != 1) throw new ArgumentOutOfRangeException(nameof(slot));
-            team = slot == 0 ? Team.Red : Team.Blue;
+            if (team == Team.Neutral || (team != Team.Red && team != Team.Blue &&
+                (!world.Map.skirmish || !world.Objects.Any(o => o.IsFort && o.Owner == team))))
+                throw new ArgumentOutOfRangeException(nameof(team));
+            this.team = team;
         }
 
         public bool QueueOpeningOrder(DuelOrder order)
@@ -181,6 +186,13 @@ namespace OpenZ.Sim
             ApplyDuelFactoryTech();
             DuelUpdateFortBonus();
             FilterProductionRoster();
+        }
+
+        internal void ConfigureSkirmishReplica()
+        {
+            if (!Map.skirmish || Time != 0 || DuelIsReplica || duelRules != null || Bots.Count != 0)
+                throw new InvalidOperationException("A skirmish replica requires a fresh skirmish battlefield.");
+            DuelIsReplica = true;
         }
 
         public int MapFactoryTech(string factoryType) =>

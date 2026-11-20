@@ -254,7 +254,9 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ elimination + game end (zserver.cpp:277-367, 1675-1729)
         int skirmishEliminated;
 
-        public bool SkirmishEliminated(Team team) => Map.skirmish && (skirmishEliminated & (1 << (int)team)) != 0;
+        public bool SkirmishEliminated(Team team) => Map.skirmish && team != Team.Neutral && (DuelIsReplica
+            ? !Objects.Any(o => o.IsFort && o.Owner == team && !o.Destroyed)
+            : (skirmishEliminated & (1 << (int)team)) != 0);
 
         public bool SurrenderSkirmish(Team team)
         {

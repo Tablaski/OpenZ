@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.5 radar visibility
+
+- Pending solo and 1 vs 1 check: with Zoom Lock and Fog + Zoom, lose the last radar, verify the wider 82.5 m overhead view and try wheel, touch or gamepad zoom. Capture or rebuild a radar and check normal zoom returns. Check that Fog and Off keep normal camera behavior.
+- Pending minimap check: compare friendly, neutral, visible enemy, fogged and ruined radars. Check that capture or repair starts the friendly sweep and enemy capture or destruction stops it. Check clipping near the map edge, Reduced Motion, and the Options → Game toggle before and after restarting.
+
 ## OpenZ-VK 1.5.4 duel audio
 
 - Pending two-PC check: verify both players can hear each other in the lobby with Always On, while typing and while entering and leaving audio setup. In Tap to Speak, start and stop with the chosen shortcut, continue typing while transmitting and confirm that typing the shortcut character does not toggle the microphone. Check Mute, input gain, clipping and the lobby transmission indicator.

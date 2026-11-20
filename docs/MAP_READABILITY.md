@@ -14,6 +14,10 @@ player chooses their own presentation; no simulation or network rules change.
   territory. Adjacent territories can show their own colours independently.
   Unowned territory uses grey. Colours follow capture and visual team-colour
   changes. Marks follow terrain/water and skip impassable walls and buildings.
+- **MINIMAP RADARS**: On by default. Visible intact radars get an outline. A
+  ring expands and fades around active friendly radars. Reduced Motion keeps
+  the outlines and hides the sweep. The ring marks the radar's position.
+  Fog rules and detection ranges remain unchanged.
 
 The reference is local Zod Engine's `ZMap::SetupAllZoneInfo` and `DoZoneEffects`
 in `src/zmap.cpp`: owner-coloured markers along passable perimeter tiles, with

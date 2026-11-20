@@ -34,7 +34,7 @@ namespace OpenZ
         public bool PointerOverMap => hud != null && MapRect && hud.hudVisible && OpenZHud.Contains(MapRect, hud.Pointer) && !hud.Modal;   // 1.5 N16: not while hidden
 
         OpenZHud hud; ZGame game; ZWorld W;
-        RectTransform panel, markers; RawImage img; Texture2D tex;
+        RectTransform panel, markers, radarLayer; RawImage img; Texture2D tex;
         Color32[] terrain, baseBuf, prevBase, buf;
         int k, tw, th, mw, mh;
         int k0 = 4, ek = 1;                                                                       // ui_quality_v1: the look's reference density, edge width in texels
@@ -50,6 +50,9 @@ namespace OpenZ
         readonly List<Image> markPool = new List<Image>(); int markUsed;
         readonly List<Image> unitPool = new List<Image>(); int unitUsed;
         readonly List<Image> bldPool = new List<Image>(); int bldUsed;
+        sealed class RadarMarker { public Image Ring, Sweep; public ZObject Radar; public float Diameter; }
+        readonly List<RadarMarker> radarMarkers = new List<RadarMarker>();
+        int radarUsed;
         sealed class Ping { public Image img; public float t0, delay, r0, r1, dur; public Color c; public Vector2 at; }
         readonly List<Ping> pings = new List<Ping>();
         bool dragFly, rallyPress; Vector2 lastFly;
@@ -108,6 +111,7 @@ namespace OpenZ
             tex = new Texture2D(tw, th, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, name = "OpenZ_Minimap" };
             img.texture = tex;
             markers = Hud.Node("Markers", MapRect); markers.Fill(); markers.pivot = Vector2.zero;
+            radarLayer = Hud.Node("RadarMarkers", markers); radarLayer.Fill();
             for (int i = 0; i < 4; i++)
             {
                 frustumShade[i] = Hud.Img(MapRect, "FrustumShade" + i, OzUi.A(Color.black, 0.6f)); frustumShade[i].rectTransform.anchorMin = frustumShade[i].rectTransform.anchorMax = Vector2.zero;
@@ -252,7 +256,8 @@ namespace OpenZ
             tex.SetPixels32(buf); tex.Apply(false);
 
             // marker layer (guide 9.5): buildings in the owner colour, flags, then every unit (Zod draws every object)
-            bldUsed = unitUsed = 0;
+            bldUsed = unitUsed = radarUsed = 0;
+            bool highlightRadars = OzMapReadabilityOptions.Radars;
             foreach (var o in W.Objects)
             {
                 if (o.Kind == ZKind.Building && !o.IsBridge && !OzRadarLoss.Covers(o))
@@ -262,6 +267,8 @@ namespace OpenZ
                     if (im.color != (Color)c) im.color = c;
                     var a = PxToLocal(o.LocX + o.WidthPix * 0.1f, o.LocY + o.HeightPix * 0.1f); var b = PxToLocal(o.LocX + o.WidthPix * 0.9f, o.LocY + o.HeightPix * 0.9f);
                     im.rectTransform.anchoredPosition = new Vector2(a.x, b.y); im.rectTransform.sizeDelta = new Vector2(Mathf.Max(4f, b.x - a.x), Mathf.Max(4f, a.y - b.y));
+                    if (highlightRadars && o.Type == "radar" && !o.Destroyed && o.KillAt < 0 && !OzFogOfWar.Covers(o))
+                        MarkRadar(o, Mathf.Max(im.rectTransform.sizeDelta.x, im.rectTransform.sizeDelta.y));
                 }
                 else if (o.Kind == ZKind.MapItem && o.Type == "flag" && !o.Destroyed)
                 {
@@ -319,6 +326,53 @@ namespace OpenZ
                 }
             for (int i = bldUsed; i < bldPool.Count; i++) bldPool[i].gameObject.SetActiveFast(false);
             for (int i = unitUsed; i < unitPool.Count; i++) unitPool[i].gameObject.SetActiveFast(false);
+            for (int i = radarUsed; i < radarMarkers.Count; i++) radarMarkers[i].Ring.transform.parent.gameObject.SetActiveFast(false);
+        }
+
+        Image RadarRing(RectTransform parent, string name, Color color)
+        {
+            var ring = Hud.Kit(parent, name, "Bits/ring", new OzRect(0, 0, 0, 0), color, Image.Type.Simple);
+            ring.rectTransform.anchorMin = ring.rectTransform.anchorMax = Vector2.zero;
+            ring.rectTransform.pivot = new Vector2(.5f, .5f);
+            ring.raycastTarget = false;
+            return ring;
+        }
+
+        void MarkRadar(ZObject radar, float buildingSize)
+        {
+            if (radarUsed == radarMarkers.Count)
+            {
+                var root = Hud.Node("Radar", radarLayer); root.Fill();
+                var sweep = RadarRing(root, "Sweep", OzUi.Amber);
+                var ring = RadarRing(root, "Marker", OzUi.Ink);
+                radarMarkers.Add(new RadarMarker { Ring = ring, Sweep = sweep });
+            }
+            var mark = radarMarkers[radarUsed++];
+            mark.Radar = radar;
+            mark.Diameter = Mathf.Max(12f, buildingSize * 1.42f + 2f);
+            mark.Ring.transform.parent.gameObject.SetActiveFast(true);
+            var center = PxToLocal(radar.CenterX, radar.CenterY);
+            mark.Ring.rectTransform.anchoredPosition = mark.Sweep.rectTransform.anchoredPosition = center;
+            mark.Ring.rectTransform.sizeDelta = Vector2.one * mark.Diameter;
+        }
+
+        void DrawRadarSweeps()
+        {
+            const float period = 3.4f, sweepTime = 2.1f;
+            bool animate = !OzMotion.Reduced;
+            float now = OzMotion.Now;
+            for (int i = 0; i < radarUsed; i++)
+            {
+                var mark = radarMarkers[i];
+                var radar = mark.Radar;
+                float elapsed = Mathf.Repeat(now + (radar.Id % 11) * .29f, period);
+                bool visible = animate && radar.Owner == hud.Player && !radar.Destroyed && radar.KillAt < 0 && elapsed < sweepTime;
+                mark.Sweep.gameObject.SetActiveFast(visible);
+                if (!visible) continue;
+                float progress = elapsed / sweepTime;
+                mark.Sweep.rectTransform.sizeDelta = Vector2.one * (mark.Diameter + 36f * progress);
+                mark.Sweep.color = OzUi.A(OzUi.Amber, .65f * (1f - progress));
+            }
         }
 
         /// <summary>Pooled marker: the pool entry's sprite follows `rel` (buildings and flags share one pool).</summary>
@@ -417,6 +471,7 @@ namespace OpenZ
             }
 
             if (Time.unscaledTime >= nextRefresh || (OzMotion.Now - zoneBlendAt < 0.35f)) { nextRefresh = Time.unscaledTime + 1f / Mathf.Max(1f, refreshHz); RefreshObjects(); }
+            DrawRadarSweeps();
             DrawFrustum();
             DrawRally();
             DrawPings();

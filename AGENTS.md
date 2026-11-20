@@ -1,5 +1,9 @@
 # Contributor and agent instructions
 
+## Terminology
+
+- When the maintainer says "OG Z", they mean the original 2D Z (Z95). The local fenio-zod-engine fork is the available source reference for that game. Attribute code observations to that fork and distinguish them from confirmed behavior in Z95.
+
 ## Public presentation and build delivery
 
 - Call the runnable game a "compiled game", never a "player", in documentation and user-facing explanations. Reserve "player" for a person playing the game; internal Unity API identifiers may retain their technical names. Briefly distinguish source code, compiled-game ZIPs, Unity, resource ZIPs and the installer in the README.

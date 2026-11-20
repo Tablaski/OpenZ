@@ -179,19 +179,12 @@ namespace OpenZ.Multiplayer
             AddLobbyTip(oil, help, OzBattleOptions.DamageTip);
             AddLobbyTip(shake, help, OzBattleOptions.ShakeTip);
             Label(panel, "WHEN YOUR LAST RADAR IS LOST", 30, 179, 1350, 21, OzUi.Ink);
-            string[] tips =
-            {
-                "Keep standard OpenZ radar rules.",
-                "Hide enemy movements outside your territory and units' sight.",
-                "Return to the starting zoom and limit how far the camera can tilt.",
-                "Hide unseen enemies and lock the camera to the starting zoom."
-            };
-            for (int i = 0; i < tips.Length; i++)
+            for (int i = (int)RadarLossRule.Off; i <= (int)RadarLossRule.FogAndZoom; i++)
             {
                 var option = (RadarLossRule)i;
                 var choice = Button(panel, OzBattleOptions.RadarName(option), 30 + i * 350, 210, 335,
                     () => { rules.RadarLoss = option; EditLobbyRules(rules); }, rules.RadarLoss == option, editable);
-                AddLobbyTip(choice, help, tips[i]);
+                AddLobbyTip(choice, help, OzBattleOptions.RadarTip(option));
             }
         }
 

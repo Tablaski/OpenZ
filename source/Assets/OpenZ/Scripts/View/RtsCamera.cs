@@ -154,9 +154,10 @@ namespace OpenZ
         public static float FreeFloorEaseSeconds = 0.15f, FreeFloorDiscM = 4f;
         float floorEased, floorVel; int floorFrame = -10;
 
-        float startingRadarHeight, startingRadarPitch;
+        internal const float RadarLockHeight = 82.5f;
+        float startingRadarPitch;
         bool radarZoomWasLocked;
-        void Start() { startingRadarHeight = targetHeight = height; startingRadarPitch = pitch; Place(); }
+        void Start() { targetHeight = height; startingRadarPitch = pitch; Place(); }
         void OnValidate() { targetHeight = height; Place(); }
 
         // duel camera input capture
@@ -214,7 +215,7 @@ namespace OpenZ
                 pitch = Mathf.MoveTowards(pitch, radarZoom ? 89 : startingRadarPitch, 150 * Time.unscaledDeltaTime);
                 if (radarZoom)
                 {
-                    targetHeight = Mathf.Clamp(startingRadarHeight, minHeight, maxHeight);
+                    targetHeight = Mathf.Clamp(RadarLockHeight, minHeight, maxHeight);
                     freeTilt = Mathf.Clamp(freeTilt, 63 - pitch, 89 - pitch);
                 }
                 radarZoomWasLocked = radarZoom || !Mathf.Approximately(pitch, startingRadarPitch);

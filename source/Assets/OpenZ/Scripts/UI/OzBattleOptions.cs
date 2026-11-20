@@ -19,8 +19,8 @@ namespace OpenZ
         internal static string RadarTip(RadarLossRule rule) => rule switch
         {
             RadarLossRule.Fog => "Hide enemy movement beyond your territory and units' sight.",
-            RadarLossRule.Zoom => "Lock the starting zoom and limit camera tilt.",
-            RadarLossRule.FogAndZoom => "Hide unseen enemies and lock zoom and tilt.",
+            RadarLossRule.Zoom => "Lock the camera in a wider overhead view.",
+            RadarLossRule.FogAndZoom => "Hide unseen enemies and lock the camera in a wider overhead view.",
             _ => "Keep the standard OpenZ radar behavior."
         };
         internal const string DamageLabel = "DAMAGED TANK OIL TRAILS", TankDamageKey = "oz_vk_tank_damage_effects";

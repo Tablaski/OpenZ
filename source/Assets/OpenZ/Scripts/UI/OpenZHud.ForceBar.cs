@@ -10,8 +10,10 @@ namespace OpenZ
         Image forceRedShare, forceBlueShare, forceCursor, forceRedGlow, forceBlueGlow;
         OzText forceRedBonus, forceBlueBonus;
         OzText matchPing, matchSync, matchRelay;
+        RectTransform powerRow, powerRedShare, powerBlueShare;
+        OzText powerRedText, powerBlueText;
         HudButton forceRedHot, forceBlueHot;
-        double forceRed, forceBlue, forceRedBoost, forceBlueBoost;
+        double forceRedBoost, forceBlueBoost;
         bool forceValueMode;
         float forceShare = .5f;
 
@@ -28,7 +30,23 @@ namespace OpenZ
             forceRedBonus = Hud.Label(top, "RedFortBonus", "", 9, OzUi.Ink).At(187, 47, OzH.C, true, 216);
             forceBlueBonus = Hud.Label(top, "BlueFortBonus", "", 9, OzUi.Ink).At(593, 47, OzH.C, true, 216);
             forceRedBonus.rectTransform.gameObject.SetActive(false); forceBlueBonus.rectTransform.gameObject.SetActive(false);
+            BuildAttackingPowerRow();
             if (Multiplayer.DuelRuntime.Active) BuildMatchNetworkReadout();
+        }
+
+        void BuildAttackingPowerRow()
+        {
+            powerRow = Hud.Node("AttackingPowerRow", top);
+            powerRow.TL(130, 90, 520, 32);
+            Hud.Plate(powerRow, "sm", shadow: false);
+            AddBlocker(powerRow);
+            powerRedText = Hud.Label(powerRow, "RedPower", "", 16, OzUi.TeamText(Team.Red)).At(14, 11, OzH.L, true, 148);
+            powerBlueText = Hud.Label(powerRow, "BluePower", "", 16, OzUi.TeamText(Team.Blue)).At(506, 11, OzH.R, true, 148);
+            Hud.Label(powerRow, "Metric", "ATTACKING POWER", 13, OzUi.Amber).At(260, 11, OzH.C, true, 176);
+            var rail = Hud.Node("PowerShare", powerRow); rail.TL(14, 23, 492, 4);
+            powerRedShare = Hud.Img(rail, "RedShare", OzUi.TeamPaint(Team.Red)).rectTransform;
+            powerBlueShare = Hud.Img(rail, "BlueShare", OzUi.TeamPaint(Team.Blue)).rectTransform;
+            powerRow.gameObject.SetActive(false);
         }
 
         void BuildMatchNetworkReadout()
@@ -51,29 +69,47 @@ namespace OpenZ
                 SetFortProductionBoost(Team.Red, W.DuelFortLoserReduction(Team.Red));
                 SetFortProductionBoost(Team.Blue, W.DuelFortLoserReduction(Team.Blue));
             }
-            bool valueMode = OzForceBarOption.ForMatch(W.HasDuelRules);
+            var mode = OzForceBarOption.ForMatch(W.HasDuelRules);
+            bool valueMode = mode == OzForceBarOption.Mode.AttackingPower;
             if (forceValueMode != valueMode)
             {
                 forceValueMode = valueMode; shownRed = shownBlue = int.MinValue;
                 lastRedW = lastBlueW = -1;
             }
-            forceRed = valueMode ? W.MilitaryValue(Team.Red) : redUnits;
-            forceBlue = valueMode ? W.MilitaryValue(Team.Blue) : blueUnits;
+            bool both = mode == OzForceBarOption.Mode.Both;
+            double redPower = 0, bluePower = 0;
+            string delta = "", otherDelta = "";
+            if (valueMode || both)
+            {
+                redPower = W.MilitaryValue(Team.Red);
+                bluePower = W.MilitaryValue(Team.Blue);
+                delta = ForcePercent(ZForceComparison.RelativePercent(redPower, bluePower));
+                otherDelta = ForcePercent(ZForceComparison.RelativePercent(bluePower, redPower));
+            }
+            powerRow.gameObject.SetActiveFast(both);
+            if (both)
+            {
+                powerRedText.Set($"{Math.Round(redPower):0}  {delta}");
+                powerBlueText.Set($"{otherDelta}  {Math.Round(bluePower):0}");
+                float share = 492f * (float)ZForceComparison.Share(redPower, bluePower);
+                powerRedShare.TL(0, 0, share, 4);
+                powerBlueShare.TL(share, 0, 492 - share, 4);
+            }
+            double forceRed = valueMode ? redPower : redUnits;
+            double forceBlue = valueMode ? bluePower : blueUnits;
             redTick.Set((int)Math.Round(forceRed)); blueTick.Set((int)Math.Round(forceBlue));
             forceShare = (float)ZForceComparison.Share(forceRed, forceBlue);
             redBar.Set(valueMode ? forceShare : redUnits / (float)ZWorld.MAX_UNITS_PER_TEAM);
             blueBar.Set(valueMode ? 1 - forceShare : blueUnits / (float)ZWorld.MAX_UNITS_PER_TEAM);
             redCount.rectTransform.sizeDelta = new Vector2(120, redCount.rectTransform.sizeDelta.y);
             blueCount.rectTransform.sizeDelta = new Vector2(120, blueCount.rectTransform.sizeDelta.y);
-            string delta = ForcePercent(ZForceComparison.RelativePercent(forceRed, forceBlue));
-            string otherDelta = ForcePercent(ZForceComparison.RelativePercent(forceBlue, forceRed));
-            redOf.Set(valueMode ? delta : "/ 70 · " + delta);
-            blueOf.Set(valueMode ? otherDelta : otherDelta + " · / 70");
+            redOf.Set(valueMode ? delta : "/ 70");
+            blueOf.Set(valueMode ? otherDelta : "/ 70");
             redOf.rectTransform.sizeDelta = new Vector2(120, redOf.rectTransform.sizeDelta.y);
             // Keep the right edge fixed when widening this right-aligned label.
             blueOf.At(OzLayout.TopCountRX, OzLayout.TopOf70Y, OzH.R, false, 120);
-            string description = valueMode ? "Normal construction time of offensive mobile units. Robot squads count once; cranes, unarmed units, cannons and buildings do not count." : "Units on the field; robots count individually. At 70 the factories pause.";
-            string reference = "The signed gap is relative to the smaller army; the cursor marks each team's share of the combined total.";
+            string description = valueMode || both ? "Attacking power: normal construction time of offensive mobile units. Robot squads count once; cranes, unarmed units, cannons and buildings do not count." : "Units on the field; robots count individually. At 70 the factories pause.";
+            string reference = valueMode || both ? "The attacking-power gap is relative to the smaller army." : "The cursor marks each side's share of the total unit count.";
             forceRedHot.Tooltip = TeamColors.Name(Team.Red) + " FORCE|" + description + "\n" + reference + "\nUnits: " + redUnits + "/70." + BoostTip(forceRedBoost) + "|";
             forceBlueHot.Tooltip = TeamColors.Name(Team.Blue) + " FORCE|" + description + "\n" + reference + "\nUnits: " + blueUnits + "/70." + BoostTip(forceBlueBoost) + "|";
         }

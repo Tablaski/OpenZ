@@ -19,7 +19,7 @@ namespace OpenZ.Multiplayer
             bool hadEdge = PlayerPrefs.HasKey("oz_edge_scroll"); int edge = PlayerPrefs.GetInt("oz_edge_scroll", 1);
             try
             {
-                if (OzForceBarOption.ForMatch(true)) OzForceBarOption.StepMatch(true);
+                while (OzForceBarOption.ForMatch(true) != OzForceBarOption.Mode.Units) OzForceBarOption.StepMatch(true, 1);
                 yield return new WaitForSecondsRealtime(.4f);
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-count.png"), true);
                 var pause = UnityEngine.Object.FindFirstObjectByType<OpenZPauseMenu>();
@@ -43,7 +43,7 @@ namespace OpenZ.Multiplayer
                 foreach (var row in rows)
                     if ((string)row.GetType().GetField("label").GetValue(row) == OzForceBarOption.Label)
                     { ((HudButton)row.GetType().GetField("row").GetValue(row)).OnClick(new HudClick()); clicked = true; break; }
-                if (!clicked || !OzForceBarOption.ForMatch(true)) throw new Exception("Native force bar option does not switch to military value.");
+                if (!clicked || OzForceBarOption.ForMatch(true) != OzForceBarOption.Mode.AttackingPower) throw new Exception("Native force bar option does not switch to attacking power.");
                 yield return new WaitForSecondsRealtime(.2f);
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-options.png"), true);
                 pause.Close(); DuelRuntime.I.Menus.CloseOverlay();
@@ -55,6 +55,14 @@ namespace OpenZ.Multiplayer
                     !System.Text.RegularExpressions.Regex.IsMatch(blue.text, @"\d"))
                     throw new Exception("Offensive production value is not displayed as a numeric score.");
                 DuelProofCapture.Save(Path.Combine(folder, role + "-force-value.png"), true);
+                OzForceBarOption.StepMatch(true, 1);
+                yield return new WaitForSecondsRealtime(.4f);
+                var unitsSuffix = (OzText)typeof(OpenZHud).GetField("redOf", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(hud);
+                var power = (OzText)typeof(OpenZHud).GetField("powerRedText", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(hud);
+                if (unitsSuffix.text != "/ 70" || !power.rectTransform.gameObject.activeInHierarchy ||
+                    (!power.text.Contains("%") && !power.text.Contains("∞")))
+                    throw new Exception("Both mode must put the percentage on attacking power and the unit limit on units.");
+                DuelProofCapture.Save(Path.Combine(folder, role + "-force-both.png"), true);
                 var world = DuelRuntime.I.Game.World;
                 var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);
                 double end = fort.BFinal;

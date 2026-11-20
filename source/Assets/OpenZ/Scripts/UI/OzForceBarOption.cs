@@ -4,31 +4,43 @@ namespace OpenZ
 {
     public static class OzForceBarOption
     {
+        internal enum Mode { Units, AttackingPower, Both }
+
         public const string Label = "FORCE BAR", Pref = "oz_force_bar";
-        public const string Tip = "FORCE BAR|UNIT COUNT: the existing unit-limit gauges. OFFENSIVE UNITS PRODUCTION VALUE: cumulative normal production time of offensive mobile units. Cranes, unarmed units, cannons and buildings are excluded; robot squads count once. The balance cursor compares both armies. Signed percentages use the smaller army as their reference. This display preference never changes production.|";
+        public const string Tip = "FORCE BAR|UNITS: unit counts and the unit limit. ATTACKING POWER: cumulative normal production time of offensive mobile units. Robot squads count once. The percentage compares attacking power using the smaller army as the reference. BOTH shows the two measures together.|";
         internal const string DuelPref = "oz_duel_force_bar";
-        static int cached = -1, duelCached = -1;
-        public static bool MilitaryValue
+        static Mode? soloMode, duelMode;
+
+        internal static Mode ForMatch(bool duel) => duel
+            ? (duelMode ??= ReadMode(DuelPref, Mode.AttackingPower))
+            : (soloMode ??= ReadMode(Pref, Mode.Units));
+
+        static Mode ReadMode(string key, Mode fallback)
         {
-            get { if (cached < 0) cached = PlayerPrefs.GetInt(Pref, 0) == 1 ? 1 : 0; return cached == 1; }
-            set { cached = value ? 1 : 0; PlayerPrefs.SetInt(Pref, cached); PlayerPrefs.Save(); }
+            int value = PlayerPrefs.GetInt(key, (int)fallback);
+            return value >= (int)Mode.Units && value <= (int)Mode.Both ? (Mode)value : fallback;
         }
-        public static string Name => MilitaryValue ? "OFFENSIVE UNITS PRODUCTION VALUE" : "UNIT COUNT";
-        public static void Step(int direction) => MilitaryValue = !MilitaryValue;
-        public static bool ForMatch(bool duel)
+
+        public static string Name => MatchName(false);
+        public static string MatchName(bool duel) => ForMatch(duel) switch
         {
-            if (!duel) return MilitaryValue;
-            if (duelCached < 0) duelCached = PlayerPrefs.GetInt(DuelPref, 1) == 0 ? 0 : 1;
-            return duelCached == 1;
-        }
-        public static string MatchName(bool duel) => ForMatch(duel) ? "OFFENSIVE UNITS PRODUCTION VALUE" : "UNIT COUNT";
-        public static void StepMatch(bool duel)
+            Mode.AttackingPower => "ATTACKING POWER",
+            Mode.Both => "BOTH",
+            _ => "UNITS"
+        };
+
+        public static void Step(int direction) => StepMatch(false, direction);
+
+        public static void StepMatch(bool duel, int direction)
         {
-            if (!duel) { Step(1); return; }
-            duelCached = ForMatch(true) ? 0 : 1;
-            PlayerPrefs.SetInt(DuelPref, duelCached);
+            int step = direction < 0 ? 2 : 1;
+            var next = (Mode)(((int)ForMatch(duel) + step) % 3);
+            if (duel) duelMode = next;
+            else soloMode = next;
+            PlayerPrefs.SetInt(duel ? DuelPref : Pref, (int)next);
             PlayerPrefs.Save();
         }
-        public static void Reload() => cached = duelCached = -1;
+
+        public static void Reload() => soloMode = duelMode = null;
     }
 }

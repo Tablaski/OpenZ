@@ -4,6 +4,10 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.11 (20 Nov 2026)
+
+- Solo + 1 vs 1 — The force bar can show Units, Attacking Power, or both. The percentage difference appears next to the attacking power score. Units shows the count and unit limit.
+
 ## OpenZ-VK 1.5.10 (20 Nov 2026)
 
 - 1 vs 1 — The lobby has separate tabs for maps, starting armies, balancing and battle rules. Both players’ readiness, chat history and microphone controls are visible across tabs. The invitation window explains how to bring a second player into the match.

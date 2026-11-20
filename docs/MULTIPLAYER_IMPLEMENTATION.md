@@ -23,9 +23,9 @@
 
 ## Map inventory on the available source
 
-- P03 has ten files. Two contain owned objects without a matching fort and need an explicit ownership decision before conversion.
+- All ten P03 files have three forts with native owners 1, 2 and 3. In P03M06, a repair station and a vehicle factory have native owner 7. In P03M07, a flag has owner 7. In the fenio-zod-engine color table, owner 7 is white. No white fort is present in either map. Keep these records intact until the conversion policy for unassigned owners is decided.
 - P04 has eleven files, including Desert Fortress.
-- P06 has one file by name. `p06_Merged_Map.map` contains eight distinct owned forts. A six-player source or an approved six-start variant is required.
+- P06 is deferred. The sole local file with that prefix, `p06_Merged_Map.map`, has eight distinct owned forts and is an eight-start layout.
 - P08 has two files, including Hunters.
 
 ## Validation awaiting a compiled game

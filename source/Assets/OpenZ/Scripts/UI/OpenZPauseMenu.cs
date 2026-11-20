@@ -206,7 +206,7 @@ namespace OpenZ
             if (!OpenZ.Multiplayer.DuelRuntime.Active)
                 AddToggle(p, toggles.Count, OzTacticalPause.Label, () => OzTacticalPause.On, v => OzTacticalPause.On = v);
             AddToggle(p, toggles.Count, OzForceBarOption.Label, null, null, true);
-            { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active); }
+            { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active, 1); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active, -1); }
             AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, v => OzBattleOptions.SoloDamage = v);
             AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, v => OzBattleOptions.SoloShake = v);
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)

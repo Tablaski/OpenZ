@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.11 force bar
+
+- Pending compiled-game check: in Solo and 1 vs 1, switch between Units, Attacking Power and Both using Game options. Check that unit counts carry only the unit limit, that each percentage sits next to its attacking power score in both power views, and that the second row clears the territory tab. Check the two local preferences independently after restarting, including a migrated 1.5.10 preference, and verify the display at 16:9 and ultrawide resolutions.
+
 ## OpenZ-VK 1.5.10 duel lobby and balancing
 
 - Pending two-PC lobby check: copy the invitation before the guest joins, check that the window closes when they arrive, rename from each seat and verify both Ready states stay visible while switching tabs. Scroll a conversation with several wrapped messages and try Mute, Always On and Tap to Speak with the input meter and gain shown.

@@ -519,7 +519,7 @@ namespace OpenZ.Multiplayer
                 rules.ProgressiveTerritoryCap, editable, 38);
             Label(territory, "Off: the same fixed cap applies to both teams.", 24, 211, 805, 16, OzUi.Muted);
             Label(territory, "On: the stronger side’s cap drops from 50% to your setting at a +50% army lead.", 24, 234, 805, 16, OzUi.Muted);
-            Label(territory, "Read the army gap in Offensive Units Production Value at the top of the battlefield.", 24, 257, 805, 15, OzUi.Muted);
+            Label(territory, "See the army gap in the Attacking Power display at the top of the battlefield.", 24, 257, 805, 15, OzUi.Muted);
 
             var fort = Panel("FORT CONSTRUCTION SPEEDUP WHEN LOSING", 956, 250, 864, 292);
             Label(fort, "The losing fort gains a multiple of the opponent’s territorial speed bonus.", 24, 63, 806, 17, OzUi.Ink);

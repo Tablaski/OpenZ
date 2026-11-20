@@ -733,7 +733,7 @@ namespace OpenZ
             }
             // tickers + flashes every frame (strings are only built when the shown number changes: no per-frame garbage)
             RefreshForceNumbers();
-            bool rl2 = W.UnitLimitReached(Team.Red), bl2 = W.UnitLimitReached(Team.Blue);
+            bool rl2 = !forceValueMode && W.UnitLimitReached(Team.Red), bl2 = !forceValueMode && W.UnitLimitReached(Team.Blue);
             redCount.color = rl2 ? (Color)OzUi.Signal : redTick.Colour(OzUi.Ink, OzUi.TeamText(Team.Red));
             blueCount.color = bl2 ? (Color)OzUi.Signal : blueTick.Colour(OzUi.Ink, OzUi.TeamText(Team.Blue));
             PlaceOf70();

@@ -44,6 +44,8 @@ namespace OpenZ.Multiplayer
         public bool CanLaunch, Launched, MatchLoaded;
         public Human[] Humans;
         public Bot[] Bots;
+        public int[] Closed;
+        public SkirmishRules Rules;
     }
 
     internal static class MultiplayerRoomPackets
@@ -148,6 +150,7 @@ namespace OpenZ.Multiplayer
                 }).ToArray(),
                 Bots = room.Bots.Select(bot => new RoomSnapshot.Bot
                 { Position = bot.Position, Alliance = bot.Alliance, Difficulty = bot.Difficulty }).ToArray(),
+                Rules = room.Rules, Closed = room.ClosedPositions,
             };
             return peer.Send(MultiplayerRoomPackets.Snapshot(view));
         }
@@ -221,6 +224,7 @@ namespace OpenZ.Multiplayer
             if (incoming.Starts < 2 || incoming.Starts > 8 || incoming.Revision < 0 || incoming.Sequence <= 0 ||
                 string.IsNullOrEmpty(incoming.Map) || incoming.Humans == null || incoming.Bots == null ||
                 OzAiMapCatalog.Find(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
+                incoming.Rules?.Valid != true || incoming.Closed == null || incoming.Closed.Any(position => position < 0 || position >= incoming.Starts) ||
                 incoming.Humans.Any(member => member == null || member.Position < -1 || member.Position >= incoming.Starts) ||
                 incoming.Bots.Any(bot => bot == null || bot.Position < 0 || bot.Position >= incoming.Starts) ||
                 incoming.Humans.Count(member => member.Local) != 1 || incoming.Humans.Count(member => member.Host) != 1 ||

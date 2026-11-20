@@ -52,6 +52,7 @@ static class MultiplayerRoomChecks
         check(larger.StartBlocker == MatchStartBlocker.None, "Removing the extra human resolves the capacity conflict");
         reject(() => larger.SelectMap(host, "SM18"), "Solo-only maps stay outside multiplayer setup");
         CheckCoop(check, reject);
+        CheckLobbyRules(check, reject);
     }
 
     static void CheckCoop(Action<bool, string> check, Action<Action, string> reject)
@@ -91,5 +92,57 @@ static class MultiplayerRoomChecks
         for (int tick = 0; tick < 150; tick++) world.Tick(ZConst.TICK);
         check(world.IsWinningSeat(Team.Red) && world.IsWinningSeat(Team.Blue) &&
             !world.IsWinningSeat(Team.Green), "Both co-op seats share victory");
+    }
+
+    static void CheckLobbyRules(Action<bool, string> check, Action<Action, string> reject)
+    {
+        const string host = "host", guest = "guest";
+        var room = new MultiplayerRoom(host, "Host", "SMP03M01");
+        room.Join(guest, "Guest");
+        room.SetClosed(host, 2, true);
+        room.SetReady(host, room.Revision, true);
+        var rules = room.Rules;
+        rules.BuildPercent[1] = 80;
+        rules.Common[0] = "light";
+        rules.Extras[4] = "medium";
+        rules.TerritoryCap = 25;
+        rules.ProgressiveTerritory = true;
+        rules.FortSpeedup = 200;
+        rules.ProgressiveFort = true;
+        reject(() => room.SetRules(guest, rules), "Only the creator can edit Skirmish rules");
+        room.SetRules(host, rules);
+        check(!room.Members.First().Ready && room.Rules.StartingUnits(0).SequenceEqual(new[] { "light" }) &&
+            room.Rules.StartingUnits(1).SequenceEqual(new[] { "light", "medium" }), "Shared army and seat extras are isolated and edits reset readiness");
+        rules.BuildPercent[1] = 50;
+        check(room.Rules.BuildPercent[1] == 80 && room.StartBlocker == MatchStartBlocker.None, "Closed starts count as set up and rule copies cannot mutate the room");
+        room.SetReady(host, room.Revision, true);
+        room.SetReady(guest, room.Revision, true);
+        room.Launch(host);
+        room.MarkLoaded(host, room.Revision);
+        room.MarkLoaded(guest, room.Revision);
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
+        var settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
+        var grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SMP03M01_grid.json"));
+        var world = ZWorld.Create(settings, grid, 12);
+        var original = world.Objects.Count(unit => unit.Owner == Team.Blue && unit.IsUnit);
+        room.ConfigureWorld(world, 12);
+        check(world.SkirmishEliminated(Team.Green) && !world.Objects.Any(unit => unit.IsFort && unit.Owner == Team.Green), "Closed Green does not compete");
+        check(world.Objects.Count(unit => unit.Owner == Team.Blue && unit.IsUnit) == original + 2, "Common and individual starting vehicles are added beside the fort");
+
+        world = ZWorld.Create(settings, grid, 12);
+        rules = room.Rules;
+        rules.Common[0] = rules.Extras[4] = "";
+        world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+        world.ConfigureSkirmishRules(rules, Array.Empty<int>());
+        var greenFort = world.Objects.First(unit => unit.IsFort && unit.Owner == Team.Green);
+        double our = world.MilitaryValue(Team.Green);
+        double rival = world.MilitaryValue(Team.Red) + world.MilitaryValue(Team.Blue);
+        double lead = ZForceComparison.RelativePercent(our, rival);
+        var policy = rules.Production;
+        double territory = policy.TerritoryTimeReduction(world.TeamFlagFraction(Team.Green), lead);
+        double rivalReduction = policy.TerritoryTimeReduction(world.TeamFlagFraction(Team.Red) + world.TeamFlagFraction(Team.Blue), -lead);
+        double expected = 100 * Math.Min(1 - territory, 1 / policy.FortCatchupSpeed(-lead, rivalReduction));
+        check(Math.Abs(greenFort.BuildTimeModified(100) - expected) < .000001 && lead < 0,
+            "Catch-up uses combined offensive value and territory of the opposing alliance");
     }
 }

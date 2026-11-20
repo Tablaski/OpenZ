@@ -83,6 +83,35 @@ test("an active SFU room closes its publications and signals direct fallback whe
     assert.equal((await api("setup")).status, 409);
   });
 });
+
+test("only the host can ban; the private note and reconnect restriction stay in the current room", async () => {
+  const ctx = context(), sockets = new Map();
+  ctx.getWebSockets = tag => tag === "skirmish" ? [...sockets.values()] : [sockets.get(Number(tag.replace("skirmish-", "")))].filter(Boolean);
+  const room = new DuelRoom(ctx, {});
+  const host = await (await room.fetch(post("create", { name: "Host", fingerprint, skirmish: true, skirmishProtocol: 2 }))).json();
+  function attach(id) {
+    const messages = [];
+    const socket = { messages, deserializeAttachment: () => ({ skirmish: true, id }), send: message => messages.push(JSON.parse(message)), close: () => sockets.delete(id) };
+    sockets.set(id, socket);
+    return socket;
+  }
+  const creator = attach(host.id);
+  function join(network) {
+    const request = post("join", { name: "Guest", fingerprint, skirmishProtocol: 2 });
+    request.headers.set("X-Room-Network", network);
+    return room.fetch(request);
+  }
+  const guest = await (await join("guest-network")).json();
+  const target = attach(guest.id);
+  const action = JSON.stringify({ type: "moderate", id: guest.id, ban: true, note: "Private note" });
+  await room.webSocketMessage(target, action);
+  assert.equal(target.messages.length, 0);
+  await room.webSocketMessage(creator, action);
+  assert.equal(creator.messages.length, 0);
+  assert.match(target.messages[0].note, /Private note$/);
+  assert.equal((await join("guest-network")).status, 403);
+  assert.equal((await join("other-network")).status, 200);
+});
 test("billing cycle clamps month ends, handles leap years and uses the configured day", () => {
   assert.equal(billingPeriod("15", Date.parse("2026-11-14T23:59:59Z")).start, "2026-10-15");
   assert.equal(billingPeriod("15", Date.parse("2026-11-15T00:00:00Z")).start, "2026-11-15");

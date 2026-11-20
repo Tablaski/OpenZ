@@ -14,14 +14,14 @@ export class SkirmishRoom {
     const host = { id: 1, name: player.name, seat: randomToken() };
     const sfu = this.env.SFU_ENABLED === "true" && !!this.env.SFU_APP_ID && !!this.env.SFU_APP_SECRET;
     const room = { skirmish: true, code, secret: randomToken(), fingerprint: player.fingerprint,
-      sfu, epoch: 1, nextId: 2, expires: Date.now() + LIFETIME, players: [host] };
+      sfu, protocol: player.skirmishProtocol === 2 ? 2 : 1, epoch: 1, nextId: 2, expires: Date.now() + LIFETIME, players: [host] };
     await this.ctx.storage.put("room", room);
     await this.ctx.storage.setAlarm(room.expires);
     return this.credentials(room, host);
   }
 
   credentials(room, player) {
-    return json({ room: room.code, secret: room.secret, seat: player.seat, role: player.id === 1 ? "host" : "guest", skirmish: true, id: player.id });
+    return json({ room: room.code, secret: room.secret, seat: player.seat, role: player.id === 1 ? "host" : "guest", skirmish: true, id: player.id, skirmishProtocol: room.protocol ?? 1 });
   }
 
   sockets(id) { return this.ctx.getWebSockets(id == null ? "skirmish" : `skirmish-${id}`); }
@@ -39,13 +39,15 @@ export class SkirmishRoom {
   async handle(room, path, data, request, validPlayer) {
     if (Date.now() >= room.expires) return json({ error: "This invitation has expired." }, 404);
     if (path === "/join") {
-      if (!validPlayer(data) || data.fingerprint !== room.fingerprint || data.skirmishProtocol !== 1)
+      if (!validPlayer(data) || data.fingerprint !== room.fingerprint || data.skirmishProtocol !== (room.protocol ?? 1))
         return json({ error: "Use the same game version as the host." }, 409);
       if (room.locked) return json({ error: "This match has already started." }, 409);
       if (room.hostClosed || !this.sockets(1).length) return json({ error: "The host has left the lobby." }, 409);
+      const network = request.headers.get("X-Room-Network");
+      if (network && room.bans?.includes(network)) return json({ error: "The host banned access to this lobby." }, 403);
       room.players = room.players.filter(player => player.id === 1 || this.sockets(player.id).length || player.joined > Date.now() - MONITOR_MS);
       if (room.players.length >= 8) return json({ error: "The lobby is full." }, 409);
-      const player = { id: room.nextId++, name: data.name, seat: randomToken(), joined: Date.now() };
+      const player = { id: room.nextId++, name: data.name, seat: randomToken(), joined: Date.now(), network };
       room.players.push(player);
       await this.ctx.storage.put("room", room);
       return this.credentials(room, player);
@@ -58,6 +60,7 @@ export class SkirmishRoom {
       return await this.sfu(room, player, data);
     }
     if (path !== "/socket" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return json({ error: "Expected a connection upgrade." }, 400);
+    if (player.id !== 1 && player.network && room.bans?.includes(player.network)) return json({ error: "The host banned access to this lobby." }, 403);
     if (this.sockets(player.id).length) return json({ error: "This participant is already connected." }, 409);
     if (room.locked) return json({ error: "This match has already started." }, 409);
     const [client, server] = Object.values(new WebSocketPair());
@@ -77,6 +80,24 @@ export class SkirmishRoom {
     if ((data.type === "lock" || data.type === "unlock") && state.id === 1) {
       room.locked = data.type === "lock";
       await this.ctx.storage.put("room", room);
+      return;
+    }
+    if (data.type === "moderate" && state.id === 1 && Number.isInteger(data.id) && data.id > 1) {
+      const target = room.players.find(player => player.id === data.id);
+      if (!target) return;
+      if (data.ban === true && target.network) {
+        room.bans = [...new Set([...(room.bans ?? []), target.network])];
+        // Invalidate previously issued, unused seats from the banned network too.
+        room.players = room.players.filter(player => player.id === 1 || player.id === target.id ||
+          player.network !== target.network || this.sockets(player.id).length);
+        await this.ctx.storage.put("room", room);
+      }
+      const reason = data.ban === true ? "The host banned you from this lobby." : "The host removed you from this lobby.";
+      const note = typeof data.note === "string" ? data.note.replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 160) : "";
+      for (const peer of this.sockets(target.id)) {
+        this.send(peer, { type: "closed", note: note ? `${reason} ${note}` : reason });
+        peer.close(1008, reason);
+      }
       return;
     }
     if (data.epoch !== room.epoch) return;

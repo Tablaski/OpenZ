@@ -85,6 +85,7 @@ namespace OpenZ.Multiplayer
         public string ModeName => Mode == MicrophoneMode.AlwaysOn ? "ALWAYS ON" : Mode == MicrophoneMode.TapToSpeak ? "TAP TO SPEAK" : "MUTE";
         public void SetMode(MicrophoneMode mode)
         {
+            if (mode != MicrophoneMode.Mute && DuelRuntime.I && DuelRuntime.I.RoomVoiceMuted) return;
             Mode = mode; tapped = false; PlayerPrefs.SetInt("oz_duel_mic_mode", (int)mode); PlayerPrefs.Save();
             if (mode == MicrophoneMode.Mute) StopMicrophone();
             else
@@ -134,7 +135,8 @@ namespace OpenZ.Multiplayer
                 MicrophoneEnabled = Mode != MicrophoneMode.Mute;
                 int position = Microphone.GetPosition(device);
                 if (position < 0) { StopMicrophone(); Status = "Microphone unavailable"; return; }
-                bool canTalk = MicrophoneEnabled && r && r.Connected && (!r.Game || r.Game.World?.GameOver != true) && Application.isFocused;
+                bool mutedByHost = r && r.RoomVoiceMuted;
+                bool canTalk = MicrophoneEnabled && r && r.Connected && !mutedByHost && (!r.Game || r.Game.World?.GameOver != true) && Application.isFocused;
                 if (!canTalk) tapped = false;
                 // Text focus suppresses the shortcut. An active microphone keeps sending while you write.
                 else if (Mode == MicrophoneMode.TapToSpeak && !r.Menus.IsTyping && Keyboard.current != null &&
@@ -168,7 +170,7 @@ namespace OpenZ.Multiplayer
                 }
                 InputLevel = Mathf.Max(peak, InputLevel - Time.unscaledDeltaTime * 2);
                 Transmitting = talking && Time.realtimeSinceStartupAsDouble < transmitUntil;
-                Status = !MicrophoneEnabled ? "Microphone muted · local meter only" :
+                Status = mutedByHost ? "Voice muted by host" : !MicrophoneEnabled ? "Microphone muted · local meter only" :
                     Transmitting ? "TRANSMITTING" : talking ? "Waiting for voice connection" :
                     Mode == MicrophoneMode.AlwaysOn ? "Always on" : "Tap " + TalkKey + " to speak";
             }

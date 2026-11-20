@@ -10,10 +10,13 @@ namespace OpenZ.Sim
             if (team < Team.Red || team > (Map.skirmish ? Team.Black : Team.Blue)) return 0;
             double value = 0;
             foreach (var unit in Objects)
-                if (unit.Owner == team && unit.IsMobile && !unit.Destroyed && !unit.IsMinion && !unit.IsFortDefender && unit.Type != "crane" && unit.CanAttack())
+                if (unit.Owner == team && IsMilitaryValueUnit(unit))
                     value += Math.Max(0, S.Unit(unit.Type)?.build_time ?? 0);
             return value;
         }
+
+        static bool IsMilitaryValueUnit(ZObject unit) => unit.IsMobile && !unit.Destroyed && !unit.IsMinion &&
+            !unit.IsFortDefender && unit.Type != "crane" && unit.CanAttack();
     }
 
     public static class ZForceComparison

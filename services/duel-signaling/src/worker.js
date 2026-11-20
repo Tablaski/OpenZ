@@ -103,7 +103,7 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url);
-      if (request.method === "GET" && url.pathname === "/health") return json({ service: "OpenZ Duel", version: 1, skirmishProtocol: 1 });
+      if (request.method === "GET" && url.pathname === "/health") return json({ service: "OpenZ Duel", version: 1, skirmishProtocol: 2 });
       const invitation = url.pathname.slice(1);
       if (request.method === "GET" && validRoom(invitation)) {
         return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Join an OpenZ game</title><style>body{background:#171d20;color:#edf0df;font:20px system-ui;max-width:620px;margin:12vh auto;padding:24px}a{display:block;background:#d8a33c;color:#171d20;padding:18px;text-align:center;border-radius:6px;text-decoration:none;font-weight:bold}code{overflow-wrap:anywhere}p{line-height:1.6}</style><h1>Your OpenZ invitation</h1><p>Open the game to join the lobby.</p><a href="openz://join?room=${invitation}">Join in OpenZ</a><p>Already in the game? Paste this code in <strong>Multiplayer</strong>.</p><p><code>${invitation}</code></p><p>The invitation opens only with OpenZ installed and invitation links enabled.</p></html>`, { headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } });
@@ -121,6 +121,7 @@ export default {
       const endpoint = create ? "create" : match[2];
       if ((endpoint === "socket" && request.method !== "GET") || (endpoint !== "socket" && request.method !== "POST")) return json({ error: "Method not allowed." }, 405);
       const headers = new Headers(request.headers); headers.set("X-Room-Code", code);
+      headers.set("X-Room-Network", key);
       headers.delete("Content-Length"); headers.delete("Transfer-Encoding");
       const forwarded = new Request("https://internal/" + endpoint, { method: request.method, headers, body: request.method === "GET" ? undefined : JSON.stringify(await body(request)) });
       return await env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(forwarded);

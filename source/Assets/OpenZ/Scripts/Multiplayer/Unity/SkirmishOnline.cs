@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -20,9 +21,9 @@ namespace OpenZ.Multiplayer
             public bool published;
         }
 
-        public string type, sdp;
+        public string type, sdp, note;
         public int id, epoch, game, voice;
-        public bool sfu;
+        public bool sfu, ban;
         public Member[] players;
     }
 
@@ -35,6 +36,7 @@ namespace OpenZ.Multiplayer
         readonly CancellationTokenSource stop;
         readonly Func<SkirmishSignal, Task<SkirmishSignal>> call;
         readonly Dictionary<int, Link> links = new Dictionary<int, Link>();
+        readonly ConcurrentDictionary<int, byte> voiceMuted = new ConcurrentDictionary<int, byte>();
         readonly string secret, fingerprint, name;
         Link[] remotes = Array.Empty<Link>();
         SkirmishSfu relay;
@@ -107,7 +109,7 @@ namespace OpenZ.Multiplayer
 
         async Task Process(SkirmishSignal signal)
         {
-            if (signal.type == "closed") throw new IOException("The host left the lobby.");
+            if (signal.type == "closed") throw new IOException(signal.note?.Replace('<', '‹').Replace('>', '›') ?? "The host left the lobby.");
             if (signal.type == "roster")
             {
                 if (signal.epoch < epoch || signal.players == null || signal.players.Length > 8) return;
@@ -295,6 +297,16 @@ namespace OpenZ.Multiplayer
         internal void Lock(bool locked) => _ = Write(new SkirmishSignal { type = locked ? "lock" : "unlock", epoch = Epoch })
             .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
 
+        internal void RemoveParticipant(int id, bool ban, string note) => _ = Write(new SkirmishSignal { type = "moderate", id = id, ban = ban, note = note, epoch = Epoch })
+            .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+
+        internal bool IsVoiceMuted(int id) => voiceMuted.ContainsKey(id);
+        internal void SetVoiceMuted(int id, bool muted)
+        {
+            if (muted) voiceMuted.TryAdd(id, 0);
+            else voiceMuted.TryRemove(id, out _);
+        }
+
         internal void ReportStalled(Link link)
         {
             string action = Route == "SFU" ? "fallback" : "drop";
@@ -341,6 +353,7 @@ namespace OpenZ.Multiplayer
             foreach (var link in Remotes)
             {
                 if (!link.Ready || !link.TryReceiveVoice(out frame)) continue;
+                if (IsHost && IsVoiceMuted(link.Id)) continue;
                 if (IsHost) SendVoice(frame, link.Id);
                 return true;
             }

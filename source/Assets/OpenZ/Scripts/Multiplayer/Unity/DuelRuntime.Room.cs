@@ -39,6 +39,40 @@ namespace OpenZ.Multiplayer
         internal bool SkirmishRoom => room != null || roomGuest != null;
         internal MultiplayerRoom HostedRoom => room;
         internal RoomSnapshot JoinedRoom => roomGuest?.View;
+        internal SkirmishRules RoomRules => room?.Rules ?? JoinedRoom?.Rules;
+        internal bool RoomVoiceMuted { get; private set; }
+        internal bool RoomParticipantMuted(string id) => int.TryParse(id, out int number) && RoomTransport?.IsVoiceMuted(number) == true;
+
+        internal void SetRoomRules(SkirmishRules rules)
+        {
+            if (room == null || room.Launched) return;
+            room.SetRules(RoomHostId, rules);
+            PublishRoom();
+        }
+
+        internal void SetRoomClosed(int seat, bool value)
+        {
+            if (room == null || room.Launched) return;
+            room.SetClosed(RoomHostId, seat, value);
+            PublishRoom();
+        }
+
+        internal void BringRoomPlayer(string id, int seat)
+        {
+            if (room == null || room.Launched || !room.Members.Any(member => member.Id == id)) return;
+            room.BringWaitingPlayer(RoomHostId, id, seat);
+            PublishRoom();
+        }
+
+        internal void ModerateRoomPlayer(string id, bool? ban, string note)
+        {
+            if (room == null || !int.TryParse(id, out int number) || !room.Members.Any(member => member.Id == id)) return;
+            if (ban.HasValue) { RoomTransport.RemoveParticipant(number, ban.Value, note); return; }
+            bool muted = !RoomTransport.IsVoiceMuted(number);
+            RoomTransport.SetVoiceMuted(number, muted);
+            RoomTransport.Remotes.FirstOrDefault(link => link.Id == number)?.Send(new DuelPacket(DuelMessage.RoomVoiceMute, new[] { (byte)(muted ? 1 : 0) }));
+            Menus.Refresh();
+        }
 
         void CreateSkirmishRoom(string name)
         {
@@ -64,7 +98,7 @@ namespace OpenZ.Multiplayer
 
         void FillRoomBots()
         {
-            var occupied = room.Members.Select(member => member.Seat.Position).Concat(room.Bots.Select(bot => bot.Position)).ToArray();
+            var occupied = room.Members.Select(member => member.Seat.Position).Concat(room.Bots.Select(bot => bot.Position)).Concat(room.ClosedPositions).ToArray();
             for (int seat = 2; seat < room.Starts; seat++)
                 if (!occupied.Contains(seat)) room.SetBot(RoomHostId, seat, seat, ZBotDifficulty.Normal);
         }
@@ -272,6 +306,7 @@ namespace OpenZ.Multiplayer
                 var hostLink = new MultiplayerRoomHostLink(room, link, id, roomEpoch * 1000000);
                 if (Playing) hostLink.AttachBattlefield(Game.World);
                 roomLinks.Add(link.Id, hostLink);
+                if (RoomTransport.IsVoiceMuted(link.Id)) link.Send(new DuelPacket(DuelMessage.RoomVoiceMute, new byte[] { 1 }));
                 changed = true;
             }
             if (Now - roomRouteChangedAt > 2)
@@ -289,7 +324,6 @@ namespace OpenZ.Multiplayer
             }
             if (changed)
             {
-                if (!room.Launched) FillRoomBots();
                 PublishRoom();
                 TryReturnToLobby();
             }
@@ -324,6 +358,13 @@ namespace OpenZ.Multiplayer
                     var chat = ReadJson<RoomChat>(packet);
                     if (chat != null && chat.Sender != RoomTransport.Id && chat.Name?.Length <= 32 && chat.Text?.Length <= 240)
                         NotifyRoomChat(chat.Name, chat.Text);
+                    return;
+                case DuelMessage.RoomVoiceMute:
+                    if (!IsHost && packet.Payload.Length == 1)
+                    {
+                        RoomVoiceMuted = packet.Payload[0] != 0;
+                        Menus.Refresh();
+                    }
                     return;
                 case DuelMessage.Surrender:
                     if (IsHost && Playing && Game) Game.World.SurrenderSkirmish(room.HumanTeam(RoomGuest(sender.Id)));
@@ -367,7 +408,6 @@ namespace OpenZ.Multiplayer
             roomDeparted.Clear();
             roomEndReady.Clear();
             RoomTransport.Lock(false);
-            FillRoomBots();
         }
 
         void ClearOnlineRoom()
@@ -377,6 +417,7 @@ namespace OpenZ.Multiplayer
             roomEndReady.Clear();
             roomEpoch = roomDrainIndex = 0;
             roomLoadedScene = false;
+            RoomVoiceMuted = false;
             roomReplicaChanged = false;
             roomDelta = null;
         }
@@ -415,12 +456,13 @@ namespace OpenZ.Multiplayer
             // World creation precedes the load barrier. Only the host configures the bots.
             if (IsHost) return;
             var snapshot = JoinedRoom;
-            var alliances = new int[OzAiMapCatalog.Find(snapshot.Map).Starts];
+            var alliances = Enumerable.Range(0, snapshot.Starts).ToArray();
             foreach (var member in snapshot.Humans.Where(member => member.Position >= 0))
                 alliances[member.Position] = member.Alliance;
             foreach (var bot in snapshot.Bots)
                 alliances[bot.Position] = bot.Alliance;
             world.SetSkirmishAlliances(alliances);
+            world.ConfigureSkirmishRules(snapshot.Rules, snapshot.Closed, replica: true);
             roomGuest.AttachBattlefield(world);
             world.DuelForward = order => Playing && Connected && !world.SkirmishEliminated(LocalTeam) && roomGuest.SendOrder(order);
         }
@@ -443,6 +485,7 @@ namespace OpenZ.Multiplayer
             if (IsHost)
             {
                 room.ConfigureWorld(Game.World, 19);
+                Game.DuelBindStartingViews();
                 foreach (var link in roomLinks.Values) link.AttachBattlefield(Game.World);
                 roomDelta = new DuelDeltaSender();
                 roomTuning = new SkirmishNetworkTuning();

@@ -5,6 +5,35 @@ using OpenZ.Sim;
 
 namespace OpenZ.Multiplayer
 {
+    [Serializable]
+    internal sealed class SkirmishRules
+    {
+        public int TerritoryCap = 50, FortSpeedup;
+        public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers;
+        public string[] Common = new string[4];
+        public int[] BuildPercent = Enumerable.Repeat(100, 8).ToArray();
+        public string[] Extras = new string[32];
+
+        internal bool Valid => TerritoryCap >= 10 && TerritoryCap <= 50 && FortSpeedup >= 0 && FortSpeedup <= 500 &&
+            BuildPercent?.Length == 8 && BuildPercent.All(value => value >= 50 && value <= 100) &&
+            Common?.Length == 4 && Extras?.Length == 32 && Common.Concat(Extras).All(unit => string.IsNullOrEmpty(unit) ||
+                DuelRules.AllowedExtras.Contains(unit) && (!ClassicUnits || DuelUnitRoster.Z1996.Contains(unit)));
+
+        internal SkirmishRules Copy()
+        {
+            var copy = (SkirmishRules)MemberwiseClone();
+            copy.Common = (string[])Common.Clone();
+            copy.BuildPercent = (int[])BuildPercent.Clone();
+            copy.Extras = (string[])Extras.Clone();
+            return copy;
+        }
+
+        internal IEnumerable<string> StartingUnits(int seat) => Common.Concat(Extras.Skip(seat * 4).Take(4)).Where(unit => !string.IsNullOrEmpty(unit));
+
+        internal DuelRules Production => new DuelRules { TerritoryReductionCap = TerritoryCap / 100d, FortSpeedup = FortSpeedup / 100d,
+            ProgressiveTerritoryCap = ProgressiveTerritory, ProgressiveFortSpeedup = ProgressiveFort };
+    }
+
     internal readonly struct RoomMember
     {
         public readonly string Id, Name;
@@ -35,6 +64,8 @@ namespace OpenZ.Multiplayer
         readonly Dictionary<string, RoomMember> members = new Dictionary<string, RoomMember>(StringComparer.Ordinal);
         readonly Dictionary<int, RoomBot> bots = new Dictionary<int, RoomBot>();
         readonly HashSet<string> loaded = new HashSet<string>(StringComparer.Ordinal);
+        readonly HashSet<int> closed = new HashSet<int>();
+        SkirmishRules rules = new SkirmishRules();
 
         public string HostId { get; }
         public string Map { get; private set; }
@@ -43,8 +74,10 @@ namespace OpenZ.Multiplayer
         public bool Launched { get; private set; }
         public RoomMember[] Members => members.Values.ToArray();
         public RoomBot[] Bots => bots.Values.OrderBy(bot => bot.Position).ToArray();
+        public int[] ClosedPositions => closed.OrderBy(position => position).ToArray();
+        public SkirmishRules Rules => rules.Copy();
         public MatchStartBlocker StartBlocker => MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
-            .Concat(bots.Keys.Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
+            .Concat(bots.Keys.Concat(closed).Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
         public bool CanLaunch => !Launched && StartBlocker == MatchStartBlocker.None &&
             ActiveAlliances().Distinct().Skip(1).Any() &&
             members.Values.All(member => !member.Seat.MayUsePlayerCommands || member.Ready);
@@ -86,6 +119,36 @@ namespace OpenZ.Multiplayer
             InvalidateReady();
         }
 
+        public void SetRules(string sender, SkirmishRules next)
+        {
+            RequireHostSetup(sender);
+            if (next?.Valid != true) throw new ArgumentException("Invalid Skirmish rules.");
+            rules = next.Copy();
+            InvalidateReady();
+        }
+
+        public void SetClosed(string sender, int position, bool value)
+        {
+            RequireHostSetup(sender);
+            CheckPosition(position, 0);
+            if (members.Values.Any(member => member.Seat.Position == position)) throw new InvalidOperationException("This position has a player.");
+            if (value ? closed.Add(position) : closed.Remove(position))
+            {
+                bots.Remove(position);
+                InvalidateReady();
+            }
+        }
+
+        public void BringWaitingPlayer(string sender, string id, int position)
+        {
+            RequireHostSetup(sender);
+            CheckPosition(position, 0);
+            if (Member(id).Seat.Position >= 0 || members.Values.Any(member => member.Seat.Position == position)) return;
+            closed.Remove(position);
+            bots.Remove(position);
+            AssignHuman(sender, id, position, position);
+        }
+
         public void AssignObserver(string sender, string id)
         {
             RequireHostSetup(sender);
@@ -101,6 +164,7 @@ namespace OpenZ.Multiplayer
             CheckPosition(position, alliance);
             if (difficulty != ZBotDifficulty.Normal && difficulty != ZBotDifficulty.Easy) throw new ArgumentOutOfRangeException(nameof(difficulty));
             if (members.Values.Any(member => member.Seat.Position == position)) throw new InvalidOperationException("The starting position is occupied.");
+            closed.Remove(position);
             if (bots.TryGetValue(position, out var existing) && existing.Alliance == alliance && existing.Difficulty == difficulty) return;
             bots[position] = new RoomBot(position, alliance, difficulty);
             InvalidateReady();
@@ -126,12 +190,14 @@ namespace OpenZ.Multiplayer
             Starts = MapStarts(map);
             Map = map;
             foreach (int position in bots.Keys.Where(position => position >= Starts).ToArray()) bots.Remove(position);
+            closed.RemoveWhere(position => position >= Starts);
             foreach (var member in members.Values.Where(member => member.Seat.Position >= Starts).ToArray())
                 members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, -1), -1);
             foreach (var member in members.Values.Where(member => member.Seat.Role == MatchSeatRole.Human && member.Seat.Position < 0).ToArray())
                 for (int position = 0; position < Starts; position++)
                 {
                     if (members.Values.Any(other => other.Seat.Position == position)) continue;
+                    if (closed.Contains(position)) continue;
                     bots.Remove(position);
                     members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, position), position);
                     break;
@@ -190,7 +256,7 @@ namespace OpenZ.Multiplayer
             if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
                 throw new InvalidOperationException("The loaded battlefield must match the launched room.");
 
-            int[] alliances = new int[Starts];
+            int[] alliances = Enumerable.Range(0, Starts).ToArray();
             foreach (var member in members.Values.Where(member => member.Seat.MayUsePlayerCommands))
                 alliances[member.Seat.Position] = member.Alliance;
             foreach (var bot in bots.Values)
@@ -198,6 +264,7 @@ namespace OpenZ.Multiplayer
 
             world.ConfigureSkirmishBots(Bots.Select(bot => ((Team)(bot.Position + 1), bot.Difficulty)), seed);
             world.SetSkirmishAlliances(alliances);
+            world.ConfigureSkirmishRules(rules, ClosedPositions);
         }
 
         IEnumerable<int> ActiveAlliances() => members.Values.Where(member => member.Seat.MayUsePlayerCommands)
@@ -218,7 +285,7 @@ namespace OpenZ.Multiplayer
         }
 
         RoomMember Member(string id) => members.TryGetValue(id, out var member) ? member : throw new ArgumentException("Unknown participant.", nameof(id));
-        bool Occupied(int position, string except = null) => bots.ContainsKey(position) || members.Values.Any(member => member.Id != except && member.Seat.Position == position);
+        bool Occupied(int position, string except = null) => closed.Contains(position) || bots.ContainsKey(position) || members.Values.Any(member => member.Id != except && member.Seat.Position == position);
 
         void CheckPosition(int position, int alliance)
         {

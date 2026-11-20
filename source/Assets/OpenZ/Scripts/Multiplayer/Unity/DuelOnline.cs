@@ -31,7 +31,7 @@ namespace OpenZ.Multiplayer
         }
     }
     [Serializable] sealed class DuelOnlineRequest { public string name, fingerprint; public bool skirmish; public int skirmishProtocol; }
-    [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; public bool skirmish; public int id; }
+    [Serializable] sealed class DuelRoomResponse { public string room, secret, seat, role, error; public bool skirmish; public int id, skirmishProtocol; }
     [Serializable] sealed class DuelIceServer { public string[] urls; public string username, credential; }
     [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, relayRemainingBytes, error; }
     [Serializable] sealed class DuelSignal { public string type, sdp; }
@@ -100,9 +100,9 @@ namespace OpenZ.Multiplayer
             serviceUrl = DuelOnlineSettings.ValidateService(service);
             hostSeat = host; versionFingerprint = fingerprint; localName = name; forceRelay = relayOnly;
             var room = await Post<DuelRoomResponse>(host ? serviceUrl + "/rooms" : serviceUrl + "/rooms/" + ReadCode(invitation) + "/join",
-                new DuelOnlineRequest { name = name, fingerprint = fingerprint, skirmish = skirmish, skirmishProtocol = 1 }).ConfigureAwait(false);
+                new DuelOnlineRequest { name = name, fingerprint = fingerprint, skirmish = skirmish, skirmishProtocol = 2 }).ConfigureAwait(false);
             RoomCode = room.room; Secret = room.secret; seatToken = room.seat;
-            if (skirmish && !room.skirmish) throw new IOException("The invitation service needs the multiplayer update before it can host Skirmish.");
+            if ((skirmish || room.skirmish) && room.skirmishProtocol != 2) throw new IOException("The invitation service needs the latest Skirmish update.");
             if (room.skirmish)
             {
                 var address = new Uri(serviceUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/rooms/" + RoomCode + "/socket");

@@ -128,7 +128,7 @@ namespace OpenZ.Sim
         }
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
-        internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true;
+        internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true || skirmishRules?.NerfedHowitzers == true;
 
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
@@ -316,6 +316,7 @@ namespace OpenZ.Sim
 
         internal void DuelUpdateFortBonus()
         {
+            if (HasSkirmishProduction) { UpdateSkirmishProduction(); return; }
             if (duelRules?.UsesDynamicProduction != true || DuelIsReplica) return;
             double red = MilitaryValue(Team.Red), blue = MilitaryValue(Team.Blue);
             for (int slot = 0; slot < 2; slot++)
@@ -336,6 +337,7 @@ namespace OpenZ.Sim
 
         internal double DuelBuildSeconds(ZObject building, int seconds)
         {
+            if (HasSkirmishProduction) return SkirmishBuildSeconds(building, seconds);
             if (duelRules == null) throw new InvalidOperationException("Not a duel world.");
             int slot = building.Owner == Team.Blue ? 1 : 0;
             bool hasTeam = building.Owner == Team.Red || building.Owner == Team.Blue;
@@ -354,6 +356,7 @@ namespace OpenZ.Sim
         // Called only by the small production hook installed into the original game.
         internal bool DuelResetZoneBuildTime(double fraction)
         {
+            if (World?.HasSkirmishProduction == true) { ZoneOwnage = fraction; return true; }
             if (World == null || !World.HasDuelRules) return false;
             if (ZoneOwnage == fraction) return true;
             double progress = ProductionProgress;

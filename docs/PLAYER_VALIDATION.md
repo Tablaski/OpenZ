@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.16 Skirmish lobby and balancing
+
+- Pending compiled-game check: browse the five tabs while eight places, invitations, chat and microphone remain visible. Close and reopen a seat, seat a waiting guest, configure shared and individual starting units, and verify that a setup edit clears readiness.
+- Pending host and guest check: mute/restore a guest, check visible mute and text chat, kick with a private message and check a room ban on a separate network. Exercise the match player list as host and verify guest permissions.
+- Pending gameplay check: use alliance and free-for-all setups to measure the progressive territory and fort bonuses across unequal army values. Verify the default OpenZ modifiers, construction progress, extra unit placement and closed-start cleanup.
+
 ## OpenZ-VK 1.5.15 Skirmish network
 
 - Pending deployed SFU and compiled-game check: use the same magic link on three Windows PCs. Verify all names, positions, readiness, voice and chat. Launch P03M01, verify orders from every seat and check that surrender affects the correct participant. Repeat on an eight-start map with up to eight humans and with mixed bot teams.

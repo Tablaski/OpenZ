@@ -124,7 +124,7 @@ namespace OpenZ.Sim
         public double BuildTimeModified(int baseSeconds)
         {
             // OpenZ duel hook: production policy belongs to the match.
-            if (World?.HasDuelRules == true) return World.DuelBuildSeconds(this, baseSeconds);
+            if (World?.HasDuelRules == true || World?.HasSkirmishProduction == true) return World.DuelBuildSeconds(this, baseSeconds);
             double z = Math.Max(0, Math.Min(1, ZoneOwnage));
             double t = baseSeconds - baseSeconds * 0.5 * z;
             double hp = MaxHealth > 0 ? (double)Health / MaxHealth : 1;

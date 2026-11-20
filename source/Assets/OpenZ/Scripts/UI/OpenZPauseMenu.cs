@@ -128,6 +128,8 @@ namespace OpenZ
                 });
                 if (onlineSkirmish)
                     skirmishMapVote = Big("PROPOSE MAP CHANGE", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowRoomVote());
+                if (onlineSkirmish && OpenZ.Multiplayer.DuelRuntime.I.IsHost)
+                    Big("MANAGE PLAYERS", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowRoomPlayers());
             }
             bQuit = Big("QUIT TO MAIN MENU", HudButtonStyle.Danger, () => OzConfirm.Ask("QUIT TO THE MAIN MENU?", "THIS MATCH ENDS HERE AND ITS PROGRESS IS LOST.", () => { OzSfx.Ui("ui_back"); OzScenes.MainMenu(); }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             if (OpenZ.Multiplayer.DuelRuntime.Active)

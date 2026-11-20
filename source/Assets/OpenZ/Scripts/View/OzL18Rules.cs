@@ -36,7 +36,7 @@ namespace OpenZ
             StumpsShown = StumpsHidden = 0;
             if (g == null || g.World == null || !OzCity.IsBridgeGame(g.level)) return;
             var w = g.World;
-            var placements = w.HasDuelRules ? GameObject.Find("ZodObjects") : null;
+            var placements = GameObject.Find("ZodObjects");
             if (placements)
                 foreach (var spot in ZWorld.L18BigTankSpots)
                 {

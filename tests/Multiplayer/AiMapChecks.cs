@@ -47,6 +47,7 @@ static class AiMapChecks
             check(map.objects.Count==BitConverter.ToUInt16(original,56)&&map.tiles.Length==map.width*map.height,entry.Id+": source object and tile counts");
             var world=ZWorld.Create(settings,json,1935);
             check(world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Red)==1&&world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Blue)==1,entry.Id+": two-team fort ownership");
+            CheckNeutralMechs(entry.Id, settings, json, world, check);
             if (entry.Id == "SMBallermansMapV3")
             {
                 var fortZones = world.Objects.Where(o => o.IsFort).Select(o => o.ZoneIndex).ToHashSet();
@@ -63,6 +64,31 @@ static class AiMapChecks
             check(!receiver.Execute(new DuelOrder{Sequence=1,ObjectId=red.Id,Kind=DuelOrderKind.Stop})&&receiver.Execute(new DuelOrder{Sequence=2,ObjectId=blue.Id,Kind=DuelOrderKind.Stop}),entry.Id+": authoritative orders preserve team control");
             var state=DuelReplica.Capture(world); var client=ZWorld.Create(settings,json,1935); client.ConfigureDuel(rules,true); DuelReplica.Apply(client,state);
             check(client.Objects.Count==world.Objects.Count,entry.Id+": initial replica object count");
+        }
+    }
+
+    static void CheckNeutralMechs(string mapId, string settings, string json, ZWorld initial, Action<bool, string> check)
+    {
+        foreach (var placed in initial.Objects.Where(o => o.Type == "medium" && o.Owner == Team.Neutral))
+        {
+            bool boarded = false;
+            foreach (var direction in new[] { (x: 1, y: 0), (x: -1, y: 0), (x: 0, y: 1), (x: 0, y: -1) })
+            {
+                int x = placed.CenterX + direction.x * 40, y = placed.CenterY + direction.y * 40;
+                if (!initial.Path.TilePassable(x / 16, y / 16, true)) continue;
+                var world = ZWorld.Create(settings, json, 1935);
+                var mech = world.Get(placed.Id);
+                // Isolate the boarding order from crossfire and nearby squads auto-boarding first.
+                world.S.auto_grab_vehicle_distance = 0;
+                foreach (var unit in world.Objects) unit.Damage = 0;
+                var driver = world.CreateObject("robot", "grunt", x - 8, y - 8, Team.Red);
+                driver.Damage = 0;
+                world.SendWaypoints(Team.Red, driver, new[] { new ZWaypoint { mode = WpMode.Enter, refId = mech.Id, x = mech.CenterX, y = mech.CenterY } });
+                for (int i = 0; i < 800 && mech.Owner == Team.Neutral && driver.Waypoints.Count > 0; i++) world.Tick(.01);
+                boarded = mech.Owner == Team.Red && mech.Drivers.Count > 0 && driver.KillAt >= 0;
+                if (boarded) break;
+            }
+            check(boarded, $"{mapId}: board neutral Medium Mech at ({placed.Source.x}, {placed.Source.y})");
         }
     }
 

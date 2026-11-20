@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.8 starting units and match network display
+
+- Pending in-game check: on an Arctic AI Map with a neutral Medium Mech, use the OpenZ roster and board it with a robot. Replay with the Z 1996 roster and check the model, minimap marker and boarding target are absent. Compare both seats in 1 vs 1. Verify the Medium Tank remains available with the Z 1996 roster.
+- Pending Bridge Game check: in solo and on both 1 vs 1 seats, exclude only the Bizon, then only the Mammoth. Check the excluded tank and its original scene placement disappear. Board the allowed tank. Check that a solo custom roster saves both permissions and that OpenZ still includes both tanks.
+- Pending HUD check: check Ping and Sync Hz next to the force display at 16:9 and ultrawide resolutions. Check the update during a live 1 vs 1 match and the TURN label on a relayed connection.
+
 ## OpenZ-VK 1.5.7 radar sweep interval
 
 - Pending manual check: cycle through 3, 5 and 10 seconds in the main menu and the pause menu. Time consecutive sweeps from the same radar in Solo and 1 vs 1, check the value survives a restart, and verify that two 1 vs 1 players can use different intervals.

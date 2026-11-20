@@ -159,7 +159,7 @@ namespace OpenZ
         public static void Spawn(ZGame g)
         {
             var s = g != null && g.World != null ? g.World.PlayableShuttle : null;
-            if (s == null || g.World.L16ShuttleOptionOff) return;                                 // 1.2 item 111 DV144: the red fort's pocket is empty (a blue player): his ship by the blue fort is drawn from the unit prefab (OzShuttleEmptyLook.SpawnMapShuttles)
+            if (s == null || g.World.L16ShuttleOptionOff || !g.World.DuelAllowsUnit(ZWorld.ShuttleType)) return;
             var ship = Object.FindFirstObjectByType<L16Shuttle>(FindObjectsInactive.Include);
             if (!ship) { if (ZWorld.L17DrawnFromPrefab(g.World)) return; Debug.LogWarning("[OpenZ] shuttle: no ship in the scene to draw the playable shuttle with"); return; }   // K444: level 17's ships are drawn from the unit prefab (OzShuttleEmptyLook.SpawnMapShuttles)
             var go = ship.gameObject;
@@ -210,7 +210,8 @@ namespace OpenZ
         {
             if (!ship || !g || g.World == null) return false;
             var w = g.World;
-            if (w.PlayableShuttle == null && !w.L16ShuttleOptionOff) return false;            // the decoration as before ('Zod exact': the hut)
+            bool hidden = w.L16ShuttleOptionOff || !w.DuelAllowsUnit(ZWorld.ShuttleType);
+            if (w.PlayableShuttle == null && !hidden) return false;                          // the decoration as before ('Zod exact': the hut)
             if (w.L16CampHutRemoved)
             {   // the hut beside the start camp is out of the rules in both cases: not drawn
                 var zod = GameObject.Find("ZodObjects"); var ch = zod ? zod.transform.Find("hut_" + ZWorld.L16CampHutTile[0] + "_" + ZWorld.L16CampHutTile[1]) : null;
@@ -218,10 +219,11 @@ namespace OpenZ
             }
             if (ship.searchlight) ship.searchlight.gameObject.SetActive(false);                   // the field searchlight stays removed (the ship carries its own lamps)
             var dp = ship.GetComponent<DetailProp>(); if (dp) { dp.StopLoop(); dp.enabled = false; }
-            if (w.L16ShuttleOptionOff)
+            if (hidden)
             {
                 ship.gameObject.SetActive(false);
-                Debug.Log(w.PlayableShuttle != null ? "[OpenZ] shuttle: the red fort's pocket stays empty: the player commands blue, his shuttle stands by the blue fort (DV144)" : "[OpenZ] shuttle: the option SHUTTLE is off: no shuttle on this level");
+                if (!w.DuelAllowsUnit(ZWorld.ShuttleType)) Debug.Log("[OpenZ] shuttle: excluded by Allowed Units");
+                else Debug.Log(w.PlayableShuttle != null ? "[OpenZ] shuttle: the red fort's pocket stays empty: the player commands blue, his shuttle stands by the blue fort (DV144)" : "[OpenZ] shuttle: the option SHUTTLE is off: no shuttle on this level");
                 return true;
             }
             ship.enabled = false;                                                                 // the playable shuttle's view drives the ship

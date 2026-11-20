@@ -28,6 +28,8 @@ static class SimulationChecks
                     var bridgeRules = new DuelRules { Map = "L18" };
                     if (!mammoth) bridgeRules.SetUnitAllowed(ZBigTanks.Mammoth, false);
                     if (!bizon) bridgeRules.SetUnitAllowed(ZBigTanks.Bizon, false);
+                    var solo = ZWorld.Create(settings, bridgeGame, 18);
+                    solo.ConfigureSoloUnits(bridgeRules.AllowedUnits, !mammoth, !bizon);
                     var host = ZWorld.Create(settings, bridgeGame, 18);
                     host.ConfigureDuel(bridgeRules, false);
                     host.DuelApplyStartingArmies();
@@ -35,11 +37,11 @@ static class SimulationChecks
                     guest.ConfigureDuel(bridgeRules, true);
                     guest.DuelResetReplica();
                     DuelReplica.Apply(guest, DuelReplica.Capture(host));
-                    foreach (var side in new[] { host, guest })
+                    foreach (var side in new[] { solo, host, guest })
                     {
                         check(side.Objects.Count(o => o.Type == ZBigTanks.Mammoth && o.Owner == Team.Neutral) == (mammoth ? 1 : 0) &&
                               side.Objects.Count(o => o.Type == ZBigTanks.Bizon && o.Owner == Team.Neutral) == (bizon ? 1 : 0),
-                              "Bridge Game applies independent map tank restrictions on host and guest");
+                              "Bridge Game applies independent map tank restrictions in solo, on the host and on the guest");
                         check(side.Objects.Where(o => o.IsProducer).All(o => !side.ProductionUnits(o).Any(ZBigTanks.Is)),
                             "Map tank permissions never add the Mammoth or Bizon to production");
                     }

@@ -109,6 +109,7 @@ namespace OpenZ.Sim
         double nextDuelAiCheck;
         HashSet<string> soloAllowedUnits;
         bool soloRosterConfigured;
+        bool soloExcludeMammoth, soloExcludeBizon;
         readonly double[] duelFortReduction = new double[2];
         public bool DuelIsReplica { get; private set; }
         public Func<DuelOrder, bool> DuelForward;
@@ -125,20 +126,29 @@ namespace OpenZ.Sim
         public bool DuelTankDamageShake => duelRules?.TankDamageShake == true;
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
-        public bool DuelAllowsUnit(string type) => duelRules != null ? duelRules.Allows(type) : soloAllowedUnits == null || soloAllowedUnits.Contains(type);
-        /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>
-        public void ConfigureSoloUnits(IEnumerable<string> types)
+        public bool DuelAllowsUnit(string type)
         {
-            if(Time != 0 || duelRules != null || soloRosterConfigured) throw new InvalidOperationException("Configure a fresh solo world only.");
-            var selection=new HashSet<string>(StringComparer.Ordinal);
-            foreach(string type in types ?? throw new ArgumentNullException(nameof(types)))
-                if(!DuelUnitRoster.Known(type) || !selection.Add(type))throw new ArgumentException("Unknown or duplicate solo unit.");
-            soloRosterConfigured=true;
-            if(selection.SetEquals(DuelUnitRoster.All))return;
-            soloAllowedUnits=selection;
-            foreach(var unit in Objects.ToArray())if(unit.IsUnit&&!DuelAllowsUnit(unit.IsHero?"heroes":unit.Type))DeleteObject(unit);
-            FortDoorGuns.RemoveAll(unit=>!DuelAllowsUnit(unit.Type));
-            FilterProductionRoster();
+            if (duelRules != null) return duelRules.Allows(type);
+            if (type == ZBigTanks.Mammoth) return !soloExcludeMammoth;
+            if (type == ZBigTanks.Bizon) return !soloExcludeBizon;
+            return soloAllowedUnits == null || soloAllowedUnits.Contains(type);
+        }
+        /// <summary>Solo roster only: preserve campaign production, difficulty, bots and combat profiles.</summary>
+        public void ConfigureSoloUnits(IEnumerable<string> types, bool excludeMammoth = false, bool excludeBizon = false)
+        {
+            if (Time != 0 || duelRules != null || soloRosterConfigured) throw new InvalidOperationException("Configure a fresh solo world only.");
+            var selection = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string type in types ?? throw new ArgumentNullException(nameof(types)))
+                if (!DuelUnitRoster.Known(type) || !selection.Add(type)) throw new ArgumentException("Unknown or duplicate solo unit.");
+            soloRosterConfigured = true;
+            soloExcludeMammoth = excludeMammoth;
+            soloExcludeBizon = excludeBizon;
+            if (!selection.SetEquals(DuelUnitRoster.All)) soloAllowedUnits = selection;
+            if (soloAllowedUnits == null && !soloExcludeMammoth && !soloExcludeBizon) return;
+            foreach (var unit in Objects.ToArray())
+                if (unit.IsUnit && !DuelAllowsUnit(unit.IsHero ? "heroes" : unit.Type)) DeleteObject(unit);
+            FortDoorGuns.RemoveAll(unit => !DuelAllowsUnit(unit.Type));
+            if (soloAllowedUnits != null) FilterProductionRoster();
         }
         public static ZBehaviorProfile DuelProfile(string encoded, ZBehaviorFamily family)
         {

@@ -245,6 +245,7 @@ namespace OpenZ
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;
             BindViews();
+            if (!World.HasDuelRules) HideReplacedStartingUnitViews(false);
             OzHeroSquadView.Spawn(this);                                                          // DV108: the hero squads' own models; the scene's robots of the entry they replace are hidden
             OzPlayableShuttle.Spawn(this);                                                        // DV118: the scene's ship becomes the playable shuttle's view (View/OzPlayableShuttle.cs)
             OzShuttleEmptyLook.SpawnMapShuttles(this);                                            // K256f: every other shuttle of the rules (a map's entry) its full view; the empty look on each
@@ -293,7 +294,7 @@ namespace OpenZ
             }
             if (!(blueBot && redBot) && OzCity.IsBridgeGame(level) && headStartNow)   // 1.5 level 18 (kit level18_map; kit level18_rules/blue_start_v3, owner addition 49: no crane at the start): two jeeps and a light tank; the optional shuttle is the SHUTTLE box's (kit level18_rules DV200), placed before this and kept clear by DV144
             {
-                var extra = World.AddHeadStart(player, HeadStartL18Types); HeadStartMade += extra.Count;
+                var extra = World.AddHeadStart(player, HeadStartL18Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
                 foreach (var v in extra) SpawnUnitView(v);
                 Debug.Log($"[ZGame] L18 head start for {player}: {extra.Count} crewed vehicles at the fort");
             }
@@ -301,7 +302,7 @@ namespace OpenZ
             // Row 58: a blue player's start right after a DEFEAT (the lose screen's REPLAY / RETRY, UI/OzUi.cs OzScenes) has him at the blue fort, the player's own unit.
             bool ezRetry = OzScenes.TakeRetryAfterLoss();
             bool ezLevel = level == "L02" || level == "L16" || OzCity.Is(level) || OzVolcanic.Is(level), ezHuman = blueBot != redBot;
-            if (ZWorld.EvilZodDeviation && ezLevel && ezHuman && ezRetry && player == Team.Blue)
+            if (ZWorld.EvilZodDeviation && ezLevel && ezHuman && ezRetry && player == Team.Blue && World.DuelAllowsUnit("evilzod"))
             {
                 var ez = World.AddEvilRetryHelp(Team.Blue);
                 if (ez != null) SpawnUnitView(ez);
@@ -400,6 +401,30 @@ namespace OpenZ
             int madeViews = 0;
             if (noPlaced != null) foreach (var o in noPlaced) if (SpawnUnitView(o)) madeViews++;
             Debug.Log($"ZGame {level}: {World.Objects.Count} sim objects, {bound} unit views bound, {madeViews} made for map vehicles the scene does not hold, {missing - madeViews} missing, {StaticViews.Count} static views");
+        }
+
+        void HideReplacedStartingUnitViews(bool replaceCrewed)
+        {
+            var hidden = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (var source in World.Map.objects)
+            {
+                if (source.Category != "robot" && source.Category != "vehicle" && source.Category != "cannon") continue;
+                if (!World.DuelAllowsUnit(source.Type) || replaceCrewed && (source.owner == "red" || source.owner == "blue"))
+                    hidden.Add($"{source.Type}_{source.x}_{source.y}");
+            }
+            if (hidden.Count == 0) return;
+            var root = GameObject.Find("ZodObjects");
+            if (!root) return;
+            var liveViews = new HashSet<GameObject>(Views.Where(pair => pair.Value && World.Get(pair.Key) != null)
+                .Select(pair => pair.Value.gameObject));
+            foreach (Transform child in root.transform)
+            {
+                if (liveViews.Contains(child.gameObject)) continue;
+                string name = child.name;
+                int suffix = name.LastIndexOf('_');
+                if (hidden.Contains(name) || suffix > 0 && hidden.Contains(name.Substring(0, suffix)))
+                    child.gameObject.SetActive(false);
+            }
         }
 
         /// <summary>View for a unit created at run time (ejected crew, staged fight, later factory output).</summary>

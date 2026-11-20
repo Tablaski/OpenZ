@@ -119,9 +119,7 @@ namespace OpenZ.Multiplayer
                     if (generalImages[i] && generals.P[i] != null && generals.P[i].modelReady)
                     { generalImages[i].texture = generals.P[i].rt; generalImages[i].material = generals.Figure; generalImages[i].enabled = generals.P[i].rt; }
             }
-            ping?.Set("PING " + R.PingMs.ToString("0") + " MS" +
-                (page == Page.Entry && R.OnlinePeer?.UsesRelay == true ? " · TURN" : "") +
-                (page == Page.Entry && R.Playing ? $"  |  SYNC {R.SyncRateHz?.ToString("0.0") ?? "—"} Hz" : ""));
+            ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
             voiceStatus?.Set(R.Voice.Status);
             if (inputMeter) { inputMeter.rectTransform.anchorMax = new Vector2(R.Voice.InputLevel, 1); inputMeter.color = R.Voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go; }
             meterValue?.Set("INPUT LEVEL: " + Mathf.RoundToInt(R.Voice.InputLevel * 100) + "%");
@@ -180,7 +178,6 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry)
             {
                 if (R.MatchPaused && !pauseWasOpen) BuildPausedMatch();
-                if (SceneManager.GetActiveScene().name != "MainMenu" && R.InMatch) ping = Label(root, "PING", 1370, 34, 390, 17, OzUi.Go);
                 if (R.Planning)
                 {
                     var banner = Hud.Img(root, "Opening orders", OzUi.GM950);
@@ -230,6 +227,7 @@ namespace OpenZ.Multiplayer
                 Button(root, "ADVANCED TCP/IP", 180, 565, 600, () => { Leave(); advanced = true; onlineSettings = false; ShowConnect(); });
             }
         }
+
 
         void BuildPausedMatch()
         {

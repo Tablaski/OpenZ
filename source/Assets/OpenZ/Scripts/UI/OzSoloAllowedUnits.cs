@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using OpenZ.Multiplayer;
+using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -12,7 +13,7 @@ namespace OpenZ
     public sealed class OzSoloAllowedUnits : MonoBehaviour
     {
         public const string Label="ALLOWED UNITS",Preference="oz_solo_allowed_units_v1";
-        [Serializable] sealed class Selection { public int preset;public string[] allowed; }
+        [Serializable] sealed class Selection { public int schema,preset;public string[] allowed;public bool excludeMammoth,excludeBizon; }
         static OzSoloAllowedUnits instance;static int closedFrame=-1;
         public static bool CapturesInput=>instance||closedFrame==Time.frameCount;
         DuelRules rules;Action changed;RectTransform sheet;float scroll=1;
@@ -21,15 +22,24 @@ namespace OpenZ
             var rules=new DuelRules();string json=PlayerPrefs.GetString(Preference,"");if(json.Length==0)return rules;
             try{
                 var saved=JsonUtility.FromJson<Selection>(json);
-                if(saved==null||!Enum.IsDefined(typeof(DuelUnitPreset),saved.preset)||saved.allowed==null||saved.allowed.Length>22||saved.allowed.Distinct().Count()!=saved.allowed.Length||saved.allowed.Any(t=>!DuelUnitRoster.Known(t)))return rules;
+                if(saved==null||!Enum.IsDefined(typeof(DuelUnitPreset),saved.preset)||saved.allowed==null||saved.allowed.Length>DuelUnitRoster.All.Length||saved.allowed.Distinct().Count()!=saved.allowed.Length||saved.allowed.Any(t=>!DuelUnitRoster.Known(t)))return rules;
                 rules.SetUnitPreset((DuelUnitPreset)saved.preset);
-                if(rules.UnitPreset==DuelUnitPreset.Custom)foreach(string type in DuelUnitRoster.All)rules.SetUnitAllowed(type,Array.IndexOf(saved.allowed,type)>=0);
+                if(rules.UnitPreset==DuelUnitPreset.Custom)
+                {
+                    foreach(string type in DuelUnitRoster.All)rules.SetUnitAllowed(type,Array.IndexOf(saved.allowed,type)>=0);
+                    // Older custom subsets implicitly excluded both map-only tanks.
+                    bool legacyExclusion = saved.schema == 0 && saved.allowed.Length != DuelUnitRoster.All.Length;
+                    rules.SetUnitAllowed(ZBigTanks.Mammoth,!legacyExclusion&&!saved.excludeMammoth);
+                    rules.SetUnitAllowed(ZBigTanks.Bizon,!legacyExclusion&&!saved.excludeBizon);
+                }
                 rules.Validate();return rules;
             }catch(Exception){return new DuelRules();}
         }
         public static void Apply(ZGame game)
         {
-            if(game.World!=null&&!DuelRuntime.Active&&!OzUnitEditor.IsPlayground(game.gameObject.scene))game.World.ConfigureSoloUnits(Read().AllowedUnits);
+            if(game.World==null||DuelRuntime.Active||OzUnitEditor.IsPlayground(game.gameObject.scene))return;
+            var rules=Read();
+            game.World.ConfigureSoloUnits(rules.AllowedUnits,!rules.Allows(ZBigTanks.Mammoth),!rules.Allows(ZBigTanks.Bizon));
         }
         public static void Show(Action changed=null)
         {
@@ -45,7 +55,16 @@ namespace OpenZ
         {
             Store(rules);Build();
         }
-        internal static void Store(DuelRules rules){rules.Validate();PlayerPrefs.SetString(Preference,JsonUtility.ToJson(new Selection{preset=(int)rules.UnitPreset,allowed=rules.AllowedUnits.ToArray()}));PlayerPrefs.Save();}
+        internal static void Store(DuelRules rules)
+        {
+            rules.Validate();
+            PlayerPrefs.SetString(Preference,JsonUtility.ToJson(new Selection
+            {
+                schema=1,preset=(int)rules.UnitPreset,allowed=rules.AllowedUnits.ToArray(),
+                excludeMammoth=rules.ExcludeMammoth,excludeBizon=rules.ExcludeBizon
+            }));
+            PlayerPrefs.Save();
+        }
         void Build()
         {
             if(sheet){sheet.gameObject.SetActive(false);Destroy(sheet.gameObject);}

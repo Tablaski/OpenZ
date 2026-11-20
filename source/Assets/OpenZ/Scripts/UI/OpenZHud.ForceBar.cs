@@ -9,6 +9,7 @@ namespace OpenZ
     {
         Image forceRedShare, forceBlueShare, forceCursor, forceRedGlow, forceBlueGlow;
         OzText forceRedBonus, forceBlueBonus;
+        OzText matchPing, matchSync, matchRelay;
         HudButton forceRedHot, forceBlueHot;
         double forceRed, forceBlue, forceRedBoost, forceBlueBoost;
         bool forceValueMode;
@@ -27,6 +28,20 @@ namespace OpenZ
             forceRedBonus = Hud.Label(top, "RedFortBonus", "", 9, OzUi.Ink).At(187, 47, OzH.C, true, 216);
             forceBlueBonus = Hud.Label(top, "BlueFortBonus", "", 9, OzUi.Ink).At(593, 47, OzH.C, true, 216);
             forceRedBonus.rectTransform.gameObject.SetActive(false); forceBlueBonus.rectTransform.gameObject.SetActive(false);
+            if (Multiplayer.DuelRuntime.Active) BuildMatchNetworkReadout();
+        }
+
+        void BuildMatchNetworkReadout()
+        {
+            var panel = Hud.Node("Match network status", top);
+            panel.TL(OzLayout.TopStrip.w + 8, 2, 254, 47);
+            Hud.Plate(panel, "sm", 15, OzUi.Amber, shadow: false);
+            Hud.Img(panel, "Column divider", OzUi.A(OzUi.Ink2, .4f)).rectTransform.TL(110, 10, 1, 27);
+            Hud.Label(panel, "Ping label", "PING", 11, OzUi.Muted).At(16, 7);
+            Hud.Label(panel, "Sync label", "SYNC", 11, OzUi.Muted).At(125, 7);
+            matchPing = Hud.Label(panel, "Ping in milliseconds", "—", 18, OzUi.Ink).At(16, 21);
+            matchSync = Hud.Label(panel, "Sync in hertz", "—", 18, OzUi.Ink).At(125, 21);
+            matchRelay = Hud.Label(panel, "Relay", "", 10, OzUi.Amber).At(200, 7);
         }
 
         void RefreshForceMetrics(int redUnits, int blueUnits)
@@ -76,6 +91,12 @@ namespace OpenZ
         {
             SetNum(redCount, ref shownRed, redTick.Value);
             SetNum(blueCount, ref shownBlue, blueTick.Value);
+            var duel = Multiplayer.DuelRuntime.I;
+            if (matchPing == null || !duel) return;
+            matchPing.Set(duel.PingMs.ToString("0") + " ms");
+            float? rate = duel.SyncRateHz;
+            matchSync.Set(duel.Playing && rate.HasValue ? rate.Value.ToString("0.0") + " Hz" : "—");
+            matchRelay.Set(duel.OnlinePeer?.UsesRelay == true ? "TURN" : "");
         }
 
         /// <summary>Display the actual fort-production reduction supplied by the match policy; never changes production.</summary>

@@ -116,8 +116,7 @@ namespace OpenZ.Multiplayer
         public float PingMs { get; private set; }
         public DuelLobbyData View { get; private set; }
         internal string LocalLobbyName => (IsHost ? View?.HostName : View?.GuestName) ?? localName;
-        internal Team LocalTeam => SkirmishRoom ? (IsHost ? Team.Red :
-            (Team)((JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1) + 1)) :
+        internal Team LocalTeam => SkirmishRoom ? (Team)(RoomPosition + 1) :
             View.TeamSlot(IsHost ? 0 : 1) == 0 ? Team.Red : Team.Blue;
         public DuelRules Rules => View?.ReadRules() ?? Defaults("L02");
         public readonly List<string> Chat = new List<string>();
@@ -335,6 +334,7 @@ namespace OpenZ.Multiplayer
         {
             message = new string((message ?? "").Where(c => !char.IsControl(c)).Take(240).ToArray()).Trim();
             if (message.Length == 0 || !Connected) return;
+            if (SkirmishRoom) { SendRoomChat(message); return; }
             AddChat(localName + " : " + message); peer.Send(new DuelPacket(DuelMessage.Chat, Encoding.UTF8.GetBytes(message)));
         }
         void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.RefreshChatHistory(); }
@@ -640,6 +640,7 @@ namespace OpenZ.Multiplayer
         }
         void SceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (scene.name == "MainMenu") Menus.ClearLocalSkirmishMatch();
             if (scene.name == "MainMenu" && session) Close();
             if (session && Game) StartCoroutine(FinishLoading()); else Menus.Refresh();
         }
@@ -649,7 +650,7 @@ namespace OpenZ.Multiplayer
             if (!session || !Connected || !Game) yield break;
             lastReceive = Now;
             Game.DuelBindStartingViews();
-            if (!IsHost || View?.TeamsSwapped == true)
+            if (!IsHost || View?.TeamsSwapped == true || SkirmishRoom && RoomPosition != 0)
             {
                 var camera = FindFirstObjectByType<RtsCamera>();
                 var fort = Game.World.Objects.FirstOrDefault(o => o.IsFort && o.Owner == LocalTeam);

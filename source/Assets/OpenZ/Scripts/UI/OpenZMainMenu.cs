@@ -1054,7 +1054,7 @@ namespace OpenZ
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
             if ((Screen.width != builtW || Screen.height != builtH) && view != View.Loading) Build();
             if (view == View.Loading) { TickLoading(dt); TickBackground(dt); return; }
-            if (!OzConfirm.Blocks && !OzBehaviorOptions.CapturesInput && !OzSoloAllowedUnits.CapturesInput) { Poll(); Keys(); DragSliders(); }
+            if (!OzConfirm.Blocks && !OzBehaviorOptions.CapturesInput && !OzSoloAllowedUnits.CapturesInput && !OzSoloMapTech.CapturesInput) { Poll(); Keys(); DragSliders(); }
             TickBackground(dt);
             TickIntro();
             TickViews(dt);

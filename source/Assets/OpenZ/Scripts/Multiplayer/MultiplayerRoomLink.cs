@@ -8,13 +8,14 @@ using UnityEngine;
 
 namespace OpenZ.Multiplayer
 {
-    internal enum RoomCommandKind { Ready = 1, Loaded = 2 }
+    internal enum RoomCommandKind { Ready = 1, Loaded = 2, Rename = 3 }
 
     [Serializable] internal sealed class RoomCommand
     {
         public RoomCommandKind Kind;
         public int Revision;
         public bool Ready;
+        public string Name;
     }
 
     [Serializable] internal sealed class RoomOrder
@@ -50,20 +51,20 @@ namespace OpenZ.Multiplayer
 
     internal static class MultiplayerRoomPackets
     {
-        internal const int MaxCommandBytes = 256, MaxSnapshotBytes = 16384;
+        internal const int MaxCommandBytes = 256, MaxOrderBytes = 16384, MaxSnapshotBytes = 280000;
         static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
 
         public static DuelPacket Command(RoomCommand command) =>
             Encode(DuelMessage.RoomCommand, command, MaxCommandBytes);
         public static DuelPacket Snapshot(RoomSnapshot snapshot) =>
-            Encode(DuelMessage.RoomSnapshot, snapshot, MaxSnapshotBytes);
-        public static DuelPacket Order(RoomOrder order) => Encode(DuelMessage.RoomOrder, order, MaxSnapshotBytes);
+            Encode(DuelMessage.RoomSnapshot, snapshot, MaxSnapshotBytes, compress: true);
+        public static DuelPacket Order(RoomOrder order) => Encode(DuelMessage.RoomOrder, order, MaxOrderBytes);
 
         public static RoomCommand ReadCommand(DuelPacket packet) =>
             Decode<RoomCommand>(packet, DuelMessage.RoomCommand, MaxCommandBytes);
         public static RoomSnapshot ReadSnapshot(DuelPacket packet) =>
             Decode<RoomSnapshot>(packet, DuelMessage.RoomSnapshot, MaxSnapshotBytes);
-        public static RoomOrder ReadOrder(DuelPacket packet) => Decode<RoomOrder>(packet, DuelMessage.RoomOrder, MaxSnapshotBytes);
+        public static RoomOrder ReadOrder(DuelPacket packet) => Decode<RoomOrder>(packet, DuelMessage.RoomOrder, MaxOrderBytes);
 
         public static DuelPacket Battlefield(int revision, DuelDelta delta, IReadOnlyList<ZEvent> events, bool compress = false)
         {
@@ -95,11 +96,11 @@ namespace OpenZ.Multiplayer
             return delta;
         }
 
-        static DuelPacket Encode(DuelMessage kind, object value, int maxBytes)
+        static DuelPacket Encode(DuelMessage kind, object value, int maxBytes, bool compress = false)
         {
             var payload = StrictUtf8.GetBytes(JsonUtility.ToJson(value));
             if (payload.Length > maxBytes) throw new InvalidDataException("Room packet exceeds its size limit.");
-            return new DuelPacket(kind, payload);
+            return new DuelPacket(kind, payload, compress);
         }
 
         static T Decode<T>(DuelPacket packet, DuelMessage kind, int maxBytes) where T : class
@@ -170,6 +171,7 @@ namespace OpenZ.Multiplayer
                 {
                     case RoomCommandKind.Ready: room.SetReady(guest, command.Revision, command.Ready); break;
                     case RoomCommandKind.Loaded: room.MarkLoaded(guest, command.Revision); break;
+                    case RoomCommandKind.Rename: room.Rename(guest, command.Name); break;
                     default: return false;
                 }
             }
@@ -261,6 +263,8 @@ namespace OpenZ.Multiplayer
 
         public bool SetReady(bool ready) => Send(RoomCommandKind.Ready, ready, false);
         public bool MarkLoaded() => Send(RoomCommandKind.Loaded, false, true);
+        public bool Rename(string name) => View?.Launched == false && peer.Send(MultiplayerRoomPackets.Command(
+            new RoomCommand { Kind = RoomCommandKind.Rename, Name = DuelLobby.NormalizeName(name) }));
 
         public bool SendOrder(DuelOrder order)
         {

@@ -38,6 +38,10 @@ namespace OpenZ
                     new Vector2(240, 46), HudButtonKind.Large, 17);
                 category.Rt.Place(new OzRect(740, 108, 240, 46));
                 AddHot(category.Rt, View.Select, () => SwitchCampaign(true, !experimentalCampaign), null, category, "ui_menu_select");
+                var tech = HudButton.Make(parent, "AiMapTech", OzSoloMapTech.Label, new Vector2(278, 58), HudButtonKind.Large, 17);
+                tech.Rt.Place(new OzRect(CW - 1292, 210, 278, 58));
+                OzForkOptions.Highlight(tech, OzSoloMapTech.Label);
+                AddHot(tech.Rt, View.Select, () => OzSoloMapTech.Show(levels[focusCard].Id), null, tech, "ui_menu_select");
             }
 
             var allowed = OzSoloAllowedUnits.Read();

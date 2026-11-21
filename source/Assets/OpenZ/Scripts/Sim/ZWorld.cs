@@ -106,7 +106,7 @@ namespace OpenZ.Sim
         internal void ConfigureSkirmishBots(IEnumerable<(Team Team, ZBotDifficulty Difficulty)> assignments, int seed)
         {
             var forts = Objects.Where(o => o.IsFort).Select(o => o.Owner).OrderBy(team => team).ToArray();
-            if (!Map.skirmish || Bots.Count != 0 || forts.Length < 3 || forts.Length > 8 ||
+            if (!Map.skirmish || Bots.Count != 0 || forts.Length < 2 || forts.Length > 8 ||
                 !forts.SequenceEqual(Enumerable.Range(1, forts.Length).Select(position => (Team)position)))
                 throw new InvalidOperationException("A skirmish requires distinct starting forts and an empty bot roster.");
             var bots = assignments.ToArray();
@@ -509,7 +509,7 @@ namespace OpenZ.Sim
             for (int i = 0; i < n && i < Objects.Count; i++)
             {
                 var o = Objects[i];
-                if (o.Destroyed || (m.team != Team.Neutral && AreAllied(m.team, o.Owner))) continue;   // no friendly fire
+                if (o.Destroyed || (!SkirmishFriendlyFire && m.team != Team.Neutral && AreAllied(m.team, o.Owner))) continue;
                 if (m.onlyId >= 0 && o.Id != m.onlyId) continue;                   // DV164: a shell at a rock the heavy tank clips hurts that rock alone (Sim/ZObject.HeavyRock.cs)
                 if (PlatformBlastOff(m, o)) continue;                              // 1.3 the Unit editor: a blast does not cross the levels of a ramp platform (Sim/ZWorld.Platforms.cs); false in every level
                 if (BoxBlastOff(m, o)) continue;                                   // 1.5 ue_boxes DV194: a blast hurts the Unit editor's boxes of one level only (Sim/ZWorld.UeBoxes.cs); false in every level

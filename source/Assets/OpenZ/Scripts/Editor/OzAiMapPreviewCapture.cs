@@ -39,6 +39,7 @@ namespace OpenZ.EditorTools
         static ZGame game;
         static Vector3 a, b, detail, center, extent, fortExtent;
         static float angle, side, motion;
+        static bool stills;
 
         static OzAiMapPreviewCapture()
         {
@@ -86,8 +87,10 @@ namespace OpenZ.EditorTools
             }
             output = Path.GetFullPath(Arg("-oz-preview-output") ?? "../.local/ai-map-previews");
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
+            stills = args.Contains("-oz-preview-skirmish-posters");
             string map = Arg("-oz-preview-map");
-            entries = OzAiMapCatalog.Playable.Where(e => map == null || string.Equals(e.Id, map, StringComparison.OrdinalIgnoreCase))
+            entries = (stills ? OzAiMapCatalog.MultiplayerMaps : OzAiMapCatalog.Playable)
+                .Where(e => map == null || string.Equals(e.Id, map, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(e => e.Id, StringComparer.Ordinal).ToArray();
             if (entries.Length == 0) throw new InvalidOperationException("No matching AI maps.");
         }
@@ -96,7 +99,7 @@ namespace OpenZ.EditorTools
         static string Poster(int i) => Path.Combine(output, entries[i].Id + "_poster.jpg");
         static int Next(int i)
         {
-            while (i < entries.Length && File.Exists(Video(i)) && File.Exists(Poster(i))) i++;
+            while (i < entries.Length && File.Exists(Poster(i)) && (stills || File.Exists(Video(i)))) i++;
             return i;
         }
 
@@ -112,7 +115,7 @@ namespace OpenZ.EditorTools
                 int end = shot == 0 ? firstCut : shot == 1 ? secondCut : Frames;
                 float t = (frame - start) / (end - start - 1f);
                 Shot kind = Edit()[shot];
-                Pose(kind, t);
+                Pose(stills ? Shot.Landmark : kind, stills ? .45f : t);
                 RenderSettings.fog = false;
                 Atmosphere.DebugFog = 2;
                 Shader.SetGlobalFloat("_AtmoEnabled", 0);
@@ -126,16 +129,26 @@ namespace OpenZ.EditorTools
                     image.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
                 }
                 finally { RenderTexture.active = previous; }
-                byte[] pixels = image.GetRawTextureData();
-                encoder.StandardInput.BaseStream.Write(pixels, 0, pixels.Length);
-                if (kind == Shot.Overview && frame == (start + end) / 2)
-                    File.WriteAllBytes(Poster(index) + ".partial", image.EncodeToJPG(85));
-                if (++frame < Frames) return;
-                Close();
+                if (stills)
+                {
+                    File.WriteAllBytes(Poster(index), image.EncodeToJPG(82));
+                    UnityEngine.Object.Destroy(target);
+                    UnityEngine.Object.Destroy(image);
+                    camera = null;
+                }
+                else
+                {
+                    byte[] pixels = image.GetRawTextureData();
+                    encoder.StandardInput.BaseStream.Write(pixels, 0, pixels.Length);
+                    if (kind == Shot.Overview && frame == (start + end) / 2)
+                        File.WriteAllBytes(Poster(index) + ".partial", image.EncodeToJPG(85));
+                    if (++frame < Frames) return;
+                    Close();
+                }
                 index = Next(index + 1);
                 if (index == entries.Length)
                 {
-                    Debug.Log($"[AI map previews] PASS {entries.Length} clips and posters");
+                    Debug.Log($"[AI map previews] PASS {entries.Length} {(stills ? "posters" : "clips and posters")}");
                     EditorApplication.update -= Capture;
                     EditorApplication.ExitPlaymode();
                     return;
@@ -217,6 +230,11 @@ namespace OpenZ.EditorTools
             target = new RenderTexture(Width, Height, 24);
             target.Create();
             image = new Texture2D(Width, Height, TextureFormat.RGB24, false);
+            if (stills)
+            {
+                Debug.Log($"[AI map previews] {index + 1}/{entries.Length} {game.level}: poster");
+                return;
+            }
             clip = Video(index) + ".partial.mp4";
             encoder = Process.Start(new ProcessStartInfo(ffmpeg,
                 $"-hide_banner -loglevel error -y -f rawvideo -pixel_format rgb24 -video_size {Width}x{Height} -framerate {Fps} -i pipe:0 " +

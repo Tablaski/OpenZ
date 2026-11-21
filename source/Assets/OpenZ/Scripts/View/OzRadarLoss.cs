@@ -76,7 +76,7 @@ namespace OpenZ
             (obj.IsUnit || obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag") &&
             !I.Visible(obj.CenterX, obj.CenterY);
 
-        internal static RadarLossRule RuleFor(ZWorld world) => world.HasDuelRules ? world.DuelRadarLoss : OzBattleOptions.SoloRadar;
+        internal static RadarLossRule RuleFor(ZWorld world) => world.HasDuelRules || world.Map.skirmish ? world.DuelRadarLoss : OzBattleOptions.SoloRadar;
 
         internal bool Visible(int x, int y) => !Fog || Sight == null || Sight.ShownAtPx(x, y) >= OzFowMask.Revealed;
 

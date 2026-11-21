@@ -25,9 +25,9 @@ namespace OpenZ.Multiplayer
         float roomSimulationPeak;
         long roomWireBytes;
         internal SkirmishOnline RoomTransport => peer as SkirmishOnline;
-        internal bool RoomCanLaunch => room?.CanLaunch == true && RoomTransport != null && roomLinks.Count != 0 &&
+        internal bool RoomCanLaunch => room?.CanLaunch == true && Connected && RoomTransport != null &&
             RoomTransport.Remotes.All(link => link.Ready && roomLinks.ContainsKey(link.Id));
-        int RoomPosition => IsHost ? 0 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
+        int RoomPosition => IsHost ? room?.HostPosition ?? -1 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
         MapChangeVote roomVote;
         string roomVoteMap;
         int loadedRoomRevision = -1, roomVoteSequence;
@@ -54,6 +54,13 @@ namespace OpenZ.Multiplayer
         {
             if (room == null || room.Launched) return;
             room.SetClosed(RoomHostId, seat, value);
+            PublishRoom();
+        }
+
+        internal void SwapRoomStartingSides()
+        {
+            if (room == null || room.Launched) return;
+            room.SwapStartingSides(RoomHostId);
             PublishRoom();
         }
 
@@ -99,7 +106,7 @@ namespace OpenZ.Multiplayer
         void FillRoomBots()
         {
             var occupied = room.Members.Select(member => member.Seat.Position).Concat(room.Bots.Select(bot => bot.Position)).Concat(room.ClosedPositions).ToArray();
-            for (int seat = 2; seat < room.Starts; seat++)
+            for (int seat = 0; seat < room.Starts; seat++)
                 if (!occupied.Contains(seat)) room.SetBot(RoomHostId, seat, seat, ZBotDifficulty.Normal);
         }
 
@@ -140,6 +147,18 @@ namespace OpenZ.Multiplayer
                 room.SetReady(RoomHostId, room.Revision, ready);
                 PublishRoom();
             }
+        }
+
+        internal bool RenameRoomPlayer(string name)
+        {
+            try
+            {
+                if (room == null) return roomGuest?.Rename(name) == true;
+                room.Rename(RoomHostId, name);
+                PublishRoom();
+                return true;
+            }
+            catch (ArgumentException) { return false; }
         }
 
         internal void LaunchRoom()
@@ -350,8 +369,10 @@ namespace OpenZ.Multiplayer
                     string text = System.Text.Encoding.UTF8.GetString(packet.Payload);
                     if (text.Length > 240 || text.Any(char.IsControl)) return;
                     int id = sender.Id;
-                    if (IsHost) SendJson(DuelMessage.RoomChat, new RoomChat { Sender = id, Name = sender.RemoteName, Text = text });
-                    NotifyRoomChat(sender.RemoteName, text);
+                    string senderName = IsHost ? room.Members.FirstOrDefault(member => member.Id == RoomGuest(id)).Name : sender.RemoteName;
+                    if (string.IsNullOrEmpty(senderName)) return;
+                    if (IsHost) SendJson(DuelMessage.RoomChat, new RoomChat { Sender = id, Name = senderName, Text = text });
+                    NotifyRoomChat(senderName, text);
                     return;
                 case DuelMessage.RoomChat:
                     if (IsHost || packet.Payload.Length > 2048) return;
@@ -393,6 +414,15 @@ namespace OpenZ.Multiplayer
         }
 
         [Serializable] sealed class RoomChat { public int Sender; public string Name, Text; }
+
+        void SendRoomChat(string message)
+        {
+            string sender = room?.Members.First(member => member.Id == RoomHostId).Name ??
+                JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Name ?? localName;
+            AddChat(sender + " : " + message);
+            if (IsHost) SendJson(DuelMessage.RoomChat, new RoomChat { Sender = RoomTransport.Id, Name = sender, Text = message });
+            else peer.Send(new DuelPacket(DuelMessage.Chat, System.Text.Encoding.UTF8.GetBytes(message)));
+        }
 
         void NotifyRoomChat(string name, string text)
         {
@@ -495,6 +525,7 @@ namespace OpenZ.Multiplayer
                 roomWireBytes = RoomTransport.StatePayloadBytesSent;
             }
             startAt = lastSnapshot = Now;
+            Game.StartSkirmishPlanning(RoomRules.PlanningSeconds);
             Playing = true;
             Menus.CloseOverlay();
             BeginPerformance();
@@ -510,8 +541,11 @@ namespace OpenZ.Multiplayer
             var links = RoomTransport.Remotes;
             if (room.Members.Count(member => member.Id != RoomHostId && !roomDeparted.Contains(int.Parse(member.Id))) != roomLinks.Count ||
                 links.Any(link => roomLinks.ContainsKey(link.Id) && !link.Ready)) return;
-            game.DuelAdvance(Time.unscaledDeltaTime);
-            roomSimulationPeak = Math.Max(roomSimulationPeak, ZGame.RuleMsLastFrame);
+            if (game.SkirmishPlanningLeft <= 0)
+            {
+                game.DuelAdvance(Time.unscaledDeltaTime);
+                roomSimulationPeak = Math.Max(roomSimulationPeak, ZGame.RuleMsLastFrame);
+            }
             double now = Now;
             int queued = QueuedSendBytes;
             if (now >= roomRetuneAt)

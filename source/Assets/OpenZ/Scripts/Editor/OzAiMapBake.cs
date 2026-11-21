@@ -36,10 +36,13 @@ namespace OpenZ.EditorTools
                 if (!AssetDatabase.LoadAssetAtPath<SceneAsset>(entry.ScenePath) ||
                     !Resources.Load<Texture2D>("OpenZ/AiMaps/Previews/" + entry.Id))
                     throw new InvalidOperationException("Missing converted scene or preview for " + entry.Id);
+            UpgradeSkirmishTerrain();
             EditorBuildSettings.scenes = scenes.ToArray();
             AssetDatabase.SaveAssets();
             Debug.Log("[AI Maps] Verified " + reports.Count + " multiplayer scenes and previews.");
         }
+
+        public static void UpgradeSkirmishTerrain() => OzVolcanicConversionBake.UpgradeCatalog(OzAiMapCatalog.MultiplayerMaps);
 
         public static void All()
         {

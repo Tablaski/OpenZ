@@ -38,13 +38,7 @@ namespace OpenZ.Sim
                 Team team = seat == 0 ? Team.Red : Team.Blue;
                 var army = duelRules.EffectiveFor(seat);
                 var fort = Objects.First(o => o.IsFort && o.Owner == team);
-                var turrets = army.FortTurrets.Where(t => !string.IsNullOrEmpty(t)).OrderByDescending(FortTurretPower).ToArray();
-                var mounts = DuelFortMounts(fort);
-                for (int i = 0; i < turrets.Length; i++)
-                {
-                    var gun = CreateObject("cannon", turrets[i], mounts[i].x, mounts[i].y, team);
-                    gun.Ejectable = false;
-                }
+                PlaceFortTurrets(fort, army.FortTurrets, MAX_UNITS_PER_TEAM);
                 int budget = army.StartingUnits.Sum(t => ZBuildLists.IsRobot(t) ? Math.Max(1, S.Unit(t)?.group_amount ?? 1) : 1);
                 if (budget + army.FortTurrets.Count(t => !string.IsNullOrEmpty(t)) > MAX_UNITS_PER_TEAM)
                     throw new InvalidOperationException("Starting army exceeds the 70 unit limit.");
@@ -60,6 +54,18 @@ namespace OpenZ.Sim
                 }
             }
             Events.Clear();
+        }
+
+        void PlaceFortTurrets(ZObject fort, string[] types, int budget)
+        {
+            var turrets = types.Where(type => !string.IsNullOrEmpty(type)).OrderByDescending(FortTurretPower).Take(budget).ToArray();
+            if (turrets.Length == 0) return;
+            var mounts = DuelFortMounts(fort);
+            for (int i = 0; i < turrets.Length; i++)
+            {
+                var gun = CreateObject("cannon", turrets[i], mounts[i].x, mounts[i].y, fort.Owner);
+                gun.Ejectable = false;
+            }
         }
 
         static int FortTurretPower(string type) => type == "missile_cannon" ? 4 :

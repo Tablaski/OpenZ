@@ -52,7 +52,7 @@ Ghost is an optional spectator mode. A ghost can switch between surviving human 
 
 ### Skirmish maps and online match flow
 
-Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native maps, grids and catalogue. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the 23 package scenes and previews and enables them in Build Settings. Multiplayer offers **Local Skirmish with Bots**, and the online setup offers **Create Online Skirmish**.
+Run `node tools/Convert-AiSkirmish.cjs "D:/Zod Engine"` to regenerate the tracked native maps, grids and catalogue. In the project editor, run `OpenZ.EditorTools.OzAiMapBake.Skirmish` in batch mode. It writes the 23 package scenes and previews, upgrades their terrain to V3 and enables them in Build Settings. Use `OpenZ.EditorTools.OzAiMapBake.UpgradeSkirmishTerrain` to upgrade already baked scenes. **Local Skirmish with Bots** can also use the built two-start conversions and built OpenZ campaign maps with the same Skirmish rules. Close unused positions on a larger map to play with five, six or seven participants. **Create Online Skirmish** works with the host and bots or with guests.
 
 The headless checks start every map with a bot at each non-human position. They also cover Easy and Normal settings, surrender with two survivors, a Green victory and an authenticated guest command and elimination event on P03M01. Unity imported and registered all 23 scenes. Manual validation still covers the live invitation and relay, online launch and return, synchronized map reload and veto, terrain rendering and navigation, the three Force Bar modes, free camera after surrender and the results screen.
 

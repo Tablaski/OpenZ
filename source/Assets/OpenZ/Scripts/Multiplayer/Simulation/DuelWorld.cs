@@ -130,7 +130,7 @@ namespace OpenZ.Sim
         public DuelRules DuelConfiguration => duelRules?.Copy();
         internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true || skirmishRules?.NerfedHowitzers == true;
 
-        public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? RadarLossRule.Off;
+        public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? skirmishRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
         public bool DuelAllowsUnit(string type)
         {
@@ -198,17 +198,27 @@ namespace OpenZ.Sim
         public int MapFactoryTech(string factoryType) =>
             Objects.Where(o => o.Type == factoryType).Select(o => o.Level + 1).DefaultIfEmpty(0).Max();
 
-        void ApplyDuelFactoryTech()
+        void ApplyDuelFactoryTech() => ApplyMapFactoryTech(duelRules.VehicleTech, duelRules.RobotTech);
+
+        internal bool UseNativeMapTech { get; private set; }
+
+        internal void ApplySoloMapTech(int vehicleTech, int robotTech, bool native)
+        {
+            UseNativeMapTech = native;
+            ApplyMapFactoryTech(vehicleTech, robotTech);
+        }
+
+        internal void ApplyMapFactoryTech(int vehicleTech, int robotTech)
         {
             int vehicleDefault = MapFactoryTech("vehicle_factory"), robotDefault = MapFactoryTech("robot_factory");
-            bool vehicles = duelRules.VehicleTech > 0 && vehicleDefault > 0, robots = duelRules.RobotTech > 0 && robotDefault > 0;
+            bool vehicles = vehicleTech > 0 && vehicleDefault > 0, robots = robotTech > 0 && robotDefault > 0;
             foreach (var building in Objects)
             {
-                if (vehicles && building.IsFort) building.Level = duelRules.VehicleTech - 1;
+                if (vehicles && building.IsFort) building.Level = vehicleTech - 1;
                 else if (vehicles && building.Type == "vehicle_factory")
-                    building.Level = Math.Max(0, building.Level + duelRules.VehicleTech - vehicleDefault);
+                    building.Level = Math.Max(0, building.Level + vehicleTech - vehicleDefault);
                 else if (robots && building.Type == "robot_factory")
-                    building.Level = Math.Max(0, building.Level + duelRules.RobotTech - robotDefault);
+                    building.Level = Math.Max(0, building.Level + robotTech - robotDefault);
             }
         }
 

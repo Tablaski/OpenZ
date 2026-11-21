@@ -80,11 +80,12 @@ namespace OpenZ
             // run 4x. A faster demo only through the explicit pref oz_demo_speed.
             bool demo = PlayerPrefs.GetInt("oz_botmatch", 0) == 1 || CaptureKit.DemoRun;
             var skirmishMap = OzAiMapCatalog.Find(level);
-            bool skirmish = skirmishMap?.Starts >= 3;
+            var localSkirmish = OpenZ.Multiplayer.DuelRuntime.I?.Menus.LocalSkirmishMatch(level);
+            bool skirmish = skirmishMap?.Starts >= 3 || localSkirmish != null;
             if (skirmish)
             {
                 demo = blueBot = redBot = false;
-                player = Team.Red;
+                player = localSkirmish == null ? Team.Red : (Team)(localSkirmish.HostPosition + 1);
             }
             else
             {
@@ -247,13 +248,22 @@ namespace OpenZ
             OzLevelStatics.NewWorld();
             ZWorld.CustomStatsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzLevelStats.Wanted(level, demo); OzLevelStats.AtLevelStart(this, st.text);   // 1.2 item 60 DV142: UNIT STATS CUSTOM (the battlefield screen's choice, armed by the player's own DEPLOY; off in 'Zod exact', a bot match, the Unit editor): every unit of both teams is made from the Unit editor's Custom stats; OPENZ: nothing changes (View/OzLevelStats.cs, Sim/ZWorld.CustomStats.cs)
             // duel game creation
-            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this); OzSoloAllowedUnits.Apply(this);
-            Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
-            if (skirmish && !OpenZ.Multiplayer.DuelRuntime.Active)
+            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, !skirmish && ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
+            if (!skirmish) OzSoloAllowedUnits.Apply(this);
+            if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && skirmishMap?.Solo == true)
             {
-                var setup = OpenZ.Multiplayer.DuelRuntime.I?.Menus;
+                var tech = OzSoloMapTech.Read(level);
+                World.ApplySoloMapTech(tech.Vehicle, tech.Robot, tech.Native);
+            }
+            Debug.Log($"[OpenZ] hero squads at the start (DV108): {World.HeroSquadsMade}{(ZWorld.HeroSquadsOffAsBlue ? " (PLAY AS BLUE: ALAN & BRAD are red's heroes, none placed; row 80)" : ZWorld.HeroSquadDeviation ? "" : " ('Zod exact')")}");
+            if (localSkirmish != null)
+            {
+                World.Map.skirmish = true;
+            }
+            else if (skirmish && !OpenZ.Multiplayer.DuelRuntime.Active)
+            {
                 World.ConfigureSkirmishBots(Enumerable.Range(1, skirmishMap.Starts - 1)
-                    .Select(position => ((Team)(position + 1), setup?.SkirmishBotLevel(position) ?? ZBotDifficulty.Normal)), seed);
+                    .Select(position => ((Team)(position + 1), ZBotDifficulty.Normal)), seed);
             }
             else
             {
@@ -264,7 +274,19 @@ namespace OpenZ
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;
             BindViews();
-            if (!World.HasDuelRules) HideReplacedStartingUnitViews(false);
+            if (localSkirmish != null)
+            {
+                localSkirmish.ConfigureWorld(World, seed);
+                DuelBindStartingViews();
+                if (player != Team.Red)
+                {
+                    var camera = FindFirstObjectByType<RtsCamera>();
+                    var fort = World.Objects.FirstOrDefault(obj => obj.IsFort && obj.Owner == player);
+                    if (camera && fort != null) { camera.focus = PxToWorld(fort.CenterX, fort.CenterY); camera.Place(); }
+                }
+                StartSkirmishPlanning(localSkirmish.Rules.PlanningSeconds);
+            }
+            else if (!World.HasDuelRules) HideReplacedStartingUnitViews(false);
             OzHeroSquadView.Spawn(this);                                                          // DV108: the hero squads' own models; the scene's robots of the entry they replace are hidden
             OzPlayableShuttle.Spawn(this);                                                        // DV118: the scene's ship becomes the playable shuttle's view (View/OzPlayableShuttle.cs)
             OzShuttleEmptyLook.SpawnMapShuttles(this);                                            // K256f: every other shuttle of the rules (a map's entry) its full view; the empty look on each
@@ -283,7 +305,7 @@ namespace OpenZ
             // choice is kept and counts again on EASY, MEDIUM and HARD. Every start path comes here (the level-start screen, quick restart, next level,
             // the scores popup's replay, a test start): ShownDifficulty is MAYHEM for a MAYHEM match. The rules only get the vehicles or not (Sim untouched).
             // duel no solo starting army
-            bool headStartNow = !OpenZ.Multiplayer.DuelRuntime.Active && OpenZDifficulty.HeadStartFor(ShownDifficulty); HeadStartMade = 0;
+            bool headStartNow = !skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && OpenZDifficulty.HeadStartFor(ShownDifficulty); HeadStartMade = 0;
             HeadStartRefusedMayhem = IsMayhem && OpenZDifficulty.HeadStartToggle && !(blueBot && redBot);
             if (HeadStartRefusedMayhem) Debug.Log($"[ZGame] head start: none on MAYHEM ({level}; the saved HEAD START ON is kept for the other difficulties)");
             if (!(blueBot && redBot) && level == "L02" && headStartNow /* menu_exe_v1: the menu switch, every difficulty; 1.4 mayhem_headstart: none on MAYHEM */)   // L02 only: its map gives neither side a vehicle; L17 red already starts with 5
@@ -379,7 +401,7 @@ namespace OpenZ
             if (OpenZ.Multiplayer.DuelRuntime.Active) return;
             if (World == null || World.Map.skirmish) return;
             for (int i = 0; i < World.TechBonus.Length; i++) World.TechBonus[i] = 0;
-            if (!(blueBot && redBot)) World.TechBonus[(int)player] = OpenZDifficulty.TechBonus(gameDifficulty);
+            if (!(blueBot && redBot) && !World.UseNativeMapTech) World.TechBonus[(int)player] = OpenZDifficulty.TechBonus(gameDifficulty);
             World.SetCpuBuildFaster(IsMayhem, player, blueBot, redBot);
             if (IsMayhem) Debug.Log($"[OpenZ] MAYHEM: the CPU builds in {ZWorld.CpuBuildFasterScale * 100:0} % of the player's time (DV175): red {World.CpuBuildFaster(Team.Red)}, blue {World.CpuBuildFaster(Team.Blue)}");
             Debug.Log($"[OpenZ] difficulty {OpenZDifficulty.Label(ShownDifficulty)}{(IsMayhem ? " (HARD rules + the fog of war, 1.4 MAYHEM)" : "")}: CPU {difficulty}, {player} tech bonus +{World.TechBonus[(int)player]}");
@@ -513,12 +535,26 @@ namespace OpenZ
         /// <summary>Ending profile (log only): rule ticks run in the last frame and the time they took (ms).</summary>
         public static int RuleTicksLastFrame; public static float RuleMsLastFrame;
 
+        internal int SkirmishPlanningSeconds { get; private set; }
+        double skirmishPlanningUntil;
+        internal double SkirmishPlanningLeft => System.Math.Max(0, skirmishPlanningUntil - Time.realtimeSinceStartupAsDouble);
+        internal void StartSkirmishPlanning(int seconds)
+        {
+            SkirmishPlanningSeconds = seconds;
+            if (seconds > 0) skirmishPlanningUntil = Time.realtimeSinceStartupAsDouble + seconds;
+        }
+
         // duel game clock
             void Update()
         {
+            if (SkirmishPlanningSeconds > 0 && SkirmishPlanningLeft <= 0)
+            {
+                SkirmishPlanningSeconds = 0;
+                OpenZ.Multiplayer.DuelRuntime.I?.Menus.Refresh();
+            }
             if (OpenZ.Multiplayer.DuelRuntime.Drive(this)) return;
             RuleTicksLastFrame = 0; RuleMsLastFrame = 0f;
-            if (paused) return;
+            if (paused || SkirmishPlanningLeft > 0) return;
             if (World == null) { if (!worldLost) { worldLost = true; Debug.LogError("[ZGame] World is null (domain reload during Play?): sim stopped; restart Play"); } return; }
             long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             RuleTicksLastFrame = Advance(World, ref acc, Time.deltaTime, gameSpeed);

@@ -14,6 +14,7 @@ static class SkirmishChecks
         string settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
         CheckMapFilters(root, settings, check);
         CheckMatchSeats(check);
+        CheckTwoStartSkirmish(root, settings, check);
         string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
         var world = ZWorld.Create(settings, grid, 12);
         var teams = new[] { Team.Red, Team.Blue, Team.Green };
@@ -36,6 +37,58 @@ static class SkirmishChecks
         world.UpdateObjectHealth(blue);
         for (int i = 0; i < 150; i++) world.Tick(ZConst.TICK);
         check(world.GameOver && world.Winner == Team.Green, "The last remaining contender wins, including green");
+    }
+
+    static void CheckTwoStartSkirmish(string root, string settings, Action<bool, string> check)
+    {
+        string buildSettings = File.ReadAllText(Path.Combine(root, "source/ProjectSettings/EditorBuildSettings.asset"));
+        var entries = OzAiMapCatalog.SkirmishMaps.Where(map => map.Starts == 2 && buildSettings.Contains("path: " + map.ScenePath)).ToArray();
+        check(entries.Length > 2 && entries.Select(map => map.Id).Distinct().Count() == entries.Length,
+            "Local Skirmish exposes every distinct registered two-start conversion");
+        foreach (var entry in entries)
+        {
+            string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+            var world = ZWorld.Create(settings, grid, 12);
+            var original = world.Map.FactoryTech();
+            check(original.Vehicles == world.MapFactoryTech("vehicle_factory") &&
+                original.Robots == world.MapFactoryTech("robot_factory") &&
+                original.Fort == world.Objects.Where(unit => unit.IsFort).Max(unit => unit.Level + 1),
+                entry.Id + " original technology matches native building records");
+            world.Map.skirmish = true;
+            var room = new MultiplayerRoom("host", "Host", entry.Id, allowSoloConversions: true);
+            room.SetBot("host", 1, 1, ZBotDifficulty.Easy);
+            var rules = new SkirmishRules { TerritoryCap = 25, FortSpeedup = 120, VehicleTech = 5, RobotTech = 4,
+                RadarLoss = RadarLossRule.FogAndZoom, FriendlyFire = true, PlanningSeconds = 10 };
+            rules.OverrideFortTurrets = true;
+            rules.FortTurrets[0] = "gatling";
+            rules.BuildPercent[0] = 70;
+            room.SetRules("host", rules);
+            room.SetReady("host", room.Revision, true);
+            room.SwapStartingSides("host");
+            check(!room.CanLaunch && room.HostPosition == 1 && room.Bots.Single().Position == 0 &&
+                room.Bots.Single().Alliance == 1 && room.Rules.BuildPercent[1] == 70,
+                entry.Id + " swaps forts and preserves each participant's alliance and build-time advantage");
+            room.SwapStartingSides("host");
+            check(room.CanLaunchWithHostReady && !room.CanLaunch, entry.Id + " only waits for the human host");
+            room.SetReady("host", room.Revision, true);
+            room.Launch("host");
+            room.MarkLoaded("host", room.Revision);
+            room.ConfigureWorld(world, 12);
+            check(room.MatchLoaded && world.Bots.Single().Team == Team.Blue && world.Bots.Single().Difficulty == ZBotDifficulty.Easy &&
+                world.HasSkirmishProduction && world.SkirmishFriendlyFire && world.DuelRadarLoss == RadarLossRule.FogAndZoom,
+                entry.Id + " launches one human and one bot with the selected battle and balancing rules");
+            check(world.MapFactoryTech("vehicle_factory") == (original.Vehicles == 0 ? 0 : 5) &&
+                world.MapFactoryTech("robot_factory") == (original.Robots == 0 ? 0 : 4),
+                entry.Id + " applies separate factory limits");
+            check(world.Objects.Where(unit => unit.IsTowerGun && unit.Owner != Team.Neutral)
+                .Select(unit => (unit.Owner, unit.Type)).OrderBy(unit => unit.Owner)
+                .SequenceEqual(new[] { (Team.Red, "gatling"), (Team.Blue, "gatling") }),
+                entry.Id + " applies the same configured turret to both occupied forts");
+            var solo = ZWorld.Create(settings, grid, 12);
+            solo.ApplySoloMapTech(0, 0, true);
+            check(solo.UseNativeMapTech && solo.Map.FactoryTech() == original && !solo.Map.skirmish,
+                entry.Id + " can restore native technology without activating skirmish");
+        }
     }
 
     static void CheckMapFilters(string root, string settings, Action<bool, string> check)

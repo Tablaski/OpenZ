@@ -35,10 +35,12 @@ namespace OpenZ.EditorTools
         public static void Arctic() => Bake(OzAiMapCatalog.ChillyWillyV2.Id);
 
         [MenuItem("OpenZ/AI Maps/Upgrade the existing catalog to V3")]
-        public static void UpgradeCatalog()
+        public static void UpgradeCatalog() => UpgradeCatalog(OzAiMapCatalog.Playable);
+
+        internal static void UpgradeCatalog(IEnumerable<OzAiMap> entries)
         {
             OzArcticArt.Ensure();
-            foreach (var group in OzAiMapCatalog.Playable.GroupBy(entry => entry.World))
+            foreach (var group in entries.GroupBy(entry => entry.World))
             {
                 var profile = Profile.For(group.Key);
                 var reference = EditorSceneManager.OpenScene(OpenZAssets + "Scenes/" + profile.Scene + ".unity");

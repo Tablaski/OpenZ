@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace OpenZ.Sim
 {
@@ -45,6 +46,14 @@ namespace OpenZ.Sim
         public int HeightPix => height * ZConst.TILE;
 
         public static ZMapData FromJson(string json) => UnityEngine.JsonUtility.FromJson<ZMapData>(json);
+
+        public (int Vehicles, int Robots, int Fort) FactoryTech()
+        {
+            int Maximum(string kind) => objects.Where(obj => obj.kind == kind)
+                .Select(obj => obj.blevel >= 0 && obj.blevel < 6 ? obj.blevel + 1 : 1).DefaultIfEmpty(0).Max();
+            return (Maximum("building:vehicle_factory"), Maximum("building:robot_factory"),
+                Math.Max(Maximum("building:fort_front"), Maximum("building:fort_back")));
+        }
 
         public static Team ParseOwner(string owner) => owner switch
         {

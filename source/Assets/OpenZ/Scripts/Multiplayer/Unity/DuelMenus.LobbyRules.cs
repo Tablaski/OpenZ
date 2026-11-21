@@ -117,12 +117,13 @@ namespace OpenZ.Multiplayer
             catch (ArgumentException) { return new ArmyPresets(); }
         }
 
-        void BuildArmyPresets(DuelRules rules, bool editable)
+        void BuildArmyPresets(DuelRules rules, bool editable, Action<DuelRules> commit = null, Action dismiss = null)
         {
             var shade = Hud.Img(root, "Army presets shade", new Color(0, 0, 0, .94f));
             shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel("OUTSIDE THE FORT · PRESETS", 320, 165, 1280, 750);
-            Button(panel, "CLOSE", 1030, 12, 225, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
+            dismiss ??= () => { lobbyDialog = LobbyDialog.None; dirty = true; };
+            Button(panel, "CLOSE", 1030, 12, 225, dismiss);
             Label(panel, "Load a four-slot formation for both teams. Units disabled by the lobby roster leave their slots empty.", 24, 70, 1220, 17, OzUi.Muted);
             Label(panel, "SAVE CURRENT FOUR SLOTS", 24, 123, 470, 17, OzUi.Ink);
             Input(panel, "", 24, 155, 430, presetName, value => presetName = value, 32);
@@ -160,9 +161,8 @@ namespace OpenZ.Multiplayer
                 Button(rows, "LOAD", 990, y + 5, 205, () =>
                 {
                     DuelMissionDefaults.ApplyOutsidePreset(rules, preset.units);
-                    EditLobbyRules(rules);
-                    lobbyDialog = LobbyDialog.None;
-                    dirty = true;
+                    if (commit == null) EditLobbyRules(rules); else commit(rules);
+                    dismiss();
                 }, false, editable);
             }
         }
@@ -246,7 +246,7 @@ namespace OpenZ.Multiplayer
             trigger.triggers.Add(exit);
         }
 
-        void BuildDynamics(RectTransform panel, DuelRules rules, bool editable)
+        void BuildDynamics(RectTransform panel, DuelRules rules, bool editable, Action<DuelRules> save = null)
         {
             Button(panel, "TANKS", 24, 92, 340, () => { dynamicsFamily = ZBehaviorFamily.Tanks; dynamicsType = 0; dynamicsScroll = 1; dirty = true; }, dynamicsFamily == ZBehaviorFamily.Tanks);
             Button(panel, "ROBOTS", 384, 92, 340, () => { dynamicsFamily = ZBehaviorFamily.Robots; dynamicsType = 0; dynamicsScroll = 1; dirty = true; }, dynamicsFamily == ZBehaviorFamily.Robots);
@@ -267,7 +267,7 @@ namespace OpenZ.Multiplayer
                     {
                         var frozen = next.Clone(); frozen.FreezeReferences();
                         if (dynamicsFamily == ZBehaviorFamily.Tanks) rules.TankDynamics = frozen.Encode(); else rules.RobotDynamics = frozen.Encode();
-                        EditLobbyRules(rules);
+                        if (save == null) EditLobbyRules(rules); else save(rules);
                     }, profile.id == next.id);
                 }
             }

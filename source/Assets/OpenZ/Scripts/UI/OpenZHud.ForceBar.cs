@@ -21,14 +21,14 @@ namespace OpenZ
         readonly RectTransform[] skirmishSegments = new RectTransform[8];
         readonly double[] skirmishShares = new double[8], skirmishScores = new double[8];
         RectTransform skirmishUnitRow, skirmishPowerRow, skirmishRail;
-        OzText skirmishClock, skirmishStatus;
+        OzText skirmishClock, skirmishStatus, skirmishTitle;
 
         void BuildSkirmishTopBar()
         {
             top = Hud.Node("ArmyBalance", Root).Place(OzHudLayout.At(OzPanel.Status, new OzRect(OzAnchor.TC, 495, 8, 930, 122)));
             Hud.Plate(top, "md");
             AddBlocker(top);
-            Hud.Label(top, "BalanceTitle", "ARMY BALANCE · FREE-FOR-ALL", 16, OzUi.Amber).At(16, 17, OzH.L, true, 425);
+            skirmishTitle = Hud.Label(top, "BalanceTitle", "", 16, OzUi.Amber).At(16, 17, OzH.L, true, 425);
             skirmishClock = Hud.Label(top, "Clock", "0:00:00", 24, OzUi.Amber).At(470, 17, OzH.C, true, 170);
             skirmishStatus = Hud.Label(top, "Status", "", 15, OzUi.Ink).At(914, 17, OzH.R, true, 225);
             skirmishUnitRow = Hud.Node("Units", top); skirmishUnitRow.TL(0, 59, 930, 20);
@@ -37,7 +37,7 @@ namespace OpenZ
             Hud.Label(skirmishPowerRow, "Metric", "ATTACKING POWER", 14, OzUi.Ink).At(16, 10, OzH.L, true, 166);
             skirmishRail = Hud.Node("BalanceRail", top); skirmishRail.TL(194, 109, 720, 4);
             Hud.Img(skirmishRail, "Track", OzUi.GM950).rectTransform.Fill();
-            skirmishSeatCount = OzAiMapCatalog.Find(game.level)?.Starts ?? 3;
+            skirmishSeatCount = OzAiMapCatalog.FindSkirmishMap(game.level)?.Starts ?? 3;
             float column = 720f / skirmishSeatCount;
             for (int i = 0; i < skirmishSeatCount; i++)
             {
@@ -65,6 +65,7 @@ namespace OpenZ
             skirmishPowerRow.TL(0, both ? 83 : 59, 930, 20);
             skirmishRail.TL(194, both ? 109 : 85, 720, 4);
             skirmishClock.Set(UnitInfo.Clock(W.Time));
+            skirmishTitle.Set(W.SkirmishHasTeams ? "ARMY BALANCE · TEAMS" : "ARMY BALANCE · FREE-FOR-ALL");
             skirmishStatus.Set(W.SkirmishEliminated(Player) ? "OBSERVING" : "");
             double total = 0;
             for (int i = 0; i < skirmishSeatCount; i++)

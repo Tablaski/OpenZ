@@ -8,16 +8,48 @@ namespace OpenZ.Multiplayer
     [Serializable]
     internal sealed class SkirmishRules
     {
-        public int TerritoryCap = 50, FortSpeedup;
-        public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers;
+        public int TerritoryCap = 50, FortSpeedup, VehicleTech, RobotTech, PlanningSeconds;
+        public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers, FriendlyFire, ClassicDynamics, FreeForAll;
+        public RadarLossRule RadarLoss;
+        public bool CustomRoster;
+        public string[] CustomUnits = Array.Empty<string>();
+        public bool ExcludeMammoth, ExcludeBizon;
+        public string TankDynamics = "", RobotDynamics = "";
+        public bool OverrideFortTurrets;
+        public string[] FortTurrets = new string[4];
         public string[] Common = new string[4];
         public int[] BuildPercent = Enumerable.Repeat(100, 8).ToArray();
         public string[] Extras = new string[32];
 
         internal bool Valid => TerritoryCap >= 10 && TerritoryCap <= 50 && FortSpeedup >= 0 && FortSpeedup <= 500 &&
+            VehicleTech >= 0 && VehicleTech <= 6 && RobotTech >= 0 && RobotTech <= 6 &&
+            PlanningSeconds >= 0 && PlanningSeconds <= DuelRules.MaxPlanningSeconds &&
+            RadarLoss >= RadarLossRule.Off && RadarLoss <= RadarLossRule.FogAndZoom &&
+            ValidDynamics(TankDynamics, ZBehaviorFamily.Tanks) && ValidDynamics(RobotDynamics, ZBehaviorFamily.Robots) &&
+            (!OverrideFortTurrets || FortTurrets?.Length == 4 && FortTurrets.All(type => string.IsNullOrEmpty(type) ||
+                DuelRules.AllowedFortTurrets.Contains(type) && Allows(type))) &&
+            (!CustomRoster || !ClassicUnits && CustomUnits != null && CustomUnits.Length <= DuelUnitRoster.All.Length &&
+                CustomUnits.All(DuelUnitRoster.Known) && CustomUnits.Distinct().Count() == CustomUnits.Length) &&
             BuildPercent?.Length == 8 && BuildPercent.All(value => value >= 50 && value <= 100) &&
             Common?.Length == 4 && Extras?.Length == 32 && Common.Concat(Extras).All(unit => string.IsNullOrEmpty(unit) ||
-                DuelRules.AllowedExtras.Contains(unit) && (!ClassicUnits || DuelUnitRoster.Z1996.Contains(unit)));
+                DuelRules.AllowedExtras.Contains(unit) && Allows(unit));
+
+        internal static bool ValidDynamics(string encoded, ZBehaviorFamily family)
+        {
+            if (string.IsNullOrEmpty(encoded)) return true;
+            if (encoded.Length > 64000) return false;
+            try { return ZWorld.DuelProfile(encoded, family).family == family; }
+            catch (Exception error) when (error is FormatException || error is ArgumentException || error is OverflowException) { return false; }
+        }
+
+        internal ZBehaviorProfile Behavior(ZBehaviorFamily family)
+        {
+            string encoded = family == ZBehaviorFamily.Tanks ? TankDynamics : RobotDynamics;
+            return ClassicDynamics ? ZBehaviorProfile.Classic(family) : ZWorld.DuelProfile(encoded, family);
+        }
+
+        internal bool Allows(string unit) => ClassicUnits ? DuelUnitRoster.Z1996.Contains(unit) :
+            !CustomRoster || CustomUnits.Contains(unit);
 
         internal SkirmishRules Copy()
         {
@@ -25,6 +57,8 @@ namespace OpenZ.Multiplayer
             copy.Common = (string[])Common.Clone();
             copy.BuildPercent = (int[])BuildPercent.Clone();
             copy.Extras = (string[])Extras.Clone();
+            copy.CustomUnits = (string[])CustomUnits?.Clone();
+            copy.FortTurrets = (string[])FortTurrets?.Clone() ?? new string[4];
             return copy;
         }
 
@@ -65,9 +99,11 @@ namespace OpenZ.Multiplayer
         readonly Dictionary<int, RoomBot> bots = new Dictionary<int, RoomBot>();
         readonly HashSet<string> loaded = new HashSet<string>(StringComparer.Ordinal);
         readonly HashSet<int> closed = new HashSet<int>();
+        readonly bool allowSoloConversions;
         SkirmishRules rules = new SkirmishRules();
 
         public string HostId { get; }
+        public int HostPosition => Member(HostId).Seat.Position;
         public string Map { get; private set; }
         public int Starts { get; private set; }
         public int Revision { get; private set; }
@@ -78,15 +114,17 @@ namespace OpenZ.Multiplayer
         public SkirmishRules Rules => rules.Copy();
         public MatchStartBlocker StartBlocker => MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
             .Concat(bots.Keys.Concat(closed).Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
-        public bool CanLaunch => !Launched && StartBlocker == MatchStartBlocker.None &&
+        public bool CanLaunch => CanLaunchWithHostReady && Member(HostId).Ready;
+        public bool CanLaunchWithHostReady => !Launched && StartBlocker == MatchStartBlocker.None &&
             ActiveAlliances().Distinct().Skip(1).Any() &&
-            members.Values.All(member => !member.Seat.MayUsePlayerCommands || member.Ready);
+            members.Values.All(member => member.Id == HostId || !member.Seat.MayUsePlayerCommands || member.Ready);
         public bool MatchLoaded => Launched && members.Values.All(member => !member.Seat.MayUsePlayerCommands || loaded.Contains(member.Id));
 
-        public MultiplayerRoom(string hostId, string hostName, string map)
+        public MultiplayerRoom(string hostId, string hostName, string map, bool allowSoloConversions = false)
         {
             if (string.IsNullOrWhiteSpace(hostId)) throw new ArgumentException("Missing host identity.", nameof(hostId));
             HostId = hostId;
+            this.allowSoloConversions = allowSoloConversions;
             Starts = MapStarts(map);
             Map = map;
             members.Add(hostId, new RoomMember(hostId, DuelLobby.NormalizeName(hostName), new MatchSeatAssignment(MatchSeatRole.Human, 0), 0));
@@ -124,6 +162,13 @@ namespace OpenZ.Multiplayer
             RequireHostSetup(sender);
             if (next?.Valid != true) throw new ArgumentException("Invalid Skirmish rules.");
             rules = next.Copy();
+            if (rules.FreeForAll)
+            {
+                foreach (var member in members.Values.Where(member => member.Seat.Position >= 0).ToArray())
+                    members[member.Id] = new RoomMember(member.Id, member.Name, member.Seat, member.Seat.Position);
+                foreach (var bot in bots.Values.ToArray())
+                    bots[bot.Position] = new RoomBot(bot.Position, bot.Position, bot.Difficulty);
+            }
             InvalidateReady();
         }
 
@@ -189,6 +234,7 @@ namespace OpenZ.Multiplayer
             if (map == Map) return;
             Starts = MapStarts(map);
             Map = map;
+            rules.VehicleTech = rules.RobotTech = 0;
             foreach (int position in bots.Keys.Where(position => position >= Starts).ToArray()) bots.Remove(position);
             closed.RemoveWhere(position => position >= Starts);
             foreach (var member in members.Values.Where(member => member.Seat.Position >= Starts).ToArray())
@@ -205,12 +251,52 @@ namespace OpenZ.Multiplayer
             InvalidateReady();
         }
 
+        public void SwapStartingSides(string sender)
+        {
+            RequireHostSetup(sender);
+            int Swap(int position) => position >= 0 && (position ^ 1) < Starts ? position ^ 1 : position;
+            foreach (var member in members.Values.Where(member => member.Seat.Position >= 0).ToArray())
+            {
+                int seat = Swap(member.Seat.Position);
+                members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(member.Seat.Role, seat),
+                    rules.FreeForAll ? seat : member.Alliance);
+            }
+            var previousBots = bots.Values.ToArray();
+            bots.Clear();
+            foreach (var bot in previousBots)
+            {
+                int seat = Swap(bot.Position);
+                bots[seat] = new RoomBot(seat, rules.FreeForAll ? seat : bot.Alliance, bot.Difficulty);
+            }
+            var previousClosed = closed.ToArray();
+            closed.Clear();
+            foreach (int seat in previousClosed) closed.Add(Swap(seat));
+            for (int seat = 0; seat + 1 < Starts; seat += 2)
+            {
+                (rules.BuildPercent[seat], rules.BuildPercent[seat + 1]) = (rules.BuildPercent[seat + 1], rules.BuildPercent[seat]);
+                for (int unit = 0; unit < 4; unit++)
+                {
+                    int x = seat * 4 + unit, y = x + 4;
+                    (rules.Extras[x], rules.Extras[y]) = (rules.Extras[y], rules.Extras[x]);
+                }
+            }
+            InvalidateReady();
+        }
+
         public void SetReady(string sender, int revision, bool ready)
         {
             RequireSetup();
             var member = Member(sender);
             if (revision != Revision || !member.Seat.MayUsePlayerCommands) throw new InvalidOperationException("Stale room revision or inactive participant.");
             members[sender] = member.WithReady(ready);
+        }
+
+        public void Rename(string sender, string name)
+        {
+            RequireSetup();
+            var member = Member(sender);
+            string normalized = DuelLobby.NormalizeName(name);
+            members[sender] = new RoomMember(sender, normalized, member.Seat, member.Alliance, member.Ready);
         }
 
         public void Launch(string sender)
@@ -244,7 +330,7 @@ namespace OpenZ.Multiplayer
 
         public void ConfigureFreeForAllWorld(ZWorld world, int seed)
         {
-            if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
+            if (!MatchLoaded || world == null || OzAiMapCatalog.FindSkirmishMap(Map)?.File != world.Map.file)
                 throw new InvalidOperationException("The loaded battlefield must match the launched room.");
             if (ActiveAlliances().Distinct().Count() != Starts)
                 throw new InvalidOperationException("Free-for-all requires a distinct alliance per position.");
@@ -253,7 +339,7 @@ namespace OpenZ.Multiplayer
 
         public void ConfigureWorld(ZWorld world, int seed)
         {
-            if (!MatchLoaded || world == null || OzAiMapCatalog.Find(Map)?.File != world.Map.file)
+            if (!MatchLoaded || world == null || OzAiMapCatalog.FindSkirmishMap(Map)?.File != world.Map.file)
                 throw new InvalidOperationException("The loaded battlefield must match the launched room.");
 
             int[] alliances = Enumerable.Range(0, Starts).ToArray();
@@ -276,10 +362,10 @@ namespace OpenZ.Multiplayer
             foreach (var member in members.Values.Where(member => member.Ready).ToArray()) members[member.Id] = member.WithReady(false);
         }
 
-        static int MapStarts(string map)
+        int MapStarts(string map)
         {
-            var entry = OzAiMapCatalog.Find(map);
-            if (entry != null && entry.Starts > 2) return entry.Starts;
+            var entry = allowSoloConversions ? OzAiMapCatalog.FindSkirmishMap(map) : OzAiMapCatalog.Find(map);
+            if (entry != null && (entry.Starts > 2 || allowSoloConversions)) return entry.Starts;
             if (DuelRules.IsMapAllowed(map)) return 2;
             throw new ArgumentException("Unknown multiplayer map.", nameof(map));
         }

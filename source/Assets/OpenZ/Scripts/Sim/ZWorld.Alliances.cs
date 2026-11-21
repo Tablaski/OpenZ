@@ -11,15 +11,29 @@ namespace OpenZ.Sim
         DuelRules skirmishProduction;
         readonly double[] alliancePower = new double[8], allianceFlags = new double[8], skirmishTerritory = new double[8], skirmishFort = new double[8];
         internal bool HasSkirmishProduction => skirmishProduction != null;
+        internal bool SkirmishHasTeams { get; private set; }
 
         internal void ConfigureSkirmishRules(SkirmishRules rules, int[] closed, bool replica = false)
         {
             skirmishRules = rules.Copy();
-            if (rules.ClassicUnits)
-                ConfigureSoloUnits(DuelUnitRoster.Z1996, excludeMammoth: true, excludeBizon: true);
+            SkirmishHasTeams = Enumerable.Range(0, skirmishAlliances.Length).Where(seat => !closed.Contains(seat))
+                .GroupBy(seat => skirmishAlliances[seat]).Any(alliance => alliance.Count() > 1);
+            ApplyMapFactoryTech(rules.VehicleTech, rules.RobotTech);
+            SetBehavior(rules.Behavior(ZBehaviorFamily.Tanks));
+            SetBehavior(rules.Behavior(ZBehaviorFamily.Robots));
+            if (rules.ClassicUnits || rules.CustomRoster)
+                ConfigureSoloUnits(rules.ClassicUnits ? DuelUnitRoster.Z1996 : rules.CustomUnits,
+                    rules.ClassicUnits || rules.ExcludeMammoth, rules.ClassicUnits || rules.ExcludeBizon);
             if (rules.TerritoryCap != 50 || rules.FortSpeedup != 0 || rules.BuildPercent.Any(percent => percent != 100))
                 skirmishProduction = rules.Production;
             if (replica) return;
+
+            if (rules.OverrideFortTurrets)
+            {
+                foreach (var gun in Objects.Where(unit => unit.IsTowerGun && unit.Owner != Team.Neutral).ToArray())
+                    DeleteObject(gun);
+                FortDoorGuns.RemoveAll(gun => Get(gun.Id) == null);
+            }
 
             foreach (int seat in closed)
             {
@@ -36,6 +50,9 @@ namespace OpenZ.Sim
             {
                 if (closed.Contains(seat)) continue;
                 var team = (Team)(seat + 1);
+                var fort = Objects.FirstOrDefault(unit => unit.IsFort && unit.Owner == team);
+                if (rules.OverrideFortTurrets && fort != null)
+                    PlaceFortTurrets(fort, rules.FortTurrets, MAX_UNITS_PER_TEAM - Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed));
                 foreach (string type in rules.StartingUnits(seat))
                 {
                     if (Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed) +
@@ -50,6 +67,8 @@ namespace OpenZ.Sim
             }
             UpdateSkirmishProduction(true);
         }
+
+        internal bool SkirmishFriendlyFire => skirmishRules?.FriendlyFire == true;
 
         internal void UpdateSkirmishProduction(bool initialize = false)
         {

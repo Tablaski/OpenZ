@@ -1,5 +1,13 @@
 # Player validation record
 
+## OpenZ-VK 1.5.17 Skirmish lobby, converted terrain and Solo factory tech
+
+- The 1.5.16 baseline passed the two-instance L02 LAN duel proof for proposals, chat and voice, combat and the synchronized result. The 1.5.16 native menu proof stopped at its Solo allowed-unit catalogue assertion.
+- Unity regenerated all 23 larger Skirmish scenes with the V3 converter and loaded each to render its lobby preview. Grid data and native starting positions were checked separately. Verify crossings and pathfinding in play on each terrain family, including Desert Fortress and Hunters.
+- The first compiled-game proof passed the five local tabs, changing a balancing rule, launching a two-start match against one bot, and loading Desert Fortress with three bots and its V3 terrain active. The captures and result are in the local `.local/skirmish-1517-local/` directory. Repeat on the final build and exercise the closed-seat path for five, six and seven active participants on an eight-start map.
+- Verify an online host can launch with bots only, then return to the lobby and repeat on the same invite with guests. Verify ready resets, guest permissions, map and setup synchronization, text and voice, moderation, reconnect and the match result on three or more Windows systems across different networks.
+- In the Solo AI Maps catalogue, check original tech against the map, switch between two missions and revisit the first, deploy with each factory override, and test both reset buttons. Repeat on Medium with the difficulty tech bonus on and off, play as Blue, replay, and verify that official campaign missions and multiplayer choices keep their own rules.
+
 ## OpenZ-VK 1.5.16 Skirmish lobby and balancing
 
 - Pending compiled-game check: browse the five tabs while eight places, invitations, chat and microphone remain visible. Close and reopen a seat, seat a waiting guest, configure shared and individual starting units, and verify that a setup edit clears readiness.

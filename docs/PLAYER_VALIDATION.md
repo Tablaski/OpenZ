@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.22 water reflection performance
+
+- The maintainer's 1.5.21 official Bridge Game session used DX12 at 3840 × 2160. High and Medium drew the scene at native resolution, while Low drew it at 1440 × 810. The session changed presets during sampling. The GPU reached 90 °C twice and the heat guard applied its 30 fps limit, then restored 60 fps at 84 °C. The mixed samples cannot quantify the cost of reflections.
+- Pending compiled-game checks: compare High and Medium with the reflection setting on and off at 3840 × 2160, on the same official Bridge Game camera path after the briefing. Record frame time, GPU time, temperature and the active cap. Verify the option persists and applies during battle, Low continues to skip object reflections, and camera pans and zooms preserve the look of the river and sea-skirt reflections when enabled. Check Car Park and the DX11 fallback as well.
+
 ## OpenZ-VK 1.5.21 building outline performance
 
 - Source checkpoint `51df3903` compiled successfully for Windows in release mode. On Desert P08M01 with seven Normal bots, 1080p Low and DX12, the first 40-second window reported 20.2 fps and a 122 ms 99th-percentile frame. Its final frames coincided with returning to the main menu, so the window is provisional. The preceding engine summary reported 3.30 ms of hover per frame, compared with 8.78 ms in the corresponding 1.5.20 summary.

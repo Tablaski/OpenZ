@@ -20,6 +20,22 @@ namespace OpenZ
 {
     public sealed class OzWaterPlayCalm : MonoBehaviour
     {
+        public const string ReflectionPref = "oz_vk_water_object_reflections";
+        public const string ReflectionLabel = "WATER OBJECT REFLECTIONS";
+        public const string ReflectionTip = "WATER OBJECT REFLECTIONS|Turn off reflections of structures and units in the water to reduce rendering work in High and Medium. Sky reflections, ripples and foam stay visible. Low already skips object reflections.|";
+        static bool? objectReflections;
+
+        public static bool ObjectReflections
+        {
+            get => objectReflections ??= PlayerPrefs.GetInt(ReflectionPref, 1) != 0;
+            set
+            {
+                objectReflections = value;
+                PlayerPrefs.SetInt(ReflectionPref, value ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
+
         /// <summary>Level 18 in play: how much weaker (x glints, y sun lane, z sky reflection, w fire / lamp reflection).</summary>
         public static Vector4 L18Calm = new Vector4(0.88f, 0.88f, 0.4f, 0.75f);   // kit l18_water_subtle_r6: was (0.6, 0.6, 0.4, 0.3) in test exe 14b
         /// <summary>1.5 kit l18_water_subtle_r6: level 18 in play, the most the broad mirror glow of ONE lamp, headlight, fire, blast or
@@ -80,7 +96,8 @@ namespace OpenZ
             float glow = 0f;
             if (lv == OzCity.BridgeGame) { a = Exe14b ? new Vector4(0.6f, 0.6f, 0.4f, 0.3f) : L18Calm; rip = L18Ripple; glow = Exe14b ? 0f : 1f - Mathf.Clamp(L18GlowCap, 0.03f, 3f) / 3f; }   // kit l18_water_subtle_r6
             else if (lv == OzCity.CarPark) { a = L17Calm; rip = L17Ripple; }
-            Put(a, new Vector4(rip, glow, 0f, 0f), new Vector4(ObjReflect, ObjReflectBend, 0f, 0f));   // kit l18_water_subtle_r6: y = the glow cap (level 18 only, else 0)
+            Vector4 reflection = ObjectReflections ? new Vector4(ObjReflect, ObjReflectBend, 0f, 0f) : Vector4.zero;
+            Put(a, new Vector4(rip, glow, 0f, 0f), reflection);   // kit l18_water_subtle_r6: y = the glow cap (level 18 only, else 0)
         }
 
         void OnDestroy() { if (run == this) { run = null; Put(Vector4.zero, Vector4.zero, Vector4.zero); } }

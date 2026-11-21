@@ -132,7 +132,7 @@ namespace OpenZ
         void LateUpdate()
         {
             Live = false;
-            if (!Wanted) { stepAt = -1f; return; }                                                      // kit reflections_ease_r7: wanted again later = a cut (at once)
+            if (!Wanted) { stepAt = -1f; pictureOk = false; return; }
             for (int i = pools.Count - 1; i >= 0; i--) if (!pools[i].r) { pools.RemoveAt(i); dirty = true; tries = 0; }
             if (dirty && Time.unscaledTime >= nextScan) Scan();
             // 1.5 kit reflections_ease_r7: the water the picture is for, chosen ONCE a frame here (was: in every draw of the camera; the checks

@@ -21,16 +21,14 @@ float4x4 _OZWaterMirrorVP;
 TEXTURE2D(_OZWaterMirrorTex);
 TEXTURE2D_FLOAT(_OZWaterMirrorDepth);
 
-float2 OzObjReflUV(float3 p, float flip, out float eye)
+float2 OzObjReflUV(float4 clip, float flip)
 {
-    float4 c = TransformWorldToHClip(p);
-    eye = -TransformWorldToView(p).z;
-    float2 uv = c.xy / max(c.w, 1e-4) * 0.5 + 0.5;
+    float2 uv = clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5;
     uv.y = lerp(uv.y, 1.0 - uv.y, flip);
     return uv;
 }
 
-// kit water_tune_r3's screen-space reflection, every line as it was (only its name is new). rgb = the reflected scene colour, a = its weight
+// Screen-space reflection. RGB is the reflected scene colour and A is its weight.
 half4 OzWaterObjReflectSS(float3 positionWS, half3 n, half3 V, float2 screenUV)
 {
     if (_OZWaterObjRefl.x <= 0.0 || !IsPerspectiveProjection()) return half4(0.0, 0.0, 0.0, 0.0);
@@ -38,15 +36,19 @@ half4 OzWaterObjReflectSS(float3 positionWS, half3 n, half3 V, float2 screenUV)
     half3 nR = normalize(lerp(up, n, (half)_OZWaterObjRefl.y));
     float3 R = reflect(-(float3)V, (float3)nR);
     if (R.y < 0.03) return half4(0.0, 0.0, 0.0, 0.0);
-    // which way up the screen is in this target (game view, render texture): the surface point's own UV decides
-    float e0;
-    float2 u0 = OzObjReflUV(positionWS, 0.0, e0);
+    // Project the ray once. Its clip coordinates and eye depth are linear in distance along the ray.
+    float4 clipOrigin = TransformWorldToHClip(positionWS);
+    float4 clipDirection = mul(GetWorldToHClipMatrix(), float4(R, 0.0));
+    float eyeOrigin = -TransformWorldToView(positionWS).z;
+    float eyeDirection = -mul((float3x3)GetWorldToViewMatrix(), R).z;
+    // The surface point's UV determines the render target orientation.
+    float2 u0 = OzObjReflUV(clipOrigin, 0.0);
     float flip = abs((1.0 - u0.y) - screenUV.y) < abs(u0.y - screenUV.y) ? 1.0 : 0.0;
     float tPrev = 0.0, tHit = -1.0, tCur = 0.3;
     [loop] for (int i = 0; i < 14; i++)
     {
-        float eye;
-        float2 uv = OzObjReflUV(positionWS + R * tCur, flip, eye);
+        float eye = eyeOrigin + eyeDirection * tCur;
+        float2 uv = OzObjReflUV(clipOrigin + clipDirection * tCur, flip);
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || eye < 0.05) break;
         float sceneEye = LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams);
         float dz = eye - sceneEye;
@@ -57,12 +59,12 @@ half4 OzWaterObjReflectSS(float3 positionWS, half3 n, half3 V, float2 screenUV)
     float a = tPrev, b = tHit;
     [unroll] for (int j = 0; j < 3; j++)
     {
-        float m = 0.5 * (a + b), em;
-        float2 um = OzObjReflUV(positionWS + R * m, flip, em);
+        float m = 0.5 * (a + b);
+        float em = eyeOrigin + eyeDirection * m;
+        float2 um = OzObjReflUV(clipOrigin + clipDirection * m, flip);
         if (em - LinearEyeDepth(SampleSceneDepth(um), _ZBufferParams) > 0.02) b = m; else a = m;
     }
-    float eb;
-    float2 uvH = OzObjReflUV(positionWS + R * b, flip, eb);
+    float2 uvH = OzObjReflUV(clipOrigin + clipDirection * b, flip);
     half3 col = SAMPLE_TEXTURE2D_X_LOD(_CameraOpaqueTexture, sampler_CameraOpaqueTexture, uvH, 0).rgb;   // after a branchy loop: no gradients
     float2 ed = min(uvH, 1.0 - uvH);
     half w = (half)(smoothstep(0.0, 0.07, ed.x) * smoothstep(0.0, 0.07, ed.y));   // no hard cut at the screen edge

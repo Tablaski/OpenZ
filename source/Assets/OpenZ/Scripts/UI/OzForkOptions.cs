@@ -53,7 +53,7 @@ namespace OpenZ
             label == OzBattleOptions.RadarLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
             label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||
-            label == DuelBinaryEventsLabel || label == DuelCompressionLabel;
+            label == DuelBinaryEventsLabel || label == DuelCompressionLabel || label == OzWaterPlayCalm.ReflectionLabel;
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

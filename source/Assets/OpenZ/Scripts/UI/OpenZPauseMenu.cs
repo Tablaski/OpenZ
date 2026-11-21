@@ -262,6 +262,7 @@ namespace OpenZ
                 AddToggle(p, toggles.Count, OzLowPicture.Label, null, null, true);
                 var l8p = toggles[toggles.Count - 1]; l8p.row.OnClick = c => { OzLowPicture.Step(c.right || c.shift ? -1 : Arrow(l8p)); OzSfx.Ui("ui_tab_switch"); }; l8p.row.OnRightClick = c => OzLowPicture.Step(-1);
             }
+            AddToggle(p, toggles.Count, OzWaterPlayCalm.ReflectionLabel, () => OzWaterPlayCalm.ObjectReflections, v => OzWaterPlayCalm.ObjectReflections = v);
             AddBehaviorOptions(p);
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)

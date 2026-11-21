@@ -174,6 +174,7 @@ namespace OpenZ
               .Append(" (").Append(w.ApproachTiles - tiles0).Append(" tiles); ");
             if (p != null) sb.Append("rebuilds: zones ").Append(p.ZoneBuilds - zones0).Append(", lanes ").Append(p.lanesBuilds - lanes0).Append(", reach ").Append(p.Reach.Rebuilds - reach0).Append("; ");
             sb.Append("cpu loop ").Append(F(cpuMs, "0.000")).Append(" ms (best this run ").Append(F(cpuBest, "0.000")).Append("); preset ").Append(OzQuality.Name).Append(", limit ").Append(GameBoot.CapFps)
+              .Append(", active target ").Append(Application.targetFrameRate).Append(", vsync ").Append(QualitySettings.vSyncCount)
               .Append(HeatGuardRuntime.HeldFps > 0 ? ", heat guard holds " + HeatGuardRuntime.HeldFps : "");
             Debug.Log(sb.ToString());
             ResetMinute(w);

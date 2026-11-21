@@ -68,12 +68,12 @@ namespace OpenZ.Multiplayer
 
         public static DuelPacket Battlefield(int revision, DuelDelta delta, IReadOnlyList<ZEvent> events, bool compress = false)
         {
-            var payload = DuelDeltaCodec.Encode(delta);
-            using var stream = new MemoryStream();
+            int length = DuelDeltaCodec.Measure(delta);
+            using var stream = new MemoryStream(3 * sizeof(int) + length);
             using var writer = new BinaryWriter(stream);
             writer.Write(revision);
-            writer.Write(payload.Length);
-            writer.Write(payload);
+            writer.Write(length);
+            DuelDeltaCodec.Write(writer, delta);
             DuelEventCodec.Write(writer, events ?? Array.Empty<ZEvent>());
             if (stream.Length > DuelWire.MaxPayload) throw new InvalidDataException("Room battlefield exceeds its size limit.");
             return new DuelPacket(DuelMessage.RoomBattlefield, stream.ToArray(), compress);
@@ -90,7 +90,8 @@ namespace OpenZ.Multiplayer
             if (reader.ReadInt32() != revision) return null;
             int length = reader.ReadInt32();
             if (length <= 0 || length > stream.Length - stream.Position) throw new InvalidDataException("Invalid room battlefield delta length.");
-            var delta = DuelDeltaCodec.Decode(reader.ReadBytes(length));
+            var delta = DuelDeltaCodec.Decode(bytes, (int)stream.Position, length);
+            stream.Position += length;
             events = DuelEventCodec.Read(reader);
             if (stream.Position != stream.Length) throw new InvalidDataException("Unexpected data after room battlefield events.");
             return delta;

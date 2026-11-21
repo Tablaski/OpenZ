@@ -103,6 +103,7 @@ namespace OpenZ.Sim
         // ai_list / ai_orig_list (zobject.h:556-558), per bot (each Zod bot has its own client objects)
         readonly Dictionary<ZObject, List<ZObject>> aiList = new Dictionary<ZObject, List<ZObject>>();
         readonly Dictionary<ZObject, List<ZObject>> aiOrig = new Dictionary<ZObject, List<ZObject>>();
+        readonly HashSet<Team> flagOwners = new HashSet<Team>();
 
         public ZBot(ZWorld world, Team team, int seed)
         {
@@ -199,11 +200,11 @@ namespace OpenZ.Sim
         public bool GoAllOut_3(out double percent, out double delay)
         {
             percent = 0.35; delay = 4;
-            var owners = new HashSet<Team>(); int ours = 0;
-            foreach (var f in W.Flags) { owners.Add(f.Owner); if (f.Owner == Team) ours++; }
-            if (owners.Count == 0) return true;
+            flagOwners.Clear(); int ours = 0;
+            foreach (var f in W.Flags) { flagOwners.Add(f.Owner); if (f.Owner == Team) ours++; }
+            if (flagOwners.Count == 0) return true;
             if (W.Flags.Count == 0) return true;
-            double owned = 1.0 * ours / W.Flags.Count, fair = 1.0 / owners.Count;
+            double owned = 1.0 * ours / W.Flags.Count, fair = 1.0 / flagOwners.Count;
             if (owned >= fair) { percent = 0.15; delay = 12; return true; }
             if (owned >= fair * 0.5) { percent = 0.15; delay = 8; }
             else if (owned >= fair * 0.25) { percent = 0.25; delay = 5; }
@@ -215,7 +216,7 @@ namespace OpenZ.Sim
         /// (idle) and a repair station (busy, not recorded); a first waypoint without a target is idle unless it is a dodge.</summary>
         public void CollectOurUnits_3(List<ZObject> units, List<ZObject> targeted)
         {
-            foreach (var o in W.Objects)
+            foreach (var o in W.UnitObjects)
             {
                 if (!o.IsMobile || o.Owner != Team || Gone(o) || o.IsFortDefender || o.EvilGuarding) continue;   // fort_defender_v1 DV41: the fort's, not the CPU's; DV165: nor EvilZod on guard (Sim/ZEvilZod.Appear.cs)
                 if (o.Kind == ZKind.Robot && o.IsMinion) continue;
@@ -356,7 +357,12 @@ namespace OpenZ.Sim
         /// nearest candidate unit (distance between top-left corners); an emptied list falls back to the unit's original list.</summary>
         public void GiveOutOrders_3(List<ZObject> units, List<ZObject> targets)
         {
-            foreach (var u in units) aiOrig[u] = new List<ZObject>(AI(u));
+            foreach (var u in units)
+            {
+                if (!aiOrig.TryGetValue(u, out var original)) aiOrig[u] = original = new List<ZObject>();
+                original.Clear();
+                original.AddRange(AI(u));
+            }
             while (units.Count > 0)
             {
                 bool orderGiven = false;
@@ -628,7 +634,7 @@ namespace OpenZ.Sim
         /// </summary>
         void ObserveRelays()
         {
-            foreach (var o in W.Objects)
+            foreach (var o in W.UnitObjects)
             {
                 if (!o.IsMobile) continue;
                 bool ours = o.Owner == Team;

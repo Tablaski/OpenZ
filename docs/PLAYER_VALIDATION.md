@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.18 Battle and Skirmish performance
+
+- Pending compiled-game comparison with 1.5.17: match camera positions, zoom, graphics options and starting armies. Use official Bridge Game, Desert P08M01 and Hunters. Compare Direct3D 11 and 12 on the same build at 1080p and 4K, including battle, night weather, thermal limits and frame-time percentiles.
+- Verify distant and close unit spacing, boarding, destroyed units, rock damage and debris, repaired paths, and water reflections during camera and water-height changes.
+- Measure a local battle with seven bots and eight-human matches on both SFU and direct WebRTC. On host and guests, compare CPU and GPU frame times, peak simulation and snapshot work, state rates and queue depth. Exercise a slow guest, reconnect and route fallback. The target is 60 fps at 1080p with 4–6 ms per frame available for simulation and network work on the reference laptop.
+
 ## OpenZ-VK 1.5.17 Skirmish lobby, converted terrain and Solo factory tech
 
 - The 1.5.16 baseline passed the two-instance L02 LAN duel proof for proposals, chat and voice, combat and the synchronized result. Its native menu proof stopped at an assertion that expected the 22-unit catalogue to exclude the two Bridge Game tanks.

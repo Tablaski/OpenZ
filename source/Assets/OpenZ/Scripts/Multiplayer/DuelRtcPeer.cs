@@ -112,8 +112,15 @@ namespace OpenZ.Multiplayer
                     {
                         var wirePacket = DuelWire.PackDelta(packet);
                         stateBytesInFlight = DuelWire.IsDelta(packet.Kind) ? wirePacket.Payload.Length : 0;
-                        using (var buffer = new MemoryStream())
-                        { await DuelWire.WriteAsync(buffer, wirePacket, stop.Token).ConfigureAwait(false); sending = buffer.ToArray(); offset = 0; }
+                        if (packet.Kind == DuelMessage.RoomBattlefield && packet.Compress)
+                            sending = DuelWire.FrameForDirectRoom(packet);
+                        else
+                        {
+                            using var buffer = new MemoryStream();
+                            await DuelWire.WriteAsync(buffer, wirePacket, stop.Token).ConfigureAwait(false);
+                            sending = buffer.ToArray();
+                        }
+                        offset = 0;
                         Interlocked.Add(ref queuedBytes, -packet.Payload.Length - 12);
                     }
                     Volatile.Write(ref nativeBuffered, DuelRtcNative.rtcGetBufferedAmount(game) + (sending == null ? 0 : sending.Length - offset));

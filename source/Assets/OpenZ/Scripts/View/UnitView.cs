@@ -57,6 +57,10 @@ namespace OpenZ
         Vector3 basePos, sepOffset, sepCorr; float radius, weight, maxSep; float bandH = -1f;
         static readonly List<UnitView> Live = new List<UnitView>(); static int lastSolve = -1;
         static bool[] sepOn = new bool[256];
+        static int[] separationNext = new int[256];
+        static Vector2Int[] separationCells = new Vector2Int[256];
+        static readonly Dictionary<Vector2Int, int> separationGrid = new Dictionary<Vector2Int, int>();
+        static readonly List<int> separationNeighbors = new List<int>();
         /// <summary>Static view obstacles (x, z, radius; radius 0 = gone): L17 lamp posts stand on walkable Zod tiles, so robots
         /// </summary>
         public static readonly List<Vector3> Obstacles = new List<Vector3>();
@@ -733,18 +737,61 @@ namespace OpenZ
             if (lastSolve == Time.frameCount) return;
             lastSolve = Time.frameCount;
             Live.RemoveAll(v => !v);
-            if (sepOn.Length < Live.Count) sepOn = new bool[Mathf.NextPowerOfTwo(Live.Count + 1)];
+            if (sepOn.Length < Live.Count)
+            {
+                int capacity = Mathf.NextPowerOfTwo(Live.Count);
+                sepOn = new bool[capacity];
+                separationNext = new int[capacity];
+                separationCells = new Vector2Int[capacity];
+            }
+            float maxRadius = 0f;
+            bool useGrid = Live.Count > 32;
             for (int q = 0; q < Live.Count; q++)
             {
-                // ~7000 calls a frame with 120 views); nothing in the pair loop changes a view's active state or its Obj
                 var v = Live[q]; v.sepCorr = Vector3.zero; v.sepTouch = false; sepOn[q] = v.isActiveAndEnabled && v.Obj != null;
+                if (sepOn[q]) maxRadius = Mathf.Max(maxRadius, v.radius);
+            }
+            if (useGrid)
+            {
+                separationGrid.Clear();
+                // One cell is wider than the greatest possible pair distance, including the touch margin.
+                float cellSize = 2f * maxRadius + 0.25f;
+                for (int i = 0; i < Live.Count; i++)
+                {
+                    if (!sepOn[i]) continue;
+                    var p = Live[i].basePos + Live[i].sepOffset;
+                    if (!(Mathf.Abs(p.x) < 100000f && Mathf.Abs(p.z) < 100000f && cellSize < 100000f))
+                    {
+                        useGrid = false;
+                        break;
+                    }
+                    var cell = new Vector2Int(Mathf.FloorToInt(p.x / cellSize), Mathf.FloorToInt(p.z / cellSize));
+                    separationCells[i] = cell;
+                    separationNext[i] = separationGrid.TryGetValue(cell, out int first) ? first : -1;
+                    separationGrid[cell] = i;
+                }
             }
             for (int i = 0; i < Live.Count; i++)
             {
                 var a = Live[i]; if (!sepOn[i]) continue;
                 var pa = a.basePos + a.sepOffset;
-                for (int j = i + 1; j < Live.Count; j++)
+                if (useGrid)
                 {
+                    separationNeighbors.Clear();
+                    var cell = separationCells[i];
+                    for (int x = cell.x - 1; x <= cell.x + 1; x++)
+                        for (int z = cell.y - 1; z <= cell.y + 1; z++)
+                        {
+                            if (!separationGrid.TryGetValue(new Vector2Int(x, z), out int neighbor)) continue;
+                            for (; neighbor > i; neighbor = separationNext[neighbor]) separationNeighbors.Add(neighbor);
+                        }
+                    // Keep the original accumulation order for the floating-point corrections.
+                    separationNeighbors.Sort();
+                }
+                int count = useGrid ? separationNeighbors.Count : Live.Count - i - 1;
+                for (int candidate = 0; candidate < count; candidate++)
+                {
+                    int j = useGrid ? separationNeighbors[candidate] : i + 1 + candidate;
                     var b = Live[j]; if (!sepOn[j]) continue;
                     float r = a.radius + b.radius;
                     var d = pa - (b.basePos + b.sepOffset); d.y = 0;

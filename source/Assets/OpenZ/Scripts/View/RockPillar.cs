@@ -17,16 +17,28 @@ namespace OpenZ
         public int simId = -1;
         int stage;                                                             // 0 intact, 1 damaged, 2 rubble
         float nextPoll;
+        LinkedListNode<RockPillar> healthPollNode;
 
         const int MaxLiveChunks = 72;
         static readonly List<GameObject> live = new List<GameObject>();
 
-        void Update()
+        void OnEnable()
         {
-            if (stage >= 1 || Time.time < nextPoll || simId < 0 || ZGame.I == null) return;
-            nextPoll = Time.time + 0.2f;
-            var o = ZGame.I.World.Get(simId);
+            healthPollNode ??= new LinkedListNode<RockPillar>(this);
+            RockPillarHealth.Register(healthPollNode);
+        }
+
+        void OnDisable() => healthPollNode?.List?.Remove(healthPollNode);
+
+        internal float CheckHealth(ZWorld world, float now)
+        {
+            if (stage >= 1) return float.PositiveInfinity;
+            if (now < nextPoll) return nextPoll;
+            if (simId < 0) return now;
+            nextPoll = now + 0.2f;
+            var o = world.Get(simId);
             if (o != null && o.MaxHealth > 0 && o.Health <= o.MaxHealth / 2) Damage();
+            return nextPoll;
         }
 
         /// <summary>

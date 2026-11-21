@@ -28,6 +28,9 @@ static class SkirmishNetworkChecks
         using var wire = new MemoryStream();
         await DuelWire.WriteAsync(wire, packed, CancellationToken.None);
         var bytes = wire.ToArray();
+        var directFrame = DuelWire.FrameForDirectRoom(packet);
+        check(directFrame.SequenceEqual(bytes) && ReferenceEquals(directFrame, DuelWire.FrameForDirectRoom(packet)),
+            "Direct Skirmish links share exactly the standard WebRTC frame bytes");
         var decoder = new DuelRtcFrameDecoder();
         var result = Enumerable.Range(0, (bytes.Length + 8) / 9).SelectMany(index =>
         {

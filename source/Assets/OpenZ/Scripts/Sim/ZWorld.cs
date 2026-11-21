@@ -31,7 +31,8 @@ namespace OpenZ.Sim
         readonly List<ZMissile> missiles = new List<ZMissile>(), newMissiles = new List<ZMissile>();
         int nextRefId = 1;
         double nextScuffleTime;
-        readonly List<(ZObject o, int id, List<(int x, int y)> pts)> pathResults = new List<(ZObject, int, List<(int, int)>)>();
+        List<(ZObject o, int id, List<(int x, int y)> pts)> pathResults = new List<(ZObject, int, List<(int, int)>)>();
+        List<(ZObject o, int id, List<(int x, int y)> pts)> pathBatch = new List<(ZObject, int, List<(int, int)>)>();
 
         public IReadOnlyList<ZMissile> PendingMissiles => missiles;
         /// <summary>deaths_mech_v1 (read only, for the view): missiles queued this tick (death debris of a unit that died after
@@ -411,8 +412,11 @@ namespace OpenZ.Sim
             for (int i = 0; i < n && i < Objects.Count; i++) ProcessServerKind(Objects[i]);   /* 1.5 DV192 / DV193 (kit sim_notes11): inside the unit's grid kind, then the wreck crush (Sim/ZBigTanks.Ground.cs) */
             if (pathResults.Count > 0)                                              // the path thread answers after the objects ran
             {
-                var batch = pathResults.ToArray(); pathResults.Clear();
-                foreach (var (o, id, pts) in batch) o.PostPathFindingResult(id, pts);
+                var batch = pathResults;
+                pathResults = pathBatch;
+                pathBatch = batch;
+                try { foreach (var (o, id, pts) in batch) o.PostPathFindingResult(id, pts); }
+                finally { batch.Clear(); }
             }
             n = Objects.Count;
             for (int i = 0; i < n && i < Objects.Count; i++)                        // side effects

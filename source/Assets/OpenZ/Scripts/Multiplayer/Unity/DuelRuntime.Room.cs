@@ -5,6 +5,7 @@ using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace OpenZ.Multiplayer
 {
@@ -194,10 +195,17 @@ namespace OpenZ.Multiplayer
                     else if (JoinedRoom.Launched && !JoinedRoom.MatchLoaded && roomLoadedScene) AcknowledgeRoomLoad();
                     return true;
                 case DuelMessage.RoomBattlefield:
+                    long receiving = Stopwatch.GetTimestamp();
                     if (roomGuest?.Receive(packet) == true)
                     {
                         matchStateReceived += packet.WirePayloadLength;
-                        RecordDiagnosticState(packet.ReceivedAtTicks, 0, 0);
+                        long elapsed = Stopwatch.GetTimestamp() - receiving;
+                        perf.Received++;
+                        perf.ReceiveBytes += packet.WirePayloadLength;
+                        perf.ReceivePayloadPeak = Math.Max(perf.ReceivePayloadPeak, packet.WirePayloadLength);
+                        perf.ReceiveTicks += elapsed;
+                        perf.ReceiveMaxTicks = Math.Max(perf.ReceiveMaxTicks, elapsed);
+                        RecordDiagnosticState(packet.ReceivedAtTicks, elapsed, packet.ReceivedAtTicks > 0 ? receiving - packet.ReceivedAtTicks : 0);
                         RecordRoomMotion(packet.ReceivedAtTicks);
                         roomReplicaChanged = true;
                     }
@@ -279,14 +287,22 @@ namespace OpenZ.Multiplayer
             UpdateRoomVote();
             if (Game && session && !IsHost)
             {
-                if (roomReplicaChanged) { SyncClientViews(); roomReplicaChanged = false; }
+                if (roomReplicaChanged)
+                {
+                    long syncing = Stopwatch.GetTimestamp();
+                    SyncClientViews();
+                    perf.ViewSyncMaxTicks = Math.Max(perf.ViewSyncMaxTicks, Stopwatch.GetTimestamp() - syncing);
+                    roomReplicaChanged = false;
+                }
                 if (localEndReady && roomEndReadyEpoch != roomEpoch && transport.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>())))
                     roomEndReadyEpoch = roomEpoch;
             }
             if (Playing)
             {
-                RecordDiagnosticQueue(QueuedReceiveBytes);
-                RecordDiagnosticFrame(Time.unscaledDeltaTime * 1000);
+                int queued = QueuedReceiveBytes;
+                perf.ReceiveQueuePeak = Math.Max(perf.ReceiveQueuePeak, queued);
+                RecordDiagnosticQueue(queued);
+                RecordPerformanceFrame();
                 if (!IsHost) ReceiveBudgetMs = Time.unscaledDeltaTime > .025f ? 2 : QueuedReceiveBytes > 32 * 1024 ? 5 : DefaultReceiveBudgetMs;
             }
         }
@@ -545,9 +561,11 @@ namespace OpenZ.Multiplayer
             {
                 game.DuelAdvance(Time.unscaledDeltaTime);
                 roomSimulationPeak = Math.Max(roomSimulationPeak, ZGame.RuleMsLastFrame);
+                perf.SimulationMaxMs = Math.Max(perf.SimulationMaxMs, ZGame.RuleMsLastFrame);
             }
             double now = Now;
             int queued = QueuedSendBytes;
+            perf.SendQueuePeak = Math.Max(perf.SendQueuePeak, queued);
             if (now >= roomRetuneAt)
             {
                 long bytes = RoomTransport.StatePayloadBytesSent;
@@ -563,15 +581,29 @@ namespace OpenZ.Multiplayer
             if (roomLinks.Count == 0) { pendingEvents.Clear(); return; }
             if ((roomFullState || game.World.GameOver && !sentGameOver || now - lastSnapshot >= 1d / SnapshotHz) && queued < 64 * 1024)
             {
-                var delta = roomDelta.CaptureImmutable(roomCapture.Capture(game.World), roomFullState);
+                long started = Stopwatch.GetTimestamp();
+                var snapshot = roomCapture.Capture(game.World);
+                long captured = Stopwatch.GetTimestamp();
+                var delta = roomDelta.CaptureImmutable(snapshot, roomFullState);
                 int eventCount = Math.Min(pendingEvents.Count, DuelEventCodec.MaxEvents);
                 var events = eventCount == pendingEvents.Count ? pendingEvents : pendingEvents.GetRange(0, eventCount);
-                roomFullState = !RoomTransport.Send(MultiplayerRoomPackets.Battlefield(room.Revision, delta, events, compress: true));
+                var packet = MultiplayerRoomPackets.Battlefield(room.Revision, delta, events, compress: true);
+                long enqueuing = Stopwatch.GetTimestamp();
+                roomFullState = !RoomTransport.Send(packet);
                 if (roomFullState) return;
                 pendingEvents.RemoveRange(0, eventCount);
                 lastSnapshot = now;
                 sentGameOver = game.World.GameOver;
-                RecordDiagnosticState(0, 0, 0);
+                long finished = Stopwatch.GetTimestamp();
+                perf.Sent++;
+                perf.SendBytes += packet.Payload.Length;
+                perf.SendPayloadPeak = Math.Max(perf.SendPayloadPeak, packet.Payload.Length);
+                perf.SendTicks += finished - started;
+                perf.SendMaxTicks = Math.Max(perf.SendMaxTicks, finished - started);
+                perf.CaptureTicks += captured - started;
+                perf.EncodeTicks += enqueuing - captured;
+                perf.EnqueueTicks += finished - enqueuing;
+                RecordDiagnosticState(enqueuing, finished - started, 0);
             }
         }
 

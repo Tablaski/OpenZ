@@ -20,6 +20,7 @@ namespace OpenZ.Multiplayer
         public readonly byte[] Payload;
         internal readonly bool Compress;
         internal DuelPacket PackedRoomBattlefield;
+        internal byte[] RoomTransportFrame;
         internal int WirePayloadLength;
         // Local transport timestamp. It is set before publishing a received delta to the game thread.
         internal long ReceivedAtTicks;
@@ -48,6 +49,22 @@ namespace OpenZ.Multiplayer
             if (packet.Kind != DuelMessage.RoomBattlefield || !packet.Compress) return CompressDelta(packet, MaxCompressedDelta);
             // A direct room sends the same immutable state to every guest.
             lock (packet) return packet.PackedRoomBattlefield ??= CompressDelta(packet, MaxPayload);
+        }
+
+        // Each direct connection has its own congestion window but their battlefield bytes are identical.
+        internal static byte[] FrameForDirectRoom(DuelPacket packet)
+        {
+            lock (packet)
+            {
+                if (packet.RoomTransportFrame != null) return packet.RoomTransportFrame;
+                var packed = PackDelta(packet);
+                var frame = new byte[12 + packed.Payload.Length];
+                using var stream = new MemoryStream(frame, true);
+                using var writer = new BinaryWriter(stream);
+                writer.Write(Magic); writer.Write((ushort)Version); writer.Write((ushort)packed.Kind);
+                writer.Write(packed.Payload.Length); writer.Write(packed.Payload);
+                return packet.RoomTransportFrame = frame;
+            }
         }
 
         static DuelPacket CompressDelta(DuelPacket packet, int limit)

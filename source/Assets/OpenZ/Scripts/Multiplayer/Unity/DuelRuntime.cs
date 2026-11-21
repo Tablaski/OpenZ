@@ -489,21 +489,7 @@ namespace OpenZ.Multiplayer
                 }
                 if (Playing)
                 {
-                    float frameMs = Time.unscaledDeltaTime * 1000;
-                    perf.Frames++;
-                    perf.WorstFrame = Math.Max(perf.WorstFrame, frameMs);
-                    if (frameMs >= 50) perf.SlowFrames++;
-                    OzFrameTimes.Sample();
-                    if (OzFrameTimes.Have)
-                    {
-                        perf.FrameTimingSamples++;
-                        perf.MainMaxMs = Math.Max(perf.MainMaxMs, OzFrameTimes.Main);
-                        perf.RenderMaxMs = Math.Max(perf.RenderMaxMs, OzFrameTimes.Render);
-                        perf.GpuMaxMs = Math.Max(perf.GpuMaxMs, OzFrameTimes.Gpu);
-                        perf.PresentWaitMaxMs = Math.Max(perf.PresentWaitMaxMs, OzFrameTimes.PresentWait);
-                    }
-                    RecordDiagnosticFrame(frameMs);
-                    if (Now - perfAt >= 10) LogPerformance("periodic");
+                    RecordPerformanceFrame();
                 }
             }
             catch (Exception error) { Debug.LogException(error); Fail(error.Message); }
@@ -740,12 +726,13 @@ namespace OpenZ.Multiplayer
             long started = Stopwatch.GetTimestamp();
             var snapshot = capture.Capture(Game.World);
             long captured = Stopwatch.GetTimestamp();
-            var delta = DuelDeltaCodec.Encode(sender.CaptureImmutable(snapshot, full));
+            var delta = sender.CaptureImmutable(snapshot, full);
+            int deltaLength = DuelDeltaCodec.Measure(delta);
             int payloadBytes;
             long enqueuing;
-            using (var stream = new MemoryStream()) using (var writer = new BinaryWriter(stream))
+            using (var stream = new MemoryStream(sizeof(int) + deltaLength)) using (var writer = new BinaryWriter(stream))
             {
-                writer.Write(delta.Length); writer.Write(delta);
+                writer.Write(deltaLength); DuelDeltaCodec.Write(writer, delta);
                 if (binaryEvents) DuelEventCodec.Write(writer, pendingEvents);
                 else writer.Write(JsonUtility.ToJson(new DuelEventData { Events = pendingEvents.ToArray() }));
                 var payload = stream.ToArray();
@@ -780,7 +767,8 @@ namespace OpenZ.Multiplayer
             {
                 int length = reader.ReadInt32();
                 if (length < 0 || length > stream.Length - stream.Position) throw new InvalidDataException("Invalid state frame.");
-                var delta = DuelDeltaCodec.Decode(reader.ReadBytes(length));
+                var delta = DuelDeltaCodec.Decode(packet.Payload, (int)stream.Position, length);
+                stream.Position += length;
                 long applyingBaseline = Stopwatch.GetTimestamp();
                 if (!receiver.ApplyOwned(delta)) throw new InvalidDataException("Missing state baseline.");
                 long baselineApplied = Stopwatch.GetTimestamp();
@@ -828,6 +816,24 @@ namespace OpenZ.Multiplayer
             perfLastSend = perfLastArrival = perfLastReceive = 0;
             perf = new PerformanceWindow { GcStart = GC.CollectionCount(0) };
         }
+        void RecordPerformanceFrame()
+        {
+            float frameMs = Time.unscaledDeltaTime * 1000;
+            perf.Frames++;
+            perf.WorstFrame = Math.Max(perf.WorstFrame, frameMs);
+            if (frameMs >= 50) perf.SlowFrames++;
+            OzFrameTimes.Sample();
+            if (OzFrameTimes.Have)
+            {
+                perf.FrameTimingSamples++;
+                perf.MainMaxMs = Math.Max(perf.MainMaxMs, OzFrameTimes.Main);
+                perf.RenderMaxMs = Math.Max(perf.RenderMaxMs, OzFrameTimes.Render);
+                perf.GpuMaxMs = Math.Max(perf.GpuMaxMs, OzFrameTimes.Gpu);
+                perf.PresentWaitMaxMs = Math.Max(perf.PresentWaitMaxMs, OzFrameTimes.PresentWait);
+            }
+            RecordDiagnosticFrame(frameMs);
+            if (Now - perfAt >= 10) LogPerformance("periodic");
+        }
         void LogPerformance(string reason)
         {
             string line = BuildPerformanceLine(reason);
@@ -859,7 +865,7 @@ namespace OpenZ.Multiplayer
                 perf.Frames / elapsed, perf.WorstFrame, perf.SendTicks * sendMs, perf.ReceiveTicks * receiveMs,
                 perf.Sent / elapsed, perf.Received / elapsed, perf.SendBytes / 1024.0 / elapsed, perf.ReceiveBytes / 1024.0 / elapsed,
                 QueuedSendBytes, QueuedReceiveBytes, PingMs, GC.CollectionCount(0) - perf.GcStart, Game ? Game.World.Objects.Count : 0, LocalRelease,
-                DateTime.UtcNow, View?.Map ?? "unknown", now - perfMatchStart, elapsed, reason, perf.SlowFrames, perf.SimulationMaxMs, perf.ViewSyncMaxTicks * PerfTickMs,
+                DateTime.UtcNow, Game ? Game.level : View?.Map ?? "unknown", now - perfMatchStart, elapsed, reason, perf.SlowFrames, perf.SimulationMaxMs, perf.ViewSyncMaxTicks * PerfTickMs,
                 perf.Sent, perf.Received, perf.SendPayloadPeak, perf.ReceivePayloadPeak, perf.SendQueuePeak, perf.ReceiveQueuePeak, perf.SnapshotBackpressureFrames,
                 perf.SendGapMaxTicks * PerfTickMs, perf.ArrivalGapMaxTicks * PerfTickMs, perf.ReceiveGapMaxTicks * PerfTickMs, perf.QueueWaitMaxTicks * PerfTickMs,
                 perf.PingSamples, perf.PingMin, perf.PingMax, perf.SendMaxTicks * PerfTickMs, perf.ReceiveMaxTicks * PerfTickMs,
@@ -868,7 +874,8 @@ namespace OpenZ.Multiplayer
                 perf.FrameTimingSamples, perf.MainMaxMs, perf.RenderMaxMs, perf.GpuMaxMs, perf.PresentWaitMaxMs,
                 SnapshotHz, ReceiveBudgetMs, InterpolationMs, perf.MotionHoldFrames, perf.MotionCaptureMaxTicks * PerfTickMs,
                 (IsHost ? WireStateSent - wireSentAtWindowStart : perf.ReceiveBytes) / 1024.0 / elapsed,
-                IsHost ? BinaryStateEvents.ToString() : "remote", IsHost ? CompressStateUpdates.ToString() : "remote");
+                IsHost ? (RoomTransport != null || BinaryStateEvents).ToString() : "remote",
+                IsHost ? (RoomTransport != null || CompressStateUpdates).ToString() : "remote");
         }
         void SyncClientViews()
         {

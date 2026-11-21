@@ -225,7 +225,8 @@ namespace OpenZ
         {
             bool mine = false; float y = shownY;                                                         // 1.5 kit reflections_ease_r7: the height LateUpdate chose this frame
             bool player = Wanted && PlayerView(cam); if (player) lastCam = cam;                            // 1.5 kit reflections_ease_r7: the camera LateUpdate looks from
-            if (player && shown && cam.TryGetComponent<UniversalAdditionalCameraData>(out var d) && d.scriptableRenderer != null)
+            // The shader samples no mirror at zero blend. Defer the draw until it becomes visible again.
+            if (player && shown && share > 0f && cam.TryGetComponent<UniversalAdditionalCameraData>(out var d) && d.scriptableRenderer != null)
             {
                 var tt = cam.targetTexture; int div = Mathf.Clamp(Scale, 1, 4);
                 int w = Mathf.Max(64, (tt ? tt.width : cam.pixelWidth) / div), h = Mathf.Max(64, (tt ? tt.height : cam.pixelHeight) / div);
@@ -242,6 +243,7 @@ namespace OpenZ
                     mine = true; PlaneY = y; Live = true;
                 }
             }
+            else if (player && shown) pictureOk = false;
             // every camera gets its own answer: only the player's camera reads the picture (it is true for that camera alone)
             float s = share * share * (3f - 2f * share);                                                 // 1.5 kit reflections_ease_r7: x = the mirror's share, eased (1 = the picture alone, as r6)
             Shader.SetGlobalVector(IdMirror, mine ? new Vector4(s, y, Mathf.Clamp01(Strength), Bend) : Vector4.zero);

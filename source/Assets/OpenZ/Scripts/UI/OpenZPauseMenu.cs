@@ -264,6 +264,7 @@ namespace OpenZ
             }
             AddToggle(p, toggles.Count, OzWaterPlayCalm.ReflectionLabel, () => OzWaterPlayCalm.ObjectReflections, v => OzWaterPlayCalm.ObjectReflections = v);
             AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = v);
+            AddToggle(p, toggles.Count, OzQuality.LighterFogLabel, () => OzQuality.LighterFog, v => OzQuality.LighterFog = v);
             AddBehaviorOptions(p);
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)

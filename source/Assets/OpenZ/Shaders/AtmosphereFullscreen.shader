@@ -26,6 +26,7 @@ Shader "OpenZ/AtmosphereFullscreen"
 
             float _AtmoEnabled;
             float _AtmoSteps;
+            float _OZLighterVolumetricFog;
             float _AtmoKeepAlpha;
             float4 _FogColor;          // rgb albedo of the fog
             float4 _FogAmbient;        // rgb ambient light on the fog
@@ -276,7 +277,9 @@ Shader "OpenZ/AtmosphereFullscreen"
                 half outA = _AtmoKeepAlpha > 0.5 ? src4.a : 1;
                 if (_AtmoEnabled < 0.5) return half4(col, outA);
 
+                bool lighterFog = _OZLighterVolumetricFog > 0.5;
                 int STEPS = _AtmoSteps >= 1 ? (int)_AtmoSteps : 16;
+                if (lighterFog) STEPS = min(STEPS, 8);
                 float maxD = min(dist, _FogMaxDistance);
                 // l17_night_fog_read: the L17 sea skirt writes no depth, so its pixels marched 480 m (under the floor) uncapped while the
                 // map next to them marched ~80 m: a hard bright band at the map border, day and night. In gameplay those rays now end on
@@ -307,6 +310,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                 // so the sun-scatter term inside every cast shadow boiled frame to frame (up to one step of in-scatter per pixel).
                 float jitter = Ign(uv * _ScreenParams.xy);
                 Light sun = GetMainLight();
+                float3 shadowSide = normalize(cross(sun.direction, float3(0, 1, 0.001))) * 0.6;
                 float3 phaseDir = (sky && _FlybySkyW > 0) ? FlybySafeDir(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW), sun.direction) : sun.direction;   // sky only: the ground keeps its haze; 1.2 item 49: never normalize(0) (FlybySky.hlsl)
                 if (farW > 0 && _FlybySkyW > 0) phaseDir = FlybySafeDir(lerp(phaseDir, FlybySafeDir(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW), sun.direction), farW), phaseDir);   // endings round 4: the far land's in-scatter as the sky's; 1.2 item 49: never normalize(0)
                 float phase = HG(dot(dir, phaseDir), _FogG) * 12.566371;   // normalised so isotropic = 1
@@ -347,8 +351,11 @@ Shader "OpenZ/AtmosphereFullscreen"
                     if (d < 1e-5 && extLow < 1e-6) continue;
                     // two taps 1.2 m apart across the sun (+ a little softening): thin poles and posts no longer cut razor-thin
                     // shafts through the whole view (long red lines on screen); cliffs and buildings keep their god rays
-                    float3 side = normalize(cross(sun.direction, float3(0, 1, 0.001))) * 0.6;
-                    float sh = 0.5 * (MainLightRealtimeShadow(TransformWorldToShadowCoord(p + side)) + MainLightRealtimeShadow(TransformWorldToShadowCoord(p - side)));
+                    float sh;
+                    [branch] if (lighterFog)
+                        sh = MainLightRealtimeShadow(TransformWorldToShadowCoord(p));
+                    else
+                        sh = 0.5 * (MainLightRealtimeShadow(TransformWorldToShadowCoord(p + shadowSide)) + MainLightRealtimeShadow(TransformWorldToShadowCoord(p - shadowSide)));
                     sh = lerp(0.3, 1, sh);
                     float3 light = _FogAmbient.rgb + sun.color * (sh * phase * _FogSunScatter);
                     if (lampMask != 0)

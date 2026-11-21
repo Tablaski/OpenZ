@@ -37,7 +37,23 @@ namespace OpenZ
         /// <summary>Atmosphere ray-march steps per preset (AtmosphereFullscreen _AtmoSteps; HIGH = the shader's 16).</summary>
         public static readonly float[] AtmoSteps = { 16f, 12f, 9f };
         public const string ResDir = "OpenZ/Quality/", MediumAsset = "OZ_URP_Medium", LowAsset = "OZ_URP_Low";
+        public const string LighterFogPref = "oz_vk_lighter_volumetric_fog";
+        public const string LighterFogLabel = "LIGHTER VOLUMETRIC FOG";
+        public const string LighterFogTip = "LIGHTER VOLUMETRIC FOG|Reduces the detail of fog lighting and light shafts. The 3D resolution, object shadows and fog of war retain their usual settings. Off uses the selected graphics preset's full fog quality.|";
         static readonly int IdSteps = Shader.PropertyToID("_AtmoSteps");
+        static readonly int IdLighterFog = Shader.PropertyToID("_OZLighterVolumetricFog");
+
+        public static bool LighterFog
+        {
+            get => PlayerPrefs.GetInt(LighterFogPref, 0) != 0;
+            set
+            {
+                PlayerPrefs.SetInt(LighterFogPref, value ? 1 : 0);
+                PlayerPrefs.Save();
+                Shader.SetGlobalFloat(IdLighterFog, value ? 1f : 0f);
+                Debug.Log($"[OpenZ-VK Graphics] Lighter volumetric fog: {(value ? "ON" : "OFF")}");
+            }
+        }
         static int level = -1;
         static RenderPipelineAsset original; static bool originalSaved;
 
@@ -131,6 +147,7 @@ namespace OpenZ
             }
             if (QualitySettings.renderPipeline != want) QualitySettings.renderPipeline = want;
             Shader.SetGlobalFloat(IdSteps, AtmoSteps[l]);
+            Shader.SetGlobalFloat(IdLighterFog, LighterFog ? 1f : 0f);
             var cur = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             float drs = DevRenderScale();
             if (cur && drs > 0f && Mathf.Abs(cur.renderScale - drs) > 0.001f) { cur.renderScale = drs; Debug.Log($"[OpenZ Quality] dev run: render scale {drs:0.##} (session only, -ozrenderscale)"); }

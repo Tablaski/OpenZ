@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.24 volumetric fog performance
+
+- The 1.5.23 official Bridge Game run logged 53.6 fps at 1920 × 1080 High with 7.9 ms GPU and 17.5 ms main-thread time. A separate native 3840 × 2160 High window recorded 35.8 ms GPU with the target at 60 fps. The in-game scenes and warm-up state differed. The maintainer observed only a small change from toggling object reflections.
+- Pending compiled-game checks: compare High at native 3840 × 2160 with lighter fog off and on, at the same camera, time of day and GPU clock. Check fog banks, light shafts and smoke intersections on Bridge Game and Car Park by day and night, and verify that object shadows, the fog of war and the 3D resolution remain intact. Verify live switching and persistence in the Graphics menus.
+
 ## OpenZ-VK 1.5.23 thermal frame limit
 
 - Pending manual checks: turn off the thermal limit while it is active and verify the selected frame rate cap returns. Check preference persistence and the Detailed counter with and without a temperature reading. The Windows build also covers the pending water reflection checks below.

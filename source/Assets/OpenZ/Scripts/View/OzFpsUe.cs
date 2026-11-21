@@ -55,7 +55,7 @@ namespace OpenZ
             if (!BothSides) return HoverAt(mp);
             if (u == null || W == null) return null;
             Team side = SideOf(u); ZObject h = null, hu = null;
-            bool far = HoverPreCull && FarBegin();
+            bool far = HoverPreCull && FarBegin(mp);
             foreach (var o in W.Objects)
             {
                 if (o == null || o == u || o.Destroyed || o.Owner == side || o.Owner == Team.Neutral || o.IsBridge) continue;

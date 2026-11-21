@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.27 independent MSAA
+
+- Pending manual checks: compare Bridge Game at native 4K High with MSAA at 4x, 2x and Off. Check the main and pause menus, persistence across restart and preset changes, a new profile’s High/4x default, and migration from the previous 2x limiter. Verify the camera’s SMAA remains active.
+
 ## OpenZ-VK 1.5.26 graphics performance options
 
 - Pending compiled-game checks: compare GPU and main-thread time at 4K High on Bridge Game by day and night with each option switched independently. Check that the original fog returns immediately, briefings retain their atmosphere, MSAA restores across preset changes, new profiles show every fork performance toggle off, and existing thermal, reflection and fog choices carry over. The fog switch skips the volumetric calculation and smoke distance pass during play. The shared renderer still performs its fullscreen color copy.

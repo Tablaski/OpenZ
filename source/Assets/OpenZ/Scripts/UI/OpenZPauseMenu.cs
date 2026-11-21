@@ -266,7 +266,10 @@ namespace OpenZ
             AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => !HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = !v);
             AddToggle(p, toggles.Count, OzQuality.LighterFogLabel, () => OzQuality.LighterFog, v => OzQuality.LighterFog = v);
             AddToggle(p, toggles.Count, OzQuality.DisableFogLabel, () => OzQuality.DisableFog, v => OzQuality.DisableFog = v);
-            AddToggle(p, toggles.Count, OzQuality.ReduceMsaaLabel, () => OzQuality.ReduceMsaa, v => OzQuality.ReduceMsaa = v);
+            AddToggle(p, toggles.Count, OzQuality.MsaaLabel, null, null, true);
+            var msaa = toggles[toggles.Count - 1];
+            msaa.row.OnClick = c => { OzQuality.StepMsaa(c.right || c.shift ? -1 : Arrow(msaa)); OzSfx.Ui("ui_tab_switch"); };
+            msaa.row.OnRightClick = c => OzQuality.StepMsaa(-1);
             AddBehaviorOptions(p);
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)
@@ -639,6 +642,7 @@ namespace OpenZ
                 if (t.label == OzGfxApi.Label) { t.value.Set(OzText.Tab($"◀  {OzGfxApi.Name}  ▶")); continue; }
                 if (t.label == OzLightRows.TreesLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.TreesName}  ▶")); continue; }   // 1.3 item 40
                 if (t.label == OzLightRows.WrecksLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.WrecksName}  ▶")); continue; }
+                if (t.label == OzQuality.MsaaLabel) { t.value.Set(OzText.Tab($"◀  {OzQuality.MsaaName}  ▶")); continue; }
                 if (t.label == OzLowPicture.Label) { t.value.Set(OzText.Tab($"◀  {OzLowPicture.Name}  ▶")); continue; }   // 1.5 issue 8: 3D PICTURE
                 if (t.label == OzOverlapOption.Label) { t.value.Set(OzText.Tab($"◀  {OzOverlapOption.Name}  ▶")); continue; }   // FRIENDLY UNITS OVERLAP: NO / YES
                 if (t.label == OzVehicleSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzVehicleSizeOption.Name}  ▶")); continue; }   // VEHICLE SIZE: 60 to 100 %

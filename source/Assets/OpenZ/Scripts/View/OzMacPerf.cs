@@ -55,7 +55,7 @@ namespace OpenZ
         readonly Dictionary<UniversalRenderPipelineAsset, float> own = new Dictionary<UniversalRenderPipelineAsset, float>();
         readonly Dictionary<UniversalRenderPipelineAsset, int> ownMsaa = new Dictionary<UniversalRenderPipelineAsset, int>();
         UniversalRenderPipelineAsset seen; int seenW = -1, seenH = -1, seenLevel = -1, seenMsaa = -1;
-        bool seenReduceMsaa;
+        int seenMsaaOverride;
 
         /// <summary>The render scale that keeps a w x h picture within the budget: 1 when it fits (with the slack), else the square
         /// root of budget / pixels (both sides by the same factor), never under MinScale.</summary>
@@ -165,17 +165,16 @@ namespace OpenZ
         {
             var cur = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             int w = Screen.width, h = Screen.height, l = Mathf.Clamp(OzQuality.Level, 0, 2);
-            bool reduceMsaa = OzQuality.ReduceMsaa;
-            if (cur == seen && w == seenW && h == seenH && l == seenLevel && reduceMsaa == seenReduceMsaa && (!cur || cur.msaaSampleCount == seenMsaa)) return;
-            seenReduceMsaa = reduceMsaa;
+            int msaaOverride = OzQuality.MsaaOverride;
+            if (cur == seen && w == seenW && h == seenH && l == seenLevel && msaaOverride == seenMsaaOverride && (!cur || cur.msaaSampleCount == seenMsaa)) return;
+            seenMsaaOverride = msaaOverride;
             seen = cur; seenW = w; seenH = h; seenLevel = l;
             if (!cur) return;
             if (!own.TryGetValue(cur, out float baseScale)) { baseScale = cur.renderScale; own[cur] = baseScale; ownMsaa[cur] = cur.msaaSampleCount; }   // the preset's own (scale 1.0, MSAA 4x / 2x / off as shipped)
             int baseMsaa = ownMsaa[cur];
             float fit = For(w, h, Budget[l]);
             float s = Mathf.Min(baseScale, fit);
-            int m = MsaaFor(fit, baseMsaa);
-            if (reduceMsaa) m = Mathf.Min(m, 2);
+            int m = msaaOverride != 0 ? msaaOverride : MsaaFor(fit, baseMsaa);
             if (Mathf.Abs(cur.renderScale - s) > 0.0005f) cur.renderScale = s;
             if (cur.msaaSampleCount != m) cur.msaaSampleCount = m;
             seenMsaa = cur.msaaSampleCount;

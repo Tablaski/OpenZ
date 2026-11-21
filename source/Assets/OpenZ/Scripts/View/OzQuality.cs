@@ -43,11 +43,13 @@ namespace OpenZ
         public const string DisableFogPref = "oz_vk_disable_volumetric_fog";
         public const string DisableFogLabel = "DISABLE VOLUMETRIC FOG";
         public const string DisableFogTip = "DISABLE VOLUMETRIC FOG|Skips volumetric mist and its light shafts during a battle, even if Lighter Volumetric Fog is on. Fog of war is unaffected.|";
-        public const string ReduceMsaaPref = "oz_vk_reduce_msaa";
-        public const string ReduceMsaaLabel = "LIMIT MSAA TO 2X";
-        public const string ReduceMsaaTip = "LIMIT MSAA TO 2X|Limits multisample anti-aliasing to 2x at the selected resolution. Presets that already use 2x or less keep their own setting.|";
+        public const string LegacyReduceMsaaPref = "oz_vk_reduce_msaa";
+        public const string MsaaPref = "oz_vk_msaa_samples";
+        public const string MsaaLabel = "MSAA";
+        public const string MsaaTip = "MSAA|Choose Off, 2x or 4x at the selected resolution. Before you choose, MSAA follows your graphics preset. Once set, the value stays the same when you change preset. Screen-space edge smoothing stays active.|";
         static readonly int IdSteps = Shader.PropertyToID("_AtmoSteps");
-        static bool? disableFog, reduceMsaa;
+        static bool? disableFog;
+        static int? msaaOverride;
         static UniversalRenderPipelineAsset msaaAsset;
         static int originalMsaa;
 
@@ -73,27 +75,58 @@ namespace OpenZ
             }
         }
 
-        public static bool ReduceMsaa
+        public static int MsaaOverride
         {
-            get => reduceMsaa ??= PlayerPrefs.GetInt(ReduceMsaaPref, 0) != 0;
-            set
+            get
             {
-                reduceMsaa = value;
-                PlayerPrefs.SetInt(ReduceMsaaPref, value ? 1 : 0);
-                PlayerPrefs.Save();
-                ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
-                Debug.Log($"[OpenZ-VK Graphics] Limit MSAA to 2x: {(value ? "ON" : "OFF")}");
+                if (msaaOverride.HasValue) return msaaOverride.Value;
+                int stored = PlayerPrefs.GetInt(MsaaPref, 0);
+                if (!PlayerPrefs.HasKey(MsaaPref) && PlayerPrefs.GetInt(LegacyReduceMsaaPref, 0) != 0)
+                {
+                    stored = 2;
+                    PlayerPrefs.SetInt(MsaaPref, stored);
+                    PlayerPrefs.Save();
+                }
+                return (msaaOverride = stored == 1 || stored == 2 || stored == 4 ? stored : 0).Value;
             }
+        }
+
+        static int EffectiveMsaa
+        {
+            get
+            {
+                int chosen = MsaaOverride;
+                if (chosen != 0) return chosen;
+                var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+                return pipeline ? pipeline.msaaSampleCount : Level == 0 ? 4 : Level == 1 ? 2 : 1;
+            }
+        }
+
+        public static string MsaaName => EffectiveMsaa == 1 ? "OFF" : EffectiveMsaa + "X";
+
+        public static void StepMsaa(int direction)
+        {
+            int current = EffectiveMsaa;
+            int next = direction < 0 ? (current == 1 ? 4 : current / 2) : (current == 4 ? 1 : current * 2);
+            msaaOverride = next;
+            PlayerPrefs.SetInt(MsaaPref, next);
+            PlayerPrefs.Save();
+            ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
+            Debug.Log($"[OpenZ-VK Graphics] MSAA: {MsaaName}");
         }
 
         static void ApplyMsaa(UniversalRenderPipelineAsset pipeline)
         {
 #if !UNITY_STANDALONE_OSX || UNITY_EDITOR
-            if (msaaAsset && (msaaAsset != pipeline || !ReduceMsaa)) RestoreMsaa();
-            if (!ReduceMsaa || !pipeline || msaaAsset || pipeline.msaaSampleCount <= 2) return;
-            msaaAsset = pipeline;
-            originalMsaa = pipeline.msaaSampleCount;
-            pipeline.msaaSampleCount = 2;
+            int chosen = MsaaOverride;
+            if (msaaAsset && (msaaAsset != pipeline || chosen == 0)) RestoreMsaa();
+            if (chosen == 0 || !pipeline) return;
+            if (!msaaAsset)
+            {
+                msaaAsset = pipeline;
+                originalMsaa = pipeline.msaaSampleCount;
+            }
+            if (pipeline.msaaSampleCount != chosen) pipeline.msaaSampleCount = chosen;
 #endif
         }
 

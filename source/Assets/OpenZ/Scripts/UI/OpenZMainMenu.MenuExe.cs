@@ -64,7 +64,7 @@ namespace OpenZ
             AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => !HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = !v);
             AddToggle(p, toggles.Count, OzQuality.LighterFogLabel, () => OzQuality.LighterFog, v => OzQuality.LighterFog = v);
             AddToggle(p, toggles.Count, OzQuality.DisableFogLabel, () => OzQuality.DisableFog, v => OzQuality.DisableFog = v);
-            AddToggle(p, toggles.Count, OzQuality.ReduceMsaaLabel, () => OzQuality.ReduceMsaa, v => OzQuality.ReduceMsaa = v);
+            AddCycle(p, toggles.Count, OzQuality.MsaaLabel, () => OzQuality.MsaaName, OzQuality.StepMsaa);
             AddBehaviorOptions(p);
             float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle

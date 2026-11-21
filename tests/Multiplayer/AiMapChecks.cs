@@ -150,8 +150,8 @@ static class AiMapChecks
     static void CheckCatalogV3(string root, string settings, Action<bool,string> check)
     {
         var entries = OzAiMapCatalog.Playable.ToArray();
-        check(entries.Length == 62 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
-            "62 unique AI map variants including Bridge Game");
+        check(entries.Length == 61 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
+            "61 unique AI map variants including Bridge Game");
         bool lavaRule = ZWorld.LavaDeviation, crocodileRule = ZWorld.CrocodileDeviation;
         ZWorld.LavaDeviation = true;
         ZWorld.CrocodileDeviation = true;

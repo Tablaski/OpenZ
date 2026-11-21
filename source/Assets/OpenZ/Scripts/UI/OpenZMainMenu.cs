@@ -75,7 +75,7 @@ namespace OpenZ
         sealed class Card
         {
             public RectTransform rt, imgRt, miniOverlay; public CanvasGroup cg; public RawImage poster, live, mini; public Image glow, frameN, frameH, desat, progTrack, progFill; public CanvasGroup previewChip;
-            public float x, y, w, imgH; public int index;
+            public Texture2D aiOverview; public float x, y, w, imgH; public int index;
         }
         Card[] cards;
         HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, cpuMayhem, optNormal, optEasy, optMedium, optMayhem, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine;   // K347: the HEAD START chip "L02 ONLY" (headChipText) went with the old deploy bar
@@ -797,7 +797,11 @@ namespace OpenZ
                 var ov = Hud.Kit(c.miniOverlay, "MiniGlass", "Minimap/mm_screen_overlay", new OzRect(w - mm - mw + mi, 22 + mi, side, side), null, Image.Type.Simple);
                 ov.enabled = OzKit.GetSprite("Minimap/mm_screen_overlay") != null;
             }
-            if (aiCampaign) OzAiMapBadge.Stamp(c.rt, w);
+            if (aiCampaign)
+            {
+                c.aiOverview = Resources.Load<Texture2D>("OpenZ/AiMaps/Previews/" + levels[i].Id) ?? infos[i].Mini;
+                OzAiMapBadge.Stamp(c.rt, w);
+            }
             // meta bar
             Hud.Label(c.rt, "Level", "LEVEL " + d.Number, 11, OzUi.Amber, 0.3f, OzStyle.Plain).At(OzMenuLayout.CardLevelX, ih + OzMenuLayout.CardLevelY);
             var name = Hud.Label(c.rt, "Name", d.Name, w >= OzMenuLayout.CardNameFullW ? OzMenuLayout.CardNameSize : OzMenuLayout.CardNameSmall, OzUi.Ink, 0f).At(OzMenuLayout.CardNameX, ih + OzMenuLayout.CardNameY, OzH.L, false, w * 0.6f);
@@ -1299,7 +1303,7 @@ namespace OpenZ
                 bool showLive = p.ShowingVideo && (aiCampaign ? aiPreviewVisible[i] : on && bgLevel == i);
                 if (aiCampaign && c.miniOverlay) c.miniOverlay.gameObject.SetActive(showLive);
                 cardLiveK[i] = aiCampaign && !on ? 0f : Mathf.MoveTowards(cardLiveK[i], showLive ? 1f : 0f, dt / 0.3f);
-                var still = p.Poster != null ? p.Poster : (p.VideoOk && p.Player.frame >= 0 ? (Texture)p.Frame : null);
+                Texture still = aiCampaign ? c.aiOverview : p.Poster != null ? p.Poster : (p.VideoOk && p.Player.frame >= 0 ? p.Frame : null);
                 float ca = (float)c.w / Mathf.Max(1f, c.imgH), br = Mathf.Lerp(0.72f, 1f, Mathf.Max(e, 0.55f * pk));
                 if (still != null)
                 {

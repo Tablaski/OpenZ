@@ -4,6 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.31 (22 Nov 2026)
+
+- Skirmish — Pick an OpenZ map or an AI map from its full minimap, and see the selected battlefield in 3D. Bots fill the starting positions automatically. Drag participants between teams or choose Free for All.
+- Skirmish — Choose AI maps for 2, 3, 4, 6 or 8 players. Six-player games use eight-start battlefields with two positions closed.
+
 ## OpenZ-VK 1.5.30 (22 Nov 2026)
 
 - Solo — Switch between the OpenZ campaign and AI Maps from the top of mission selection. Gaming Options and Allowed Units are beside the deployment settings.

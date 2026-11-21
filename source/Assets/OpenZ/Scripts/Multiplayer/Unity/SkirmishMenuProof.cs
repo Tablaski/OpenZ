@@ -73,13 +73,13 @@ namespace OpenZ.Multiplayer
             DuelRuntime.I.Menus.ShowConnect();
             yield return null;
             yield return null;
-            Click("LOCAL SKIRMISH WITH BOTS");
+            Click("SKIRMISH");
             yield return null;
             yield return null;
-            Click("8");
+            Click("8 players");
             yield return null;
             yield return null;
-            Click("LAUNCH MATCH");
+            Click("START GAME");
             double timeout = Time.realtimeSinceStartupAsDouble + 120;
             while ((!ZGame.I || ZGame.I.World == null || ZGame.I.World.Time < 2) && Time.realtimeSinceStartupAsDouble < timeout)
                 yield return null;
@@ -120,10 +120,10 @@ namespace OpenZ.Multiplayer
             DuelRuntime.I.Menus.ShowConnect();
             yield return null;
             yield return null;
-            Click("LOCAL SKIRMISH WITH BOTS");
+            Click("SKIRMISH");
             yield return null;
             yield return null;
-            Click("2");
+            Click("2 players");
             yield return null;
             yield return null;
             DuelProofCapture.Save(Path.Combine(folder, "01-map-two-starts.png"), true);
@@ -146,7 +146,7 @@ namespace OpenZ.Multiplayer
             yield return null;
             yield return null;
             DuelProofCapture.Save(Path.Combine(folder, "03-battle-rules.png"), true);
-            Click("LAUNCH MATCH");
+            Click("START GAME");
             yield return new WaitForSecondsRealtime(10);
             var game = ZGame.I;
             if (!game || !game.World.Map.skirmish || game.World.Bots.Count != 1 || !game.World.HasSkirmishProduction || game.World.Time <= 0)
@@ -157,22 +157,19 @@ namespace OpenZ.Multiplayer
             DuelRuntime.I.Menus.ShowConnect();
             yield return null;
             yield return null;
-            Click("LOCAL SKIRMISH WITH BOTS");
+            Click("SKIRMISH");
             yield return null;
             yield return null;
-            Click("MAP");
+            Click("6 players");
             yield return null;
             yield return null;
-            Click("6 active players");
-            yield return null;
-            yield return null;
-            if (DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Count(button => button.name == "CLOSED") != 2)
-                throw new InvalidOperationException("Six active participants require two closed positions on the eight-start map.");
+            if (DuelRuntime.I.Menus.GetComponentsInChildren<SkirmishCardDrag>().Length != 6)
+                throw new InvalidOperationException("The six-player filter must show one human and five bots.");
             DuelProofCapture.Save(Path.Combine(folder, "04-six-participants.png"), true);
-            Click("4");
+            Click("4 players");
             yield return null;
             yield return null;
-            Click("LAUNCH MATCH");
+            Click("START GAME");
             yield return new WaitForSecondsRealtime(14);
             game = ZGame.I;
             var terrain = FindFirstObjectByType<OzConversionTerrainV2>();

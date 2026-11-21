@@ -2,6 +2,8 @@
 
 ## OpenZ-VK 1.5.18 Battle and Skirmish performance
 
+- Source checkpoint `db82918b` passed all 7,714 core and real-map simulation checks and compiled with the Unity runtime references. Native WebRTC passed the direct duel and Skirmish packet checks and the SFU-style local loopback.
+- A fixed-seed .NET comparison with `126958ba` matched the rule fingerprints, bot orders and path-search counts over 4,500 ticks on Desert P08M01 and Hunters with seven Normal bots. Six measurements per version gave median simulation times of 1.139 to 1.072 ms per tick on Desert and 0.182 to 0.188 ms on Hunters. These timings exclude Unity presentation and transport.
 - Pending compiled-game comparison with 1.5.17: match camera positions, zoom, graphics options and starting armies. Use official Bridge Game, Desert P08M01 and Hunters. Compare Direct3D 11 and 12 on the same build at 1080p and 4K, including battle, night weather, thermal limits and frame-time percentiles.
 - Verify distant and close unit spacing, boarding, destroyed units, rock damage and debris, repaired paths, and water reflections during camera and water-height changes.
 - Measure a local battle with seven bots and eight-human matches on both SFU and direct WebRTC. On host and guests, compare CPU and GPU frame times, peak simulation and snapshot work, state rates and queue depth. Exercise a slow guest, reconnect and route fallback. The target is 60 fps at 1080p with 4–6 ms per frame available for simulation and network work on the reference laptop.

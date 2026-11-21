@@ -237,7 +237,8 @@ namespace OpenZ.Multiplayer
             Label(panel, rules.FreeForAll ? $"{active} players · each plays for their own side" :
                 "Drag a card onto a team, or select a card and team.", 24, 104, width - 48, 16, OzUi.Muted);
             float contentHeight = active * 44 + (rules.FreeForAll ? 0 : alliances.Length * 55);
-            var list = Scroll(panel, 24, 134, width - 48, 575, false, Mathf.Max(575, contentHeight));
+            float listHeight = Mathf.Min(575, contentHeight);
+            var list = Scroll(panel, 24, 134, width - 48, listHeight, false, contentHeight);
             skirmishTeamViewport = list.parent.GetComponent<ScrollRect>();
             skirmishTeamViewport.verticalNormalizedPosition = skirmishTeamScroll;
             skirmishTeamViewport.onValueChanged.AddListener(position => skirmishTeamScroll = position.y);
@@ -274,7 +275,7 @@ namespace OpenZ.Multiplayer
                 y += groupHeight + 8;
             }
 
-            Button(panel, "+ ADD TEAM", 24, 719, 160, () =>
+            Button(panel, "+ ADD TEAM", 24, 144 + listHeight, 160, () =>
             {
                 skirmishExtraTeam = Enumerable.Range(0, active).First(team => !alliances.Contains(team));
                 dirty = true;
@@ -358,7 +359,7 @@ namespace OpenZ.Multiplayer
                 skirmishDropTarget = target;
                 if (skirmishDropTarget) skirmishDropTarget.Highlight(true);
             }
-            if (!skirmishTeamViewport) return;
+            if (!skirmishTeamViewport || skirmishTeamViewport.content.rect.height <= skirmishTeamViewport.viewport.rect.height) return;
             var viewport = skirmishTeamViewport.viewport;
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(viewport, pointer.position, pointer.pressEventCamera, out var local) ||
                 !viewport.rect.Contains(local)) return;

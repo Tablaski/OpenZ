@@ -504,7 +504,7 @@ namespace OpenZ.Multiplayer
         void BuildRoomRules(int starts, bool editable, SkirmishRules rules, Action<SkirmishRules> save)
         {
             string title = roomTab == 1 ? "STARTING ARMIES" : roomTab == 2 ? "BALANCING OPTIONS" : roomTab == 3 ? "PLAYER ADVANTAGE" : "BATTLE RULES";
-            var panel = Panel(title, 80, 195, 1092, 572);
+            var panel = page == Page.Skirmish ? Panel(title, 60, 185, 1116, 780) : Panel(title, 80, 195, 1092, 572);
             if (roomTab == 2)
             {
                 Label(panel, "Territory production reduction cap", 30, 71, 740, 22, OzUi.Ink);

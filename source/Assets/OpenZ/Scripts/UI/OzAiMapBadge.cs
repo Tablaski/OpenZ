@@ -10,9 +10,14 @@ namespace OpenZ
         {
             var badge = Hud.Chip(preview, "AI stamp", new OzRect(width - 87, 5, 78, 27),
                 "AI", OzUi.GM950, OzUi.Ink, 13, .12f);
-            var icon = Hud.Img(badge.bg.transform.parent, "Robot head", Color.white);
+            Head(badge.bg.transform.parent, new OzRect(49, 4, 22, 20));
+        }
+
+        internal static void Head(Transform parent, OzRect rect)
+        {
+            var icon = Hud.Img(parent, "Robot head", Color.white);
             icon.sprite = Robot();
-            icon.rectTransform.Place(new OzRect(49, 4, 22, 20));
+            icon.rectTransform.Place(rect);
             icon.raycastTarget = false;
         }
 

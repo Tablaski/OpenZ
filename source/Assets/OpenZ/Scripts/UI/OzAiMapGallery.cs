@@ -73,10 +73,12 @@ namespace OpenZ
             var wordmark=Hud.Kit(panel,"ForkWordmark","Wordmarks/wm_openz_vk_menu",new OzRect(24,8,160,48),null,Image.Type.Simple);
             wordmark.preserveAspect=true; wordmark.enabled=wordmark.sprite!=null;
             if(!wordmark.sprite) Label(panel,"OpenZ-VK",24,20,300,26,OzForkOptions.Brand);
-            InlineTitle(panel,"Gallery title",solo ? "AI MAPS · SOLO" : entries?.FirstOrDefault()?.IsOfficial == true ? "OPENZ MAPS" : "AI MAPS · MULTIPLAYER",24,65,1400,44,30);
+            bool officialCatalog = entries?.FirstOrDefault()?.IsOfficial == true;
+            if (!officialCatalog) OzAiMapBadge.Head(panel, new OzRect(24, 72, 32, 32));
+            InlineTitle(panel,"Gallery title",solo ? "AI MAPS · SOLO" : officialCatalog ? "OPENZ MAPS" : "AI MAPS · MULTIPLAYER",officialCatalog ? 24 : 64,65,1400,44,30);
             Button(panel,"CLOSE",1510,20,220,Close);
             var groups = solo
-                ? new[] { "Z ORIGINAL", "Z EXPANSION", "OPENZ-VK" }
+                ? new[] { "Z ORIGINAL", "Z EXPANSION", "MULTIPLAYER", "OPENZ-VK" }
                 : new[] { "Z ORIGINAL", "Z EXPANSION", "MULTIPLAYER", "OPENZ" };
             float tabStep = Mathf.Min(420, 1726f / groups.Length);
             if (entries == null && (solo || starts == 2))

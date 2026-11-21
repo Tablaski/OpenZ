@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.30 solo map selection
+
+- Pending in a compiled game. Check the campaign button between High Scores and Back, the robot head in AI Maps labels, and the settings controls on both wide and compact canvases.
+- Switch among the three AI Map categories and the OpenZ campaign. Check that each group remembers its selected map and only the current card displays its flyby and minimap overlay. Deploy a Zod Engine map against the computer and return to mission selection.
+
 ## OpenZ-VK 1.5.29 AI Maps
 
 - Pending in a compiled game. Open solo AI Maps and change the selection via mouse and keyboard. Verify that only the selected card plays its preview, the minimap disappears from the previous card, and unselected cards display the entire battlefield.

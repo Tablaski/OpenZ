@@ -11,7 +11,12 @@ namespace OpenZ
         HudButton catalogButton;
         bool aiCampaign;
         bool[] aiPreviewVisible;
-        int officialCard, aiCard;
+        const float CatalogHeight = 48f;
+        float CatalogWidth => CW < 1600f ? 214f : 280f;
+        const string OriginalMaps = "Z ORIGINAL", ExpansionMaps = "Z EXPANSION", ZodMaps = "ZOD ENGINE";
+        static readonly string[] AiGroups = { OriginalMaps, ExpansionMaps, ZodMaps };
+        readonly string[] selectedAiMaps = new string[AiGroups.Length];
+        int officialCard, aiGroup;
         internal bool ShowingAiMaps => aiCampaign;
 
         void BuildSelectionWordmark(RectTransform parent)
@@ -26,41 +31,86 @@ namespace OpenZ
 
         void BuildConvertedMapsButton(RectTransform parent)
         {
-            var caption = aiCampaign ? "OpenZ Campaign" : "AI Maps";
-            var button = HudButton.Make(parent, "MapCatalog", caption, new Vector2(300, 58), HudButtonKind.Large, 17);
+            var back = OzMenuLayout.Back;
+            string caption = aiCampaign ? "‹  OPENZ CAMPAIGN" : "AI MAPS";
+            var button = HudButton.Make(parent, "MapCatalog", caption, new Vector2(CatalogWidth, CatalogHeight),
+                HudButtonKind.Large, 21, 0.08f, HudButtonStyle.Primary);
             catalogButton = button;
-            button.Rt.Place(new OzRect(CW - 326, 210, 300, 58));
-            AddHot(button.Rt, View.Select, () => SwitchCampaign(!aiCampaign), null, button, "ui_menu_select");
-
-            if (aiCampaign)
+            button.Rt.Place(new OzRect(OzAnchor.TR, back.x - HsBtnGap - CatalogWidth,
+                back.y + (back.h - CatalogHeight) * 0.5f, CatalogWidth, CatalogHeight));
+            if (!aiCampaign)
             {
-                var tech = HudButton.Make(parent, "AiMapTech", OzSoloMapTech.Label, new Vector2(278, 58), HudButtonKind.Large, 17);
-                tech.Rt.Place(new OzRect(CW - 1292, 210, 278, 58));
-                OzForkOptions.Highlight(tech, OzSoloMapTech.Label);
-                AddHot(tech.Rt, View.Select, () => OzSoloMapTech.Show(levels[focusCard].Id), null, tech, "ui_menu_select");
+                button.Label.FillParent(OzH.C, 40, 0, 0, 0);
+                OzAiMapBadge.Head(button.Content, new OzRect((CatalogWidth - button.Label.preferredWidth) * 0.5f - 18f, 8, 32, 32));
+            }
+            AddHot(button.Rt, View.Select, () => SwitchCampaign(!aiCampaign), null, button, "ui_menu_select");
+        }
+
+        void BuildSoloSettings(RectTransform parent)
+        {
+            const float gap = 8f, height = 46f;
+            float right = deployLay.X(0, 3) - gap;
+            float left = cardRt.anchoredPosition.x + cardRt.rect.width + gap;
+            bool extraRow = right - left < 280f;
+            float width = extraRow ? 156f : Mathf.Min(172f, (right - left - gap) * 0.5f);
+            float x = extraRow ? (CW - 2 * width - gap) * 0.5f : right - 2 * width - gap;
+            float y = extraRow ? 914f : OzDeployBar.DeployY;
+            if (extraRow)
+            {
+                var plate = Hud.Kit(parent, "Solo settings plate", "Select/deploy_bar", new OzRect(0, 906, CW, 56), null);
+                if (!plate.sprite) plate.color = OzUi.GM800;
+                plate.raycastTarget = false;
             }
 
-            var allowed = OzSoloAllowedUnits.Read();
-            soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits",
-                "Allowed units · " + Multiplayer.DuelUnitRoster.Name(allowed.UnitPreset), new Vector2(340, 58), HudButtonKind.Large, 17);
-            soloAllowedButton.Rt.Place(new OzRect(CW - 682, 210, 340, 58));
-            OzForkOptions.Highlight(soloAllowedButton, OzSoloAllowedUnits.Label);
-            AddHot(soloAllowedButton.Rt, View.Select, () => OzSoloAllowedUnits.Show(() =>
-            {
-                if (soloAllowedButton != null && soloAllowedButton.Rt)
-                    soloAllowedButton.Label.Set("Allowed units · " + Multiplayer.DuelUnitRoster.Name(OzSoloAllowedUnits.Read().UnitPreset));
-            }), null, soloAllowedButton, "ui_menu_select");
             const string label = OzBattleOptions.SoloLabel;
-            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(300, 58), HudButtonKind.Large, 17);
-            soloGamingButton.Rt.Place(new OzRect(CW - 998, 210, 300, 58));
+            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(width, height), HudButtonKind.Large, 15);
+            soloGamingButton.Rt.Place(new OzRect(x, y, width, height));
             OzForkOptions.Highlight(soloGamingButton, label);
             AddHot(soloGamingButton.Rt, View.Select, OzBehaviorOptions.ShowGaming, null, soloGamingButton, "ui_menu_select");
+
+            soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits", "ALLOWED UNITS", new Vector2(width, height), HudButtonKind.Large, 15);
+            soloAllowedButton.Rt.Place(new OzRect(x + width + gap, y, width, height));
+            OzForkOptions.Highlight(soloAllowedButton, OzSoloAllowedUnits.Label);
+            AddHot(soloAllowedButton.Rt, View.Select, () => OzSoloAllowedUnits.Show(null), null, soloAllowedButton, "ui_menu_select");
+
+            if (!aiCampaign) return;
+
+            float tabWidth = Mathf.Min(216f, CW * 0.16f);
+            float tabsX = (CW - AiGroups.Length * tabWidth) * 0.5f;
+            float tabsY = extraRow ? 852f : 886f;
+            for (int i = 0; i < AiGroups.Length; i++)
+            {
+                int group = i;
+                var tab = HudButton.Make(parent, "AI category " + AiGroups[i], AiGroups[i], new Vector2(tabWidth, height),
+                    HudButtonKind.Large, 17, 0.08f, i == aiGroup ? HudButtonStyle.Primary : HudButtonStyle.Normal);
+                tab.Rt.Place(new OzRect(tabsX + tabWidth * i, tabsY, tabWidth, height));
+                AddHot(tab.Rt, View.Select, () => SwitchCampaign(true, group), null, tab, "ui_menu_select");
+            }
+
+            float techWidth = Mathf.Min(230f, tabsX - deployLay.m - gap);
+            float techX = deployLay.m;
+            float techY = tabsY;
+            if (techWidth < 135f)
+            {
+                techWidth = 160f;
+                techX = (CW - techWidth) * 0.5f;
+                techY = tabsY - height - gap;
+            }
+            var tech = HudButton.Make(parent, "AiMapTech", OzSoloMapTech.Label, new Vector2(techWidth, height), HudButtonKind.Large, 15);
+            tech.Rt.Place(new OzRect(techX, techY, techWidth, height));
+            OzForkOptions.Highlight(tech, OzSoloMapTech.Label);
+            AddHot(tech.Rt, View.Select, () => OzSoloMapTech.Show(levels[focusCard].Id), null, tech, "ui_menu_select");
         }
+
+        static int AiGroupOf(OzAiMap map) => map.ForkOriginal ? 0 : map.Number == 0 ? 2 : map.Number > 20 ? 1 : 0;
+
+        static OzAiMap[] SoloAiGroup(int group) => OzAiMapCatalog.Select(true)
+            .Where(map => AiGroupOf(map) == group).ToArray();
 
         void SetCampaignLevels(bool converted)
         {
             aiCampaign = converted;
-            levels = converted ? OzAiMapCatalog.Select(true)
+            levels = converted ? SoloAiGroup(aiGroup)
                 .Select(OzAiMapGallery.Definition).ToArray() : OzLevelDef.All;
             int count = levels.Length;
             aiPreviewVisible = converted ? new bool[count] : null;
@@ -92,14 +142,16 @@ namespace OpenZ
             if (infos != null) foreach (var info in infos) if (info != null && info.Mini) Destroy(info.Mini);
         }
 
-        void SwitchCampaign(bool converted)
+        void SwitchCampaign(bool converted, int group = -1)
         {
-            if (converted == aiCampaign) return;
-            if (aiCampaign) aiCard = focusCard;
+            if (group < 0) group = aiGroup;
+            if (converted == aiCampaign && (!converted || group == aiGroup)) return;
+            if (aiCampaign) selectedAiMaps[aiGroup] = levels[focusCard].Id;
             else officialCard = focusCard;
             ReleaseCampaignPreviews();
+            aiGroup = group;
             SetCampaignLevels(converted);
-            focusCard = Mathf.Clamp(converted ? aiCard : officialCard, 0, levels.Length - 1);
+            focusCard = converted ? Mathf.Max(0, Array.FindIndex(levels, level => level.Id == selectedAiMaps[aiGroup])) : officialCard;
             hoverCard = bgLevel = bgFrom = -1;
             lastCardClick = -1;
             carFirst = 0;

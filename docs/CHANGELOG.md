@@ -4,6 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.30 (22 Nov 2026)
+
+- Solo — Switch between the OpenZ campaign and AI Maps from the top of mission selection. Gaming Options and Allowed Units are beside the deployment settings.
+- Solo — Browse AI Maps by Z Original, Z Expansion or Zod Engine. You can play the 13 two-start Zod Engine maps against the computer.
+
 ## OpenZ-VK 1.5.29 (21 Nov 2026)
 
 - Solo — Only the selected AI map plays a 3D preview with a minimap overlay. Other cards show a static view of the entire battlefield.

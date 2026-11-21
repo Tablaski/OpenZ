@@ -33,22 +33,17 @@
 | 33 · Downtown | City | Yes | Yes |
 | 34 · City Slickers | City | Yes | Yes |
 | 35 · Urban Sprawl | City | Yes | Yes |
-| Arctic 1 | Arctic | — | Yes |
-| Arctic Warfare | Arctic | — | Yes |
-| Beaten Eggs | City | — | Yes |
-| city 1 | City | — | Yes |
-| Desert 1 | Desert | — | Yes |
-| Freeze | Arctic | — | Yes |
-| Happy New Year | Arctic | — | Yes |
-| Jungle 1 | Jungle | — | Yes |
-| Jungle1vs1 | Jungle | — | Yes |
-| Just Deserts | Desert | — | Yes |
-| Plains | Desert | — | Yes |
-| Sandy Shore | Desert | — | Yes |
-| Volcanic 1 | Volcanic | — | Yes |
+| Arctic 1 | Arctic | Yes | Yes |
+| Arctic Warfare | Arctic | Yes | Yes |
+| Beaten Eggs | City | Yes | Yes |
+| city 1 | City | Yes | Yes |
+| Desert 1 | Desert | Yes | Yes |
+| Freeze | Arctic | Yes | Yes |
+| Happy New Year | Arctic | Yes | Yes |
+| Jungle 1 | Jungle | Yes | Yes |
+| Jungle1vs1 | Jungle | Yes | Yes |
+| Just Deserts | Desert | Yes | Yes |
+| Plains | Desert | Yes | Yes |
+| Sandy Shore | Desert | Yes | Yes |
+| Volcanic 1 | Volcanic | Yes | Yes |
 | Chilly Willy (OpenZ-VK) | Arctic | Yes | — |
-
-## Experimental
-
-| Map | World | Solo | 1 vs 1 |
-| --- | --- | --- | --- |

@@ -108,6 +108,7 @@ namespace OpenZ
             string last = PlayerPrefs.GetString(PrefLevel, "L02");
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
             var lastAiMap = openedWithSelect ? OzAiMapCatalog.Find(last) : null;
+            if (lastAiMap?.Solo == true) aiGroup = AiGroupOf(lastAiMap);
             SetCampaignLevels(lastAiMap?.Solo == true);
             focusCard = openedWithSelect ? Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last)) : 0;   // a fresh menu opens the battlefield row at the left, on its first card; back from a level it stays on that level
             if (openedWithSelect) { PlayerPrefs.DeleteKey(PrefOpenSelect); PlayerPrefs.Save(); }
@@ -726,7 +727,9 @@ namespace OpenZ
         {
             var p = selectRoot;
             Hud.Label(p, "Eyebrow", "SELECT OPERATION", 12, OzUi.Amber, 0.3f).At(OzMenuLayout.SelEyebrowX, OzMenuLayout.SelEyebrowY);
-            Hud.Label(p, "Title", aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
+            float titleSize = CW < 1600f && !aiCampaign ? 34f : OzMenuLayout.SelTitleSize;
+            var title = Hud.Label(p, "Title", aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", titleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
+            if (aiCampaign) OzAiMapBadge.Head(p, new OzRect(OzMenuLayout.SelTitleX + title.preferredWidth + 10, OzMenuLayout.SelTitleY - 7, 36, 36));
             var br = OzMenuLayout.Back;
             backBtn = HudButton.Make(p, "Back", "BACK", new Vector2(br.w, br.h), HudButtonKind.Large, 13, 0.16f, HudButtonStyle.Normal, true, OzH.L);
             backBtn.Rt.Place(br);
@@ -741,6 +744,7 @@ namespace OpenZ
             for (int i = 0; i < n; i++) cards[i] = BuildCard(cardParent, i, slots[i].x, slots[i].y, slots[i].w, slots[i].ih);
             BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
             BuildDeployBar(p);
+            BuildSoloSettings(p);
             BuildConvertedMapsButton(p);
             BuildSelectionWordmark(p);
             BuildHighScores(p);                                                                              // the HIGH SCORES button and its popup, last: their pointer areas lie over the cards and the bar (OpenZMainMenu.HighScores.cs)
@@ -782,7 +786,7 @@ namespace OpenZ
                 c.frameH.color = Color.clear;
             }
             // overlays
-            Hud.Chip(c.rt, "LevelChip", OzMenuLayout.CardChip, "L" + d.Number, OzUi.GM950, OzUi.Ink, 11, 0.2f, OzUi.A(OzUi.Khaki, 90f / 255f));
+            Hud.Chip(c.rt, "LevelChip", OzMenuLayout.CardChip, (d.Number == "MP" || d.Number == "VK" ? d.Number : "L" + d.Number), OzUi.GM950, OzUi.Ink, 11, 0.2f, OzUi.A(OzUi.Khaki, 90f / 255f));
             var pc = Hud.Chip(c.rt, "PreviewChip", OzMenuLayout.CardPreviewChip, "▶ PREVIEW", OzUi.Amber, OzUi.GM950, 10, 0.2f);
             c.previewChip = pc.bg.transform.parent.gameObject.AddComponent<CanvasGroup>(); c.previewChip.alpha = 0f;
             float mw = OzMenuLayout.CardMiniWell, mm = OzMenuLayout.CardMiniMargin, mi = OzMenuLayout.CardMiniInset;
@@ -803,10 +807,11 @@ namespace OpenZ
                 OzAiMapBadge.Stamp(c.rt, w);
             }
             // meta bar
-            Hud.Label(c.rt, "Level", "LEVEL " + d.Number, 11, OzUi.Amber, 0.3f, OzStyle.Plain).At(OzMenuLayout.CardLevelX, ih + OzMenuLayout.CardLevelY);
+            Hud.Label(c.rt, "Level", (d.Number == "MP" ? "ZOD ENGINE" : d.Number == "VK" ? "OPENZ-VK" : "LEVEL " + d.Number), 11, OzUi.Amber, 0.3f, OzStyle.Plain).At(OzMenuLayout.CardLevelX, ih + OzMenuLayout.CardLevelY);
             var name = Hud.Label(c.rt, "Name", d.Name, w >= OzMenuLayout.CardNameFullW ? OzMenuLayout.CardNameSize : OzMenuLayout.CardNameSmall, OzUi.Ink, 0f).At(OzMenuLayout.CardNameX, ih + OzMenuLayout.CardNameY, OzH.L, false, w * 0.6f);
             float nameRight = OzMenuLayout.CardNameX + name.preferredWidth + 24f;
-            Hud.Label(c.rt, "Mood", d.Mood, 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(w - OzMenuLayout.CardMoodRX, ih + OzMenuLayout.CardMoodY, OzH.R, false, 300);
+            Hud.Label(c.rt, "Mood", d.Mood, 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(w - OzMenuLayout.CardMoodRX - (aiCampaign ? 25 : 0), ih + OzMenuLayout.CardMoodY, OzH.R, false, 300);
+            if (aiCampaign) OzAiMapBadge.Head(c.rt, new OzRect(w - OzMenuLayout.CardMoodRX - 22, ih + OzMenuLayout.CardMoodY - 5, 22, 22));
             float cx = w - OzMenuLayout.CardMoodRX; var chips = infos[i].Chips(d);
             var made = new List<(RectTransform rt, float w)>();
             for (int k = chips.Length - 1; k >= 0; k--)

@@ -15,6 +15,9 @@ static class AiMapChecks
         check(OzAiMapCatalog.All.Select(m=>m.Id).Distinct().Count()==OzAiMapCatalog.All.Length,"Unique converted map identities");
         check(OzAiMapCatalog.All.All(m=>!new[]{2,7,16,17}.Contains(m.Number)),"Other restored OpenZ campaign maps remain excluded");
         check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==31,"31 solo campaign choices");
+        check(OzAiMapCatalog.Select(true, "MULTIPLAYER").Length == 13
+            && OzAiMapCatalog.Select(true, "MULTIPLAYER").All(map => map.Duel && map.Starts == 2),
+            "Only the 13 two-start Zod Engine maps join the solo campaign selector");
         foreach (bool solo in new[] { true, false })
         {
             var bridge = OzAiMapCatalog.Select(solo, "Z ORIGINAL", "city").Single(m => m.Number == 18);

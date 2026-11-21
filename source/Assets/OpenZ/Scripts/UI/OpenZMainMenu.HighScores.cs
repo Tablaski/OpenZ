@@ -74,7 +74,7 @@ namespace OpenZ
         {
             var br = OzMenuLayout.Back;
             hsBtn = HudButton.Make(p, "HighScores", "HIGH SCORES", new Vector2(HsBtnW, HsBtnH), HudButtonKind.Small, 11, 0.16f, HudButtonStyle.Normal, true, OzH.L);
-            hsBtn.Rt.Place(new OzRect(OzAnchor.TR, br.x - HsBtnGap - HsBtnW, br.y + (br.h - HsBtnH) * 0.5f, HsBtnW, HsBtnH));
+            hsBtn.Rt.Place(new OzRect(OzAnchor.TR, br.x - 2 * HsBtnGap - CatalogWidth - HsBtnW, br.y + (br.h - HsBtnH) * 0.5f, HsBtnW, HsBtnH));
             hsBtn.Label.FillParent(OzH.L, 32, 0, 0, 0);
             Hud.Icon(hsBtn.Content, "Glyph", "star", 10, (HsBtnH - 16f) * 0.5f, 16, OzUi.Amber);
             Hud.Keycap(hsBtn.Content, "Key", OzKeyNames.Name(HsKey), HsBtnW - 8, (HsBtnH - 14) * 0.5f);

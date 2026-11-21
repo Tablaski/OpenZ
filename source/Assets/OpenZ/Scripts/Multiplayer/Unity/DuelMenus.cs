@@ -871,7 +871,8 @@ namespace OpenZ.Multiplayer
         void BuildSkirmishMap(OzAiMap map, bool local, Action<string> select, SkirmishRules rules, Action<SkirmishRules> save)
         {
             var panel = Panel(map.Name.ToUpperInvariant(), 80, 195, 1092, 572);
-            Label(panel, (map.IsOfficial ? "OpenZ Maps" : "AI Maps") + " · " + map.Starts + " starting positions", 24, 52, 540, 18, OzUi.Muted);
+            if (!map.IsOfficial) OzAiMapBadge.Head(panel, new OzRect(24, 52, 22, 22));
+            Label(panel, (map.IsOfficial ? "OpenZ Maps" : "AI Maps") + " · " + map.Starts + " starting positions", map.IsOfficial ? 24 : 52, 52, 540, 18, OzUi.Muted);
             var maps = (local ? OzAiMapCatalog.SkirmishMaps.Where(HasSkirmishScene) :
                 OzAiMapCatalog.MultiplayerMaps.Where(DuelRuntime.IsRoomMap)).ToArray();
             Button(panel, "AI MAPS", 904, 17, 164, () => OzAiMapGallery.Open(false, select != null, map.Id,
@@ -1592,6 +1593,11 @@ namespace OpenZ.Multiplayer
             if (!primary) b.LabelColor = LobbyStyle ? (Color)OzUi.Ink : OzForkOptions.Accent;
             b.Rt.TL(x, y, w, height); b.Interactable = enabled; b.Refresh();
             if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
+            if (text == "AI MAPS")
+            {
+                b.Label.FillParent(OzH.C, 30, 0, 0, 0);
+                OzAiMapBadge.Head(b.Content, new OzRect(w * 0.5f - 57, (height - 24) * 0.5f, 24, 24));
+            }
             if (height > 70 && b.Label != null && !centered) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
             b.Bg.raycastTarget = true;
             var ui = b.Rt.gameObject.AddComponent<Button>(); ui.targetGraphic = b.Bg; ui.interactable = enabled;

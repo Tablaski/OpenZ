@@ -41,13 +41,14 @@ namespace OpenZ
         public const float ItemTopM = 2.5f;
 
         // the frame's camera, read once a pass: rows of worldToClip (x, y, w) and of the camera depth, the pixel rect, the margin
-        Vector4 farX, farY, farW, farD; float farPx, farPy, farPw, farPh, farMargin;
+        Vector4 farX, farY, farW, farD, pointerLeft, pointerRight, pointerBottom, pointerTop;
+        float farPx, farPy, farPw, farPh, farMargin;
         // the walk ground's height range (GroundY can answer nothing outside it)
         bool groundOk; float groundLo, groundHi, groundNext = -1f; ZWorld groundWorld; Collider terrainCol;
         static readonly Collider[] walkCols = new Collider[4096];
 
         /// <summary>Once a pass: the camera rows and the margin. False (no camera): nothing is skipped.</summary>
-        bool FarBegin()
+        bool FarBegin(Vector2 pointer)
         {
             HoverSkipped = 0; HoverAsked = 0;
             var c = Cam; if (!c) return false;
@@ -55,6 +56,14 @@ namespace OpenZ
             farX = m.GetRow(0); farY = m.GetRow(1); farW = m.GetRow(3); farD = -v.GetRow(2);                 // depth = -z in camera space = WorldToScreenPoint's z
             var pr = c.pixelRect; farPx = pr.x; farPy = pr.y; farPw = pr.width; farPh = pr.height;
             farMargin = GrowPx * UiK + RoundPx;
+            // Planes through the edges of a conservative pixel window around the pointer.
+            // A box separated by any plane need not be projected corner by corner.
+            float mx = farMargin + RoundRel * (Mathf.Abs(pointer.x) + farMargin + 1f) * 2f;
+            float my = farMargin + RoundRel * (Mathf.Abs(pointer.y) + farMargin + 1f) * 2f;
+            pointerLeft = farW * (2f * (pointer.x - mx - farPx) / farPw - 1f) - farX;
+            pointerRight = farX - farW * (2f * (pointer.x + mx - farPx) / farPw - 1f);
+            pointerBottom = farW * (2f * (pointer.y - my - farPy) / farPh - 1f) - farY;
+            pointerTop = farY - farW * (2f * (pointer.y + my - farPy) / farPh - 1f);
             if (groundWorld != W || Time.unscaledTime >= groundNext) GroundRange();
             return true;
         }
@@ -131,9 +140,16 @@ namespace OpenZ
             var center = new Vector3((a.x + b.x) * 0.5f, groundLo + ey, (a.z + b.z) * 0.5f);
             float ex = Mathf.Abs(b.x - a.x) * 0.5f, ez = Mathf.Abs(b.z - a.z) * 0.5f;
             // ScreenRect ignores negative-depth corners on the footprint path. A wholly hidden box is empty.
-            if (Lin(farD, center) + Mathf.Abs(farD.x) * ex + Mathf.Abs(farD.y) * ey + Mathf.Abs(farD.z) * ez < -NearM) return true;
-            return OffScreenBox(center, new Vector3(ex, 0f, 0f), new Vector3(0f, ey, 0f), new Vector3(0f, 0f, ez), mp);
+            float depth = Lin(farD, center), extent = AxisSpan(farD, ex, ey, ez);
+            if (depth + extent < -NearM) return true;
+            if (!(depth - extent > NearM) || !(Lin(farW, center) - AxisSpan(farW, ex, ey, ez) > NearM)) return false;
+            return Outside(pointerLeft) || Outside(pointerRight) || Outside(pointerBottom) || Outside(pointerTop);
+
+            bool Outside(Vector4 plane) => Lin(plane, center) - AxisSpan(plane, ex, ey, ez) > 0.001f;
         }
+
+        static float AxisSpan(Vector4 row, float ex, float ey, float ez) =>
+            Mathf.Abs(row.x) * ex + Mathf.Abs(row.y) * ey + Mathf.Abs(row.z) * ez;
 
         /// <summary>The box c + s0 u0 + s1 u1 + s2 u2 (|s| at most 1): true when it lies wholly in front of the camera and the pointer is outside
         /// its screen reach (interval arithmetic on the projection, so every point of the box projects inside the reach) widened by the

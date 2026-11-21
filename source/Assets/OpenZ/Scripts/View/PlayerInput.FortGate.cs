@@ -60,11 +60,15 @@ namespace OpenZ
         {
             fortPartFrame = Time.frameCount; fortPartOf = null; fortPart = FortPart.None;
             if (!FortGateOn || game == null || W == null) return h;
+            bool enemyFort = h != null && h.IsFort && !h.Destroyed && h.Owner != Team.Neutral && h.Owner != game.player;
+            if (!enemyFort && (!(h == null || Scenery(h)) || !GateMovers())) return h;
             var c = Cam; if (!c) return h;
             var ray = c.ScreenPointToRay(mp);
-            bool ground = game.GroundPoint(ray, out var gp);
+            bool ground = false;
+            Vector3 gp = default;
+            if (enemyFort || !FortTightOn) ground = game.GroundPoint(ray, out gp);
             var px = ground ? ZGame.WorldToPx(gp) : new Vector2Int(int.MinValue / 4, int.MinValue / 4);
-            if (h != null && h.IsFort && !h.Destroyed && h.Owner != Team.Neutral && h.Owner != game.player)
+            if (enemyFort)
             {
                 if (!FortUnder(h, ray)) { FortBesideFrames++; h = null; }                                // 1.5 N21: only its screen box, not the fort itself, is under the pointer (View/PlayerInput.FortTight.cs)
                 else

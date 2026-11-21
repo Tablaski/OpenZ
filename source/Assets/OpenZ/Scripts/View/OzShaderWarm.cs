@@ -110,6 +110,8 @@ namespace OpenZ
             if (wait > 0f) { wait -= Time.unscaledDeltaTime; return; }
             if (MenuHold) { heldSec += Time.unscaledDeltaTime; return; }                                    // item 23: the main menu needs this frame (the flybys prepare, the AUTO pick measures, a click)
             if (OzLevelWarm.HoldsGlobal) return;                                                                  // 1.4: a level's own list warms on its loading screen; inside that level the rest of this list waits for the next menu (View/OzLevelWarm.cs)
+            // Converted maps may have no dedicated list. Keep the shared warm-up off the battle thread there too.
+            if (ZGame.I && ZGame.I.World != null) return;
             if (Time.unscaledTime < restUntil) { restSec += Time.unscaledDeltaTime; return; }               // item 23: the rest after a slow step (main menu only)
             if (MenuCold && MenuSpacing) { heldSec += Time.unscaledDeltaTime; return; }                     // a driver that compiles: the rest of the list waits for the loading screen, the menu keeps its frames
             if (!list)   // loaded only now (after the intro film and the wait), in the background: it pulls in every listed shader

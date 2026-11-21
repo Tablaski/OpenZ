@@ -39,7 +39,21 @@ namespace OpenZ
         public float MarkerTime { get; private set; } = -10f;
         public float SelectTime { get; private set; } = -10f;
 
-        Camera Cam => cam ? cam.GetComponent<Camera>() : Camera.main;
+        Camera inputCamera;
+        RtsCamera inputCameraRig;
+        Camera Cam
+        {
+            get
+            {
+                if (!cam) return Camera.main;
+                if (inputCameraRig != cam || !inputCamera)
+                {
+                    inputCameraRig = cam;
+                    inputCamera = cam.GetComponent<Camera>();
+                }
+                return inputCamera;
+            }
+        }
         ZWorld W => game.World;
 
         void Awake()
@@ -559,7 +573,7 @@ namespace OpenZ
         ZObject HoverAt(Vector2 mp)
         {
             ZObject h = null, hu = null;
-            bool far = HoverPreCull && FarBegin();                                                         // 1.3 item 39: the pre-cull of objects far from the pointer (View/PlayerInput.HoverCull.cs)
+            bool far = HoverPreCull && FarBegin(mp);
             int treeX = -100000, treeY = -100000;                                                          // DV88: the tile under the pointer (levels with trees that can be felled only)
             if (W.TreeTiles.Count > 0 && game.GroundPoint(Cam.ScreenPointToRay(mp), out var treeAt)) { var tp = ZGame.WorldToPx(treeAt); treeX = tp.x >> 4; treeY = tp.y >> 4; }
             var kbd = Keyboard.current; bool forceBridge = kbd != null && kbd.ctrlKey.isPressed;

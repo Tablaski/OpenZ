@@ -609,10 +609,13 @@ namespace OpenZ.Sim
         /// <summary>Review round 3 (R4 4194304): a unit with the one-way live term (zwhy 128) is within 3 tiles of the lane's keep-clear area and
         /// no unit outside the zones (DV44's rules) stands in it + 1 tile: the passage carries one-way live traffic now.</summary>
         internal static bool TestLaneAnyLive = true;
+        readonly List<ZObject> shortLaneTraffic = new List<ZObject>();
         bool OneWayLiveAt(ZLane L)
         {
             bool live = false;
-            foreach (var u in units)
+            // The hash was built at the start of this tick. No unit positions change before lane synchronization.
+            InTrafficCells(L.KX0 - 48, L.KY0 - 48, L.KX1 + 48, L.KY1 + 48, shortLaneTraffic);
+            foreach (var u in shortLaneTraffic)
             {
                 if (!u.IsMobile) continue;
                 int x = u.CenterX, y = u.CenterY;

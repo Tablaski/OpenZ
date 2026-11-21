@@ -198,6 +198,16 @@ namespace OpenZ.Sim
                     if (cells[cy * gw + cx] is List<ZObject> occupants) into.AddRange(occupants);
         }
 
+        void InTrafficCells(int minX, int minY, int maxX, int maxY, List<ZObject> into)
+        {
+            into.Clear();
+            int first = CellOf(minX, minY), last = CellOf(maxX, maxY);
+            int firstX = first % gw, lastX = last % gw;
+            for (int y = first / gw; y <= last / gw; y++)
+                for (int x = firstX; x <= lastX; x++)
+                    if (cells[y * gw + x] is List<ZObject> occupants) into.AddRange(occupants);
+        }
+
         // ------------------------------------------------------------------ ZObject hooks
         /// <summary>Start of ZObject.ProcessServer (before the waypoint switch): run the deferred actions exactly where Zod
         /// itself starts, ends or restarts a waypoint.</summary>

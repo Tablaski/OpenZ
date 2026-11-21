@@ -322,7 +322,7 @@ namespace OpenZ
             int id = SimId(); if (id < 0) return;
             var crate = g.World.GetAny(id); if (crate == null || crate.Destroyed || crate.Grenades <= 0) return;
             var c = g.CenterWorld(crate);
-            foreach (var o in g.World.Objects)
+            foreach (var o in g.World.UnitObjects)
             {
                 if (o.Kind != ZKind.Robot || o.IsMinion || o.Destroyed || o.KillAt >= 0 || !o.IsMoving || !o.CanPickupGrenades()) continue;
                 if (!g.Views.TryGetValue(o.Id, out var uv) || !uv || !uv.CanGrab || uv.Grabbing) continue;

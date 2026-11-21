@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.28 anti-aliasing modes
+
+- Pending manual checks: compare the five anti-aliasing modes on Bridge Game at 4K High. Verify off, FXAA, SMAA and both MSAA modes run independently. Check the tooltip in both menus, live switching, saved choices, and the fresh-install High preset.
+
 ## OpenZ-VK 1.5.27 independent MSAA
 
 - Pending manual checks: compare Bridge Game at native 4K High with MSAA at 4x, 2x and Off. Check the main and pause menus, persistence across restart and preset changes, a new profile’s High/4x default, and migration from the previous 2x limiter. Verify the camera’s SMAA remains active.

@@ -98,7 +98,7 @@ namespace OpenZ
             [HeatGuardRuntime.LimitLabel] = HeatGuardRuntime.LimitTip,
             [OzQuality.LighterFogLabel] = OzQuality.LighterFogTip,
             [OzQuality.DisableFogLabel] = OzQuality.DisableFogTip,
-            [OzQuality.MsaaLabel] = OzQuality.MsaaTip,
+            [OzQuality.AntiAliasingLabel] = OzQuality.AntiAliasingTip,
             [OzLightRows.TreesLabel] = OzLightRows.TreesTip,
             [OzLightRows.WrecksLabel] = OzLightRows.WrecksTip,
             [OzLowPicture.Label] = OzLowPicture.Tip,                                       // 1.5 issue 8: 3D PICTURE SHARP / SOFT / SOFTEST (View/OzLowPicture.cs)
@@ -126,7 +126,7 @@ namespace OpenZ
             (HeatGuardRuntime.LimitLabel, TabGraphics),
             (OzQuality.LighterFogLabel, TabGraphics),
             (OzQuality.DisableFogLabel, TabGraphics),
-            (OzQuality.MsaaLabel, TabGraphics),
+            (OzQuality.AntiAliasingLabel, TabGraphics),
             (OzStrikeGroups.Label, TabAdvanced), (OzTouch.Label, TabAdvanced), (OzTrackpadScroll.Label, TabAdvanced), (PathV3Label, TabAdvanced), (OzOvertake.Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
         };
         static int TabRow(string label) { for (int i = 0; i < TabRows.Length; i++) if (TabRows[i].label == label) return i; return -1; }

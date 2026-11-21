@@ -45,11 +45,16 @@ namespace OpenZ
         public const string DisableFogTip = "DISABLE VOLUMETRIC FOG|Skips volumetric mist and its light shafts during a battle, even if Lighter Volumetric Fog is on. Fog of war is unaffected.|";
         public const string LegacyReduceMsaaPref = "oz_vk_reduce_msaa";
         public const string MsaaPref = "oz_vk_msaa_samples";
-        public const string MsaaLabel = "MSAA";
-        public const string MsaaTip = "MSAA|Choose Off, 2x or 4x at the selected resolution. Before you choose, MSAA follows your graphics preset. Once set, the value stays the same when you change preset. Screen-space edge smoothing stays active.|";
+        public const string AntiAliasingPref = "oz_vk_antialiasing";
+        public const string AntiAliasingLabel = "ANTI-ALIASING";
+        public const string AntiAliasingTip = "ANTI-ALIASING|OFF: no smoothing or added GPU work. FXAA: fast edge filter, can soften details (very low GPU cost). SMAA: detects edge patterns and keeps details sharper (low cost). MSAA 2X: smooths geometry edges with two samples (low to moderate cost). MSAA 4X: finer geometry edge smoothing (moderate, often higher at 4K). Each selected mode runs on its own and is saved across presets.|";
+        enum AaMode { Preset, Off, Fxaa, Smaa, Msaa2, Msaa4 }
+        static readonly string[] AaNames = { "", "OFF", "FXAA", "SMAA", "MSAA 2X", "MSAA 4X" };
         static readonly int IdSteps = Shader.PropertyToID("_AtmoSteps");
         static bool? disableFog;
-        static int? msaaOverride;
+        static AaMode? aaMode;
+        static UniversalAdditionalCameraData aaCamera;
+        static AntialiasingMode originalCameraAa;
         static UniversalRenderPipelineAsset msaaAsset;
         static int originalMsaa;
 
@@ -75,44 +80,86 @@ namespace OpenZ
             }
         }
 
-        public static int MsaaOverride
+        static AaMode AntiAliasing
         {
             get
             {
-                if (msaaOverride.HasValue) return msaaOverride.Value;
-                int stored = PlayerPrefs.GetInt(MsaaPref, 0);
-                if (!PlayerPrefs.HasKey(MsaaPref) && PlayerPrefs.GetInt(LegacyReduceMsaaPref, 0) != 0)
+                if (aaMode.HasValue) return aaMode.Value;
+                int stored = PlayerPrefs.GetInt(AntiAliasingPref, 0);
+                if (!PlayerPrefs.HasKey(AntiAliasingPref))
                 {
-                    stored = 2;
-                    PlayerPrefs.SetInt(MsaaPref, stored);
-                    PlayerPrefs.Save();
+                    int legacy = PlayerPrefs.GetInt(MsaaPref, PlayerPrefs.GetInt(LegacyReduceMsaaPref, 0) != 0 ? 2 : 0);
+                    stored = (int)(legacy == 1 ? AaMode.Smaa : legacy == 2 ? AaMode.Msaa2 : legacy == 4 ? AaMode.Msaa4 : AaMode.Preset);
+                    if (stored != 0)
+                    {
+                        PlayerPrefs.SetInt(AntiAliasingPref, stored);
+                        PlayerPrefs.Save();
+                    }
                 }
-                return (msaaOverride = stored == 1 || stored == 2 || stored == 4 ? stored : 0).Value;
+                return (aaMode = stored >= (int)AaMode.Off && stored <= (int)AaMode.Msaa4 ? (AaMode)stored : AaMode.Preset).Value;
             }
         }
 
-        static int EffectiveMsaa
+        public static int MsaaOverride => AntiAliasing switch
+        {
+            AaMode.Preset => 0,
+            AaMode.Msaa2 => 2,
+            AaMode.Msaa4 => 4,
+            _ => 1
+        };
+
+        static AaMode PresetAa()
+        {
+            var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            int samples = pipeline ? pipeline.msaaSampleCount : Level == 0 ? 4 : Level == 1 ? 2 : 1;
+            return samples >= 4 ? AaMode.Msaa4 : samples == 2 ? AaMode.Msaa2 : AaMode.Smaa;
+        }
+
+        public static string AntiAliasingName
         {
             get
             {
-                int chosen = MsaaOverride;
-                if (chosen != 0) return chosen;
-                var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-                return pipeline ? pipeline.msaaSampleCount : Level == 0 ? 4 : Level == 1 ? 2 : 1;
+                if (AntiAliasing != AaMode.Preset) return AaNames[(int)AntiAliasing];
+                var mode = PresetAa();
+                return mode == AaMode.Smaa ? "SMAA" : AaNames[(int)mode] + " + SMAA";
             }
         }
 
-        public static string MsaaName => EffectiveMsaa == 1 ? "OFF" : EffectiveMsaa + "X";
-
-        public static void StepMsaa(int direction)
+        public static void StepAntiAliasing(int direction)
         {
-            int current = EffectiveMsaa;
-            int next = direction < 0 ? (current == 1 ? 4 : current / 2) : (current == 4 ? 1 : current * 2);
-            msaaOverride = next;
-            PlayerPrefs.SetInt(MsaaPref, next);
+            var current = AntiAliasing == AaMode.Preset ? PresetAa() : AntiAliasing;
+            int next = ((int)current - 1 + (direction < 0 ? 4 : 1)) % 5 + 1;
+            if (AntiAliasing == AaMode.Preset) RenderPipelineManager.beginCameraRendering += ApplyCameraAa;
+            aaMode = (AaMode)next;
+            PlayerPrefs.SetInt(AntiAliasingPref, next);
             PlayerPrefs.Save();
             ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
-            Debug.Log($"[OpenZ-VK Graphics] MSAA: {MsaaName}");
+            Debug.Log($"[OpenZ-VK Graphics] Anti-aliasing: {AntiAliasingName}");
+        }
+
+        static void ApplyCameraAa(ScriptableRenderContext context, Camera camera)
+        {
+            if (camera.cameraType != CameraType.Game || !camera.CompareTag("MainCamera") ||
+                !camera.TryGetComponent<UniversalAdditionalCameraData>(out var data)) return;
+            if (aaCamera != data)
+            {
+                RestoreCameraAa();
+                aaCamera = data;
+                originalCameraAa = data.antialiasing;
+            }
+            var wanted = AntiAliasing switch
+            {
+                AaMode.Fxaa => AntialiasingMode.FastApproximateAntialiasing,
+                AaMode.Smaa => AntialiasingMode.SubpixelMorphologicalAntiAliasing,
+                _ => AntialiasingMode.None
+            };
+            if (data.antialiasing != wanted) data.antialiasing = wanted;
+        }
+
+        static void RestoreCameraAa()
+        {
+            if (aaCamera) aaCamera.antialiasing = originalCameraAa;
+            aaCamera = null;
         }
 
         static void ApplyMsaa(UniversalRenderPipelineAsset pipeline)
@@ -218,6 +265,8 @@ namespace OpenZ
         static void Boot()
         {
             Apply();
+            RenderPipelineManager.beginCameraRendering -= ApplyCameraAa;
+            if (AntiAliasing != AaMode.Preset) RenderPipelineManager.beginCameraRendering += ApplyCameraAa;
             Application.quitting -= Restore; Application.quitting += Restore;                               // the editor: Play stop puts the project asset back
             var go = new GameObject("OzFpsChip"); Object.DontDestroyOnLoad(go); go.AddComponent<OzFpsChip>();
             go.AddComponent<OzPerfLine>();                                                                  // 1.3 item 25: the per-minute perf line of Player.log (log only, View/OzPerfLine.cs)
@@ -255,6 +304,8 @@ namespace OpenZ
         /// <summary>Never leave a MEDIUM / LOW asset in the editor's quality level after Play (the shared settings stay HIGH).</summary>
         static void Restore()
         {
+            RenderPipelineManager.beginCameraRendering -= ApplyCameraAa;
+            RestoreCameraAa();
             RestoreMsaa();
             if (originalSaved && QualitySettings.renderPipeline != original) QualitySettings.renderPipeline = original;
         }

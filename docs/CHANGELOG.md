@@ -4,6 +4,10 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.28 (21 Nov 2026)
+
+- Graphics — Choose Off, FXAA, SMAA, MSAA 2x or MSAA 4x independently of resolution and graphics quality. The tooltip explains each mode and its relative GPU cost.
+
 ## OpenZ-VK 1.5.27 (21 Nov 2026)
 
 - Graphics — Set MSAA to Off, 2x or 4x independently of your graphics preset and resolution. Your choice is saved. A fresh installation starts on High with 4x MSAA.

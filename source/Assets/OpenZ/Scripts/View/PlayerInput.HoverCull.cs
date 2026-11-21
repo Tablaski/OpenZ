@@ -216,6 +216,8 @@ namespace OpenZ
         internal ZObject HoverProbe(Vector2 mp, bool preCull)
         {
             ptsRect.Clear();
+            if (!preCull) buildingRects.Clear();
+            projectionFrame = -1;
             bool was = HoverPreCull; HoverPreCull = preCull;
             try { return HoverAt(mp); } finally { HoverPreCull = was; }
         }

@@ -335,6 +335,29 @@ namespace OpenZ
         /// and the lowest vertex (towers, gun, walls kept; ~1000 points at most), measured once, projected per frame (cached per frame).</summary>
         readonly Dictionary<int, Vector3[]> meshPts = new Dictionary<int, Vector3[]>();
         readonly Dictionary<int, (int frame, Rect r, bool ok)> ptsRect = new Dictionary<int, (int, Rect, bool)>();
+        readonly Dictionary<int, (int projection, Matrix4x4 model, Rect rect, bool valid)> buildingRects = new();
+        Camera projectedCamera;
+        Matrix4x4 projectedView, projectedLens;
+        Rect projectedViewport;
+        int projectionFrame = -1, projectionVersion;
+
+        int BuildingProjectionVersion(Camera camera, int frame)
+        {
+            if (projectionFrame == frame && projectedCamera == camera) return projectionVersion;
+            var view = camera.worldToCameraMatrix;
+            var lens = camera.projectionMatrix;
+            var viewport = camera.pixelRect;
+            if (projectedCamera != camera || !projectedView.Equals(view) || !projectedLens.Equals(lens) || !projectedViewport.Equals(viewport))
+            {
+                projectedCamera = camera;
+                projectedView = view;
+                projectedLens = lens;
+                projectedViewport = viewport;
+                projectionVersion++;
+            }
+            projectionFrame = frame;
+            return projectionVersion;
+        }
         static readonly List<Vector3> ptsTmp = new List<Vector3>();
         static Vector3[] Silhouette(List<Vector3> pts, Bounds lb)
         {
@@ -417,6 +440,7 @@ namespace OpenZ
                 }
                 if (!any) return false;
                 meshBox[o.Id] = mb = (t, lb); MeshBoxMeasures++;
+                buildingRects.Remove(o.Id);
                 meshPts[o.Id] = (!unit || o.IsShuttle) && ptsTmp.Count > 8 ? Silhouette(ptsTmp, lb) : null;   // DV118: the shuttle's frame is its silhouette too
                 ptsTmp.Clear();
             }
@@ -427,7 +451,16 @@ namespace OpenZ
                 var cm = Cam; bool ok = false;
                 if (cm)
                 {
-                    var l2w = OzPlayableShuttle.FrameL2W(o, mb.t); Vector2 smn = new Vector2(float.MaxValue, float.MaxValue), smx = new Vector2(float.MinValue, float.MinValue);
+                    var l2w = OzPlayableShuttle.FrameL2W(o, mb.t);
+                    bool building = o.Kind == ZKind.Building;
+                    int projection = building ? BuildingProjectionVersion(cm, f) : 0;
+                    if (building && buildingRects.TryGetValue(o.Id, out var cached) && cached.projection == projection && cached.model.Equals(l2w))
+                    {
+                        r = cached.rect;
+                        ptsRect[o.Id] = (f, r, cached.valid);
+                        return cached.valid;
+                    }
+                    Vector2 smn = new Vector2(float.MaxValue, float.MaxValue), smx = new Vector2(float.MinValue, float.MinValue);
                     if (!OzSilhouetteHull.Rect(o.Id, sil, cm, l2w, ref smn, ref smx, ref ok))                    // 1.5 kit issue8_slow_chip_picture: only the points that can be the outline's edge, the same box to the last bit (View/OzSilhouetteHull.cs); false = every point, as before
                     for (int i = 0; i < sil.Length; i++)
                     {
@@ -439,6 +472,7 @@ namespace OpenZ
                         r = Rect.MinMaxRect(smn.x, smn.y, smx.x, smx.y);
                         float ix = r.width * 0.02f, iy = r.height * 0.02f; r = Rect.MinMaxRect(r.xMin + ix, r.yMin + iy, r.xMax - ix, r.yMax - iy);   // the old 6 % inset was for the box overshoot
                     }
+                    if (building) buildingRects[o.Id] = (projection, l2w, r, ok);
                 }
                 ptsRect[o.Id] = (f, r, ok);
                 return ok;

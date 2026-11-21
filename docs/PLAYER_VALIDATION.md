@@ -1,8 +1,18 @@
 # Player validation record
 
+## OpenZ-VK 1.5.20 rock-heavy map performance
+
+- Source checkpoint `b6a11bef` passed 7,714 core and real-map simulation checks. The two fixed-seed seven-bot simulations matched the 1.5.18 fingerprints, bot-order counts and A* counts after 4,500 ticks on Desert P08M01 and Hunters. Concurrent build work makes the headless timing measurements unsuitable for comparison.
+- The 1.5.20 Windows build passed the seven-bot proof, including 35 cursor positions against the full hover pass. Desert P08M01 at 1080p Low in DX12 measured 15.7, 16.8 and 16.6 fps across the same three windows. The 99th-percentile frame took 138, 93 and 90 ms. In the stable minute, the main thread averaged 62.2 ms, the GPU 2.2 ms, hover 8.04 ms and simulation 3.07 ms per tick.
+- Desert P08M01 remains above the 16.7 ms frame budget for 60 fps. Local logs are under `.local/perf-1519/`. Pending checks include eight-human CPU headroom, graphics quality above Low, and the remaining interaction cases listed below.
+- Both 1.5.20 Bridge Game runs hit the benchmark's 30 fps hold at 83 °C. Neither run is valid for a performance comparison.
+
 ## OpenZ-VK 1.5.19 large-map performance
 
-- Pending verification of the simulation, the compiled Desert P08M01 seven-bot frame times and cursor target parity.
+- Source checkpoint `c19f4077` produced a non-development Windows build and passed 7,714 core and real-map simulation checks. The seven-bot proof matched full-pass hover results at 35 cursor positions in both graphics APIs.
+- Desert P08M01, seven Normal bots, seed 1, 1080p Low and a 60 fps cap. Three 40-second windows after warm-up measured 14.5, 15.2 and 14.8 fps in DX12 and 14.7, 15.7 and 15.1 fps in DX11. The 99th-percentile frame took 103–140 ms in DX12 and 102–139 ms in DX11.
+- In the stable minute, the DX12 build spent 68.6 ms on the main thread and 2.3 ms on the GPU. The simulation took 3.28 ms per tick and hover took 9.06 ms per frame. The prior manual 1.5.18 run reported 6.1–6.4 fps, 7.09–8.06 ms per rule tick and 23–26 ms of hover per frame. The camera and sampling procedure differed.
+- A diagnostic run found the shared shader warm-up could do work during battle on converted maps. The revised build defers it during battle. Remaining checks include first-use shader effects, fog and boarding interactions, official Bridge Game and CPU headroom in eight-human SFU and direct matches.
 
 ## OpenZ-VK 1.5.18 Battle and Skirmish performance
 

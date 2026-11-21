@@ -58,10 +58,10 @@ namespace OpenZ.Multiplayer
             return Decode(payload, 0, payload.Length);
         }
 
-        internal static DuelDelta Decode(byte[] payload, int offset, int length)
+        internal static DuelDelta Decode(byte[] payload, int offset, int count)
         {
-            if (length > DuelWire.MaxPayload) throw new InvalidDataException("Delta too large.");
-            using (var stream = new MemoryStream(payload, offset, length, false))
+            if (count > DuelWire.MaxPayload) throw new InvalidDataException("Delta too large.");
+            using (var stream = new MemoryStream(payload, offset, count, false))
             using (var reader = new BinaryReader(stream))
             {
                 var delta = new DuelDelta { Sequence = reader.ReadInt64(), Baseline = reader.ReadInt64() };

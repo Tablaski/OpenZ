@@ -12,6 +12,7 @@ namespace OpenZ
     /// <summary>OpenZ kit profile picker for standalone tools; multiplayer profiles remain lobby-owned.</summary>
     public sealed class OzBehaviorOptions : MonoBehaviour
     {
+        const string ClassicGoal = "Z Classic aims to recreate Z95 combat dynamics, including dodging, speed boosts and unit balance.";
         static OzBehaviorOptions instance;
         static int closedFrame = -1;
         Action returnToGaming;
@@ -82,9 +83,10 @@ namespace OpenZ
                     }));
                 OzForkOptions.Highlight(row, label);
             }
-            Hud.Label(panel, "Classic note", "Z Classic is experimental and still far from finished. Give it a try!", 19, OzUi.Ink)
-                .At(28, 300, OzH.L, false, 1044);
-            var feedback = MakeButton(panel, "Discord feedback", "SHARE YOUR FEEDBACK ON OPENZ / ZZONE DISCORD", 28, 337, 1044, 52,
+            Hud.Label(panel, "Classic goal", ClassicGoal, 19, OzUi.Ink).At(28, 291, OzH.L, false, 1044);
+            Hud.Label(panel, "Classic feedback", "The profile still needs fine-tuning. Feedback from Z95 veterans is welcome.", 18, OzUi.Ink)
+                .At(28, 316, OzH.L, false, 1044);
+            var feedback = MakeButton(panel, "Discord feedback", "SHARE YOUR FEEDBACK ON OPENZ / ZZONE DISCORD", 28, 349, 1044, 52,
                 () => Application.OpenURL("https://discord.gg/WjFqg35PsE"));
             if (feedback.Label.graphic is TMPro.TMP_Text tmp) tmp.fontStyle |= TMPro.FontStyles.Bold;
             else if (feedback.Label.graphic is Text legacy) legacy.fontStyle = FontStyle.Bold;
@@ -127,7 +129,7 @@ namespace OpenZ
         static string Description(ZBehaviorProfile profile)
         {
             if (profile.id == "native") return "Original OpenZ behavior and movement.";
-            if (profile.id == "zod-classic") return "VK reference: defensive boost x5; dodge and boost travel limited to 6.25 m.";
+            if (profile.id == "zod-classic") return ClassicGoal;
             if (profile.id == "zod-local") return "Zod movement with dodging limited to idle units.";
             if (profile.id == "retreat-dodge") return "Robots may dodge during retreat orders.";
             return "Your saved profile. Laboratory drafts stay separate until saved.";

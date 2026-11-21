@@ -29,7 +29,7 @@ namespace OpenZ
         public const string FpsPref = "oz_fps_counter";
         public const string Label = "GRAPHICS QUALITY", FpsLabel = "FPS COUNTER";
         // version 1.1: one clause per thing MEDIUM / LOW give up (a cut that is taken out of OzLiteTable.cs takes its clause with it)
-        public const string Tip = "GRAPHICS QUALITY|High (default): the full look. Medium and Low are for slower PCs: softer shadows that end sooner when zoomed out, less anti-aliasing (2x / off; edge smoothing stays), lighter fog and ambient occlusion (half / off), fewer night lights and their shadows, thinner rain. Low gives up the most: lamps lose glow and beams, water its sun and fire glints, and big screens get a lighter 3D view (text stays sharp). Units and rules never change.|";
+        public const string Tip = "GRAPHICS QUALITY|High (default): the full look. Medium and Low are for slower PCs: softer shadows that end sooner when zoomed out, less anti-aliasing (2x / off; edge smoothing stays), lighter fog and ambient occlusion (half / off), fewer night lights and their shadows, thinner rain. Low gives up the most: lamps lose glow and beams, water its sun and fire glints, and big screens get a lighter 3D view (text stays sharp). Units and rules never change. Custom starts from High and shows the OpenZ-VK performance controls.|";
         public const string FpsTip = "FPS COUNTER|On shows the frame rate, the time of one frame for the processor and for the graphics chip, and the graphics preset in the top right corner. Detailed also splits the processor's time into the game's main work, the drawing work and the game's rules. Off is the default. Hidden in recordings.|";
         /// <summary>1.3 item 25: the three values of FPS COUNTER (oz_fps_counter 0 / 1 / 2).</summary>
         public static readonly string[] FpsNames = { "OFF", "ON", "DETAILED" };
@@ -37,104 +37,131 @@ namespace OpenZ
         /// <summary>Atmosphere ray-march steps per preset (AtmosphereFullscreen _AtmoSteps; HIGH = the shader's 16).</summary>
         public static readonly float[] AtmoSteps = { 16f, 12f, 9f };
         public const string ResDir = "OpenZ/Quality/", MediumAsset = "OZ_URP_Medium", LowAsset = "OZ_URP_Low";
+        public const int CustomSelection = 3;
+        public const string CustomLabel = "CUSTOM", CustomPref = "oz_vk_custom_graphics";
         public const string LighterFogPref = "oz_vk_lighter_volumetric_fog";
-        public const string LighterFogLabel = "LIGHTER VOLUMETRIC FOG";
-        public const string LighterFogTip = "LIGHTER VOLUMETRIC FOG|Reduces the detail of fog lighting and light shafts. The 3D resolution, object shadows and fog of war retain their usual settings. Off uses the selected graphics preset's full fog quality.|";
         public const string DisableFogPref = "oz_vk_disable_volumetric_fog";
-        public const string DisableFogLabel = "DISABLE VOLUMETRIC FOG";
-        public const string DisableFogTip = "DISABLE VOLUMETRIC FOG|Skips volumetric mist and its light shafts during a battle, even if Lighter Volumetric Fog is on. Fog of war is unaffected.|";
         public const string LegacyReduceMsaaPref = "oz_vk_reduce_msaa";
         public const string MsaaPref = "oz_vk_msaa_samples";
         public const string AntiAliasingPref = "oz_vk_antialiasing";
-        public const string AntiAliasingLabel = "ANTI-ALIASING";
-        public const string AntiAliasingTip = "ANTI-ALIASING|OFF: no smoothing or added GPU work. FXAA: fast edge filter, can soften details (very low GPU cost). SMAA: detects edge patterns and keeps details sharper (low cost). MSAA 2X: smooths geometry edges with two samples (low to moderate cost). MSAA 4X: finer geometry edge smoothing (moderate, often higher at 4K). Each selected mode runs on its own and is saved across presets.|";
-        enum AaMode { Preset, Off, Fxaa, Smaa, Msaa2, Msaa4 }
-        static readonly string[] AaNames = { "", "OFF", "FXAA", "SMAA", "MSAA 2X", "MSAA 4X" };
+        public const string HardwareAaPref = "oz_vk_hardware_aa", PostAaPref = "oz_vk_post_aa", FogPref = "oz_vk_volumetric_fog";
+        public const string HardwareAaLabel = "HARDWARE ANTI-ALIASING";
+        public const string PostAaLabel = "POST-PROCESSING ANTI-ALIASING";
+        public const string FogLabel = "VOLUMETRIC FOG";
+        public const string HardwareAaTip = "HARDWARE ANTI-ALIASING|MSAA smooths the edges of 3D objects. MSAA ×2 and ×4 use two or four samples per pixel, which can lower FPS, especially with ×4. Smoothing is harder to see at higher resolutions. Off is recommended.|";
+        public const string PostAaTip = "POST-PROCESSING ANTI-ALIASING|FXAA and SMAA smooth edges after rendering and usually cost fewer FPS than MSAA. FXAA is fast but can soften details. SMAA keeps edges sharper. Off is recommended, especially at higher resolutions where the difference is harder to see.|";
+        public const string FogTip = "VOLUMETRIC FOG|Draws lit mist and shafts of light in battle. Light keeps the effect with less detail and lower GPU cost. Off is recommended for the highest FPS. Fog of war is unaffected.|";
+        enum LegacyAa { Preset, Off, Fxaa, Smaa, Msaa2, Msaa4 }
+        enum FogMode { Off, Light, SavedFull }
+        static readonly string[] HardwareAaNames = { "OFF", "MSAA ×2", "MSAA ×4" };
+        static readonly int[] HardwareAaSamples = { 1, 2, 4 };
+        static readonly string[] PostAaNames = { "OFF", "FXAA", "SMAA" };
+        static readonly AntialiasingMode[] PostAaModes =
+        {
+            AntialiasingMode.None, AntialiasingMode.FastApproximateAntialiasing, AntialiasingMode.SubpixelMorphologicalAntiAliasing
+        };
+        static readonly string[] FogNames = { "OFF", "LIGHT", "FULL (SAVED)" };
         static readonly int IdSteps = Shader.PropertyToID("_AtmoSteps");
-        static bool? disableFog;
-        static AaMode? aaMode;
+        static readonly int IdLighterFog = Shader.PropertyToID("_OZLighterVolumetricFog");
+        static bool? custom;
+        static int hardwareAa = -1, postAa = -1, fog = -1;
         static UniversalAdditionalCameraData aaCamera;
         static AntialiasingMode originalCameraAa;
         static UniversalRenderPipelineAsset msaaAsset;
         static int originalMsaa;
 
-        public static bool DisableFog
+        static bool CustomSelected
         {
-            get => disableFog ??= PlayerPrefs.GetInt(DisableFogPref, 0) != 0;
-            set
+            get
             {
-                disableFog = value;
-                PlayerPrefs.SetInt(DisableFogPref, value ? 1 : 0);
-                PlayerPrefs.Save();
-                Debug.Log($"[OpenZ-VK Graphics] Disable volumetric fog: {(value ? "ON" : "OFF")}");
+                if (!custom.HasValue) custom = LoadCustomSelection();
+                return custom.Value;
             }
         }
+
+        static bool LoadCustomSelection()
+        {
+            if (PlayerPrefs.HasKey(CustomPref)) return PlayerPrefs.GetInt(CustomPref) == 1;
+
+            int legacySamples = PlayerPrefs.GetInt(MsaaPref, PlayerPrefs.GetInt(LegacyReduceMsaaPref, 0) != 0 ? 2 : 0);
+            var legacyAa = PlayerPrefs.HasKey(AntiAliasingPref)
+                ? (LegacyAa)PlayerPrefs.GetInt(AntiAliasingPref)
+                : legacySamples switch { 1 => LegacyAa.Smaa, 2 => LegacyAa.Msaa2, 4 => LegacyAa.Msaa4, _ => LegacyAa.Preset };
+            if ((int)legacyAa < (int)LegacyAa.Off || (int)legacyAa > (int)LegacyAa.Msaa4) legacyAa = LegacyAa.Preset;
+            bool fogOff = PlayerPrefs.GetInt(DisableFogPref, 0) != 0;
+            bool fogLight = PlayerPrefs.GetInt(LighterFogPref, 0) != 0;
+            bool migrate = legacyAa != LegacyAa.Preset || fogOff || fogLight ||
+                PlayerPrefs.GetInt(OzWaterPlayCalm.ReflectionPref, 1) == 0 || PlayerPrefs.GetInt(HeatGuardRuntime.LimitPref, 1) == 0;
+            if (migrate)
+            {
+                int preset = Mathf.Clamp(PlayerPrefs.GetInt(Pref, 0), 0, 2);
+                int hardware = legacyAa switch { LegacyAa.Preset => 2 - preset, LegacyAa.Msaa2 => 1, LegacyAa.Msaa4 => 2, _ => 0 };
+                int post = legacyAa switch { LegacyAa.Fxaa => 1, LegacyAa.Preset or LegacyAa.Smaa => 2, _ => 0 };
+                var oldFog = fogOff ? FogMode.Off : fogLight ? FogMode.Light : FogMode.SavedFull;
+                PlayerPrefs.SetInt(HardwareAaPref, hardware);
+                PlayerPrefs.SetInt(PostAaPref, post);
+                PlayerPrefs.SetInt(FogPref, (int)oldFog);
+            }
+            PlayerPrefs.SetInt(CustomPref, migrate ? 1 : 0);
+            PlayerPrefs.Save();
+            return migrate;
+        }
+
+        static int ReadSetting(ref int cached, string key, int count)
+        {
+            if (cached < 0)
+            {
+                int saved = PlayerPrefs.GetInt(key, 0);
+                cached = saved >= 0 && saved < count ? saved : 0;
+            }
+            return cached;
+        }
+
+        static void SaveSetting(ref int cached, string key, int value)
+        {
+            cached = value;
+            PlayerPrefs.SetInt(key, value);
+            PlayerPrefs.Save();
+        }
+
+        static int HardwareAa => ReadSetting(ref hardwareAa, HardwareAaPref, HardwareAaNames.Length);
+        static int PostAa => ReadSetting(ref postAa, PostAaPref, PostAaNames.Length);
+        static FogMode Fog => (FogMode)ReadSetting(ref fog, FogPref, FogNames.Length);
+        public static string HardwareAaName => HardwareAaNames[HardwareAa];
+        public static string PostAaName => PostAaNames[PostAa];
+        public static string FogName => FogNames[(int)Fog];
+        public static int MsaaOverride => IsCustom ? HardwareAaSamples[HardwareAa] : 0;
+
+        static int StepThree(int current, int direction) => (current + (direction < 0 ? 2 : 1)) % 3;
+
+        public static void StepHardwareAa(int direction)
+        {
+            SaveSetting(ref hardwareAa, HardwareAaPref, StepThree(HardwareAa, direction));
+            ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
+        }
+
+        public static void StepPostAa(int direction)
+            => SaveSetting(ref postAa, PostAaPref, StepThree(PostAa, direction));
+
+        public static void StepFog(int direction)
+        {
+            // Full is carried forward for existing Custom profiles until the player chooses Light or Off.
+            var next = Fog == FogMode.SavedFull ? (direction < 0 ? FogMode.Light : FogMode.Off)
+                : Fog == FogMode.Off ? FogMode.Light : FogMode.Off;
+            SaveSetting(ref fog, FogPref, (int)next);
+            ApplyFogQuality();
+        }
+
+        static void ApplyFogQuality() => Shader.SetGlobalFloat(IdLighterFog, IsCustom && Fog == FogMode.Light ? 1f : 0f);
 
         public static bool SkipBattleFog
         {
             get
             {
-                if (!DisableFog || !ZGame.I || ZGame.I.World == null) return false;
+                if (!IsCustom || Fog != FogMode.Off || !ZGame.I || ZGame.I.World == null) return false;
                 var flyover = ZodFlyover.Live;
                 return !(flyover != null && flyover.Active) && !ZodBriefing.BriefingActive && !OzBlueCameo.BriefingActive;
             }
-        }
-
-        static AaMode AntiAliasing
-        {
-            get
-            {
-                if (aaMode.HasValue) return aaMode.Value;
-                int stored = PlayerPrefs.GetInt(AntiAliasingPref, 0);
-                if (!PlayerPrefs.HasKey(AntiAliasingPref))
-                {
-                    int legacy = PlayerPrefs.GetInt(MsaaPref, PlayerPrefs.GetInt(LegacyReduceMsaaPref, 0) != 0 ? 2 : 0);
-                    stored = (int)(legacy == 1 ? AaMode.Smaa : legacy == 2 ? AaMode.Msaa2 : legacy == 4 ? AaMode.Msaa4 : AaMode.Preset);
-                    if (stored != 0)
-                    {
-                        PlayerPrefs.SetInt(AntiAliasingPref, stored);
-                        PlayerPrefs.Save();
-                    }
-                }
-                return (aaMode = stored >= (int)AaMode.Off && stored <= (int)AaMode.Msaa4 ? (AaMode)stored : AaMode.Preset).Value;
-            }
-        }
-
-        public static int MsaaOverride => AntiAliasing switch
-        {
-            AaMode.Preset => 0,
-            AaMode.Msaa2 => 2,
-            AaMode.Msaa4 => 4,
-            _ => 1
-        };
-
-        static AaMode PresetAa()
-        {
-            var pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-            int samples = pipeline ? pipeline.msaaSampleCount : Level == 0 ? 4 : Level == 1 ? 2 : 1;
-            return samples >= 4 ? AaMode.Msaa4 : samples == 2 ? AaMode.Msaa2 : AaMode.Smaa;
-        }
-
-        public static string AntiAliasingName
-        {
-            get
-            {
-                if (AntiAliasing != AaMode.Preset) return AaNames[(int)AntiAliasing];
-                var mode = PresetAa();
-                return mode == AaMode.Smaa ? "SMAA" : AaNames[(int)mode] + " + SMAA";
-            }
-        }
-
-        public static void StepAntiAliasing(int direction)
-        {
-            var current = AntiAliasing == AaMode.Preset ? PresetAa() : AntiAliasing;
-            int next = ((int)current - 1 + (direction < 0 ? 4 : 1)) % 5 + 1;
-            if (AntiAliasing == AaMode.Preset) RenderPipelineManager.beginCameraRendering += ApplyCameraAa;
-            aaMode = (AaMode)next;
-            PlayerPrefs.SetInt(AntiAliasingPref, next);
-            PlayerPrefs.Save();
-            ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
-            Debug.Log($"[OpenZ-VK Graphics] Anti-aliasing: {AntiAliasingName}");
         }
 
         static void ApplyCameraAa(ScriptableRenderContext context, Camera camera)
@@ -147,12 +174,7 @@ namespace OpenZ
                 aaCamera = data;
                 originalCameraAa = data.antialiasing;
             }
-            var wanted = AntiAliasing switch
-            {
-                AaMode.Fxaa => AntialiasingMode.FastApproximateAntialiasing,
-                AaMode.Smaa => AntialiasingMode.SubpixelMorphologicalAntiAliasing,
-                _ => AntialiasingMode.None
-            };
+            var wanted = PostAaModes[PostAa];
             if (data.antialiasing != wanted) data.antialiasing = wanted;
         }
 
@@ -182,41 +204,43 @@ namespace OpenZ
             if (msaaAsset) msaaAsset.msaaSampleCount = originalMsaa;
             msaaAsset = null;
         }
-        static readonly int IdLighterFog = Shader.PropertyToID("_OZLighterVolumetricFog");
-
-        public static bool LighterFog
-        {
-            get => PlayerPrefs.GetInt(LighterFogPref, 0) != 0;
-            set
-            {
-                PlayerPrefs.SetInt(LighterFogPref, value ? 1 : 0);
-                PlayerPrefs.Save();
-                Shader.SetGlobalFloat(IdLighterFog, value ? 1f : 0f);
-                Debug.Log($"[OpenZ-VK Graphics] Lighter volumetric fog: {(value ? "ON" : "OFF")}");
-            }
-        }
         static int level = -1;
-        static RenderPipelineAsset original; static bool originalSaved;
+        static RenderPipelineAsset original;
+        static bool originalSaved;
 
-        public static int Level
+        public static int Selection
         {
             get
             {
-                if (level < 0)
-                {
-                    level = Mathf.Clamp(PlayerPrefs.GetInt(Pref, 0), 0, 2);
-                    int dev = DevQuality(); if (dev >= 0) level = dev;
-                }
-                return level;
+                if (level < 0) level = Mathf.Clamp(PlayerPrefs.GetInt(Pref, 0), 0, 2);
+                return CustomSelected ? CustomSelection : level;
             }
             set
             {
-                level = Mathf.Clamp(value, 0, 2); PlayerPrefs.SetInt(Pref, level); PlayerPrefs.Save();
-                Debug.Log($"[OpenZ Options] graphics quality: {Names[level]} ({Pref} {level}, saved, live)");
+                if (value < 0 || value > CustomSelection || value == Selection) return;
+                bool useCustom = value == CustomSelection;
+                if (!useCustom)
+                {
+                    level = value;
+                    PlayerPrefs.SetInt(Pref, value);
+                }
+                custom = useCustom;
+                PlayerPrefs.SetInt(CustomPref, useCustom ? 1 : 0);
+                PlayerPrefs.Save();
                 Apply();
             }
         }
-        public static string Name => Names[Level];
+
+        public static bool IsCustom => Selection == CustomSelection;
+        // Other systems index the original three render presets. Custom uses High as its base.
+        public static int Level
+        {
+            get => IsCustom ? 0 : Selection;
+            set => Selection = Mathf.Clamp(value, 0, 2);
+        }
+
+        public static string SelectionName(int selection) => selection == CustomSelection ? CustomLabel : Names[selection];
+        public static string Name => SelectionName(Selection);
 
         // (or 0 / 1 / 2) picks the preset for this run; -ozrenderscale 0.5..1 measures a lower render scale (the shipped presets stay 1.0).
         static string DevVal(string a)
@@ -237,7 +261,6 @@ namespace OpenZ
             var r = DevVal("-ozrenderscale");
             return !string.IsNullOrEmpty(r) && float.TryParse(r, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float f) ? Mathf.Clamp(f, 0.5f, 1f) : -1f;
         }
-        public static void Step(int dir) => Level = (Level + (dir < 0 ? 2 : 1)) % 3;
 
         /// <summary>FPS COUNTER: 0 OFF (default), 1 ON, 2 DETAILED (1.3 item 25). Any other saved number reads as OFF.</summary>
         public static int FpsMode
@@ -264,9 +287,9 @@ namespace OpenZ
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot()
         {
+            int dev = DevQuality();
+            if (dev >= 0) { level = dev; custom = false; }
             Apply();
-            RenderPipelineManager.beginCameraRendering -= ApplyCameraAa;
-            if (AntiAliasing != AaMode.Preset) RenderPipelineManager.beginCameraRendering += ApplyCameraAa;
             Application.quitting -= Restore; Application.quitting += Restore;                               // the editor: Play stop puts the project asset back
             var go = new GameObject("OzFpsChip"); Object.DontDestroyOnLoad(go); go.AddComponent<OzFpsChip>();
             go.AddComponent<OzPerfLine>();                                                                  // 1.3 item 25: the per-minute perf line of Player.log (log only, View/OzPerfLine.cs)
@@ -290,12 +313,15 @@ namespace OpenZ
             }
             if (QualitySettings.renderPipeline != want) QualitySettings.renderPipeline = want;
             Shader.SetGlobalFloat(IdSteps, AtmoSteps[l]);
-            Shader.SetGlobalFloat(IdLighterFog, LighterFog ? 1f : 0f);
+            ApplyFogQuality();
+            RenderPipelineManager.beginCameraRendering -= ApplyCameraAa;
+            if (IsCustom) RenderPipelineManager.beginCameraRendering += ApplyCameraAa;
+            else RestoreCameraAa();
             var cur = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             ApplyMsaa(cur);
             float drs = DevRenderScale();
             if (cur && drs > 0f && Mathf.Abs(cur.renderScale - drs) > 0.001f) { cur.renderScale = drs; Debug.Log($"[OpenZ Quality] dev run: render scale {drs:0.##} (session only, -ozrenderscale)"); }
-            Debug.Log($"[OpenZ Quality] {Names[l]}: {(cur ? cur.name : "?")}, MSAA {(cur ? cur.msaaSampleCount : 0)}x, shadows {(cur ? cur.mainLightShadowmapResolution : 0)} / {(cur ? cur.shadowCascadeCount : 0)} cascades / {(cur ? cur.shadowDistance : 0):0} m, fog steps {AtmoSteps[l]:0}, render scale {(cur ? cur.renderScale : 1f):0.##}");
+            Debug.Log($"[OpenZ Quality] {Name}: {(cur ? cur.name : "?")}, MSAA {(cur ? cur.msaaSampleCount : 0)}x, shadows {(cur ? cur.mainLightShadowmapResolution : 0)} / {(cur ? cur.shadowCascadeCount : 0)} cascades / {(cur ? cur.shadowDistance : 0):0} m, fog steps {AtmoSteps[l]:0}, render scale {(cur ? cur.renderScale : 1f):0.##}");
             if (l > 0 || OzLite.Active) OzLite.Apply(l);                                                 // version 1.1, the lighter presets (OzLitePresets.cs): on HIGH this reads one flag and calls nothing
             OzSunSteps.Apply();                                                                            // v1.3 SUN SHADOW STEPS (Options, default 4 = nothing is changed; View/OzWeakPcOptions.cs)
             OzLightRows.ApplyAo();                                                                         // 1.3 item 40 AMBIENT OCCLUSION (Options, default ON = nothing is changed; View/OzLightRows.cs)

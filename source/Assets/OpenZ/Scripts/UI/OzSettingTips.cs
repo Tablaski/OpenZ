@@ -96,9 +96,9 @@ namespace OpenZ
             [OzLightRows.AoLabel] = OzLightRows.AoTip,
             [OzWaterPlayCalm.ReflectionLabel] = OzWaterPlayCalm.ReflectionTip,
             [HeatGuardRuntime.LimitLabel] = HeatGuardRuntime.LimitTip,
-            [OzQuality.LighterFogLabel] = OzQuality.LighterFogTip,
-            [OzQuality.DisableFogLabel] = OzQuality.DisableFogTip,
-            [OzQuality.AntiAliasingLabel] = OzQuality.AntiAliasingTip,
+            [OzQuality.HardwareAaLabel] = OzQuality.HardwareAaTip,
+            [OzQuality.PostAaLabel] = OzQuality.PostAaTip,
+            [OzQuality.FogLabel] = OzQuality.FogTip,
             [OzLightRows.TreesLabel] = OzLightRows.TreesTip,
             [OzLightRows.WrecksLabel] = OzLightRows.WrecksTip,
             [OzLowPicture.Label] = OzLowPicture.Tip,                                       // 1.5 issue 8: 3D PICTURE SHARP / SOFT / SOFTEST (View/OzLowPicture.cs)
@@ -123,12 +123,18 @@ namespace OpenZ
             (OzLightRows.LightestLabel, TabGraphics), (OzLightRows.ShadowsLabel, TabGraphics), (OzLightRows.AoLabel, TabGraphics), (OzLightRows.TreesLabel, TabGraphics), (OzLightRows.WrecksLabel, TabGraphics),   // 1.3 item 40: after MASS BATTLES
             (OzLowPicture.Label, TabGraphics),                                               // 1.5 issue 8: 3D PICTURE, the GRAPHICS tab's last row (a LIGHTEST FOR SLOW PCS row, after WRECKS AND DEBRIS)
             (OzWaterPlayCalm.ReflectionLabel, TabGraphics),
+            (OzQuality.HardwareAaLabel, TabGraphics),
+            (OzQuality.PostAaLabel, TabGraphics),
+            (OzQuality.FogLabel, TabGraphics),
             (HeatGuardRuntime.LimitLabel, TabGraphics),
-            (OzQuality.LighterFogLabel, TabGraphics),
-            (OzQuality.DisableFogLabel, TabGraphics),
-            (OzQuality.AntiAliasingLabel, TabGraphics),
             (OzStrikeGroups.Label, TabAdvanced), (OzTouch.Label, TabAdvanced), (OzTrackpadScroll.Label, TabAdvanced), (PathV3Label, TabAdvanced), (OzOvertake.Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
         };
+        internal static bool IsCustomGraphics(string label) =>
+            label == OzWaterPlayCalm.ReflectionLabel || label == OzQuality.HardwareAaLabel ||
+            label == OzQuality.PostAaLabel || label == OzQuality.FogLabel || label == HeatGuardRuntime.LimitLabel;
+
+        internal static bool Visible(string label) => !IsCustomGraphics(label) || OzQuality.IsCustom;
+
         static int TabRow(string label) { for (int i = 0; i < TabRows.Length; i++) if (TabRows[i].label == label) return i; return -1; }
         /// <summary>The options tab of a row label. A label that is not in the table shows on ADVANCED, so a new row is never lost.</summary>
         public static int TabOf(string label) { int i = TabRow(label); return i >= 0 ? TabRows[i].tab : TabAdvanced; }

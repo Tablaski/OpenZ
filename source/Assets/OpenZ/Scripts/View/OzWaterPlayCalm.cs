@@ -22,7 +22,7 @@ namespace OpenZ
     {
         public const string ReflectionPref = "oz_vk_water_object_reflections";
         public const string ReflectionLabel = "DISABLE WATER OBJECT REFLECTIONS";
-        public const string ReflectionTip = "DISABLE WATER OBJECT REFLECTIONS|Skips reflections of structures and units in the water. Sky reflections, ripples and foam stay visible. Low already skips object reflections.|";
+        public const string ReflectionTip = "DISABLE WATER OBJECT REFLECTIONS|Skips reflections of structures and units in water during battle. This reduces GPU work and can improve FPS. Sky reflections, ripples and foam stay visible.|";
         static bool? objectReflections;
 
         public static bool ObjectReflections
@@ -96,7 +96,7 @@ namespace OpenZ
             float glow = 0f;
             if (lv == OzCity.BridgeGame) { a = Exe14b ? new Vector4(0.6f, 0.6f, 0.4f, 0.3f) : L18Calm; rip = L18Ripple; glow = Exe14b ? 0f : 1f - Mathf.Clamp(L18GlowCap, 0.03f, 3f) / 3f; }   // kit l18_water_subtle_r6
             else if (lv == OzCity.CarPark) { a = L17Calm; rip = L17Ripple; }
-            Vector4 reflection = ObjectReflections ? new Vector4(ObjReflect, ObjReflectBend, 0f, 0f) : Vector4.zero;
+            Vector4 reflection = !OzQuality.IsCustom || ObjectReflections ? new Vector4(ObjReflect, ObjReflectBend, 0f, 0f) : Vector4.zero;
             Put(a, new Vector4(rip, glow, 0f, 0f), reflection);   // kit l18_water_subtle_r6: y = the glow cap (level 18 only, else 0)
         }
 

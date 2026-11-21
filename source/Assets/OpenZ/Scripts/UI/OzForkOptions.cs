@@ -53,8 +53,7 @@ namespace OpenZ
             label == OzBattleOptions.RadarLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
             label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||
-            label == DuelBinaryEventsLabel || label == DuelCompressionLabel || label == OzWaterPlayCalm.ReflectionLabel || label == HeatGuardRuntime.LimitLabel || label == OzQuality.LighterFogLabel ||
-            label == OzQuality.DisableFogLabel || label == OzQuality.AntiAliasingLabel;
+            label == DuelBinaryEventsLabel || label == DuelCompressionLabel || OzSettingTips.IsCustomGraphics(label);
         public static int Compare(string a, string b)
         {
             int group = IsFork(a).CompareTo(IsFork(b));

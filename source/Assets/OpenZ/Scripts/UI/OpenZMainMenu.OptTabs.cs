@@ -18,6 +18,7 @@ namespace OpenZ
         const int RoomyRows = 9;
         const float OptW = 600f;                                                                              // panel units; x optionsScale on the canvas
         int optTab; RectTransform optMainPage;
+        OzGraphicsQualityButtons graphicsQuality;
         readonly List<HudButton> optTabBtns = new List<HudButton>();
 
         /// <summary>BuildOptions: the page for MAIN's fixed controls (difficulty, volume sliders), moved down to clear the tab strip.</summary>
@@ -64,7 +65,8 @@ namespace OpenZ
         void ShowOptTab(int tab)
         {
             optTab = tab; dragging = null;
-            foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab);
+            foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab && OzSettingTips.Visible(t.label));
+            if (tab == OzSettingTips.TabGraphics) graphicsQuality.Refresh();
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
             buildKeyOptions?.Show(tab == OzSettingTips.TabNames.Length);
             for (int i = 0; i < optTabBtns.Count; i++) SetSelected(optTabBtns[i], i == tab);

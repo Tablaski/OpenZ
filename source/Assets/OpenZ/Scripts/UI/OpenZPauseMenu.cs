@@ -35,7 +35,8 @@ namespace OpenZ
 
         sealed class Slider { public RectTransform track; public Image fill, thumb; public OzText value; public string key, bus; public float v, w; public Action<float> apply; }
         readonly List<Slider> sliders = new List<Slider>(); Slider dragging;
-        sealed class Toggle { public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; }
+        OzGraphicsQualityButtons graphicsQuality;
+        sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; }
         readonly List<Toggle> toggles = new List<Toggle>();
         int optTab; readonly List<HudButton> optTabBtns = new List<HudButton>();                             // options tabs (OzSettingTips.TabNames)
         int buildKeysTab;
@@ -194,8 +195,16 @@ namespace OpenZ
             AddToggle(p, toggles.Count, NightShadows.Label, null, null, true);
             { var ns = toggles[toggles.Count - 1]; ns.row.OnClick = c => { NightShadows.Step(c.right || c.shift ? -1 : Arrow(ns)); OzSfx.Ui("ui_tab_switch"); }; ns.row.OnRightClick = c => NightShadows.Step(-1); }
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
-            AddToggle(p, toggles.Count, OzQuality.Label, null, null, true);
-            { var gq = toggles[toggles.Count - 1]; gq.row.OnClick = c => { OzQuality.Step(c.right || c.shift ? -1 : Arrow(gq)); OzSfx.Ui("ui_tab_switch"); }; gq.row.OnRightClick = c => OzQuality.Step(-1); }
+            graphicsQuality = new OzGraphicsQualityButtons(p, w, (button, preset) =>
+            {
+                button.OnClick = _ =>
+                {
+                    OzQuality.Selection = preset;
+                    ShowOptTab(OzSettingTips.TabGraphics);
+                    OzSfx.Ui("ui_tab_switch");
+                };
+            });
+            toggles.Add(new Toggle { row = graphicsQuality.Row, label = OzQuality.Label, tab = OzSettingTips.TabGraphics });
             AddToggle(p, toggles.Count, OzFpsCap.Label, null, null, true);                                  // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
             { var fc = toggles[toggles.Count - 1]; fc.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); fc.row.OnClick = c => { OzFpsCap.Step(c.right || c.shift ? -1 : Arrow(fc)); OzSfx.Ui("ui_tab_switch"); }; fc.row.OnRightClick = c => OzFpsCap.Step(-1); }   // 1.3 item 5: the wide value box, as RESOLUTION
             AddToggle(p, toggles.Count, OzQuality.FpsLabel, null, null, true);
@@ -263,18 +272,28 @@ namespace OpenZ
                 var l8p = toggles[toggles.Count - 1]; l8p.row.OnClick = c => { OzLowPicture.Step(c.right || c.shift ? -1 : Arrow(l8p)); OzSfx.Ui("ui_tab_switch"); }; l8p.row.OnRightClick = c => OzLowPicture.Step(-1);
             }
             AddToggle(p, toggles.Count, OzWaterPlayCalm.ReflectionLabel, () => !OzWaterPlayCalm.ObjectReflections, v => OzWaterPlayCalm.ObjectReflections = !v);
+            AddGraphicsCycle(p, OzQuality.HardwareAaLabel, () => OzQuality.HardwareAaName, OzQuality.StepHardwareAa);
+            AddGraphicsCycle(p, OzQuality.PostAaLabel, () => OzQuality.PostAaName, OzQuality.StepPostAa);
+            AddGraphicsCycle(p, OzQuality.FogLabel, () => OzQuality.FogName, OzQuality.StepFog);
             AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => !HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = !v);
-            AddToggle(p, toggles.Count, OzQuality.LighterFogLabel, () => OzQuality.LighterFog, v => OzQuality.LighterFog = v);
-            AddToggle(p, toggles.Count, OzQuality.DisableFogLabel, () => OzQuality.DisableFog, v => OzQuality.DisableFog = v);
-            AddToggle(p, toggles.Count, OzQuality.AntiAliasingLabel, null, null, true);
-            var msaa = toggles[toggles.Count - 1];
-            msaa.row.OnClick = c => { OzQuality.StepAntiAliasing(c.right || c.shift ? -1 : Arrow(msaa)); OzSfx.Ui("ui_tab_switch"); };
-            msaa.row.OnRightClick = c => OzQuality.StepAntiAliasing(-1);
             AddBehaviorOptions(p);
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle
             foreach (var b in speedBtns) b.Tooltip = OzSettingTips.Speed;
+        }
+
+        void AddGraphicsCycle(RectTransform p, string label, Func<string> name, Action<int> step)
+        {
+            AddToggle(p, toggles.Count, label, null, null, true);
+            var toggle = toggles[toggles.Count - 1];
+            toggle.cycleName = name;
+            toggle.row.OnClick = click =>
+            {
+                step(click.shift ? -1 : Arrow(toggle));
+                OzSfx.Ui("ui_tab_switch");
+            };
+            toggle.row.OnRightClick = _ => step(-1);
         }
 
         void AddSlider(RectTransform p, int row, int col, string label, string key, string bus, Action<float> apply, string tip = null)
@@ -404,7 +423,8 @@ namespace OpenZ
             optTab = tab; dragging = null;
             SetMicrophoneTabVisible(tab == MicrophoneTab);
             buildKeyOptions?.Show(tab == buildKeysTab);
-            foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab);
+            foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab && OzSettingTips.Visible(t.label));
+            if (tab == OzSettingTips.TabGraphics) graphicsQuality.Refresh();
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
             for (int i = 0; i < optTabBtns.Count; i++) if (optTabBtns[i].Selected != (i == tab)) { optTabBtns[i].Selected = i == tab; optTabBtns[i].Refresh(); }
         }
@@ -471,6 +491,7 @@ namespace OpenZ
             post ??= new OzPost("OZ_Pause", -55f, -1.2f, 0.4f, 55);
             canvas.gameObject.SetActive(true);
             optionsRoot.gameObject.SetActiveFast(!showControls); controlsRoot.gameObject.SetActiveFast(showControls);
+            if (optTab == OzSettingTips.TabGraphics) ShowOptTab(optTab);
             if (!showControls && optTab == buildKeysTab) buildKeyOptions?.Refresh();
             string lvl = game.level == "L17" ? "L17 · CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameLabel : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             sub.Set(OzText.Tab($"OPERATION {lvl} · {UnitInfo.Clock(game.World.Time)}"));
@@ -633,7 +654,8 @@ namespace OpenZ
                 if (t.label == OzTouch.Label) { t.value.Set(OzText.Tab($"◀  {OzTouch.ModeName}  ▶")); continue; }
                 if (t.label == OzTrackpadScroll.Label) { t.value.Set(OzText.Tab($"◀  {OzTrackpadScroll.Name}  ▶")); continue; }   // TRACKPAD SCROLL: ZOOM / MOVE MAP
                 if (t.label == OzShuttleOrdersOption.Label) { t.value.Set(OzText.Tab($"◀  {OzShuttleOrdersOption.Name}  ▶")); continue; }   // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY / ANYWHERE
-                if (t.label == OzQuality.Label) { t.value.Set(OzText.Tab($"◀  {OzQuality.Name}  ▶")); continue; }
+                if (t.label == OzQuality.Label) continue;
+                if (t.cycleName != null) { t.value.Set(OzText.Tab($"◀  {t.cycleName()}  ▶")); continue; }
                 if (t.label == OzFogLookOption.Label) { t.value.Set(OzText.Tab($"◀  {OzFogLookOption.Name}  ▶")); continue; }   // 1.4 FOG LOOK
                 if (t.label == OzFpsCap.Label) { t.value.Set(OzText.Tab($"◀  {OzFpsCap.Name}  ▶")); continue; }
                 if (t.label == OzQuality.FpsLabel) { t.value.Set(OzText.Tab($"◀  {OzQuality.FpsName}  ▶")); continue; }   // 1.3 item 25: OFF / ON / DETAILED
@@ -642,7 +664,6 @@ namespace OpenZ
                 if (t.label == OzGfxApi.Label) { t.value.Set(OzText.Tab($"◀  {OzGfxApi.Name}  ▶")); continue; }
                 if (t.label == OzLightRows.TreesLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.TreesName}  ▶")); continue; }   // 1.3 item 40
                 if (t.label == OzLightRows.WrecksLabel) { t.value.Set(OzText.Tab($"◀  {OzLightRows.WrecksName}  ▶")); continue; }
-                if (t.label == OzQuality.AntiAliasingLabel) { t.value.Set(OzText.Tab($"◀  {OzQuality.AntiAliasingName}  ▶")); continue; }
                 if (t.label == OzLowPicture.Label) { t.value.Set(OzText.Tab($"◀  {OzLowPicture.Name}  ▶")); continue; }   // 1.5 issue 8: 3D PICTURE
                 if (t.label == OzOverlapOption.Label) { t.value.Set(OzText.Tab($"◀  {OzOverlapOption.Name}  ▶")); continue; }   // FRIENDLY UNITS OVERLAP: NO / YES
                 if (t.label == OzVehicleSizeOption.Label) { t.value.Set(OzText.Tab($"◀  {OzVehicleSizeOption.Name}  ▶")); continue; }   // VEHICLE SIZE: 60 to 100 %

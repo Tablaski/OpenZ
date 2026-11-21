@@ -4,6 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.32 (22 Nov 2026)
+
+- Graphics — Pick Low, Medium, High or Custom with one click in the main or pause menu. Custom reveals the OpenZ-VK performance options and remembers your choices when you switch presets.
+- Graphics — Set hardware and post-processing anti-aliasing independently. In Custom you can also lighten or turn off volumetric fog, disable water object reflections, and bypass the game's thermal FPS limit. Hover over each setting for help.
+
 ## OpenZ-VK 1.5.31 (22 Nov 2026)
 
 - Skirmish — Pick an OpenZ map or an AI map from its full minimap, and see the selected battlefield in 3D. Bots fill the starting positions automatically. Drag participants between teams or choose Free for All.

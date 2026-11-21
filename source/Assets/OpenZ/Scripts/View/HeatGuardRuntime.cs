@@ -14,7 +14,7 @@ namespace OpenZ
         public static bool TakeMode;
         public const string LimitPref = "oz_vk_thermal_fps_limit";
         public const string LimitLabel = "DISABLE THERMAL FPS LIMIT";
-        public const string LimitTip = "DISABLE THERMAL FPS LIMIT|Uses your selected frame rate limit during play even when the GPU is hot. The GPU's own thermal controls remain active.|";
+        public const string LimitTip = "DISABLE THERMAL FPS LIMIT|OpenZ caps the game at 30 FPS when the NVIDIA GPU reaches 90 °C and restores your selected limit below 85 °C. On skips this cap. NVIDIA GPUs still reduce their clock speed when they get too hot. On is recommended if you want to stay above 30 FPS when possible. Your GPU, your call, bro.|";
         static bool? limitEnabled;
 
         public static bool LimitEnabled
@@ -99,13 +99,14 @@ namespace OpenZ
                 Debug.Log($"[OpenZ] heat guard (take): GPU {t} C -> {(level == 1 ? "45 fps" : "60 fps")}");
                 return;
             }
-            // 60 fps cap, the heat is only logged; one emergency cap at 90 C (30 fps, back to 60 below 85 C)
-            int want = !LimitEnabled || t < 85 ? 0 : t >= 90 ? 2 : level;
-            if (want == level) return;
-            level = want;
-            HeldFps = level == 2 ? 30 : 0;
+            // Keep tracking the temperature band while bypassed so the original guard resumes correctly.
+            level = t >= 90 ? 2 : t < 85 ? 0 : level;
+            bool bypass = OzQuality.IsCustom && !LimitEnabled;
+            int held = level == 2 && !bypass ? 30 : 0;
+            if (HeldFps == held) return;
+            HeldFps = held;
             OzFpsCap.ApplyLimit(HeldFps);                                                      // 1.3 item 5: the same 30 on UNLIMITED (VSYNC) (vsync off while it holds), the player's own limit (or vsync) back below 85 C
-            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(level == 2 ? "EMERGENCY 30 fps" : GameBoot.CapFps > 0 ? GameBoot.CapFps + " fps" : OzFpsCap.Vsync ? "UNLIMITED (VSYNC) again" : "no limit")} (render scale stays {baseScale})");
+            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(HeldFps > 0 ? "EMERGENCY 30 fps" : GameBoot.CapFps > 0 ? GameBoot.CapFps + " fps" : OzFpsCap.Vsync ? "UNLIMITED (VSYNC) again" : "no limit")} (render scale stays {baseScale})");
         }
 
         void OnApplicationQuit()

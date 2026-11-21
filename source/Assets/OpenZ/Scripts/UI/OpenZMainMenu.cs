@@ -342,7 +342,20 @@ namespace OpenZ
             AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, value => OzBattleOptions.SoloDamage = value);
             AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, value => OzBattleOptions.SoloShake = value);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
-            AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
+            int labelHotIndex = hots.Count;
+            graphicsQuality = new OzGraphicsQualityButtons(p, OptW - 2 * OzLayout.OptX, (button, preset) =>
+            {
+                AddHot(button.Rt, View.Main, () =>
+                {
+                    OzQuality.Selection = preset;
+                    ShowOptTab(OzSettingTips.TabGraphics);
+                }, null, button, "ui_tab_switch", Side.Options);
+                optTips[button.Rt] = button.Tooltip;
+            });
+            toggles.Add(new Toggle { row = graphicsQuality.Row, label = OzQuality.Label, tab = OzSettingTips.TabGraphics });
+            // The row label shows the same tooltip. Register it below the four clickable children.
+            hots.Insert(labelHotIndex, new Hot { rt = graphicsQuality.Row.Rt, view = View.Main, side = Side.Options, sfx = "" });
+            optTips[graphicsQuality.Row.Rt] = OzQuality.Tip;
             AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 40 / 60 / UNLIMITED (VSYNC) (oz_fps_cap, default 60, saved and applied at once; 1.3 item 5)
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // 1.3 item 5: "UNLIMITED (VSYNC)" is wider than the 170 u of a cycle row
             AddCycle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsName, OzQuality.FpsStep);
@@ -472,6 +485,7 @@ namespace OpenZ
             optCpuHint.Set(OpenZDifficulty.Hint(d));
             foreach (var t in toggles)
             {
+                if (t.label == OzQuality.Label) continue;
                 if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab(OzSettings.ResolutionName)); continue; }   // 1.5 issue 8: the value alone, no arrows (the mouse button sets the way: OzSettings.ResolutionClick)
                 if (t.cycleName != null) { t.value.Set(OzText.Tab($"◀  {t.cycleName()}  ▶")); continue; }
                 if (t.scale) { int pct = Mathf.RoundToInt(OzText.SavedScale * 100); t.value.Set(OzText.Tab($"◀  {pct}%  ▶")); continue; }

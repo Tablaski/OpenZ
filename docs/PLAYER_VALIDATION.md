@@ -1,5 +1,13 @@
 # Player validation record
 
+## OpenZ-VK 1.5.32 Graphics Custom
+
+- Pending in a compiled game. In the main menu and in solo and multiplayer pause menus, select all four presets at common and narrow aspect ratios. Verify that all four buttons remain visible, that their tooltips and selection styles work, and that the five violet rows appear only in Custom.
+- On Bridge Game, verify hardware Off, MSAA ×2 and ×4 independently of post-processing Off, FXAA and SMAA. Confirm combined MSAA and post-processing, switching from one mode to another live, and restoring each OpenZ preset's render settings. Check DX11, DX12 and the Mac render-scale path when available.
+- Compare Light and Off volumetric fog near night lamps and smoke. Verify that fog of war and briefings retain their own settings. Toggle water object reflections by a bridge, verify that the mirror pass stops, and check that preset selection restores the original water behavior.
+- Use thermal sensor readings or a controlled QA temperature source to verify the 90 °C and 85 °C thresholds, the 30 FPS cap and VSync, toggling the bypass while capped, and returning to an OpenZ preset while still in the thermal band.
+- Restart with each preset and check saved Custom settings. For older profiles, confirm that explicit anti-aliasing settings, fog choices, reflection and thermal toggles carry over. Custom uses High as its rendering base, so existing Medium and Low users with overrides should verify both the migrated Custom profile and their original preset.
+
 ## OpenZ-VK 1.5.31 Skirmish lobby
 
 - The game scripts compiled against Unity 6000.3.27f2 references, and all 7,647 core and real-map simulation checks passed. The Unity editor batch run did not finish script import because its licensing client failed to connect.

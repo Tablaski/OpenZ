@@ -30,11 +30,6 @@ static class AiMapChecks
         reject(() => new DuelRules { Map = "SM18" }.Validate(), "Unbalanced solo Bridge Game cannot bypass duel selection");
         check(OzAiMapCatalog.All.Where(m=>m.Solo&&m.Balanced).All(m=>m.SoloException&&(m.Number==21||m.Number==27)),"Fixed solo files limited to approved exceptions");
         check(OzAiMapCatalog.Select(true,"Z EXPANSION","arctic").Select(m=>m.Number).SequenceEqual(new[]{27,28,29}),"Arctic expansion filtering and numeric order");
-        var ballermans = OzAiMapCatalog.Find("SMBallermansMapV3");
-        check(ballermans?.Experimental == true && !ballermans.Balanced
-            && OzAiMapCatalog.Select(true, OzAiMap.ExperimentalGroup, "city").Contains(ballermans)
-            && OzAiMapCatalog.Select(false, OzAiMap.ExperimentalGroup, "city").Contains(ballermans),
-            "Ballerman's map is experimental in both solo and duel City selections");
         foreach(var group in OzAiMapCatalog.All.Where(m=>m.Number>0).GroupBy(m=>m.Number))
         {
             var duel=group.Single(m=>m.Duel);
@@ -55,13 +50,6 @@ static class AiMapChecks
             var world=ZWorld.Create(settings,json,1935);
             check(world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Red)==1&&world.Objects.Count(o=>o.IsFort&&o.Owner==Team.Blue)==1,entry.Id+": two-team fort ownership");
             CheckNeutralMechs(entry.Id, settings, json, world, check);
-            if (entry.Id == "SMBallermansMapV3")
-            {
-                var fortZones = world.Objects.Where(o => o.IsFort).Select(o => o.ZoneIndex).ToHashSet();
-                var flagZones = world.Flags.Select(o => o.ZoneIndex).ToArray();
-                check(flagZones.OrderBy(i => i).SequenceEqual(Enumerable.Range(0, world.Zones.Count).Where(i => !fortZones.Contains(i))),
-                    entry.Id + ": each neutral territory has one flag outside the starting fort zones");
-            }
             if(!entry.Duel) { reject(()=>new DuelRules{Map=entry.Id}.Validate(),entry.Id+": solo-only original cannot bypass duel selection"); continue; }
             var rules=new DuelRules{Map=entry.Id,Common=DuelMissionDefaults.Create()}; rules.Validate();
             DuelMissionDefaults.ApplyOutsidePreset(rules, new[] { "light", "", "", "" });

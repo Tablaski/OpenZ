@@ -966,23 +966,6 @@
       "width": 80,
       "height": 116,
       "objects": 420
-    },
-    {
-      "id": "SMBallermansMapV3",
-      "file": "vk_ballermans_map.map",
-      "name": "Ballerman's map",
-      "world": "city",
-      "number": 0,
-      "balanced": false,
-      "solo": true,
-      "duel": true,
-      "soloException": false,
-      "nameVerified": true,
-      "experimental": true,
-      "sha256": "9fb7bf012dce6ba4fac80e54d6417ad212c469d89b151a4a61fb3ce379de6e1b",
-      "width": 68,
-      "height": 80,
-      "objects": 87
     }
   ]
 }

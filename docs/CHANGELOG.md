@@ -4,6 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
 
+## OpenZ-VK 1.5.29 (21 Nov 2026)
+
+- Solo — Only the selected AI map plays a 3D preview with a minimap overlay. Other cards show a static view of the entire battlefield.
+- Solo + 1 vs 1 — Removed the Experimental category and its map from AI Maps.
+
 ## OpenZ-VK 1.5.28 (21 Nov 2026)
 
 - Graphics — Choose Off, FXAA, SMAA, MSAA 2x or MSAA 4x independently of resolution and graphics quality. The tooltip explains each mode and its relative GPU cost.
@@ -165,10 +170,6 @@ Invite a friend to a 1 vs 1 duel with a magic link, try optional production rule
 ## OpenZ-VK 0.2.37 (18 Nov 2026)
 
 - Radar fog turns terrain outside your vision monochrome, with occasional brief signal interference. Last known enemy positions stay marked until your units can check them.
-
-## OpenZ-VK 0.2.36 (18 Nov 2026)
-
-- **Ballerman's map** is available under **AI Maps → Experimental** in solo and 1 vs 1. Fight through a City battlefield with two forts, six bridges and roads winding around the canals.
 
 ## OpenZ-VK 0.2.35 (18 Nov 2026)
 

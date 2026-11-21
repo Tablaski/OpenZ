@@ -59,7 +59,7 @@ namespace OpenZ
             }
             gallery.root=go.GetComponent<RectTransform>(); gallery.Build();
         }
-        public static OzLevelDef Definition(OzAiMap map) => new OzLevelDef(map.Id,map.Scene,map.Experimental ? "EXP" : map.ForkOriginal ? "VK" : map.Number > 0 ? map.Number.ToString("00") : "MP",map.Name.ToUpperInvariant(),map.World.ToUpperInvariant()+" · "+(map.Experimental ? OzAiMap.ExperimentalGroup : "AI MAP"),"", "Capture the flags. Break into the enemy fort.","Capture the flags. Break into the enemy fort.",new[]{map.Group,map.World.ToUpperInvariant(),map.Variant});
+        public static OzLevelDef Definition(OzAiMap map) => new OzLevelDef(map.Id,map.Scene,map.ForkOriginal ? "VK" : map.Number > 0 ? map.Number.ToString("00") : "MP",map.Name.ToUpperInvariant(),map.World.ToUpperInvariant()+" · "+"AI MAP","", "Capture the flags. Break into the enemy fort.","Capture the flags. Break into the enemy fort.",new[]{map.Group,map.World.ToUpperInvariant(),map.Variant});
         public static OzLevelDef Definition(string id) => OzAiMapCatalog.Find(id) is OzAiMap map ? Definition(map) : OzLevelDef.All.FirstOrDefault(d=>d.Id==id);
         void Build()
         {
@@ -76,8 +76,8 @@ namespace OpenZ
             InlineTitle(panel,"Gallery title",solo ? "AI MAPS · SOLO" : entries?.FirstOrDefault()?.IsOfficial == true ? "OPENZ MAPS" : "AI MAPS · MULTIPLAYER",24,65,1400,44,30);
             Button(panel,"CLOSE",1510,20,220,Close);
             var groups = solo
-                ? new[] { "Z ORIGINAL", "Z EXPANSION", "OPENZ-VK", OzAiMap.ExperimentalGroup }
-                : new[] { "Z ORIGINAL", "Z EXPANSION", "MULTIPLAYER", "OPENZ", OzAiMap.ExperimentalGroup };
+                ? new[] { "Z ORIGINAL", "Z EXPANSION", "OPENZ-VK" }
+                : new[] { "Z ORIGINAL", "Z EXPANSION", "MULTIPLAYER", "OPENZ" };
             float tabStep = Mathf.Min(420, 1726f / groups.Length);
             if (entries == null && (solo || starts == 2))
                 for(int i=0;i<groups.Length;i++) { string value=groups[i]; Button(panel,value,24+i*tabStep,118,tabStep-20,()=>{group=value;scrollPosition=1;Build();},group==value); }

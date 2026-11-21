@@ -52,4 +52,3 @@
 
 | Map | World | Solo | 1 vs 1 |
 | --- | --- | --- | --- |
-| Ballerman's map | City | Yes | Yes |

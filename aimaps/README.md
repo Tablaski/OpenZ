@@ -5,13 +5,11 @@ map additions without downloading another full OpenZ resource archive.
 `source/Packages/manifest.json` references it directly; there is no copy or
 installation script, second Unity project, or Git LFS requirement.
 
-The catalog offers 33 solo and 45 AI map choices for 1v1. **Ballerman's map**
-appears in Experimental in both selectors. Its reconstructed City layout is
-stored as `Sources~/maps/vk_ballermans_map.map` and converted through the V3
-City profile. The four restored OpenZ missions are available in the official campaign
+The catalog offers 31 solo and 44 AI map choices for 1v1. The four restored OpenZ missions are available in the official campaign
 and the OpenZ tab of the lobby gallery.
 
-- Solo uses the OpenZ mission carousel with looping 3D previews and the AI stamp.
+- Solo uses the OpenZ mission carousel with a looping 3D preview and minimap on the selected map.
+  Other cards show the full map as a still. All AI cards carry the AI stamp.
 - The 1v1 gallery provides world filters, numeric/name/world sorting, a looping
   video for the selected map and a larger tactical minimap. Guests can inspect
   maps while the host applies the shared selection.

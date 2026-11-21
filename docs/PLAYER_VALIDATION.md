@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.29 AI Maps
+
+- Pending in a compiled game. Open solo AI Maps and change the selection via mouse and keyboard. Verify that only the selected card plays its preview, the minimap disappears from the previous card, and unselected cards display the entire battlefield.
+- Verify that the Experimental category is absent from solo and the 1 vs 1 gallery.
+
 ## OpenZ-VK 1.5.28 anti-aliasing modes
 
 - Pending manual checks: compare the five anti-aliasing modes on Bridge Game at 4K High. Verify off, FXAA, SMAA and both MSAA modes run independently. Check the tooltip in both menus, live switching, saved choices, and the fresh-install High preset.
@@ -179,12 +184,6 @@
 
 - In a 1 vs 1 with Radar Loss set to Fog of War, check the boundary between controlled and neutral territory. Check that signal interference is brief and stays within obscured ground.
 - Watch hidden robots move beyond their last known positions. Advance an allied scout and verify that the old marks disappear when inspected and the robots appear again when they come into range.
-
-## OpenZ-VK 0.2.36 Ballerman's map
-
-- The 6,680 simulation checks passed, including both starting forts, the neutral territory flags and bridge damage and repair. Unity Play Mode verified the Experimental selectors and the scene registration.
-- In a compiled game, deploy from the solo Experimental selector, then return to mission selection and verify that the same map stays selected.
-- In 1 vs 1, select the map from Experimental, confirm the guest sees it, and complete a match. Check fort approaches, starting-army placement, flag access and bridge damage and repair.
 
 ## OpenZ-VK 0.2.35 combat and duel controls
 

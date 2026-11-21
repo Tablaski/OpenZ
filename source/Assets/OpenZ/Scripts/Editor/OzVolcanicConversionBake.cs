@@ -177,10 +177,6 @@ namespace OpenZ.EditorTools
             if (map.planet == "city")
             {
                 AddCityOutskirts(scene, map, environment.transform);
-                // The Car Park backdrop overlaps this smaller board.
-                if (id == "SMBallermansMapV3")
-                    foreach (var item in scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<Transform>(true)))
-                        if (item.name == "OUT3_Ruins" || item.name == "OUT3_Quays") item.gameObject.SetActive(false);
             }
             var terrain = map.planet == "volcanic" ? environment.AddComponent<OzVolcanicConversionTerrain>()
                 : environment.AddComponent<OzConversionTerrainV2>();

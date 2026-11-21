@@ -213,9 +213,6 @@ EditorBuildSettings:
     path: Packages/org.openz.aimaps/Scenes/SMChillyWillyV2_Converted.unity
     guid: 5750836eec8b52846ac6a7d9455fe848
   - enabled: 1
-    path: Packages/org.openz.aimaps/Scenes/SMBallermansMapV3_Converted.unity
-    guid: 6302ebc2285b14f4cab3d3a53398b060
-  - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SMP03M01_Converted.unity
     guid: 87fd3157036091e46ac685cd1832546a
   - enabled: 1

@@ -74,7 +74,7 @@ namespace OpenZ
 
         sealed class Card
         {
-            public RectTransform rt, imgRt; public CanvasGroup cg; public RawImage poster, live, mini; public Image glow, frameN, frameH, desat, progTrack, progFill; public CanvasGroup previewChip;
+            public RectTransform rt, imgRt, miniOverlay; public CanvasGroup cg; public RawImage poster, live, mini; public Image glow, frameN, frameH, desat, progTrack, progFill; public CanvasGroup previewChip;
             public float x, y, w, imgH; public int index;
         }
         Card[] cards;
@@ -108,7 +108,7 @@ namespace OpenZ
             string last = PlayerPrefs.GetString(PrefLevel, "L02");
             openedWithSelect = PlayerPrefs.GetInt(PrefOpenSelect, 0) == 1;
             var lastAiMap = openedWithSelect ? OzAiMapCatalog.Find(last) : null;
-            SetCampaignLevels(lastAiMap?.Solo == true, lastAiMap?.Solo == true && lastAiMap.Experimental);
+            SetCampaignLevels(lastAiMap?.Solo == true);
             focusCard = openedWithSelect ? Mathf.Max(0, Array.FindIndex(levels, l => l.Id == last)) : 0;   // a fresh menu opens the battlefield row at the left, on its first card; back from a level it stays on that level
             if (openedWithSelect) { PlayerPrefs.DeleteKey(PrefOpenSelect); PlayerPrefs.Save(); }
         }
@@ -726,7 +726,7 @@ namespace OpenZ
         {
             var p = selectRoot;
             Hud.Label(p, "Eyebrow", "SELECT OPERATION", 12, OzUi.Amber, 0.3f).At(OzMenuLayout.SelEyebrowX, OzMenuLayout.SelEyebrowY);
-            Hud.Label(p, "Title", experimentalCampaign ? "AI MAPS · EXPERIMENTAL" : aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
+            Hud.Label(p, "Title", aiCampaign ? "AI MAPS" : "CHOOSE YOUR BATTLEFIELD", OzMenuLayout.SelTitleSize, OzUi.Ink, -0.005f).At(OzMenuLayout.SelTitleX, OzMenuLayout.SelTitleY, OzH.L, false, 1100);
             var br = OzMenuLayout.Back;
             backBtn = HudButton.Make(p, "Back", "BACK", new Vector2(br.w, br.h), HudButtonKind.Large, 13, 0.16f, HudButtonStyle.Normal, true, OzH.L);
             backBtn.Rt.Place(br);
@@ -737,13 +737,6 @@ namespace OpenZ
 
             int n = levels.Length;                                                                           // 1.3 item 30: the places come from OzLevelCarousel (UI/OzLevelCarousel.cs): up to three levels the 1.2 row, unchanged; more: today's cards in a carousel
             var slots = OzLevelCarousel.Place(n, CW);
-            if (experimentalCampaign && n <= 2)
-                for (int i = 0; i < n; i++)
-                {
-                    // Short rows otherwise start behind the AI Maps controls.
-                    slots[i].y += 68;
-                    slots[i].ih -= 68;
-                }
             var cardParent = BuildCarousel(p, slots);                                                    // the carousel's window and strip (UI/OpenZMainMenu.Carousel.cs); off: the screen's root, as 1.2
             for (int i = 0; i < n; i++) cards[i] = BuildCard(cardParent, i, slots[i].x, slots[i].y, slots[i].w, slots[i].ih);
             BuildCarouselControls(p);                                                                        // 1.3 item 30: the < and > buttons and the page bars (off: nothing)
@@ -795,11 +788,13 @@ namespace OpenZ
             float mw = OzMenuLayout.CardMiniWell, mm = OzMenuLayout.CardMiniMargin, mi = OzMenuLayout.CardMiniInset;
             if (infos[i].Mini != null)
             {
-                Hud.Kit(c.rt, "MiniWell", "Panels/well_6", new OzRect(w - mm - mw, 22, mw, mw), OzKit.Available ? (Color?)null : OzUi.GM950);
+                c.miniOverlay = Hud.Node("Minimap overlay", c.rt).Place(new OzRect(0, 0, w, ih));
+                c.miniOverlay.gameObject.SetActive(!aiCampaign);
+                Hud.Kit(c.miniOverlay, "MiniWell", "Panels/well_6", new OzRect(w - mm - mw, 22, mw, mw), OzKit.Available ? (Color?)null : OzUi.GM950);
                 float side = mw - 2 * mi, tw = infos[i].Width, th = infos[i].Height, s = side / Mathf.Max(tw, th);
-                var mr = Hud.Node("Mini", c.rt).Place(new OzRect(w - mm - mw + mi + (side - tw * s) * 0.5f, 22 + mi + (side - th * s) * 0.5f, tw * s, th * s));
+                var mr = Hud.Node("Mini", c.miniOverlay).Place(new OzRect(w - mm - mw + mi + (side - tw * s) * 0.5f, 22 + mi + (side - th * s) * 0.5f, tw * s, th * s));
                 c.mini = mr.gameObject.AddComponent<RawImage>(); c.mini.texture = infos[i].Mini; c.mini.raycastTarget = false;
-                var ov = Hud.Kit(c.rt, "MiniGlass", "Minimap/mm_screen_overlay", new OzRect(w - mm - mw + mi, 22 + mi, side, side), null, Image.Type.Simple);
+                var ov = Hud.Kit(c.miniOverlay, "MiniGlass", "Minimap/mm_screen_overlay", new OzRect(w - mm - mw + mi, 22 + mi, side, side), null, Image.Type.Simple);
                 ov.enabled = OzKit.GetSprite("Minimap/mm_screen_overlay") != null;
             }
             if (aiCampaign) OzAiMapBadge.Stamp(c.rt, w);
@@ -851,7 +846,7 @@ namespace OpenZ
             cpuHint.Set(OzDeployBar.CpuHint(pick));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
             RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips
-            if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set(experimentalCampaign ? "DEPLOY" : "DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
+            if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set("DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
             if (deployFocus.enabled) deployFocus.color = OzUi.A(Color.white, kbMode && view == View.Select ? 0.55f + 0.45f * Mathf.Sin(OzMotion.Now * 4f) * (OzMotion.Reduced ? 0f : 1f) : 0f);
             if (errorUntil > 0 && OzMotion.Now > errorUntil) { errorLine.Set(""); errorUntil = 0; }
         }
@@ -954,6 +949,11 @@ namespace OpenZ
         {
             if (aiCampaign && view == View.Select)
             {
+                if (bgLevel >= 0 && bgLevel != to)
+                {
+                    previews[bgLevel].Pause();
+                    aiPreviewVisible[bgLevel] = false;
+                }
                 bgLevel = to;
                 bgFrom = -1;
                 bgWaitFrame = false;
@@ -1297,14 +1297,23 @@ namespace OpenZ
                 c.previewChip.alpha = previewAny(i) ? e : 0f;                                             // a level without a picture or clip shows no PREVIEW chip
                 // image: poster at 72 % brightness, 55 % saturation (grey wash) until hovered; the clip fades in over it
                 bool showLive = p.ShowingVideo && (aiCampaign ? aiPreviewVisible[i] : on && bgLevel == i);
-                cardLiveK[i] = Mathf.MoveTowards(cardLiveK[i], showLive ? 1f : 0f, dt / 0.3f);
+                if (aiCampaign && c.miniOverlay) c.miniOverlay.gameObject.SetActive(showLive);
+                cardLiveK[i] = aiCampaign && !on ? 0f : Mathf.MoveTowards(cardLiveK[i], showLive ? 1f : 0f, dt / 0.3f);
                 var still = p.Poster != null ? p.Poster : (p.VideoOk && p.Player.frame >= 0 ? (Texture)p.Frame : null);
                 float ca = (float)c.w / Mathf.Max(1f, c.imgH), br = Mathf.Lerp(0.72f, 1f, Mathf.Max(e, 0.55f * pk));
                 if (still != null)
                 {
                     c.poster.texture = still;
                     var cov = OzLevelPreview.Cover((float)still.width / Mathf.Max(1, still.height), ca);
-                    c.poster.uvRect = on && !p.VideoOk ? OzLevelPreview.KenBurns(cov, OzMotion.Now, i * 2.3f) : cov;   // no clip: the still pans (animated preview fallback)
+                    if (aiCampaign)
+                    {
+                        float aspect = (float)still.width / still.height;
+                        float width = Mathf.Min(c.w, c.imgH * aspect);
+                        float height = width / aspect;
+                        c.poster.rectTransform.Place(new OzRect((c.w - width) * 0.5f, (c.imgH - height) * 0.5f, width, height));
+                        cov = new Rect(0, 0, 1, 1);
+                    }
+                    c.poster.uvRect = !aiCampaign && on && !p.VideoOk ? OzLevelPreview.KenBurns(cov, OzMotion.Now, i * 2.3f) : cov;   // no clip: the still pans (animated preview fallback)
                     c.poster.color = new Color(br, br, br, 1f);
                     c.poster.enabled = true;
                 }

@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.21 building outline performance
+
+- Source checkpoint `51df3903` compiled successfully for Windows in release mode. On Desert P08M01 with seven Normal bots, 1080p Low and DX12, the first 40-second window reported 20.2 fps and a 122 ms 99th-percentile frame. Its final frames coincided with returning to the main menu, so the window is provisional. The preceding engine summary reported 3.30 ms of hover per frame, compared with 8.78 ms in the corresponding 1.5.20 summary.
+- The compiled game was closed through the menus before the remaining two windows and the cursor comparison. Pending checks include the full benchmark and outline parity while moving, zooming, selecting buildings and entering first person.
+
 ## OpenZ-VK 1.5.20 rock-heavy map performance
 
 - Source checkpoint `b6a11bef` passed 7,714 core and real-map simulation checks. The two fixed-seed seven-bot simulations matched the 1.5.18 fingerprints, bot-order counts and A* counts after 4,500 ticks on Desert P08M01 and Hunters. Concurrent build work makes the headless timing measurements unsuitable for comparison.

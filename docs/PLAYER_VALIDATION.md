@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.26 graphics performance options
+
+- Pending compiled-game checks: compare GPU and main-thread time at 4K High on Bridge Game by day and night with each option switched independently. Check that the original fog returns immediately, briefings retain their atmosphere, MSAA restores across preset changes, new profiles show every fork performance toggle off, and existing thermal, reflection and fog choices carry over. The fog switch skips the volumetric calculation and smoke distance pass during play. The shared renderer still performs its fullscreen color copy.
+
 ## OpenZ-VK 1.5.25 unit presentation performance
 
 - Pending compiled-game checks: compare main-thread timing with 1.5.24 at 1080p High on official Bridge Game and on Desert P08M01 with seven bots. Verify unit placement around walls, wrecks and factory exits, including moving vehicles and turret-mounted cannons.

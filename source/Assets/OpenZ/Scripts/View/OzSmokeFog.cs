@@ -59,7 +59,7 @@ namespace OpenZ
         static void Begin(ScriptableRenderContext ctx, Camera cam)
         {
             Shader.SetGlobalFloat(IdOn, 0f);                                                     // every camera starts with the fog pass as before
-            if (!On || !Serves(cam)) { Skipped++; return; }
+            if (!On || OzQuality.SkipBattleFog || !Serves(cam)) { Skipped++; return; }
             ScriptableRenderer r = null;
             if (cam.TryGetComponent<UniversalAdditionalCameraData>(out var d)) r = d.scriptableRenderer;
             else if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset a) r = a.scriptableRenderer;

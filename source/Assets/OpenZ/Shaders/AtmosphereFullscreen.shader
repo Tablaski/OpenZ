@@ -201,6 +201,11 @@ Shader "OpenZ/AtmosphereFullscreen"
             half4 Frag(Varyings input) : SV_Target
             {
                 float2 uv = input.texcoord;
+                [branch] if (_AtmoEnabled < 0.5 && _ShimmerAmount <= 0.0)
+                {
+                    half4 source = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
+                    return half4(source.rgb, _AtmoKeepAlpha > 0.5 ? source.a : 1);
+                }
                 float rawDepth = SampleSceneDepth(uv);
                 float3 posWS = ComputeWorldSpacePosition(uv, rawDepth, UNITY_MATRIX_I_VP);
                 float3 cam = _WorldSpaceCameraPos;

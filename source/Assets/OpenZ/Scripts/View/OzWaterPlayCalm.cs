@@ -21,8 +21,8 @@ namespace OpenZ
     public sealed class OzWaterPlayCalm : MonoBehaviour
     {
         public const string ReflectionPref = "oz_vk_water_object_reflections";
-        public const string ReflectionLabel = "WATER OBJECT REFLECTIONS";
-        public const string ReflectionTip = "WATER OBJECT REFLECTIONS|Turn off reflections of structures and units in the water to reduce rendering work in High and Medium. Sky reflections, ripples and foam stay visible. Low already skips object reflections.|";
+        public const string ReflectionLabel = "DISABLE WATER OBJECT REFLECTIONS";
+        public const string ReflectionTip = "DISABLE WATER OBJECT REFLECTIONS|Skips reflections of structures and units in the water. Sky reflections, ripples and foam stay visible. Low already skips object reflections.|";
         static bool? objectReflections;
 
         public static bool ObjectReflections

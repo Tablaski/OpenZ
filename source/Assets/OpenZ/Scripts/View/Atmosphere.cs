@@ -130,7 +130,7 @@ namespace OpenZ
             float midday = 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.10f, 0.22f, Mathf.Min(t, 1 - t)));
             Color amb = RenderSettings.ambientEquatorColor.linear * 0.8f;
 
-            Shader.SetGlobalFloat(IdEnabled, 1);
+            Shader.SetGlobalFloat(IdEnabled, OzQuality.SkipBattleFog ? 0f : 1f);
             Shader.SetGlobalColor(IdAmbient, amb);
             Shader.SetGlobalFloat(IdBase, 0f);
             Shader.SetGlobalFloat(IdMaxDist, 480f);

@@ -13,8 +13,8 @@ namespace OpenZ
         /// <summary></summary>
         public static bool TakeMode;
         public const string LimitPref = "oz_vk_thermal_fps_limit";
-        public const string LimitLabel = "THERMAL FPS LIMIT";
-        public const string LimitTip = "THERMAL FPS LIMIT|On caps normal play at 30 FPS at 90 °C until the GPU cools below 85 °C. Off uses your selected frame rate limit. The GPU's own thermal controls remain active.|";
+        public const string LimitLabel = "DISABLE THERMAL FPS LIMIT";
+        public const string LimitTip = "DISABLE THERMAL FPS LIMIT|Uses your selected frame rate limit during play even when the GPU is hot. The GPU's own thermal controls remain active.|";
         static bool? limitEnabled;
 
         public static bool LimitEnabled

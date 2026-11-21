@@ -40,7 +40,68 @@ namespace OpenZ
         public const string LighterFogPref = "oz_vk_lighter_volumetric_fog";
         public const string LighterFogLabel = "LIGHTER VOLUMETRIC FOG";
         public const string LighterFogTip = "LIGHTER VOLUMETRIC FOG|Reduces the detail of fog lighting and light shafts. The 3D resolution, object shadows and fog of war retain their usual settings. Off uses the selected graphics preset's full fog quality.|";
+        public const string DisableFogPref = "oz_vk_disable_volumetric_fog";
+        public const string DisableFogLabel = "DISABLE VOLUMETRIC FOG";
+        public const string DisableFogTip = "DISABLE VOLUMETRIC FOG|Skips volumetric mist and its light shafts during a battle, even if Lighter Volumetric Fog is on. Fog of war is unaffected.|";
+        public const string ReduceMsaaPref = "oz_vk_reduce_msaa";
+        public const string ReduceMsaaLabel = "LIMIT MSAA TO 2X";
+        public const string ReduceMsaaTip = "LIMIT MSAA TO 2X|Limits multisample anti-aliasing to 2x at the selected resolution. Presets that already use 2x or less keep their own setting.|";
         static readonly int IdSteps = Shader.PropertyToID("_AtmoSteps");
+        static bool? disableFog, reduceMsaa;
+        static UniversalRenderPipelineAsset msaaAsset;
+        static int originalMsaa;
+
+        public static bool DisableFog
+        {
+            get => disableFog ??= PlayerPrefs.GetInt(DisableFogPref, 0) != 0;
+            set
+            {
+                disableFog = value;
+                PlayerPrefs.SetInt(DisableFogPref, value ? 1 : 0);
+                PlayerPrefs.Save();
+                Debug.Log($"[OpenZ-VK Graphics] Disable volumetric fog: {(value ? "ON" : "OFF")}");
+            }
+        }
+
+        public static bool SkipBattleFog
+        {
+            get
+            {
+                if (!DisableFog || !ZGame.I || ZGame.I.World == null) return false;
+                var flyover = ZodFlyover.Live;
+                return !(flyover != null && flyover.Active) && !ZodBriefing.BriefingActive && !OzBlueCameo.BriefingActive;
+            }
+        }
+
+        public static bool ReduceMsaa
+        {
+            get => reduceMsaa ??= PlayerPrefs.GetInt(ReduceMsaaPref, 0) != 0;
+            set
+            {
+                reduceMsaa = value;
+                PlayerPrefs.SetInt(ReduceMsaaPref, value ? 1 : 0);
+                PlayerPrefs.Save();
+                ApplyMsaa(GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset);
+                Debug.Log($"[OpenZ-VK Graphics] Limit MSAA to 2x: {(value ? "ON" : "OFF")}");
+            }
+        }
+
+        static void ApplyMsaa(UniversalRenderPipelineAsset pipeline)
+        {
+#if !UNITY_STANDALONE_OSX || UNITY_EDITOR
+            if (msaaAsset && (msaaAsset != pipeline || !ReduceMsaa)) RestoreMsaa();
+            if (!ReduceMsaa || !pipeline || msaaAsset || pipeline.msaaSampleCount <= 2) return;
+            msaaAsset = pipeline;
+            originalMsaa = pipeline.msaaSampleCount;
+            pipeline.msaaSampleCount = 2;
+#endif
+        }
+
+        static void RestoreMsaa()
+        {
+            if (msaaAsset) msaaAsset.msaaSampleCount = originalMsaa;
+            msaaAsset = null;
+        }
         static readonly int IdLighterFog = Shader.PropertyToID("_OZLighterVolumetricFog");
 
         public static bool LighterFog
@@ -149,6 +210,7 @@ namespace OpenZ
             Shader.SetGlobalFloat(IdSteps, AtmoSteps[l]);
             Shader.SetGlobalFloat(IdLighterFog, LighterFog ? 1f : 0f);
             var cur = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            ApplyMsaa(cur);
             float drs = DevRenderScale();
             if (cur && drs > 0f && Mathf.Abs(cur.renderScale - drs) > 0.001f) { cur.renderScale = drs; Debug.Log($"[OpenZ Quality] dev run: render scale {drs:0.##} (session only, -ozrenderscale)"); }
             Debug.Log($"[OpenZ Quality] {Names[l]}: {(cur ? cur.name : "?")}, MSAA {(cur ? cur.msaaSampleCount : 0)}x, shadows {(cur ? cur.mainLightShadowmapResolution : 0)} / {(cur ? cur.shadowCascadeCount : 0)} cascades / {(cur ? cur.shadowDistance : 0):0} m, fog steps {AtmoSteps[l]:0}, render scale {(cur ? cur.renderScale : 1f):0.##}");
@@ -160,6 +222,7 @@ namespace OpenZ
         /// <summary>Never leave a MEDIUM / LOW asset in the editor's quality level after Play (the shared settings stay HIGH).</summary>
         static void Restore()
         {
+            RestoreMsaa();
             if (originalSaved && QualitySettings.renderPipeline != original) QualitySettings.renderPipeline = original;
         }
 

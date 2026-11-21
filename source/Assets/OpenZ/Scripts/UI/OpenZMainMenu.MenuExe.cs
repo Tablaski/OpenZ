@@ -60,9 +60,11 @@ namespace OpenZ
             AddCycle(p, toggles.Count, OzLightRows.TreesLabel, () => OzLightRows.TreesName, OzLightRows.TreesStep);          // oz_lite_trees FULL (default) / LIGHT / LIGHTEST
             AddCycle(p, toggles.Count, OzLightRows.WrecksLabel, () => OzLightRows.WrecksName, OzLightRows.WrecksStep);       // oz_lite_wrecks FULL (default) / LIGHT
             if (OzLowPicture.InOptions) AddCycle(p, toggles.Count, OzLowPicture.Label, () => OzLowPicture.Name, OzLowPicture.Step);   // 1.5 issue 8: 3D PICTURE SHARP (default) / SOFT / SOFTEST, oz_lite_picture, live, LOW only (View/OzLowPicture.cs); not in the Mac player
-            AddToggle(p, toggles.Count, OzWaterPlayCalm.ReflectionLabel, () => OzWaterPlayCalm.ObjectReflections, v => OzWaterPlayCalm.ObjectReflections = v);
-            AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = v);
+            AddToggle(p, toggles.Count, OzWaterPlayCalm.ReflectionLabel, () => !OzWaterPlayCalm.ObjectReflections, v => OzWaterPlayCalm.ObjectReflections = !v);
+            AddToggle(p, toggles.Count, HeatGuardRuntime.LimitLabel, () => !HeatGuardRuntime.LimitEnabled, v => HeatGuardRuntime.LimitEnabled = !v);
             AddToggle(p, toggles.Count, OzQuality.LighterFogLabel, () => OzQuality.LighterFog, v => OzQuality.LighterFog = v);
+            AddToggle(p, toggles.Count, OzQuality.DisableFogLabel, () => OzQuality.DisableFog, v => OzQuality.DisableFog = v);
+            AddToggle(p, toggles.Count, OzQuality.ReduceMsaaLabel, () => OzQuality.ReduceMsaa, v => OzQuality.ReduceMsaa = v);
             AddBehaviorOptions(p);
             float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
             foreach (var t in toggles) OzSettingTips.CentreRow(t.row);                                       // 1.3 item 40 (review): a tab packed below its rows' own layout (GRAPHICS, 17 rows) shows each row's contents in the plate's middle

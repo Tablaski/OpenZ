@@ -55,6 +55,7 @@ namespace OpenZ
         readonly Dictionary<UniversalRenderPipelineAsset, float> own = new Dictionary<UniversalRenderPipelineAsset, float>();
         readonly Dictionary<UniversalRenderPipelineAsset, int> ownMsaa = new Dictionary<UniversalRenderPipelineAsset, int>();
         UniversalRenderPipelineAsset seen; int seenW = -1, seenH = -1, seenLevel = -1, seenMsaa = -1;
+        bool seenReduceMsaa;
 
         /// <summary>The render scale that keeps a w x h picture within the budget: 1 when it fits (with the slack), else the square
         /// root of budget / pixels (both sides by the same factor), never under MinScale.</summary>
@@ -164,7 +165,9 @@ namespace OpenZ
         {
             var cur = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             int w = Screen.width, h = Screen.height, l = Mathf.Clamp(OzQuality.Level, 0, 2);
-            if (cur == seen && w == seenW && h == seenH && l == seenLevel && (!cur || cur.msaaSampleCount == seenMsaa)) return;   // a preset step, a screen / window change
+            bool reduceMsaa = OzQuality.ReduceMsaa;
+            if (cur == seen && w == seenW && h == seenH && l == seenLevel && reduceMsaa == seenReduceMsaa && (!cur || cur.msaaSampleCount == seenMsaa)) return;
+            seenReduceMsaa = reduceMsaa;
             seen = cur; seenW = w; seenH = h; seenLevel = l;
             if (!cur) return;
             if (!own.TryGetValue(cur, out float baseScale)) { baseScale = cur.renderScale; own[cur] = baseScale; ownMsaa[cur] = cur.msaaSampleCount; }   // the preset's own (scale 1.0, MSAA 4x / 2x / off as shipped)
@@ -172,13 +175,14 @@ namespace OpenZ
             float fit = For(w, h, Budget[l]);
             float s = Mathf.Min(baseScale, fit);
             int m = MsaaFor(fit, baseMsaa);
+            if (reduceMsaa) m = Mathf.Min(m, 2);
             if (Mathf.Abs(cur.renderScale - s) > 0.0005f) cur.renderScale = s;
             if (cur.msaaSampleCount != m) cur.msaaSampleCount = m;
             seenMsaa = cur.msaaSampleCount;
             Scale = s; Msaa = m;
             Line = $"{Tag} screen {w}x{h}, graphics {OzQuality.Names[l]}: the 3D picture is drawn at {Mathf.RoundToInt(w * s)}x{Mathf.RoundToInt(h * s)} "
                    + $"(render scale {s:0.###}, at most {BudgetName[l]} for this preset), MSAA {MsaaName(m)}"
-                   + (m != Mathf.Max(1, baseMsaa) ? $" (the preset's {MsaaName(baseMsaa)} is off above the budget; the SMAA edge smoothing stays)" : "")
+                   + (m != Mathf.Max(1, baseMsaa) ? $" (the preset's {MsaaName(baseMsaa)} is reduced; the SMAA edge smoothing stays)" : "")
                    + $", the interface at {w}x{h}";
             Debug.Log(Line);
         }

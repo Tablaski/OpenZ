@@ -22,7 +22,8 @@ namespace OpenZ.Multiplayer
             DontDestroyOnLoad(proof);
             int roomOption = Array.IndexOf(args, "-oz-duel-proof-three-humans");
             string mode = roomOption >= 0 && roomOption + 1 < args.Length ? args[roomOption + 1] :
-                args.Contains("-oz-duel-proof-online-bots") ? "online" : args.Contains("-oz-duel-proof-solo-tech") ? "solo" : "local";
+                args.Contains("-oz-duel-proof-online-bots") ? "online" : args.Contains("-oz-duel-proof-solo-tech") ? "solo" :
+                args.Contains("-oz-seven-bot-fps") ? "seven-bot-fps" : "local";
             proof.StartCoroutine(proof.Run(args[option + 1], mode));
         }
 
@@ -41,6 +42,7 @@ namespace OpenZ.Multiplayer
             {
                 "online" => ExerciseOnline(folder),
                 "solo" => ExerciseSoloTech(folder),
+                "seven-bot-fps" => MeasureDesert(),
                 "host" or "guest1" or "guest2" => ExerciseSharedRoom(folder, mode),
                 _ => Exercise(folder)
             };
@@ -63,6 +65,53 @@ namespace OpenZ.Multiplayer
             }
             File.WriteAllText(report, "PASS: " + mode + " Skirmish validation.");
             Application.Quit();
+        }
+
+        IEnumerator MeasureDesert()
+        {
+            yield return new WaitForSecondsRealtime(3);
+            DuelRuntime.I.Menus.ShowConnect();
+            yield return null;
+            yield return null;
+            Click("LOCAL SKIRMISH WITH BOTS");
+            yield return null;
+            yield return null;
+            Click("8");
+            yield return null;
+            yield return null;
+            Click("LAUNCH MATCH");
+            double timeout = Time.realtimeSinceStartupAsDouble + 120;
+            while ((!ZGame.I || ZGame.I.World == null || ZGame.I.World.Time < 2) && Time.realtimeSinceStartupAsDouble < timeout)
+                yield return null;
+            var game = ZGame.I;
+            if (!game || game.level != "SMP08M01" || game.World?.Bots.Count != 7 ||
+                game.World.Bots.Any(bot => bot.Difficulty != ZBotDifficulty.Normal))
+                throw new InvalidOperationException("Expected Desert P08M01 with seven Normal bots.");
+            yield return new WaitForSecondsRealtime(30);
+            var times = new System.Collections.Generic.List<double>(8192);
+            for (int window = 1; window <= 3; window++)
+            {
+                times.Clear();
+                double start = Time.realtimeSinceStartupAsDouble, previous = start;
+                do
+                {
+                    yield return null;
+                    double now = Time.realtimeSinceStartupAsDouble;
+                    times.Add(now - previous);
+                    previous = now;
+                } while (previous - start < 40);
+                times.Sort();
+                int p99 = (int)Math.Ceiling(times.Count * .99) - 1;
+                Debug.Log(FormattableString.Invariant($"[Seven-bot FPS] window {window}, {times.Count / (previous - start):F1} fps, p99 frame {1000 * times[p99]:F1} ms, game {game.World.Time:F1} s, units {ZRuleProf.Units(game.World)}, cap {Application.targetFrameRate}, seed {game.seed}"));
+            }
+            var input = FindFirstObjectByType<PlayerInput>();
+            for (int y = 1; y < 6; y++)
+                for (int x = 1; x < 8; x++)
+                {
+                    var pointer = new Vector2(Screen.width * x / 8f, Screen.height * y / 6f);
+                    if (input.HoverProbe(pointer, true) != input.HoverProbe(pointer, false))
+                        throw new InvalidOperationException("Hover target mismatch at " + pointer);
+                }
         }
 
         IEnumerator Exercise(string folder)

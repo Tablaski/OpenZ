@@ -175,6 +175,15 @@ namespace OpenZ.Sim
             if (DoAutoRepair && time >= NextAutoRepairTime) { DoAutoRepair = false; World.AutoRepair(this); }   // :4235-4257
             ProcessRunStamina(dt);
             if (Destroyed || World.UnitTesting != null && World.UnitTesting.Held(this)) return;
+            // Ordinary scenery can take damage and block a route, but has no orders or weapons.
+            // Keep the shared reset, repair and stamina work above, and the passive check's clock.
+            if (Kind == ZKind.MapItem && Owner == Team.Neutral && Waypoints.Count == 0 &&
+                AttackObject == null && !IsMoving && !IsRunning && !Stunned && World.UnitTesting == null)
+            {
+                ProcessServerLid(time);
+                if (time >= nextPassiveCheck) nextPassiveCheck = time + 0.5;
+                return;
+            }
             if (Kind == ZKind.Building) { ProcessBuilding(time); return; }                                    // BuildUnit / RepairUnit (:1456-1462)
             if (IsFortDefender) { FortDefenderManStep(time); return; }                                        // fort_defender_v1 DV41: no orders, no pathing, fires from his ring
             if (IsShuttle && ShuttleStep(time, dt)) return;                                               // DV118: the playable shuttle flies by its own plan, no weapon (Sim/ZWorld.Shuttle.cs)
@@ -745,7 +754,7 @@ namespace OpenZ.Sim
                 if (CanMove && !startHold) foreach (var f in World.Flags)
                         if (f.Owner != Owner && (!grabHold || CloseGrabFlag(f)) && Within(CenterX, CenterY, f.CenterX, f.CenterY, World.S.auto_grab_flag_distance) && !(grabOne && GrabClaimed(f)) && !CrocSwampWay(f) && !PathUnreachable(f) && CanSee(f)
                             && !(grabOne && CloserGrabber(f, false))) (flags ??= new List<ZObject>()).Add(f);   // DV55: player-ordered units take a flag within ZWorld.CloseGrabFlagPx; the closest unit goes
-                if (!grabHold && !startHold && CanPickupGrenades()) foreach (var g in World.Objects)
+                if (!grabHold && !startHold && CanPickupGrenades()) foreach (var g in World.GrenadeCratesOr(World.Objects))
                         if (g.Type == "grenades" && !g.Destroyed && g.KillAt < 0 && Within(CenterX, CenterY, g.CenterX, g.CenterY, World.S.auto_grab_vehicle_distance) && !(grabOne && GrabClaimed(g)) && !CrocSwampWay(g) && !PathUnreachable(g) && !TeammateEntering(g) && CanSee(g)) (crates ??= new List<ZObject>()).Add(g);
             }
             if (agro != null)

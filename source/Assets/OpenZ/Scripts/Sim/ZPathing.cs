@@ -52,6 +52,7 @@ namespace OpenZ.Sim
         public readonly ZReach Reach;
         readonly List<ZObject> units = new List<ZObject>();
         List<ZObject>[] cells; int gw, gh;
+        readonly List<int> occupiedCells = new List<int>();
         readonly List<ZObject> near = new List<ZObject>(), near2 = new List<ZObject>();
         double lastDt = ZConst.TICK;
 
@@ -160,15 +161,22 @@ namespace OpenZ.Sim
             if (cells == null || cw != gw || ch != gh)
             {
                 gw = cw; gh = ch; cells = new List<ZObject>[gw * gh];
-                for (int i = 0; i < cells.Length; i++) cells[i] = new List<ZObject>(4);
+                occupiedCells.Clear();
             }
-            else foreach (var c in cells) c.Clear();
+            else
+            {
+                foreach (int cell in occupiedCells) cells[cell].Clear();
+                occupiedCells.Clear();
+            }
             units.Clear();
-            foreach (var o in W.Objects)
+            foreach (var o in W.UnitObjects)
             {
                 if (!Separable(o)) continue;
                 units.Add(o);
-                cells[CellOf(o.CenterX, o.CenterY)].Add(o);
+                int cell = CellOf(o.CenterX, o.CenterY);
+                var occupants = cells[cell] ??= new List<ZObject>(4);
+                if (occupants.Count == 0) occupiedCells.Add(cell);
+                occupants.Add(o);
             }
         }
 
@@ -187,7 +195,7 @@ namespace OpenZ.Sim
             int y0 = Math.Max(0, (y - r) / Cell), y1 = Math.Min(gh - 1, (y + r) / Cell);
             for (int cy = y0; cy <= y1; cy++)
                 for (int cx = x0; cx <= x1; cx++)
-                    foreach (var o in cells[cy * gw + cx]) into.Add(o);
+                    if (cells[cy * gw + cx] is List<ZObject> occupants) into.AddRange(occupants);
         }
 
         // ------------------------------------------------------------------ ZObject hooks

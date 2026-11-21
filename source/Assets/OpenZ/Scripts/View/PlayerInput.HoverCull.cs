@@ -94,7 +94,17 @@ namespace OpenZ
 
         bool FarFromPointer(ZObject o, Vector2 mp)
         {
-            if (o.Kind == ZKind.Building || o.IsShuttle) return false;                                   // the per-frame silhouette that later readers share: asked as before
+            if (o.Kind == ZKind.Building)
+            {
+                // Once measured, an entirely front-facing model has a valid MeshRect contained in these bounds.
+                // HUD readers can still request the exact silhouette on demand.
+                if (!meshBox.TryGetValue(o.Id, out var building) || !building.t) return false;
+                var matrix = building.t.localToWorldMatrix;
+                var e = building.local.extents;
+                return OffScreenBox(matrix.MultiplyPoint3x4(building.local.center), (Vector3)matrix.GetColumn(0) * e.x,
+                    (Vector3)matrix.GetColumn(1) * e.y, (Vector3)matrix.GetColumn(2) * e.z, mp);
+            }
+            if (o.IsShuttle) return false;
             if (o.Kind == ZKind.Robot && ExitPickOn && BoardingView.ExitFigureState(o, out _) != 0) return false;   // getting out of a carrier (ExitPick): asked as before
             if (o.IsUnit && game.Views.TryGetValue(o.Id, out var uv) && uv && uv.gameObject.activeInHierarchy)
             {
@@ -118,7 +128,11 @@ namespace OpenZ
             // the footprint path: the footprint from the lowest ground GroundY can give to the highest plus the tallest item box
             var a = ZGame.PxToWorld(o.PosX, o.PosY); var b = ZGame.PxToWorld(o.PosX + o.WidthPix, o.PosY + o.HeightPix);
             float top = groundHi + ItemTopM, ey = (top - groundLo) * 0.5f;
-            return OffScreenBox(new Vector3((a.x + b.x) * 0.5f, groundLo + ey, (a.z + b.z) * 0.5f), new Vector3(Mathf.Abs(b.x - a.x) * 0.5f, 0f, 0f), new Vector3(0f, ey, 0f), new Vector3(0f, 0f, Mathf.Abs(b.z - a.z) * 0.5f), mp);
+            var center = new Vector3((a.x + b.x) * 0.5f, groundLo + ey, (a.z + b.z) * 0.5f);
+            float ex = Mathf.Abs(b.x - a.x) * 0.5f, ez = Mathf.Abs(b.z - a.z) * 0.5f;
+            // ScreenRect ignores negative-depth corners on the footprint path. A wholly hidden box is empty.
+            if (Lin(farD, center) + Mathf.Abs(farD.x) * ex + Mathf.Abs(farD.y) * ey + Mathf.Abs(farD.z) * ez < -NearM) return true;
+            return OffScreenBox(center, new Vector3(ex, 0f, 0f), new Vector3(0f, ey, 0f), new Vector3(0f, 0f, ez), mp);
         }
 
         /// <summary>The box c + s0 u0 + s1 u1 + s2 u2 (|s| at most 1): true when it lies wholly in front of the camera and the pointer is outside

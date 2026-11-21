@@ -112,7 +112,7 @@ namespace OpenZ.Sim
             if (Time <= nextFlagCheck) return;
             nextFlagCheck = Time + 0.2;
             foreach (var f in Flags)
-                foreach (var o in Objects)
+                foreach (var o in UnitObjects)
                 {
                     if (o.Owner == Team.Neutral || AreAllied(f.Owner, o.Owner)) continue;
                     if (o.IsShuttle) continue;                                                                 // DV118: the shuttle never takes a flag (Sim/ZWorld.Shuttle.cs)
@@ -150,7 +150,7 @@ namespace OpenZ.Sim
         public int UnitCount(Team t)
         {
             int n = 0;
-            foreach (var o in Objects) if (o.Owner == t && o.IsUnit && !o.IsFortDefender) n++;            // zcore.cpp:712-747; fort_defender_v1 DV41: not a unit of the cap
+            foreach (var o in UnitObjects) if (o.Owner == t && !o.IsFortDefender) n++;
             return n;
         }
         public bool UnitLimitReached(Team t) => t != Team.Neutral && UnitCount(t) >= MAX_UNITS_PER_TEAM;

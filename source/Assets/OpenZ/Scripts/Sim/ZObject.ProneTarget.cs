@@ -261,9 +261,8 @@ namespace OpenZ.Sim
         {
             if (!ProneTargetDeviation && !stanceAny) return;
             bool any = false;
-            for (int i = 0; i < Objects.Count; i++)
+            foreach (var o in UnitObjects)
             {
-                var o = Objects[i];
                 if (o.Kind != ZKind.Robot || o.Type != "sniper") continue;
                 o.StanceStep(dt);
                 any |= o.Stance != ZStance.Stand;

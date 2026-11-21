@@ -45,7 +45,7 @@ namespace OpenZ.Multiplayer
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
         public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk ||
-            (FindFirstObjectByType<OpenZPauseMenu>()?.MicrophoneBinding ?? false) ||
+            (OpenZHud.I && OpenZHud.I.Pause && OpenZHud.I.Pause.MicrophoneBinding) ||
             (EventSystem.current && EventSystem.current.currentSelectedGameObject &&
              EventSystem.current.currentSelectedGameObject.TryGetComponent<InputField>(out var input) && input.isFocused);
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
@@ -77,7 +77,7 @@ namespace OpenZ.Multiplayer
         {
             int proposalWait = (int)Math.Ceiling(R.ProposalWait);
             if (proposalWait != lastProposalWait) { lastProposalWait = proposalWait; if (page == Page.Lobby) dirty = true; }
-            var nativePause = FindFirstObjectByType<OpenZPauseMenu>();
+            var nativePause = OpenZHud.I ? OpenZHud.I.Pause : null;
             bool pauseOpen = nativePause && nativePause.IsOpen;
             if (pauseOpen != pauseWasOpen) { pauseWasOpen = pauseOpen; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
@@ -103,10 +103,9 @@ namespace OpenZ.Multiplayer
                     }
             if (!R.MatchMenusBlocked && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
-                var pause = FindFirstObjectByType<OpenZPauseMenu>();
-                if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
+                if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
                 { page = Page.Diagnostics; dirty = true; }
-                else if (page == Page.Entry && !(pause && pause.IsOpen) && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
+                else if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
                 { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
             }

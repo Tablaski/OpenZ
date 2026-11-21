@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.19 large-map performance
+
+- Pending verification of the simulation, the compiled Desert P08M01 seven-bot frame times and cursor target parity.
+
 ## OpenZ-VK 1.5.18 Battle and Skirmish performance
 
 - Source checkpoint `db82918b` passed all 7,714 core and real-map simulation checks and compiled with the Unity runtime references. Native WebRTC passed the direct duel and Skirmish packet checks and the SFU-style local loopback.

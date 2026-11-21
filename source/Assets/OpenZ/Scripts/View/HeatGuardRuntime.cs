@@ -12,6 +12,21 @@ namespace OpenZ
     {
         /// <summary></summary>
         public static bool TakeMode;
+        public const string LimitPref = "oz_vk_thermal_fps_limit";
+        public const string LimitLabel = "THERMAL FPS LIMIT";
+        public const string LimitTip = "THERMAL FPS LIMIT|On caps normal play at 30 FPS at 90 °C until the GPU cools below 85 °C. Off uses your selected frame rate limit. The GPU's own thermal controls remain active.|";
+        static bool? limitEnabled;
+
+        public static bool LimitEnabled
+        {
+            get => limitEnabled ??= PlayerPrefs.GetInt(LimitPref, 1) != 0;
+            set
+            {
+                limitEnabled = value;
+                PlayerPrefs.SetInt(LimitPref, value ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
         static volatile int temp = -1;
         /// <summary></summary>
         public static int GpuTempC => temp;
@@ -85,7 +100,7 @@ namespace OpenZ
                 return;
             }
             // 60 fps cap, the heat is only logged; one emergency cap at 90 C (30 fps, back to 60 below 85 C)
-            int want = t >= 90 ? 2 : t < 85 ? 0 : level;
+            int want = !LimitEnabled || t < 85 ? 0 : t >= 90 ? 2 : level;
             if (want == level) return;
             level = want;
             HeldFps = level == 2 ? 30 : 0;

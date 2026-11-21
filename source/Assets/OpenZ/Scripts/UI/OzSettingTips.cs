@@ -95,6 +95,7 @@ namespace OpenZ
             [OzLightRows.ShadowsLabel] = OzLightRows.ShadowsTip,
             [OzLightRows.AoLabel] = OzLightRows.AoTip,
             [OzWaterPlayCalm.ReflectionLabel] = OzWaterPlayCalm.ReflectionTip,
+            [HeatGuardRuntime.LimitLabel] = HeatGuardRuntime.LimitTip,
             [OzLightRows.TreesLabel] = OzLightRows.TreesTip,
             [OzLightRows.WrecksLabel] = OzLightRows.WrecksTip,
             [OzLowPicture.Label] = OzLowPicture.Tip,                                       // 1.5 issue 8: 3D PICTURE SHARP / SOFT / SOFTEST (View/OzLowPicture.cs)
@@ -119,6 +120,7 @@ namespace OpenZ
             (OzLightRows.LightestLabel, TabGraphics), (OzLightRows.ShadowsLabel, TabGraphics), (OzLightRows.AoLabel, TabGraphics), (OzLightRows.TreesLabel, TabGraphics), (OzLightRows.WrecksLabel, TabGraphics),   // 1.3 item 40: after MASS BATTLES
             (OzLowPicture.Label, TabGraphics),                                               // 1.5 issue 8: 3D PICTURE, the GRAPHICS tab's last row (a LIGHTEST FOR SLOW PCS row, after WRECKS AND DEBRIS)
             (OzWaterPlayCalm.ReflectionLabel, TabGraphics),
+            (HeatGuardRuntime.LimitLabel, TabGraphics),
             (OzStrikeGroups.Label, TabAdvanced), (OzTouch.Label, TabAdvanced), (OzTrackpadScroll.Label, TabAdvanced), (PathV3Label, TabAdvanced), (OzOvertake.Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
         };
         static int TabRow(string label) { for (int i = 0; i < TabRows.Length; i++) if (TabRows[i].label == label) return i; return -1; }

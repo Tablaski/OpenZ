@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.23 thermal frame limit
+
+- Pending manual checks: turn off the thermal limit while it is active and verify the selected frame rate cap returns. Check preference persistence and the Detailed counter with and without a temperature reading. The Windows build also covers the pending water reflection checks below.
+
 ## OpenZ-VK 1.5.22 water reflection performance
 
 - The maintainer's 1.5.21 official Bridge Game session used DX12 at 3840 × 2160. High and Medium drew the scene at native resolution, while Low drew it at 1440 × 810. The session changed presets during sampling. The GPU reached 90 °C twice and the heat guard applied its 30 fps limit, then restored 60 fps at 84 °C. The mixed samples cannot quantify the cost of reflections.

@@ -214,7 +214,7 @@ namespace OpenZ
     public sealed class OzFpsChip : MonoBehaviour
     {
         /// <summary>Top-right anchored (canvas units from the right edge / top), under the MENU button.</summary>
-        public static float Right = 12f, Y = 64f, W = 268f, H = 22f, DetailW = 430f;
+        public static float Right = 12f, Y = 64f, W = 268f, H = 22f, DetailW = 550f;
         Canvas canvas; OzText text; float acc; int frames; string shown = "";
         double cpuAcc, gpuAcc; int cpuN, gpuN;
         double mainAcc, renderAcc, rulesAcc; int mainN, renderN; bool builtDetailed;          // DETAILED (1.3 item 25)
@@ -366,6 +366,11 @@ namespace OpenZ
                 s = cpu > 0f
                     ? $"{Mathf.RoundToInt(fps)} FPS · CPU {Mathf.RoundToInt(cpu)} MS{(gpu > 0f ? " · GPU " + Mathf.RoundToInt(gpu) + " MS" : "")} · {OzQuality.Name}"
                     : $"{Mathf.RoundToInt(fps)} FPS · {acc * 1000f / frames:0.0} MS · {OzQuality.Name}";
+            if (builtDetailed)
+            {
+                int gpuTemp = HeatGuardRuntime.GpuTempC;
+                s += gpuTemp >= 0 ? $" · GPU TEMP {gpuTemp} °C" : " · GPU TEMP N/A";
+            }
             if (s != shown) { shown = s; text.Set(s); }
             ShownFps = fps; ShownCpuMs = cpu; ShownGpuMs = gpu; ShownText = s;
             acc = 0f; frames = 0; cpuAcc = gpuAcc = mainAcc = renderAcc = rulesAcc = 0.0; cpuN = gpuN = mainN = renderN = 0;

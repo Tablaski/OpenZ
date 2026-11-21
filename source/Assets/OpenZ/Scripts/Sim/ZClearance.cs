@@ -143,14 +143,7 @@ namespace OpenZ.Sim
         /// <summary>A circle (px space) overlaps a mesh-covered tile or a live prop tile.</summary>
         public bool Touches(double x, double y, double r)
         {
-            for (int ty = (int)Math.Floor((y - r) / 16); ty <= (int)Math.Floor((y + r) / 16); ty++)
-                for (int tx = (int)Math.Floor((x - r) / 16); tx <= (int)Math.Floor((x + r) / 16); tx++)
-                {
-                    if (!ViewTile(tx, ty)) continue;
-                    double qx = Math.Max(tx * 16, Math.Min(x, tx * 16 + 16)), qy = Math.Max(ty * 16, Math.Min(y, ty * 16 + 16));
-                    if ((x - qx) * (x - qx) + (y - qy) * (y - qy) < r * r) return true;
-                }
-            return false;
+            return Touches(x, y, r, false);
         }
 
         /// <summary>View helper (pure, px space): the shortest offset (ox, oy) that puts a circle (px, py, r) clear of every
@@ -158,32 +151,40 @@ namespace OpenZ.Sim
         /// (or no clear spot is that near).</summary>
         public bool PushOut(double px, double py, double r, out double ox, out double oy)
         {
-            ox = oy = 0;
-            if (!Touches(px, py, r)) return false;
-            for (int d = 1; d <= MaxPushPx; d++)
-                for (int k = 0; k < 16; k++)
-                {
-                    double a = k * Math.PI / 8, x = px + Math.Cos(a) * d, y = py + Math.Sin(a) * d;
-                    if (Touches(x, y, r)) continue;
-                    ox = x - px; oy = y - py;
-                    return true;
-                }
-            return false;
+            return PushOut(px, py, r, false, out ox, out oy);
         }
         /// <summary>Longest view push searched (px): 64 px = 8 m (a view offset is at most 3.2 m, UnitView.maxSep).</summary>
         public const int MaxPushPx = 64;
+        const int PushDirections = 16;
+        static readonly (double X, double Y)[] PushOffsets = BuildPushOffsets();
+
+        static (double X, double Y)[] BuildPushOffsets()
+        {
+            var offsets = new (double X, double Y)[MaxPushPx * PushDirections];
+            for (int direction = 0; direction < PushDirections; direction++)
+            {
+                double angle = direction * Math.PI / 8;
+                double x = Math.Cos(angle), y = Math.Sin(angle);
+                for (int distance = 1; distance <= MaxPushPx; distance++)
+                    offsets[(distance - 1) * PushDirections + direction] = (x * distance, y * distance);
+            }
+            return offsets;
+        }
 
         /// <summary>Pathing v3 DV47 (UnitView): as Touches, but with skipSoft a soft blocker tile (a wreck the unit has the soft pass for, not
         /// under a building mesh) is not a view tile - the model is drawn over the debris; buildings and other props still count.</summary>
         public bool Touches(double x, double y, double r, bool skipSoft)
         {
-            if (!skipSoft || W.Pathing == null) return Touches(x, y, r);
-            for (int ty = (int)Math.Floor((y - r) / 16); ty <= (int)Math.Floor((y + r) / 16); ty++)
-                for (int tx = (int)Math.Floor((x - r) / 16); tx <= (int)Math.Floor((x + r) / 16); tx++)
+            var pathing = skipSoft ? W.Pathing : null;
+            int minX = (int)Math.Floor((x - r) / 16), maxX = (int)Math.Floor((x + r) / 16);
+            int minY = (int)Math.Floor((y - r) / 16), maxY = (int)Math.Floor((y + r) / 16);
+            double radiusSquared = r * r;
+            for (int ty = minY; ty <= maxY; ty++)
+                for (int tx = minX; tx <= maxX; tx++)
                 {
-                    if (!ViewTile(tx, ty) || (MeshOwner(tx, ty) == 0 && W.Pathing.SoftTileAt(tx, ty))) continue;
+                    if (!ViewTile(tx, ty) || (pathing != null && MeshOwner(tx, ty) == 0 && pathing.SoftTileAt(tx, ty))) continue;
                     double qx = Math.Max(tx * 16, Math.Min(x, tx * 16 + 16)), qy = Math.Max(ty * 16, Math.Min(y, ty * 16 + 16));
-                    if ((x - qx) * (x - qx) + (y - qy) * (y - qy) < r * r) return true;
+                    if ((x - qx) * (x - qx) + (y - qy) * (y - qy) < radiusSquared) return true;
                 }
             return false;
         }
@@ -191,17 +192,15 @@ namespace OpenZ.Sim
         /// <summary>Pathing v3 DV47 (UnitView): as PushOut, with skipSoft = Touches(.., skipSoft): only the soft tiles are skipped.</summary>
         public bool PushOut(double px, double py, double r, bool skipSoft, out double ox, out double oy)
         {
-            if (!skipSoft) return PushOut(px, py, r, out ox, out oy);
             ox = oy = 0;
-            if (!Touches(px, py, r, true)) return false;
-            for (int d = 1; d <= MaxPushPx; d++)
-                for (int k = 0; k < 16; k++)
-                {
-                    double a = k * Math.PI / 8, x = px + Math.Cos(a) * d, y = py + Math.Sin(a) * d;
-                    if (Touches(x, y, r, true)) continue;
-                    ox = x - px; oy = y - py;
-                    return true;
-                }
+            if (!Touches(px, py, r, skipSoft)) return false;
+            foreach (var offset in PushOffsets)
+            {
+                double x = px + offset.X, y = py + offset.Y;
+                if (Touches(x, y, r, skipSoft)) continue;
+                ox = x - px; oy = y - py;
+                return true;
+            }
             return false;
         }
     }

@@ -601,16 +601,14 @@ namespace OpenZ
                     dustT = Obj.Type == "jeep" ? 0.12f : 0.3f;
                     FxManager.I.Dust(p - moveDir * 1.8f + Vector3.up * 0.2f, Obj.Type == "jeep" ? 0.35f : 0.28f);
                 }
-                transform.position = p;
-                transform.rotation = tilt * Quaternion.Euler(0, yaw + modelYaw, 0) * feel;
+                transform.SetPositionAndRotation(p, tilt * Quaternion.Euler(0, yaw + modelYaw, 0) * feel);
             }
             else
             {
                 if (towerState > 0 && towerFort)                                                       // crews_v1: the gun's turn axis on the pad centre, on the ring mount
                     p = TowerMounts.SeatRoot(towerFort, towerPad, Quaternion.Euler(0, yaw + modelYaw, 0), towerAxis, Mathf.Abs(transform.lossyScale.x));   // tower_gun_fix: the shared rule, same maths
                 else if (!PlaceFortDefender(ref p)) { p = GrabKeepOut(p, dt); p.y = game.GroundY(p.x, p.z) + yOffset; }
-                transform.position = p;
-                transform.rotation = Quaternion.Euler(0, yaw + modelYaw, 0);
+                transform.SetPositionAndRotation(p, Quaternion.Euler(0, yaw + modelYaw, 0));
                 if (reactKind != 0) ApplyReaction(ReactStep(dt));                                    // deaths_mech_v1: knockdown / stagger / flinch (view only); vehicle_exit_gun 2b: frozen (step 0) from his death event until his death is drawn (View/UnitView.DeathWins.cs)
             }
             if (game.World.UnitTesting != null && game.World.UnitTesting.Held(Obj))

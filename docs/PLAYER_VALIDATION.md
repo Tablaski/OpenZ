@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.25 unit presentation performance
+
+- Pending compiled-game checks: compare main-thread timing with 1.5.24 at 1080p High on official Bridge Game and on Desert P08M01 with seven bots. Verify unit placement around walls, wrecks and factory exits, including moving vehicles and turret-mounted cannons.
+
 ## OpenZ-VK 1.5.24 volumetric fog performance
 
 - The 1.5.23 official Bridge Game run logged 53.6 fps at 1920 × 1080 High with 7.9 ms GPU and 17.5 ms main-thread time. A separate native 3840 × 2160 High window recorded 35.8 ms GPU with the target at 60 fps. The in-game scenes and warm-up state differed. The maintainer observed only a small change from toggling object reflections.

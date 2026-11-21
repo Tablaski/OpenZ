@@ -273,9 +273,16 @@ namespace OpenZ.Sim
             public void Remove(int x, int y)
             {
                 int i = index[x, y]; if (i == -1) return;
-                if (Heaped) { HeapDelete(hpos[i]); if (i != size - 1) HeapDelete(hpos[size - 1]); }   // (keys read before the list changes)
+                if (Heaped) HeapDelete(hpos[i]);
                 index[x, y] = -1; size--; list[i] = list[size]; index[list[i].x, list[i].y] = i;
-                if (Heaped && i != size) HeapInsert(i);                                         // the last entry, now at place i
+                if (Heaped && i != size)
+                {
+                    // The swapped entry keeps its f score and moves to a lower list index.
+                    // Its heap key can only decrease, so only the upwards repair is needed.
+                    int heapIndex = hpos[size];
+                    heap[heapIndex] = i;
+                    Up(heapIndex);
+                }
             }
             /// <summary>The place of the entry Zod's lowest_f_cost scan returns (Heaped only, size > 0).</summary>
             public int MinPos => heap[0];

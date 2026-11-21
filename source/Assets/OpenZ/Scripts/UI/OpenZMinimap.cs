@@ -285,9 +285,9 @@ namespace OpenZ
             bool radar = !RadarRule || loss && loss.Fog;
             if (!radar) foreach (var b in W.Objects) if (b.Kind == ZKind.Building && b.Type == "radar" && !b.Destroyed && b.Owner == hud.Player) { radar = true; break; }
             HasRadar = radar;
-            foreach (var o in W.Objects)
+            foreach (var o in W.UnitObjects)
             {
-                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;
+                if (o.Destroyed || o.KillAt >= 0) continue;
                 if (!radar && o.Owner != hud.Player && o.Owner != Team.Neutral) continue;
                 if (OzFogOfWar.Covers(o)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no dot for a unit the fog hides (the soft cover let it show through)
                 bool selected = o.Owner == hud.Player && sel.Contains(o.Leader ?? o);

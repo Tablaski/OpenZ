@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using OpenZ.Sim;
 using UnityEngine;
 
@@ -46,6 +47,38 @@ namespace OpenZ
         // the walk ground's height range (GroundY can answer nothing outside it)
         bool groundOk; float groundLo, groundHi, groundNext = -1f; ZWorld groundWorld; Collider terrainCol;
         static readonly Collider[] walkCols = new Collider[4096];
+        readonly List<(int Start, int End, Vector2 Min, Vector2 Max)> rockRuns = new();
+        ZWorld rockWorld;
+        int rockCount, rockListRevision, rockPositionRevision;
+
+        void EnsureRockRuns(ZWorld world)
+        {
+            var objects = world.Objects;
+            if (rockWorld == world && rockCount == objects.Count && rockListRevision == world.ObjectListRevision &&
+                rockPositionRevision == world.RockPositionRevision) return;
+            rockWorld = world;
+            rockCount = objects.Count;
+            rockListRevision = world.ObjectListRevision;
+            rockPositionRevision = world.RockPositionRevision;
+            rockRuns.Clear();
+            for (int start = 0; start < objects.Count;)
+            {
+                int end = start;
+                Vector2 min = new(float.PositiveInfinity, float.PositiveInfinity), max = new(float.NegativeInfinity, float.NegativeInfinity);
+                for (; end < objects.Count && end < start + 16; end++)
+                {
+                    var rock = objects[end];
+                    if (rock.Kind != ZKind.MapItem || rock.Type != "rock" || rock.BlockTiles != null ||
+                        rock.IsMoving || rock.XOver != 0 || rock.YOver != 0) break;
+                    var a = ZGame.PxToWorld(rock.LocX, rock.LocY);
+                    var b = ZGame.PxToWorld(rock.LocX + rock.WidthPix, rock.LocY + rock.HeightPix);
+                    min = Vector2.Min(min, new Vector2(a.x, b.z));
+                    max = Vector2.Max(max, new Vector2(b.x, a.z));
+                }
+                if (end - start >= 4) rockRuns.Add((start, end, min, max));
+                start = Mathf.Max(start + 1, end);
+            }
+        }
 
         /// <summary>Once a pass: the camera rows and the margin. False (no camera): nothing is skipped.</summary>
         bool FarBegin(Vector2 pointer)
@@ -139,6 +172,11 @@ namespace OpenZ
             float top = groundHi + ItemTopM, ey = (top - groundLo) * 0.5f;
             var center = new Vector3((a.x + b.x) * 0.5f, groundLo + ey, (a.z + b.z) * 0.5f);
             float ex = Mathf.Abs(b.x - a.x) * 0.5f, ez = Mathf.Abs(b.z - a.z) * 0.5f;
+            return FootprintOutside(center, ex, ey, ez);
+        }
+
+        bool FootprintOutside(Vector3 center, float ex, float ey, float ez)
+        {
             // ScreenRect ignores negative-depth corners on the footprint path. A wholly hidden box is empty.
             float depth = Lin(farD, center), extent = AxisSpan(farD, ex, ey, ez);
             if (depth + extent < -NearM) return true;

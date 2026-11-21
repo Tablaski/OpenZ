@@ -34,6 +34,9 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ the units of Objects, in object order
         int objAdds, objRemoves;                                                         // CreateObject / DeleteObject (ZWorld.cs)
+        internal int ObjectListRevision => unchecked(objAdds + objRemoves);
+        internal int RockPositionRevision { get; private set; }
+        internal void RockMoved() => RockPositionRevision++;
         readonly List<ZObject> unitObjs = new List<ZObject>();
         int unitObjsCount = -1, unitObjsAdds = -1, unitObjsRemoves = -1;
 

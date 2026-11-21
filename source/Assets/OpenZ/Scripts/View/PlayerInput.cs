@@ -582,8 +582,26 @@ namespace OpenZ
             bool craneSel = false; foreach (var s in Selection) if (s != null && s.Type == "crane" && s.Owner == game.player && !s.Destroyed) { craneSel = true; break; }
             // vehicles were never hover targets, so an own APC with room gave neither the ENTER cursor nor the Enter order (DV15)
             bool robotSel = false; foreach (var s in Selection) if (s != null && s.Kind == ZKind.Robot && s.Owner == game.player && !s.Destroyed) { robotSel = true; break; }
-            foreach (var o in W.Objects)
+            var world = W;
+            var objects = world.Objects;
+            bool groupRocks = far && groundOk && !BothSides && !world.DuelIsReplica;
+            if (groupRocks) EnsureRockRuns(world);
+            int runIndex = 0;
+            float groundExtent = (groundHi + ItemTopM - groundLo) * 0.5f;
+            for (int i = 0; i < objects.Count; i++)
             {
+                if (groupRocks && runIndex < rockRuns.Count && rockRuns[runIndex].Start == i)
+                {
+                    var run = rockRuns[runIndex++];
+                    var middle = (run.Min + run.Max) * 0.5f;
+                    var extent = (run.Max - run.Min) * 0.5f;
+                    if (FootprintOutside(new Vector3(middle.x, groundLo + groundExtent, middle.y), extent.x, groundExtent, extent.y))
+                    {
+                        i = run.End - 1;
+                        continue;
+                    }
+                }
+                var o = objects[i];
                 if ((o.Destroyed && o.Kind != ZKind.Building) || (o.IsMinion && o.Owner == game.player && !BothSides)) continue;   // DV16: an ENEMY squad member is a target (Zod hovers minions too); only our own minions are skipped; 1.2 item 6: in the playground every member (both teams pick)
                 if (OzFogOfWar.Covers(o)) continue;                                                        // 1.4 FOG OF WAR: nothing of another side in ground not explored yet is hovered or clicked (View/OzFogOfWar.cs); always false with the fog off
                 if (o.BlockTiles != null && W.IsTreeTile(o) && (Mathf.Abs((o.LocX >> 4) - treeX) > 8 || Mathf.Abs((o.LocY >> 4) - treeY) > 8)) continue;   // DV88: a tree more than 8 tiles from the pointer cannot be under it (its pick box is at most 4.5 m high): no pick box is worked out for it

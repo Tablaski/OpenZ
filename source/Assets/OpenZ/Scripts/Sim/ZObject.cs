@@ -102,6 +102,7 @@ namespace OpenZ.Sim
 
         public void SetCords(int x, int y)
         {
+            if (Kind == ZKind.MapItem && Type == "rock" && (LocX != x || LocY != y)) World?.RockMoved();
             LocX = x; LocY = y;
             CenterX = x + (WidthPix >> 1); CenterY = y + (HeightPix >> 1);
             World?.NbMoved(this);                                                      // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): the neighbour grid follows the move

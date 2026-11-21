@@ -2,6 +2,7 @@
 
 ## OpenZ-VK 1.5.31 Skirmish lobby
 
+- The game scripts compiled against Unity 6000.3.27f2 references, and all 7,647 core and real-map simulation checks passed. The Unity editor batch run did not finish script import because its licensing client failed to connect.
 - Pending in a compiled game. Open Multiplayer → Skirmish at 16:9, 4:3 and ultrawide resolutions. Check the three aligned panels, complete minimaps, 3D preview, map tech, opening orders and the Start Game button.
 - Switch between OpenZ Maps and AI Maps. Page through the AI catalog and verify the 2, 3, 4, 6 and 8 player filters. Start an official map and a six-player AI map and verify the number of bots and active positions.
 - Move participants by dragging and by selecting a card followed by a team. Verify dropping outside a team leaves the assignment intact. Check difficulty, scrolling with eight participants, adding a team, Free for All, swapping starting sides and the two-opposing-teams requirement.

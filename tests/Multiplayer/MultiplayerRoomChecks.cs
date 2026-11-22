@@ -66,6 +66,9 @@ static class MultiplayerRoomChecks
             resize.Members.Count(member => member.Seat.Role == MatchSeatRole.Observer) == 4 &&
             resize.Members.All(member => !member.Ready) && resize.StartBlocker == MatchStartBlocker.None,
             "A smaller map assigns active humans and ghosts in one revision");
+        var teamRules = resize.Rules;
+        teamRules.FreeForAll = false;
+        resize.SetRules(host, teamRules);
         int teamsBefore = resize.Revision;
         resize.SetAlliances(host, teamsBefore, new[] { 0, 1, 0, 1 });
         check(resize.Revision == teamsBefore + 1 && resize.Members.Where(member => member.Seat.MayUsePlayerCommands)
@@ -79,6 +82,9 @@ static class MultiplayerRoomChecks
         const string host = "host", guest = "guest";
         var room = new MultiplayerRoom(host, "Host", "SMP03M01");
         room.Join(guest, "Guest");
+        var rules = room.Rules;
+        rules.FreeForAll = false;
+        room.SetRules(host, rules);
         room.AssignHuman(host, guest, 1, 0);
         room.SetBot(host, 2, 0, ZBotDifficulty.Easy);
         room.SetReady(host, room.Revision, true);

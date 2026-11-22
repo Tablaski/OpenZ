@@ -50,7 +50,9 @@ static class SkirmishChecks
     internal static void CheckTeamplay(string settings, string grid, Action<bool, string> check)
     {
         CheckTeamDefense(settings, grid, check);
-        CheckTeamAdvance(settings, grid, check);
+        CheckTeamAdvance(settings, grid, check, defendTerritory: false);
+        CheckTeamAdvance(settings, grid, check, defendTerritory: true);
+        CheckTeamDiversion(settings, grid, check);
         foreach (int cap in new[] { 50, 25 })
         {
             var world = ZWorld.Create(settings, grid, 12);
@@ -139,7 +141,7 @@ static class SkirmishChecks
         }
     }
 
-    static void CheckTeamAdvance(string settings, string grid, Action<bool, string> check)
+    static void CheckTeamAdvance(string settings, string grid, Action<bool, string> check, bool defendTerritory)
     {
         var world = ZWorld.Create(settings, grid, 12);
         world.Map.skirmish = true;
@@ -151,11 +153,40 @@ static class SkirmishChecks
         var teammate = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Red, 1);
         var reinforcement = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Blue, 1);
         var enemy = world.CreateRobotGroup("grunt", flag.LocX, flag.LocY, Team.Green, 1);
-        teammate.AttackObject = enemy;
+        if (defendTerritory) world.AwardZone(flag, Team.Red);
+        else teammate.AttackObject = enemy;
         var bot = new ZBot(world, Team.Blue, 12);
         bot.CoordinateWithAllies(new System.Collections.Generic.List<ZObject> { reinforcement });
         check(reinforcement.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == enemy.Id),
-            "A bot reinforces an ally’s attack in neutral territory");
+            defendTerritory ? "A bot defends occupied allied territory" : "A bot reinforces an ally’s attack in neutral territory");
+    }
+
+    static void CheckTeamDiversion(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        world.Map.skirmish = true;
+        world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+        world.ConfigureSkirmishRules(new SkirmishRules(), Array.Empty<int>());
+        var forts = world.Objects.Where(o => o.IsFort && o.Owner != Team.Green).ToArray();
+        var guards = world.UnitObjects.Where(o => o.Owner == Team.Green && o.CanAttack()).ToArray();
+        var flags = world.Flags.Where(f => f.Owner == Team.Neutral && forts.All(o =>
+            !ZObject.Within(f.CenterX, f.CenterY, o.CenterX, o.CenterY, 400))).ToArray();
+        var pair = (from front in flags
+                    from flank in flags
+                    where !ZObject.Within(front.CenterX, front.CenterY, flank.CenterX, flank.CenterY, 480) &&
+                        ZObject.Within(front.CenterX, front.CenterY, flank.CenterX, flank.CenterY, 620) &&
+                        guards.All(o => !ZObject.Within(o.CenterX, o.CenterY, flank.CenterX, flank.CenterY, 240) &&
+                            !ZObject.Within(o.CenterX, o.CenterY, front.CenterX, front.CenterY, 240))
+                    select (front, flank)).First();
+        world.AwardZone(pair.front, Team.Green);
+        world.AwardZone(pair.flank, Team.Green);
+        var ally = world.CreateRobotGroup("tough", pair.front.LocX, pair.front.LocY, Team.Red, 1);
+        ally.Waypoints.Add(new ZWaypoint { mode = WpMode.Move, refId = pair.front.Id, x = pair.front.CenterX, y = pair.front.CenterY });
+        var reinforcement = world.CreateRobotGroup("tough", pair.flank.LocX, pair.flank.LocY, Team.Blue, 1);
+        var bot = new ZBot(world, Team.Blue, 12);
+        bot.CoordinateWithAllies(new System.Collections.Generic.List<ZObject> { reinforcement });
+        check(reinforcement.Waypoints.Any(wp => wp.mode == WpMode.Move && wp.refId == pair.flank.Id),
+            "A teammate’s advance can trigger a diversion to an undefended flank of the same opponent");
     }
 
     static void CheckTwoStartSkirmish(string root, string settings, Action<bool, string> check)

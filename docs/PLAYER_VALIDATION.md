@@ -1,6 +1,14 @@
 # Player validation record
 
+## OpenZ-VK 1.5.47 Skirmish and multiplayer loading
+
+- Pending in a compiled game. Start a Skirmish on a wide or tall AI Map with bots. Check the planet, unclipped minimap, readable map name, progress and preparation text. Repeat on an official map and at 16:9 and 4:3.
+- Start an online 1 vs 1 match and a room with three or more active players and a Ghost. Delay one active player's load and verify that ready clients show MAP LOADED while they wait, then enter the match together. In a match with opening orders, check the transition into the planning phase.
+- Repeat after a restart and a map change. Check that the new map title, minimap, planet and progress replace the previous values. Disconnect during loading and verify that the error screen remains usable.
+
 ## OpenZ-VK 1.5.46 multiplayer results and lobby return
+
+- Source compilation and a focused two- and eight-team final-statistics round trip passed. The multiplayer suite stops at `Team edits publish as one revision` in `MultiplayerRoomChecks.cs:71`. The same failure was reproduced at baseline `6f6a7293`.
 
 - Pending in a compiled game: compare the host and guests' final counters and force histories in three-player and eight-player matches, including a team win and an earlier elimination. Check Victory and Defeat, long names, the chart toggle with keyboard and mouse, and the table at 16:9 and 4:3.
 - In two-, three- and eight-human sessions, let different players return by button and by timeout. Verify Waiting and Not Ready on the correct player rows and that another match can start after everyone returns. Include the host returning first, a player leaving from results, a Ghost, a direct-to-relay route change and a mixed human/bot room. Confirm solo and bot matches have no countdown.

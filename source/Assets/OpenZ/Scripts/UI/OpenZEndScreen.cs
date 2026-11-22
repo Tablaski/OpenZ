@@ -136,9 +136,10 @@ namespace OpenZ
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
             if (!IsShown) return;
             Animate();
-            if (lobbyCountdown != null)
+            if (lobbyCountdown != null && Revealed && lastCountdownSecond != 0)
             {
                 var duel = OpenZ.Multiplayer.DuelRuntime.I;
+                if (lastCountdownSecond < 0) duel.StartEndLobbyCountdown();
                 int seconds = duel.EndLobbySeconds;
                 if (seconds != lastCountdownSecond)
                 {
@@ -347,7 +348,6 @@ namespace OpenZ
                     timer.raycastTarget = false;
                     timer.gameObject.AddComponent<CanvasGroup>();
                     lobbyCountdown = Hud.Label(timer.transform, "Countdown", "AUTO RETURN IN  00:30", 14, OzUi.Amber, 0.06f, OzStyle.Plain).FillParent(OzH.C);
-                    runtime.StartEndLobbyCountdown();
                 }
                 Button(0, primary, cx - (autoReturn ? 370 : 270), 310, HudButtonStyle.Primary, runtime.ReadyForLobby,
                     autoReturn ? "RETURN TO LOBBY|Return to the lobby now.|ENTER" : "RETURN TO LOBBY|Return when everyone has finished viewing the match statistics.|ENTER");
@@ -445,9 +445,10 @@ namespace OpenZ
                 if (safeName.Length > 19) safeName = safeName.Substring(0, 18) + "…";
                 float mid = (rowHeight - 3) * 0.5f;
                 Hud.Label(row, "Name", safeName + (team == local ? " (YOU)" : ""), 17, OzUi.Ink, 0f)
-                    .At(32, mid, OzH.L, true, 224);
+                    .At(32, mid, OzH.L, true, 156);
+                Hud.Label(row, "Team", TeamColors.Name(team), 13, OzUi.TeamText(team)).At(196, mid, OzH.L, true, 66);
                 bool won = winner != Team.Neutral && world.AreAllied(winner, team);
-                if (won) Hud.Label(row, "Winner", "WINNER", 13, accent).At(260, mid, OzH.L, true, 90);
+                if (won) Hud.Label(row, "Winner", "WINNER", 13, accent).At(270, mid, OzH.L, true, 78);
                 var values = new[] { OpenZMatchStats.Get(stats.Built, team).ToString(),
                     $"{world.Zones.Count(zone => zone.Owner == team)}/{world.Zones.Count}",
                     OpenZMatchStats.Get(stats.PeakZones, team).ToString(),

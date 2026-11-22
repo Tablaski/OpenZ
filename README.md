@@ -16,8 +16,8 @@ This is **work in progress**, not a claim of perfect Z fidelity. If you remember
 
 ## What can you play with?
 
-- **Online multiplayer.** Share an invitation link, select a battlefield from full minimaps, and set up teams, bots or free for all. Players confirm the setup before the host launches. Ghost spectators can watch with a free camera or follow a human player.
-- **Classic 1 vs 1 duels.** Invite a friend with a link. Chat and voice stay available during a confirmed match pause. The player who pauses can resume. Players can also propose a map change or agree to return to the lobby.
+- **Online multiplayer.** Share an invitation link, select a battlefield from full minimaps, and set up teams, bots or free for all. Teams have equal numbers of players and share radar and territorial production bonuses. In online team matches, text chat goes to allies by default. Ghost spectators can watch with a free camera or follow a human player.
+- **Classic 1 vs 1 duels.** Invite a friend with a link. Chat and voice stay available during a confirmed match pause. The player who pauses can resume. Players can also propose a map and factory tech change in a timed vote or agree to return to the lobby.
 - **Your duel, your rules.** Choose allowed units, starting armies, handicaps and four fort cannon slots per team. On the official **Bridge Game**, the host can allow or exclude the Mammoth and Bizon individually. Your opponent can propose a setup for the host to accept. Optional production rules aim to keep matches competitive for longer.
 - **Solo match setup.** Choose allowed units and tank and robot dynamics from the battlefield selector. The Z 1996 roster includes the Light, Medium and Heavy Tanks.
 - **AI Maps.** Rediscover 60 battlefields across five planets, from volcanic lava fields to Arctic steel crossings. Browse panoramic 3D previews in solo or explore the 1 vs 1 gallery with large minimaps and terrain filters. The collection includes low-cost AI reproductions of Z Original, Z Expansion and multiplayer maps, plus an original Arctic layout.

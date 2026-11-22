@@ -150,7 +150,7 @@ namespace OpenZ.Sim
         /// <summary>DV56 (see ZObject.AiCombat.cs), once per AI tick after Zod's order round.</summary>
         void CommitIdleGroups()
         {
-            if (!ZWorld.BotCommitDeviation || Difficulty != ZBotDifficulty.Normal) return;
+            if (!ZWorld.BotCommitDeviation || Difficulty == ZBotDifficulty.Easy) return;
             var units = new List<ZObject>(); var targeted = new List<ZObject>();
             CollectOurUnits_3(units, targeted);
             var idle = new List<ZObject>(); var seen = new HashSet<int>();

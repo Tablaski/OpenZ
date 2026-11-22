@@ -40,8 +40,8 @@ namespace OpenZ.Multiplayer
             }
 
             var controls = Panel("SPECTATOR CONTROLS", 25, 734, 1015, 128);
-            Button(controls, "◀ PREVIOUS · Q", 20, 58, 150, () => R.CycleGhostTarget(-1), enabled: targets.Length > 0, height: 42);
-            Button(controls, "NEXT · E ▶", 180, 58, 140, () => R.CycleGhostTarget(1), enabled: targets.Length > 0, height: 42);
+            Button(controls, "< PREVIOUS · Q", 20, 58, 150, () => R.CycleGhostTarget(-1), enabled: targets.Length > 0, height: 42);
+            Button(controls, "NEXT · E >", 180, 58, 140, () => R.CycleGhostTarget(1), enabled: targets.Length > 0, height: 42);
             Button(controls, R.GhostFollowing ? "FREE CAMERA · F" : "FOLLOW · F", 330, 58, 207,
                 () => R.SetGhostCameraMode(!R.GhostFollowing), enabled: targets.Length > 0, height: 42);
             Button(controls, "RECENTER · R", 547, 58, 180, () => R.SetGhostCameraMode(true), enabled: targets.Length > 0, height: 42);

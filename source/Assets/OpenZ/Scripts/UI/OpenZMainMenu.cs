@@ -236,7 +236,7 @@ namespace OpenZ
             badge30 = OzAnniversaryBadge.Build(p, lx, OzMenuLayout.LogoY + lh + OzMenuLayout.UnderlineGap + 16, 12f);
 
             AddItem("PLAY SOLO", "SELECT FACTION", () => GoFaction());
-            AddItem("MULTIPLAYER", "PLAY ONLINE WITH A FRIEND", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowConnect());
+            AddItem("MULTIPLAYER", "PLAY WITH FRIEND AND/OR BOTS", () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowConnect());
             AddItem("UNIT EDITOR", "PLAYGROUND · ALL UNITS · STATS", () => GoUnitEditor());              // 1.2 item 6: the unit editor's playground (UI/OpenZMainMenu.UnitEditor.cs, View/OzUnitEditor.cs)
             AddItem("OPTIONS", "AUDIO · SCROLL · HUD", () => ToggleSide(Side.Options));
             AddItem("CONTROLS", "THE ZOD KEY MAP", () => ToggleSide(Side.Controls));

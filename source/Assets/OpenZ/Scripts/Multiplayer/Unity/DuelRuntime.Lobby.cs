@@ -55,7 +55,7 @@ namespace OpenZ.Multiplayer
         {
             if (Now >= publishRoomChangesAt && pendingRoomChanges.Count > 0)
             {
-                string change = string.Join(" · ", pendingRoomChanges.Values);
+                string change = string.Join(" | ", pendingRoomChanges.Values);
                 pendingRoomChanges.Clear();
                 AddChat(RoomSettingsChatPrefix + change);
                 SendJson(DuelMessage.RoomLobbyStatus, new RoomLobbyStatus { Change = change });

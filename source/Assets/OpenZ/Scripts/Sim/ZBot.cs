@@ -37,7 +37,7 @@ namespace OpenZ.Sim
     /// 2.5x slower, orders at most <see cref="ZBot.EASY_MAX_WAVE"/> units per round and keeps at most
     /// <see cref="ZBot.EASY_MAX_ATTACKERS"/> units on hostile orders (attack, enter the enemy fort) at a time.
     /// PlayerPrefs "oz_difficulty": 0 = Normal, 1 = Easy (read by ZGame).</summary>
-    public enum ZBotDifficulty { Normal = 0, Easy = 1 }
+    public enum ZBotDifficulty { Normal = 0, Easy = 1, Hard = 2 }
 
     public sealed partial class ZBot
     {
@@ -154,7 +154,8 @@ namespace OpenZ.Sim
             if (EasySlowTick()) return;                                                 // K434: the Easy computer's order rounds on a 1.3 x slower clock, production on today's (Sim/ZBot.EasySlow.cs); false = this tick below, untouched
             if (W.Time + TIME_EPS < nextAiTime) return;
             bool easy = Difficulty == ZBotDifficulty.Easy;
-            nextAiTime = W.Time + (easy ? AI_INTERVAL * EASY_AI_INTERVAL_SCALE : AI_INTERVAL);
+            double intervalScale = easy ? EASY_AI_INTERVAL_SCALE : Difficulty == ZBotDifficulty.Hard ? .75 : 1;
+            nextAiTime = W.Time + AI_INTERVAL * intervalScale;
             Purge();
             if (Ignored) return;
             if (easy && W.Time + TIME_EPS < EASY_START_DELAY) return;                   // Easy: the CPU sits still at the start
@@ -168,6 +169,11 @@ namespace OpenZ.Sim
         void Stage1AI_3()
         {
             bool allOut = GoAllOut_3(out double percent, out double delay);
+            if (Difficulty == ZBotDifficulty.Hard)
+            {
+                percent = Math.Min(1, percent * 1.35);
+                delay *= .75;
+            }
             LastAllOut = allOut; LastPercent = percent; LastDelay = delay;
             bool easy = Difficulty == ZBotDifficulty.Easy;
             if (W.Time + TIME_EPS < lastOrderTime + (easy ? delay * EASY_ORDER_DELAY_SCALE * EasySlowScale : delay)) return;   // ordering too fast? (:140); K434: x 1.3 on Easy (Sim/ZBot.EasySlow.cs)

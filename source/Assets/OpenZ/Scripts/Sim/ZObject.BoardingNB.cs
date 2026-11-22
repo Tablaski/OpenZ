@@ -359,7 +359,7 @@ namespace OpenZ.Sim
         public int CarParkOrders { get; private set; }
 
         /// <summary>DV37 applies: the switch, L17, the standard CPU (Normal = the Zod bot; Easy keeps its own handicap).</summary>
-        public bool CarParkDrive => ZWorld.CarParkBotDeviation && Difficulty == ZBotDifficulty.Normal && W.CarParkMap;
+        public bool CarParkDrive => ZWorld.CarParkBotDeviation && Difficulty != ZBotDifficulty.Easy && W.CarParkMap;
 
         /// <summary>DV37, Stage1AI_3 after the units and targets are collected (before Zod's random wave): up to CarParkPerRound idle
         /// robot squads (nearest to an empty vehicle first; ties by id) get Zod's pairing against the empty vehicles no unit of ours

@@ -55,6 +55,7 @@
 - A stable release on `main` authorizes pushing completed source to GitHub, updating the public README and version changelog, rebuilding the complete Windows ZIPs and installer assets, and uploading them to GitHub. Increment the fork version for each delivered change. Retaining version 0.2.7 for its replacement release was a one-time exception.
 - Multiplayer tank and robot dynamics are host-owned lobby rules, frozen for the match. Do not offer profile changes in the in-game options. Clients may prepare a local grouped proposal; only host acceptance changes official rules. Expire proposals and require draft refresh after an official revision change.
 - Keep text-only OpenZ/OpenZ-VK wordmarks dark orange; preserve the supplied image logo and its original colors. Use violet to identify fork-added game options outside the lobby; the lobby itself uses the ordinary orange/neutral presentation.
+- Show the available values of short settings and filters as labeled buttons whenever they fit. Use an explicitly marked dropdown when space or the number of values warrants it. Use a single button that cycles through hidden values only when the layout makes both controls impractical.
 
 ## OpenZ-VK presentation and compatibility
 

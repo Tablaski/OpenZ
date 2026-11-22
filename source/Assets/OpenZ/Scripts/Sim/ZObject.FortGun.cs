@@ -93,7 +93,9 @@ namespace OpenZ.Sim
             fortGunNext = time + (mortar ? FortMortarReload : u.attack_speed); FortGunLastShot = time;
             int tx = FortGunAimX, ty = FortGunAimY;
             if (!mortar && valid && EstimateMissileTarget(t, u.attack_missile_speed, out int lx, out int ly) && FortGunCanReach(lx, ly)) { tx = lx; ty = ly; }   // DV25: no lead (it can be dodged)
-            tx += World.Rng.Next(32) - 16; ty += World.Rng.Next(32) - 16;                      // the howitzer's scatter (zobject.cpp:2155)
+            int scatter = World.HowitzerScatter(u.attack_damage_radius + FortGunSplashBonusPx);
+            tx += World.Rng.Next(2 * scatter) - scatter;
+            ty += World.Rng.Next(2 * scatter) - scatter;
             var m = new ZMissile { team = Owner, attackerId = Id, targetId = t != null ? t.Id : -1, damage = u.Damage, radius = u.attack_damage_radius + FortGunSplashBonusPx, x = tx, y = ty };
             if (mortar) m.explodeTime = time + FortMortarFlight(Dist(CenterX, CenterY, tx, ty));   // DV25: the lob's flight (2.9-4.2 s)
             else m.CalcExplodeTime(CenterX, CenterY, u.attack_missile_speed, time);

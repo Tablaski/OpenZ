@@ -30,7 +30,7 @@ namespace OpenZ
         public const string Label = "GRAPHICS QUALITY", FpsLabel = "FPS COUNTER";
         // version 1.1: one clause per thing MEDIUM / LOW give up (a cut that is taken out of OzLiteTable.cs takes its clause with it)
         public const string Tip = "GRAPHICS QUALITY|High (default): the full look. Medium and Low are for slower PCs: softer shadows that end sooner when zoomed out, less anti-aliasing (2x / off; edge smoothing stays), lighter fog and ambient occlusion (half / off), fewer night lights and their shadows, thinner rain. Low gives up the most: lamps lose glow and beams, water its sun and fire glints, and big screens get a lighter 3D view (text stays sharp). Units and rules never change. Custom starts from High and shows the OpenZ-VK performance controls.|";
-        public const string FpsTip = "FPS COUNTER|On shows the frame rate, the time of one frame for the processor and for the graphics chip, and the graphics preset in the top right corner. Detailed also splits the processor's time into the game's main work, the drawing work and the game's rules. Off is the default. Hidden in recordings.|";
+        public const string FpsTip = "FPS COUNTER|On shows the frame rate, frame timings and graphics preset during play. Detailed shows main, render and rules timings too. The counter is hidden in menus and recordings.|";
         /// <summary>1.3 item 25: the three values of FPS COUNTER (oz_fps_counter 0 / 1 / 2).</summary>
         public static readonly string[] FpsNames = { "OFF", "ON", "DETAILED" };
         public static readonly string[] Names = { "HIGH", "MEDIUM", "LOW" };
@@ -521,7 +521,8 @@ namespace OpenZ
             return !hud.IsOverUi(new Vector2(l + 1f, Mathf.Min(Screen.height - 1f, top + 5f * k))) && !hud.IsOverUi(new Vector2(r - 1f, Mathf.Min(Screen.height - 1f, top + 5f * k)));   // and 5 units of air above it
         }
 
-        static bool Hidden => !OzQuality.FpsOn || OzSettings.TakeArg || CaptureKit.CineActive;
+        static bool Hidden => !OzQuality.FpsOn || OzSettings.TakeArg || CaptureKit.CineActive ||
+            !OpenZHud.I || OpenZHud.I.Pause && OpenZHud.I.Pause.IsOpen || Multiplayer.DuelRuntime.CapturesInput;
 
         void LateUpdate()
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 
@@ -72,6 +73,110 @@ namespace OpenZ
         public static void Reload() { saved = null; }
         public static void Select(ZBehaviorProfile p)
         { PlayerPrefs.SetString(SelectedKey(p.family), p.id); PlayerPrefs.Save(); }
+
+        internal sealed class CombatProfile
+        {
+            internal readonly ZBehaviorProfile Tanks, Robots;
+            internal string Name => Tanks.id == "native" ? Robots.name : Tanks.name;
+            internal CombatProfile(ZBehaviorProfile tanks, ZBehaviorProfile robots) { Tanks = tanks; Robots = robots; }
+            internal bool Matches(string tanks, string robots) => Tanks.id == tanks && Robots.id == robots;
+        }
+
+        internal static CombatProfile Standard(bool classic) => Pair(
+            classic ? Zod(ZBehaviorFamily.Tanks) : Native(ZBehaviorFamily.Tanks),
+            classic ? Zod(ZBehaviorFamily.Robots) : Native(ZBehaviorFamily.Robots));
+
+        internal static CombatProfile Pair(ZBehaviorProfile tanks, ZBehaviorProfile robots) => new CombatProfile(tanks, robots);
+
+        internal static List<CombatProfile> CustomProfiles() => SavedProfiles.GroupBy(p => p.id).Select(group =>
+            Pair(group.FirstOrDefault(p => p.family == ZBehaviorFamily.Tanks) ?? Native(ZBehaviorFamily.Tanks),
+                group.FirstOrDefault(p => p.family == ZBehaviorFamily.Robots) ?? Native(ZBehaviorFamily.Robots))).ToList();
+
+        internal static void SelectCombat(CombatProfile profile)
+        {
+            PlayerPrefs.SetString(SelectedKey(ZBehaviorFamily.Tanks), profile.Tanks.id);
+            PlayerPrefs.SetString(SelectedKey(ZBehaviorFamily.Robots), profile.Robots.id);
+            PlayerPrefs.Save();
+        }
+
+        internal static void SaveCombat(CombatProfile profile, string name, bool copy)
+        {
+            name = (name ?? "").Trim();
+            if (name.Length == 0 || name.Length > 80) throw new ArgumentException("Use a preset name between 1 and 80 characters.");
+            string current = profile.Tanks.id == "native" ? profile.Robots.id : profile.Tanks.id;
+            bool update = !copy && CustomProfiles().Any(p => p.Matches(profile.Tanks.id, profile.Robots.id));
+            string id = update ? current : Guid.NewGuid().ToString("N");
+            var frozen = new List<ZBehaviorProfile>();
+            foreach (var part in new[] { profile.Tanks, profile.Robots })
+            {
+                var value = part.Clone();
+                value.id = id;
+                value.name = name;
+                value.FreezeReferences();
+                frozen.Add(value);
+            }
+            if (update)
+            {
+                // Legacy saved profiles can have only one component. Preserve
+                // the selected behavior until the edited profile is selected.
+                foreach (var value in frozen)
+                {
+                    if (SavedProfiles.Any(p => p.id == id && p.family == value.family)) continue;
+                    if (SelectedId(value.family) == id) PlayerPrefs.SetString(SelectedKey(value.family), "native");
+                }
+                SavedProfiles.RemoveAll(p => p.id == id);
+            }
+            SavedProfiles.AddRange(frozen);
+            profile.Tanks.id = profile.Robots.id = id;
+            profile.Tanks.name = profile.Robots.name = name;
+            Persist();
+        }
+
+        internal static void DeleteCombat(CombatProfile profile)
+        {
+            foreach (var part in new[] { profile.Tanks, profile.Robots })
+                if (SelectedId(part.family) == part.id) PlayerPrefs.SetString(SelectedKey(part.family), "native");
+            SavedProfiles.RemoveAll(p => p.id == profile.Tanks.id || p.id == profile.Robots.id);
+            Persist();
+        }
+
+        [Serializable] sealed class JsonCombatProfile
+        {
+            public string format = "openz-combat-dynamics";
+            public int version = 2;
+            public string name;
+            public JsonProfile tanks, robots;
+        }
+
+        internal static string ExportCombat(CombatProfile profile)
+        {
+            var data = new JsonCombatProfile { name = profile.Name,
+                tanks = JsonUtility.FromJson<JsonProfile>(EncodeJson(profile.Tanks)),
+                robots = JsonUtility.FromJson<JsonProfile>(EncodeJson(profile.Robots)) };
+            return WriteExport(profile.Tanks, ".json", JsonUtility.ToJson(data, true), profile.Name);
+        }
+
+        internal static CombatProfile ImportCombat(string path)
+        {
+            if (new FileInfo(path).Length > 2000000) throw new IOException("Preset file is too large.");
+            string text = File.ReadAllText(path);
+            if (text.TrimStart().StartsWith("{", StringComparison.Ordinal))
+            {
+                var data = JsonUtility.FromJson<JsonCombatProfile>(text);
+                if (data?.version == 2 && data.format == "openz-combat-dynamics")
+                {
+                    if (data.tanks?.family != "tanks" || data.robots?.family != "robots")
+                        throw new FormatException("The combat profile must contain both unit groups.");
+                    var tanks = DecodeJson(JsonUtility.ToJson(data.tanks));
+                    var robots = DecodeJson(JsonUtility.ToJson(data.robots));
+                    tanks.name = robots.name = string.IsNullOrWhiteSpace(data.name) ? tanks.name : data.name;
+                    return Pair(tanks, robots);
+                }
+            }
+            var legacy = Import(path);
+            return legacy.family == ZBehaviorFamily.Tanks ? Pair(legacy, Native(ZBehaviorFamily.Robots)) :
+                Pair(Native(ZBehaviorFamily.Tanks), legacy);
+        }
         public static void Save(ZBehaviorProfile working, string name, bool copy)
         {
             name = (name ?? "").Trim();
@@ -151,10 +256,10 @@ namespace OpenZ
         public static string ExportJson(ZBehaviorProfile p) => WriteExport(p, ".json", EncodeJson(p));
         public static string Export(ZBehaviorProfile p)
             => WriteExport(p, ".ozbehavior", p.Encode());
-        static string WriteExport(ZBehaviorProfile p, string extension, string contents)
+        static string WriteExport(ZBehaviorProfile p, string extension, string contents, string name = null)
         {
             Directory.CreateDirectory(Folder);
-            string name = p.name;
+            name ??= p.name;
             foreach (char c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
             if (name.Length == 0 || name == "." || name == "..") name = "Preset";
             string path = Path.Combine(Folder, name + extension);

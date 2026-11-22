@@ -9,12 +9,9 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum LobbyDialog { None, Units, Dynamics, Proposal, OpenZMaps, ArmyPresets, Rename, AiHelp }
+        enum LobbyDialog { None, Units, Proposal, OpenZMaps, ArmyPresets, Rename, AiHelp }
         LobbyDialog lobbyDialog;
-        ZBehaviorFamily dynamicsFamily;
-        bool customDynamicsOnly;
-        int dynamicsType;
-        float allowedScroll = 1, dynamicsScroll = 1;
+        float allowedScroll = 1;
         string openZMapId, presetName, presetStatus;
         string nameDraft, renameStatus;
         OzLevelPreview lobbyFlyby;
@@ -174,12 +171,11 @@ namespace OpenZ.Multiplayer
             if (lobbyDialog == LobbyDialog.ArmyPresets) { BuildArmyPresets(rules, editable); return; }
             if (lobbyDialog == LobbyDialog.AiHelp) { BuildAiHelp(rules, editable); return; }
             var shade = Hud.Img(root, "LobbyRulesShade", new Color(0, 0, 0, .94f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
-            var panel = Panel(lobbyDialog == LobbyDialog.Units ? "ALLOWED UNITS" : "SERVER DYNAMICS", 220, 155, 1480, 790);
+            var panel = Panel("ALLOWED UNITS", 220, 155, 1480, 790);
             var background = Hud.Img(panel, "LobbyRulesBackground", OzUi.GM950); background.rectTransform.Fill(); background.transform.SetAsFirstSibling(); background.raycastTarget = true;
             Button(panel, "CLOSE", 1260, 12, 190, () => { lobbyDialog = LobbyDialog.None; dirty = true; });
             Label(panel, editable ? R.IsHost ? "HOST RULES · changes clear both READY confirmations" : "YOUR PROPOSAL · edits stay local until you send them" : "CURRENT HOST RULES · use PREPARE SETTINGS to propose changes", 24, 58, 1390, 18, OzUi.Muted);
-            if (lobbyDialog == LobbyDialog.Units) BuildAllowedUnits(panel, rules, editable);
-            else BuildDynamics(panel, rules, editable);
+            BuildAllowedUnits(panel, rules, editable);
         }
 
         void BuildAiHelp(DuelRules rules, bool editable)
@@ -246,46 +242,54 @@ namespace OpenZ.Multiplayer
             trigger.triggers.Add(exit);
         }
 
-        void BuildDynamics(RectTransform panel, DuelRules rules, bool editable, Action<DuelRules> save = null)
+        RectTransform BuildCombatProfileChoices(RectTransform panel, int x, int y, int width,
+            string tanks, string robots, bool editable, Action<OzBehaviorLibrary.CombatProfile, int> save)
         {
-            Button(panel, "TANKS", 24, 92, 340, () => { dynamicsFamily = ZBehaviorFamily.Tanks; dynamicsType = 0; dynamicsScroll = 1; dirty = true; }, dynamicsFamily == ZBehaviorFamily.Tanks);
-            Button(panel, "ROBOTS", 384, 92, 340, () => { dynamicsFamily = ZBehaviorFamily.Robots; dynamicsType = 0; dynamicsScroll = 1; dirty = true; }, dynamicsFamily == ZBehaviorFamily.Robots);
-            var profile = ZWorld.DuelProfile(dynamicsFamily == ZBehaviorFamily.Tanks ? rules.TankDynamics : rules.RobotDynamics, dynamicsFamily);
-            Label(panel, "FIXED FOR THE MATCH · " + profile.name, 24, 153, 1400, 22, OzUi.Amber);
-            Label(panel, "Prepare custom profiles in Unit Editor > Dynamics and SAVE AS. Choose them here before READY. The pause menu cannot change them.", 24, 188, 1400, 16, OzUi.Muted);
-            if (editable)
+            bool native = tanks == "native" && robots == "native";
+            bool classic = tanks == "zod-classic" && robots == "zod-classic";
+            var profiles = OzBehaviorLibrary.CustomProfiles();
+            var current = profiles.Find(profile => profile.Matches(tanks, robots));
+            int buttonWidth = (width - 16) / 3;
+            int customX = x + 2 * (buttonWidth + 8);
+            Label(panel, "DYNAMICS PROFILE", x, y, width, 19, OzUi.Amber);
+            Button(panel, "OPENZ", x, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(false), 0), native, editable, 40);
+            Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1), classic, editable, 40);
+            bool canChooseCustom = editable && profiles.Count > 0;
+            var custom = Button(panel, "CUSTOM", customX, y + 40, buttonWidth,
+                () => { combatDropdown = !combatDropdown; dirty = true; }, !native && !classic, canChooseCustom, 40);
+            if (canChooseCustom) Label(custom, "v", buttonWidth - 20, 20, 17, 12, !native && !classic ? OzUi.GM950 : OzUi.Ink);
+            string description = combatDropdown && canChooseCustom ? "Choose a saved Unit Editor profile." :
+                native ? "Standard OpenZ combat behavior." :
+                classic ? "Z95-inspired dodging, speed boosts and combat movement." :
+                current == null ? "The lobby uses a custom combat profile." : "Saved combat profile: " + current.Name;
+            Label(panel, description, x, y + 95, width, 15, OzUi.Muted);
+            if (!combatDropdown || !canChooseCustom) return null;
+            // The dropdown spans both columns so saved names have room even at the smaller lobby width.
+            float contentHeight = profiles.Count * 42 + 10;
+            var list = Scroll(panel, x, y + 114, width, Math.Min(222, contentHeight), false, contentHeight);
+            for (int i = 0; i < profiles.Count; i++)
             {
-                var choices = customDynamicsOnly
-                    ? OzBehaviorLibrary.SavedProfiles.Where(p => p.family == dynamicsFamily).ToList()
-                    : OzBehaviorLibrary.Choices(dynamicsFamily);
-                if (choices.Count == 0) Label(panel, "No custom profiles for this group.", 24, 250, 440, 17, OzUi.Muted);
-                var content = Scroll(panel, 24, 235, 440, 520, false, Math.Max(520, choices.Count * 58));
-                for (int index = 0; index < choices.Count; index++)
-                {
-                    var next = choices[index];
-                    Button(content, next.name, 0, index * 58, 420, () =>
-                    {
-                        var frozen = next.Clone(); frozen.FreezeReferences();
-                        if (dynamicsFamily == ZBehaviorFamily.Tanks) rules.TankDynamics = frozen.Encode(); else rules.RobotDynamics = frozen.Encode();
-                        if (save == null) EditLobbyRules(rules); else save(rules);
-                    }, profile.id == next.id);
-                }
+                var profile = profiles[i];
+                Button(list, profile.Name, 5, 5 + i * 42, width - 10, () => Choose(profile, 2), profile == current, height: 38);
             }
-            else Label(panel, "The selected server profile is shown on the right. Your personal saved profiles do not affect this match.", 24, 250, 410, 18, OzUi.Muted).Body(24, 250, 410);
-            var types = dynamicsFamily == ZBehaviorFamily.Tanks ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes;
-            dynamicsType = Math.Min(dynamicsType, types.Length - 1);
-            string type = types[dynamicsType];
-            Button(panel, "INSPECT: " + UnitName(type), 500, 235, 930, () => { dynamicsType = (dynamicsType + 1) % types.Length; dynamicsScroll = 1; dirty = true; });
-            var values = Scroll(panel, 500, 295, 930, 460, false, ZBehaviorSchema.All.Length * 46);
-            var valueScroll = values.parent.GetComponent<ScrollRect>(); valueScroll.verticalNormalizedPosition = dynamicsScroll;
-            valueScroll.onValueChanged.AddListener(p => dynamicsScroll = p.y);
-            int row = 0;
-            foreach (var definition in ZBehaviorSchema.All)
+            return list.parent as RectTransform;
+
+            void Choose(OzBehaviorLibrary.CombatProfile profile, int kind)
             {
-                Label(values, definition.Label, 12, row * 46 + 3, 700, 16, OzUi.Ink);
-                Label(values, definition.Format(profile.Get(type, definition.Key)), 710, row * 46 + 3, 200, 16, OzUi.Amber);
-                row++;
+                combatDropdown = false;
+                dirty = true;
+                save(profile, kind);
             }
+        }
+
+        bool TryEncodeCombatProfile(OzBehaviorLibrary.CombatProfile profile, int kind, out string tanks, out string robots)
+        {
+            tanks = kind == 2 ? profile.Tanks.Encode() : "";
+            robots = kind == 2 ? profile.Robots.Encode() : "";
+            if (SkirmishRules.ValidDynamics(tanks, ZBehaviorFamily.Tanks) && SkirmishRules.ValidDynamics(robots, ZBehaviorFamily.Robots))
+                return true;
+            R.ReportError("This combat profile is too large for a Skirmish lobby.");
+            return false;
         }
     }
 }

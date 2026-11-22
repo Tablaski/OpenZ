@@ -2,7 +2,17 @@
 
 OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring back the combat feel and advanced tactics of the original 1996 Z with help from experienced players.
 
-Invite a friend to a 1 vs 1 duel with a magic link, try optional production rules that give trailing armies more room to recover, and explore AI Maps. The Unit Editor lets you stage repeatable fights and tune combat behavior. Standard OpenZ rules are still available.
+Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. Ghost spectators can watch an online match or follow a player.
+
+OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
+
+## OpenZ-VK 1.5.35 (22 Nov 2026)
+
+- Solo and multiplayer — Choose one combat profile for the match. Use standard OpenZ behavior, select Z Classic or load a saved custom profile.
+- Multiplayer and Skirmish — Choose Free for All or Teams directly. New lobbies start in Free for All. Set each bot to Easy, Medium or Hard.
+- Multiplayer and Skirmish — See the effects of balancing and construction settings as you move their sliders. Wider Howitzer Spread also applies to fort guns. Friendly Fire is available in Teams.
+- Online multiplayer — Open player actions from the roster, including Change Name on your own row. Browse maps using visible world filters. Recent visible settings notices merge in chat, and voice buttons show icons and hover help.
+- Solo and Skirmish — Battlefield options have more space, and Skirmish shows map loading progress before the match. Menu controls have more room around the build identity, and the frame-rate counter is hidden in menus.
 
 ## OpenZ-VK 1.5.34 (22 Nov 2026)
 

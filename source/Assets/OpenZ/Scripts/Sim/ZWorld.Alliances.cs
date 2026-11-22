@@ -68,7 +68,7 @@ namespace OpenZ.Sim
             UpdateSkirmishProduction(true);
         }
 
-        internal bool SkirmishFriendlyFire => skirmishRules?.FriendlyFire == true;
+        internal bool SkirmishFriendlyFire => skirmishRules != null && !skirmishRules.FreeForAll && skirmishRules.FriendlyFire;
 
         internal void UpdateSkirmishProduction(bool initialize = false)
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 
@@ -40,17 +41,32 @@ namespace OpenZ
         UeBoxLayout layout;
         OzText footer;
         int family, page, scope;
-        bool rebuild = true, dirty, profiles, imports;
+        bool rebuild = true, dirty, profiles, imports, scopes;
         string presetName = "My behavior", status = "Changes apply live to this playground.";
         ZBehaviorProfile P => drafts[family];
         ZWorld World => OzUnitEditor.I != null ? OzUnitEditor.I.World : null;
-        string Type => scope == 0 ? "" : (family == 0 ? ZBehaviorSchema.TankTypes : ZBehaviorSchema.RobotTypes)[scope - 1];
+        static readonly string[] UnitTypes = ZBehaviorSchema.TankTypes.Concat(ZBehaviorSchema.RobotTypes).ToArray();
+        string Type => scope == 0 ? "" : UnitTypes[scope - 1];
+        OzBehaviorLibrary.CombatProfile CurrentProfile => OzBehaviorLibrary.Pair(drafts[0], drafts[1]);
+
+        void ChangeScope(Action<ZBehaviorProfile> change)
+        {
+            foreach (var draft in drafts)
+            {
+                if (scope != 0 && draft.family != (ZBehaviorFamily)family) continue;
+                if ((page == 5 || page == 6) && draft.family != ZBehaviorFamily.Tanks) continue;
+                change(draft); Apply((int)draft.family);
+            }
+            dirty = true;
+        }
+
+        void EditScope(ZBehaviorKey key, double value) => ChangeScope(draft => SetField(draft, key, value, Type));
         public Rect PanelRect => layout.Box;
         void Awake() { I = this; }
         void Start()
         {
             for (int i = 0; i < 2; i++) { drafts[i] = OzBehaviorLibrary.Draft((ZBehaviorFamily)i).Clone(); World?.SetBehavior(drafts[i]); }
-            presetName = P.name;
+            presetName = CurrentProfile.Name;
             OzUeKeys.OnEsc(95, () => { if (!IsOpen) return false; Close(); return true; });
         }
         void Update()
@@ -85,7 +101,7 @@ namespace OpenZ
             OzUnitEditor.I.Hud.IsOverUi(RectTransformUtility.WorldToScreenPoint(null, button.Rt.TransformPoint(button.Rt.rect.center)));
         public void OpenFromButton() { if (!EntryIsClickable) throw new InvalidOperationException("COMBAT DYNAMICS is not clickable."); OzUeStats.SetTab(OzUeStats.Tab.Dynamics); }
         public void ShowPage(ZBehaviorFamily f, int tab)
-        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 4) + 1; scope = 0; presetName = P.name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
+        { FinishFields(); family = (int)f; page = Mathf.Clamp(tab, 0, 4) + 1; scope = 0; presetName = CurrentProfile.Name; OzUeStats.SetTab(OzUeStats.Tab.Dynamics); rebuild = true; }
         internal void ShowEasyTuning(ZBehaviorProfile reference)
         {
             family = 0; page = 6; scope = 0;
@@ -95,10 +111,13 @@ namespace OpenZ
         public ZBehaviorProfile Draft(ZBehaviorFamily f) => drafts[(int)f].Clone();
         public void Edit(ZBehaviorFamily f, ZBehaviorKey key, double value, string type = "")
         {
-            var p = drafts[(int)f]; p.Set(type, key, value);
+            SetField(drafts[(int)f], key, value, type); Apply((int)f); dirty = true;
+        }
+        static void SetField(ZBehaviorProfile p, ZBehaviorKey key, double value, string type)
+        {
+            p.Set(type, key, value);
             // A manually tuned combat profile should return to its attack after the blast; the exact reference stays available.
             if (key != ZBehaviorKey.ResumeAttack && !p.Has("", ZBehaviorKey.ResumeAttack)) p.Set("", ZBehaviorKey.ResumeAttack, 1);
-            Apply((int)f); dirty = true;
         }
         public void SetMaster(ZBehaviorFamily f, double value)
         { value = Math.Max(0, Math.Min(100, value)); if (drafts[(int)f].master == value) return; drafts[(int)f].master = value; Apply((int)f); dirty = true; }
@@ -137,26 +156,38 @@ namespace OpenZ
         void BuildBehavior()
         {
             float w = layout.w, inner = w - 24;
-            for (int i = 0; i < 2; i++) { int f = i; Button(box, "Family" + i, i == 0 ? "TANKS" : "ROBOTS", new Rect(12 + i * (inner + 6) / 2, 42, (inner - 6) / 2, 28), "Edit tanks or robots independently.", () => { family = f; scope = 0; presetName = P.name; profiles = imports = false; rebuild = true; }); }
-            var preset = Button(box, "Presets", "", new Rect(12, 76, inner, 26), "Load a reference or named preset into the playground. This does not change the profiles selected for your next match.", () => { profiles = !profiles; imports = false; rebuild = true; });
-            refresh.Add(() => preset.Label.Set((dirty ? "CUSTOM: " : "") + P.name + "  v"));
-            Input(box, "PresetName", new Rect(12, 107, inner - 78, 26), () => presetName, s => presetName = s, "Name used by SAVE / SAVE AS. Enter commits; Escape cancels. Existing named presets can be updated; built-in references remain protected.");
-            Button(box, "Save", "SAVE", new Rect(w - 84, 107, 72, 26), "Save this family, its master position and its manual overrides. The host selects it under DYNAMICS in the 1 vs 1 lobby.", () => Save(false));
+            var preset = Button(box, "Presets", "", new Rect(12, 42, inner, 28),
+                "Load OpenZ, Z Classic or a saved combat profile into this playground.", () => { profiles = !profiles; imports = scopes = false; rebuild = true; });
+            refresh.Add(() => preset.Label.Set("COMBAT PROFILE: " + (dirty ? presetName + " (edited)" : CurrentProfile.Name) + "  v"));
+            Input(box, "PresetName", new Rect(12, 76, inner - 78, 26), () => presetName, s => presetName = s,
+                "Name used by Save and Save As. OpenZ and Z Classic are protected.");
+            Button(box, "Save", "SAVE", new Rect(w - 84, 76, 72, 26), "Save this combat profile for use in solo and multiplayer.", () => Save(false));
             string[] actions = { "SAVE AS", "EXPORT", "IMPORT", "FOLDER" };
-            Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.ExportJson(P), () => { imports = !imports; profiles = false; rebuild = true; }, () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
-            string[] tips = { "Save a new independently named copy.", "Export a readable .json combat profile with the master, overrides and reference endpoints.", "Load a local .json or legacy .ozbehavior file; save it to add it to the game's preset list.", "Open the folder used to exchange .json and legacy .ozbehavior preset files. Nothing is uploaded." };
-            for (int i = 0; i < 4; i++) { int k = i; Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 139, (inner - 12) / 4, 24), tips[i], callbacks[k]); }
-            Button(box, "Scope", scope == 0 ? "ALL " + (family == 0 ? "TANKS" : "ROBOTS") : DisplayType(Type), new Rect(12, 173, inner * .55f, 26), "Choose all units or one type. Type-specific values override family settings.", () => { scope = (scope + 1) % ((family == 0 ? ZBehaviorSchema.TankTypes.Length : ZBehaviorSchema.RobotTypes.Length) + 1); rebuild = true; });
-            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 173, inner * .45f - 6, 26), "Release every manual override in this family.", () =>
-            {
-                FinishFields();
-                agilityDraft.Clear();
-                P.overrides = P.id == "zod-classic" ? ZBehaviorProfile.Classic((ZBehaviorFamily)family).overrides : new List<ZBehaviorOverride>();
-                Apply(family); dirty = true; rebuild = true;
-            });
-            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 4 * (inner + 4) / 4, 205 + i / 4 * 29, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ".", () => { FinishFields(); page = k; profiles = imports = false; agilityDraft.Clear(); rebuild = true; }); if (i >= 5) tab.Label.color = OzForkOptions.Accent; }
+            Action[] callbacks = { () => Save(true), () => status = "Exported: " + OzBehaviorLibrary.ExportCombat(CurrentProfile),
+                () => { imports = !imports; profiles = scopes = false; rebuild = true; },
+                () => { Directory.CreateDirectory(OzBehaviorLibrary.Folder); Application.OpenURL(new Uri(OzBehaviorLibrary.Folder).AbsoluteUri); } };
+            string[] tips = { "Save a new named copy.", "Export this combat profile as JSON.", "Open a saved or legacy combat profile file.",
+                "Open the folder used to exchange combat profiles." };
+            for (int i = 0; i < actions.Length; i++)
+                Button(box, actions[i], actions[i], new Rect(12 + i * (inner + 4) / 4, 108, (inner - 12) / 4, 24), tips[i], callbacks[i]);
+            Button(box, "Scope", (scope == 0 ? "ALL UNITS" : DisplayType(Type)) + "  v", new Rect(12, 142, inner * .55f, 26),
+                "Edit shared settings or override one unit type.", () => { scopes = !scopes; profiles = imports = false; rebuild = true; });
+            Button(box, "ResetOverrides", "RESET OVERRIDES", new Rect(18 + inner * .55f, 142, inner * .45f - 6, 26),
+                "Release manual overrides in this combat profile.", () =>
+                {
+                    FinishFields(); agilityDraft.Clear();
+                    foreach (var draft in drafts)
+                    {
+                        draft.overrides = draft.id == "zod-classic" ? ZBehaviorProfile.Classic(draft.family).overrides : new List<ZBehaviorOverride>();
+                        Apply((int)draft.family);
+                    }
+                    dirty = true; rebuild = true;
+                });
+            Text(box, scope == 0 ? "Tuning shared settings for this profile." : "Tuning overrides for " + DisplayType(Type) + ".",
+                12, 183, inner, 11, OzUi.Muted);
+            for (int i = 0; i < pages.Length; i++) { int k = i; var tab = Button(box, "Page" + i, pages[i], new Rect(12 + i % 4 * (inner + 4) / 4, 205 + i / 4 * 29, (inner - 12) / 4, 25), "Edit " + pages[i].ToLowerInvariant() + ".", () => { FinishFields(); page = k; profiles = imports = scopes = false; if (k == 5 || k == 6) { scope = 0; family = 0; } agilityDraft.Clear(); rebuild = true; }); if (i >= 5) tab.Label.color = OzForkOptions.Accent; }
             MakeList(264);
-            if (profiles || imports) { BuildPresetList(); return; }
+            if (profiles || imports || scopes) { BuildPresetList(); return; }
             if (page == 6) { BuildEasyTuning(); return; }
             float y = 0;
             var intro = Row("Guide", y, 72);
@@ -169,7 +200,7 @@ namespace OpenZ
             if (page == 5)
             {
                 var bands = Row("HealthBand", y, 60);
-                if (family != 0) { Text(bands, "Crippling applies to tanks. Select TANKS above.", 9, 22, layout.w - 58, 11, OzForkOptions.Accent); list.SetContentHeight(y + 60); return; }
+                if (scope != 0 && family != 0) { Text(bands, "Crippling applies to vehicles.", 9, 22, layout.w - 58, 11, OzForkOptions.Accent); list.SetContentHeight(y + 60); return; }
                 Text(bands, "GREEN >50%  |  YELLOW >25-50%  |  RED <=25% HP", 9, 14, layout.w - 58, 10);
                 for (int i = 0; i < 3; i++) { int b = i; Button(bands, "Band" + i, (i == healthBand ? "[" : "") + ((ZHealthBand)i).ToString().ToUpperInvariant() + (i == healthBand ? "]" : ""), new Rect(9 + i * (layout.w - 58) / 3, 28, (layout.w - 64) / 3, 26), "Edit this health colour. Hidden bands retain their values. Matches the Unit Editor hover bar thresholds.", () => { healthBand = b; rebuild = true; }); }
                 y += 60;
@@ -179,7 +210,7 @@ namespace OpenZ
                 var setup = Row("TurnFirstSetup", y, 44);
                 Button(setup, "Apply", "BRAKE > PIVOT > ACCELERATE", new Rect(9, 5, layout.w - 58, 30),
                     "Apply stop-then-turn movement: pivot speed 0%, alignment 5 deg, turn 720 deg/s, acceleration 0.25 s, braking 0.15 s. Keeps dodge settings and type exceptions.",
-                    () => { FinishFields(); P.ConfigureTurnFirst(Type); Apply(family); dirty = true; });
+                    () => { FinishFields(); ChangeScope(draft => draft.ConfigureTurnFirst(Type)); });
                 y += 44;
             }
             IEnumerable<ZBehaviorDef> definitions = page == 0 ? Array.ConvertAll(essentials, ZBehaviorSchema.Def) : ZBehaviorSchema.All;
@@ -192,17 +223,17 @@ namespace OpenZ
                 var def = d; var row = Row(d.Key.ToString(), y, 100); float rw = layout.w - 40; string tip = Explain(d.Key);
                 var label = Text(row, d.Label, 9, 15, rw - 110, 12); Tip(label.rectTransform, tip);
                 if (OzForkOptions.IsFork(d.Label)) label.color = OzForkOptions.Accent;
-                var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the family/master again.", () => { P.Reset(Type, def.Key); Apply(family); });
+                var reset = Button(row, "Inherit", "", new Rect(rw - 99, 4, 91, 23), "Release this field's manual override and inherit from the profile defaults again.", () => { ChangeScope(draft => draft.Reset(Type, def.Key)); });
                 refresh.Add(() => reset.Label.Set(P.Has(Type, def.Key) ? "OVERRIDE" : "INHERITED"));
                 var refs = Text(row, Brief(d.Tip), 9, 39, rw - 18, 10, OzUi.Muted); Tip(refs.rectTransform, tip);
                 if (d.Choices != null)
                 {
-                    var choice = Button(row, "Choice", "", new Rect(9, 57, rw - 18, 28), tip, () => Edit((ZBehaviorFamily)family, def.Key, ((int)P.Get(Type, def.Key) + 1) % def.Choices.Length, Type));
+                    var choice = Button(row, "Choice", "", new Rect(9, 57, rw - 18, 28), tip, () => EditScope(def.Key, ((int)P.Get(Type, def.Key) + 1) % def.Choices.Length));
                     refresh.Add(() => choice.Label.Set(def.Format(P.Get(Type, def.Key))));
                 }
                 else
                 {
-                    Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => Edit((ZBehaviorFamily)family, def.Key, OzUeLabInput.Number(s), Type), tip + "\nEnter applies. Escape cancels.");
+                    Input(row, "Value", new Rect(9, 57, 150, 28), () => P.Get(Type, def.Key).ToString("G12", CultureInfo.InvariantCulture), s => EditScope(def.Key, OzUeLabInput.Number(s)), tip + "\nEnter applies. Escape cancels.");
                     var variance = def.Key switch
                     {
                         ZBehaviorKey.Distance => ZBehaviorKey.DistanceVariance,
@@ -217,7 +248,7 @@ namespace OpenZ
                         Text(row, "VARIANCE", 170, 71, 90, 10, OzForkOptions.Accent);
                         Input(row, "Variance", new Rect(250, 57, rw - 262, 28),
                             () => P.Get(Type, variance).ToString("G12", CultureInfo.InvariantCulture),
-                            s => Edit((ZBehaviorFamily)family, variance, OzUeLabInput.Number(s), Type), "Total variance. 0.2 gives a range of −10% to +10%.");
+                            s => EditScope(variance, OzUeLabInput.Number(s)), "Total variance. 0.2 gives a range of −10% to +10%.");
                     }
                     else Text(row, d.Unit + (d.Label.Contains("unlimited") ? " | 0: unlimited" : d.Label.Contains("instant") ? " | 0: instant" : ""), 169, 71, rw - 178, 10, OzUi.Ink2);
                 }
@@ -234,7 +265,7 @@ namespace OpenZ
             ToggleRow("Debug: combat position + visual lag", () => SimulationDebug, v => SimulationDebug = v, ref y, "Cyan marks the combat position. Violet shows model lag above 5 cm. Display only; combat is unchanged.");
             ToggleRow("Debug: movement target + velocity", () => RouteDebug, v => RouteDebug = v, ref y, "Yellow points to the movement target; green shows commanded velocity before physical steering. Display only; arrows are capped at 6 m.");
             var actionsRow = Row("Actions", y, 38);
-            Button(actionsRow, "Native", "RESTORE OPENZ", new Rect(9, 4, (layout.w - 64) * .65f, 26), "Restore exact native behavior in this family; named presets remain saved.", () => { drafts[family] = OzBehaviorLibrary.Native((ZBehaviorFamily)family); presetName = P.name; dirty = true; Apply(family); rebuild = true; });
+            Button(actionsRow, "Native", "RESTORE OPENZ", new Rect(9, 4, (layout.w - 64) * .65f, 26), "Restore standard OpenZ behavior in the playground.", () => { LoadCombat(OzBehaviorLibrary.Standard(false)); });
             var debug = Button(actionsRow, "Debug", "", new Rect(15 + (layout.w - 64) * .65f, 4, (layout.w - 64) * .35f, 26), "Show the last dodge reason above units. Useful to distinguish a committed dodge, exhausted sprint, blocked path and a forbidden reaction.", () => DebugEnabled = !DebugEnabled);
             refresh.Add(() => debug.Label.Set(DebugEnabled ? "DEBUG ON" : "DEBUG OFF"));
             list.SetContentHeight(y + 38);
@@ -242,16 +273,10 @@ namespace OpenZ
         void BuildEasyTuning()
         {
             float y = 0, width = layout.w - 40;
-            if (family != 0)
-            {
-                Text(Row("Easy tuning", 0, 48), "Select TANKS to adjust dodge agility.", 9, 22, width - 18, 11, OzForkOptions.Accent);
-                list.SetContentHeight(48);
-                return;
-            }
             foreach (string type in ZBehaviorSchema.TankTypes)
             {
                 var row = Row("Agility " + type, y, 44);
-                if (!agilityDraft.ContainsKey(type)) agilityDraft[type] = P.Get(type, ZBehaviorKey.Agility);
+                if (!agilityDraft.ContainsKey(type)) agilityDraft[type] = drafts[0].Get(type, ZBehaviorKey.Agility);
                 Text(row, DisplayType(type), 9, 20, width - 365, 11, OzForkOptions.Accent);
                 Input(row, "Agility", new Rect(width - 341, 6, 65, 28),
                     () => agilityDraft[type].ToString("0.#", CultureInfo.InvariantCulture),
@@ -260,7 +285,7 @@ namespace OpenZ
                 Button(row, "Reset agility", "RESET TO DEFAULT", new Rect(width - 246, 6, 153, 28),
                     "Restore the Z Classic percentage for this tank.", () => agilityDraft[type] = ZBehaviorProfile.ClassicTankAgility(type));
                 Button(row, "Apply agility", "APPLY", new Rect(width - 84, 6, 75, 28),
-                    "Apply dodge distance, acceleration, boost and hull pivot for this tank.", () => { P.ApplyTankAgility(type, agilityDraft[type]); Apply(family); dirty = true; });
+                    "Apply dodge distance, acceleration, boost and hull pivot for this tank.", () => { drafts[0].ApplyTankAgility(type, agilityDraft[type]); Apply(0); dirty = true; });
                 y += 44;
             }
             list.SetContentHeight(y);
@@ -331,15 +356,38 @@ namespace OpenZ
         void BuildPresetList()
         {
             float y = 0;
-            if (profiles)
+            if (scopes)
             {
-                foreach (var choice in OzBehaviorLibrary.Choices((ZBehaviorFamily)family))
+                for (int i = 0; i <= UnitTypes.Length; i++)
                 {
-                    var p = choice; var row = Row(p.name, y, 36);
-                    Button(row, "Load", p.name, new Rect(6, 2, layout.w - 52, 29), "Load this preset into the playground. Unsaved edits are replaced; match selection stays unchanged.", () => LoadProfile(p)); y += 36;
+                    int index = i;
+                    string label = i == 0 ? "ALL UNITS" : DisplayType(UnitTypes[i - 1]);
+                    Button(Row(label, y, 36), "Choose scope", label, new Rect(6, 2, layout.w - 52, 29),
+                        "Choose which units these settings apply to.", () =>
+                        {
+                            FinishFields(); scope = index;
+                            family = scope > 0 && ZBehaviorSchema.IsRobot(Type) ? 1 : 0;
+                            scopes = false; rebuild = true;
+                        });
+                    y += 36;
                 }
-                var del = Row("Delete", y, 40);
-                Button(del, "DeletePreset", "DELETE CURRENT SAVED PRESET", new Rect(6, 3, layout.w - 52, 28), "Delete the current named preset; protected built-in references cannot be deleted.", () => { if (!OzBehaviorLibrary.SavedProfiles.Exists(p => p.id == P.id)) throw new InvalidOperationException("Built-in presets are protected."); OzBehaviorLibrary.Delete(P); rebuild = true; }); y += 40;
+            }
+            else if (profiles)
+            {
+                var presets = OzBehaviorLibrary.CustomProfiles();
+                foreach (var preset in new[] { OzBehaviorLibrary.Standard(false), OzBehaviorLibrary.Standard(true) }.Concat(presets))
+                {
+                    var row = Row(preset.Name, y, 36);
+                    Button(row, "Load", preset.Name, new Rect(6, 2, layout.w - 52, 29), "Load this combat profile into the playground.", () => LoadCombat(preset));
+                    y += 36;
+                }
+                var current = presets.Find(p => p.Matches(drafts[0].id, drafts[1].id));
+                if (current != null)
+                {
+                    Button(Row("Delete", y, 40), "DeletePreset", "DELETE CURRENT SAVED PRESET", new Rect(6, 3, layout.w - 52, 28),
+                        "Delete this profile from the saved profile list.", () => { OzBehaviorLibrary.DeleteCombat(current); rebuild = true; });
+                    y += 40;
+                }
             }
             else
             {
@@ -348,10 +396,21 @@ namespace OpenZ
                 foreach (string path in files)
                 {
                     string file = path; var row = Row(Path.GetFileName(file), y, 36);
-                    Button(row, "Import", Path.GetFileName(file), new Rect(6, 2, layout.w - 52, 29), "Import this preset as a draft, then save it to use it in matches.", () => { var p = OzBehaviorLibrary.Import(file); LoadProfile(p); scope = 0; dirty = true; }); y += 36;
+                    Button(row, "Import", Path.GetFileName(file), new Rect(6, 2, layout.w - 52, 29), "Import this preset as a draft, then save it to use it in matches.", () => { LoadCombat(OzBehaviorLibrary.ImportCombat(file)); dirty = true; }); y += 36;
                 }
             }
             list.SetContentHeight(y);
+        }
+        void LoadCombat(OzBehaviorLibrary.CombatProfile profile)
+        {
+            FinishFields(); agilityDraft.Clear();
+            drafts[0] = profile.Tanks.Clone();
+            drafts[1] = profile.Robots.Clone();
+            family = scope = 0;
+            presetName = profile.Name;
+            profiles = imports = scopes = dirty = false;
+            Apply(0); Apply(1);
+            rebuild = true;
         }
         void LoadProfile(ZBehaviorProfile profile)
         {
@@ -416,13 +475,13 @@ namespace OpenZ
             }
             var mode = Button(row, "Mode", "", new Rect(cx - 64, cy - 18, 128, 36),
                 "Classic: exact continuous Zod angles. Circle: 16 relative directions. Editing a weight enables the circle.",
-                () => Edit((ZBehaviorFamily)family, ZBehaviorKey.Direction, P.Get(Type, ZBehaviorKey.Direction) == 3 ? 0 : 3, Type));
+                () => EditScope(ZBehaviorKey.Direction, P.Get(Type, ZBehaviorKey.Direction) == 3 ? 0 : 3));
             refresh.Add(() => mode.Label.Set(P.Get(Type, ZBehaviorKey.Direction) == 3 ? "CIRCLE ACTIVE" : P.Get(Type, ZBehaviorKey.Direction) == 0 ? "ZOD CLASSIC" : "USE CIRCLE"));
             var selected = Text(row, "", 9, bottom + 8, rw - 18, 11, OzForkOptions.Accent);
             refresh.Add(() => selected.Set("Direction " + (selectedDirection * 22.5).ToString("0.#", CultureInfo.InvariantCulture) + " deg | weight"));
             Input(row, "DirectionWeight", new Rect(9, bottom + 22, 110, 28),
                 () => P.Get(Type, (ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + selectedDirection)).ToString("G12", CultureInfo.InvariantCulture),
-                value => { Edit((ZBehaviorFamily)family, (ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + selectedDirection), OzUeLabInput.Number(value), Type); Edit((ZBehaviorFamily)family, ZBehaviorKey.Direction, 3, Type); },
+                value => { EditScope((ZBehaviorKey)((int)ZBehaviorKey.DodgeWeight0 + selectedDirection), OzUeLabInput.Number(value)); EditScope(ZBehaviorKey.Direction, 3); },
                 "Chance = weight / total enabled weights. Zero excludes a direction; all zero prevents dodging. Blocked directions are refused.");
             Button(row, "ResetZod", "RESET ZOD", new Rect(128, bottom + 22, rw - 137, 28),
                 "Restore exact Zod angles, reference weights and direction permissions for this scope. Other settings stay unchanged.", () => {
@@ -450,7 +509,7 @@ namespace OpenZ
             return d.Tip + "\nDefaults: OpenZ " + Reference(d, false) + " | Zod " + Reference(d, true) + "." + (d.Unit.Length == 0 ? "" : "\nUnit: " + d.Unit + ".") +
                 (d.Label.Contains("0 = unlimited") ? " Zero removes this limit." : d.Label.Contains("0 = instant") ? " Zero applies instantly." : "");
         }
-        void Save(bool copy) { FinishFields(); OzBehaviorLibrary.Save(P, presetName, copy); OzBehaviorLibrary.SaveDraft(P); dirty = false; status = "Saved " + P.name + ". Select it under DYNAMICS in the lobby."; }
+        void Save(bool copy) { FinishFields(); OzBehaviorLibrary.SaveCombat(CurrentProfile, presetName, copy); Apply(0); Apply(1); dirty = false; status = "Saved " + CurrentProfile.Name + ". Select it under Custom before a match."; }
         void Safe(Action action) { try { action(); } catch (Exception e) { status = e.Message; Debug.LogWarning("[OpenZ Laboratory] " + e.Message); } }
         public static string DisplayType(string type) => type == "medium" ? "MECH" : type == ZMTank.Type ? "MEDIUM TANK" : type.ToUpperInvariant();
         public void FinishRespawnPoint()

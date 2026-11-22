@@ -42,7 +42,7 @@ namespace OpenZ.Multiplayer
         {
             roomTab = 0;
             skirmishSelectedSeat = -1;
-            roomFullMap = roomCustomUnits = roomDynamics = roomPresets = false;
+            roomFullMap = roomCustomUnits = combatDropdown = roomPresets = false;
             page = Page.Skirmish;
             dirty = true;
         }
@@ -65,7 +65,7 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < tabs.Length; i++)
             {
                 int tab = i;
-                Button(root, tabs[i], 60 + i * 241, 123, 230, () => { roomTab = tab; dirty = true; }, roomTab == tab);
+                Button(root, tabs[i], 60 + i * 241, 123, 230, () => { roomTab = tab; combatDropdown = false; dirty = true; }, roomTab == tab);
             }
 
             if (roomTab == 0)
@@ -86,15 +86,11 @@ namespace OpenZ.Multiplayer
             if (!canLaunch) Label(root, "Assign at least two opposing teams.", 400, 1003, 860, 20, OzUi.Amber);
             Button(root, "START GAME", 1580, 988, 280, LaunchLocalSkirmish, true, canLaunch, height: 52);
             if (roomCustomUnits) BuildRoomCustomUnits(rules, SaveLocalRules);
-            if (roomDynamics) BuildRoomDynamics(rules, SaveLocalRules);
             if (roomPresets) BuildRoomArmyPresets(rules, SaveLocalRules);
         }
 
-        bool UsesSixStarts(OzAiMap map, int size) => size == 6 && map.Starts == 8 &&
-            !skirmishAiMaps.Any(entry => entry.Starts == 6);
-
         OzAiMap[] SkirmishAiMapsFor(int size) =>
-            skirmishAiMaps.Where(map => map.Starts == size || UsesSixStarts(map, size)).ToArray();
+            skirmishAiMaps.Where(map => OzAiMapCatalog.LobbyPlayerCount(map, skirmishAiMaps) == size).ToArray();
 
         void SelectSkirmishCatalog(bool official)
         {
@@ -189,9 +185,9 @@ namespace OpenZ.Multiplayer
                 }
             }
             if (maxPage == 0) return;
-            Button(catalog, "◀", 24, 710, 74, () => { skirmishMapPage--; dirty = true; }, enabled: skirmishMapPage > 0);
+            Button(catalog, "<", 24, 710, 74, () => { skirmishMapPage--; dirty = true; }, enabled: skirmishMapPage > 0);
             Label(catalog, $"Page {skirmishMapPage + 1} / {maxPage + 1}", 124, 723, 320, 18, OzUi.Muted);
-            Button(catalog, "▶", 450, 710, 74, () => { skirmishMapPage++; dirty = true; }, enabled: skirmishMapPage < maxPage);
+            Button(catalog, ">", 450, 710, 74, () => { skirmishMapPage++; dirty = true; }, enabled: skirmishMapPage < maxPage);
         }
 
         Texture2D SkirmishMinimap(OzAiMap map)
@@ -289,11 +285,11 @@ namespace OpenZ.Multiplayer
                 var row = Hud.Img(parent, name, OzUi.GM900);
                 row.rectTransform.TL(6, y, width - 12, 38);
                 row.raycastTarget = false;
-                Label(row.transform, name, 16, 9, width - 130, 17, OzUi.Ink);
+                Label(row.transform, name, 16, 9, width - (difficulty.HasValue ? 228 : 45), 17, OzUi.Ink);
             }
             else
             {
-                var card = Button(parent, "⋮⋮   " + name, 6, y, width - 12, () =>
+                var card = Button(parent, "::   " + name, 6, y, width - (difficulty.HasValue ? 220 : 12), () =>
                 {
                     if (skirmishDragGhost || skirmishDragFrame == Time.frameCount) return;
                     skirmishSelectedSeat = skirmishSelectedSeat == seat ? -1 : seat;
@@ -302,14 +298,16 @@ namespace OpenZ.Multiplayer
                 card.gameObject.AddComponent<SkirmishCardDrag>().Configure(this, seat, name);
             }
             if (!difficulty.HasValue) return;
-            var level = difficulty.Value;
-            Button(parent, level == ZBotDifficulty.Easy ? "EASY" : "NORMAL", width - 109, y + 3, 96, () =>
+            for (int i = 0; i < LobbyBotDifficulties.Length; i++)
             {
-                var bot = localSkirmish.Bots.Single(entry => entry.Position == seat);
-                localSkirmish.SetBot(LocalSkirmishHost, seat, bot.Alliance,
-                    level == ZBotDifficulty.Easy ? ZBotDifficulty.Normal : ZBotDifficulty.Easy);
-                dirty = true;
-            }, height: 32);
+                var level = LobbyBotDifficulties[i];
+                Button(parent, BotDifficultyName(level).ToUpperInvariant(), width - 210 + i * 68, y + 3, 64, () =>
+                {
+                    var bot = localSkirmish.Bots.Single(entry => entry.Position == seat);
+                    localSkirmish.SetBot(LocalSkirmishHost, seat, bot.Alliance, level);
+                    dirty = true;
+                }, level == difficulty.Value, height: 32);
+            }
         }
 
         void SetSkirmishFreeForAll(bool enabled)

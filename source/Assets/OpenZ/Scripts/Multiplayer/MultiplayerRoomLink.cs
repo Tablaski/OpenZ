@@ -230,7 +230,8 @@ namespace OpenZ.Multiplayer
                 OzAiMapCatalog.FindSkirmishMap(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
                 incoming.Rules?.Valid != true || incoming.Closed == null || incoming.Closed.Any(position => position < 0 || position >= incoming.Starts) ||
                 incoming.Humans.Any(member => member == null || member.Position < -1 || member.Position >= incoming.Starts) ||
-                incoming.Bots.Any(bot => bot == null || bot.Position < 0 || bot.Position >= incoming.Starts) ||
+                incoming.Bots.Any(bot => bot == null || bot.Position < 0 || bot.Position >= incoming.Starts ||
+                    bot.Difficulty < Sim.ZBotDifficulty.Normal || bot.Difficulty > Sim.ZBotDifficulty.Hard) ||
                 incoming.Humans.Count(member => member.Local) != 1 || incoming.Humans.Count(member => member.Host) != 1 ||
                 (View != null && (incoming.Sequence <= View.Sequence || incoming.Revision < View.Revision))) return false;
             View = incoming;

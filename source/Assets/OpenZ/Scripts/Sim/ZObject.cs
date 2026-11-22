@@ -864,8 +864,7 @@ namespace OpenZ.Sim
                 }
                 else
                 {
-                    // Duel howitzers can land well outside the target's blast radius with the wider spread enabled.
-                    int scatter = Type == "howitzer" && World.DuelNerfedHowitzers ? Math.Max(32, (DamageRadius * 5 + 3) / 4) : 16;
+                    int scatter = Type == "howitzer" ? World.HowitzerScatter(DamageRadius) : 16;
                     tx += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
                     ty += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
                     ChargeRocketAim(t, ref tx, ref ty);                                                  // DV121: a Tough's rocket at a vehicle that drives at him aims true (Sim/ZObject.JeepCharge.cs)

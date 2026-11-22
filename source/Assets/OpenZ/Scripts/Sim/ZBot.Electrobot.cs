@@ -88,7 +88,7 @@ namespace OpenZ.Sim
         /// round. Normal CPU only (the Easy CPU keeps its rounds). Returns the held-back Electrobots, null when there is none.</summary>
         List<ZObject> ElectrobotHoldBack(List<ZObject> units)
         {
-            if (!ZWorld.ElectrobotEscortDeviation || Difficulty != ZBotDifficulty.Normal) return null;
+            if (!ZWorld.ElectrobotEscortDeviation || Difficulty == ZBotDifficulty.Easy) return null;
             List<ZObject> held = null;
             for (int i = 0; i < units.Count;)
             {

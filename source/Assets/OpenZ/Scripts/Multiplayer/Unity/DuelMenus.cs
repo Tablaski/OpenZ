@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using OpenZ.Sim;
@@ -13,7 +14,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus : MonoBehaviour
     {
-        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics, MatchRequest, Reconnect, Skirmish, RoomVote, RoomPlayers }
+        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics, MatchRequest, Reconnect, Skirmish, RoomVote, RoomPlayers, SkirmishLoading }
         Page page, builtPage;
         Page microphoneReturn;
         bool deviceList;
@@ -39,6 +40,7 @@ namespace OpenZ.Multiplayer
         OzText chatVoiceStatus, chatGain;
         ScrollRect lobbyChatScroll;
         Text lobbyChatLog;
+        float onlineChatPosition;
         bool bindingChat, bindingTalk;
         bool advanced;
         string lastConnectionStatus, lastRoom;
@@ -53,7 +55,7 @@ namespace OpenZ.Multiplayer
         public void ShowConnect() { page = Page.Connect; dirty = true; }
         public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
         string invitationNotice;
-        public void ShowLobby() { ResetOnlineLobby(); invitationNotice = null; lobbyTab = LobbyTab.Map; roomTab = 0; roomModeration = null; roomFullMap = roomCustomUnits = roomDynamics = roomPresets = roomRename = roomConnectionDetails = false; page = Page.Lobby; dirty = true; }
+        public void ShowLobby() { ResetOnlineLobby(); invitationNotice = null; lobbyTab = LobbyTab.Map; roomTab = 0; roomModeration = null; roomFullMap = roomCustomUnits = combatDropdown = roomPresets = false; page = Page.Lobby; dirty = true; }
         internal void ShowRoomPlayers() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); roomModeration = null; page = Page.RoomPlayers; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
@@ -81,11 +83,13 @@ namespace OpenZ.Multiplayer
             if (pauseOpen != pauseWasOpen) { pauseWasOpen = pauseOpen; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
-            if (!OzAiMapGallery.IsOpen && page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-            { pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; }
+            if (!OzAiMapGallery.IsOpen && (page == Page.Lobby || page == Page.Skirmish) && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None || combatDropdown) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            { pickerGroup = -1; lobbyDialog = LobbyDialog.None; combatDropdown = false; dirty = true; }
             if (OnlineRoomPage && onlinePopup != OnlinePopup.None && Keyboard.current != null &&
                 Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping)
                 OpenOnlinePopup(OnlinePopup.None);
+            if (OnlineRoomPage && onlinePlayerMenu != null && Keyboard.current != null &&
+                Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping) CloseOnlinePlayerMenu();
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
@@ -115,6 +119,7 @@ namespace OpenZ.Multiplayer
             R.Voice.ChatMonitoring = chatInputMeter && R.Connected;
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
             if (page == Page.MatchRequest) requestTime?.Set(Math.Ceiling(R.MatchRequestSeconds) + " s");
+            if (page == Page.SkirmishLoading) UpdateSkirmishLoading();
             if (page == Page.RoomVote && R.RoomVoteMap != null) requestTime?.Set(Math.Ceiling(R.RoomVoteSeconds) + " s");
             if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
@@ -158,6 +163,8 @@ namespace OpenZ.Multiplayer
                 pickerGroup = -1;
                 lobbyDialog = LobbyDialog.None;
             }
+            if (lobbyChatScroll && builtPage == Page.Lobby && R.SkirmishRoom)
+                onlineChatPosition = lobbyChatScroll.verticalNormalizedPosition;
             if (overlayRoot) { overlayRoot.gameObject.SetActive(false); Destroy(overlayRoot.gameObject); }
             if (page != Page.Lobby && page != Page.Skirmish) ReleaseLobbyFlyby();
             lobbyFlybyImage = null;
@@ -216,6 +223,7 @@ namespace OpenZ.Multiplayer
             if (page == Page.RoomVote) { BuildRoomVote(); return; }
             if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
             if (page == Page.MatchRequest || page == Page.Reconnect) { BuildMatchRequestPage(); return; }
+            if (page == Page.SkirmishLoading) { BuildSkirmishLoading(); return; }
             var background = Hud.Img(overlayRoot, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             if (page == Page.Skirmish || OnlineRoomPage) background.transform.SetAsFirstSibling();
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
@@ -330,8 +338,8 @@ namespace OpenZ.Multiplayer
                     int index = roomVoteSelection % maps.Length;
                     var target = maps[index];
                     Label(panel, target.Name + "  ·  " + target.Starts + " players", 154, 82, 630, 26, OzUi.Ink);
-                    Button(panel, "◀", 34, 70, 102, () => { roomVoteSelection = (index + maps.Length - 1) % maps.Length; dirty = true; });
-                    Button(panel, "▶", 804, 70, 102, () => { roomVoteSelection = (index + 1) % maps.Length; dirty = true; });
+                    Button(panel, "<", 34, 70, 102, () => { roomVoteSelection = (index + maps.Length - 1) % maps.Length; dirty = true; });
+                    Button(panel, ">", 804, 70, 102, () => { roomVoteSelection = (index + 1) % maps.Length; dirty = true; });
                     Button(panel, "PROPOSE MAP", 34, 192, 430, () => R.ProposeRoomMap(target.Id), true, R.RoomCanVote);
                 }
             }
@@ -342,72 +350,29 @@ namespace OpenZ.Multiplayer
         int roomTab, roomSelectedSeat;
         bool roomArmyTotal;
         string roomModeration, roomModerationNote = "";
-        bool roomRename, roomConnectionDetails;
         string roomNameDraft;
-
-        void BuildRoomInfo()
-        {
-            var shade = Hud.Img(root, "Lobby dialog backdrop", new Color(0, 0, 0, .85f));
-            shade.rectTransform.Fill();
-            shade.raycastTarget = true;
-            var panel = Panel(roomRename ? "CHANGE NAME" : "CONNECTION DETAILS", 560, 330, 800, 372);
-            Button(panel, "CLOSE", 594, 14, 172, () => { roomRename = roomConnectionDetails = false; dirty = true; });
-            if (roomRename)
-            {
-                Input(panel, "Display name", 28, 108, 740, roomNameDraft, value => roomNameDraft = value, 32);
-                Button(panel, "SAVE NAME", 28, 220, 300, () =>
-                {
-                    if (!R.RenameRoomPlayer(roomNameDraft)) return;
-                    name = DuelLobby.NormalizeName(roomNameDraft);
-                    SaveName();
-                    roomRename = false;
-                    dirty = true;
-                }, true);
-            }
-            else
-            {
-                Label(panel, R.ConnectionStatus, 28, 105, 740, 22, OzUi.Ink);
-                Label(panel, "ROUTE  ·  " + R.TransportLabel, 28, 170, 650, 19, OzUi.Amber);
-                Label(panel, "PING  ·  " + R.PingMs.ToString("0") + " ms", 28, 226, 650, 19, OzUi.Ink);
-            }
-        }
 
         void BuildRoomRules(int starts, bool editable, SkirmishRules rules, Action<SkirmishRules> save)
         {
             string title = roomTab == 1 ? "STARTING ARMIES" : roomTab == 2 ? "BALANCING OPTIONS" : roomTab == 3 ? "PLAYER ADVANTAGE" : "BATTLE RULES";
+            if (roomTab == 2) { DrawRoomBalance(rules, editable, save); return; }
             var panel = page == Page.Skirmish ? Panel(title, 60, 185, 1116, 780) : Panel(title, 60, 185, 1092, 568);
-            if (roomTab == 2)
-            {
-                Label(panel, "Territory production reduction cap", 30, 71, 740, 22, OzUi.Ink);
-                LobbySlider(panel, "Territory cap", 30, 111, 780, 10, 50, rules.TerritoryCap, "10%", "50% · original",
-                    value => value + "%", 711, editable, value => { rules.TerritoryCap = value; save(rules); });
-                Button(panel, (rules.ProgressiveTerritory ? "☑ " : "☐ ") + "PROGRESSIVE TERRITORY CAP", 30, 181, 790,
-                    () => { rules.ProgressiveTerritory = !rules.ProgressiveTerritory; save(rules); }, enabled: editable);
-                Label(panel, "Fort catch-up speedup  ·  " + rules.FortSpeedup + "%", 30, 255, 740, 22, OzUi.Ink);
-                LobbySlider(panel, "Fort speedup", 30, 296, 780, 0, 500, rules.FortSpeedup, "Off", "500%",
-                    value => value + "%", 600, editable, value => { rules.FortSpeedup = value; save(rules); });
-                Button(panel, (rules.ProgressiveFort ? "☑ " : "☐ ") + "PROGRESSIVE FORT SPEEDUP", 30, 366, 790,
-                    () => { rules.ProgressiveFort = !rules.ProgressiveFort; save(rules); }, enabled: editable);
-                Label(panel, "Military lead is measured against the strongest opposing team.", 30, 458, 790, 17, OzUi.Muted);
-                return;
-            }
             if (roomTab == 4)
             {
                 Label(panel, "ALLOWED UNITS", 30, 81, 480, 20, OzUi.Amber);
                 Button(panel, "OPENZ", 30, 121, 155, () => SetRoster(false), !rules.ClassicUnits && !rules.CustomRoster, editable);
                 Button(panel, "Z CLASSIC", 196, 121, 155, () => SetRoster(true), rules.ClassicUnits, editable);
                 Button(panel, "CUSTOM", 362, 121, 155, () => { roomCustomUnits = true; dirty = true; }, rules.CustomRoster, editable);
-                Label(panel, "DYNAMICS PROFILE", 554, 81, 510, 20, OzUi.Amber);
-                bool customDynamics = !string.IsNullOrEmpty(rules.TankDynamics) || !string.IsNullOrEmpty(rules.RobotDynamics);
-                Button(panel, "OPENZ", 554, 121, 157, () => SetDynamics(false), !rules.ClassicDynamics && !customDynamics, editable);
-                Button(panel, "Z CLASSIC", 722, 121, 157, () => SetDynamics(true), rules.ClassicDynamics, editable);
-                Button(panel, "CUSTOM", 890, 121, 169, () =>
+                string tanks = rules.ClassicDynamics ? "zod-classic" : ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks).id;
+                string robots = rules.ClassicDynamics ? "zod-classic" : ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots).id;
+                var profileChoices = BuildCombatProfileChoices(panel, 554, 81, 505, tanks, robots, editable, (profile, kind) =>
                 {
-                    customDynamicsOnly = true;
-                    roomDynamicsStatus = "";
-                    roomDynamics = true;
-                    dirty = true;
-                }, customDynamics);
+                    if (!TryEncodeCombatProfile(profile, kind, out string tankData, out string robotData)) return;
+                    rules.ClassicDynamics = kind == 1;
+                    rules.TankDynamics = tankData;
+                    rules.RobotDynamics = robotData;
+                    save(rules);
+                });
                 Label(panel, "WITHOUT A WORKING RADAR", 30, 191, 960, 20, OzUi.Amber);
                 for (int i = 0; i <= (int)RadarLossRule.FogAndZoom; i++)
                 {
@@ -418,17 +383,23 @@ namespace OpenZ.Multiplayer
                         "Lock the camera in a\nwider overhead view.", "Hide unseen enemies and\nlock the camera wide." };
                     Label(panel, help[i], 32 + i * 259, 281, 235, 16, OzUi.Muted).Body(32 + i * 259, 281, 235);
                 }
-                Label(panel, "FRIENDLY FIRE", 30, 330, 740, 20, OzUi.Amber);
-                Label(panel, "Explosions can damage your own units and allied units.", 30, 370, 740, 17, OzUi.Muted);
-                Button(panel, "OFF", 851, 335, 97, () => { rules.FriendlyFire = false; save(rules); }, !rules.FriendlyFire, editable);
-                Button(panel, "ON", 959, 335, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable);
-                Button(panel, (rules.NerfedHowitzers ? "☑ " : "☐ ") + "WIDER HOWITZER SPREAD", 30, 432, 507,
-                    () => { rules.NerfedHowitzers = !rules.NerfedHowitzers; save(rules); }, enabled: editable);
-                if (page == Page.Skirmish || starts == 2) Button(panel, page == Page.Skirmish ? "SWAP STARTING SIDES" : "SWAP FORTS 1 ↔ 2", 554, 432, 502, () =>
+                Label(panel, "WIDER HOWITZER SPREAD", 30, 330, 750, 20, OzUi.Amber);
+                Label(panel, "On: howitzers and fort guns land shells farther from their aim point and miss more often.", 30, 365, 790, 16, OzUi.Muted);
+                Button(panel, "OFF", 851, 329, 97, () => { rules.NerfedHowitzers = false; save(rules); }, !rules.NerfedHowitzers, editable);
+                Button(panel, "ON", 959, 329, 97, () => { rules.NerfedHowitzers = true; save(rules); }, rules.NerfedHowitzers, editable);
+                if (!rules.FreeForAll)
+                {
+                    Label(panel, "FRIENDLY FIRE", 30, 412, 740, 20, OzUi.Amber);
+                    Label(panel, "On: explosions can damage your units and your allies.", 30, 448, 740, 16, OzUi.Muted);
+                    Button(panel, "OFF", 851, 411, 97, () => { rules.FriendlyFire = false; save(rules); }, !rules.FriendlyFire, editable);
+                    Button(panel, "ON", 959, 411, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable);
+                }
+                if (page == Page.Skirmish || starts == 2) Button(panel, page == Page.Skirmish ? "SWAP STARTING SIDES" : "SWAP FORTS 1 / 2", 554, 488, 502, () =>
                 {
                     if (page == Page.Skirmish) { localSkirmish.SwapStartingSides(LocalSkirmishHost); dirty = true; }
                     else R.SwapRoomStartingSides();
                 }, enabled: editable);
+                profileChoices?.SetAsLastSibling();
                 return;
 
                 void SetRoster(bool classic)
@@ -439,12 +410,6 @@ namespace OpenZ.Multiplayer
                     save(rules);
                 }
 
-                void SetDynamics(bool classic)
-                {
-                    rules.ClassicDynamics = classic;
-                    rules.TankDynamics = rules.RobotDynamics = "";
-                    save(rules);
-                }
             }
             if (roomTab == 1)
             {
@@ -462,8 +427,11 @@ namespace OpenZ.Multiplayer
                         () => { roomSelectedSeat = index; roomArmyTotal = false; dirty = true; }, seat == i, height: 35);
                 }
                 Label(panel, "Construction time", 30, 146, 450, 19, OzUi.Ink);
+                var example = Label(panel, "", 30, 295, 790, 15, OzUi.Muted);
+                void Preview(int value) => example.Set($"Example: a 100 s build takes {value} s before other rules.");
+                Preview(rules.BuildPercent[seat]);
                 LobbySlider(panel, "Construction time", 30, 175, 780, 50, 100, rules.BuildPercent[seat], "50%", "100% · standard",
-                    value => value + "%", 600, editable, value => { rules.BuildPercent[seat] = value; save(rules); });
+                    value => value + "%", 600, editable, value => { rules.BuildPercent[seat] = value; save(rules); }, preview: Preview);
             }
             else Label(panel, "Each starting position receives these additions to its map army.", 30, 82, 790, 19, OzUi.Ink);
             var choices = new[] { "" }.Concat(DuelRules.AllowedExtras.Where(rules.Allows)).ToArray();
@@ -473,29 +441,29 @@ namespace OpenZ.Multiplayer
                 int slot = individual ? seat * 4 + i : i;
                 string unit = slots[slot] ?? "";
                 Button(panel, unit == "" ? "EMPTY" : unit.Replace('_', ' ').ToUpperInvariant(), 30 + i % 2 * 400,
-                    (individual ? 247 : 132) + i / 2 * 54, 388, () =>
+                    (individual ? 318 : 132) + i / 2 * 54, 388, () =>
                     {
                         slots[slot] = choices[(Array.IndexOf(choices, unit) + 1) % choices.Length];
                         save(rules);
                     }, enabled: editable);
             }
             if (!individual) return;
-            Button(panel, roomArmyTotal ? "HIDE STARTING ARMY" : "VIEW STARTING ARMY", 30, 369, 450, () => { roomArmyTotal = !roomArmyTotal; dirty = true; });
-            Button(panel, "RESET PLAYER", 495, 369, 315, () =>
+            Button(panel, roomArmyTotal ? "HIDE STARTING ARMY" : "VIEW STARTING ARMY", 30, 438, 450, () => { roomArmyTotal = !roomArmyTotal; dirty = true; });
+            Button(panel, "RESET PLAYER", 495, 438, 315, () =>
             { Array.Clear(rules.Extras, seat * 4, 4); rules.BuildPercent[seat] = 100; save(rules); }, enabled: editable);
             if (roomArmyTotal)
             {
                 var totals = rules.StartingUnits(seat).GroupBy(unit => unit).Select(group => group.Count() + " × " + group.Key.Replace('_', ' '));
-                Label(panel, "Map army + " + (totals.Any() ? string.Join(", ", totals) : "no additions"), 30, 438, 790, 18, OzUi.Ink);
+                Label(panel, "Map army + " + (totals.Any() ? string.Join(", ", totals) : "no additions"), 30, 506, 790, 18, OzUi.Ink);
             }
         }
 
         void SelectRoomModeration(string id) { roomModeration = id; roomModerationNote = ""; dirty = true; }
 
         bool roomCustomUnits;
-        bool roomDynamics;
+        bool combatDropdown;
         bool roomPresets;
-        string roomDynamicsStatus;
+
 
         void BuildSharedRoomArmy(RectTransform panel, SkirmishRules rules, bool editable, Action<SkirmishRules> save)
         {
@@ -547,37 +515,6 @@ namespace OpenZ.Multiplayer
                 rules.Common = next.Common.StartingUnits.Select(unit => rules.Allows(unit) ? unit : "").ToArray();
                 save(rules);
             }, () => { roomPresets = false; dirty = true; });
-        }
-
-        void BuildRoomDynamics(SkirmishRules rules, Action<SkirmishRules> save)
-        {
-            var shade = Hud.Img(root, "Dynamics backdrop", new Color(0, 0, 0, .94f));
-            shade.rectTransform.Fill();
-            shade.raycastTarget = true;
-            var panel = Panel("DYNAMICS PROFILE", 220, 155, 1480, 790);
-            Button(panel, "CLOSE", 1260, 12, 190, () => { roomDynamics = false; dirty = true; });
-            Label(panel, roomDynamicsStatus, 24, 58, 1200, 17, OzUi.AlertText);
-            var profile = new DuelRules { TankDynamics = rules.TankDynamics, RobotDynamics = rules.RobotDynamics };
-            if (rules.ClassicDynamics)
-            {
-                profile.TankDynamics = rules.Behavior(ZBehaviorFamily.Tanks).Encode();
-                profile.RobotDynamics = rules.Behavior(ZBehaviorFamily.Robots).Encode();
-            }
-            BuildDynamics(panel, profile, save != null, next =>
-            {
-                if (!SkirmishRules.ValidDynamics(next.TankDynamics, ZBehaviorFamily.Tanks) ||
-                    !SkirmishRules.ValidDynamics(next.RobotDynamics, ZBehaviorFamily.Robots))
-                {
-                    roomDynamicsStatus = "This profile is too large for a Skirmish lobby.";
-                    dirty = true;
-                    return;
-                }
-                rules.ClassicDynamics = false;
-                rules.TankDynamics = next.TankDynamics;
-                rules.RobotDynamics = next.RobotDynamics;
-                roomDynamicsStatus = "";
-                save(rules);
-            });
         }
 
         static void RemoveDisallowedExtras(SkirmishRules rules)
@@ -669,8 +606,66 @@ namespace OpenZ.Multiplayer
             localSkirmish.Launch(LocalSkirmishHost);
             localSkirmish.MarkLoaded(LocalSkirmishHost, localSkirmish.Revision);
             OzPlayBlue.Disarm("local skirmish");
+            skirmishLoadingMap = map;
+            page = Page.SkirmishLoading;
+            dirty = true;
+            StartCoroutine(LoadSkirmishMap(map));
+        }
+
+        OzAiMap skirmishLoadingMap;
+        AsyncOperation skirmishLoad;
+        OzText skirmishLoadText;
+        Image skirmishLoadFill;
+
+        void BuildSkirmishLoading()
+        {
+            var backdrop = Hud.Img(root, "Loading backdrop", OzUi.GM950);
+            backdrop.rectTransform.Fill(); backdrop.raycastTarget = true;
+            var poster = SkirmishMinimap(skirmishLoadingMap);
+            if (poster)
+            {
+                float h = 460, w = Math.Min(680, h * poster.width / poster.height);
+                var preview = Hud.Node("Map preview", root).gameObject.AddComponent<RawImage>();
+                preview.texture = poster;
+                preview.rectTransform.Place(new OzRect(OzAnchor.TC, 960 - w / 2, 193, w, h));
+                preview.raycastTarget = false;
+            }
+            var panel = Hud.Node("Loading status", root);
+            panel.Place(new OzRect(OzAnchor.TC, 500, 690, 920, 230));
+            Hud.Plate(panel, "md", 0, OzUi.AmberLo);
+            Label(panel, "SKIRMISH · " + skirmishLoadingMap.Name.ToUpperInvariant(), 35, 37, 850, 30, OzUi.Ink);
+            skirmishLoadText = Label(panel, "", 35, 99, 850, 20, OzUi.Amber);
+            var track = Hud.Img(panel, "Load track", OzUi.GM950);
+            track.rectTransform.TL(35, 139, 850, 15);
+            skirmishLoadFill = Hud.Img(track.transform, "Load progress", OzUi.Amber);
+            skirmishLoadFill.rectTransform.Fill(); skirmishLoadFill.raycastTarget = false;
+            UpdateSkirmishLoading();
+        }
+
+        void UpdateSkirmishLoading()
+        {
+            float progress = skirmishLoad?.progress ?? 0;
+            skirmishLoadText?.Set(progress >= .9f ? "PREPARING BATTLEFIELD" : $"LOADING BATTLEFIELD · {Mathf.FloorToInt(100 * progress / .9f)}%");
+            if (skirmishLoadFill) skirmishLoadFill.rectTransform.anchorMax = new Vector2(Math.Min(1, progress / .9f), 1);
+        }
+
+        IEnumerator LoadSkirmishMap(OzAiMap map)
+        {
+            // Let the loading screen render before Unity begins scene I/O.
+            yield return null;
+            yield return null;
+            try { skirmishLoad = SceneManager.LoadSceneAsync(map.ScenePath, LoadSceneMode.Single); }
+            catch (Exception error)
+            {
+                Debug.LogException(error);
+                localSkirmish.ReturnToLobby(LocalSkirmishHost);
+                ShowError();
+            }
+            if (skirmishLoad == null) yield break;
+            yield return skirmishLoad;
+            yield return null;
+            skirmishLoad = null;
             CloseOverlay();
-            SceneManager.LoadSceneAsync(map.ScenePath, LoadSceneMode.Single);
         }
 
         string roomTechMap;
@@ -949,7 +944,8 @@ namespace OpenZ.Multiplayer
         }
 
         static void LobbySlider(Transform panel, string name, float x, float y, float w, int min, int max, int initial,
-            string left, string right, Func<int, string> format, float readoutX, bool editable, Action<int> commit, bool reverse = false)
+            string left, string right, Func<int, string> format, float readoutX, bool editable, Action<int> commit,
+            bool reverse = false, Action<int> preview = null)
         {
             var value = Hud.Img(panel, name + " current value", OzUi.GM950);
             value.rectTransform.TL(readoutX, 10, 92, 38); value.raycastTarget = false;
@@ -967,7 +963,7 @@ namespace OpenZ.Multiplayer
             slider.SetDirection(reverse ? Slider.Direction.RightToLeft : Slider.Direction.LeftToRight, false);
             slider.fillRect = fill.rectTransform; slider.handleRect = handle.rectTransform; slider.targetGraphic = handle;
             slider.minValue = min; slider.maxValue = max; slider.wholeNumbers = true; slider.value = initial; slider.interactable = editable;
-            slider.onValueChanged.AddListener(v => readout.Set(format((int)v)));
+            slider.onValueChanged.AddListener(v => { readout.Set(format((int)v)); preview?.Invoke((int)v); });
             slider.Commit = v => { if ((int)v != initial) commit((int)v); };
             Label(panel, left, x, y + 37, 240, 14, OzUi.Muted);
             Hud.Label(panel, right, right, 14, OzUi.Muted).At(x + w, y + 37, OzH.R, false, 240);
@@ -1010,7 +1006,7 @@ namespace OpenZ.Multiplayer
                 Mathf.Clamp(Mathf.RoundToInt((float)rules.TerritoryReductionCap * 100), 10, 50),
                 "50% · ORIGINAL", "10%", value => value + "%", 742, editable,
                 value => { rules.TerritoryReductionCap = value / 100d; EditLobbyRules(rules); }, reverse: true);
-            Button(territory, (rules.ProgressiveTerritoryCap ? "☑ " : "☐ ") + "DECREASING PROGRESSIVELY", 24, 164, 420,
+            Button(territory, (rules.ProgressiveTerritoryCap ? "[X] " : "[ ] ") + "DECREASING PROGRESSIVELY", 24, 164, 420,
                 () => { rules.ProgressiveTerritoryCap = !rules.ProgressiveTerritoryCap; EditLobbyRules(rules); },
                 rules.ProgressiveTerritoryCap, editable, 38);
             Label(territory, "Off: the same fixed cap applies to both teams.", 24, 211, 805, 16, OzUi.Muted);
@@ -1023,7 +1019,7 @@ namespace OpenZ.Multiplayer
                 Mathf.RoundToInt((float)rules.FortSpeedup * 100), "OFF · 0%", "500%",
                 value => value == 0 ? "OFF" : value + "%", 748, editable,
                 value => { rules.FortSpeedup = value / 100d; rules.FortLoserMaximum = 0; EditLobbyRules(rules); });
-            Button(fort, (rules.ProgressiveFortSpeedup ? "☑ " : "☐ ") + "INCREASING PROGRESSIVELY", 24, 164, 420,
+            Button(fort, (rules.ProgressiveFortSpeedup ? "[X] " : "[ ] ") + "INCREASING PROGRESSIVELY", 24, 164, 420,
                 () => { rules.ProgressiveFortSpeedup = !rules.ProgressiveFortSpeedup; EditLobbyRules(rules); },
                 rules.ProgressiveFortSpeedup, editable, 38);
             Label(fort, "On: starts as soon as you trail and reaches full strength at a −20% army gap.", 24, 211, 808, 16, OzUi.Muted);
@@ -1067,31 +1063,14 @@ namespace OpenZ.Multiplayer
                 rules.UnitPreset == DuelUnitPreset.Custom, true, 58).name = "CUSTOM ALLOWED UNITS";
 
             var battle = Panel("BATTLE RULES", 778, 250, 1042, 515);
-            var tanks = ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks);
-            var robots = ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots);
-            bool classic = tanks.id == "zod-classic" && robots.id == "zod-classic";
-            bool native = tanks.id == "native" && robots.id == "native";
-            Label(battle, "DYNAMICS PROFILE", 24, 62, 900, 18, OzUi.Ink);
-            Button(battle, "OPENZ", 24, 88, 312, () =>
+            string tanks = ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks).id;
+            string robots = ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots).id;
+            var profileChoices = BuildCombatProfileChoices(battle, 24, 62, 990, tanks, robots, editable, (profile, kind) =>
             {
-                rules.TankDynamics = rules.RobotDynamics = ""; EditLobbyRules(rules);
-            }, native, editable, 48).name = "OPENZ DYNAMICS";
-            Button(battle, "Z CLASSIC", 355, 88, 312, () =>
-            {
-                rules.TankDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks).Encode();
-                rules.RobotDynamics = ZBehaviorProfile.Classic(ZBehaviorFamily.Robots).Encode();
+                rules.TankDynamics = kind == 0 ? "" : profile.Tanks.Encode();
+                rules.RobotDynamics = kind == 0 ? "" : profile.Robots.Encode();
                 EditLobbyRules(rules);
-            }, classic, editable, 48).name = "Z CLASSIC DYNAMICS";
-            Button(battle, "CUSTOM", 685, 88, 330, () =>
-            {
-                customDynamicsOnly = false; dynamicsType = 0; lobbyDialog = LobbyDialog.Dynamics; dirty = true;
-            }, !native && !classic, true, 48).name = "CUSTOM DYNAMICS";
-            Label(battle, "Each match defaults to OpenZ, even if you used another profile last match.", 24, 151, 990, 17, OzUi.Muted);
-            var warning = Hud.Img(battle, "Z Classic warning", new Color(.25f, .19f, .12f));
-            warning.rectTransform.TL(24, 190, 991, 79); warning.raycastTarget = false;
-            Label(warning.transform, "Z CLASSIC · WORK IN PROGRESS", 14, 12, 955, 17, OzUi.Amber);
-            Label(warning.transform, "Fun to try and still far from finished. We welcome constructive ideas and feedback.",
-                14, 45, 961, 16, OzUi.Ink);
+            });
             Label(battle, "WHEN YOUR LAST RADAR IS LOST", 24, 304, 991, 18, OzUi.Ink);
             var tip = Label(battle, "", 24, 394, 990, 16, OzUi.Muted);
             for (int i = 0; i <= (int)RadarLossRule.FogAndZoom; i++)
@@ -1102,6 +1081,7 @@ namespace OpenZ.Multiplayer
                 AddLobbyTip(choice, tip, OzBattleOptions.RadarTip(option));
             }
             if (R.IsHost) Button(battle, "SWAP RED / BLUE", 705, 444, 310, R.SwapTeams, false, R.Connected && R.View.GuestName != null);
+            profileChoices?.SetAsLastSibling();
         }
 
         void BuildMapPreview(Transform parent, DuelRules rules)
@@ -1189,7 +1169,7 @@ namespace OpenZ.Multiplayer
             var panel = Panel(OzForkOptions.AudioDevicesLabel, 420, 143, 1080, 790);
             Button(panel, R.RoomVoiceMuted ? "VOICE MUTED BY HOST" : "MICROPHONE: " + R.Voice.ModeName + " · CLICK TO CHANGE", 30, 70, 1020,
                 () => { R.Voice.CycleMode(); dirty = true; }, enabled: !R.RoomVoiceMuted);
-            Button(panel, "MICROPHONE: " + R.Voice.Device + "  ▼", 30, 140, 1020, () => { deviceList = !deviceList; dirty = true; });
+            Button(panel, "MICROPHONE: " + R.Voice.Device + "  v", 30, 140, 1020, () => { deviceList = !deviceList; dirty = true; });
             gainValue = Label(panel, "", 30, 214, 1020, 20, OzUi.Ink);
             AudioSlider(panel, "MicrophoneGain", 245, 4, R.Voice.Gain, v => R.Voice.Gain = v);
             meterValue = Label(panel, "INPUT LEVEL", 30, 291, 1020, 20, OzUi.Ink);
@@ -1336,6 +1316,28 @@ namespace OpenZ.Multiplayer
                     ? "<color=#aab9a3>◆ " + line.Substring(DuelRuntime.RoomSettingsChatPrefix.Length) + "</color>" : line) : R.Chat);
             content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Math.Max(viewport, lobbyChatLog.preferredHeight + 8));
             lobbyChatScroll.verticalNormalizedPosition = follow ? 0 : position;
+        }
+
+        internal bool MergeVisibleSettings(List<string> history, string next)
+        {
+            const string prefix = DuelRuntime.RoomSettingsChatPrefix;
+            if (!OnlineRoomPage || !onlineShowSettings || !lobbyChatLog || !lobbyChatScroll ||
+                !next.StartsWith(prefix, StringComparison.Ordinal)) return false;
+            int index = history.FindLastIndex(line => line.StartsWith(prefix, StringComparison.Ordinal));
+            if (index < 0) return false;
+            var dimensions = lobbyChatLog.rectTransform.rect.size;
+            var generator = new TextGenerator();
+            var settings = lobbyChatLog.GetGenerationSettings(dimensions);
+            float before = index == 0 ? 0 : generator.GetPreferredHeight(string.Join("\n", history.Take(index)), settings) / lobbyChatLog.pixelsPerUnit;
+            float end = generator.GetPreferredHeight(string.Join("\n", history.Take(index + 1)), settings) / lobbyChatLog.pixelsPerUnit;
+            float offset = lobbyChatScroll.content.anchoredPosition.y;
+            if (end + 4 <= offset || before + 4 >= offset + lobbyChatScroll.viewport.rect.height) return false;
+            string[] separator = { " | " };
+            var changes = history[index].Substring(prefix.Length).Split(separator, StringSplitOptions.RemoveEmptyEntries)
+                .Concat(next.Substring(prefix.Length).Split(separator, StringSplitOptions.RemoveEmptyEntries))
+                .GroupBy(line => line.Split(new[] { " → " }, 2, StringSplitOptions.None)[0]).Select(group => group.Last());
+            history[index] = prefix + string.Join(" | ", changes);
+            return true;
         }
 
         void SendChat()

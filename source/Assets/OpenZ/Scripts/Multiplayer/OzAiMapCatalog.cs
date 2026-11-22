@@ -57,6 +57,8 @@ namespace OpenZ
         internal static OzAiMap FindSkirmishMap(string id) =>
             Find(id) ?? V2.FirstOrDefault(map => map.Id == id) ?? Array.Find(OfficialSkirmishMaps, map => map.Id == id);
         public static bool IsDuelMap(string id) => Find(id)?.Duel == true;
+        internal static int LobbyPlayerCount(OzAiMap map, IReadOnlyCollection<OzAiMap> catalog) =>
+            map.Starts == 8 && !catalog.Any(entry => entry.Starts == 6) ? 6 : map.Starts;
         public static OzAiMap[] SelectMultiplayer(int starts, string group, string world, int sort) => starts == 2
             ? Select(false, group, world, sort)
             : Sort(MultiplayerMaps.Where(m => m.Starts == starts && (world == "all" || m.World == world)), sort);

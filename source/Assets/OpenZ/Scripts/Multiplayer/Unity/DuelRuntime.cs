@@ -338,7 +338,16 @@ namespace OpenZ.Multiplayer
             if (SkirmishRoom) { SendRoomChat(message); return; }
             AddChat(localName + " : " + message); peer.Send(new DuelPacket(DuelMessage.Chat, Encoding.UTF8.GetBytes(message)));
         }
-        void AddChat(string message) { Chat.Add(message.Replace("<", "‹").Replace(">", "›")); if (Chat.Count > 30) Chat.RemoveAt(0); Menus.RefreshChatHistory(); }
+        void AddChat(string message)
+        {
+            message = message.Replace("<", "‹").Replace(">", "›");
+            if (!Menus.MergeVisibleSettings(Chat, message))
+            {
+                Chat.Add(message);
+                if (Chat.Count > 30) Chat.RemoveAt(0);
+            }
+            Menus.RefreshChatHistory();
+        }
         void PublishLobby()
         {
             View = DuelLobbyData.From(lobby); View.HostRelease = LocalRelease; View.GuestRelease = guestRelease;

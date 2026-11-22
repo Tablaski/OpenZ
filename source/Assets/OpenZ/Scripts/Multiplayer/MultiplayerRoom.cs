@@ -9,7 +9,8 @@ namespace OpenZ.Multiplayer
     internal sealed class SkirmishRules
     {
         public int TerritoryCap = 50, FortSpeedup, VehicleTech, RobotTech, PlanningSeconds;
-        public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers, FriendlyFire, ClassicDynamics, FreeForAll;
+        public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers, FriendlyFire, ClassicDynamics;
+        public bool FreeForAll;
         public RadarLossRule RadarLoss;
         public bool CustomRoster;
         public string[] CustomUnits = Array.Empty<string>();
@@ -105,7 +106,7 @@ namespace OpenZ.Multiplayer
         readonly HashSet<string> loaded = new HashSet<string>(StringComparer.Ordinal);
         readonly HashSet<int> closed = new HashSet<int>();
         readonly bool allowSoloConversions;
-        SkirmishRules rules = new SkirmishRules();
+        SkirmishRules rules = new SkirmishRules { FreeForAll = true };
 
         public string HostId { get; }
         public int HostPosition => Member(HostId).Seat.Position;
@@ -283,7 +284,7 @@ namespace OpenZ.Multiplayer
         {
             RequireHostSetup(sender);
             CheckPosition(position, alliance);
-            if (difficulty != ZBotDifficulty.Normal && difficulty != ZBotDifficulty.Easy) throw new ArgumentOutOfRangeException(nameof(difficulty));
+            if (difficulty < ZBotDifficulty.Normal || difficulty > ZBotDifficulty.Hard) throw new ArgumentOutOfRangeException(nameof(difficulty));
             if (members.Values.Any(member => member.Seat.Position == position)) throw new InvalidOperationException("The starting position is occupied.");
             closed.Remove(position);
             if (bots.TryGetValue(position, out var existing) && existing.Alliance == alliance && existing.Difficulty == difficulty) return;

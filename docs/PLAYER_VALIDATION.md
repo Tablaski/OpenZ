@@ -1092,3 +1092,8 @@ must be added here and checked together on the next requested release.
 - No player was built or launched. A new release build is recommended for these
   network/menu changes and the accumulated source updates; only the user can
   authorize that build, and its gameplay checks remain pending manual testing.
+# OpenZ-VK 1.5.35
+
+- Pending manual Windows checks: verify unified combat presets and legacy custom imports in Solo, Unit Editor and multiplayer. Confirm the default, switch to Z Classic and select a saved custom profile.
+- Pending manual lobby checks: verify mode and map filters, player dropdowns and rename, chat grouping and scrollbar, voice icons and tooltips, balancing examples and bot difficulty.
+- Pending manual match checks: compare howitzer and fort-gun spread with the rule off and on, verify Friendly Fire in Teams and its absence in Free for All, and confirm Skirmish loading and menu overlay placement.

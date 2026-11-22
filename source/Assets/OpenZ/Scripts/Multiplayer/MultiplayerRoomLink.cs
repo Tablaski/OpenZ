@@ -185,7 +185,7 @@ namespace OpenZ.Multiplayer
 
         public void AttachBattlefield(ZWorld world)
         {
-            if (!room.MatchLoaded || world == null || OzAiMapCatalog.Find(room.Map)?.File != world.Map.file || !world.Map.skirmish)
+            if (!room.MatchLoaded || world == null || OzAiMapCatalog.FindSkirmishMap(room.Map)?.File != world.Map.file || !world.Map.skirmish)
                 throw new InvalidOperationException("A launched room needs its own loaded battlefield.");
             if (battlefieldRevision == room.Revision) throw new InvalidOperationException("The battlefield for this launch is already attached.");
             guestTeam = room.HumanTeam(guest);
@@ -226,7 +226,7 @@ namespace OpenZ.Multiplayer
             catch (InvalidDataException) { return false; }
             if (incoming.Starts < 2 || incoming.Starts > 8 || incoming.Revision < 0 || incoming.Sequence <= 0 ||
                 string.IsNullOrEmpty(incoming.Map) || incoming.Humans == null || incoming.Bots == null ||
-                OzAiMapCatalog.Find(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
+                OzAiMapCatalog.FindSkirmishMap(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
                 incoming.Rules?.Valid != true || incoming.Closed == null || incoming.Closed.Any(position => position < 0 || position >= incoming.Starts) ||
                 incoming.Humans.Any(member => member == null || member.Position < -1 || member.Position >= incoming.Starts) ||
                 incoming.Bots.Any(bot => bot == null || bot.Position < 0 || bot.Position >= incoming.Starts) ||
@@ -238,7 +238,7 @@ namespace OpenZ.Multiplayer
 
         public void AttachBattlefield(ZWorld world)
         {
-            if (View?.Launched != true || world == null || OzAiMapCatalog.Find(View.Map)?.File != world.Map.file || battlefieldRevision == View.Revision)
+            if (View?.Launched != true || world == null || OzAiMapCatalog.FindSkirmishMap(View.Map)?.File != world.Map.file || battlefieldRevision == View.Revision)
                 throw new InvalidOperationException("A launched room needs a fresh replica of its own battlefield.");
             world.ConfigureSkirmishReplica();
             battlefield = world;
@@ -279,7 +279,8 @@ namespace OpenZ.Multiplayer
         bool Send(RoomCommandKind kind, bool ready, bool launched)
         {
             var local = View?.Humans.FirstOrDefault(member => member.Local);
-            if (local == null || local.Observer || local.Position < 0 || View.Launched != launched) return false;
+            if (local == null || View.Launched != launched ||
+                (local.Observer ? kind != RoomCommandKind.Loaded : local.Position < 0)) return false;
             return peer.Send(MultiplayerRoomPackets.Command(new RoomCommand { Kind = kind, Revision = View.Revision, Ready = ready }));
         }
     }

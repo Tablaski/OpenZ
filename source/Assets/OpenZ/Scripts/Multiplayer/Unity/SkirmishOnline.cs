@@ -338,13 +338,25 @@ namespace OpenZ.Multiplayer
             return false;
         }
 
+        internal Func<int, bool> IsSpectatorVoice { get; set; }
+
         public bool SendVoice(byte[] frame, int exclude = 0)
         {
             var ready = Remotes.Where(link => link.Ready && link.Id != exclude).ToArray();
             if (ready.Length == 0) return false;
-            if (Volatile.Read(ref useSfu)) return relay?.SendVoice(frame, exclude) == true;
             bool sent = false;
-            foreach (var link in ready) sent |= link.Rtc?.SendVoice(frame) == true;
+            bool grouped = IsHost && IsSpectatorVoice != null && Remotes.Any(link => IsSpectatorVoice(link.Id));
+            if (Volatile.Read(ref useSfu))
+            {
+                if (!IsHost) return relay?.SendVoice(frame, -1) == true;
+                if (!grouped) return relay?.SendVoice(frame, exclude) == true;
+                foreach (var link in ready.Where(link => IsSpectatorVoice(link.Id) == IsSpectatorVoice(exclude)))
+                    sent |= relay?.SendVoice(frame, -link.Id) == true;
+                return sent;
+            }
+            foreach (var link in ready)
+                if (!grouped || IsSpectatorVoice(link.Id) == IsSpectatorVoice(exclude))
+                    sent |= link.Rtc?.SendVoice(frame) == true;
             return sent;
         }
 
@@ -354,7 +366,12 @@ namespace OpenZ.Multiplayer
             {
                 if (!link.Ready || !link.TryReceiveVoice(out frame)) continue;
                 if (IsHost && IsVoiceMuted(link.Id)) continue;
-                if (IsHost) SendVoice(frame, link.Id);
+                if (IsHost)
+                {
+                    SendVoice(frame, link.Id);
+                    if (IsSpectatorVoice?.Invoke(link.Id) == true) continue;
+                }
+                else if (link.Id != 1) continue;
                 return true;
             }
             frame = null;

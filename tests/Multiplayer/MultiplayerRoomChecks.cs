@@ -32,7 +32,9 @@ static class MultiplayerRoomChecks
         room.Launch(host);
         room.MarkLoaded(host, room.Revision);
         check(!room.MatchLoaded, "The match waits for the second human to load");
-        reject(() => room.MarkLoaded(extra, room.Revision), "Ghosts do not acknowledge the active-player loading barrier");
+        room.MarkLoaded(extra, room.Revision);
+        check(!room.MatchLoaded && room.HumanTeam(extra) == Team.Neutral,
+            "A ghost may acknowledge loading without taking part in the active-player barrier");
         reject(() => room.MarkLoaded(guest, stale), "Stale loading acknowledgments are rejected");
         room.MarkLoaded(guest, room.Revision);
         check(room.MatchLoaded, "Both humans loaded, with no barrier for bots or ghosts");
@@ -51,6 +53,23 @@ static class MultiplayerRoomChecks
         larger.RemoveHuman(host, extra);
         check(larger.StartBlocker == MatchStartBlocker.None, "Removing the extra human resolves the capacity conflict");
         reject(() => larger.SelectMap(host, "SM18"), "Solo-only maps stay outside multiplayer setup");
+        var resize = new MultiplayerRoom(host, "Host", "SMP08M01");
+        var participants = Enumerable.Range(1, 7).Select(i => "guest-" + i).ToArray();
+        foreach (string id in participants) resize.Join(id, id);
+        resize.SetReady(host, resize.Revision, true);
+        var active = new[] { host, participants[2], participants[4], participants[6] };
+        int before = resize.Revision;
+        reject(() => resize.ConfigureMap(host, "SMP04M01", 4, active.Append("unknown")), "An invalid roster cannot partially change the map");
+        check(resize.Starts == 8 && resize.Revision == before, "A rejected map switch leaves the room unchanged");
+        resize.ConfigureMap(host, "SMP04M01", 4, active);
+        check(resize.Starts == 4 && resize.Revision == before + 1 && resize.Members.Count(member => member.Seat.MayUsePlayerCommands) == 4 &&
+            resize.Members.Count(member => member.Seat.Role == MatchSeatRole.Observer) == 4 &&
+            resize.Members.All(member => !member.Ready) && resize.StartBlocker == MatchStartBlocker.None,
+            "A smaller map assigns active humans and ghosts in one revision");
+        int teamsBefore = resize.Revision;
+        resize.SetAlliances(host, teamsBefore, new[] { 0, 1, 0, 1 });
+        check(resize.Revision == teamsBefore + 1 && resize.Members.Where(member => member.Seat.MayUsePlayerCommands)
+            .All(member => member.Alliance == member.Seat.Position % 2), "Team edits publish as one revision");
         CheckCoop(check, reject);
         CheckLobbyRules(check, reject);
     }

@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.33 online lobby and Ghost spectators
+
+- Pending in the compiled game. Create and join an online lobby from the invitation link. Confirm the minimap gallery, shared settings, team drag and drop, unit pickers, AI Help, connection details, text and voice, and Ready lock and cancellation.
+- Switch an eight-human lobby to a four-start map. Confirm the four active players, four Ghosts, single rules revision, spectator free camera, isolated match communications and return to lobby. Run once over direct transport and once over relay.
+- Start an official two-start map and an AI map with bots. Check initial armies, radar penalties and the optional idle-unit and factory-capture AI Help rules.
+
 ## OpenZ-VK 1.5.32 Graphics Custom
 
 - Pending in a compiled game. In the main menu and in solo and multiplayer pause menus, select all four presets at common and narrow aspect ratios. Verify that all four buttons remain visible, that their tooltips and selection styles work, and that the five violet rows appear only in Custom.

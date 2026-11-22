@@ -20,6 +20,7 @@ namespace OpenZ.Multiplayer
         public string[] Common = new string[4];
         public int[] BuildPercent = Enumerable.Repeat(100, 8).ToArray();
         public string[] Extras = new string[32];
+        public int[] AiIdleSeconds = new int[8], AiFactoryCapture = new int[8];
 
         internal bool Valid => TerritoryCap >= 10 && TerritoryCap <= 50 && FortSpeedup >= 0 && FortSpeedup <= 500 &&
             VehicleTech >= 0 && VehicleTech <= 6 && RobotTech >= 0 && RobotTech <= 6 &&
@@ -31,6 +32,8 @@ namespace OpenZ.Multiplayer
             (!CustomRoster || !ClassicUnits && CustomUnits != null && CustomUnits.Length <= DuelUnitRoster.All.Length &&
                 CustomUnits.All(DuelUnitRoster.Known) && CustomUnits.Distinct().Count() == CustomUnits.Length) &&
             BuildPercent?.Length == 8 && BuildPercent.All(value => value >= 50 && value <= 100) &&
+            AiIdleSeconds?.Length == 8 && AiIdleSeconds.All(value => value == 0 || value == 15 || value == 30) &&
+            AiFactoryCapture?.Length == 8 && AiFactoryCapture.All(value => value >= 0 && value <= 2) &&
             Common?.Length == 4 && Extras?.Length == 32 && Common.Concat(Extras).All(unit => string.IsNullOrEmpty(unit) ||
                 DuelRules.AllowedExtras.Contains(unit) && Allows(unit));
 
@@ -57,6 +60,8 @@ namespace OpenZ.Multiplayer
             copy.Common = (string[])Common.Clone();
             copy.BuildPercent = (int[])BuildPercent.Clone();
             copy.Extras = (string[])Extras.Clone();
+            copy.AiIdleSeconds = (int[])AiIdleSeconds.Clone();
+            copy.AiFactoryCapture = (int[])AiFactoryCapture.Clone();
             copy.CustomUnits = (string[])CustomUnits?.Clone();
             copy.FortTurrets = (string[])FortTurrets?.Clone() ?? new string[4];
             return copy;
@@ -203,6 +208,74 @@ namespace OpenZ.Multiplayer
             InvalidateReady();
         }
 
+        public void ConfigureMap(string sender, string map, int capacity, IEnumerable<string> activePlayers)
+        {
+            RequireHostSetup(sender);
+            int starts = MapStarts(map);
+            var requested = activePlayers.ToArray();
+            var active = requested.ToHashSet();
+            if (capacity < 2 || capacity > starts || active.Count > capacity || active.Count != requested.Length ||
+                !active.Contains(HostId) || active.Any(id => !members.ContainsKey(id)))
+                throw new ArgumentException("Choose a valid set of active players for this map.");
+            var oldMembers = members.Values.ToArray();
+
+            var oldRules = rules.Copy();
+            var occupied = new HashSet<int>();
+            if (Map != map) rules.VehicleTech = rules.RobotTech = 0;
+            Starts = starts;
+            Map = map;
+            closed.RemoveWhere(position => position < capacity || position >= starts);
+            for (int position = capacity; position < starts; position++) closed.Add(position);
+
+            foreach (var member in oldMembers.Where(member => active.Contains(member.Id))
+                .OrderBy(member => member.Seat.Position < 0 || member.Seat.Position >= capacity))
+            {
+                int oldPosition = member.Seat.Position;
+                int position = oldPosition >= 0 && oldPosition < capacity && occupied.Add(oldPosition)
+                    ? oldPosition : Enumerable.Range(0, capacity).First(candidate => occupied.Add(candidate));
+                int alliance = rules.FreeForAll || member.Alliance < 0 || member.Alliance >= starts ? position : member.Alliance;
+                members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, position), alliance);
+            }
+            foreach (var member in oldMembers.Where(member => !active.Contains(member.Id)))
+                members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Observer, -1), -1);
+            foreach (int position in bots.Keys.Where(position => position >= capacity || occupied.Contains(position)).ToArray())
+                bots.Remove(position);
+            foreach (var bot in bots.Values.Where(bot => bot.Alliance >= starts || rules.FreeForAll).ToArray())
+                bots[bot.Position] = new RoomBot(bot.Position, bot.Position, bot.Difficulty);
+
+            foreach (var member in oldMembers.Where(member => member.Seat.Position >= 0))
+            {
+                int position = member.Seat.Position;
+                rules.BuildPercent[position] = 100;
+                rules.AiIdleSeconds[position] = rules.AiFactoryCapture[position] = 0;
+                Array.Clear(rules.Extras, position * 4, 4);
+            }
+            foreach (var member in oldMembers.Where(member => active.Contains(member.Id) && member.Seat.Position >= 0))
+            {
+                int from = member.Seat.Position, to = members[member.Id].Seat.Position;
+                rules.BuildPercent[to] = oldRules.BuildPercent[from];
+                rules.AiIdleSeconds[to] = oldRules.AiIdleSeconds[from];
+                rules.AiFactoryCapture[to] = oldRules.AiFactoryCapture[from];
+                Array.Copy(oldRules.Extras, from * 4, rules.Extras, to * 4, 4);
+            }
+            InvalidateReady();
+        }
+
+        public void SetAlliances(string sender, int revision, int[] alliances)
+        {
+            RequireHostSetup(sender);
+            if (revision != Revision || rules.FreeForAll || alliances?.Length != Starts ||
+                alliances.Any(value => value < 0 || value >= Starts)) return;
+            bool changed = members.Values.Any(member => member.Seat.MayUsePlayerCommands &&
+                member.Alliance != alliances[member.Seat.Position]) || bots.Values.Any(bot => bot.Alliance != alliances[bot.Position]);
+            if (!changed) return;
+            foreach (var member in members.Values.Where(member => member.Seat.MayUsePlayerCommands).ToArray())
+                members[member.Id] = new RoomMember(member.Id, member.Name, member.Seat, alliances[member.Seat.Position]);
+            foreach (var bot in bots.Values.ToArray())
+                bots[bot.Position] = new RoomBot(bot.Position, alliances[bot.Position], bot.Difficulty);
+            InvalidateReady();
+        }
+
         public void SetBot(string sender, int position, int alliance, ZBotDifficulty difficulty)
         {
             RequireHostSetup(sender);
@@ -274,6 +347,8 @@ namespace OpenZ.Multiplayer
             for (int seat = 0; seat + 1 < Starts; seat += 2)
             {
                 (rules.BuildPercent[seat], rules.BuildPercent[seat + 1]) = (rules.BuildPercent[seat + 1], rules.BuildPercent[seat]);
+                (rules.AiIdleSeconds[seat], rules.AiIdleSeconds[seat + 1]) = (rules.AiIdleSeconds[seat + 1], rules.AiIdleSeconds[seat]);
+                (rules.AiFactoryCapture[seat], rules.AiFactoryCapture[seat + 1]) = (rules.AiFactoryCapture[seat + 1], rules.AiFactoryCapture[seat]);
                 for (int unit = 0; unit < 4; unit++)
                 {
                     int x = seat * 4 + unit, y = x + 4;
@@ -317,7 +392,8 @@ namespace OpenZ.Multiplayer
 
         public void MarkLoaded(string sender, int revision)
         {
-            if (!Launched || revision != Revision || !Member(sender).Seat.MayUsePlayerCommands)
+            var seat = Member(sender).Seat;
+            if (!Launched || revision != Revision || !seat.MayUsePlayerCommands && seat.Role != MatchSeatRole.Observer)
                 throw new InvalidOperationException("Stale load acknowledgment or inactive participant.");
             loaded.Add(sender);
         }

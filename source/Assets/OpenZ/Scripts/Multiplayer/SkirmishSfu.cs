@@ -139,7 +139,7 @@ namespace OpenZ.Multiplayer
             return false;
         }
 
-        public bool SendVoice(byte[] frame, int exclude)
+        public bool SendVoice(byte[] frame, int route)
         {
             if (Failed || frame?.Length != DuelVoiceCodec.FrameSamples) return false;
             if (Interlocked.Increment(ref voiceCount) > 8)
@@ -148,7 +148,7 @@ namespace OpenZ.Multiplayer
                 return false;
             }
             var packet = new byte[sizeof(int) + frame.Length / 2];
-            Buffer.BlockCopy(BitConverter.GetBytes(exclude), 0, packet, 0, sizeof(int));
+            Buffer.BlockCopy(BitConverter.GetBytes(route), 0, packet, 0, sizeof(int));
             for (int i = 0; i < frame.Length / 2; i++) packet[sizeof(int) + i] = frame[i * 2];
             voice.Enqueue(packet);
             return true;
@@ -263,7 +263,10 @@ namespace OpenZ.Multiplayer
                 int result = DuelRtcNative.rtcReceiveMessage(subscription.Voice, receive, ref count);
                 if (result == -3) return;
                 DuelRtcNative.Check(result);
-                if (count != DuelVoiceCodec.FrameSamples / 2 + sizeof(int) || BitConverter.ToInt32(receive, 0) == localId) continue;
+                if (count != DuelVoiceCodec.FrameSamples / 2 + sizeof(int)) continue;
+                int route = BitConverter.ToInt32(receive, 0);
+                // Positive routes exclude a sender, while a negative route addresses one recipient.
+                if (route == localId || route < 0 && route != -localId) continue;
                 var frame = new byte[DuelVoiceCodec.FrameSamples];
                 for (int j = 0; j < frame.Length / 2; j++) frame[2 * j] = frame[2 * j + 1] = receive[sizeof(int) + j];
                 if (subscription.VoiceFrames.Count >= 8) subscription.VoiceFrames.TryDequeue(out _);

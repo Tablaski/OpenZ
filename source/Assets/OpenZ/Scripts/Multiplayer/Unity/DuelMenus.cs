@@ -40,8 +40,7 @@ namespace OpenZ.Multiplayer
         ScrollRect lobbyChatScroll;
         Text lobbyChatLog;
         bool bindingChat, bindingTalk;
-        bool advanced, onlineSettings;
-        string serviceUrl, setupStatus = "";
+        bool advanced;
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
         public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk ||
@@ -54,7 +53,7 @@ namespace OpenZ.Multiplayer
         public void ShowConnect() { page = Page.Connect; dirty = true; }
         public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
         string invitationNotice;
-        public void ShowLobby() { invitationNotice = null; lobbyTab = LobbyTab.Map; roomTab = 0; roomModeration = null; roomFullMap = roomCustomUnits = roomDynamics = roomPresets = roomRename = roomConnectionDetails = false; page = Page.Lobby; dirty = true; }
+        public void ShowLobby() { ResetOnlineLobby(); invitationNotice = null; lobbyTab = LobbyTab.Map; roomTab = 0; roomModeration = null; roomFullMap = roomCustomUnits = roomDynamics = roomPresets = roomRename = roomConnectionDetails = false; page = Page.Lobby; dirty = true; }
         internal void ShowRoomPlayers() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); roomModeration = null; page = Page.RoomPlayers; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
@@ -84,6 +83,9 @@ namespace OpenZ.Multiplayer
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
             if (!OzAiMapGallery.IsOpen && page == Page.Lobby && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             { pickerGroup = -1; lobbyDialog = LobbyDialog.None; dirty = true; }
+            if (OnlineRoomPage && onlinePopup != OnlinePopup.None && Keyboard.current != null &&
+                Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping)
+                OpenOnlinePopup(OnlinePopup.None);
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
@@ -137,7 +139,8 @@ namespace OpenZ.Multiplayer
                 planningTime.Set(Math.Max(0, Math.Ceiling(left)) + " s");
                 planningProgress.rectTransform.anchorMax = new Vector2(Mathf.Clamp01((float)left / Math.Max(1, seconds)), 1);
             }
-            if (page == Page.Skirmish && builtPage == page) FitSkirmishFrame();
+            if ((page == Page.Skirmish || OnlineRoomPage) && builtPage == page) FitSkirmishFrame();
+            if (OnlineRoomPage) TickOnlinePings();
             TickLobbyFlyby();
         }
         void Build()
@@ -171,7 +174,9 @@ namespace OpenZ.Multiplayer
             }
             root = Hud.Node("Duel", canvas.transform); root.Fill();
             overlayRoot = root;
-            if (page == Page.Skirmish) root = CreateSkirmishFrame(overlayRoot);
+            if (page == Page.Skirmish || OnlineRoomPage) root = CreateSkirmishFrame(overlayRoot);
+            onlinePingLabels.Clear();
+            onlineVariationLabels.Clear();
             if (!EventSystem.current)
             {
                 var es = new GameObject("DuelEventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
@@ -183,6 +188,11 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry)
             {
                 if (R.MatchPaused && !pauseWasOpen) BuildPausedMatch();
+                if (R.Playing && R.RoomObserver)
+                {
+                    var ghost = Panel("👻 GHOST · SPECTATING", 24, 24, 405, 74);
+                    Label(ghost, "Free camera", 245, 24, 148, 16, OzUi.Muted);
+                }
                 if (R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0)
                 {
                     var banner = Panel("OPENING ORDERS", 24, 922, 600, 74);
@@ -210,19 +220,19 @@ namespace OpenZ.Multiplayer
             if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
             if (page == Page.MatchRequest || page == Page.Reconnect) { BuildMatchRequestPage(); return; }
             var background = Hud.Img(overlayRoot, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
-            if (page == Page.Skirmish) background.transform.SetAsFirstSibling();
+            if (page == Page.Skirmish || OnlineRoomPage) background.transform.SetAsFirstSibling();
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
-            if (poster) { var raw = Hud.Node("MissionBackground", overlayRoot).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; if (page == Page.Skirmish) raw.transform.SetSiblingIndex(1); }
+            if (poster) { var raw = Hud.Node("MissionBackground", overlayRoot).gameObject.AddComponent<RawImage>(); raw.texture = poster; raw.color = new Color(.25f, .25f, .25f, 1); raw.rectTransform.Fill(); raw.raycastTarget = false; if (page == Page.Skirmish || OnlineRoomPage) raw.transform.SetSiblingIndex(1); }
             var wordmark = Hud.Kit(root, "ForkWordmark", "Wordmarks/wm_openz_vk_menu", new OzRect(80, 4, 300, 100), null, Image.Type.Simple);
             wordmark.preserveAspect = true; wordmark.enabled = wordmark.sprite != null;
             if (!wordmark.sprite) Label(root, "OpenZ-VK", 80, 40, 370, 57, OzForkOptions.Brand);
             bool roomLobby = page == Page.Skirmish || page == Page.Lobby && R.SkirmishRoom;
             Label(root, page == Page.Skirmish ? "Skirmish" : roomLobby ? "Multiplayer lobby" : page == Page.Connect ? "MULTIPLAYER" : "DUEL · 1 VS 1",
                 roomLobby ? 395 : 80, roomLobby ? 43 : 108, 800, roomLobby ? 29 : 22, OzUi.Ink);
-            if (page != Page.Skirmish) ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
+            if (page != Page.Skirmish && !OnlineRoomPage) ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
             if (page == Page.Connect) BuildConnect();
             else if (page == Page.Skirmish) BuildSkirmish();
-            else if (page == Page.Lobby) { if (R.SkirmishRoom) BuildRoomLobby(); else BuildLobby(); }
+            else if (page == Page.Lobby) { if (R.SkirmishRoom) BuildOnlineRoom(); else BuildLobby(); }
             else if (page == Page.Loading) { loading = Label(root, R.Status, 250, 430, 1400, 38, OzUi.Amber); }
             else if (page == Page.Game) BuildGameMenu();
             else if (page == Page.RoomPlayers) BuildInMatchRoomPlayers();
@@ -239,7 +249,7 @@ namespace OpenZ.Multiplayer
                 Label(root, "CONNECTION LOST", 180, 300, 1400, 34, OzUi.AlertText);
                 Label(root, R.Status, 180, 370, 1400, 22, OzUi.Ink);
                 Button(root, "BACK TO MENU", 180, 470, 400, Leave);
-                Button(root, "ADVANCED TCP/IP", 180, 565, 600, () => { Leave(); advanced = true; onlineSettings = false; ShowConnect(); });
+                Button(root, "ADVANCED TCP/IP", 180, 565, 600, () => { Leave(); advanced = true; ShowConnect(); });
             }
         }
 
@@ -257,15 +267,12 @@ namespace OpenZ.Multiplayer
         }
         void BuildConnect()
         {
-            Button(root, "PLAY ONLINE", 80, 140, 550, () => { advanced = onlineSettings = false; dirty = true; }, !advanced && !onlineSettings);
-            Button(root, "ADVANCED TCP/IP", 660, 140, 550, () => { advanced = true; onlineSettings = false; dirty = true; }, advanced);
-            Button(root, "ONLINE SETTINGS", 1240, 140, 590, () => { onlineSettings = true; dirty = true; }, onlineSettings);
-            if (onlineSettings) { BuildOnlineSettings(); return; }
             if (!advanced)
             {
                 BuildOnlineConnect();
                 return;
             }
+            Label(root, "TCP/IP (1 VS 1)", 80, 154, 850, 23, OzUi.Ink);
             var left = Panel("HOST", 80, 210, 850, 650);
             var right = Panel("JOIN", 980, 210, 850, 650);
             Input(left, "PLAYER NAME", 30, 90, 760, name, v => name = v, 32);
@@ -276,24 +283,24 @@ namespace OpenZ.Multiplayer
             Input(right, "INVITATION (INCLUDES ADDRESS AND PORT)", 30, 90, 760, invite, v => invite = v, 1000);
             Button(right, "JOIN MATCH", 30, 230, 760, () => { SaveName(); R.Join(name, invite); }, true);
             Label(right, "Paste the invitation from your opponent.", 30, 340, 760, 19, OzUi.Muted);
-            Button(root, "BACK", 80, 950, 300, CloseOverlay);
+            Button(root, "BACK", 80, 950, 300, () => { advanced = false; dirty = true; });
         }
         void BuildOnlineConnect()
         {
-            var left = Panel("CREATE A MATCH", 80, 250, 850, 610);
-            var right = Panel("JOIN A FRIEND", 980, 250, 850, 610);
-            Input(left, "YOUR NAME", 30, 90, 760, name, v => name = v, 32);
-            Button(left, "CREATE INVITATION", 30, 240, 760, () => { SaveName(); R.ConnectOnline(name, true, ""); }, true);
-            if (DuelRuntime.IsRoomMap(OzAiMapCatalog.ThreePlayerSkirmish))
-                Button(left, "CREATE ONLINE SKIRMISH", 30, 310, 760, () => { SaveName(); R.ConnectOnline(name, true, "", skirmish: true); });
-            Label(left, "Send the invitation to your friend. That's it.", 30, 405, 760, 20, OzUi.Ink);
-            Label(left, "Direct connection first; relay within the shared allowance.", 30, 465, 760, 18, OzUi.Muted);
-            Button(left, "SKIRMISH", 30, 510, 760, ShowSkirmish, enabled: HasSkirmishScene(OzAiMapCatalog.ThreePlayerSkirmish));
-            Label(left, "Play with bots, make teams, or go free for all.", 30, 561, 760, 17, OzUi.Muted);
-            Input(right, "PASTE INVITATION OR ROOM CODE", 30, 90, 760, invite, v => invite = v, 1000);
-            Button(right, "PASTE", 30, 205, 210, () => { invite = GUIUtility.systemCopyBuffer; dirty = true; });
-            Button(right, "JOIN FRIEND", 30, 300, 760, () => { SaveName(); R.ConnectOnline(name, false, invite); }, true);
-            Label(right, "Automatic relay for everyone while allowance is available.", 30, 420, 760, 17, OzUi.Muted);
+            var left = Panel("CREATE A GAME", 80, 200, 940, 680);
+            var right = Panel("JOIN AN ONLINE GAME", 1045, 200, 785, 315);
+            Input(left, "YOUR NAME", 30, 99, 880, name, v => name = v, 32);
+            Button(left, "CREATE ONLINE GAME", 30, 177, 880, () => { SaveName(); R.ConnectOnline(name, true, "", skirmish: true); },
+                true, DuelRuntime.IsRoomMap(OzAiMapCatalog.ThreePlayerSkirmish), height: 65);
+            Label(left, "Invite players by link. Add bots and set up teams.", 34, 252, 870, 19, OzUi.Muted);
+            Button(left, "SKIRMISH", 30, 301, 880, ShowSkirmish, enabled: HasSkirmishScene(OzAiMapCatalog.ThreePlayerSkirmish), height: 65);
+            Label(left, "Play with bots, make teams, or go free for all.", 34, 376, 870, 19, OzUi.Muted);
+            Button(left, "TCP/IP (1 VS 1)", 30, 425, 880, () => { advanced = true; dirty = true; }, height: 65);
+            Label(left, "Host or join a direct connection for two players.", 34, 500, 870, 19, OzUi.Muted);
+            Button(left, "CLASSIC ONLINE DUEL", 30, 571, 420, () => { SaveName(); R.ConnectOnline(name, true, ""); });
+            Input(right, "INVITATION LINK OR ROOM CODE", 30, 99, 725, invite, v => invite = v, 1000);
+            Button(right, "PASTE", 30, 174, 190, () => { invite = GUIUtility.systemCopyBuffer.Trim(); dirty = true; });
+            Button(right, "JOIN ONLINE GAME", 232, 174, 523, () => { SaveName(); R.ConnectOnline(name, false, invite); }, true);
             Button(root, "BACK", 80, 950, 300, CloseOverlay);
         }
         const string LocalSkirmishHost = "local";
@@ -341,139 +348,6 @@ namespace OpenZ.Multiplayer
         bool roomRename, roomConnectionDetails;
         string roomNameDraft;
 
-        void BuildRoomLobby()
-        {
-            var hosted = R.HostedRoom;
-            var joined = R.JoinedRoom;
-            var map = OzAiMapCatalog.FindSkirmishMap(hosted?.Map ?? joined?.Map);
-            Action<SkirmishRules> save = R.SetRoomRules;
-            string[] tabs = { "MAP", "STARTING ARMIES", "BALANCING OPTIONS", "PLAYER ADVANTAGE", "BATTLE RULES" };
-            for (int i = 0; i < tabs.Length; i++)
-            {
-                int tab = i;
-                Button(root, tabs[i], 80 + i * 220, 135, 212, () => { roomTab = tab; roomModeration = null; dirty = true; }, roomTab == i, height: 46);
-            }
-            Action<string> select = hosted != null ? R.SelectRoomMap : null;
-            var rules = hosted?.Rules ?? joined.Rules;
-            Label(root, "MATCH MODE", 1350, 147, 135, 17, OzUi.Muted);
-            Button(root, rules.FreeForAll ? "FREE FOR ALL" : "TEAMS", 1490, 135, 330,
-                () => { rules.FreeForAll = !rules.FreeForAll; save(rules); }, enabled: hosted != null, height: 46);
-            if (roomTab == 0) BuildRoomMap(map, select, rules, save);
-            else BuildRoomRules(map.Starts, hosted != null, rules, save);
-            var seats = Panel("STARTING POSITIONS", 1188, 195, 632, 572);
-            var closed = hosted?.ClosedPositions ?? joined.Closed;
-            var waiting = hosted?.Members.FirstOrDefault(member => member.Seat.Position < 0).Id;
-            var occupied = (hosted?.Members.Count(member => member.Seat.Position >= 0) ?? joined.Humans.Count(member => member.Position >= 0))
-                + (hosted?.Bots.Length ?? joined.Bots.Length);
-            Label(seats, occupied + " / " + map.Starts + " occupied", 465, 22, 145, 17, OzUi.Muted);
-            Label(seats, "FORT   PARTICIPANT", 22, 59, 290, 15, OzUi.Muted);
-            Label(seats, "TEAM", 339, 59, 90, 15, OzUi.Muted);
-            Label(seats, "STATUS / AI LEVEL", 444, 59, 181, 15, OzUi.Muted);
-            for (int position = 0; position < map.Starts; position++)
-            {
-                int seat = position;
-                var hostMember = hosted?.Members.FirstOrDefault(member => member.Seat.Position == seat);
-                var guestMember = joined?.Humans.FirstOrDefault(member => member.Position == seat);
-                var memberName = hostMember?.Name ?? guestMember?.Name;
-                bool ready = hostMember?.Ready ?? guestMember?.Ready ?? false;
-                float y = 84 + seat * 46;
-                var team = (Team)(seat + 1);
-                var row = Hud.Img(seats, "Starting position " + (seat + 1), OzUi.GM950);
-                row.rectTransform.TL(22, y, 586, 42);
-                row.raycastTarget = false;
-                var badge = Hud.Img(row.transform, "Fort number", OzUi.TeamText(team));
-                badge.rectTransform.TL(8, 6, 31, 30);
-                badge.raycastTarget = false;
-                Hud.Label(badge.transform, "Position", (seat + 1).ToString(), 17, OzUi.GM950).FillParent(OzH.C);
-                var difficulty = hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (ZBotDifficulty?)bot.Difficulty).FirstOrDefault()
-                    ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Difficulty;
-                int? alliance = memberName != null ? hostMember?.Alliance ?? guestMember?.Alliance :
-                    hosted?.Bots.Where(bot => bot.Position == seat).Select(bot => (int?)bot.Alliance).SingleOrDefault()
-                        ?? joined?.Bots.FirstOrDefault(bot => bot.Position == seat)?.Alliance;
-                if (alliance.HasValue)
-                {
-                    string label = "TEAM " + (alliance.Value + 1);
-                    if (hosted != null && !rules.FreeForAll) Button(seats, label, 322, y + 4, 95, () =>
-                    {
-                        R.CycleRoomAlliance(seat);
-                    }, height: 34);
-                    else Label(seats, label, 322, y + 9, 105, 17, OzUi.Muted);
-                }
-                if (memberName == null)
-                {
-                    bool isClosed = closed.Contains(seat);
-                    string role = isClosed ? "CLOSED" : difficulty.HasValue ? "AI BOT" : "OPEN";
-                    if (hosted != null)
-                        Button(seats, role, 74, y + 4, 152, () =>
-                        {
-                            if (isClosed) R.SetRoomClosed(seat, false);
-                            else if (difficulty.HasValue) R.SetRoomBot(seat, null);
-                            else R.SetRoomBot(seat, ZBotDifficulty.Normal);
-                            dirty = true;
-                        }, height: 34);
-                    else Label(seats, role, 74, y + 10, 220, 17, OzUi.Ink);
-                    if (hosted != null && !difficulty.HasValue && !isClosed)
-                        Button(seats, "CLOSE", 430, y + 4, 110, () => R.SetRoomClosed(seat, true), height: 34);
-                    if (difficulty.HasValue)
-                    {
-                        string level = difficulty.Value.ToString().ToUpperInvariant();
-                        if (hosted != null) Button(seats, level, 430, y + 4, 163, () =>
-                        {
-                            var next = difficulty == ZBotDifficulty.Easy ? ZBotDifficulty.Normal : ZBotDifficulty.Easy;
-                            R.SetRoomBot(seat, next);
-                            dirty = true;
-                        }, height: 34);
-                        else Label(seats, level, 430, y + 10, 155, 17, OzUi.Muted);
-                    }
-                    if (waiting != null && !isClosed) Button(seats, "SEAT NEXT", 230, y + 4, 89, () => R.BringRoomPlayer(waiting, seat), height: 34);
-                    continue;
-                }
-                bool isHost = hosted != null ? hostMember?.Id == hosted.HostId : guestMember?.Host == true;
-                string roleSuffix = isHost ? " · HOST" : guestMember?.Local == true ? " · YOU" : "";
-                Label(seats, memberName + roleSuffix, 74, y + 10, 244, 18, OzUi.Ink);
-                if (memberName != null)
-                    Label(seats, ready ? "READY" : "NOT READY", 430, y + 10, 130, 17, ready ? OzUi.Go : OzUi.Amber);
-                if (hostMember.HasValue && !isHost)
-                {
-                    string id = hostMember.Value.Id;
-                    Button(seats, "···", 563, y + 4, 37, () => SelectRoomModeration(id), height: 34);
-                }
-            }
-            int waitingForSeat = hosted?.Members.Count(member => member.Seat.Position < 0) ??
-                joined.Humans.Count(member => member.Position < 0 && !member.Observer);
-            if (waitingForSeat > 0) Label(seats, "Waiting for a starting position: " + waitingForSeat, 24, 481, 320, 16, OzUi.Muted);
-            if (waiting != null) Button(seats, "MANAGE WAITING PLAYER", 331, 471, 277, () => SelectRoomModeration(waiting), height: 36);
-            Label(seats, invitationNotice ?? R.ConnectionStatus, 24, 523, 375, 18, OzUi.Muted);
-            if (hosted != null)
-                Button(root, "COPY INVITATION", 1540, 42, 280, () =>
-                {
-                    GUIUtility.systemCopyBuffer = R.Invitation("", 0);
-                    invitationNotice = "Invitation copied.";
-                    dirty = true;
-                }, enabled: !string.IsNullOrEmpty(R.OnlineRoom), height: 36);
-            bool localReady = hosted?.Members.First(member => member.Id == hosted.HostId).Ready ??
-                joined.Humans.First(member => member.Local).Ready;
-            Button(root, localReady ? "CANCEL READY" : "READY", hosted != null ? 1320 : 1620, 994, 200, () => R.SetRoomReady(!localReady),
-                enabled: R.Connected && (hosted != null || joined.Humans.Any(member => member.Local && member.Position >= 0)));
-            if (hosted != null)
-            {
-                Button(root, "LAUNCH MATCH", 1540, 994, 280, R.LaunchRoom, true, R.RoomCanLaunch);
-                if (R.Connected && !R.RoomCanLaunch)
-                    Label(root, "Fill or close each position, assign opposing teams and ready up.", 387, 1007, 640, 16, OzUi.Amber);
-            }
-            BuildLobbyChat();
-            Button(root, "LEAVE LOBBY", 80, 994, 280, Leave);
-            var localName = hosted?.Members.First(member => member.Id == hosted.HostId).Name ?? joined.Humans.First(member => member.Local).Name;
-            Button(seats, "CHANGE NAME", 418, 514, 190, () => { roomRename = true; roomNameDraft = localName; dirty = true; }, height: 35);
-            Button(root, "CONNECTION DETAILS", 1050, 994, 249, () => { roomConnectionDetails = true; dirty = true; });
-            if (roomModeration != null && hosted != null) BuildRoomModeration(1188, 195, 632);
-            if (roomFullMap) BuildFullRoomMap(map);
-            if (roomCustomUnits && hosted != null) BuildRoomCustomUnits(rules, save);
-            if (roomDynamics) BuildRoomDynamics(rules, hosted == null ? null : save);
-            if (roomPresets && hosted != null) BuildRoomArmyPresets(rules, save);
-            if (roomRename || roomConnectionDetails) BuildRoomInfo();
-        }
-
         void BuildRoomInfo()
         {
             var shade = Hud.Img(root, "Lobby dialog backdrop", new Color(0, 0, 0, .85f));
@@ -504,7 +378,7 @@ namespace OpenZ.Multiplayer
         void BuildRoomRules(int starts, bool editable, SkirmishRules rules, Action<SkirmishRules> save)
         {
             string title = roomTab == 1 ? "STARTING ARMIES" : roomTab == 2 ? "BALANCING OPTIONS" : roomTab == 3 ? "PLAYER ADVANTAGE" : "BATTLE RULES";
-            var panel = page == Page.Skirmish ? Panel(title, 60, 185, 1116, 780) : Panel(title, 80, 195, 1092, 572);
+            var panel = page == Page.Skirmish ? Panel(title, 60, 185, 1116, 780) : Panel(title, 60, 185, 1092, 568);
             if (roomTab == 2)
             {
                 Label(panel, "Territory production reduction cap", 30, 71, 740, 22, OzUi.Ink);
@@ -537,12 +411,15 @@ namespace OpenZ.Multiplayer
                     roomDynamics = true;
                     dirty = true;
                 }, customDynamics);
-                Label(panel, "WHEN YOUR LAST RADAR IS LOST", 30, 203, 960, 20, OzUi.Amber);
+                Label(panel, "WITHOUT A WORKING RADAR", 30, 191, 960, 20, OzUi.Amber);
                 for (int i = 0; i <= (int)RadarLossRule.FogAndZoom; i++)
                 {
                     var radar = (RadarLossRule)i;
-                    Button(panel, OzBattleOptions.RadarName(radar), 30 + i * 259, 243, 247,
+                    Button(panel, OzBattleOptions.RadarName(radar), 30 + i * 259, 228, 247,
                         () => { rules.RadarLoss = radar; save(rules); }, rules.RadarLoss == radar, editable);
+                    string[] help = { "Standard OpenZ behavior.", "Hide enemies outside your\nterritory and units’ sight.",
+                        "Lock the camera in a\nwider overhead view.", "Hide unseen enemies and\nlock the camera wide." };
+                    Label(panel, help[i], 32 + i * 259, 281, 235, 16, OzUi.Muted).Body(32 + i * 259, 281, 235);
                 }
                 Label(panel, "FRIENDLY FIRE", 30, 330, 740, 20, OzUi.Amber);
                 Label(panel, "Explosions can damage your own units and allied units.", 30, 370, 740, 17, OzUi.Muted);
@@ -550,7 +427,7 @@ namespace OpenZ.Multiplayer
                 Button(panel, "ON", 959, 335, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable);
                 Button(panel, (rules.NerfedHowitzers ? "☑ " : "☐ ") + "WIDER HOWITZER SPREAD", 30, 432, 507,
                     () => { rules.NerfedHowitzers = !rules.NerfedHowitzers; save(rules); }, enabled: editable);
-                Button(panel, "SWAP STARTING SIDES", 554, 432, 502, () =>
+                if (page == Page.Skirmish || starts == 2) Button(panel, page == Page.Skirmish ? "SWAP STARTING SIDES" : "SWAP FORTS 1 ↔ 2", 554, 432, 502, () =>
                 {
                     if (page == Page.Skirmish) { localSkirmish.SwapStartingSides(LocalSkirmishHost); dirty = true; }
                     else R.SwapRoomStartingSides();
@@ -798,44 +675,6 @@ namespace OpenZ.Multiplayer
         Texture2D roomGeneratedPreview;
         bool roomFullMap;
 
-        void BuildRoomMap(OzAiMap map, Action<string> select, SkirmishRules rules, Action<SkirmishRules> save)
-        {
-            var panel = Panel(map.Name.ToUpperInvariant(), 80, 195, 1092, 572);
-            if (!map.IsOfficial) OzAiMapBadge.Head(panel, new OzRect(24, 52, 22, 22));
-            Label(panel, (map.IsOfficial ? "OpenZ Maps" : "AI Maps") + " · " + map.Starts + " starting positions", map.IsOfficial ? 24 : 52, 52, 540, 18, OzUi.Muted);
-            var maps = OzAiMapCatalog.MultiplayerMaps.Where(DuelRuntime.IsRoomMap).ToArray();
-            Button(panel, "AI MAPS", 904, 17, 164, () => OzAiMapGallery.Open(false, select != null, map.Id,
-                definition => select?.Invoke(definition.Id), entries: maps), !map.IsOfficial, height: 34);
-            if (select != null)
-            {
-                var sizes = maps.Select(candidate => candidate.Starts).Distinct().OrderBy(size => size).ToArray();
-                for (int i = 0; i < sizes.Length; i++)
-                {
-                    int size = sizes[i];
-                    var first = maps.First(candidate => candidate.Starts == size);
-                    Button(panel, size.ToString(), 479 + i * 58, 17, 52, () => select(first.Id), !map.IsOfficial && map.Starts == size, height: 34);
-                }
-                var filtered = maps
-                    .Where(candidate => candidate.Starts == map.Starts).ToArray();
-                int index = Array.IndexOf(filtered, map);
-                Button(panel, "◀", 24, 515, 60, () => select(filtered[(index + filtered.Length - 1) % filtered.Length].Id), enabled: filtered.Length > 1, height: 34);
-                Button(panel, "▶", 559, 515, 60, () => select(filtered[(index + 1) % filtered.Length].Id), enabled: filtered.Length > 1, height: 34);
-                Label(panel, (index + 1) + " / " + filtered.Length, 291, 522, 150, 16, OzUi.Muted);
-            }
-            BuildLobbyFlyby(panel, map.Id, new OzRect(24, 89, 595, 254), mute: true);
-            if (roomTechMap != map.Id) UpdateRoomMapData(map.Id);
-            var preview = RoomTacticalPreview(map.Id);
-            if (preview)
-            {
-                DrawRoomMap(panel, preview, 24, 354, 150, 150);
-                Label(panel, "TACTICAL MAP", 190, 368, 407, 20, OzUi.Amber);
-                Label(panel, "Fort numbers match the starting positions.", 190, 396, 425, 16, OzUi.Muted);
-                Button(panel, "VIEW FULL MAP", 190, 415, 235, () => { roomFullMap = true; dirty = true; });
-            }
-            BuildRoomMapTech(panel, 637, 89, roomMapTech, rules, select != null, save);
-            BuildRoomOpeningOrders(panel, 637, 375, 431, rules, select != null, save);
-        }
-
         void UpdateRoomMapData(string mapId)
         {
             roomGrid = ReadRoomGrid(mapId);
@@ -944,24 +783,6 @@ namespace OpenZ.Multiplayer
                 enabled: editable && active > 0 && active < 6, height: 36);
         }
 
-        void BuildOnlineSettings()
-        {
-            if (serviceUrl == null) serviceUrl = DuelOnlineSettings.CurrentService;
-            var panel = Panel("ONE-TIME ONLINE SETUP", 280, 250, 1360, 610);
-            Input(panel, "INVITATION SERVICE", 40, 80, 1280, serviceUrl, v => serviceUrl = v, 500);
-            Label(panel, "OpenZ-VK connects automatically. No relay password or account is required.", 40, 230, 1280, 19, OzUi.Muted);
-            Label(panel, "If the shared relay allowance is unavailable, direct connections still work where supported.", 40, 285, 1280, 19, OzUi.Muted);
-            Button(panel, "SAVE", 40, 385, 390, () => {
-                try {
-                    string normalized = DuelOnlineSettings.ValidateService(serviceUrl);
-                    PlayerPrefs.SetString("oz_duel_service", normalized); PlayerPrefs.Save();
-                    setupStatus = "Online settings saved.";
-                } catch (Exception error) { setupStatus = error.Message; }
-                dirty = true;
-            }, true);
-            Label(panel, setupStatus, 40, 490, 1280, 19, OzUi.Ink);
-            Button(root, "BACK", 80, 950, 300, () => { onlineSettings = false; dirty = true; });
-        }
         void SaveName() { PlayerPrefs.SetString("oz_duel_name", name); PlayerPrefs.Save(); }
         enum LobbyTab { Map, StartingArmies, Balancing, BattleRules }
         LobbyTab lobbyTab;
@@ -1505,7 +1326,10 @@ namespace OpenZ.Multiplayer
             float oldExtent = Math.Max(0, content.rect.height - viewport);
             float position = lobbyChatScroll.verticalNormalizedPosition;
             bool follow = oldExtent <= 0 || position < .05f;
-            lobbyChatLog.text = string.Join("\n", R.Chat);
+            lobbyChatLog.text = string.Join("\n", OnlineRoomPage ? R.Chat
+                .Where(line => onlineShowSettings || !line.StartsWith(DuelRuntime.RoomSettingsChatPrefix, StringComparison.Ordinal))
+                .Select(line => line.StartsWith(DuelRuntime.RoomSettingsChatPrefix, StringComparison.Ordinal)
+                    ? "<color=#aab9a3>◆ " + line.Substring(DuelRuntime.RoomSettingsChatPrefix.Length) + "</color>" : line) : R.Chat);
             content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Math.Max(viewport, lobbyChatLog.preferredHeight + 8));
             lobbyChatScroll.verticalNormalizedPosition = follow ? 0 : position;
         }

@@ -197,11 +197,12 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-duel-11-match-pause\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-duel-12-online-lobby\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
                 .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));
-            foreach (string map in maps) text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
+            foreach (string map in maps.Concat(RoomMaps.Select(entry => entry.Id)).Distinct().OrderBy(id => id, StringComparer.Ordinal))
+                text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
         }
         public void Host(string name, int port)

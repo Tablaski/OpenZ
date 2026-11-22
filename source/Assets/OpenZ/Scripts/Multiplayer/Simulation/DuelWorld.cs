@@ -131,7 +131,9 @@ namespace OpenZ.Sim
         internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true || skirmishRules?.NerfedHowitzers == true;
 
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? skirmishRules?.RadarLoss ?? RadarLossRule.Off;
-        public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0;
+        public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0 ||
+            skirmishRules?.AiIdleSeconds.Any(seconds => seconds > 0) == true;
+        readonly ZBot[] skirmishAiHelpers = new ZBot[8];
         public bool DuelAllowsUnit(string type)
         {
             if (duelRules != null) return duelRules.Allows(type);
@@ -224,12 +226,14 @@ namespace OpenZ.Sim
 
         internal void UpdateDuelAiHelp()
         {
-            int idleSeconds = duelRules?.AiIdleSeconds ?? 0;
-            if (duelAiHelper == null || idleSeconds == 0 || GameOver || Time < nextDuelAiCheck) return;
+            if (!DuelAiIdleHelp || DuelIsReplica || GameOver || Time < nextDuelAiCheck) return;
             nextDuelAiCheck = Time + .2;
             foreach (var unit in Objects)
             {
-                bool eligible = unit.Owner == duelAiHelper.Team && unit.IsMobile && unit.CanMove && !unit.Destroyed &&
+                int seat = (int)unit.Owner - 1;
+                int idleSeconds = skirmishRules != null ? (uint)seat < 8 ? skirmishRules.AiIdleSeconds[seat] : 0 :
+                    duelAiHelper != null && unit.Owner == duelAiHelper.Team ? duelRules.AiIdleSeconds : 0;
+                bool eligible = idleSeconds > 0 && unit.IsMobile && unit.CanMove && !unit.Destroyed &&
                     unit.KillAt < 0 && !unit.IsMinion && !unit.IsShuttle && !unit.IsFortDefender && !unit.HoldPosition && !unit.Patrolling;
                 if (!eligible)
                 {
@@ -254,20 +258,31 @@ namespace OpenZ.Sim
                 if (Time >= unit.AiHelpNextOrder)
                 {
                     duelAiOffered.Add(unit);
-                    duelAiReady.Add(unit);
                 }
                 else if (unit.AiHelpStatus != DuelAiStatus.CoolingDown && Time >= unit.AiHelpNextOrder - 5)
                     unit.AiHelpStatus = DuelAiStatus.IdleWarning;
             }
-            if (duelAiReady.Count == 0) return;
-            duelAiHelper.AssistIdleUnits(duelAiReady);
-            foreach (var unit in duelAiOffered)
+            if (duelAiOffered.Count == 0) return;
+            foreach (var team in duelAiOffered.GroupBy(unit => unit.Owner))
             {
-                unit.AiHelpStatus = unit.Waypoints.Count > 0 ? DuelAiStatus.Ordered : DuelAiStatus.None;
-                unit.AiHelpNextOrder = unit.Waypoints.Count > 0 ? 0 : Time + idleSeconds;
+                duelAiReady.AddRange(team);
+                AiHelper(team.Key).AssistIdleUnits(duelAiReady);
+                int idleSeconds = skirmishRules == null ? duelRules.AiIdleSeconds : skirmishRules.AiIdleSeconds[(int)team.Key - 1];
+                foreach (var unit in team)
+                {
+                    unit.AiHelpStatus = unit.Waypoints.Count > 0 ? DuelAiStatus.Ordered : DuelAiStatus.None;
+                    unit.AiHelpNextOrder = unit.Waypoints.Count > 0 ? 0 : Time + idleSeconds;
+                }
+                duelAiReady.Clear();
             }
-            duelAiReady.Clear();
             duelAiOffered.Clear();
+        }
+
+        ZBot AiHelper(Team owner)
+        {
+            if (skirmishRules == null) return duelAiHelper;
+            int seat = (int)owner - 1;
+            return skirmishAiHelpers[seat] ??= new ZBot(this, owner, 439 + seat);
         }
 
         static bool WeakProduction(string type) => type == "grunt" || type == "jeep" || type == "gatling";
@@ -276,15 +291,18 @@ namespace OpenZ.Sim
         {
             if (previousOwner == capturingTeam) return false;
             building.AiHelpFactoryFor = Team.Neutral;
-            if (duelRules?.HandicapEnabled != true || previousOwner != (duelRules.HandicapSlot == 0 ? Team.Red : Team.Blue) ||
-                capturingTeam == Team.Neutral || building.Destroyed || !building.IsProducer || building.IsFort) return false;
-            if (duelRules.AiCancelProduction)
+            if (capturingTeam == Team.Neutral || building.Destroyed || !building.IsProducer || building.IsFort) return false;
+            int seat = (int)previousOwner - 1;
+            int mode = skirmishRules != null ? (uint)seat < 8 ? skirmishRules.AiFactoryCapture[seat] : 0 :
+                duelRules?.HandicapEnabled == true && previousOwner == (duelRules.HandicapSlot == 0 ? Team.Red : Team.Blue)
+                    ? (duelRules.AiCancelProduction ? 2 : duelRules.AiManageProduction ? 1 : 0) : 0;
+            if (mode == 2)
             {
                 StopBuilding(capturingTeam, building);
                 return true;
             }
-            if (!duelRules.AiManageProduction || !WeakProduction(building.CurUnit)) return false;
-            string pick = duelAiHelper.PickProduction(building);
+            if (mode != 1 || !WeakProduction(building.CurUnit)) return false;
+            string pick = AiHelper(previousOwner).PickProduction(building);
             if (pick == null || WeakProduction(pick))
                 pick = ProductionUnits(building).FirstOrDefault(type => !WeakProduction(type));
             if (pick == null || !RestartBuilding(capturingTeam, building, pick)) return false;

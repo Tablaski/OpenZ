@@ -81,7 +81,8 @@ namespace OpenZ
             bool demo = PlayerPrefs.GetInt("oz_botmatch", 0) == 1 || CaptureKit.DemoRun;
             var skirmishMap = OzAiMapCatalog.Find(level);
             var localSkirmish = OpenZ.Multiplayer.DuelRuntime.I?.Menus.LocalSkirmishMatch(level);
-            bool skirmish = skirmishMap?.Starts >= 3 || localSkirmish != null;
+            bool onlineSkirmish = OpenZ.Multiplayer.DuelRuntime.Active && OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom;
+            bool skirmish = skirmishMap?.Starts >= 3 || localSkirmish != null || onlineSkirmish;
             if (skirmish)
             {
                 demo = blueBot = redBot = false;
@@ -248,7 +249,7 @@ namespace OpenZ
             OzLevelStatics.NewWorld();
             ZWorld.CustomStatsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzLevelStats.Wanted(level, demo); OzLevelStats.AtLevelStart(this, st.text);   // 1.2 item 60 DV142: UNIT STATS CUSTOM (the battlefield screen's choice, armed by the player's own DEPLOY; off in 'Zod exact', a bot match, the Unit editor): every unit of both teams is made from the Unit editor's Custom stats; OPENZ: nothing changes (View/OzLevelStats.cs, Sim/ZWorld.CustomStats.cs)
             // duel game creation
-            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, !skirmish && ParkedStartOn(level)); OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
+            OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, !skirmish && ParkedStartOn(level)); if (onlineSkirmish) World.Map.skirmish = true; OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
             if (!skirmish) OzSoloAllowedUnits.Apply(this);
             if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && skirmishMap?.Solo == true)
             {

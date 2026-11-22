@@ -203,11 +203,9 @@ namespace OpenZ.Multiplayer
                         Capture("main-menu"); ClickMainItem("MULTIPLAYER"); break;
                     case 1:
                         Capture("online-connection");
-                        if (r.Menus.GetComponentsInChildren<Button>().Any(b => b.name == "ONLINE SETTINGS")) Click("ONLINE SETTINGS");
-                        else step = 3;
+                        Click("TCP/IP (1 VS 1)");
+                        step = 3;
                         break;
-                    case 2:
-                        Capture("online-settings"); Click("ADVANCED TCP/IP"); break;
                     case 3:
                         DuelRuntime.I.Menus.GetComponentsInChildren<InputField>().Single(i => i.characterLimit == 32).text = "HOST";
                         Capture("connection"); Click("CREATE MATCH"); break;

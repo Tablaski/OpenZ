@@ -114,7 +114,7 @@ namespace OpenZ
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
             }
-            else if (game.World?.Map.skirmish == true)
+            else if (game.World?.Map.skirmish == true && !(onlineSkirmish && OpenZ.Multiplayer.DuelRuntime.I.RoomObserver))
             {
                 skirmishSurrender = Big("SURRENDER", HudButtonStyle.Danger, () =>
                 {

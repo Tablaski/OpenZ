@@ -1236,7 +1236,15 @@ namespace OpenZ.Multiplayer
             chatInputMeter.rectTransform.Fill();
             Button(panel, OzForkOptions.AudioDevicesLabel, w - 201, 5, 186, OpenMicrophone);
             chatHistoryLines = h > 200 ? 5 : 2;
-            chatHistory = Label(panel, "", 20, 48, w - 40, 17, OzUi.Ink);
+            float historyY = 48;
+            if (R.CanChooseChatAudience)
+            {
+                Button(panel, "TO TEAM", 20, 48, 130, () => { R.ChatToAll = false; dirty = true; }, !R.ChatToAll, height: 30);
+                Button(panel, "TO ALL", 158, 48, 130, () => { R.ChatToAll = true; dirty = true; }, R.ChatToAll, height: 30);
+                historyY = 86;
+                chatHistoryLines = Math.Max(1, chatHistoryLines - 1);
+            }
+            chatHistory = Label(panel, "", 20, historyY, w - 40, 17, OzUi.Ink);
             RefreshChatHistory();
             chatField = Input(panel, "", 20, h - 62, w - 210, chat, v => chat = v, 240);
             chatField.onSubmit.AddListener(_ => SendChat());

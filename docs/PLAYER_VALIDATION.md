@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.51 team chat
+
+- Pending in a compiled game. In an online team match with a Ghost, check teammate delivery from both host and guest, switch to TO ALL, verify the highlighted prefix and delivery to every seat and Ghost, then switch back to TO TEAM and verify opponents receive nothing.
+
 ## OpenZ-VK 1.5.50 equal teams and All for one
 
 - Pending in a compiled game. Check the disabled Teams button on a three-start map and the launch warning for uneven teams. Check 2 × 3 and 3 × 2 with six positions and 2 × 4 and 4 × 2 with eight. Include bots, closed positions and Ghosts.

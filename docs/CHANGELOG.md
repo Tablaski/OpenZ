@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.51 (22 Nov 2026)
+
+- Online team matches — Text chat goes to your teammates by default. Select **TO ALL** to send a highlighted message to everyone, including Ghosts.
+
 ## OpenZ-VK 1.5.50 (22 Nov 2026)
 
 - Online multiplayer and Skirmish — Teams need the same number of players, with at least two on each side. The lobby warns about uneven teams and blocks launch. Teams mode is available only when the starting positions in use can form equal teams.

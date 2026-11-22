@@ -55,6 +55,9 @@ namespace OpenZ.Multiplayer
         internal bool RoomBotAt(int seat) => room?.Bots.Any(bot => bot.Position == seat) == true ||
             JoinedRoom?.Bots.Any(bot => bot.Position == seat) == true;
         internal SkirmishRules RoomRules => room?.Rules ?? JoinedRoom?.Rules;
+        bool TeamChatMatch => Playing && Game && Game.World.SkirmishHasTeams;
+        internal bool CanChooseChatAudience => TeamChatMatch && !LocalMatchGhost;
+        internal bool ChatToAll { get; set; }
         internal bool RoomVoiceMuted { get; private set; }
         internal bool RoomParticipantMuted(string id) => int.TryParse(id, out int number) && RoomTransport?.IsVoiceMuted(number) == true;
 
@@ -425,22 +428,28 @@ namespace OpenZ.Multiplayer
                     sender.BasePing = Math.Min(sender.BasePing, sender.Ping);
                     return;
                 case DuelMessage.Chat:
-                    if (!IsHost || packet.Payload.Length > 1024) return;
-                    string text = System.Text.Encoding.UTF8.GetString(packet.Payload);
-                    if (text.Length > 240 || text.Any(char.IsControl)) return;
+                    if (!IsHost || packet.Payload.Length == 0 || packet.Payload.Length > 1024) return;
                     int id = sender.Id;
-                    string senderName = IsHost ? room.Members.FirstOrDefault(member => member.Id == RoomGuest(id)).Name : sender.RemoteName;
-                    if (string.IsNullOrEmpty(senderName)) return;
                     bool ghost = session && IsMatchGhost(id);
-                    if (IsHost) ForwardRoomChat(new RoomChat { Sender = id, Name = senderName, Text = text, Ghost = ghost });
-                    if (ghost == (session && LocalMatchGhost)) NotifyRoomChat(senderName, text);
+                    bool teamChat = TeamChatMatch && !ghost;
+                    byte audience = packet.Payload[0];
+                    bool addressed = audience <= 1;
+                    if (teamChat && !addressed) return;
+                    int offset = addressed ? 1 : 0;
+                    string text = System.Text.Encoding.UTF8.GetString(packet.Payload, offset, packet.Payload.Length - offset);
+                    if (text.Length > 240 || text.Any(char.IsControl)) return;
+                    string senderName = room.Members.FirstOrDefault(member => member.Id == RoomGuest(id)).Name;
+                    if (string.IsNullOrEmpty(senderName)) return;
+                    var incoming = new RoomChat { Sender = id, Name = senderName, Text = text, Ghost = ghost, ToAll = teamChat && audience == 1 };
+                    ForwardRoomChat(incoming);
+                    if (ReceivesRoomChat(incoming, RoomTransport.Id)) NotifyRoomChat(incoming);
                     return;
                 case DuelMessage.RoomChat:
                     if (IsHost || sender.Id != 1 || packet.Payload.Length > 2048) return;
                     var chat = ReadJson<RoomChat>(packet);
-                    if (chat != null && chat.Ghost == (session && LocalMatchGhost) && chat.Sender != RoomTransport.Id &&
+                    if (chat != null && (chat.ToAll || chat.Ghost == (session && LocalMatchGhost)) && chat.Sender != RoomTransport.Id &&
                         chat.Name?.Length <= 32 && chat.Text?.Length <= 240)
-                        NotifyRoomChat(chat.Name, chat.Text);
+                        NotifyRoomChat(chat);
                     return;
                 case DuelMessage.RoomLobbyStatus:
                     if (!IsHost && sender.Id == 1) ReceiveRoomLobbyStatus(packet);
@@ -492,7 +501,19 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        [Serializable] sealed class RoomChat { public int Sender; public string Name, Text; public bool Ghost; }
+        [Serializable] sealed class RoomChat { public int Sender; public string Name, Text; public bool Ghost, ToAll; }
+
+        bool ReceivesRoomChat(RoomChat chat, int recipient)
+        {
+            if (chat.ToAll) return true;
+            bool ghost = recipient == RoomTransport.Id ? LocalMatchGhost : IsMatchGhost(recipient);
+            if (ghost != chat.Ghost) return false;
+            if (!TeamChatMatch || ghost) return true;
+            Team SeatTeam(int id) => room.HumanTeam(id == RoomTransport.Id ? RoomHostId : RoomGuest(id));
+            var from = SeatTeam(chat.Sender);
+            var to = SeatTeam(recipient);
+            return from != Team.Neutral && to != Team.Neutral && Game.World.AreAllied(from, to);
+        }
 
         bool IsRoomGhost(int id) => room?.Members.Any(member => member.Id == RoomGuest(id) &&
             member.Seat.Role == MatchSeatRole.Observer) == true;
@@ -501,7 +522,7 @@ namespace OpenZ.Multiplayer
         {
             if (!session) { SendJson(DuelMessage.RoomChat, chat); return; }
             var packet = new DuelPacket(DuelMessage.RoomChat, System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(chat)));
-            foreach (var link in RoomTransport.Remotes.Where(link => link.Id != chat.Sender && IsMatchGhost(link.Id) == chat.Ghost))
+            foreach (var link in RoomTransport.Remotes.Where(link => link.Id != chat.Sender && ReceivesRoomChat(chat, link.Id)))
                 link.Send(packet);
         }
 
@@ -509,16 +530,25 @@ namespace OpenZ.Multiplayer
         {
             string sender = room?.Members.First(member => member.Id == RoomHostId).Name ??
                 JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Name ?? localName;
-            AddChat(sender + " : " + message);
-            if (IsHost) ForwardRoomChat(new RoomChat { Sender = RoomTransport.Id, Name = sender, Text = message, Ghost = session && LocalMatchGhost });
-            else peer.Send(new DuelPacket(DuelMessage.Chat, System.Text.Encoding.UTF8.GetBytes(message)));
+            var chat = new RoomChat { Sender = RoomTransport.Id, Name = sender, Text = message,
+                Ghost = session && LocalMatchGhost, ToAll = CanChooseChatAudience && ChatToAll };
+            AddChat(FormatRoomChat(chat));
+            if (IsHost) ForwardRoomChat(chat);
+            else peer.Send(new DuelPacket(DuelMessage.Chat, System.Text.Encoding.UTF8.GetBytes(
+                CanChooseChatAudience ? (chat.ToAll ? "\u0001" : "\u0000") + message : message)));
         }
 
-        void NotifyRoomChat(string name, string text)
+        static string FormatRoomChat(RoomChat chat)
         {
-            string line = name + " : " + text;
+            string line = (chat.Name + " : " + chat.Text).Replace("<", "‹").Replace(">", "›");
+            return chat.ToAll ? "<color=#70D8FF>TO ALL : " + line + "</color>" : line;
+        }
+
+        void NotifyRoomChat(RoomChat chat)
+        {
+            string line = FormatRoomChat(chat);
             AddChat(line);
-            Menus.NotifyChat(line.Replace("<", "‹").Replace(">", "›"));
+            Menus.NotifyChat(line);
         }
 
         void PublishRoomEndLobbyStatus(SkirmishOnline transport)
@@ -577,6 +607,7 @@ namespace OpenZ.Multiplayer
 
         void LoadRoomMap(string mapId, int revision)
         {
+            ChatToAll = false;
             ResetGhostView();
             if (roomMapRequestBattlefield != mapId)
             {

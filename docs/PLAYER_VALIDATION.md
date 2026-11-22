@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.41 solo factory technology
+
+- Pending in a compiled game. Open Factory Tech from the deployment bar in the official campaign and AI Maps. Change a factory level on an official map, deploy, and verify the level and difficulty tech bonus in play. Verify an unrelated map keeps its own settings and Restore Campaign Defaults restores the official map's default behavior.
+
 ## OpenZ-VK 1.5.40 fort destruction in multiplayer
 
 - Pending in a compiled game. In a two-participant match, destroy either fort and verify both clients see the existing ending and results.

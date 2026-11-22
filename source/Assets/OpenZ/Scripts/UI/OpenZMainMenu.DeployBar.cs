@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace OpenZ
 {
     /// <summary>
-    ///   [ OBJECTIVE card ]  ....  [ GAMING OPTIONS | ALLOWED UNITS ]  [ DIFFICULTY | HEAD START | SHUTTLE ]  [ DEPLOY ]
+    ///   [ OBJECTIVE card ]  ....  [ GAMING OPTIONS | ALLOWED UNITS | FACTORY TECH ]  [ DIFFICULTY | HEAD START | SHUTTLE ]  [ DEPLOY ]
     ///  * Three shared lines: every block and the card put their small label (caps top <see cref="LabelY"/>), their control row
     ///    (<see cref="RowY"/>, <see cref="RowH"/> tall) and their hint (caps top <see cref="HintY"/>) on the same y; the stack is
     ///    centred on the bar (1020), as DEPLOY is.
@@ -29,7 +29,8 @@ namespace OpenZ
         // ---- the shared lines (canvas units, 1080 u tall, top-left origin)
         public const float LabelY = 987f, RowY = 1001f, RowH = 34f, HintY = 1045f, LineTop = 985f, LineBottom = 1055f;
         public const float CardY = 975f, CardH = 90f, DeployY = 990f, DeployH = 60f, ErrorY = 944f;
-        public const float SoloButtonWidth = 144f, SoloButtonGap = 8f, SoloButtonHeight = 34f;
+        public const float SoloButtonWidth = 128f, SoloButtonGap = 8f, SoloButtonHeight = 34f;
+        const float SoloButtonsRowWidth = 3f * SoloButtonWidth + 2f * SoloButtonGap;
         const float ObjectiveRoom = 228f;
         // ---- wide (16:10 and wider) / narrow (4:3) / compact (5:4) canvases
         public const float WideFrom = 1600f, CompactBelow = 1400f;
@@ -90,8 +91,8 @@ namespace OpenZ
             public float Slide => blockW + gap;
             /// <summary>The room the card has: from the margin to the gap before DIFFICULTY in the three-block row.</summary>
             float SpaceBeforeDifficulty => X(0, 3) - cardGap - m;
-            public bool StackSoloButtons => SpaceBeforeDifficulty < ObjectiveRoom + 2f * (SoloButtonWidth + SoloButtonGap);
-            public float SoloButtonsWidth => StackSoloButtons ? SoloButtonWidth : 2f * SoloButtonWidth + SoloButtonGap;
+            public bool StackSoloButtons => SpaceBeforeDifficulty < ObjectiveRoom + SoloButtonsRowWidth + SoloButtonGap;
+            public float SoloButtonsWidth => StackSoloButtons ? SoloButtonWidth : SoloButtonsRowWidth;
             public float CardRoom => SpaceBeforeDifficulty - SoloButtonsWidth - SoloButtonGap;
         }
 

@@ -27,6 +27,7 @@ namespace OpenZ
         }
 
         Selection selection;
+        string mapName;
         (int Vehicles, int Robots, int Fort) mapTech;
         RectTransform sheet;
 
@@ -45,10 +46,14 @@ namespace OpenZ
 
         internal static void Show(string id)
         {
-            if (instance || DuelRuntime.Active || OzAiMapCatalog.Find(id)?.Solo != true) return;
+            if (instance || DuelRuntime.Active) return;
+            var converted = OzAiMapCatalog.Find(id);
+            string name = converted?.Solo == true ? converted.Name : Array.Find(OzLevelDef.All, level => level.Id == id)?.Name;
+            if (name == null) return;
             var go = new GameObject("Solo factory technology", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)) { layer = 5 };
             instance = go.AddComponent<OzSoloMapTech>();
             instance.selection = Read(id);
+            instance.mapName = name;
             instance.mapTech = DuelMenus.ReadMapTech(id);
             var canvas = go.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -88,7 +93,7 @@ namespace OpenZ
             var background = Hud.Img(panel, "Background", OzUi.GM950);
             background.rectTransform.Fill();
             Hud.Plate(panel, "lg", 0, OzForkOptions.Accent);
-            Hud.Label(panel, "Title", Label + " · " + OzAiMapCatalog.Find(selection.Map).Name, 24, OzForkOptions.Accent).At(30, 24);
+            Hud.Label(panel, "Title", Label + " · " + mapName, 24, OzForkOptions.Accent).At(30, 24);
             AddButton(panel, "CLOSE", 714, 15, 155, Close);
             Hud.Label(panel, "Original", "ORIGINAL", 16, OzUi.Muted).At(352, 89);
             Hud.Label(panel, "Active", "ACTIVE", 16, OzUi.Muted).At(604, 89);

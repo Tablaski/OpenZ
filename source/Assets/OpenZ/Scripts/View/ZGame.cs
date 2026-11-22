@@ -251,7 +251,8 @@ namespace OpenZ
             // duel game creation
             OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, !skirmish && ParkedStartOn(level)); if (onlineSkirmish) World.Map.skirmish = true; OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
             if (!skirmish) OzSoloAllowedUnits.Apply(this);
-            if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && skirmishMap?.Solo == true)
+            if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active &&
+                (skirmishMap?.Solo == true || OzLevelDef.All.Any(definition => definition.Id == level)))
             {
                 var tech = OzSoloMapTech.Read(level);
                 World.ApplySoloMapTech(tech.Vehicle, tech.Robot, tech.Native);

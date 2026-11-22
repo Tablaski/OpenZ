@@ -48,33 +48,35 @@ namespace OpenZ
 
         void BuildSoloSettings(RectTransform parent)
         {
-            const float gap = OzDeployBar.SoloButtonGap, height = OzDeployBar.SoloButtonHeight;
+            const float gap = OzDeployBar.SoloButtonGap;
             const float width = OzDeployBar.SoloButtonWidth;
             bool stacked = deployLay.StackSoloButtons;
+            float height = stacked ? 24f : OzDeployBar.SoloButtonHeight;
             float x = deployLay.X(0, 3) - deployLay.cardGap - deployLay.SoloButtonsWidth;
-            float y = stacked ? OzDeployBar.RowY - (height + gap) * 0.5f : OzDeployBar.RowY;
+            float y = stacked ? OzDeployBar.CardY + 1f : OzDeployBar.RowY;
 
-            const string label = OzBattleOptions.SoloLabel;
-            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(width, height), HudButtonKind.Small, 13, .04f);
-            soloGamingButton.Rt.Place(new OzRect(x, y, width, height));
-            soloGamingButton.Label.FillParent(OzH.C, 8, 0, 8, 0);
-            SlidePart(soloGamingButton.Rt);
-            OzForkOptions.Highlight(soloGamingButton, label);
-            AddHot(soloGamingButton.Rt, View.Select, OzBehaviorOptions.ShowGaming, null, soloGamingButton, "ui_menu_select");
+            soloGamingButton = AddSetting("SoloGamingOptions", OzBattleOptions.SoloLabel, 0, OzBehaviorOptions.ShowGaming);
+            soloAllowedButton = AddSetting("SoloAllowedUnits", OzSoloAllowedUnits.Label, 1, () => OzSoloAllowedUnits.Show(null));
+            AddSetting("SoloFactoryTech", OzSoloMapTech.Label, 2, () => OzSoloMapTech.Show(levels[focusCard].Id));
 
-            soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits", "ALLOWED UNITS", new Vector2(width, height), HudButtonKind.Small, 13, .04f);
-            soloAllowedButton.Rt.Place(stacked ? new OzRect(x, y + height + gap, width, height) : new OzRect(x + width + gap, y, width, height));
-            soloAllowedButton.Label.FillParent(OzH.C, 8, 0, 8, 0);
-            SlidePart(soloAllowedButton.Rt);
-            OzForkOptions.Highlight(soloAllowedButton, OzSoloAllowedUnits.Label);
-            AddHot(soloAllowedButton.Rt, View.Select, () => OzSoloAllowedUnits.Show(null), null, soloAllowedButton, "ui_menu_select");
+            HudButton AddSetting(string name, string label, int index, Action open)
+            {
+                var button = HudButton.Make(parent, name, label, new Vector2(width, height), HudButtonKind.Small, 13, .04f);
+                button.Rt.Place(new OzRect(x + (stacked ? 0f : index * (width + gap)),
+                    y + (stacked ? index * (height + gap) : 0f), width, height));
+                button.Label.FillParent(OzH.C, 5, 0, 5, 0);
+                SlidePart(button.Rt);
+                OzForkOptions.Highlight(button, label);
+                AddHot(button.Rt, View.Select, open, null, button, "ui_menu_select");
+                return button;
+            }
         }
 
         void BuildAiCategoryControls(RectTransform parent)
         {
             if (!aiCampaign) return;
 
-            const float gap = 8f, height = 46f;
+            const float height = 46f;
             float tabWidth = Mathf.Min(216f, CW * 0.16f);
             float tabsX = (CW - AiGroups.Length * tabWidth) * 0.5f;
             const float tabsY = 886f;
@@ -86,20 +88,6 @@ namespace OpenZ
                 tab.Rt.Place(new OzRect(tabsX + tabWidth * i, tabsY, tabWidth, height));
                 AddHot(tab.Rt, View.Select, () => SwitchCampaign(true, group), null, tab, "ui_menu_select");
             }
-
-            float techWidth = Mathf.Min(230f, tabsX - deployLay.m - gap);
-            float techX = deployLay.m;
-            float techY = tabsY;
-            if (techWidth < 135f)
-            {
-                techWidth = 160f;
-                techX = (CW - techWidth) * 0.5f;
-                techY = tabsY - height - gap;
-            }
-            var tech = HudButton.Make(parent, "AiMapTech", OzSoloMapTech.Label, new Vector2(techWidth, height), HudButtonKind.Large, 15, .04f);
-            tech.Rt.Place(new OzRect(techX, techY, techWidth, height));
-            OzForkOptions.Highlight(tech, OzSoloMapTech.Label);
-            AddHot(tech.Rt, View.Select, () => OzSoloMapTech.Show(levels[focusCard].Id), null, tech, "ui_menu_select");
         }
 
         static int AiGroupOf(OzAiMap map) => map.ForkOriginal ? 0 : map.Number == 0 ? 2 : map.Number > 20 ? 1 : 0;

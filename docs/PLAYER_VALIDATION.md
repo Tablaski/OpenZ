@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.37 Desert rendering experiment
+
+- Acceptance target is at least 30 average FPS on Desert P08M01 at 3840 × 2160 with seven Medium bots and the maintainer's graphics options. The comparable 1.5.34 session measured 15.0 fps with 66.3 ms on the main thread, 5.1 ms on the GPU and 24.9 ms in the rules per frame.
+- Run the same compiled game with and without `-oz-batch-desert-rocks`, keeping graphics, camera, seed and bot roster fixed. Compare post-loading average FPS, main-thread time, the 99th-percentile frame and batch counts. The `[OpenZ Rock Batches]` line reports eligible pillars and instanced submissions.
+- Pending on the compiled game. Check day and night, shadows, reflections, unit occlusion, zoom and panning, rock damage and collapse, returning to the menu and starting another match. Keep the opt-in off if there is a visual regression.
+
 ## OpenZ-VK 1.5.36 minimap radar and territory border contrast
 
 - Pending in a compiled game. Check the full Minimap Radar Sweep Interval label in both Game options menus. Time several consecutive sweep starts at each interval (3, 5 and 10 seconds), including after a live interval change, with Radar Loss Consequence off and on.

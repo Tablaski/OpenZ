@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.37 (22 Nov 2026)
+
+- Skirmish — Added an experimental rendering mode for Desert P08M01 to reduce CPU work when drawing rock walls. Enable it with `-oz-batch-desert-rocks` when launching the game.
+
 ## OpenZ-VK 1.5.36 (22 Nov 2026)
 
 - Solo and multiplayer — Minimap radars sweep at the selected 3, 5 or 10 second interval, including in matches with Radar Loss Consequence turned off. Look for **Minimap Radar Sweep Interval** in Options → Game.

@@ -19,19 +19,33 @@ namespace OpenZ
         float nextPoll;
         LinkedListNode<RockPillar> healthPollNode;
         bool hasSimHealth = true;
+        bool boundToSimulation;
+        OzDesertRockBatches.Entry drawBatch;
 
         const int MaxLiveChunks = 72;
         static readonly List<GameObject> live = new List<GameObject>();
 
-        void OnEnable() => RegisterHealthPoll();
+        void OnEnable()
+        {
+            RegisterHealthPoll();
+            RegisterDrawBatch();
+        }
 
         internal void BindSimulation(ZObject rock)
         {
-            OnDisable();
+            StopTracking();
             simId = rock.Id;
             hasSimHealth = rock.MaxHealth > 0;
+            boundToSimulation = true;
             nextPoll = 0f;
             RegisterHealthPoll();
+            RegisterDrawBatch();
+        }
+
+        void RegisterDrawBatch()
+        {
+            if (boundToSimulation && isActiveAndEnabled && stage == 0)
+                drawBatch = OzDesertRockBatches.Register(this);
         }
 
         void RegisterHealthPoll()
@@ -41,7 +55,14 @@ namespace OpenZ
             RockPillarHealth.Register(healthPollNode);
         }
 
-        void OnDisable() => healthPollNode?.List?.Remove(healthPollNode);
+        void OnDisable() => StopTracking();
+
+        void StopTracking()
+        {
+            healthPollNode?.List?.Remove(healthPollNode);
+            OzDesertRockBatches.Unregister(drawBatch);
+            drawBatch = null;
+        }
 
         internal float CheckHealth(ZWorld world, float now)
         {
@@ -59,7 +80,7 @@ namespace OpenZ
         {
             if (stage >= 1) return;
             stage = 1;
-            healthPollNode?.List?.Remove(healthPollNode);
+            StopTracking();
             StartCoroutine(DamageRoutine(Random.Range(0f, 0.25f)));
         }
 
@@ -85,7 +106,7 @@ namespace OpenZ
             if (stage >= 2) return;
             bool wasIntact = stage == 0;
             stage = 2;
-            healthPollNode?.List?.Remove(healthPollNode);
+            StopTracking();
             StartCoroutine(BreakRoutine(blast, wasIntact, Random.Range(0f, 0.4f)));
         }
 

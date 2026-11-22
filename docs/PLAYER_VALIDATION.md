@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 1.5.40 fort destruction in multiplayer
+
+- Pending in a compiled game. In a two-participant match, destroy either fort and verify both clients see the existing ending and results.
+- Start an online match with at least three occupied seats, including a bot, and repeat with the host and a guest eliminated first. Verify only the defeated client sees the cinematic camera, while the other clients retain camera and unit control and see one elimination notice. Check that the flyover and explosion remain visible when looking toward the fort, including when two forts fall nearly together.
+- After the sequence, verify free camera, following surviving human players, the Ghost overlay, text chat and order rejection for the eliminated client. Verify the last surviving team still triggers the normal results and starting a new match clears the previous Ghost state.
+- In local Skirmish with two or more bots, verify the same camera separation and that the match continues after a non-final defeat.
+
 ## OpenZ-VK 1.5.39 solo battlefield selection
 
 - Pending in a compiled game. Check that Gaming Options and Allowed Units stay in the deployment bar to the left of Difficulty and Head Start in both the OpenZ campaign and AI Maps. Check 16:9, 16:10, 4:3 and 5:4, switch between maps with and without the Shuttle option, and open and close both panels. Confirm the objective, faction label and AI Maps category controls remain readable.

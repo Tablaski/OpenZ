@@ -60,6 +60,7 @@ namespace OpenZ
         public static float WaveEndTime => I ? I.waveEnd : -100f;
         /// <summary>Real seconds since the fort fell (pause excluded, slow motion counted as real time).</summary>
         public static float RealSinceFall => I && I.running ? I.realSinceFall : 0f;
+        bool individualDefeat;
         public static bool Running => I && I.running;
         /// <summary>
         /// sequence starts (TeamEliminated) until this scene is left; Replay / a new level / the menu load a new scene with a fresh
@@ -147,6 +148,15 @@ namespace OpenZ
             if (waveT0 >= 0f || flushing) ReleaseDue();
             ReleaseDebris();
             scannedUpTo = game.World.Events.Count;                                                // our re-injected events are never re-held
+            if (individualDefeat && waveEnd >= 0f && Time.time - waveEnd >= 1f)
+            {
+                EndScreen();
+                running = false;
+                individualDefeat = false;
+                ReleaseDebris();
+                releasedIds.Clear();
+                releasedAt.Clear();
+            }
             StepCamera();
         }
 
@@ -171,7 +181,9 @@ namespace OpenZ
                 if (e.type == ZEventType.TeamEliminated)
                 {
                     var team = (Team)(int)e.value;
-                    if (!running && team != Team.Neutral) Begin(team, e);
+                    if (!running && team != Team.Neutral &&
+                        (!game.World.HasIndividualDefeatSequence || team == game.player))
+                        Begin(team, e);
                     continue;
                 }
                 if (!running || !DeathWave) continue;
@@ -200,6 +212,7 @@ namespace OpenZ
 
         void Begin(Team team, ZEvent e)
         {
+            individualDefeat = game.World.HasIndividualDefeatSequence;
             running = true; loser = team; impacted = false; flushing = false; endScreen = false;
             startTime = Time.time; realSinceFall = 0f; waveT0 = -1f; waveEnd = -100f;
             worstMs = Time.unscaledDeltaTime * 1000f; worstAt = 0f; worstLogged = false; impactReal = -1f;
@@ -217,7 +230,7 @@ namespace OpenZ
 
         void OnImpact(Vector3 at, bool ours)
         {
-            if (!running || impacted) return;
+            if (!running || impacted || (individualDefeat && !ours)) return;
             impacted = true; impactReal = realSinceFall;
             if (waveT0 < 0f) StartWave(at);
         }
@@ -450,7 +463,7 @@ namespace OpenZ
 
         void ReleaseCamera()
         {
-            if (cam) { cam.yawHeld = false; }
+            if (cam && camActive) { cam.yawHeld = false; cam.unclamped = false; }
             if (!camActive) return;
             camActive = false;
             if (cam && cam.follow == camTarget) cam.follow = camPrevFollow;

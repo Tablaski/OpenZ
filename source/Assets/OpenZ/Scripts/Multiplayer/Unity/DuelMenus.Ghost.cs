@@ -124,7 +124,7 @@ namespace OpenZ.Multiplayer
 
         internal void TickGhostView()
         {
-            if (page != Page.Entry || !R.RoomObserver || !ghostLayer || !ghostLayer.gameObject.activeInHierarchy || !R.Game) return;
+            if (page != Page.Entry || !R.MatchGhost || !ghostLayer || !ghostLayer.gameObject.activeInHierarchy || !R.Game) return;
             var view = R.GhostFollowing ? R.GhostView : null;
             var target = R.GhostTargets.FirstOrDefault(person => person.Position == R.GhostTarget);
             ghostStatus?.Set(R.GhostFollowing && target != null ?
@@ -217,7 +217,7 @@ namespace OpenZ.Multiplayer
         void HandleGhostKeys()
         {
             var kb = Keyboard.current;
-            if (page != Page.Entry || kb == null || !R.Playing || !R.RoomObserver || IsTyping || OzConfirm.Blocks ||
+            if (page != Page.Entry || kb == null || !R.Playing || !R.MatchGhost || IsTyping || OzConfirm.Blocks ||
                 OpenZHud.I && OpenZHud.I.Pause && OpenZHud.I.Pause.IsOpen) return;
             if (kb.qKey.wasPressedThisFrame) R.CycleGhostTarget(-1);
             if (kb.eKey.wasPressedThisFrame) R.CycleGhostTarget(1);

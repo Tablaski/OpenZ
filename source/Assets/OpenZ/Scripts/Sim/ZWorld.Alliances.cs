@@ -11,11 +11,13 @@ namespace OpenZ.Sim
         DuelRules skirmishProduction;
         readonly double[] alliancePower = new double[8], allianceFlags = new double[8], skirmishTerritory = new double[8], skirmishFort = new double[8];
         internal bool HasSkirmishProduction => skirmishProduction != null;
+        internal bool HasIndividualDefeatSequence { get; private set; }
         internal bool SkirmishHasTeams { get; private set; }
 
         internal void ConfigureSkirmishRules(SkirmishRules rules, int[] closed, bool replica = false)
         {
             skirmishRules = rules.Copy();
+            HasIndividualDefeatSequence = skirmishAlliances.Length - closed.Length >= 3;
             SkirmishHasTeams = Enumerable.Range(0, skirmishAlliances.Length).Where(seat => !closed.Contains(seat))
                 .GroupBy(seat => skirmishAlliances[seat]).Any(alliance => alliance.Count() > 1);
             ApplyMapFactoryTech(rules.VehicleTech, rules.RobotTech);

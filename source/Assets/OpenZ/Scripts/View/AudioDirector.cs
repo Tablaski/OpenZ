@@ -1183,7 +1183,7 @@ namespace OpenZ
                 case ZEventType.FortEntered: Play("brd_fort_breach", b != null ? game.CenterWorld(b) : PosOf(a), e.otherId); break;
                 case ZEventType.TeamEliminated:
                     // fx_v2 CHECK: with the strike the fort still stands at +1.5 s (the bomb lands at +3.4 s); OpenZVictory says "Enemy eliminated." after the blast
-                    if ((Team)(int)e.value != Player && !OpenZVictory.OwnsEndSequence) Schedule(1.5f, () => Announce("ann_enemy_fort_destroyed"));
+                    if (!game.World.HasIndividualDefeatSequence && (Team)(int)e.value != Player && !OpenZVictory.OwnsEndSequence) Schedule(1.5f, () => Announce("ann_enemy_fort_destroyed"));
                     break;
                 case ZEventType.GameOver: OnGameOver(e.value < 0 ? Team.Neutral : (Team)(int)e.value); break;
                 case ZEventType.ProductionChanged:
@@ -1493,7 +1493,11 @@ namespace OpenZ
         void BuildingDeath(ZObject o, ZObject killer)
         {
             var c = game.CenterWorld(o) + Vector3.up;
-            if (o.IsFort) { Nuke(c, o.Owner == Player); return; }
+            if (o.IsFort)
+            {
+                if (!game.World.HasIndividualDefeatSequence || o.Owner == Player) Nuke(c, o.Owner == Player);
+                return;
+            }
             if (o.IsBridge)
             {
                 Play(Jungle && HasClips("dst_bridge_collapse_wood") ? "dst_bridge_collapse_wood" : "dst_bridge_collapse", c, o.Id);

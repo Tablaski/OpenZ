@@ -113,9 +113,14 @@ namespace OpenZ
                 impactAt = releaseAt + FallSeconds;
             }
             heldFor = Mathf.Max(0f, t0 - beganAt);
-            CombatAudio.I?.PlayWide("fortboom", target, 0.9f, "legacy-nuclear-launch");
+            if (InBackground) CombatAudio.I?.Play("fortboom", target, 0.9f, 0f, -1, "legacy-nuclear-launch");
+            else CombatAudio.I?.PlayWide("fortboom", target, 0.9f, "legacy-nuclear-launch");
             Place(now - t0);
         }
+
+        static readonly Dictionary<Team, OpenZNukeStrike> backgroundStrikes = new Dictionary<Team, OpenZNukeStrike>();
+        Team backgroundTeam;
+        bool InBackground => backgroundTeam != Team.Neutral;
 
         Vector3 target, dir, planeFrom; bool ours, impacted; float t0, releaseAt, impactAt, impactTime = -100f;
         float impactY;                                                                                  // combat_nb_v1 NB29: the fort's roof / gun top under the bomb
@@ -125,19 +130,26 @@ namespace OpenZ
 
         /// <summary>Starts (or joins) the strike on a fort. onImpact runs at the impact (collapse the model + NukeFx). Returns false
         /// when strikes are off (the caller then does the old immediate nuke).</summary>
-        public static bool Begin(Vector3 fortCentre, bool ours, Action onImpact)
+        public static bool Begin(Vector3 fortCentre, bool ours, Action onImpact, Team backgroundTeam = Team.Neutral)
         {
             if (!Enabled) return false;
-            if (current && !current.impacted && (current.target - fortCentre).sqrMagnitude < 60f * 60f)
+            var pending = backgroundTeam == Team.Neutral ? current :
+                backgroundStrikes.TryGetValue(backgroundTeam, out var strike) ? strike : null;
+            if (pending && !pending.impacted && (pending.target - fortCentre).sqrMagnitude < 60f * 60f)
             {   // fort_front + fort_back die in the same tick: one bomber, one nuke, both halves collapse at the impact
-                current.onImpact += onImpact;
+                pending.onImpact += onImpact;
                 return true;
             }
             var go = new GameObject("OpenZNukeStrike");
             var s = go.AddComponent<OpenZNukeStrike>();
             s.target = fortCentre; s.ours = ours; s.onImpact = onImpact;
-            s.hold = Mathf.Max(0f, OpenZVoiceV3.PlanNuke(ours));                                     // voice_lines_v3: 0 = launch at once (as before)
-            current = s;
+            s.backgroundTeam = backgroundTeam;
+            if (s.InBackground) backgroundStrikes[backgroundTeam] = s;
+            else
+            {
+                s.hold = Mathf.Max(0f, OpenZVoiceV3.PlanNuke(ours));
+                current = s;
+            }
             s.Build();
             return true;
         }
@@ -240,7 +252,8 @@ namespace OpenZ
             if (!whooshed && age >= PlaneLeadIn / PlaneSpeed - 0.35f)
             {
                 whooshed = true;
-                CombatAudio.I?.PlayWide("collapse", pos, 0.85f, "demo-flyby-whoosh");
+                if (InBackground) CombatAudio.I?.Play("collapse", pos, 0.85f, 0f, -1, "demo-flyby-whoosh");
+                else CombatAudio.I?.PlayWide("collapse", pos, 0.85f, "demo-flyby-whoosh");
             }
             plane.gameObject.SetActive(age >= 0f && age < total);                                    // voice_lines_v3: hidden while the launch is held
         }
@@ -266,7 +279,7 @@ namespace OpenZ
             if (missile) { missile.gameObject.SetActive(true); missile.position = releasePos; }
             CombatAudio.I?.Play("launch", releasePos, 0.8f, 0f, -1, "v3-bomb-release-a");
             CombatAudio.I?.PlayPitched("nuke", releasePos, 1.0f, 0f, -1, DescentPitch, "nuke-descent-20260909");
-            if (!playground) OpenZVoiceV3.OnBombReleased(ours);                           // voice_lines_v3: "Here comes the delivery!" (1.3 item 2: not for the Unit editor's NUKE)
+            if (!playground && !InBackground) OpenZVoiceV3.OnBombReleased(ours);                           // voice_lines_v3: "Here comes the delivery!" (1.3 item 2: not for the Unit editor's NUKE)
         }
 
         /// <summary></summary>
@@ -310,7 +323,7 @@ namespace OpenZ
         {
             impacted = true;
             impactTime = Time.time;
-            if (!playground) { LastImpactTime = impactTime; LastImpactPoint = target; }           // 1.3 item 2: the endings, the victory and the level fauna read these; the Unit editor's NUKE keeps out of them
+            if (!playground && !InBackground) { LastImpactTime = impactTime; LastImpactPoint = target; }           // 1.3 item 2: the endings, the victory and the level fauna read these; the Unit editor's NUKE keeps out of them
             if (missile) missile.gameObject.SetActive(false);
             if (impactY > target.y + 1f && OpenZFxPlayer.I)                                           // combat_nb_v1 NB29: the bomb bursts where it hits the roof
                 OpenZFxPlayer.I.Blast(new Vector3(target.x, impactY + 0.5f, target.z), 9f, FxBlastKind.Missile, 98000 + (int)(t0 * 10f) % 1000, 2.2f);
@@ -318,10 +331,10 @@ namespace OpenZ
             var act = onImpact; onImpact = null;
             try { act?.Invoke(); }
             catch (Exception e) { Debug.LogException(e); }
-            OpenZBloomDirector.Flash(1f);
-            if (!playground) StartCoroutine(SlowMotion());                                // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
-            StartCoroutine(Aftermath());
-            if (!playground) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }   // 1.3 item 2: no victory / ending for the Unit editor's NUKE
+            if (!InBackground) OpenZBloomDirector.Flash(1f);
+            if (!playground && !InBackground && ZGame.I?.World?.HasIndividualDefeatSequence != true) StartCoroutine(SlowMotion());                                // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
+            if (!InBackground) StartCoroutine(Aftermath());
+            if (!playground && !InBackground) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }   // 1.3 item 2: no victory / ending for the Unit editor's NUKE
             Debug.Log($"[OpenZ] nuke strike impact at {target} ({(playground ? "the Unit editor's NUKE" : ours ? "our fort" : "enemy fort")}), {Time.time - t0:F1} s after the {(playground ? "call" : "fort fell")}");
         }
 
@@ -383,6 +396,8 @@ namespace OpenZ
         {
             if (scaleWritten > 0f && Time.timeScale > 0f) Time.timeScale = 1f;               // never leave the game in slow motion
             if (current == this) current = null;
+            if (InBackground && backgroundStrikes.TryGetValue(backgroundTeam, out var strike) && strike == this)
+                backgroundStrikes.Remove(backgroundTeam);
         }
     }
 }

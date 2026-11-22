@@ -84,7 +84,7 @@ namespace OpenZ
         {
             if (!game || game.World == null) return;
             hud = OpenZHud.I;
-            Team vision = DuelRuntime.I && DuelRuntime.I.RoomObserver ? DuelRuntime.GhostVisionTeam : game.player;
+            Team vision = DuelRuntime.I && DuelRuntime.I.MatchGhost ? DuelRuntime.GhostVisionTeam : game.player;
             if (world != game.World || seat != vision)
             {
                 world = game.World; seat = vision;

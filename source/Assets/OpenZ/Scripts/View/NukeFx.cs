@@ -115,13 +115,13 @@ namespace OpenZ
         Transform shell, shimmer; Material shellMat, shimmerMat; Light fireLight;
         static Image flash;
 
-        public static NukeFx Trigger(Vector3 at)
+        public static NukeFx Trigger(Vector3 at, bool inBackground = false)
         {
             var go = new GameObject("NukeFx");
             var n = go.AddComponent<NukeFx>();
             go.transform.position = at;
             n.Build();
-            n.StartCoroutine(n.Sequence(at));
+            n.StartCoroutine(n.Sequence(at, inBackground));
             return n;
         }
 
@@ -236,19 +236,27 @@ namespace OpenZ
 
         /// <summary>Unit editor only: the long nuke clip's own time where it starts to fade and where it is silent (s).</summary>
         public const float UeNukeFadeFrom = 7f, UeNukeFadeTo = 10.5f;
-        IEnumerator Sequence(Vector3 at)
+        IEnumerator Sequence(Vector3 at, bool inBackground)
         {
             var fx = FxManager.I; var au = CombatAudio.I;
             float born = Time.time;
-            if (!StrikeDelivered) au?.PlayWide("nuke", at, 1.2f, "nuke-descent-20260909");   // fx_v2: the strike played it during the fall
+            if (inBackground)
+            {
+                if (!StrikeDelivered) au?.Play("nuke", at, 1.2f, 0f, -1, "nuke-descent-20260909");
+                au?.Play("nuke", at, 1.4f, 0f, -1, "legacy-nuke-long");
+            }
+            else
+            {
+                if (!StrikeDelivered) au?.PlayWide("nuke", at, 1.2f, "nuke-descent-20260909");
+                Flash(1f);
+                au?.PlayWide("nuke", at, 1.4f, "legacy-nuke-long");
+            }
             StrikeDelivered = false;
-            Flash(1f);
-            au?.PlayWide("nuke", at, 1.4f, "legacy-nuke-long");
             if (OzUeHooks.Active) au?.FadeLastByClipTime(UeNukeFadeFrom, UeNukeFadeTo);         // the Unit editor has no fort to carry the long tail: it ends sooner there, levels are unchanged
             // nuke_fx_v3 (fort-fall hitch: the impact frame was 102 ms, NukeFx.Sequence 27 ms + Mono JIT 21 ms, qc/fort_fall_profile_sim.txt):
             // the heavy first-frame work is spread over the next frames (the fireball is on screen from Build; OpenZNukePrewarm JITs it all at load)
             yield return null;
-            fx?.NukeBlast(at);
+            fx?.NukeBlast(at, inBackground);
             yield return null;
             OpenZFxPlayer.I?.Blast(at + Vector3.up * 2f, 0f, FxBlastKind.Nuke);
             yield return null;

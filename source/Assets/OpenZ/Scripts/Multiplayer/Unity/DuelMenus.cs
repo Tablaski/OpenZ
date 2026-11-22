@@ -21,7 +21,7 @@ namespace OpenZ.Multiplayer
         bool pauseWasOpen;
         Image inputMeter;
         OzText meterValue, gainValue, speakerValue, windowsOutput;
-        readonly List<(string text, double expires)> notices = new List<(string, double)>();
+        readonly List<(string text, double expires, bool chat)> notices = new List<(string, double, bool)>();
         DuelRuntime R => DuelRuntime.I;
         Canvas canvas;
         RectTransform root, overlayRoot;
@@ -64,10 +64,12 @@ namespace OpenZ.Multiplayer
         internal void ShowRoomVote() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.RoomVote; dirty = true; }
         internal void CloseRoomVote() { if (page == Page.RoomVote) CloseOverlay(); }
         public void CloseOverlay() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Entry; dirty = true; }
-        public void NotifyChat(string message)
+        public void NotifyChat(string message) => NotifyMatch(message, chat: true);
+
+        internal void NotifyMatch(string message, bool chat = false)
         {
             if (!R.Playing) return;
-            notices.Add((message, Time.realtimeSinceStartupAsDouble + 10));
+            notices.Add((message, Time.realtimeSinceStartupAsDouble + 10, chat));
             if (notices.Count > 4) notices.RemoveAt(0);
             if (page == Page.Entry) dirty = true;
         }
@@ -196,7 +198,7 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry)
             {
                 if (R.MatchPaused && !pauseWasOpen) BuildPausedMatch();
-                if (R.Playing && R.RoomObserver) BuildGhostView();
+                if (R.Playing && R.MatchGhost) BuildGhostView();
                 if (R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0)
                 {
                     var banner = Panel("OPENING ORDERS", 24, 922, 600, 74);
@@ -212,10 +214,14 @@ namespace OpenZ.Multiplayer
                 if (R.Playing && !FindObjectsByType<OpenZPauseMenu>(FindObjectsSortMode.None).Any(p => p.IsOpen))
                     for (int i = 0; i < notices.Count; i++)
                     {
-                        var notice = Button(root, "", 24, 922 - (notices.Count - 1 - i) * 78, 1040, OpenChat, false, true, 74);
-                        notice.name = "Incoming chat";
-                        Label(notice, notices[i].text, 14, 10, 1010, 17, OzUi.Ink).Body(14, 10, 1010);
-                        FindFirstObjectByType<OpenZHud>()?.AddBlocker(notice);
+                        float y = 922 - (notices.Count - 1 - i) * 78;
+                        var entry = notices[i];
+                        var notice = entry.chat
+                            ? Button(root, "", 24, y, 1040, OpenChat, false, true, 74)
+                            : Panel("", 24, y, 1040, 74);
+                        notice.name = entry.chat ? "Incoming chat" : "Match notice";
+                        Label(notice, entry.text, 14, 10, 1010, 17, OzUi.Ink).Body(14, 10, 1010);
+                        if (entry.chat) FindFirstObjectByType<OpenZHud>()?.AddBlocker(notice);
                     }
                 return;
             }

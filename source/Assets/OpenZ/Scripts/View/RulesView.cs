@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 
@@ -17,6 +18,7 @@ namespace OpenZ
         readonly Dictionary<int, float> craneWork = new Dictionary<int, float>();              // building id -> sparks until
         string banner; float bannerTime = -100; Color bannerColor = Color.white;
         float nextSpark;
+        readonly HashSet<Team> skirmishNukes = new HashSet<Team>();
         float lastNukeFx = -100f;                                                                   // fx_v2: one mushroom for both fort halves
 
         void Awake() { game = GetComponent<ZGame>(); if (!game) game = FindFirstObjectByType<ZGame>(); }
@@ -124,7 +126,18 @@ namespace OpenZ
                 case ZEventType.TeamEliminated:
                 {
                     var team = (Team)(int)e.value;
-                    if (!FindFirstObjectByType<OpenZEndScreen>()) Show($"{TeamColors.Name(team)} TEAM ELIMINATED", TeamColors.Of(team));   // fx_v2: no IMGUI text over the nuke
+                    if (W.HasIndividualDefeatSequence && team != game.player)
+                    {
+                        var runtime = Multiplayer.DuelRuntime.I;
+                        int seat = (int)team - 1;
+                        var name = runtime?.JoinedRoom?.Humans.FirstOrDefault(member => member.Position == seat)?.Name
+                            ?? runtime?.HostedRoom?.Members.FirstOrDefault(member => member.Seat.Position == seat).Name
+                            ?? TeamColors.Name(team);
+                        var message = $"{name} was eliminated";
+                        if (runtime && runtime.Playing) runtime.Menus?.NotifyMatch(message);
+                        else OpenZHud.I?.Toast(message, "alert", false, null);
+                    }
+                    else if (!FindFirstObjectByType<OpenZEndScreen>()) Show($"{TeamColors.Name(team)} TEAM ELIMINATED", TeamColors.Of(team));   // fx_v2: no IMGUI text over the nuke
                     break;
                 }
                 case ZEventType.GameOver:
@@ -145,17 +158,27 @@ namespace OpenZ
             var fx = FxManager.I; var au = CombatAudio.I;
             if (o.IsFort)
             {
+                bool individualDefeat = game.World.HasIndividualDefeatSequence;
+                bool ours = o.Owner == game.player;
+                bool inBackground = individualDefeat && !ours;
                 var c = game.CenterWorld(o);
                 var fg = Static(o.Id);
                 System.Action boom = () =>
                 {
                     if (!(fg && BuildingBreaker.For(fg, o).Collapse(c, 1.7f))) game.RuinStatic(o.Id);    // cells fly out under the mushroom
-                    if (Time.time - lastNukeFx > 5f) { lastNukeFx = Time.time; NukeFx.Trigger(c); }
+                    if (individualDefeat ? skirmishNukes.Add(o.Owner) : Time.time - lastNukeFx > 5f)
+                    {
+                        lastNukeFx = Time.time;
+                        NukeFx.Trigger(c, inBackground);
+                    }
                 };
                 // fx_v2: the nuke is delivered (bomber fly-by, the bomb falls, slow-motion impact); the fort stands until it hits
-                if (!OpenZNukeStrike.Begin(c, o.Owner == game.player, boom)) boom();
-                var cam = FindFirstObjectByType<RtsCamera>();
-                if (cam) { cam.FlyTo(c + new Vector3(0, 0, 9f)); cam.ZoomTo(78f); }   // frame the whole column at game height (55 deg pitch)
+                if (!OpenZNukeStrike.Begin(c, ours, boom, inBackground ? o.Owner : Team.Neutral)) boom();
+                if (!inBackground)
+                {
+                    var cam = FindFirstObjectByType<RtsCamera>();
+                    if (cam) { cam.FlyTo(c + new Vector3(0, 0, 9f)); cam.ZoomTo(78f); }
+                }
                 return;
             }
             OpenZFxShake.I?.Kick(game.CenterWorld(o), o.IsBridge ? OpenZFxCatalog.ShakeBridgePx : OpenZFxCatalog.ShakeBuildingPx, o.IsBridge ? "bridge" : "building", true);   // a building or a bridge blowing up in view always kicks the camera

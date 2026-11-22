@@ -32,7 +32,17 @@ namespace OpenZ.Multiplayer
         internal bool GhostFollowing { get; private set; }
         internal bool GhostFog { get; set; } = true;
         internal GhostFrame GhostView { get; private set; }
-        internal static Team GhostVisionTeam => I && I.RoomObserver && I.Playing && I.GhostFollowing && I.GhostFog && I.GhostTarget >= 0
+        bool showingMatchGhost;
+        bool LocalMatchGhost => RoomObserver || EliminatedMatchSeat(RoomPosition);
+        internal bool MatchGhost => LocalMatchGhost && (RoomObserver || !OpenZEnding.Running);
+
+        bool EliminatedMatchSeat(int seat) => seat >= 0 && Playing && Game &&
+            Game.World.HasIndividualDefeatSequence && Game.World.SkirmishEliminated((Team)(seat + 1));
+
+        bool IsMatchGhost(int id) => IsRoomGhost(id) || room?.Members.Any(member =>
+            member.Id == RoomGuest(id) && EliminatedMatchSeat(member.Seat.Position)) == true;
+
+        internal static Team GhostVisionTeam => I && I.MatchGhost && I.Playing && I.GhostFollowing && I.GhostFog && I.GhostTarget >= 0
             ? (Team)(I.GhostTarget + 1) : Team.Neutral;
 
         internal RoomSnapshot.Human[] GhostTargets => JoinedRoom?.Humans.Where(member => member.Position >= 0 && !member.Observer &&
@@ -41,7 +51,7 @@ namespace OpenZ.Multiplayer
 
         internal void FollowGhostTarget(int seat)
         {
-            if (!RoomObserver || !GhostTargets.Any(member => member.Position == seat)) return;
+            if (!MatchGhost || !GhostTargets.Any(member => member.Position == seat)) return;
             if (GhostTarget != seat) GhostView = null;
             GhostTarget = seat;
             GhostFollowing = true;
@@ -51,7 +61,7 @@ namespace OpenZ.Multiplayer
 
         internal void SetGhostCameraMode(bool follow)
         {
-            if (!RoomObserver) return;
+            if (!MatchGhost) return;
             if (follow)
             {
                 var target = GhostTargets.FirstOrDefault(member => member.Position == GhostTarget) ?? GhostTargets.FirstOrDefault();
@@ -74,14 +84,21 @@ namespace OpenZ.Multiplayer
         void LateUpdate()
         {
             if (!Playing || !Game || RoomTransport == null) return;
-            if (RoomObserver)
+            bool ghost = MatchGhost;
+            if (ghost != showingMatchGhost)
+            {
+                showingMatchGhost = ghost;
+                Menus.Refresh();
+            }
+            if (ghost)
             {
                 UpdateGhostFollowing();
                 return;
             }
             if (RoomPosition < 0 || Game.World.SkirmishEliminated(LocalTeam)) return;
-            bool observers = IsHost ? room.Members.Any(member => member.Seat.Role == MatchSeatRole.Observer) :
-                JoinedRoom.Humans.Any(member => member.Observer);
+            bool observers = IsHost
+                ? room.Members.Any(member => member.Seat.Role == MatchSeatRole.Observer || EliminatedMatchSeat(member.Seat.Position))
+                : JoinedRoom?.Humans.Any(member => member.Observer || EliminatedMatchSeat(member.Position)) == true;
             if (!observers) return;
             if (!ReadyGhostCamera()) return;
             var pointer = Mouse.current;
@@ -148,7 +165,7 @@ namespace OpenZ.Multiplayer
             if (Now >= ghostNextSubscribe)
             {
                 ghostNextSubscribe = Now + 1;
-                SendGhostPacketToHost(DuelMessage.RoomGhostFollow, new GhostRequest { Seat = GhostFollowing ? GhostTarget : -1,
+                if (!IsHost) SendGhostPacketToHost(DuelMessage.RoomGhostFollow, new GhostRequest { Seat = GhostFollowing ? GhostTarget : -1,
                     Revision = loadedRoomRevision });
             }
             bool tracking = GhostFollowing && GhostView != null && Now - ghostFrameAt < 1.5;
@@ -182,7 +199,7 @@ namespace OpenZ.Multiplayer
             if (!Playing || !Game || packet.Payload.Length == 0 || packet.Payload.Length > 4096) return;
             if (packet.Kind == DuelMessage.RoomGhostFollow)
             {
-                if (!IsHost || !IsRoomGhost(sender.Id)) return;
+                if (!IsHost || !IsMatchGhost(sender.Id)) return;
                 var request = ReadJson<GhostRequest>(packet);
                 if (request == null || request.Revision != loadedRoomRevision) return;
                 if (request.Seat < 0) ghostFollowers.Remove(sender.Id);
@@ -192,11 +209,11 @@ namespace OpenZ.Multiplayer
             }
             if (IsHost)
             {
-                if (IsRoomGhost(sender.Id) || !ghostFollowers.Any() ||
+                if (IsMatchGhost(sender.Id) || (ghostFollowers.Count == 0 && !(MatchGhost && GhostFollowing)) ||
                     ghostNextFrameFrom.TryGetValue(sender.Id, out double next) && Now < next) return;
                 ghostNextFrameFrom[sender.Id] = Now + .075;
             }
-            else if (sender.Id != 1 || !RoomObserver || !GhostFollowing) return;
+            else if (sender.Id != 1 || !MatchGhost || !GhostFollowing) return;
             var frame = ReadJson<GhostFrame>(packet);
             if (!ValidGhostFrame(frame)) return;
             if (IsHost)
@@ -225,8 +242,13 @@ namespace OpenZ.Multiplayer
         void ForwardGhostFrame(GhostFrame frame)
         {
             if (Game.World.SkirmishEliminated((Team)(frame.Seat + 1))) return;
+            if (MatchGhost && GhostFollowing && GhostTarget == frame.Seat)
+            {
+                GhostView = frame;
+                ghostFrameAt = Now;
+            }
             var audience = RoomTransport.Remotes.Where(link => link.Ready && ghostFollowers.TryGetValue(link.Id, out int target) &&
-                target == frame.Seat && IsRoomGhost(link.Id)).ToArray();
+                target == frame.Seat && IsMatchGhost(link.Id)).ToArray();
             if (audience.Length == 0) return;
             var packet = new DuelPacket(DuelMessage.RoomGhostView, System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(frame)));
             foreach (var link in audience) link.Send(packet);
@@ -234,6 +256,7 @@ namespace OpenZ.Multiplayer
 
         void ResetGhostView()
         {
+            showingMatchGhost = false;
             GhostTarget = -1;
             GhostFollowing = false;
             GhostView = null;

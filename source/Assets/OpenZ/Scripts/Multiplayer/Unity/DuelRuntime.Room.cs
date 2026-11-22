@@ -393,14 +393,14 @@ namespace OpenZ.Multiplayer
                     int id = sender.Id;
                     string senderName = IsHost ? room.Members.FirstOrDefault(member => member.Id == RoomGuest(id)).Name : sender.RemoteName;
                     if (string.IsNullOrEmpty(senderName)) return;
-                    bool ghost = session && IsRoomGhost(id);
+                    bool ghost = session && IsMatchGhost(id);
                     if (IsHost) ForwardRoomChat(new RoomChat { Sender = id, Name = senderName, Text = text, Ghost = ghost });
-                    if (ghost == (session && RoomObserver)) NotifyRoomChat(senderName, text);
+                    if (ghost == (session && LocalMatchGhost)) NotifyRoomChat(senderName, text);
                     return;
                 case DuelMessage.RoomChat:
                     if (IsHost || sender.Id != 1 || packet.Payload.Length > 2048) return;
                     var chat = ReadJson<RoomChat>(packet);
-                    if (chat != null && chat.Ghost == (session && RoomObserver) && chat.Sender != RoomTransport.Id &&
+                    if (chat != null && chat.Ghost == (session && LocalMatchGhost) && chat.Sender != RoomTransport.Id &&
                         chat.Name?.Length <= 32 && chat.Text?.Length <= 240)
                         NotifyRoomChat(chat.Name, chat.Text);
                     return;
@@ -454,7 +454,7 @@ namespace OpenZ.Multiplayer
         {
             if (!session) { SendJson(DuelMessage.RoomChat, chat); return; }
             var packet = new DuelPacket(DuelMessage.RoomChat, System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(chat)));
-            foreach (var link in RoomTransport.Remotes.Where(link => link.Id != chat.Sender && IsRoomGhost(link.Id) == chat.Ghost))
+            foreach (var link in RoomTransport.Remotes.Where(link => link.Id != chat.Sender && IsMatchGhost(link.Id) == chat.Ghost))
                 link.Send(packet);
         }
 
@@ -463,7 +463,7 @@ namespace OpenZ.Multiplayer
             string sender = room?.Members.First(member => member.Id == RoomHostId).Name ??
                 JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Name ?? localName;
             AddChat(sender + " : " + message);
-            if (IsHost) ForwardRoomChat(new RoomChat { Sender = RoomTransport.Id, Name = sender, Text = message });
+            if (IsHost) ForwardRoomChat(new RoomChat { Sender = RoomTransport.Id, Name = sender, Text = message, Ghost = session && LocalMatchGhost });
             else peer.Send(new DuelPacket(DuelMessage.Chat, System.Text.Encoding.UTF8.GetBytes(message)));
         }
 

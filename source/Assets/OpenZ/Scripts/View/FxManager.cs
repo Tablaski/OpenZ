@@ -236,11 +236,14 @@ namespace OpenZ
 
         /// <summary>Fort death core blast under the mushroom cloud: big fireball, the wide ground shockwave, large scorch,
         /// a long bright light pulse and heavy camera shake (plan/04 4.1b).</summary>
-        public void NukeBlast(Vector3 at)
+        public void NukeBlast(Vector3 at, bool inBackground = false)
         {
             float floor = Ground(at.x, at.z);
-            OpenZFxShake.I?.TimedRumble(new Vector3(at.x, floor + 1.5f, at.z), OpenZFxCatalog.ShakeFortRumble, OpenZFxCatalog.ShakeFortRumbleSeconds, "fort_death");
-            OzEndingVignette.Begin(-1);
+            if (!inBackground)
+            {
+                OpenZFxShake.I?.TimedRumble(new Vector3(at.x, floor + 1.5f, at.z), OpenZFxCatalog.ShakeFortRumble, OpenZFxCatalog.ShakeFortRumbleSeconds, "fort_death");
+                OzEndingVignette.Begin(-1);
+            }
             Explosion(new Vector3(at.x, floor + 1.5f, at.z), 3f);
             Emit("ring", new Vector3(at.x, floor + 0.08f, at.z), Vector3.zero, 1.8f, 6.5f);
             Emit("ring", new Vector3(at.x, floor + 0.09f, at.z), Vector3.zero, 1.1f, 3.5f);

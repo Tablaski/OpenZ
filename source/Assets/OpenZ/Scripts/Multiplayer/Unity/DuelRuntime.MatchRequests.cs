@@ -62,7 +62,7 @@ namespace OpenZ.Multiplayer
             get
             {
                 double available = SkirmishRoom
-                    ? IsHost ? roomMapRequestAvailableAt.GetValueOrDefault(RoomHostId) : localRoomMapRequestAvailableAt
+                    ? IsHost ? RoomMapRequestAvailableAt(RoomHostId) : localRoomMapRequestAvailableAt
                     : mapRequestAvailableAt[LocalSeat];
                 return Math.Max(0, available - Now);
             }

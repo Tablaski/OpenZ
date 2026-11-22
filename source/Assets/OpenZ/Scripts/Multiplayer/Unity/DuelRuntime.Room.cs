@@ -758,7 +758,7 @@ namespace OpenZ.Multiplayer
             {
                 if (activeRoomVote != 0 || !string.IsNullOrEmpty(request.Map)) return;
                 var member = room.Members.First(candidate => candidate.Seat.MayUsePlayerCommands && candidate.Seat.Position == seat);
-                if (Now < roomMapRequestAvailableAt.GetValueOrDefault(member.Id)) return;
+                if (Now < RoomMapRequestAvailableAt(member.Id)) return;
                 roomMapRequestAvailableAt[member.Id] = Now + MapRequestCooldown;
                 DriveRoom(Game, advance: false);
                 PublishRoomVote(new RoomVoteState { Revision = room.Revision, Vote = ++roomVoteSequence,
@@ -794,8 +794,10 @@ namespace OpenZ.Multiplayer
             ShowRoomVote(state);
         }
 
+        double RoomMapRequestAvailableAt(string id) => roomMapRequestAvailableAt.TryGetValue(id, out var time) ? time : 0;
+
         void UpdateRoomVoteCooldown(RoomVoteState state) => state.CooldownSeconds = state.Result == MapChangeResult.Apply ? 0 :
-            Math.Max(0, roomMapRequestAvailableAt.GetValueOrDefault(state.RequesterId) - Now);
+            Math.Max(0, RoomMapRequestAvailableAt(state.RequesterId) - Now);
 
         void FinishRoomVote(MapChangeResult result)
         {

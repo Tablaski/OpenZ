@@ -785,7 +785,7 @@ namespace OpenZ
             {
                 if (gained) Schedule(new Pending { at = now + 0.6f, kind = KindVoice, id = SndCaptured, team = f.to, old = f.from, objId = f.obj.Id });
                 if (lost) Schedule(new Pending { at = now + 0.35f, kind = KindVoice, id = SndLost, team = f.to, old = f.from, objId = f.obj.Id });
-                if (gained && radar) Schedule(new Pending { at = now + 2.2f, kind = KindVoice, id = SndRadar, team = f.to, old = f.from, objId = f.obj.Id });
+                if (gained && radar && !game.World.AreAllied(f.from, f.to)) Schedule(new Pending { at = now + 2.2f, kind = KindVoice, id = SndRadar, team = f.to, old = f.from, objId = f.obj.Id });
             }
             Captured?.Invoke(new CaptureInfo { flag = f.obj, zone = f.zone, from = f.from, to = f.to, position = basePos });
         }

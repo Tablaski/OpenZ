@@ -1726,7 +1726,7 @@ namespace OpenZ
             {
                 if (Time.time - lastTerritoryAnn >= 6f) { lastTerritoryAnn = Time.time; Announce("ann_territory_captured"); }   // a repeat stays silent
             }
-            if (e.flag && Player != Team.Neutral && W.AreAllied(team, Player) && (!flagView || team != Player))
+            if (e.flag && Player != Team.Neutral && W.AreAllied(team, Player) && !W.AreAllied(old, Player) && (!flagView || team != Player))
                 Schedule(1.2f, () => { var line = OzRadarLine.EventFor(W, Player, e.objId); if (line != null) Announce(line); });
             if (old == Player && team != Player && !flagView) { UI("ter_zone_lost"); Announce("ann_territory_lost"); }
             if (e.flag && Player != Team.Neutral && W.AreAllied(old, Player) && !W.AreAllied(team, Player)) RadarLostAsk(e);

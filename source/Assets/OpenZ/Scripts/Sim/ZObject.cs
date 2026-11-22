@@ -265,7 +265,7 @@ namespace OpenZ.Sim
                 SetTarget(wtx, wty);
                 if (stoppable) StartPath(); else SetVelocity();
                 foreach (var f in World.Flags)                                             // run for flags (:2729-2747)
-                    if ((f.Owner == Owner || !World.AreAllied(Owner, f.Owner)) && Dist(f.LocX, f.LocY, wp.x, wp.y) <= 32) { CaptureRun(wp.x, wp.y); break; }   // DV54: a capture runs (ZObject.AiCombat.cs)   // parity P9: Zod DistanceFromCoords measures from the flag's loc (top-left), zobject.cpp:908-916
+                    if (Dist(f.LocX, f.LocY, wp.x, wp.y) <= 32 && (f.Owner == Owner || World.CanCaptureFlag(Owner, f))) { CaptureRun(wp.x, wp.y); break; }   // DV54: a capture runs (ZObject.AiCombat.cs)   // parity P9: Zod DistanceFromCoords measures from the flag's loc (top-left), zobject.cpp:908-916
             }
             if (CheckAttackTo(wp)) return;
             if (stoppable && GrabOnTheWay(wp)) return;                                  // DV84: a flag / an empty vehicle right beside the way of a plain move (ZObject.GrabCertain.cs)
@@ -462,7 +462,7 @@ namespace OpenZ.Sim
             List<ZObject> choices = null;
             foreach (var o in World.NearUnits(CenterX, CenterY, NbAgroReach(), ZWorld.PerfFastRules ? World.UnitObjects : World.Objects))   // 1.3 item 25 (units, same order); 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in agro reach, same order: the same choices and the same draw
             {
-                if (!o.IsUnit || o.Owner == Team.Neutral || o.Owner == Owner || o.Destroyed) continue;
+                if (!o.IsUnit || o.Owner == Team.Neutral || World.AreAllied(Owner, o.Owner) || o.Destroyed) continue;
                 if (WithinAgroRadius(o) && !SkipUnreachable(o) && CalmMayFight(o)) (choices ??= new List<ZObject>()).Add(o);   // DV153: a fort tower gun in reach is never dropped as 'unreachable' (Sim/ZObject.TowerAnswer.cs); b49: on the player's order only an enemy it can hit from its way (ZObject.Calm.cs)
             }
             if (choices == null) return false;

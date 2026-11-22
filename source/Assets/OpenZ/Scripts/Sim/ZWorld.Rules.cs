@@ -114,7 +114,41 @@ namespace OpenZ.Sim
             foreach (var b in Objects) if (b.IsProducer) b.ResetBuildTime(AlliedFlagFraction(b.Owner));
         }
 
-        /// <summary>Every 0.2 s: the first enemy robot / vehicle whose box touches a flag takes its zone.</summary>
+        /// <summary>Checks capture rights against the flag's current owner, including transfers within an alliance.</summary>
+        internal bool CanCaptureFlag(Team claimant, ZObject flag)
+        {
+            Team owner = flag.Owner;
+            if (claimant == Team.Neutral || owner == claimant) return false;
+            if (!AreAllied(claimant, owner)) return true;
+
+            ZObject claimantFort = null, ownerFort = null;
+            int claimantFactories = 0, ownerFactories = 0;
+            foreach (var building in Objects)
+            {
+                bool ours = building.Owner == claimant;
+                if ((!ours && building.Owner != owner) || building.Kind != ZKind.Building || building.KillAt >= 0) continue;
+                if (building.IsFort && !building.Destroyed)
+                {
+                    if (ours) claimantFort = building;
+                    else ownerFort = building;
+                }
+                else if (building.Type == "robot_factory" || building.Type == "vehicle_factory")
+                {
+                    if (ours) claimantFactories++;
+                    else ownerFactories++;
+                }
+            }
+            return claimantFactories < ownerFactories && claimantFort != null && ownerFort != null &&
+                FlagFortDistanceSquared(flag, claimantFort) < FlagFortDistanceSquared(flag, ownerFort);
+        }
+
+        static long FlagFortDistanceSquared(ZObject flag, ZObject fort)
+        {
+            long dx = flag.CenterX - fort.CenterX, dy = flag.CenterY - fort.CenterY;
+            return dx * dx + dy * dy;
+        }
+
+        /// <summary>Every 0.2 s: the first eligible robot or vehicle whose box touches a flag takes its zone.</summary>
         void CheckFlagCaptures()
         {
             if (Time <= nextFlagCheck) return;
@@ -122,10 +156,10 @@ namespace OpenZ.Sim
             foreach (var f in Flags)
                 foreach (var o in UnitObjects)
                 {
-                    if (o.Owner == Team.Neutral || AreAllied(f.Owner, o.Owner)) continue;
+                    if (o.Owner == Team.Neutral || f.Owner == o.Owner) continue;
                     if (o.IsShuttle) continue;                                                                 // DV118: the shuttle never takes a flag (Sim/ZWorld.Shuttle.cs)
                     if (!(o.Kind == ZKind.Vehicle || o.Kind == ZKind.Robot) || o.IsFortDefender) continue;   // fort_defender_v1 DV41
-                    if (!f.IntersectsObject(o) || !FlagCaptureAllowed(f)) continue;                     // 1.2 item 6: the playground's 1 s hold after a change (Sim/ZWorld.Playground.cs; 0 = the game's rule)
+                    if (!f.IntersectsObject(o) || !FlagCaptureAllowed(f) || !CanCaptureFlag(o.Owner, f)) continue;                     // 1.2 item 6: the playground's 1 s hold after a change (Sim/ZWorld.Playground.cs; 0 = the game's rule)
                     AwardZone(f, o.Owner, o);
                     FlagStepOffNote(f, o);                                                     // 1.5 DV184 (kit vehicle_off_flag): a vehicle that took it may roll a short way off it later (Sim/ZObject.FlagStepOff.cs); off = Zod
                     break;

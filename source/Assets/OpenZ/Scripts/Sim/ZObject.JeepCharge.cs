@@ -135,7 +135,7 @@ namespace OpenZ.Sim
         bool ChargeWants(ZObject t, int sx, int sy, bool keep, int extra = 0)
         {
             if (t == null || t.Kind != ZKind.Robot || t.Destroyed || t.KillAt >= 0 || t.Health <= 0) return false;
-            if (t.Owner == Team.Neutral || t.Owner == Owner || t.IsFortDefender || t.PathInBuildingStage || t.FortRushOn || t.IsEvilZod) return false;
+            if (t.Owner == Team.Neutral || World.AreAllied(Owner, t.Owner) || t.IsFortDefender || t.PathInBuildingStage || t.FortRushOn || t.IsEvilZod) return false;
             if (t.DriverOutOnHull) return false;                                                         // 1.4 DV171 final fix: a driver climbing out of a tank is on its hull: no charge at him until his hold ends (Sim/ZObject.VehicleExit.cs)
             if (!ChargeStrong(t) && !Within(CenterX, CenterY, t.CenterX, t.CenterY, keep ? ZWorld.ChargeCloseKeepPx : ZWorld.ChargeClosePx)) return false;
             return Within(sx, sy, t.CenterX, t.CenterY, ChargeLeash + extra);
@@ -166,7 +166,7 @@ namespace OpenZ.Sim
             foreach (var o in World.Objects)
             {
                 if (o == this || o == t || !ZPathing.Separable(o)) continue;
-                if (o.Kind == ZKind.Robot && o.Owner != Owner && o.Owner != Team.Neutral) continue;   // an enemy robot in the lane is run over as well
+                if (o.Kind == ZKind.Robot && o.Owner != Team.Neutral && !World.AreAllied(Owner, o.Owner)) continue;   // an enemy robot in the lane is run over as well
                 double ox = o.CenterX - cx, oy = o.CenterY - cy, along = ox * ux + oy * uy;
                 if (along <= 0.5 || along > end) continue;                                   // behind it (or exactly beside it): not in its way
                 if (Math.Abs(ox * uy - oy * ux) < ZPathing.MinSpacing(this, o) + 2) return false;
@@ -201,7 +201,7 @@ namespace OpenZ.Sim
         {
             foreach (var o in World.Objects)
             {
-                if (o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner) continue;
+                if (o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || World.AreAllied(Owner, o.Owner)) continue;
                 int reach;
                 if (o.Kind == ZKind.Cannon) { if (o.Drivers.Count == 0 || !o.CanAttack()) continue; reach = o.RangeTo(t); }
                 else if (o.Kind == ZKind.Building && (o.Type == "fort_front" || o.Type == "fort_back") && ZWorld.FortGunDeviation)

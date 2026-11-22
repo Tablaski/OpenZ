@@ -3,7 +3,8 @@
 ## OpenZ-VK 1.5.49 team matches
 
 - Pending in a compiled game. Play local Skirmish and online matches with human and bot teammates, including two bots on the same team. Check that bots defend their own fort first, relieve a threatened allied fort or territory, and can reinforce an allied attack or take an undefended enemy flag. Compare with solo and free-for-all bots.
-- Try normal, Ctrl and queued attack orders against allied units and buildings. Move onto an allied flag and verify that it retains its owner. Check that the Friendly Fire option still controls incidental damage.
+- Try normal, Ctrl and queued attack orders against allied units and buildings. Check that the Friendly Fire option still controls incidental damage and that tanks and Jeeps do not ram or run over allies.
+- Hover over an allied flag with both an eligible and an ineligible force. Check the capture cursor or red cross, including hardware cursor mode and a Ghost following the player. Confirm a blocked click leaves existing orders intact. Move onto the flag and check that it transfers with its buildings only if the claimant owns fewer factories and the flag is closer to the claimant’s fort. Confirm treating a ruined factory as still owned and that an in-team transfer leaves the shared radar and territory discount active.
 - Send a damaged vehicle to an ally’s repair centre by click and by hotkey. Check the queue, the repaired unit’s owner and what happens if the centre changes hands. Include a shuttle where available.
 - Capture two radars with different allies, then lose them one at a time. Compare host and guest minimaps, sweep colours, enemy tracking and health bars, fog, zoom and radar alerts. Check that construction times change with the alliance’s combined flag share, including with a custom territory cap and an explicit seat handicap.
 

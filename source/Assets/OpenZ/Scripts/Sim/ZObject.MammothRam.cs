@@ -155,7 +155,7 @@ namespace OpenZ.Sim
 
         /// <summary>t may be rammed by this Mammoth (see the class notes, WHOM).</summary>
         bool RamTargetOk(ZObject t) =>
-            t != null && t != this && RamKindOk(t) /* 1.5 DV183 (kit bizon_crush): the Bizon also takes ground guns */ && !t.Destroyed && t.KillAt < 0 && t.Health > 0 && t.Owner != Team.Neutral && t.Owner != Owner
+            t != null && t != this && RamKindOk(t) /* 1.5 DV183 (kit bizon_crush): the Bizon also takes ground guns */ && !t.Destroyed && t.KillAt < 0 && t.Health > 0 && t.Owner != Team.Neutral && !World.AreAllied(Owner, t.Owner)
             && t.Drivers.Count > 0 && !t.RamDoomed && !t.IsShuttle && !t.PathInBuildingStage && t.World == World && !RamWet(t) /* 1.5 DV192 (kit sim_notes11): never in water or lava */;
 
         /// <summary>The hull's heading as whole numbers (x 1024) from its last move (FaceX / FaceY); false = it has not moved yet (no front known).</summary>
@@ -235,7 +235,7 @@ namespace OpenZ.Sim
             {
                 var o = all[i];
                 if (o == this || o == t || !ZPathing.Separable(o) || RamChainOwn(o) /* 1.5 DV195: its own doomed victims are no obstacle */) continue;
-                if (o.Kind == ZKind.Robot && o.Owner != Owner && o.Owner != Team.Neutral) continue;   // an enemy robot in the way is run over (DV65)
+                if (o.Kind == ZKind.Robot && o.Owner != Team.Neutral && !World.AreAllied(Owner, o.Owner)) continue;   // an enemy robot in the way is run over (DV65)
                 long ox = o.CenterX - CenterX, oy = o.CenterY - CenterY, room = ZPathing.MinSpacing(this, o);
                 long along = ox * dx + oy * dy;                                          // x len
                 if (along <= 0) continue;                                                // beside or behind it: the gate keeps that room as always

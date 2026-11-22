@@ -234,7 +234,7 @@ namespace OpenZ
         public static string CursorArt(string name) => CursorArt(name, CursorBlue);
         public static string CursorArt(string name, bool blue)
         {
-            if (!blue || string.IsNullOrEmpty(name) || GreenCursors.Contains(name)) return name;
+            if (!blue || string.IsNullOrEmpty(name) || name == OpenZCursors.BlockedOrderCursor || GreenCursors.Contains(name)) return name;
             if (!blueArt.TryGetValue(name, out var a)) { a = BlueCursorArt + name; blueArt[name] = a; }
             return a;
         }

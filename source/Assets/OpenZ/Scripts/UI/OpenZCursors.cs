@@ -23,6 +23,7 @@ namespace OpenZ
         /// HD/cur_pickup_256_*; order mark Kit/Cursors/mark_pickedup), no longer the flag-capture cursor "grab" (the flag between brackets,
         /// kept for flags).</summary>
         public const string GrenadeCursor = "pickup";
+        internal const string BlockedOrderCursor = "blocked_order";
         OpenZHud hud; float lastMarker = -10f; string previous = "arrow"; bool set, hidLocalGhostPointer;
 
         public void Build(OpenZHud h) { hud = h; lastMarker = h.input ? h.input.MarkerTime : -10f; }
@@ -50,7 +51,7 @@ namespace OpenZ
         }
 
         /// <summary>1.2 item 17: OzSoundV3.CursorChanged takes the grenade hand as "grab", so its lock blip is the one it always had.</summary>
-        static string SoundName(string c) => c == GrenadeCursor ? "grab" : c;
+        static string SoundName(string c) => c == GrenadeCursor ? "grab" : c == BlockedOrderCursor ? "nono" : c;
 
         static string Ed(string c)
         {
@@ -78,11 +79,11 @@ namespace OpenZ
             if (hud.Rally && hud.Rally.Armed) return "move";
             if (m.leftButton.isPressed || sel.Count == 0) return "arrow";
 
-            bool canMove = false, robots = false, takers = false, crane = false, repairable = false, canAttack = false, explosives = false, pickup = false;
+            bool canMove = false, canCapture = false, robots = false, takers = false, crane = false, repairable = false, canAttack = false, explosives = false, pickup = false;
             foreach (var u in sel)
             {
                 if (u.Destroyed || u.Owner != me) continue;
-                if (u.CanMove) canMove = true;
+                if (u.CanMove) { canMove = true; if (!u.IsShuttle) canCapture = true; }
                 if (u.Kind == ZKind.Robot) { robots = true; if (!u.IsEvilZod) takers = true; if (u.CanPickupGrenades()) pickup = true; }   // DV161: he alone takes no empty vehicle or gun, no own APC (Sim/ZEvilZod.cs)
                 if (u.Type == "crane") crane = true;
                 if (u.CanBeRepaired()) repairable = true;
@@ -98,10 +99,14 @@ namespace OpenZ
                 if (crane && h.CanBeRepairedByCrane(me)) return "repair";
                 if (repairable && h.CanRepairUnit(me)) return "repair";
                 if (h.Destroyed) return canMove ? "move" : "cannon";                           // endgame_ui_v1: rubble is a plain move (PlayerInput.BuildWaypoint), never the red attack
-                if (h.Owner != me && h.World?.AreAllied(me, h.Owner) != true)
+                if (h.Type == "flag" && h.Owner != me && W.AreAllied(me, h.Owner))
+                    return canCapture && W.CanCaptureFlag(me, h) ? "grab" : BlockedOrderCursor;
+                bool ctrlHeld = Keyboard.current != null && Keyboard.current.ctrlKey.isPressed;
+                if (ctrlHeld && h.Owner != me && W.AreAllied(me, h.Owner) && (h.IsUnit || h.Kind == ZKind.Building))
+                    return BlockedOrderCursor;
+                if (h.Owner != me && !W.AreAllied(me, h.Owner))
                 {
                     bool door = h.CanEnterFort(me) && (OnDoor(h, mp) || (canMove && input.FortEnterAt(h)));   // 1.4: the gate zone and the fort's body too (View/PlayerInput.FortGate.cs)
-                    bool ctrlHeld = Keyboard.current != null && Keyboard.current.ctrlKey.isPressed;
                     if (h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrlHeld && !door) return canMove ? "move" : "cannon";
                     { string emptyCursor = ZWorld.EmptyClickCursor(h, ctrlHeld, takers, canMove, canAttack, explosives); if (emptyCursor != null) return emptyCursor; }   // DV81: over an empty vehicle or gun never ATTACK without Ctrl (ENTER with a robot selected, else MOVE); Ctrl = ATTACK, as for neutral buildings
                     if (!door && ZWorld.PyroBurnCursor(h, sel, me, ctrlHeld)) return "attack";   // DV113: Ctrl over a building or bridge with a Pyro selected = ATTACK (it burns it), where explosives-only showed NO (Sim/ZObject.PyroForceBurn.cs)

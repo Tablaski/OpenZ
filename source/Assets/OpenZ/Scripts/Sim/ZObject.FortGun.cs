@@ -107,7 +107,7 @@ namespace OpenZ.Sim
         }
 
         bool FortGunValid(ZObject o, int radius) =>
-            o != null && o.IsUnit && !o.Destroyed && o.KillAt < 0 && o.Owner != Team.Neutral && o.Owner != Owner
+            o != null && o.IsUnit && !o.Destroyed && o.KillAt < 0 && o.Owner != Team.Neutral && !World.AreAllied(Owner, o.Owner)
             && Within(CenterX, CenterY, o.CenterX, o.CenterY, radius) && FortGunCanReach(o.CenterX, o.CenterY);   // fortgun_v2 envelope
     }
 }

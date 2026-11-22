@@ -179,14 +179,21 @@ namespace OpenZ
                 {
                     var pt = ZGame.WorldToPx(gp);
                     OzShuttleQueueInput.Click(pending.Count == 0, queueClick);                                // K410 (DV125): a Shift click for a flying shuttle goes after its route (View/OzShuttleQueueInput.cs)
+                    bool added = false;
                     foreach (var u in Selection)
                     {
+                        var wp = BuildWaypoint(u, Hover, pt.x, pt.y, ctrl, alt);
+                        if (wp.mode == WpMode.None) continue;
                         if (!pending.TryGetValue(u, out var l)) pending[u] = l = new List<ZWaypoint>();
-                        l.Add(BuildWaypoint(u, Hover, pt.x, pt.y, ctrl, alt));
+                        l.Add(wp); added = true;
                     }
-                    MarkerPos = gp;
-                    OzShuttleKickflip.OrderClick(Selection, mp, gp, queueClick, OzBindings.Held(OzAction.NearestOnly));   // K344: a double right-click of a far move = the shuttle's kickflip (view only; the orders as before; View/OzShuttleKickflip.cs)
-                    if (!shift) Flush(OzBindings.Held(OzAction.NearestOnly), mp);   // menu_exe_v1: bound key (Z)
+                    if (added)
+                    {
+                        MarkerPos = gp;
+                        OzShuttleKickflip.OrderClick(Selection, mp, gp, queueClick, OzBindings.Held(OzAction.NearestOnly));
+                        if (!shift) Flush(OzBindings.Held(OzAction.NearestOnly), mp);
+                    }
+                    else AudioDirector.UI("ui_order_invalid");
                 }
                 else AudioDirector.UI("ui_order_invalid");
             }
@@ -708,13 +715,19 @@ namespace OpenZ
             bool notOurs = !W.AreAllied(BothSides ? u.Owner : game.player, h.Owner);
             if (h.Type == "flag")
             {
-                if (!notOurs && W.SkirmishHasTeams) wp.refId = -1;
+                if (!notOurs && h.Owner != u.Owner)
+                {
+                    if (u.IsShuttle || !u.CanMove || !W.CanCaptureFlag(u.Owner, h)) return new ZWaypoint { mode = WpMode.None };
+                    wp.x = h.CenterX; wp.y = h.CenterY;
+                }
                 return wp;
             }
             // zplayer.cpp:2746-2881 special rows
             // orders never divert to fight on the way (Zod's attackTo diversion hijacked them, zobject.cpp:2561/2645)
             if (u.CanBeRepaired() && h.CanRepairUnit(u.Owner)) { wp.mode = WpMode.UnitRepair; wp.attackTo = false; wp.x = h.CenterX - 8; wp.y = h.CenterY; return wp; }
             if (u.Type == "crane" && h.CanBeRepairedByCrane(u.Owner) && h.GetCraneCenter(out int kx, out int ky)) { wp.mode = WpMode.CraneRepair; wp.attackTo = false; wp.x = kx; wp.y = ky; return wp; }
+            if (ctrl && !notOurs && h.Owner != u.Owner && !h.Destroyed && (h.IsUnit || h.Kind == ZKind.Building))
+                return new ZWaypoint { mode = WpMode.None };
             if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && FortEnterClick(h, x, y, ctrl)) { wp.mode = WpMode.EnterFort; wp.attackTo = false; return wp; }   // 1.4: Zod's door, the gate zone, the fort's body without Ctrl (View/PlayerInput.FortGate.cs)
             if (h.Destroyed) { wp.refId = -1; return wp; }                                     // rubble: just move there
             // captures it, as in Zod); only Ctrl (force attack) attacks it

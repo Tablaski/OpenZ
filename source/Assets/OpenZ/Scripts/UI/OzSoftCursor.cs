@@ -37,7 +37,7 @@ namespace OpenZ
         public static string ForceName;
         /// <summary>Close-up captures: draw every cursor state in a row, left edge at this screen point (bottom-left origin).</summary>
         public static bool Gallery; public static Vector2 GalleryAt = new Vector2(200f, 200f);
-        public static readonly string[] Names = { "arrow", "move", "attack", "enter", "exit", "grab", "pickup", "nono", "repair", "cannon", "place" };   // 1.2 item 17: pickup = the grenade hand
+        public static readonly string[] Names = { "arrow", "move", "attack", "enter", "exit", "grab", "pickup", "nono", "repair", "cannon", "place", OpenZCursors.BlockedOrderCursor };   // 1.2 item 17: pickup = the grenade hand
 
         static OzSoftCursor inst;
         static int prefsFrame = -1; static bool prefsOn = true, prefsHw = true; static float prefsScale = 1f;
@@ -102,7 +102,8 @@ namespace OpenZ
             if (!frames.TryGetValue(art, out var f))
             {
                 f = new Texture2D[4];
-                for (int i = 0; i < 4; i++) f[i] = OzKit.GetTexture(HdPrefix + art + "_" + HdSize + "_" + i);
+                var cross = art == OpenZCursors.BlockedOrderCursor ? BlockedOrderTexture(HdSize) : null;
+                for (int i = 0; i < 4; i++) f[i] = cross ? cross : OzKit.GetTexture(HdPrefix + art + "_" + HdSize + "_" + i);
                 frames[art] = f;
             }
             return f;
@@ -111,10 +112,38 @@ namespace OpenZ
         static readonly System.Collections.Generic.Dictionary<string, Texture2D> hwCache = new System.Collections.Generic.Dictionary<string, Texture2D>();
         /// <summary>
         /// exactly), read back as a readable RGBA32 texture without mips (what Cursor.SetCursor needs). Cached; null without the HD set.</summary>
+        static Texture2D BlockedOrderTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "Blocked order cursor", hideFlags = HideFlags.DontSave, filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var pixels = new Color32[size * size];
+            float center = (size - 1) * .5f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Abs(x - center), dy = Mathf.Abs(y - center);
+                float edge = Mathf.Max(Mathf.Max(dx, dy) - size * .27f, Mathf.Abs(dx - dy) * .7071f - size * .065f);
+                if (edge <= 0) pixels[y * size + x] = new Color32(247, 60, 53, 255);
+                else if (edge < size * .036f) pixels[y * size + x] = new Color32(43, 14, 14, 255);
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+            return texture;
+        }
+
         public static Texture2D HardwareTexture(string name, int frame, int n)
         {
             if (string.IsNullOrEmpty(name)) return null;
             n = Mathf.Clamp(n, 8, HdSize);
+            if (name == OpenZCursors.BlockedOrderCursor)
+            {
+                string crossKey = name + "_" + n;
+                if (!hwCache.TryGetValue(crossKey, out var cross) || !cross) hwCache[crossKey] = cross = BlockedOrderTexture(n);
+                return cross;
+            }
             string key = OzKit.CursorArt(name) + "_" + (frame & 3) + "_" + n;                                 // 1.3 item 34: the blue twin bakes under its own key (red: as before)
             if (hwCache.TryGetValue(key, out var t) && t) return t;
             var src = Tex(name, frame);

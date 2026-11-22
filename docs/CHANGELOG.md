@@ -11,6 +11,7 @@ OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and
 - Team matches — Allied bots defend threatened forts and occupied territory, reinforce a teammate’s attack, and look for opportunities to capture an undefended enemy flag. They prioritise their own fort when it is in danger.
 - Team matches — Attack orders cannot target teammates’ units or buildings. You can use an ally’s repair centre and keep control of your repaired vehicle.
 - Team matches — Allies share radar coverage and the territory bonus to production. The minimap shows each radar sweep in its owner’s colour.
+- Team matches — You can capture an ally’s territory when you own fewer factories than that ally and the flag is closer to your fort than theirs. A red cross marks a blocked capture order.
 
 ## OpenZ-VK 1.5.48 (22 Nov 2026)
 

@@ -125,7 +125,7 @@ namespace OpenZ.Sim
             ZObject best = null; long bd = long.MaxValue;
             foreach (var o in World.Objects)
             {
-                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || o.Owner == Owner || o.IsFortDefender) continue;
+                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || o.Owner == Team.Neutral || World.AreAllied(Owner, o.Owner) || o.IsFortDefender) continue;
                 long dx = o.CenterX - CenterX, dy = o.CenterY - CenterY, d = dx * dx + dy * dy;
                 if (d > r2) continue;
                 var a = o.AttackObject;

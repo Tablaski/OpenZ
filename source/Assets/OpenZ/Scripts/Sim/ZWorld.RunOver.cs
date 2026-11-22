@@ -41,7 +41,7 @@ namespace OpenZ.Sim
         /// <summary>DV65: v may drive into r (and r walk into v) without the spacing gate: a moving crewed vehicle and an enemy robot.</summary>
         public static bool RunOverPair(ZObject v, ZObject r) =>
             RunOverDeviation && v != null && r != null && v.Kind == ZKind.Vehicle && r.Kind == ZKind.Robot && v.Owner != Team.Neutral && r.Owner != Team.Neutral
-            && v.Owner != r.Owner && v.Drivers.Count > 0 && ZPathing.Moving(v) && !r.IsFortDefender && !r.IsEvilZod;
+            && v.Owner != r.Owner && v.World?.AreAllied(v.Owner, r.Owner) != true && v.Drivers.Count > 0 && ZPathing.Moving(v) && !r.IsFortDefender && !r.IsEvilZod;
 
         /// <summary>ZWorld.Tick after the pathing layer's end of tick: hull contacts of moving crewed vehicles with enemy robots.</summary>
         void RunOverTick()
@@ -65,7 +65,7 @@ namespace OpenZ.Sim
                 for (int j = 0; j < m && (nbl != null || listed || j < Objects.Count); j++)
                 {
                     var r = nbl != null ? nbl[j] : listed ? roRobots[j] : Objects[j];
-                    if (r.Kind != ZKind.Robot || r.Destroyed || r.KillAt >= 0 || r.Health <= 0 || r.Owner == Team.Neutral || r.Owner == v.Owner) continue;   // never the own team
+                    if (r.Kind != ZKind.Robot || r.Destroyed || r.KillAt >= 0 || r.Health <= 0 || r.Owner == Team.Neutral || AreAllied(v.Owner, r.Owner)) continue;
                     if (r.IsFortDefender || r.PathInBuildingStage || r.FortRushOn || r.IsEvilZod) continue;
                     if (r.DriverOutOnHull) continue;                                                       // 1.4 DV171 final fix: a driver held while he climbs out of a tank is on its hull, not on the ground: not run over until his hold ends (Sim/ZObject.VehicleExit.cs)
                     double rx = r.CenterX - v.CenterX, ry = r.CenterY - v.CenterY;

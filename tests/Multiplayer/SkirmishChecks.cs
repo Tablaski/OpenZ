@@ -49,6 +49,7 @@ static class SkirmishChecks
 
     internal static void CheckTeamplay(string settings, string grid, Action<bool, string> check)
     {
+        CheckAlliedFlagTransfer(settings, grid, check);
         CheckTeamDefense(settings, grid, check);
         CheckTeamAdvance(settings, grid, check, defendTerritory: false);
         CheckTeamAdvance(settings, grid, check, defendTerritory: true);
@@ -78,8 +79,20 @@ static class SkirmishChecks
             world.SendWaypoints(Team.Red, pyro, new[] { attack });
             check(unit.Waypoints.Count == 0 && pyro.Waypoints.Count == 0 && !blue.CanEnterFort(Team.Red),
                 "A normal or forced attack and a fort entry cannot target an ally even with friendly fire enabled");
-            world.Tick(.25);
-            check(flag.Owner == Team.Blue, "A teammate standing on an allied flag cannot capture it");
+            var alliedRobot = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Blue, 1);
+            var enemyRobot = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Green, 1);
+            bool runOver = ZWorld.RunOverDeviation;
+            try
+            {
+                ZWorld.RunOverDeviation = true;
+                unit.Dx = 1;
+                unit.Waypoints.Add(ZWaypoint.Move(flag.CenterX, flag.CenterY));
+                check(!ZWorld.RunOverPair(unit, alliedRobot) && ZWorld.RunOverPair(unit, enemyRobot),
+                    "Vehicles drive around allied robots and can still run over enemies");
+                world.SendWaypoints(Team.Red, unit, Array.Empty<ZWaypoint>());
+                enemyRobot.SetCords(green.LocX, green.LocY);
+            }
+            finally { ZWorld.RunOverDeviation = runOver; }
 
             var station = world.CreateObject("building", "repair", 160, 160, Team.Blue);
             unit.Health = Math.Max(1, unit.MaxHealth / 2);
@@ -101,6 +114,45 @@ static class SkirmishChecks
             picture.Observe(world);
             check(!picture.Covered(Team.Red) && !picture.Covered(Team.Blue), "Losing the last allied radar ends the picture for both seats");
         }
+    }
+
+    static void CheckAlliedFlagTransfer(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        world.Map.skirmish = true;
+        world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+        world.ConfigureSkirmishRules(new SkirmishRules(), Array.Empty<int>());
+        var red = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+        var blue = world.Objects.Single(o => o.IsFort && o.Owner == Team.Blue);
+        var flags = world.Flags.Where(f => world.UnitObjects.All(o =>
+            !ZObject.Within(f.CenterX, f.CenterY, o.CenterX, o.CenterY, 80))).ToArray();
+        double DistanceSquared(ZObject a, ZObject b) =>
+            Math.Pow(a.CenterX - b.CenterX, 2) + Math.Pow(a.CenterY - b.CenterY, 2);
+        var near = flags.First(f => DistanceSquared(f, red) < DistanceSquared(f, blue) &&
+            f.LinkedObjects.Any(o => o.IsProducer && !o.IsFort));
+        var far = flags.First(f => DistanceSquared(f, red) > DistanceSquared(f, blue));
+        world.AwardZone(near, Team.Blue);
+        world.AwardZone(far, Team.Blue);
+        var factories = world.Objects.Where(o => o.IsProducer && !o.IsFort).ToArray();
+        int blueFactories = factories.Count(o => o.Owner == Team.Blue);
+        int redFactories = factories.Count(o => o.Owner == Team.Red);
+        for (int i = redFactories; i < blueFactories; i++) world.CreateObject("building", "robot_factory", 160, 160, Team.Red);
+        check(!world.CanCaptureFlag(Team.Red, near), "An allied flag is blocked when factory counts are equal even if the claimant is nearer");
+        var bonus = world.CreateObject("building", "vehicle_factory", 240, 160, Team.Blue);
+        bonus.Health = 0;
+        check(world.CanCaptureFlag(Team.Red, near) && !world.CanCaptureFlag(Team.Red, far),
+            "Fewer owned factories allows transfer only on the closer side, and a ruined factory still counts");
+        double aggregate = red.ZoneOwnage;
+        var capturing = world.CreateRobotGroup("tough", near.LocX, near.LocY, Team.Red, 1);
+        var blocked = world.CreateRobotGroup("tough", far.LocX, far.LocY, Team.Red, 1);
+        ZWaypoint FlagOrder(ZObject f) => new ZWaypoint { mode = WpMode.Move, refId = f.Id, x = f.CenterX, y = f.CenterY };
+        world.SendWaypoints(Team.Red, capturing, new[] { FlagOrder(near) });
+        world.SendWaypoints(Team.Red, blocked, new[] { FlagOrder(far) });
+        check(capturing.Waypoints.Count == 1 && blocked.Waypoints.Count == 0, "The authority accepts the eligible capture order and rejects the blocked one");
+        while (world.Time < .3) world.Tick(ZConst.TICK);
+        check(near.Owner == Team.Red && near.LinkedObjects.Where(o => o.IsProducer).All(o => o.Owner == Team.Red) &&
+            far.Owner == Team.Blue && !world.CanCaptureFlag(Team.Blue, near), "Contact transfers eligible territory and its factories, without allowing an immediate reversal");
+        check(red.ZoneOwnage == aggregate && blue.ZoneOwnage == aggregate, "A transfer keeps the alliance’s combined territory discount");
     }
 
     static void CheckRepairOwnership(ZWorld world, ZObject station, ZObject unit, Action<bool, string> check)

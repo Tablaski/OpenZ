@@ -825,7 +825,13 @@ namespace OpenZ.Sim
             if (!o.CanAttack()) wp.attackTo = false;
             switch (wp.mode)
             {
-                case WpMode.Move: return o.CanMove;
+                case WpMode.Move:
+                {
+                    if (!o.CanMove) return false;
+                    if (!SkirmishHasTeams || wp.refId < 0) return true;
+                    var flag = Get(wp.refId);
+                    return flag?.Type != "flag" || flag.Owner == o.Owner || CanCaptureFlag(o.Owner, flag);
+                }
                 case WpMode.ForceMove: if (!o.CanMove) return false; wp.mode = WpMode.Move; return true;
                 case WpMode.Dodge: if (!o.CanMove) return false; wp.mode = WpMode.Attack; return o.CanAttackObject(Get(wp.refId));   // Zod falls through into AGRO
                 case WpMode.Agro: wp.mode = WpMode.Attack; return o.CanAttackObject(Get(wp.refId));

@@ -135,7 +135,7 @@ namespace OpenZ
             if (!Enabled) return false;
             var pending = backgroundTeam == Team.Neutral ? current :
                 backgroundStrikes.TryGetValue(backgroundTeam, out var strike) ? strike : null;
-            if (pending && !pending.impacted && (pending.target - fortCentre).sqrMagnitude < 60f * 60f)
+            if (pending && !pending.impacted && pending.ours == ours && (pending.target - fortCentre).sqrMagnitude < 60f * 60f)
             {   // fort_front + fort_back die in the same tick: one bomber, one nuke, both halves collapse at the impact
                 pending.onImpact += onImpact;
                 return true;
@@ -323,7 +323,8 @@ namespace OpenZ
         {
             impacted = true;
             impactTime = Time.time;
-            if (!playground && !InBackground) { LastImpactTime = impactTime; LastImpactPoint = target; }           // 1.3 item 2: the endings, the victory and the level fauna read these; the Unit editor's NUKE keeps out of them
+            bool ownsEnding = !playground && current == this;
+            if (ownsEnding) { LastImpactTime = impactTime; LastImpactPoint = target; }
             if (missile) missile.gameObject.SetActive(false);
             if (impactY > target.y + 1f && OpenZFxPlayer.I)                                           // combat_nb_v1 NB29: the bomb bursts where it hits the roof
                 OpenZFxPlayer.I.Blast(new Vector3(target.x, impactY + 0.5f, target.z), 9f, FxBlastKind.Missile, 98000 + (int)(t0 * 10f) % 1000, 2.2f);
@@ -334,7 +335,7 @@ namespace OpenZ
             if (!InBackground) OpenZBloomDirector.Flash(1f);
             if (!playground && !InBackground && ZGame.I?.World?.HasIndividualDefeatSequence != true) StartCoroutine(SlowMotion());                                // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
             if (!InBackground) StartCoroutine(Aftermath());
-            if (!playground && !InBackground) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }   // 1.3 item 2: no victory / ending for the Unit editor's NUKE
+            if (ownsEnding) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }
             Debug.Log($"[OpenZ] nuke strike impact at {target} ({(playground ? "the Unit editor's NUKE" : ours ? "our fort" : "enemy fort")}), {Time.time - t0:F1} s after the {(playground ? "call" : "fort fell")}");
         }
 

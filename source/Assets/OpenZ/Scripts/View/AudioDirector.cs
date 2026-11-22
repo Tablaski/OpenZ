@@ -1495,7 +1495,7 @@ namespace OpenZ
             var c = game.CenterWorld(o) + Vector3.up;
             if (o.IsFort)
             {
-                if (!game.World.HasIndividualDefeatSequence || o.Owner == Player) Nuke(c, o.Owner == Player);
+                if (!game.World.HasIndividualDefeatSequence || o.Owner == Player || game.World.IsFinalSkirmishFort(o.Owner)) Nuke(c, o.Owner == Player);
                 return;
             }
             if (o.IsBridge)

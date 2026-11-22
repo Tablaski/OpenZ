@@ -181,9 +181,21 @@ namespace OpenZ
                 if (e.type == ZEventType.TeamEliminated)
                 {
                     var team = (Team)(int)e.value;
-                    if (!running && team != Team.Neutral &&
-                        (!game.World.HasIndividualDefeatSequence || team == game.player))
-                        Begin(team, e);
+                    bool finalFort = game.World.HasIndividualDefeatSequence && e.flag;
+                    if (finalFort && (!running || individualDefeat))
+                    {
+                        if (running)
+                        {
+                            EndScreen();
+                            while (doomed.Count > 0) ReleaseDue();
+                            ReleaseDebris();
+                        }
+                        Multiplayer.DuelRuntime.I?.ReleaseGhostCameraForEnding();
+                        Begin(team, e, false);
+                    }
+                    else if (!running && team != Team.Neutral && (!game.World.HasIndividualDefeatSequence ||
+                        (!game.World.GameOver && team == game.player)))
+                        Begin(team, e, game.World.HasIndividualDefeatSequence);
                     continue;
                 }
                 if (!running || !DeathWave) continue;
@@ -210,9 +222,9 @@ namespace OpenZ
             doomed.Add(d); doomedIds.Add(o.Id);
         }
 
-        void Begin(Team team, ZEvent e)
+        void Begin(Team team, ZEvent e, bool localDefeat)
         {
-            individualDefeat = game.World.HasIndividualDefeatSequence;
+            individualDefeat = localDefeat;
             running = true; loser = team; impacted = false; flushing = false; endScreen = false;
             startTime = Time.time; realSinceFall = 0f; waveT0 = -1f; waveEnd = -100f;
             worstMs = Time.unscaledDeltaTime * 1000f; worstAt = 0f; worstLogged = false; impactReal = -1f;

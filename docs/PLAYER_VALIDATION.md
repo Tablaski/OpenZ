@@ -1,5 +1,16 @@
 # Player validation record
 
+## OpenZ-VK 1.5.44 multiplayer routing and compression
+
+- Pending in a compiled game using the updated invitation service. On two networks that can connect directly, start a 1 vs 1 game from a magic-link lobby. Verify Direct in Connection Details and compression Off by default in the host's network diagnostics (Ctrl+Alt+Up with the pointer in the top-left corner).
+- Add a third human and verify SFU. Have that person leave and verify the two remaining humans return to Direct without a new invitation. Repeat the route change during a match and confirm the surviving guest receives a full battlefield update. Include a departure during the results sequence.
+- Check a pair that needs TURN and a room using SFU. Verify compression starts On, view the wire-state rate on a busy map, toggle compression Off and confirm state updates continue. Reset Tuning restores the route default. Start another match and verify the default again.
+
+## OpenZ-VK 1.5.44 final fort camera
+
+- Pending in a compiled game. In a three-or-more-player match, eliminate a player and verify that the other players see the eliminated player's name in the HUD and retain camera control. Verify that the eliminated player can switch to Ghost view.
+- Destroy the final opposing fort and verify that the winner, the last eliminated player, earlier eliminated players and Ghosts all see the same fort before the results. Include Ghosts in Free Cam and player follow mode. Repeat with the host eliminated, in a team match, and with two eliminations close together.
+
 ## Experimental dynamics and radar-free maps
 
 - Pending in a compiled game. Restart after selecting Z Classic and verify that solo defaults to OpenZ, then explicitly select Z Classic. Check its flask icon and experimental description in solo and in a new multiplayer lobby. Verify saved custom profiles remain available.

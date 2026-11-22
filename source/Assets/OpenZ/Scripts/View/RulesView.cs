@@ -126,7 +126,7 @@ namespace OpenZ
                 case ZEventType.TeamEliminated:
                 {
                     var team = (Team)(int)e.value;
-                    if (W.HasIndividualDefeatSequence && team != game.player)
+                    if (W.HasIndividualDefeatSequence && !e.flag && team != game.player)
                     {
                         var runtime = Multiplayer.DuelRuntime.I;
                         int seat = (int)team - 1;
@@ -160,7 +160,8 @@ namespace OpenZ
             {
                 bool individualDefeat = game.World.HasIndividualDefeatSequence;
                 bool ours = o.Owner == game.player;
-                bool inBackground = individualDefeat && !ours;
+                bool inBackground = individualDefeat && (game.World.GameOver
+                    ? !game.World.IsFinalSkirmishFort(o.Owner) : !ours);
                 var c = game.CenterWorld(o);
                 var fg = Static(o.Id);
                 System.Action boom = () =>

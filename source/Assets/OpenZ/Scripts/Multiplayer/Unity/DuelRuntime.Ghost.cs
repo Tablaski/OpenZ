@@ -58,7 +58,16 @@ namespace OpenZ.Multiplayer
             (OzRadarLoss.RuleFor(Game.World) is RadarLossRule.Fog or RadarLossRule.FogAndZoom);
         bool showingMatchGhost;
         bool LocalMatchGhost => RoomObserver || EliminatedMatchSeat(RoomPosition);
-        internal bool MatchGhost => LocalMatchGhost && (RoomObserver || !OpenZEnding.Running);
+        internal bool MatchGhost => LocalMatchGhost && (!OpenZEnding.Running || RoomObserver && (!Game || !Game.World.GameOver));
+
+        internal void ReleaseGhostCameraForEnding()
+        {
+            GhostFollowing = false;
+            GhostView = null;
+            if (ghostWasFollowing && ghostLens) ghostLens.fieldOfView = ghostSavedFov;
+            ghostWasFollowing = false;
+            ghostPlayerInput?.ApplyGhostSelection(null);
+        }
 
         bool EliminatedMatchSeat(int seat) => seat >= 0 && Playing && Game &&
             Game.World.HasIndividualDefeatSequence && Game.World.SkirmishEliminated((Team)(seat + 1));

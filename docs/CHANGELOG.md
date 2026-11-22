@@ -6,6 +6,15 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.44 (22 Nov 2026)
+
+- Online matches with three or more participants — The camera locks onto the final fort as it falls for all players and Ghosts. Earlier eliminations show a notification with the eliminated player's name while the match continues.
+
+## OpenZ-VK 1.5.44 (22 Nov 2026)
+
+- 1 vs 1 — Two people in an online lobby or match connect directly whenever their networks allow it. If a larger room drops to two people, it switches back to this connection automatically. TURN is available as a fallback.
+- Online multiplayer — Battlefield updates use less bandwidth by default over TURN and the Cloudflare relay.
+
 ## OpenZ-VK 1.5.43 (22 Nov 2026)
 
 - Online multiplayer — The Ghost controls sit to the left of the score. Pick a player by their colour to follow their view, or choose Free Cam to explore the battlefield. On maps with fog of war, Free Cam lets you toggle the fog.

@@ -253,6 +253,10 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ elimination + game end (zserver.cpp:277-367, 1675-1729)
         int skirmishEliminated;
+        int skirmishEliminationEvent = -1;
+
+        internal bool IsFinalSkirmishFort(Team team) => HasIndividualDefeatSequence && GameOver &&
+            Events.Exists(e => e.type == ZEventType.TeamEliminated && e.flag && (Team)(int)e.value == team);
 
         public bool SkirmishEliminated(Team team) => Map.skirmish && team != Team.Neutral && (DuelIsReplica
             ? !Objects.Any(o => o.IsFort && o.Owner == team && !o.Destroyed)
@@ -265,12 +269,18 @@ namespace OpenZ.Sim
             if (fort == null) return false;
             fort.SetHealth(0);
             UpdateObjectHealth(fort);
+            if (HasIndividualDefeatSequence) CheckEndGame();
             return true;
         }
 
         void EliminateTeam(ZObject fort, Team team)
         {
-            if (Map.skirmish) skirmishEliminated |= 1 << (int)team;
+            if (Map.skirmish)
+            {
+                if (HasIndividualDefeatSequence && SkirmishEliminated(team)) return;
+                skirmishEliminated |= 1 << (int)team;
+                if (HasIndividualDefeatSequence && !GameOver && !NoGameEnd) skirmishEliminationEvent = Events.Count;
+            }
             Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY, value = (float)team });
             foreach (var o in Objects.ToList())
                 if (o != fort && o.Owner == team && o.Kind != ZKind.MapItem && !o.Destroyed && o.MaxHealth > 0) { o.SetHealth(0); UpdateObjectHealth(o); }
@@ -282,13 +292,22 @@ namespace OpenZ.Sim
         {
             if (NoGameEnd) return;                                                                   // 1.2 item 6: the Unit editor's playground never ends (Sim/ZWorld.Playground.cs; off in every other world)
             if (GameOver) { if (EndFreezeDeviation) HoldAfterGameOver(); return; }
-            if (Time < nextEndCheck) return;
-            nextEndCheck = Time + 1.0;
+            int elimination = skirmishEliminationEvent;
+            skirmishEliminationEvent = -1;
+            if (Time < nextEndCheck && elimination < 0) return;
+            if (Time >= nextEndCheck) nextEndCheck = Time + 1.0;
             var teams = new HashSet<Team>();
             foreach (var o in Objects) if (o.IsUnit && o.Owner != Team.Neutral && !o.Destroyed && !o.IsFortDefender) teams.Add(o.Owner);   // fort_defender_v1 DV41
             var winner = teams.Count == 0 ? Team.Neutral : teams.Min();
             if (teams.Any(team => !AreAllied(winner, team))) return;
             GameOver = true; Winner = winner;
+            if (elimination >= 0)
+            {
+                // The replicas receive the same decisive fort even when several forts fall in one tick.
+                var finalFort = Events[elimination];
+                finalFort.flag = true;
+                Events[elimination] = finalFort;
+            }
             Events.Add(new ZEvent { type = ZEventType.GameOver, value = winner != Team.Neutral ? (float)winner : -1 });
             if (EndFreezeDeviation) FreezeAfterGameOver();                                     // endgame_ui_v1 (DV10)
         }

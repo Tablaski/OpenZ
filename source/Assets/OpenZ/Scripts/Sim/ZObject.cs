@@ -168,11 +168,19 @@ namespace OpenZ.Sim
         {
             double dt = time - lastProcessTime;
             lastProcessTime = time;
-            BehaviorStepDx = BehaviorStepDy = 0;
-            if (!IsMoving || PathHeld) CripplingActualSpeed = 0;
-            BehaviorMotionPhase = "Idle";
-            UpdatedWaypoints = UpdatedVelocity = UpdatedAttackObjectHealth = UpdatedAttackObjectDriverHealth = false;
-            EnteredTargetId = DeleteGrenadeBoxId = DestroyFortId = EnteredRepairId = -1;
+            if (ZWorld.PerfFastRules && Kind == ZKind.MapItem && Type == "rock" &&
+                Owner == Team.Neutral && Waypoints.Count == 0 && AttackObject == null &&
+                !IsMoving && !IsRunning && !Stunned && !DoAutoRepair && !doCloseLid &&
+                World.UnitTesting == null)
+            {
+                ResetServerOutputs();
+                // A rock has no robot or tank behavior profile.
+                Stamina += dt * World.S.run_recharge_rate;
+                if (Stamina > MaxStamina) Stamina = MaxStamina;
+                if (!Destroyed && time >= nextPassiveCheck) nextPassiveCheck = time + 0.5;
+                return;
+            }
+            ResetServerOutputs();
             if (DoAutoRepair && time >= NextAutoRepairTime) { DoAutoRepair = false; World.AutoRepair(this); }   // :4235-4257
             ProcessRunStamina(dt);
             if (Destroyed || World.UnitTesting != null && World.UnitTesting.Held(this)) return;
@@ -710,6 +718,15 @@ namespace OpenZ.Sim
             if (!HasLid) return;
             if (LidOpen && !doCloseLid) { doCloseLid = true; nextCloseLidTime = World.Time + 0.1 * World.Rng.Next(15); }
         }
+        void ResetServerOutputs()
+        {
+            BehaviorStepDx = BehaviorStepDy = 0;
+            if (!IsMoving || PathHeld) CripplingActualSpeed = 0;
+            BehaviorMotionPhase = "Idle";
+            UpdatedWaypoints = UpdatedVelocity = UpdatedAttackObjectHealth = UpdatedAttackObjectDriverHealth = false;
+            EnteredTargetId = DeleteGrenadeBoxId = DestroyFortId = EnteredRepairId = -1;
+        }
+
         void ProcessServerLid(double time) { if (doCloseLid && time >= nextCloseLidTime) { doCloseLid = false; LidOpen = false; } }
 
         /// <summary>zobject.cpp:1603-1853, every 0.5 s</summary>

@@ -50,7 +50,7 @@ namespace OpenZ.Sim
             public string Type;
             public ObjectState(ZObject obj, int count)
             {
-                Object = obj; Kind = obj.Kind; Values = new ValueState[count]; Records = new byte[count];
+                Object = obj; Kind = obj.Kind; Values = new ValueState[count]; Records = new byte[count][];
                 for (int i = 0; i < count; i++) Values[i] = new ValueState();
             }
         }

@@ -63,7 +63,7 @@ if ($RetryCommit) {
         Invoke-Git (@('--literal-pathspecs', 'add', '-A', '--') + $selected)
         $staged = @(Invoke-Git @('-c', 'core.quotePath=false', 'diff', '--cached', '--name-only', '--no-renames'))
         if (!$staged.Count -or @($staged | Where-Object { $_ -cnotin $selected }).Count) { throw 'Review the index. Staged paths differ from the selection.' }
-        Invoke-Git @('diff', '--cached', '--check')
+        Invoke-Git @('-c', 'core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol', 'diff', '--cached', '--check')
         $tree = Invoke-Git @('write-tree')
         Invoke-Git @('commit', '-m', $Message)
         $commit = Invoke-Git @('rev-parse', 'HEAD')

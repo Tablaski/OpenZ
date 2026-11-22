@@ -253,14 +253,15 @@ namespace OpenZ.Multiplayer
             int customX = x + 2 * (buttonWidth + 8);
             Label(panel, "DYNAMICS PROFILE", x, y, width, 19, OzUi.Amber);
             Button(panel, "OPENZ", x, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(false), 0), native, editable, 40);
-            Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1), classic, editable, 40);
+            var classicButton = Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1), classic, editable, 40);
+            OzBehaviorLibrary.ExperimentalIcon(classicButton, 12, 10, classic ? OzUi.GM950 : OzUi.Ink);
             bool canChooseCustom = editable && profiles.Count > 0;
             var custom = Button(panel, "CUSTOM", customX, y + 40, buttonWidth,
                 () => { combatDropdown = !combatDropdown; dirty = true; }, !native && !classic, canChooseCustom, 40);
             if (canChooseCustom) Label(custom, "v", buttonWidth - 20, 20, 17, 12, !native && !classic ? OzUi.GM950 : OzUi.Ink);
             string description = combatDropdown && canChooseCustom ? "Choose a saved Unit Editor profile." :
                 native ? "Standard OpenZ combat behavior." :
-                classic ? "Z95-inspired dodging, speed boosts and combat movement." :
+                classic ? "Experimental: Z95-inspired dodging, speed boosts and combat movement." :
                 current == null ? "The lobby uses a custom combat profile." : "Saved combat profile: " + current.Name;
             Label(panel, description, x, y + 95, width, 15, OzUi.Muted);
             if (!combatDropdown || !canChooseCustom) return null;

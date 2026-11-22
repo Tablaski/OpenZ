@@ -41,6 +41,7 @@ namespace OpenZ
         OpenZHud hud;
         ZWorld world;
         Team seat;
+        bool mapHasRadar;
         double nextSight = -1;
         readonly Dictionary<int, bool> knownRadars = new();
         readonly List<int> forgotten = new();
@@ -87,13 +88,17 @@ namespace OpenZ
             Team vision = DuelRuntime.I && DuelRuntime.I.MatchGhost ? DuelRuntime.GhostVisionTeam : game.player;
             if (world != game.World || seat != vision)
             {
+                if (world != game.World)
+                {
+                    mapHasRadar = worldHasRadar(game.World.Map);
+                }
                 world = game.World; seat = vision;
                 Sight = null;
                 Contacts.Clear(); knownRadars.Clear(); meshCache.Clear();
                 nextSight = -1;
             }
             var rule = RuleFor(world);
-            bool enabled = seat != Team.Neutral && rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
+            bool enabled = mapHasRadar && seat != Team.Neutral && rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
                 !CaptureKit.DemoRun && !ZodBriefing.BriefingActive && (!DuelRuntime.Active || DuelRuntime.I.Playing);
             if (!enabled)
             {
@@ -138,6 +143,14 @@ namespace OpenZ
                 else Contacts.Clear();
             }
             UpdateStatic();
+        }
+
+        static bool worldHasRadar(ZMapData map)
+        {
+            if (map?.objects == null) return false;
+            foreach (var obj in map.objects)
+                if (obj.kind == "building:radar") return true;
+            return false;
         }
 
         void UpdateSight()

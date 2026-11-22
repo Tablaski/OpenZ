@@ -12,7 +12,7 @@ namespace OpenZ
     /// <summary>OpenZ kit profile picker for standalone tools; multiplayer profiles remain lobby-owned.</summary>
     public sealed class OzBehaviorOptions : MonoBehaviour
     {
-        const string ClassicGoal = "Z Classic aims to recreate Z95 combat dynamics, including dodging, speed boosts and combat movement.";
+        const string ClassicGoal = "Experimental: Z Classic aims to recreate Z95 combat dynamics, including dodging, speed boosts and combat movement.";
         static OzBehaviorOptions instance;
         static int closedFrame = -1;
         bool choosingCustom;
@@ -95,8 +95,9 @@ namespace OpenZ
             void ProfileButton(string name, string id, int y, string helpText, bool classic)
             {
                 bool selected = tanks == id && robots == id;
-                MakeButton(panel, name, name, 28, y, width, 50,
+                var button = MakeButton(panel, name, name, 28, y, width, 50,
                     () => { OzBehaviorLibrary.SelectCombat(OzBehaviorLibrary.Standard(classic)); ShowGaming(); }, selected: selected);
+                if (classic) OzBehaviorLibrary.ExperimentalIcon(button.Rt, 38, 15, selected ? OzUi.GM950 : OzUi.Ink);
                 Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
             }
             Hud.Label(panel, "Radar", "WHEN YOU HAVE NO WORKING RADAR", 22, OzForkOptions.Accent).At(28, 427, OzH.L, false, 1044);

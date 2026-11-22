@@ -14,6 +14,7 @@ namespace OpenZ
         const string LibraryKey = "oz_behavior_library_v1";
         [Serializable] sealed class Saved { public string[] profiles = Array.Empty<string>(); }
         static List<ZBehaviorProfile> saved;
+        static readonly Dictionary<ZBehaviorFamily, string> sessionSelection = new Dictionary<ZBehaviorFamily, string>();
         public static string LastError;
         public static List<ZBehaviorProfile> SavedProfiles
         {
@@ -59,7 +60,7 @@ namespace OpenZ
             return list;
         }
         internal static string SelectedKey(ZBehaviorFamily f) => "oz_behavior_selected_" + (int)f;
-        public static string SelectedId(ZBehaviorFamily f) => PlayerPrefs.GetString(SelectedKey(f), "native");
+        public static string SelectedId(ZBehaviorFamily f) => sessionSelection.TryGetValue(f, out var id) ? id : "native";
         public static ZBehaviorProfile Selected(ZBehaviorFamily f) => Choices(f).Find(p => p.id == SelectedId(f)) ?? Native(f);
         public static string SelectedName(ZBehaviorFamily f)
         {
@@ -72,7 +73,23 @@ namespace OpenZ
         }
         public static void Reload() { saved = null; }
         public static void Select(ZBehaviorProfile p)
-        { PlayerPrefs.SetString(SelectedKey(p.family), p.id); PlayerPrefs.Save(); }
+        { sessionSelection[p.family] = p.id; PlayerPrefs.SetString(SelectedKey(p.family), p.id); PlayerPrefs.Save(); }
+
+        internal static void ExperimentalIcon(Transform parent, float x, float y, Color color)
+        {
+            void Stroke(float x1, float y1, float x2, float y2)
+            {
+                var line = Hud.Img(parent, "Experimental flask", color);
+                line.raycastTarget = false;
+                float dx = x2 - x1, dy = y2 - y1;
+                line.rectTransform.TL(x + x1, y + y1, Mathf.Sqrt(dx * dx + dy * dy), 2);
+                line.rectTransform.pivot = new Vector2(0, .5f);
+                line.rectTransform.localRotation = Quaternion.Euler(0, 0, -Mathf.Atan2(dy, dx) * Mathf.Rad2Deg);
+            }
+            Stroke(6, 1, 14, 1); Stroke(8, 1, 8, 7); Stroke(12, 1, 12, 7);
+            Stroke(8, 7, 2, 17); Stroke(12, 7, 18, 17); Stroke(2, 17, 18, 17);
+            Stroke(5, 13, 15, 13);
+        }
 
         internal sealed class CombatProfile
         {
@@ -94,6 +111,8 @@ namespace OpenZ
 
         internal static void SelectCombat(CombatProfile profile)
         {
+            sessionSelection[ZBehaviorFamily.Tanks] = profile.Tanks.id;
+            sessionSelection[ZBehaviorFamily.Robots] = profile.Robots.id;
             PlayerPrefs.SetString(SelectedKey(ZBehaviorFamily.Tanks), profile.Tanks.id);
             PlayerPrefs.SetString(SelectedKey(ZBehaviorFamily.Robots), profile.Robots.id);
             PlayerPrefs.Save();
@@ -122,7 +141,7 @@ namespace OpenZ
                 foreach (var value in frozen)
                 {
                     if (SavedProfiles.Any(p => p.id == id && p.family == value.family)) continue;
-                    if (SelectedId(value.family) == id) PlayerPrefs.SetString(SelectedKey(value.family), "native");
+                    if (SelectedId(value.family) == id) Select(Native(value.family));
                 }
                 SavedProfiles.RemoveAll(p => p.id == id);
             }
@@ -135,7 +154,7 @@ namespace OpenZ
         internal static void DeleteCombat(CombatProfile profile)
         {
             foreach (var part in new[] { profile.Tanks, profile.Robots })
-                if (SelectedId(part.family) == part.id) PlayerPrefs.SetString(SelectedKey(part.family), "native");
+                if (SelectedId(part.family) == part.id) Select(Native(part.family));
             SavedProfiles.RemoveAll(p => p.id == profile.Tanks.id || p.id == profile.Robots.id);
             Persist();
         }

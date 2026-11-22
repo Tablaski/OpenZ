@@ -1,5 +1,10 @@
 # Player validation record
 
+## Experimental dynamics and radar-free maps
+
+- Pending in a compiled game. Restart after selecting Z Classic and verify that solo defaults to OpenZ, then explicitly select Z Classic. Check its flask icon and experimental description in solo and in a new multiplayer lobby. Verify saved custom profiles remain available.
+- With each radar-loss setting, play maps with no radar and confirm no fog or zoom penalty applies. On a map with radars, lose and recover control of the last working radar and verify the selected penalty activates and clears as before.
+
 ## OpenZ-VK 1.5.43 Ghost point of view and connection HUD
 
 - Pending in a compiled game. In an eight-player online match, check that the Ghost controls, scores and pings fit without overlap at 16:9, 16:10 and 4:3. Switch directly between players, return to Free Cam, and check visibility when a player disconnects or is eliminated.

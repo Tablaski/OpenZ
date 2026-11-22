@@ -9,6 +9,7 @@ OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and
 ## OpenZ-VK 1.5.39 (22 Nov 2026)
 
 - Solo — Gaming Options and Allowed Units are now in the main deployment bar, to the left of Difficulty and Head Start.
+- Solo — Gaming Options highlights the active combat profile and radar-loss rule in yellow. Custom is disabled until you save a combat profile in the Unit Editor.
 
 ## OpenZ-VK 1.5.38 (22 Nov 2026)
 

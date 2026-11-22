@@ -3,6 +3,7 @@
 ## OpenZ-VK 1.5.39 solo battlefield selection
 
 - Pending in a compiled game. Check that Gaming Options and Allowed Units stay in the deployment bar to the left of Difficulty and Head Start in both the OpenZ campaign and AI Maps. Check 16:9, 16:10, 4:3 and 5:4, switch between maps with and without the Shuttle option, and open and close both panels. Confirm the objective, faction label and AI Maps category controls remain readable.
+- In Gaming Options, switch between OpenZ, Z Classic and a saved custom profile, then change the radar-loss rule. Check that each active value is yellow, inactive options are grey and the choices persist when reopening. With no saved profiles, check that Custom is greyed out and cannot open.
 
 ## OpenZ-VK 1.5.38 radar and flag controls
 

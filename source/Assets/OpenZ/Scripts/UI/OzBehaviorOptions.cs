@@ -77,24 +77,26 @@ namespace OpenZ
             const int width = 310;
             ProfileButton("OPENZ", "native", 158, "Standard OpenZ combat behavior.", false);
             ProfileButton("Z CLASSIC", "zod-classic", 222, ClassicGoal, true);
-            bool customSelected = tanks != "native" || robots != "native";
-            customSelected &= tanks != "zod-classic" || robots != "zod-classic";
-            string current = customs.Find(profile => profile.Matches(tanks, robots))?.Name;
-            var custom = MakeButton(panel, "Custom profiles", (customSelected ? "[X] " : "") + "CUSTOM" +
+            bool legacySelection = (tanks != "native" || robots != "native") &&
+                (tanks != "zod-classic" || robots != "zod-classic");
+            var activeCustom = customs.Find(profile => profile.Matches(tanks, robots));
+            string current = activeCustom?.Name;
+            MakeButton(panel, "Custom profiles", "CUSTOM" +
                 (current == null ? "" : " · " + current) + (customs.Count > 0 ? "  v" : ""), 28, 286, width, 50,
-                () => Open(options => { options.choosingCustom = !choosingCustom; options.BuildGaming(); }), customs.Count > 0);
-            if (customSelected && customs.Count > 0) custom.Label.color = OzForkOptions.Accent;
+                () => Open(options => { options.choosingCustom = !choosingCustom; options.BuildGaming(); }),
+                selected: activeCustom != null, enabled: customs.Count > 0);
             string help = customs.Count == 0 ? "Save a profile in Unit Editor > Dynamics to enable Custom." :
                 "Choose a combat profile saved in the Unit Editor.";
-            if (customSelected && current == null) help = "Your earlier combat settings remain active until you choose a profile.";
             Hud.Label(panel, "Custom help", help, 17, OzUi.Ink).At(360, 303, OzH.L, false, 708);
+            if (legacySelection && activeCustom == null)
+                Hud.Label(panel, "Legacy selection", "Your earlier combat settings remain active.", 17, OzUi.Ink)
+                    .At(360, 331, OzH.L, false, 708);
 
             void ProfileButton(string name, string id, int y, string helpText, bool classic)
             {
                 bool selected = tanks == id && robots == id;
-                var button = MakeButton(panel, name, (selected ? "[X] " : "") + name, 28, y, width, 50,
-                    () => { OzBehaviorLibrary.SelectCombat(OzBehaviorLibrary.Standard(classic)); ShowGaming(); });
-                if (selected) button.Label.color = OzForkOptions.Accent;
+                MakeButton(panel, name, name, 28, y, width, 50,
+                    () => { OzBehaviorLibrary.SelectCombat(OzBehaviorLibrary.Standard(classic)); ShowGaming(); }, selected: selected);
                 Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
             }
             Hud.Label(panel, "Radar", "WHEN YOU HAVE NO WORKING RADAR", 22, OzForkOptions.Accent).At(28, 427, OzH.L, false, 1044);
@@ -102,9 +104,8 @@ namespace OpenZ
             {
                 var rule = (RadarLossRule)i;
                 int y = 467 + i * 65;
-                var row = MakeButton(panel, "Radar " + rule, (OzBattleOptions.SoloRadar == rule ? "[X] " : "") + OzBattleOptions.RadarName(rule),
-                    28, y, 275, 46, () => { OzBattleOptions.SoloRadar = rule; ShowGaming(); });
-                OzForkOptions.Highlight(row, OzBattleOptions.RadarLabel);
+                MakeButton(panel, "Radar " + rule, OzBattleOptions.RadarName(rule),
+                    28, y, 275, 46, () => { OzBattleOptions.SoloRadar = rule; ShowGaming(); }, selected: OzBattleOptions.SoloRadar == rule);
                 Hud.Label(panel, "Radar help " + rule, OzBattleOptions.RadarTip(rule), 17, OzUi.Ink).At(320, y + 12, OzH.L, false, 750);
             }
             MakeButton(panel, "CLOSE", "CLOSE", 28, 757, 1044, 44, Dismiss);
@@ -123,15 +124,21 @@ namespace OpenZ
             {
                 var profile = customs[i];
                 MakeButton(content, "Profile " + i, profile.Name, 4, 4 + i * 52, width, 46,
-                    () => { OzBehaviorLibrary.SelectCombat(profile); ShowGaming(); });
+                    () => { OzBehaviorLibrary.SelectCombat(profile); ShowGaming(); }, selected: profile == activeCustom);
             }
         }
 
-        static HudButton MakeButton(Transform parent, string name, string label, float x, float y, float width, float height, Action action, bool enabled = true)
+        static HudButton MakeButton(Transform parent, string name, string label, float x, float y, float width, float height, Action action,
+            bool selected = false, bool enabled = true)
         {
-            var kit = HudButton.Make(parent, name, label, new Vector2(width, height), HudButtonKind.Large, 19, .05f, HudButtonStyle.Normal);
+            var kit = HudButton.Make(parent, name, label, new Vector2(width, height), HudButtonKind.Large, 19, .05f,
+                selected ? HudButtonStyle.Primary : HudButtonStyle.Normal);
             kit.Rt.TL(x, y, width, height); kit.Bg.raycastTarget = true;
-            var button = kit.Rt.gameObject.AddComponent<Button>(); button.targetGraphic = kit.Bg; button.interactable = kit.Interactable = enabled; kit.Refresh();
+            var button = kit.Rt.gameObject.AddComponent<Button>();
+            button.targetGraphic = kit.Bg;
+            button.transition = Selectable.Transition.None;
+            button.interactable = kit.Interactable = enabled;
+            kit.Refresh();
             button.onClick.AddListener(() => action());
             return kit;
         }

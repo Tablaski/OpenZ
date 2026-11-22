@@ -45,11 +45,12 @@ namespace OpenZ.Sim
             public readonly ZObject Object;
             public readonly ZKind Kind;
             public readonly ValueState[] Values;
+            public readonly byte[][] Records;
             public bool Described, Live;
             public string Type;
             public ObjectState(ZObject obj, int count)
             {
-                Object = obj; Kind = obj.Kind; Values = new ValueState[count];
+                Object = obj; Kind = obj.Kind; Values = new ValueState[count]; Records = new byte[count];
                 for (int i = 0; i < count; i++) Values[i] = new ValueState();
             }
         }
@@ -63,6 +64,34 @@ namespace OpenZ.Sim
             var state = Expression.Parameter(typeof(ValueState), "state");
             Expression value = slot.Field != null ? (Expression)Expression.Field(obj, slot.Field) : Expression.Property(obj, slot.Property);
             return Expression.Lambda<Func<ZObject, ValueState, bool>>(TrackExpression(slot.Type, value, state), obj, state).Compile();
+#endif
+        }
+
+        // Map objects have a small fixed schema. Track their fields together and reuse
+        // the original records directly, including when the sender needs a full update.
+        static Func<ZObject, ValueState[], int> BuildMapTracker()
+        {
+            if (MapSlots.Length > 32) throw new InvalidOperationException("Map item tracking mask is too small.");
+#if ENABLE_IL2CPP
+            return (obj, states) =>
+            {
+                int mask = 0;
+                for (int j = 0; j < MapSlots.Length; j++)
+                    if (Slots[MapSlots[j]].Track(obj, states[j])) mask |= 1 << j;
+                return mask;
+            };
+#else
+            var obj = Expression.Parameter(typeof(ZObject), "obj");
+            var states = Expression.Parameter(typeof(ValueState[]), "states");
+            Expression mask = Expression.Constant(0);
+            for (int j = 0; j < MapSlots.Length; j++)
+            {
+                var slot = Slots[MapSlots[j]];
+                var field = Expression.Field(obj, slot.Field);
+                var changed = TrackExpression(slot.Type, field, Expression.ArrayIndex(states, Expression.Constant(j)));
+                mask = Expression.Or(mask, Expression.Condition(changed, Expression.Constant(1 << j), Expression.Constant(0)));
+            }
+            return Expression.Lambda<Func<ZObject, ValueState[], int>>(mask, obj, states).Compile();
 #endif
         }
 #if !ENABLE_IL2CPP

@@ -59,6 +59,7 @@ namespace OpenZ.Sim
         };
         static readonly int[] AllSlots = Enumerable.Range(0, Slots.Length).ToArray();
         static readonly int[] MapSlots = AllSlots.Where(i => MapItemFields.Contains(Slots[i].Name)).ToArray();
+        static readonly Func<ZObject, ValueState[], int> TrackMap = BuildMapTracker();
         public static string SchemaHash
         {
             get
@@ -112,16 +113,14 @@ namespace OpenZ.Sim
             public int CachedObjectCount => objects.Count;
             public CaptureBuffer(bool cacheFields = true) { this.cacheFields = cacheFields; writer = new BinaryWriter(stream); }
             void Begin() { stream.Position = 0; stream.SetLength(0); }
-            void End(int key)
+            byte[] End(int key, byte[] old = null)
             {
                 int length = checked((int)stream.Length);
                 var buffer = stream.GetBuffer();
-                if (previous.TryGetValue(key, out var old) && old.Length == length)
-                {
-                    int i = 0; while (i < length && old[i] == buffer[i]) i++;
-                    if (i == length) { next.Add(key, old); return; }
-                }
-                next.Add(key, stream.ToArray());
+                if (old == null) previous.TryGetValue(key, out old);
+                var record = old != null && buffer.AsSpan(0, length).SequenceEqual(old) ? old : stream.ToArray();
+                next.Add(key, record);
+                return record;
             }
             /// <summary>Borrowed dictionary, valid until the next capture. Published arrays must remain immutable.</summary>
             public Dictionary<int, byte[]> Capture(ZWorld world)
@@ -166,15 +165,25 @@ namespace OpenZ.Sim
                         Begin(); writer.Write(o.Type); writer.Write((int)o.Kind); writer.Write(live); End(key);
                         if (state != null) { state.Described = true; state.Type = o.Type; state.Live = live; }
                     }
+                    bool mapItem = state != null && o.Kind == ZKind.MapItem;
+                    int mapChanges = mapItem ? TrackMap(o, state.Values) : 0;
+                    if (mapItem && mapChanges == 0)
+                    {
+                        for (int j = 0; j < indices.Length; j++) next.Add(key + indices[j] + 1, state.Records[j]);
+                        ReusedFieldsLastCapture += indices.Length;
+                        continue;
+                    }
                     for (int j = 0; j < indices.Length; j++)
                     {
                         int i = indices[j];
                         var slot = Slots[i];
-                        if (state != null && !slot.Track(o, state.Values[j]))
+                        if (state != null && (mapItem ? (mapChanges & (1 << j)) == 0 : !slot.Track(o, state.Values[j])))
                         {
-                            next.Add(key + i + 1, previous[key + i + 1]); ReusedFieldsLastCapture++; continue;
+                            next.Add(key + i + 1, state.Records[j]); ReusedFieldsLastCapture++; continue;
                         }
-                        Begin(); slot.Writer(writer, o); End(key + i + 1);
+                        Begin(); slot.Writer(writer, o);
+                        var record = End(key + i + 1, state?.Records[j]);
+                        if (state != null) state.Records[j] = record;
                         SerializedFieldsLastCapture++;
                     }
                     if (o.IsUnit) { Begin(); o.DuelWriteMotion(writer); End(key + Stride - 1); }
@@ -358,7 +367,7 @@ namespace OpenZ.Sim
                 return o;
             }
             o = new ZObject { Id = id, Type = type, Kind = kind, World = this, U = S.Unit(type) };
-            Objects.Add(o); byId.Add(id, o);
+            Objects.Add(o); objAdds++; byId.Add(id, o);
             if (type == "flag") Flags.Add(o);
             return o;
         }
@@ -367,7 +376,8 @@ namespace OpenZ.Sim
             foreach (var o in Objects.ToArray())
                 if (!live.Contains(o.Id))
                 {
-                    Objects.Remove(o); Flags.Remove(o); byId.Remove(o.Id);
+                    if (Objects.Remove(o)) objRemoves++;
+                    Flags.Remove(o); byId.Remove(o.Id);
                     graveyard[o.Id] = o; graveOrder.Enqueue(o.Id);
                 }
             while (graveOrder.Count > 512) graveyard.Remove(graveOrder.Dequeue());
@@ -382,11 +392,12 @@ namespace OpenZ.Sim
             if (live)
             {
                 if (Get(id) != null) return;
-                graveyard.Remove(id); byId[id] = o; Objects.Add(o); if (o.Type == "flag") Flags.Add(o);
+                graveyard.Remove(id); byId[id] = o; Objects.Add(o); objAdds++; if (o.Type == "flag") Flags.Add(o);
             }
             else if (Get(id) != null)
             {
-                Objects.Remove(o); Flags.Remove(o); byId.Remove(id); graveyard[id] = o; graveOrder.Enqueue(id);
+                if (Objects.Remove(o)) objRemoves++;
+                Flags.Remove(o); byId.Remove(id); graveyard[id] = o; graveOrder.Enqueue(id);
                 while (graveOrder.Count > 512) graveyard.Remove(graveOrder.Dequeue());
             }
         }

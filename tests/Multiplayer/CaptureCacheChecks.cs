@@ -94,6 +94,13 @@ static class CaptureCacheChecks
         // Destruction, restoration and graveyard eviction must invalidate cached presence as well as health.
         unit.XOver = 0; unit.Dx = 0; unit.Waypoints.Clear(); unit.Source = null;
         var prop = world.Objects.First(o => o.Kind == ZKind.MapItem && o.MaxHealth > 0);
+        prop.SetCords(prop.LocX + 16, prop.LocY); Compare("moved decor");
+        prop.BlockTiles = new[] { 1, 2 }; Compare("decor tile mask");
+        prop.BlockTiles[0]++; Compare("decor tile mask edited in place");
+        prop.Source = new ZMapData.Obj { kind = "mapitem:rock", at = new[] { 1, 2 } }; Compare("decor source");
+        prop.Source.at[0]++; Compare("decor source edited in place");
+        prop.LinkedObjects.Add(unit); Compare("decor link");
+        prop.LinkedObjects.Clear(); Compare("decor link removed");
         prop.Health = 0; prop.HasProcessedDeath = true; Compare("destroyed decor");
         prop.Health = prop.MaxHealth; prop.HasProcessedDeath = false; Compare("restored decor");
         var building = world.Objects.First(o => o.Kind == ZKind.Building);

@@ -27,9 +27,8 @@ namespace OpenZ.Sim
         {
             if (!SquadSplitDeviation || Time < nextSquadSplitCheck) return;
             nextSquadSplitCheck = Time + 1.0;
-            for (int i = 0; i < Objects.Count; i++)
+            foreach (var l in UnitObjects)
             {
-                var l = Objects[i];
                 if (l.Kind != ZKind.Robot || l.Leader != null || l.Minions.Count == 0 || l.Destroyed || l.KillAt >= 0) continue;
                 var alone = FarMember(l);
                 if (alone != null) SplitFromSquad(l, alone);

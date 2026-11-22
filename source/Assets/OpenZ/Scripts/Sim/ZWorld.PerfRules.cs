@@ -63,10 +63,11 @@ namespace OpenZ.Sim
         int roRemoves;
 
         /// <summary>RunOverTick (ZWorld.RunOver.cs), its first line: the robots among the first n objects, in object order.</summary>
-        void ListRunOverRobots(int n)
+        void ListRunOverRobots()
         {
             roRobots.Clear();
-            for (int j = 0; j < n && j < Objects.Count; j++) if (Objects[j].Kind == ZKind.Robot) roRobots.Add(Objects[j]);
+            foreach (var unit in UnitObjects)
+                if (unit.Kind == ZKind.Robot) roRobots.Add(unit);
             roRemoves = objRemoves;
         }
 

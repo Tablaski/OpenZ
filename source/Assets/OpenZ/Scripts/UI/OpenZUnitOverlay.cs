@@ -217,9 +217,9 @@ namespace OpenZ
                 HoverRectLog(hover, hr);
             }
             if (always)
-                foreach (var o in W.Objects)
+                foreach (var o in W.UnitObjects)
                 {
-                    if (!o.IsUnit || o.IsMinion || o.Destroyed || o.KillAt >= 0 || o.Health >= o.MaxHealth || sel.Contains(o) || o == hover) continue;
+                    if (o.IsMinion || o.Destroyed || o.KillAt >= 0 || o.Health >= o.MaxHealth || sel.Contains(o) || o == hover) continue;
                     if (OzFogOfWar.Covers(o)) continue;                                                    // 1.4 FOG OF WAR: no health bar on a unit under the fog (View/OzFogOfWar.cs)
                     if (OzRadarBars.BarAlpha(o) <= OzRadarBars.Hidden) { OzRadarBars.SkippedAlways++; continue; }   // 1.4 DV172: no mark at all on an enemy without a radar (a lone grenade icon or star would tell which enemies are hurt)
                     if (!UnitRect(cam, o, out var ar)) continue;
@@ -789,9 +789,9 @@ namespace OpenZ
         ZObject HoverUnit(Camera cam, Vector2 mp)
         {
             ZObject hit = null; float best = float.MaxValue;
-            foreach (var o in game.World.Objects)
+            foreach (var o in game.World.UnitObjects)
             {
-                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || !BoardingView.FigureShown(o)) continue;   // K431: no mouse-over box on the empty spot of a robot still inside its carrier
+                if (o.Destroyed || o.KillAt >= 0 || !BoardingView.FigureShown(o)) continue;   // K431: no mouse-over box on the empty spot of a robot still inside its carrier
                 if (OzFogOfWar.Covers(o)) continue;                                                        // 1.4 fog_hover_leak: a unit the fog hides is no hover hit (no box, name or bar: an empty spot; View/OzFogOfWar.cs Covers, always false outside MAYHEM)
                 var p = ViewPos(o);
                 var c = cam.WorldToScreenPoint(p + Vector3.up * 0.9f);

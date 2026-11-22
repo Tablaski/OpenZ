@@ -241,17 +241,23 @@ namespace OpenZ.Sim
             double under = Math.Sqrt((double)(A * A + B * B));
             dx /= distLeft; dy /= distLeft; dx *= crawl; dy *= crawl;
             distCheck *= under;
+            int previousX = int.MinValue, previousY = int.MinValue;
             while (distLeft > 0)
             {
                 int ctx = (int)(x / 16), cty = (int)(y / 16);
-                for (int tx = ctx - bc; tx <= ctx + bc; tx++)
-                    for (int ty = cty - bc; ty <= cty + bc; ty++)
-                    {
-                        if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
-                        if (tc[tx, ty].passable && !LavaLine(tx, ty)) continue;   // 1.5 DV192 amended N12b (kit sim_notes11): for the Bizon a lava tile is no straight line: the A* weighs it
-                        int cx = tx * 16 + 8, cy = ty * 16 + 8;
-                        if (distCheck >= Math.Abs(A * cx + B * cy + C)) return false;
-                    }
+                // Consecutive samples in one tile test the same neighbours against the same line.
+                if (ctx != previousX || cty != previousY)
+                {
+                    previousX = ctx; previousY = cty;
+                    for (int tx = ctx - bc; tx <= ctx + bc; tx++)
+                        for (int ty = cty - bc; ty <= cty + bc; ty++)
+                        {
+                            if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
+                            if (tc[tx, ty].passable && !LavaLine(tx, ty)) continue;   // 1.5 DV192 amended N12b (kit sim_notes11): for the Bizon a lava tile is no straight line: the A* weighs it
+                            int cx = tx * 16 + 8, cy = ty * 16 + 8;
+                            if (distCheck >= Math.Abs(A * cx + B * cy + C)) return false;
+                        }
+                }
                 x += dx; y += dy; distLeft -= crawl;
             }
             return true;

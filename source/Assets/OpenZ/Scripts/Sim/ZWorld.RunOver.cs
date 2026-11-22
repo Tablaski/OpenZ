@@ -49,7 +49,7 @@ namespace OpenZ.Sim
             if (!RunOverDeviation) return;
             int n = Objects.Count;
             bool fast = PerfFastRules;                                                   // 1.3 item 25: the robots of Objects[0..n) listed once, same order (Sim/ZWorld.PerfRules.cs)
-            if (fast) ListRunOverRobots(n);
+            if (fast) ListRunOverRobots();
             for (int i = 0; i < n && i < Objects.Count; i++)
             {
                 var v = Objects[i];

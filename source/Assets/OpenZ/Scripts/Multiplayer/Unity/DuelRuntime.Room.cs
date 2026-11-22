@@ -27,7 +27,7 @@ namespace OpenZ.Multiplayer
         long roomWireBytes;
         internal SkirmishOnline RoomTransport => peer as SkirmishOnline;
         internal bool RoomCanLaunch => room?.CanLaunch == true && Connected && RoomTransport != null &&
-            RoomTransport.Remotes.All(link => link.Ready && roomLinks.ContainsKey(link.Id));
+            RoomTransport.Remotes.All(link => IsRoomGhost(link.Id) || link.Ready && roomLinks.ContainsKey(link.Id));
         int RoomPosition => IsHost ? room?.HostPosition ?? -1 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
         MapChangeVote roomVote;
         string roomVoteMap;
@@ -408,8 +408,12 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.RoomLobbyStatus:
                     if (!IsHost && sender.Id == 1) ReceiveRoomLobbyStatus(packet);
                     return;
+                case DuelMessage.RoomGhostFollow:
+                case DuelMessage.RoomGhostView:
+                    ReadGhostPacket(sender, packet);
+                    return;
                 case DuelMessage.RoomVoiceMute:
-                    if (!IsHost && packet.Payload.Length == 1)
+                    if (!IsHost && sender.Id == 1 && packet.Payload.Length == 1)
                     {
                         RoomVoiceMuted = packet.Payload[0] != 0;
                         Menus.Refresh();
@@ -432,7 +436,7 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.RoomSnapshot:
                 case DuelMessage.RoomBattlefield:
                 case DuelMessage.RoomVoteState:
-                    if (!IsHost) HandleRoomPacket(packet, sender);
+                    if (!IsHost && sender.Id == 1) HandleRoomPacket(packet, sender);
                     return;
                 case DuelMessage.RoomCommand:
                 case DuelMessage.RoomOrder:
@@ -483,6 +487,7 @@ namespace OpenZ.Multiplayer
         void ClearOnlineRoom()
         {
             ClearRoomLobbyStatus();
+            ResetGhostView();
             roomLinks.Clear();
             roomDeparted.Clear();
             roomEndReady.Clear();
@@ -504,6 +509,7 @@ namespace OpenZ.Multiplayer
 
         void LoadRoomMap(string mapId, int revision)
         {
+            ResetGhostView();
             var map = OzAiMapCatalog.FindSkirmishMap(mapId);
             if (!IsRoomMap(map)) throw new InvalidDataException("This battlefield is missing from the compiled game.");
             if (Playing && Game) Game.World.DuelForward = _ => false;
@@ -569,6 +575,11 @@ namespace OpenZ.Multiplayer
             startAt = lastSnapshot = Now;
             Game.StartSkirmishPlanning(RoomRules.PlanningSeconds);
             Playing = true;
+            if (RoomObserver)
+            {
+                var target = GhostTargets.FirstOrDefault(member => member.Host) ?? GhostTargets.FirstOrDefault();
+                if (target != null) FollowGhostTarget(target.Position);
+            }
             Menus.CloseOverlay();
             BeginPerformance();
             roomStateArrival = roomStateJitter = 0;
@@ -707,7 +718,7 @@ namespace OpenZ.Multiplayer
 
         void ShowRoomVote(RoomVoteState state)
         {
-            if (state == null || state.Vote <= 0 || state.Revision != loadedRoomRevision ||
+            if (RoomObserver || state == null || state.Vote <= 0 || state.Revision != loadedRoomRevision ||
                 string.IsNullOrEmpty(state.Map) || !IsRoomMap(OzAiMapCatalog.FindSkirmishMap(state.Map))) return;
             if (state.Result == MapChangeResult.Pending)
             {

@@ -84,15 +84,16 @@ namespace OpenZ
         {
             if (!game || game.World == null) return;
             hud = OpenZHud.I;
-            if (world != game.World || seat != game.player)
+            Team vision = DuelRuntime.I && DuelRuntime.I.RoomObserver ? DuelRuntime.GhostVisionTeam : game.player;
+            if (world != game.World || seat != vision)
             {
-                world = game.World; seat = game.player;
+                world = game.World; seat = vision;
                 Sight = null;
                 Contacts.Clear(); knownRadars.Clear(); meshCache.Clear();
                 nextSight = -1;
             }
             var rule = RuleFor(world);
-            bool enabled = rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
+            bool enabled = seat != Team.Neutral && rule != RadarLossRule.Off && !game.World.GameOver && !OzUeHooks.Active &&
                 !CaptureKit.DemoRun && !ZodBriefing.BriefingActive && (!DuelRuntime.Active || DuelRuntime.I.Playing);
             if (!enabled)
             {

@@ -197,7 +197,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-duel-12-online-lobby\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-duel-13-ghost-follow\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
                 .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));
@@ -971,7 +971,7 @@ namespace OpenZ.Multiplayer
 
         public void Surrender()
         {
-            if (!Playing || !Game) return;
+            if (!Playing || !Game || RoomObserver) return;
             if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
             else if (SkirmishRoom) Game.World.SurrenderSkirmish(LocalTeam);
             else ApplySurrender(0);

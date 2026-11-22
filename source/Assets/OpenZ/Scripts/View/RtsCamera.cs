@@ -388,6 +388,14 @@ namespace OpenZ
         /// level (OzL16Outskirts); 0 elsewhere.</summary>
         [System.NonSerialized] public float northCut, southGive, sideCut;
 
+        internal void FocusGhostView(Vector3 observedFocus, float observedHeight)
+        {
+            focus = observedFocus;
+            height = targetHeight = observedHeight;
+            zoomVel = 0;
+            flying = false;
+        }
+
         public void Place()
         {
             float h = Mathf.Clamp(height, minHeight, maxHeight);

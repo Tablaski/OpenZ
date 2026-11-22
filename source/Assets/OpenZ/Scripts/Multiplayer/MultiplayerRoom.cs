@@ -111,6 +111,7 @@ namespace OpenZ.Multiplayer
         public int HostPosition => Member(HostId).Seat.Position;
         public string Map { get; private set; }
         public int Starts { get; private set; }
+        public int Capacity { get; private set; }
         public int Revision { get; private set; }
         public bool Launched { get; private set; }
         public RoomMember[] Members => members.Values.ToArray();
@@ -131,6 +132,7 @@ namespace OpenZ.Multiplayer
             HostId = hostId;
             this.allowSoloConversions = allowSoloConversions;
             Starts = MapStarts(map);
+            Capacity = Starts;
             Map = map;
             members.Add(hostId, new RoomMember(hostId, DuelLobby.NormalizeName(hostName), new MatchSeatAssignment(MatchSeatRole.Human, 0), 0));
         }
@@ -223,6 +225,7 @@ namespace OpenZ.Multiplayer
             var occupied = new HashSet<int>();
             if (Map != map) rules.VehicleTech = rules.RobotTech = 0;
             Starts = starts;
+            Capacity = capacity;
             Map = map;
             closed.RemoveWhere(position => position < capacity || position >= starts);
             for (int position = capacity; position < starts; position++) closed.Add(position);
@@ -306,6 +309,7 @@ namespace OpenZ.Multiplayer
             RequireHostSetup(sender);
             if (map == Map) return;
             Starts = MapStarts(map);
+            Capacity = Starts;
             Map = map;
             rules.VehicleTech = rules.RobotTech = 0;
             foreach (int position in bots.Keys.Where(position => position >= Starts).ToArray()) bots.Remove(position);

@@ -40,7 +40,7 @@ namespace OpenZ.Multiplayer
         }
 
         public string Map;
-        public int Revision, Sequence, Starts;
+        public int Revision, Sequence, Starts, Capacity;
         public MatchStartBlocker StartBlocker;
         public bool CanLaunch, Launched, MatchLoaded;
         public Human[] Humans;
@@ -142,7 +142,7 @@ namespace OpenZ.Multiplayer
         {
             var view = new RoomSnapshot
             {
-                Map = room.Map, Starts = room.Starts, Revision = room.Revision, Sequence = ++sequence,
+                Map = room.Map, Starts = room.Starts, Capacity = room.Capacity, Revision = room.Revision, Sequence = ++sequence,
                 StartBlocker = room.StartBlocker, CanLaunch = room.CanLaunch, Launched = room.Launched, MatchLoaded = room.MatchLoaded,
                 Humans = room.Members.Select(member => new RoomSnapshot.Human
                 {
@@ -224,7 +224,8 @@ namespace OpenZ.Multiplayer
             RoomSnapshot incoming;
             try { incoming = MultiplayerRoomPackets.ReadSnapshot(packet); }
             catch (InvalidDataException) { return false; }
-            if (incoming.Starts < 2 || incoming.Starts > 8 || incoming.Revision < 0 || incoming.Sequence <= 0 ||
+            if (incoming.Starts < 2 || incoming.Starts > 8 || incoming.Capacity < 2 || incoming.Capacity > incoming.Starts ||
+                incoming.Revision < 0 || incoming.Sequence <= 0 ||
                 string.IsNullOrEmpty(incoming.Map) || incoming.Humans == null || incoming.Bots == null ||
                 OzAiMapCatalog.FindSkirmishMap(incoming.Map)?.Starts != incoming.Starts || incoming.Humans.Length > 8 || incoming.Bots.Length > incoming.Starts ||
                 incoming.Rules?.Valid != true || incoming.Closed == null || incoming.Closed.Any(position => position < 0 || position >= incoming.Starts) ||

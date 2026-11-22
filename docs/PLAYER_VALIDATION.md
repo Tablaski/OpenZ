@@ -5,6 +5,8 @@
 - Pending in the compiled game. Create and join an online lobby from the invitation link. Confirm the minimap gallery, shared settings, team drag and drop, unit pickers, AI Help, connection details, text and voice, and Ready lock and cancellation.
 - Switch an eight-human lobby to a four-start map. Confirm the four active players, four Ghosts, single rules revision, spectator free camera, isolated match communications and return to lobby. Run once over direct transport and once over relay.
 - Start an official two-start map and an AI map with bots. Check initial armies, radar penalties and the optional idle-unit and factory-capture AI Help rules.
+- Run `tools/Test-OnlineGhost.ps1 -CompiledGame <build-folder>` from PowerShell to exercise one host, one active guest, one Ghost and a bot on a single Windows PC. Confirm each report passes and check the two captures. Repeat with `-RelayOnly` if the relay offer is active.
+- Verify that the Ghost can follow each surviving human, toggle the cursor, selected units and orders, production and player fog, leave the tracked camera and recenter. Check that the Ghost never issues gameplay commands or receives or transmits active-player match communications.
 
 ## OpenZ-VK 1.5.32 Graphics Custom
 

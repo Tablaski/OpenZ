@@ -74,7 +74,7 @@ namespace OpenZ.Multiplayer
                 R.SetRoomRules(rules);
             }, enabled: editable);
 
-            if (roomTab == 0) DrawOnlineSelectedMap(map, rules, map.Starts - closed.Length, editable);
+            if (roomTab == 0) DrawOnlineSelectedMap(map, rules, hosted?.Capacity ?? joined.Capacity, editable);
             else if (roomTab == 1) DrawOnlineStartingArmies(rules, editable);
             else if (roomTab == 2) DrawOnlineBalance(rules, editable);
             else if (roomTab == 3) DrawOnlineAdvantage(map.Starts, people, bots, rules, editable);
@@ -246,13 +246,15 @@ namespace OpenZ.Multiplayer
                 {
                     OzAiMapBadge.Head(row.transform, new OzRect(43, 5, 21, 21));
                     Label(row.transform, "AI  ·  " + bot.Difficulty, 70, 7, 350, 17, OzUi.Ink);
-                    if (editable) Button(row.transform, "···", 594, 2, 47, () => ManageOnlinePosition(seat), height: 29);
+                    if (editable && seat < R.HostedRoom.Capacity)
+                        Button(row.transform, "···", 594, 2, 47, () => ManageOnlinePosition(seat), height: 29);
                 }
                 else
                 {
                     bool isClosed = closed.Contains(seat);
                     Label(row.transform, isClosed ? "Closed" : "Open", 43, 8, 350, 17, OzUi.Muted);
-                    if (editable) Button(row.transform, "···", 594, 2, 47, () => ManageOnlinePosition(seat), height: 29);
+                    if (editable && seat < R.HostedRoom.Capacity)
+                        Button(row.transform, "···", 594, 2, 47, () => ManageOnlinePosition(seat), height: 29);
                 }
                 y += 36;
             }
@@ -276,7 +278,7 @@ namespace OpenZ.Multiplayer
         {
             int seat = onlinePosition;
             var room = R.HostedRoom;
-            if (!OnlineEditing || seat < 0 || seat >= room.Starts || room.Members.Any(member => member.Seat.Position == seat))
+            if (!OnlineEditing || seat < 0 || seat >= room.Capacity || room.Members.Any(member => member.Seat.Position == seat))
             {
                 onlinePosition = -1;
                 return;
@@ -470,7 +472,7 @@ namespace OpenZ.Multiplayer
         void ApplyOnlineMap(string[] active)
         {
             var room = R.HostedRoom;
-            if (room.Map != onlineProposedMap || room.Starts - room.ClosedPositions.Length != onlineMapSize ||
+            if (room.Map != onlineProposedMap || room.Capacity != onlineMapSize ||
                 !room.Members.Where(member => member.Seat.MayUsePlayerCommands).Select(member => member.Id).ToHashSet().SetEquals(active))
                 R.ApplyRoomMap(onlineProposedMap, onlineMapSize, active);
             OpenOnlinePopup(OnlinePopup.None);

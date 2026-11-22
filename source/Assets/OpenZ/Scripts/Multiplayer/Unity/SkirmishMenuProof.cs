@@ -24,7 +24,7 @@ namespace OpenZ.Multiplayer
             string mode = roomOption >= 0 && roomOption + 1 < args.Length ? args[roomOption + 1] :
                 args.Contains("-oz-duel-proof-online-bots") ? "online" : args.Contains("-oz-duel-proof-solo-tech") ? "solo" :
                 args.Contains("-oz-seven-bot-fps") ? "seven-bot-fps" : "local";
-            proof.StartCoroutine(proof.Run(args[option + 1], mode));
+            proof.StartCoroutine(proof.Run(args[option + 1], mode, args.Contains("-oz-duel-proof-ghost-follow")));
         }
 
         static void Click(string text)
@@ -35,7 +35,7 @@ namespace OpenZ.Multiplayer
             button.onClick.Invoke();
         }
 
-        IEnumerator Run(string folder, string mode)
+        IEnumerator Run(string folder, string mode, bool ghostFollow)
         {
             Directory.CreateDirectory(folder);
             var checks = mode switch
@@ -43,7 +43,7 @@ namespace OpenZ.Multiplayer
                 "online" => ExerciseOnline(folder),
                 "solo" => ExerciseSoloTech(folder),
                 "seven-bot-fps" => MeasureDesert(),
-                "host" or "guest1" or "guest2" => ExerciseSharedRoom(folder, mode),
+                "host" or "guest1" or "guest2" => ghostFollow ? ExerciseGhostRoom(folder, mode) : ExerciseSharedRoom(folder, mode),
                 _ => Exercise(folder)
             };
             string report = Path.Combine(folder, mode is "host" or "guest1" or "guest2" ? mode + "-result.txt" : "result.txt");
@@ -254,6 +254,86 @@ namespace OpenZ.Multiplayer
                 throw new InvalidOperationException("A participant did not reach the shared battlefield.");
             if (host && roles.Select(seat => File.ReadAllText(Path.Combine(folder, seat + "-loaded.txt"))).Distinct().Count() != 3)
                 throw new InvalidOperationException("A starting position was shared by multiple humans.");
+        }
+
+
+        IEnumerator ExerciseGhostRoom(string folder, string role)
+        {
+            yield return new WaitForSecondsRealtime(3);
+            var runtime = DuelRuntime.I;
+            bool host = role == "host", spectator = role == "guest2";
+            string link = Path.Combine(folder, "join.txt");
+            double deadline = Time.realtimeSinceStartupAsDouble + 120;
+            if (host)
+            {
+                runtime.ConnectOnline("Ghost Host", true, "", skirmish: true);
+                while ((!runtime.Connected || string.IsNullOrEmpty(runtime.OnlineRoom)) && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                if (!runtime.Connected || string.IsNullOrEmpty(runtime.OnlineRoom))
+                    throw new InvalidOperationException("Room creation failed: " + runtime.Status);
+                File.WriteAllText(link, runtime.Invitation("", 0));
+            }
+            else
+            {
+                while (!File.Exists(link) && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+                if (!File.Exists(link)) throw new IOException("No invitation from the host.");
+                runtime.ConnectOnline(role, false, File.ReadAllText(link));
+            }
+            while ((host ? runtime.HostedRoom?.Members.Length : runtime.JoinedRoom?.Humans.Length) != 3 &&
+                Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            if ((host ? runtime.HostedRoom?.Members.Length : runtime.JoinedRoom?.Humans.Length) != 3)
+                throw new InvalidOperationException("Expected three local clients.");
+            if (host)
+            {
+                var ghost = runtime.HostedRoom.Members.Single(member => member.Name == "guest2");
+                runtime.SetRoomObserver(ghost.Id);
+                runtime.SetRoomBot(ghost.Seat.Position, ZBotDifficulty.Easy);
+            }
+
+            while ((host ? !runtime.HostedRoom.Members.Any(member => member.Seat.Role == MatchSeatRole.Observer) :
+                !runtime.JoinedRoom.Humans.Any(member => member.Observer)) && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+            if (!spectator) runtime.SetRoomReady(true);
+            if (host)
+            {
+                while (!runtime.RoomCanLaunch && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
+                if (!runtime.RoomCanLaunch) throw new InvalidOperationException("The spectator unexpectedly blocked launch.");
+                runtime.LaunchRoom();
+            }
+
+            deadline = Time.realtimeSinceStartupAsDouble + 100;
+            while ((!runtime.Playing || !runtime.Game || runtime.Game.World.Time < 2) && Time.realtimeSinceStartupAsDouble < deadline)
+                yield return null;
+            if (!runtime.Playing || !runtime.Game || runtime.RoomObserver != spectator)
+                throw new InvalidOperationException("Unexpected role or missing battlefield.");
+            File.WriteAllText(Path.Combine(folder, role + "-loaded.txt"), runtime.LocalTeam.ToString());
+            if (host)
+            {
+                var fort = runtime.Game.World.Objects.First(unit => unit.Owner == runtime.LocalTeam && unit.IsFort);
+                OpenZHud.I.Production.Open(fort);
+                if (!OpenZHud.I.Production.IsOpen) throw new InvalidOperationException("Could not open host production.");
+            }
+            if (spectator)
+            {
+                var target = runtime.GhostTargets.Single(member => member.Host);
+                runtime.FollowGhostTarget(target.Position);
+                while ((runtime.GhostView == null || runtime.GhostView.Factory < 0) && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                if (runtime.GhostView?.Factory < 0 || runtime.GhostView == null ||
+                    runtime.Game.World.Get(runtime.GhostView.Factory)?.IsFort != true)
+                    throw new InvalidOperationException("The Ghost did not receive the host camera and open fort.");
+                DuelProofCapture.Save(Path.Combine(folder, "ghost-follow.png"));
+                runtime.SetGhostCameraMode(false);
+                if (runtime.GhostFollowing) throw new InvalidOperationException("The Ghost could not switch to free camera.");
+                DuelProofCapture.Save(Path.Combine(folder, "ghost-free-camera.png"));
+                File.WriteAllText(Path.Combine(folder, "ghost-checked.txt"), "Follow, production and free camera.");
+            }
+            else
+            {
+                while (!File.Exists(Path.Combine(folder, "ghost-checked.txt")) && Time.realtimeSinceStartupAsDouble < deadline)
+                    yield return null;
+                if (!File.Exists(Path.Combine(folder, "ghost-checked.txt")))
+                    throw new InvalidOperationException("The Ghost did not verify the live view.");
+            }
         }
 
         IEnumerator ExerciseSoloTech(string folder)

@@ -7,7 +7,7 @@ Invite a friend to a 1 vs 1 duel with a magic link, try optional production rule
 ## OpenZ-VK 1.5.33 (22 Nov 2026)
 
 - Online multiplayer — Invite friends with a link, choose a map from its full minimap, and drag players and bots between teams. The lobby shows player readiness, ping to the host and a short record of rule changes in chat.
-- Online multiplayer — Choose who plays when switching to a map with fewer positions. The remaining players stay connected as Ghosts and can watch the match with a free camera. Only players with a starting position need to ready up.
+- Online multiplayer — Choose who plays when switching to a map with fewer positions. Ghosts can watch with a free camera or follow a human player's view, cursor, selection and production. Only players with a starting position need to ready up.
 - Online multiplayer — Choose extra units in individual slots, set optional AI Help for a participant, and see examples for the production and radar rules before starting.
 
 ## OpenZ-VK 1.5.32 (22 Nov 2026)

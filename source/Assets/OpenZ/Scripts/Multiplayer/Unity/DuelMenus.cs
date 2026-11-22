@@ -141,6 +141,7 @@ namespace OpenZ.Multiplayer
             }
             if ((page == Page.Skirmish || OnlineRoomPage) && builtPage == page) FitSkirmishFrame();
             if (OnlineRoomPage) TickOnlinePings();
+            HandleGhostKeys();
             TickLobbyFlyby();
         }
         void Build()
@@ -188,11 +189,7 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry)
             {
                 if (R.MatchPaused && !pauseWasOpen) BuildPausedMatch();
-                if (R.Playing && R.RoomObserver)
-                {
-                    var ghost = Panel("👻 GHOST · SPECTATING", 24, 24, 405, 74);
-                    Label(ghost, "Free camera", 245, 24, 148, 16, OzUi.Muted);
-                }
+                if (R.Playing && R.RoomObserver) BuildGhostView();
                 if (R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0)
                 {
                     var banner = Panel("OPENING ORDERS", 24, 922, 600, 74);
@@ -632,6 +629,13 @@ namespace OpenZ.Multiplayer
             Button(panel, "KICK PLAYER", 30, 244, (width - 75) / 2, () => Confirm(false));
             Button(panel, "KICK AND BAN", (width - 75) / 2 + 45, 244, (width - 75) / 2, () => Confirm(true));
             Label(panel, "A ban applies to this lobby and blocks rejoins from the same network.", 30, 320, width - 60, 16, OzUi.Muted);
+            if (OnlineRoomPage && member.Seat.Role == MatchSeatRole.Human)
+                Button(panel, "MOVE TO GHOSTS", 30, 368, width - 60, () =>
+                {
+                    R.SetRoomObserver(member.Id);
+                    roomModeration = null;
+                    dirty = true;
+                }, enabled: OnlineEditing);
             void Confirm(bool ban) => OzConfirm.Ask(ban ? "BAN THIS PLAYER?" : "KICK THIS PLAYER?", member.Name, () =>
             { R.ModerateRoomPlayer(member.Id, ban, roomModerationNote); roomModeration = null; dirty = true; }, null);
         }

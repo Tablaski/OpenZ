@@ -2,6 +2,10 @@
 
 ## OpenZ-VK 1.5.34 large-map performance
 
+- Source checkpoint `7d6fc13a` passed 8,488 core and real-map checks, including byte-for-byte comparison of the room's combined capture and delta path with the prior sender. Coverage includes changed and unchanged scenery, in-place map data edits, removals, full refresh and restart.
+- An independent .NET comparison against `afc0ef17` matched cumulative per-tick rule fingerprints, final unit counts, and A* search and work counters for all 54,000 measured ticks across Desert P08M01 and Hunters.
+- Desert P08M01 has 2,316 destructible rock objects in the native grid and 2,316 individually matched rock pillar names in the converted scene. Hunters has no rock objects. Scene-only geometry and map tiles do not enter the room object delta. A rock pillar with no simulation health source is no longer registered in the health polling loop. No Desert rock was excluded as decorative, and the impact of rendering the static map border remains unmeasured.
+- In the .NET replication benchmark, the combined host path averaged 8.8 ms per update on Desert with seven bots, down from 15.2 ms in the same session. Unity builds overlapped the timing runs, so the size of this gain is provisional. Payload sizes and the count of accepted updates matched.
 - Compare Desert P08M01 and Hunters against 1.5.33 with the same resolution, graphics settings, camera and bot roster. Record main-thread, simulation and 99th-percentile frame times after loading, including at maximum zoom.
 - In an online match, verify obstacle damage, destruction, movement, full-state refresh and reconnection. Compare host capture time and guest view updates with the preceding build.
 - Verify that unit selection, hover precedence, damaged-unit bars and squads moving off camera behave consistently in Skirmish and on a guest.

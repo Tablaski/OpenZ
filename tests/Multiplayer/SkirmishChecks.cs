@@ -260,7 +260,7 @@ static class SkirmishChecks
             var room = new MultiplayerRoom("host", "Host", entry.Id, allowSoloConversions: true);
             room.SetBot("host", 1, 1, ZBotDifficulty.Easy);
             var rules = new SkirmishRules { TerritoryCap = 25, FortSpeedup = 120, VehicleTech = 5, RobotTech = 4,
-                RadarLoss = RadarLossRule.FogAndZoom, FriendlyFire = true, PlanningSeconds = 10 };
+                RadarLoss = RadarLossRule.FogAndZoom, FriendlyFire = true, PlanningSeconds = 10, FreeForAll = true };
             rules.OverrideFortTurrets = true;
             rules.FortTurrets[0] = "gatling";
             rules.BuildPercent[0] = 70;
@@ -268,8 +268,8 @@ static class SkirmishChecks
             room.SetReady("host", room.Revision, true);
             room.SwapStartingSides("host");
             check(!room.CanLaunch && room.HostPosition == 1 && room.Bots.Single().Position == 0 &&
-                room.Bots.Single().Alliance == 1 && room.Rules.BuildPercent[1] == 70,
-                entry.Id + " swaps forts and preserves each participant's alliance and build-time advantage");
+                room.Bots.Single().Alliance == 0 && room.Rules.BuildPercent[1] == 70,
+                entry.Id + " swaps free-for-all sides and carries each participant's build-time advantage");
             room.SwapStartingSides("host");
             check(room.CanLaunchWithHostReady && !room.CanLaunch, entry.Id + " only waits for the human host");
             room.SetReady("host", room.Revision, true);

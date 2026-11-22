@@ -205,22 +205,23 @@ namespace OpenZ.Multiplayer
             }
             if (observers.Length > 0)
             {
-                Group("👻 GHOSTS", OzUi.Muted);
-                foreach (var observer in observers) Unseated(observer, "👻");
+                Group("GHOSTS", OzUi.Muted, ghost: true);
+                foreach (var observer in observers) Unseated(observer);
             }
             if (waiting.Length > 0)
             {
                 Group("WAITING FOR A POSITION", OzUi.Muted);
-                foreach (var person in waiting) Unseated(person, "");
+                foreach (var person in waiting) Unseated(person);
             }
             var local = people.First(person => person.Local);
             Button(panel, "CHANGE NAME", 254, 516, 195, () => { roomRename = true; roomNameDraft = local.Name; dirty = true; }, height: 35);
             if (!freeForAll && R.IsHost)
                 Button(panel, "EDIT TEAMS", 459, 516, 206, () => StartOnlineTeamEdit(starts, active, bots), enabled: editable, height: 35);
 
-            void Group(string title, Color tint)
+            void Group(string title, Color tint, bool ghost = false)
             {
-                Label(content, title, 7, y + 4, 623, 15, tint);
+                if (ghost) DrawGhostIcon(content, 7, y + 3, 18);
+                Label(content, title, ghost ? 32 : 7, y + 4, 598, 15, tint);
                 y += 29;
             }
 
@@ -259,9 +260,10 @@ namespace OpenZ.Multiplayer
                 y += 36;
             }
 
-            void Unseated(OnlinePerson person, string icon)
+            void Unseated(OnlinePerson person)
             {
-                Label(content, icon + "  " + person.Name + (person.Local ? " · YOU" : ""), 9, y + 7, 500, 17, OzUi.Ink);
+                if (person.Observer) DrawGhostIcon(content, 8, y + 6, 19);
+                Label(content, person.Name + (person.Local ? " · YOU" : ""), person.Observer ? 36 : 9, y + 7, 500, 17, OzUi.Ink);
                 if (R.IsHost) Button(content, "···", 594, y, 47, () => SelectRoomModeration(person.Id), height: 29);
                 y += 36;
             }
@@ -494,20 +496,22 @@ namespace OpenZ.Multiplayer
             Label(panel, "Ghosts stay connected and can watch. Only active players need to ready up.", 25, 106, 1190, 18, OzUi.Muted);
             int active = onlineActives.Count;
             Column(true, 25, $"ACTIVE PLAYERS   ·   {active} / {onlineMapSize}");
-            Column(false, 631, $"👻 GHOSTS   ·   {room.Members.Length - active} watching");
+            Column(false, 631, $"GHOSTS   ·   {room.Members.Length - active} watching");
             Button(panel, "CONFIRM MAP & PLAYERS", 784, 556, 430,
                 () => ApplyOnlineMap(onlineActives.ToArray()), true, active == onlineMapSize, 52);
 
             void Column(bool playing, int x, string title)
             {
-                Label(panel, title, x, 153, 568, 19, OzUi.Amber);
+                if (!playing) DrawGhostIcon(panel, x, 152, 22);
+                Label(panel, title, playing ? x : x + 30, 153, 538, 19, OzUi.Amber);
                 float y = 190;
                 foreach (var member in room.Members.Where(member => onlineActives.Contains(member.Id) == playing))
                 {
                     var row = Hud.Img(panel, member.Name, OzUi.GM900);
                     row.rectTransform.TL(x, y, 583, 39);
                     row.raycastTarget = false;
-                    Label(row.transform, (!playing ? "👻  " : "") + member.Name, 7, 9, 240, 18, OzUi.Ink);
+                    if (!playing) DrawGhostIcon(row.transform, 7, 9, 22);
+                    Label(row.transform, member.Name, playing ? 7 : 36, 9, 207, 18, OzUi.Ink);
                     Label(row.transform, member.Id == room.HostId ? "HOST · PLAYS" : member.Alliance >= 0 ? "Team " + (member.Alliance + 1) : "",
                         254, 10, 124, 14, OzUi.Muted);
                     if (member.Id != room.HostId)

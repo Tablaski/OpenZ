@@ -10,6 +10,7 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
+        static Sprite ghostIcon;
         bool ghostOptions, ghostShowCursor = true, ghostShowOrders = true, ghostShowProduction = true;
         int ghostShownTarget = -2, ghostShownClick, ghostShownOrder;
         int ghostProductionId = -1;
@@ -25,10 +26,12 @@ namespace OpenZ.Multiplayer
             ghostUnitMarkers.Clear();
             ghostLayer = Hud.Node("Ghost overlay", root);
             ghostLayer.Fill();
-            var badge = Panel("👻 GHOST", 25, 24, 520, 78);
+            var badge = Panel("", 25, 85, 520, 78);
+            DrawGhostIcon(badge, 24, 19, 22);
+            Label(badge, "GHOST", 54, 20, 430, 20, OzForkOptions.Accent);
             ghostStatus = Label(badge, "", 24, 46, 472, 17, OzUi.Muted);
             var targets = R.GhostTargets;
-            var players = Panel("FOLLOW PLAYER", 25, 130, 380, 62 + 43 * targets.Length);
+            var players = Panel("FOLLOW PLAYER", 25, 177, 380, 62 + 43 * targets.Length);
             for (int i = 0; i < targets.Length; i++)
             {
                 var target = targets[i];
@@ -36,7 +39,7 @@ namespace OpenZ.Multiplayer
                     R.GhostFollowing && R.GhostTarget == target.Position, height: 38);
             }
 
-            var controls = Panel("SPECTATOR CONTROLS", 25, 929, 1015, 128);
+            var controls = Panel("SPECTATOR CONTROLS", 25, 734, 1015, 128);
             Button(controls, "◀ PREVIOUS · Q", 20, 58, 150, () => R.CycleGhostTarget(-1), enabled: targets.Length > 0, height: 42);
             Button(controls, "NEXT · E ▶", 180, 58, 140, () => R.CycleGhostTarget(1), enabled: targets.Length > 0, height: 42);
             Button(controls, R.GhostFollowing ? "FREE CAMERA · F" : "FOLLOW · F", 330, 58, 207,
@@ -44,10 +47,10 @@ namespace OpenZ.Multiplayer
             Button(controls, "RECENTER · R", 547, 58, 180, () => R.SetGhostCameraMode(true), enabled: targets.Length > 0, height: 42);
             Button(controls, "VIEW OPTIONS", 737, 58, 253, () => { ghostOptions = !ghostOptions; dirty = true; }, ghostOptions, height: 42);
 
-            var activity = Panel("LIVE ACTIONS", 1054, 912, 475, 142);
+            var activity = Panel("LIVE ACTIONS", 1054, 720, 475, 142);
             ghostSelectionText = Label(activity, "", 22, 57, 430, 16, OzUi.Ink);
             ghostActionText = Label(activity, "", 22, 93, 430, 16, OzUi.Muted);
-            ghostFactoryPanel = Panel("PRODUCTION OPEN", 416, 132, 502, 136);
+            ghostFactoryPanel = Panel("PRODUCTION OPEN", 416, 177, 502, 136);
             ghostFactoryText = Label(ghostFactoryPanel, "", 24, 60, 454, 17, OzUi.Ink).Body(24, 60, 454);
             if (ghostOptions) DrawGhostOptions();
 
@@ -56,6 +59,37 @@ namespace OpenZ.Multiplayer
             ghostOrderMarker = Marker("◎", 38, OzUi.Amber);
             ghostShownTarget = -2;
             TickGhostView();
+        }
+
+        static void DrawGhostIcon(Transform parent, float x, float y, float size)
+        {
+            if (!ghostIcon)
+            {
+                const int extent = 32;
+                var texture = new Texture2D(extent, extent, TextureFormat.RGBA32, false) { name = "Ghost icon" };
+                var pixels = new Color32[extent * extent];
+                var body = new Color32(243, 241, 230, 255);
+                var shade = new Color32(190, 198, 206, 255);
+                var face = new Color32(39, 43, 50, 255);
+                for (int row = 3; row < 30; row++)
+                for (int column = 4; column < 28; column++)
+                {
+                    float horizontal = column - 15.5f;
+                    float top = Mathf.Max(0, row - 17);
+                    int hem = 3 + Mathf.RoundToInt(2 * (1 + Mathf.Cos((column - 4) * Mathf.PI / 4)));
+                    if (horizontal * horizontal + top * top > 144 || row < hem) continue;
+                    bool eye = row >= 17 && row <= 21 && (column is >= 10 and <= 12 or >= 19 and <= 21);
+                    bool mouth = row >= 12 && row <= 15 && column is >= 14 and <= 17;
+                    pixels[row * extent + column] = eye || mouth ? face : row < hem + 2 ? shade : body;
+                }
+                texture.SetPixels32(pixels);
+                texture.Apply(false, true);
+                ghostIcon = Sprite.Create(texture, new Rect(0, 0, extent, extent), new Vector2(.5f, .5f));
+            }
+            var icon = Hud.Img(parent, "Ghost icon", Color.white);
+            icon.sprite = ghostIcon;
+            icon.rectTransform.TL(x, y, size, size);
+            icon.raycastTarget = false;
         }
 
         RectTransform Marker(string name, int size, Color color)
@@ -69,7 +103,7 @@ namespace OpenZ.Multiplayer
 
         void DrawGhostOptions()
         {
-            var panel = Panel("VIEW OPTIONS", 633, 555, 610, 358);
+            var panel = Panel("VIEW OPTIONS", 633, 352, 610, 358);
             Button(panel, "CLOSE", 440, 12, 145, () => { ghostOptions = false; dirty = true; }, height: 36);
             Label(panel, "VISION", 24, 69, 250, 18, OzUi.Ink);
             Label(panel, "Use the tracked player's radar and fog.", 24, 94, 350, 14, OzUi.Muted);

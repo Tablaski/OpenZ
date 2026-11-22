@@ -291,6 +291,7 @@ namespace OpenZ.Multiplayer
         {
             onlinePlayerMenu = null;
             onlineEditingName = onlineModerationNoteOpen = false;
+            roomModerationNote = "";
             dirty = true;
         }
 
@@ -378,7 +379,7 @@ namespace OpenZ.Multiplayer
 
             void Confirm(bool ban)
             {
-                string message = roomModerationNote;
+                string message = onlineModerationNoteOpen ? roomModerationNote : "";
                 string id = person.Id;
                 CloseOnlinePlayerMenu();
                 OzConfirm.Ask(ban ? "BAN THIS PLAYER?" : "KICK THIS PLAYER?", person.Name, () => R.ModerateRoomPlayer(id, ban, message), null);

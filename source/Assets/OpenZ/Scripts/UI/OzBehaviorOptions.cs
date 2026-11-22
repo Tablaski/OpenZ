@@ -80,8 +80,8 @@ namespace OpenZ
             bool customSelected = tanks != "native" || robots != "native";
             customSelected &= tanks != "zod-classic" || robots != "zod-classic";
             string current = customs.Find(profile => profile.Matches(tanks, robots))?.Name;
-            var custom = MakeButton(panel, "Custom profiles", (customSelected ? "✓ " : "") + "CUSTOM" +
-                (current == null ? "" : " · " + current) + (customs.Count > 0 ? " ▼" : ""), 28, 286, width, 50,
+            var custom = MakeButton(panel, "Custom profiles", (customSelected ? "[X] " : "") + "CUSTOM" +
+                (current == null ? "" : " · " + current) + (customs.Count > 0 ? "  v" : ""), 28, 286, width, 50,
                 () => Open(options => { options.choosingCustom = !choosingCustom; options.BuildGaming(); }), customs.Count > 0);
             if (customSelected && customs.Count > 0) custom.Label.color = OzForkOptions.Accent;
             string help = customs.Count == 0 ? "Save a profile in Unit Editor > Dynamics to enable Custom." :
@@ -92,7 +92,7 @@ namespace OpenZ
             void ProfileButton(string name, string id, int y, string helpText, bool classic)
             {
                 bool selected = tanks == id && robots == id;
-                var button = MakeButton(panel, name, (selected ? "✓ " : "") + name, 28, y, width, 50,
+                var button = MakeButton(panel, name, (selected ? "[X] " : "") + name, 28, y, width, 50,
                     () => { OzBehaviorLibrary.SelectCombat(OzBehaviorLibrary.Standard(classic)); ShowGaming(); });
                 if (selected) button.Label.color = OzForkOptions.Accent;
                 Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
@@ -102,7 +102,7 @@ namespace OpenZ
             {
                 var rule = (RadarLossRule)i;
                 int y = 467 + i * 65;
-                var row = MakeButton(panel, "Radar " + rule, (OzBattleOptions.SoloRadar == rule ? "✓ " : "") + OzBattleOptions.RadarName(rule),
+                var row = MakeButton(panel, "Radar " + rule, (OzBattleOptions.SoloRadar == rule ? "[X] " : "") + OzBattleOptions.RadarName(rule),
                     28, y, 275, 46, () => { OzBattleOptions.SoloRadar = rule; ShowGaming(); });
                 OzForkOptions.Highlight(row, OzBattleOptions.RadarLabel);
                 Hud.Label(panel, "Radar help " + rule, OzBattleOptions.RadarTip(rule), 17, OzUi.Ink).At(320, y + 12, OzH.L, false, 750);

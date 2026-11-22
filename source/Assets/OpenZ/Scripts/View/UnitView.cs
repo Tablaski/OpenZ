@@ -477,6 +477,13 @@ namespace OpenZ
 
         void Sync(float dt)
         {
+            long started = OzPerfNumbers.Now();
+            SyncPose(dt);
+            OzPerfNumbers.UnitViewDone(started);
+        }
+
+        void SyncPose(float dt)
+        {
             if (Obj.Destroyed) return;
             if (towerState == 0 && Obj.Kind == ZKind.Cannon) ResolveTower();                          // crews_v1
             SetOwner(CaptureHold.Shown(Obj));                                                          // boarding_nb_v1 NB17: grey until the robot sits inside

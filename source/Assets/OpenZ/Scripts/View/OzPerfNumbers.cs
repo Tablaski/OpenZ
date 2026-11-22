@@ -26,12 +26,16 @@ namespace OpenZ
     {
         static long overlaySum, overlayWorst, hoverSum, hoverWorst;
         static int overlayN, hoverN;
+        static long unitViewSum, rockOcclusionSum;
         static long heapLast = -1, heapGrowth, allocSum;
         static bool counterSeen;
         static int gcAtStart;
 
         /// <summary>A Stopwatch timestamp (the start of a timed part).</summary>
         public static long Now() => Stopwatch.GetTimestamp();
+
+        public static void UnitViewDone(long started) => unitViewSum += Stopwatch.GetTimestamp() - started;
+        public static void RockOcclusionDone(long started) => rockOcclusionSum += Stopwatch.GetTimestamp() - started;
 
         /// <summary>UI/OpenZUnitOverlay.cs: its LateUpdate started at t0 and has ended.</summary>
         public static void OverlayDone(long t0)
@@ -54,6 +58,7 @@ namespace OpenZ
         public static void Reset()
         {
             overlaySum = overlayWorst = hoverSum = hoverWorst = 0; overlayN = hoverN = 0;
+            unitViewSum = rockOcclusionSum = 0;
             heapGrowth = allocSum = 0; counterSeen = false;
             gcAtStart = GC.CollectionCount(0);
         }
@@ -79,6 +84,8 @@ namespace OpenZ
               .Append(", heap ").Append(F(Math.Max(0, heapLast) / 1048576.0, "0.0")).Append(" MB; ");
             sb.Append("overlay ").Append(Ms(overlaySum, overlayN, f)).Append(" ms a frame (worst ").Append(Ms(overlayWorst, overlayN, 1)).Append("), ");
             sb.Append("hover ").Append(Ms(hoverSum, hoverN, f)).Append(" ms a frame (worst ").Append(Ms(hoverWorst, hoverN, 1)).Append("); ");
+            sb.Append("unit views CPU ").Append(Ms(unitViewSum, frames, f)).Append(" ms a frame, rock occlusion ")
+              .Append(Ms(rockOcclusionSum, frames, f)).Append(" ms a frame; ");
         }
 
         static string Ms(long ticks, int n, double per) => n > 0 ? F(ticks * 1000.0 / Stopwatch.Frequency / per, "0.000") : "n/a";

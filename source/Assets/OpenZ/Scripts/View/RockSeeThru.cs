@@ -160,6 +160,13 @@ namespace OpenZ
 
         void LateUpdate()
         {
+            long started = OzPerfNumbers.Now();
+            UpdateOcclusion();
+            OzPerfNumbers.RockOcclusionDone(started);
+        }
+
+        void UpdateOcclusion()
+        {
             var g = ZGame.I;
             if (!cam || !cam.isActiveAndEnabled) cam = Camera.main;
             if (!cam) { var rc = FindFirstObjectByType<RtsCamera>(); if (rc) cam = rc.GetComponent<Camera>(); }

@@ -88,6 +88,14 @@ namespace OpenZ.Multiplayer
                 game.World.Bots.Any(bot => bot.Difficulty != ZBotDifficulty.Normal))
                 throw new InvalidOperationException("Expected Desert P08M01 with seven Normal bots.");
             yield return new WaitForSecondsRealtime(30);
+            bool wide = Environment.GetCommandLineArgs().Contains("-oz-seven-bot-wide");
+            var camera = FindFirstObjectByType<RtsCamera>();
+            if (wide)
+            {
+                if (!camera) throw new InvalidOperationException("Missing RTS camera.");
+                camera.ZoomTo(camera.maxHeight);
+                yield return new WaitForSecondsRealtime(2);
+            }
             var times = new System.Collections.Generic.List<double>(8192);
             for (int window = 1; window <= 3; window++)
             {
@@ -102,7 +110,7 @@ namespace OpenZ.Multiplayer
                 } while (previous - start < 40);
                 times.Sort();
                 int p99 = (int)Math.Ceiling(times.Count * .99) - 1;
-                Debug.Log(FormattableString.Invariant($"[Seven-bot FPS] window {window}, {times.Count / (previous - start):F1} fps, p99 frame {1000 * times[p99]:F1} ms, game {game.World.Time:F1} s, units {ZRuleProf.Units(game.World)}, cap {Application.targetFrameRate}, seed {game.seed}"));
+                Debug.Log(FormattableString.Invariant($"[Seven-bot FPS] window {window}, {times.Count / (previous - start):F1} fps, p99 frame {1000 * times[p99]:F1} ms, game {game.World.Time:F1} s, units {ZRuleProf.Units(game.World)}, cap {Application.targetFrameRate}, seed {game.seed}, zoom {(wide ? "maximum" : "default")}"));
             }
             var input = FindFirstObjectByType<PlayerInput>();
             for (int y = 1; y < 6; y++)

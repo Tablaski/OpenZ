@@ -55,11 +55,12 @@ namespace OpenZ.Multiplayer
                 snapshotValue = DiagnosticControl(panel, OzForkOptions.DuelSnapshotRateLabel, 24, () =>
                     R.SetDiagnosticTuning(Next(SnapshotRates, R.SnapshotHz), R.ReceiveBudgetMs, 0));
                 Label(panel, "Host setting · affects both sides", 24, 694, 325, 15, OzUi.Muted);
-                binaryEventsValue = DiagnosticControl(panel, OzForkOptions.DuelBinaryEventsLabel, 704,
-                    () => R.SetStatePacking(!R.BinaryStateEvents, R.CompressStateUpdates), "TOGGLE");
+                if (R.RoomTransport == null)
+                    binaryEventsValue = DiagnosticControl(panel, OzForkOptions.DuelBinaryEventsLabel, 704,
+                        R.ToggleBinaryStateEvents, "TOGGLE");
                 compressionValue = DiagnosticControl(panel, OzForkOptions.DuelCompressionLabel, 980,
                     () => R.SetStatePacking(R.BinaryStateEvents, !R.CompressStateUpdates), "TOGGLE");
-                Label(panel, "Applied to both players' game updates", 704, 694, 445, 15, OzUi.Muted);
+                Label(panel, "Applies to battlefield updates", 704, 694, 445, 15, OzUi.Muted);
             }
             else
             {

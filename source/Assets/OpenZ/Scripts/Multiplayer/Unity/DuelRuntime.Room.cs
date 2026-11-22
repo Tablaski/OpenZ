@@ -19,6 +19,8 @@ namespace OpenZ.Multiplayer
         DuelReplica.CaptureBuffer roomCapture;
         SkirmishNetworkTuning roomTuning;
         int roomEpoch, roomDrainIndex, roomEndReadyEpoch = -1;
+        DuelPacket roomFinalStats;
+        bool roomFinalStatsPending;
         bool roomFullState, roomReplicaChanged;
         double roomRetuneAt, roomRouteChangedAt;
         double roomStateArrival, roomStateInterval, roomStateJitter;
@@ -26,6 +28,9 @@ namespace OpenZ.Multiplayer
         long roomWireBytes;
         internal SkirmishOnline RoomTransport => peer as SkirmishOnline;
         internal bool RoomCanLaunch => room?.CanLaunch == true && Connected && RoomTransport != null &&
+            roomEpoch == RoomTransport.Epoch &&
+            room.Members.All(member => member.Id == RoomHostId || !member.Seat.MayUsePlayerCommands ||
+                roomLinks.ContainsKey(int.Parse(member.Id, System.Globalization.CultureInfo.InvariantCulture))) &&
             RoomTransport.Remotes.All(link => IsRoomGhost(link.Id) || link.Ready && roomLinks.ContainsKey(link.Id));
         int RoomPosition => IsHost ? room?.HostPosition ?? -1 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
         MapChangeVote roomVote;
@@ -246,12 +251,14 @@ namespace OpenZ.Multiplayer
                 roomRouteChangedAt = Now;
                 roomLinks.Clear();
                 roomFullState = true;
+                roomFinalStatsPending = roomFinalStats != null;
                 roomWireBytes = 0;
                 roomStateArrival = 0;
                 motionHistory.Reset();
                 roomRetuneAt = Now + 1;
                 Status = transport.Route == "SFU" ? "Preparing the relay…" : "Preparing direct connections…";
-                if (roomEpoch > 1) Menus.NotifyChat("Switching to direct connections…");
+                if (roomEpoch > 1) Menus.NotifyChat(transport.Route == "SFU" ?
+                    "Switching to the Cloudflare relay…" : "Switching to peer-to-peer connections…");
                 Menus.Refresh();
                 return;
             }
@@ -290,6 +297,8 @@ namespace OpenZ.Multiplayer
             PingMs = (float)remotes.Select(link => link.Ping).DefaultIfEmpty().Max();
             if (!IsHost && roomGuest != null && remotes.Any(link => link.Ready)) Status = "Connected · " + transport.Route;
             if (IsHost && (!session || Playing)) PublishRoomLatency();
+            if (IsHost && roomFinalStatsPending && !roomFullState && sentGameOver)
+                roomFinalStatsPending = !transport.Send(roomFinalStats);
             UpdateRoomVote();
             if (Game && session && !IsHost)
             {
@@ -495,6 +504,8 @@ namespace OpenZ.Multiplayer
             RoomVoiceMuted = false;
             roomReplicaChanged = false;
             roomCapture = null;
+            roomFinalStats = null;
+            roomFinalStatsPending = false;
         }
 
         bool roomLoadedScene;
@@ -515,6 +526,8 @@ namespace OpenZ.Multiplayer
             Game = null;
             Playing = sentGameOver = finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;
             pendingEvents.Clear();
+            roomFinalStats = null;
+            roomFinalStatsPending = false;
             roomLoadedScene = false;
             roomLoadAcknowledgedEpoch = -1;
             roomEndReadyEpoch = -1;
@@ -589,7 +602,7 @@ namespace OpenZ.Multiplayer
 
         void DriveRoom(ZGame game)
         {
-            if (!IsHost) return;
+            if (!IsHost || roomEpoch != RoomTransport.Epoch) return;
             var links = RoomTransport.Remotes;
             if (room.Members.Count(member => member.Id != RoomHostId && !roomDeparted.Contains(int.Parse(member.Id))) != roomLinks.Count ||
                 links.Any(link => roomLinks.ContainsKey(link.Id) && !link.Ready)) return;
@@ -622,9 +635,9 @@ namespace OpenZ.Multiplayer
                 long captured = Stopwatch.GetTimestamp();
                 int eventCount = Math.Min(pendingEvents.Count, DuelEventCodec.MaxEvents);
                 var events = eventCount == pendingEvents.Count ? pendingEvents : pendingEvents.GetRange(0, eventCount);
-                var packet = MultiplayerRoomPackets.Battlefield(room.Revision, delta, events, compress: true);
+                var packet = MultiplayerRoomPackets.Battlefield(room.Revision, delta, events);
                 long enqueuing = Stopwatch.GetTimestamp();
-                roomFullState = !RoomTransport.Send(packet);
+                roomFullState = !RoomTransport.SendBattlefield(packet, stateCompressionOverride);
                 if (roomFullState) return;
                 pendingEvents.RemoveRange(0, eventCount);
                 lastSnapshot = now;

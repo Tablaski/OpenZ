@@ -35,6 +35,8 @@ namespace OpenZ.Multiplayer
         readonly SemaphoreSlim writer = new SemaphoreSlim(1);
         readonly CancellationTokenSource stop;
         readonly Func<SkirmishSignal, Task<SkirmishSignal>> call;
+        readonly Func<int, Task<string[]>> getIce;
+        string[] directServers;
         readonly Dictionary<int, Link> links = new Dictionary<int, Link>();
         readonly ConcurrentDictionary<int, byte> voiceMuted = new ConcurrentDictionary<int, byte>();
         readonly string secret, fingerprint, name;
@@ -49,7 +51,8 @@ namespace OpenZ.Multiplayer
         public int Id { get; }
         public int Epoch => Volatile.Read(ref epoch);
         public bool IsHost => Id == 1;
-        public string Route => Volatile.Read(ref useSfu) ? "SFU" : "DIRECT";
+        public string Route => Volatile.Read(ref useSfu) ? "SFU" :
+            Remotes.Any(link => link.Ready && link.Rtc?.UsesRelay == true) ? "TURN" : "DIRECT";
         public Link[] Remotes => Volatile.Read(ref remotes);
         public bool Closed => closed;
         public string Failure => failure;
@@ -59,11 +62,12 @@ namespace OpenZ.Multiplayer
         public long StatePayloadBytesSent => relay?.StateBytesSent ?? Remotes.Sum(link => link.Rtc?.StatePayloadBytesSent ?? 0);
 
         public SkirmishOnline(int id, string seat, string secret, string fingerprint, string name,
-            Func<SkirmishSignal, Task<SkirmishSignal>> call, CancellationToken cancel)
+            Func<SkirmishSignal, Task<SkirmishSignal>> call, Func<int, Task<string[]>> getIce, CancellationToken cancel)
         {
             if (id < 1) throw new ArgumentException("The invitation has no participant identity.");
             Id = id;
             this.call = call;
+            this.getIce = getIce;
             this.secret = secret;
             this.fingerprint = fingerprint;
             this.name = name;
@@ -116,6 +120,7 @@ namespace OpenZ.Multiplayer
                 if (signal.epoch != epoch)
                 {
                     ResetLinks();
+                    directServers = null;
                     Volatile.Write(ref useSfu, signal.sfu);
                     Volatile.Write(ref epoch, signal.epoch);
                     fallbackRequested = false;
@@ -154,8 +159,8 @@ namespace OpenZ.Multiplayer
                 {
                     foreach (var link in links.Values.Where(link => link.Rtc == null))
                     {
-                        link.Rtc = CreateDirect();
-                        link.Setup = Offer(link);
+                        link.Rtc = await CreateDirect().ConfigureAwait(false);
+                        link.Setup = Offer(link, signal.epoch);
                     }
                 }
                 return;
@@ -168,8 +173,8 @@ namespace OpenZ.Multiplayer
             }
             else if (!IsHost && signal.type == "offer" && remote.Rtc == null)
             {
-                remote.Rtc = CreateDirect();
-                remote.Setup = Answer(remote, signal.sdp);
+                remote.Rtc = await CreateDirect().ConfigureAwait(false);
+                remote.Setup = Answer(remote, signal.sdp, signal.epoch);
             }
         }
 
@@ -190,23 +195,35 @@ namespace OpenZ.Multiplayer
         Task<SkirmishSignal> Call(string type, int id = 0, string sdp = null) =>
             call(new SkirmishSignal { type = type, id = id, sdp = sdp, epoch = epoch });
 
-        DuelRtcPeer CreateDirect() => new DuelRtcPeer(Stun, false, secret, fingerprint, name);
+        async Task<DuelRtcPeer> CreateDirect()
+        {
+            if (directServers == null)
+            {
+                try { directServers = await getIce(epoch).ConfigureAwait(false); }
+                catch (Exception error) when (error is IOException || error is HttpRequestException || error is OperationCanceledException)
+                {
+                    stop.Token.ThrowIfCancellationRequested();
+                    directServers = Stun;
+                }
+            }
+            return new DuelRtcPeer(directServers, false, secret, fingerprint, name);
+        }
 
-        async Task Offer(Link link)
+        async Task Offer(Link link, int linkEpoch)
         {
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
             limit.CancelAfter(TimeSpan.FromSeconds(12));
             var sdp = await link.Rtc.DescriptionAsync("offer", limit.Token).ConfigureAwait(false);
-            await Write(new SkirmishSignal { type = "offer", id = link.Id, sdp = sdp, epoch = epoch }).ConfigureAwait(false);
+            await Write(new SkirmishSignal { type = "offer", id = link.Id, sdp = sdp, epoch = linkEpoch }).ConfigureAwait(false);
         }
 
-        async Task Answer(Link link, string offer)
+        async Task Answer(Link link, string offer, int linkEpoch)
         {
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
             limit.CancelAfter(TimeSpan.FromSeconds(12));
             link.Rtc.SetRemoteDescription(offer, "offer");
             var sdp = await link.Rtc.DescriptionAsync("answer", limit.Token).ConfigureAwait(false);
-            await Write(new SkirmishSignal { type = "answer", id = 1, sdp = sdp, epoch = epoch }).ConfigureAwait(false);
+            await Write(new SkirmishSignal { type = "answer", id = 1, sdp = sdp, epoch = linkEpoch }).ConfigureAwait(false);
             link.Rtc.Start();
         }
 
@@ -309,15 +326,30 @@ namespace OpenZ.Multiplayer
 
         internal void ReportStalled(Link link)
         {
-            string action = Route == "SFU" ? "fallback" : "drop";
+            if (link.Epoch != Epoch) return;
+            string action = link.Rtc == null ? "fallback" : "drop";
             if (!IsHost && action == "drop")
             {
                 failure = "The direct connection to the host stopped responding.";
                 Dispose();
                 return;
             }
-            _ = Write(new SkirmishSignal { type = action, id = link.Id, epoch = Epoch })
+            _ = Write(new SkirmishSignal { type = action, id = link.Id, epoch = link.Epoch })
                 .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+        }
+
+        internal bool SendBattlefield(DuelPacket packet, bool? compression)
+        {
+            var compressed = new DuelPacket(packet.Kind, packet.Payload, compress: true);
+            var ready = Remotes.Where(link => link.Ready).ToArray();
+            if (ready.Length == 0) return false;
+            if (Volatile.Read(ref useSfu))
+                return relay?.Send(0, compression != false ? compressed : packet) == true;
+
+            bool sent = true;
+            foreach (var link in ready)
+                sent &= link.Send((compression ?? (link.Rtc?.UsesRelay == true)) ? compressed : packet);
+            return sent;
         }
 
         public bool Send(DuelPacket packet)
@@ -387,7 +419,7 @@ namespace OpenZ.Multiplayer
         internal sealed class Link : IDuelPeer
         {
             readonly SkirmishOnline room;
-            internal readonly int Id;
+            internal readonly int Id, Epoch;
             internal readonly DateTime Deadline = DateTime.UtcNow.AddSeconds(30);
             internal volatile DuelRtcPeer Rtc;
             internal volatile SkirmishSfu.Subscription Input;
@@ -397,7 +429,7 @@ namespace OpenZ.Multiplayer
             internal double LastPing, LastPacketAt, Ping, Jitter, BasePing = double.PositiveInfinity;
             internal bool DropRequested, StallReported;
             internal Link(SkirmishOnline room, SkirmishSignal.Member member)
-            { this.room = room; Id = member.id; RemoteName = member.name; }
+            { this.room = room; Id = member.id; Epoch = room.Epoch; RemoteName = member.name; }
             public string RemoteName { get; }
             public string Failure => Rtc?.Failure;
             public bool Closed => Rtc?.Closed == true || Input?.Closed == true;

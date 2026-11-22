@@ -30,7 +30,9 @@ namespace OpenZ.Multiplayer
         internal int DiagnosticRevision { get; private set; }
         internal float? SyncRateHz { get; private set; }
         internal bool BinaryStateEvents { get; private set; }
-        internal bool CompressStateUpdates { get; private set; }
+        bool? stateCompressionOverride;
+        internal bool CompressStateUpdates => stateCompressionOverride ??
+            (TransportLabel == "TURN" || TransportLabel == "SFU");
         long matchStateReceived, wireSentAtMatchStart, wireSentAtWindowStart;
         long WireStateSent => peer?.StatePayloadBytesSent ?? 0;
         internal long MatchWireStateBytes => IsHost ? WireStateSent - wireSentAtMatchStart : matchStateReceived;
@@ -51,7 +53,8 @@ namespace OpenZ.Multiplayer
 
         void ResetDiagnostics()
         {
-            BinaryStateEvents = CompressStateUpdates = false;
+            BinaryStateEvents = false;
+            stateCompressionOverride = null;
             InterpolationMs = 0;
             InterpolationDelayMs = DefaultInterpolationDelayMs;
             SnapshotHz = DefaultSnapshotHz;
@@ -79,17 +82,19 @@ namespace OpenZ.Multiplayer
         {
             InterpolationDelayMs = DefaultInterpolationDelayMs;
             SetDiagnosticTuning(DefaultSnapshotHz, DefaultReceiveBudgetMs, 0);
-            SetStatePacking(false, false);
+            SetStatePacking(false, null);
         }
 
-        internal void SetStatePacking(bool binaryEvents, bool compression)
+        internal void ToggleBinaryStateEvents() => SetStatePacking(!BinaryStateEvents, stateCompressionOverride);
+
+        internal void SetStatePacking(bool binaryEvents, bool? compression)
         {
-            if (!Playing || !IsHost || (BinaryStateEvents == binaryEvents && CompressStateUpdates == compression)) return;
+            if (!Playing || !IsHost || (BinaryStateEvents == binaryEvents && stateCompressionOverride == compression)) return;
             LogPerformance("packing");
             BinaryStateEvents = binaryEvents;
-            CompressStateUpdates = compression;
+            stateCompressionOverride = compression;
             string line = FormattableString.Invariant(
-                $"[OpenZ Multiplayer Perf] tuning matchS={Now - perfMatchStart:F2} role=host binaryEvents={binaryEvents} compression={compression}");
+                $"[OpenZ Multiplayer Perf] tuning matchS={Now - perfMatchStart:F2} role=host binaryEvents={binaryEvents} compression={CompressStateUpdates}");
             Debug.Log(line);
             RememberPerformanceLine(line);
             DiagnosticRevision++;

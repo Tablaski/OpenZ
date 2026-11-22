@@ -2,8 +2,10 @@
 
 This service handles magic invitations for 1 vs 1 and up to eight humans in
 Skirmish. Game and voice traffic use encrypted libdatachannel WebRTC. Duels
-retain direct connections and TURN. Skirmish prefers Realtime SFU and falls
-back to a direct host-to-guest connection for each guest.
+retain direct connections with TURN as a fallback. Skirmish uses the same
+peer-to-peer routing with two connected humans. With three or more connected
+humans it prefers Realtime SFU when available and switches back to peer-to-peer
+routing as soon as the room returns to two.
 
 ## Deploy the free invitation service
 

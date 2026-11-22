@@ -885,7 +885,7 @@ namespace OpenZ.Multiplayer
                 SnapshotHz, ReceiveBudgetMs, InterpolationMs, perf.MotionHoldFrames, perf.MotionCaptureMaxTicks * PerfTickMs,
                 (IsHost ? WireStateSent - wireSentAtWindowStart : perf.ReceiveBytes) / 1024.0 / elapsed,
                 IsHost ? (RoomTransport != null || BinaryStateEvents).ToString() : "remote",
-                IsHost ? (RoomTransport != null || CompressStateUpdates).ToString() : "remote");
+                IsHost ? CompressStateUpdates.ToString() : "remote");
         }
         void SyncClientViews()
         {
@@ -895,7 +895,14 @@ namespace OpenZ.Multiplayer
         public void PublishFinalStats(OpenZMatchStats stats)
         {
             if (!IsHost || finalStatsSent || !Game || !Game.World.GameOver) return;
-            SendJson(DuelMessage.MatchStats, DuelMatchStats.From(stats)); finalStatsSent = FinalStatsReady = true;
+            var finalStats = DuelMatchStats.From(stats);
+            if (RoomTransport != null)
+            {
+                roomFinalStats = new DuelPacket(DuelMessage.MatchStats, Encoding.UTF8.GetBytes(JsonUtility.ToJson(finalStats)));
+                roomFinalStatsPending = true;
+            }
+            else SendJson(DuelMessage.MatchStats, finalStats);
+            finalStatsSent = FinalStatsReady = true;
         }
         public void ReadyForLobby()
         {

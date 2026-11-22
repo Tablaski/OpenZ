@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
+import { SkirmishRoom } from "../src/skirmish.js";
 import { validRoom, billingPeriod, RelayBudget, DuelRoom } from "../src/worker.js";
 globalThis.crypto ??= webcrypto;
 const fingerprint = "A".repeat(64);
@@ -57,9 +58,13 @@ test("an active SFU room closes its publications and signals direct fallback whe
   const socket = { send: text => signals.push(JSON.parse(text)) };
   ctx.getWebSockets = () => [socket];
   let allowed = true;
-  const room = new DuelRoom(ctx, { SFU_ENABLED: "true", SFU_APP_ID: "app", SFU_APP_SECRET: "server-secret",
-    RELAY_BUDGET: { idFromName: key => key, get: () => ({ fetch: async () => new Response(JSON.stringify({ allowed })) }) } });
+  const env = { SFU_ENABLED: "true", SFU_APP_ID: "app", SFU_APP_SECRET: "server-secret",
+    RELAY_BUDGET: { idFromName: key => key, get: () => ({ fetch: async () => new Response(JSON.stringify({ allowed })) }) } };
+  const room = new DuelRoom(ctx, env);
   const host = await (await room.fetch(post("create", { name: "Host", fingerprint, skirmish: true }))).json();
+  for (const name of ["Guest", "Third"]) await room.fetch(post("join", { name, fingerprint, skirmishProtocol: 1 }));
+  assert.equal(await new SkirmishRoom(ctx, env).updateRoute(await ctx.storage.get("room")), true);
+  const epoch = signals.at(-1).epoch;
   await withFetch(async (url, request) => {
     assert.equal(request.headers.Authorization, "Bearer server-secret");
     calls.push({ url, method: request.method, body: request.body && JSON.parse(request.body) });
@@ -70,7 +75,7 @@ test("an active SFU room closes its publications and signals direct fallback whe
     ] });
     return Response.json({});
   }, async () => {
-    const api = (type, options = {}, seat = host.seat) => room.fetch(post("sfu", { type, epoch: 1, ...options }, seat));
+    const api = (type, options = {}, seat = host.seat) => room.fetch(post("sfu", { type, epoch, ...options }, seat));
     assert.equal((await api("setup", {}, "wrong-seat")).status, 403);
     assert.deepEqual(await (await api("setup")).json(), { sdp: "test offer", game: 0 });
     assert.equal((await api("answer", { sdp: "test answer" })).status, 200);
@@ -78,9 +83,10 @@ test("an active SFU room closes its publications and signals direct fallback whe
     allowed = false;
     await room.alarm();
     assert.equal(signals.at(-1).sfu, false);
-    assert.equal(signals.at(-1).epoch, 2);
+    assert.equal(signals.at(-1).epoch, epoch + 1);
     assert.deepEqual(calls.at(-1).body, { dataChannels: [{ id: 2 }, { id: 4 }] });
     assert.equal((await api("setup")).status, 409);
+    assert.equal(await new SkirmishRoom(ctx, env).updateRoute(await ctx.storage.get("room")), false);
   });
 });
 

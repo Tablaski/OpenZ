@@ -1,4 +1,4 @@
-import { json, randomToken } from "./worker.js";
+import { json, peerIce, randomToken } from "./worker.js";
 
 const LIFETIME = 6 * 60 * 60 * 1000;
 const MONITOR_MS = 60_000;
@@ -12,9 +12,8 @@ export class SkirmishRoom {
 
   async create(code, player) {
     const host = { id: 1, name: player.name, seat: randomToken() };
-    const sfu = this.env.SFU_ENABLED === "true" && !!this.env.SFU_APP_ID && !!this.env.SFU_APP_SECRET;
     const room = { skirmish: true, code, secret: randomToken(), fingerprint: player.fingerprint,
-      sfu, protocol: player.skirmishProtocol === 2 ? 2 : 1, epoch: 1, nextId: 2, expires: Date.now() + LIFETIME, players: [host] };
+      sfu: false, protocol: player.skirmishProtocol === 2 ? 2 : 1, epoch: 1, nextId: 2, expires: Date.now() + LIFETIME, players: [host] };
     await this.ctx.storage.put("room", room);
     await this.ctx.storage.setAlarm(room.expires);
     return this.credentials(room, host);
@@ -30,8 +29,10 @@ export class SkirmishRoom {
     try { socket.send(JSON.stringify(message)); } catch { /* The endpoint may have just closed. */ }
   }
 
+  connected(room) { return room.players.filter(player => this.sockets(player.id).length); }
+
   roster(room) {
-    const players = room.players.filter(player => this.sockets(player.id).length)
+    const players = this.connected(room)
       .map(({ id, name, published }) => ({ id, name, published: !!published }));
     for (const socket of this.sockets()) this.send(socket, { type: "roster", epoch: room.epoch, sfu: room.sfu, players });
   }
@@ -55,6 +56,12 @@ export class SkirmishRoom {
     const seat = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]{32})$/)?.[1];
     const player = seat && room.players.find(candidate => candidate.seat === seat);
     if (!player || room.hostClosed) return json({ error: "Invalid room access." }, 403);
+    if (path === "/ice") {
+      if (room.sfu || request.method !== "POST" || data?.epoch !== room.epoch ||
+          !this.sockets(player.id).length || this.connected(room).length < 2)
+        return json({ error: "Direct connections are unavailable for this roster." }, 409);
+      return await peerIce(this.env, this.ctx.storage, room, player);
+    }
     if (path === "/sfu") {
       if (!room.sfu || data?.epoch !== room.epoch || !this.sockets(player.id).length) return json({ error: "The lobby uses direct connections." }, 409);
       return await this.sfu(room, player, data);
@@ -66,7 +73,7 @@ export class SkirmishRoom {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server, ["skirmish", `skirmish-${player.id}`]);
     server.serializeAttachment({ skirmish: true, id: player.id });
-    this.roster(room);
+    if (!await this.updateRoute(room)) this.roster(room);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -134,10 +141,12 @@ export class SkirmishRoom {
       return;
     }
     room.players = room.players.filter(candidate => candidate !== player);
-    await this.ctx.storage.put("room", room);
-    this.roster(room);
+    if (!await this.updateRoute(room)) {
+      await this.ctx.storage.put("room", room);
+      this.roster(room);
+      if (room.sfu) await this.closeSubscriptions(room, id);
+    }
     await this.closePublications([player]);
-    if (room.sfu) await this.closeSubscriptions(room, id);
   }
 
   async hasBudget(monitor) {
@@ -245,14 +254,36 @@ export class SkirmishRoom {
     await this.closeChannels(`/sessions/${encodeURIComponent(host.session)}`, [channels.game, channels.voice]);
   }
 
-  async fallback(room) {
-    if (!room.sfu) return;
-    room.sfu = false;
+  async updateRoute(room) {
+    const sfu = !room.sfuUnavailable && this.env.SFU_ENABLED === "true" &&
+      !!this.env.SFU_APP_ID && !!this.env.SFU_APP_SECRET && this.connected(room).length > 2;
+    if (sfu === room.sfu) return false;
+    await this.switchRoute(room, sfu);
+    return true;
+  }
+
+  async switchRoute(room, sfu) {
+    const previous = room.players.map(player => ({ ...player }));
+    for (const player of room.players) {
+      delete player.session;
+      delete player.setup;
+      delete player.answered;
+      delete player.published;
+      delete player.subscriptions;
+    }
+    room.sfu = sfu;
     room.epoch++;
+    delete room.budgetCheckAt;
     await this.ctx.storage.put("room", room);
     this.roster(room);
     await this.ctx.storage.setAlarm(room.expires);
-    await this.closePublications(room.players);
+    await this.closePublications(previous);
+  }
+
+  async fallback(room) {
+    if (!room.sfu) return;
+    room.sfuUnavailable = true;
+    await this.switchRoute(room, false);
   }
 
   async alarm(room) {

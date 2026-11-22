@@ -107,7 +107,9 @@ namespace OpenZ.Multiplayer
             {
                 var address = new Uri(serviceUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/rooms/" + RoomCode + "/socket");
                 var connection = new SkirmishOnline(room.id, seatToken, Secret, versionFingerprint, name,
-                    data => Post<SkirmishSignal>(serviceUrl + "/rooms/" + RoomCode + "/sfu", data, seatToken), stop.Token);
+                    data => Post<SkirmishSignal>(serviceUrl + "/rooms/" + RoomCode + "/sfu", data, seatToken),
+                    async epoch => IceUrls(await Post<DuelIceResponse>(serviceUrl + "/rooms/" + RoomCode + "/ice",
+                        new SkirmishSignal { epoch = epoch }, seatToken).ConfigureAwait(false)), stop.Token);
                 try { await connection.Start(address).ConfigureAwait(false); return connection; }
                 catch { connection.Dispose(); throw; }
             }
@@ -140,7 +142,7 @@ namespace OpenZ.Multiplayer
                     ? "Relay allowance reserved for this billing period. Trying a direct connection."
                     : "Relay temporarily unavailable. Trying a direct connection.";
                 if (forceRelay && !ice.relay) throw new IOException(RelayNotice + " Relay-only testing cannot continue.");
-                string[] servers = ice.iceServers.SelectMany(server => server.urls.Select(url => IceUrl(url, server.username, server.credential))).ToArray();
+                string[] servers = IceUrls(ice);
                 peer = new DuelRtcPeer(servers, forceRelay, Secret, versionFingerprint, localName);
                 Status = ice.relay ? "Finding a connection that works for you both…" : RelayNotice;
                 if (hostSeat) await Send(new DuelSignal { type = "offer", sdp = await peer.DescriptionAsync("offer", stop.Token).ConfigureAwait(false) }).ConfigureAwait(false);
@@ -164,6 +166,9 @@ namespace OpenZ.Multiplayer
                 if (!transferred) peer?.Dispose();
             }
         }
+        static string[] IceUrls(DuelIceResponse ice) =>
+            ice.iceServers.SelectMany(server => server.urls.Select(url => IceUrl(url, server.username, server.credential))).ToArray();
+
         static string IceUrl(string url, string username, string credential)
         {
             if (url.StartsWith("stun:", StringComparison.Ordinal)) return url;

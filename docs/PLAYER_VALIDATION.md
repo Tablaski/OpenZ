@@ -1,6 +1,6 @@
 # Player validation record
 
-## OpenZ-VK 1.5.44 multiplayer routing and compression
+## OpenZ-VK 1.5.45 multiplayer routing and compression
 
 - Pending in a compiled game using the updated invitation service. On two networks that can connect directly, start a 1 vs 1 game from a magic-link lobby. Verify Direct in Connection Details and compression Off by default in the host's network diagnostics (Ctrl+Alt+Up with the pointer in the top-left corner).
 - Add a third human and verify SFU. Have that person leave and verify the two remaining humans return to Direct without a new invitation. Repeat the route change during a match and confirm the surviving guest receives a full battlefield update. Include a departure during the results sequence.

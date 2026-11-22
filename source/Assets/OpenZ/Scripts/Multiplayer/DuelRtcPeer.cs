@@ -73,7 +73,7 @@ namespace OpenZ.Multiplayer
         {
             if (Closed || packet?.Payload == null || packet.Payload.Length > DuelWire.MaxPayload) return false;
             if (Interlocked.Add(ref queuedBytes, packet.Payload.Length + 12) > Budget) { Fail("Your opponent's connection is too slow."); return false; }
-            outgoing.Enqueue(packet.Kind == DuelMessage.RoomBattlefield && packet.Compress
+            outgoing.Enqueue(packet.Kind == DuelMessage.RoomBattlefield
                 ? packet : new DuelPacket(packet.Kind, (byte[])packet.Payload.Clone(), packet.Compress));
             return true;
         }
@@ -112,7 +112,7 @@ namespace OpenZ.Multiplayer
                     {
                         var wirePacket = DuelWire.PackDelta(packet);
                         stateBytesInFlight = DuelWire.IsDelta(packet.Kind) ? wirePacket.Payload.Length : 0;
-                        if (packet.Kind == DuelMessage.RoomBattlefield && packet.Compress)
+                        if (packet.Kind == DuelMessage.RoomBattlefield)
                             sending = DuelWire.FrameForDirectRoom(packet);
                         else
                         {

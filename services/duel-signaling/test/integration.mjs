@@ -8,7 +8,7 @@ fetchMock.get("https://api.cloudflare.com").intercept({ path: "/client/v4/graphq
 const mf = new Miniflare({ modules: true, scriptPath: fileURLToPath(new URL("../src/worker.js", import.meta.url)), fetchMock,
   modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
   compatibilityDate: "2025-11-01", durableObjects: { ROOMS: { className: "DuelRoom", useSQLite: true }, LIMITS: { className: "RequestLimit", useSQLite: true }, RELAY_BUDGET: { className: "RelayBudget", useSQLite: true } },
-  bindings: { TURN_ENABLED: "true", CF_ACCOUNT_ID: "a".repeat(32), CF_ANALYTICS_TOKEN: "mock-analytics-token", TURN_BILLING_DAY: "1", TURN_BUDGET_BYTES: "900000000000", TURN_KEY_ID: "mock-key", TURN_API_TOKEN: "mock-generation-token" } });
+  bindings: { SFU_ENABLED: "true", SFU_APP_ID: "mock-sfu", SFU_APP_SECRET: "mock-sfu-secret", TURN_ENABLED: "true", CF_ACCOUNT_ID: "a".repeat(32), CF_ANALYTICS_TOKEN: "mock-analytics-token", TURN_BILLING_DAY: "1", TURN_BUDGET_BYTES: "900000000000", TURN_KEY_ID: "mock-key", TURN_API_TOKEN: "mock-generation-token" } });
 const fingerprint = "A".repeat(64);
 async function post(path, data, seat) {
   return mf.dispatchFetch("https://local" + path, { method: "POST", headers: { "Content-Type": "application/json", ...(seat ? { Authorization: "Bearer " + seat } : {}) }, body: JSON.stringify(data) });
@@ -50,17 +50,39 @@ try {
     const guest = await connect(member);
     guests.push(guest.socket);
     assert.equal(guest.roster.players.length, id);
-    assert.equal((await hostRoster).players.length, id);
+    assert.equal(guest.roster.sfu, id > 2);
+    const roster = await hostRoster;
+    assert.equal(roster.players.length, id);
+    assert.equal(roster.epoch, id > 2 ? 2 : 1);
+    assert.equal(roster.sfu, guest.roster.sfu);
   }
-  const directOffer = nextMessage(guests.at(-1));
-  creator.socket.send(JSON.stringify({ type: "offer", epoch: 1, id: 8, sdp: "eight-player-offer" }));
-  assert.deepEqual(await directOffer, { type: "offer", id: 1, epoch: 1, sdp: "eight-player-offer" });
+  const iceDuringSfu = await post(roomPath + "/ice", { epoch: 2 }, skirmish.seat);
+  assert.equal(iceDuringSfu.status, 409);
+  for (let remaining = 7; remaining >= 2; remaining--) {
+    const departed = nextMessage(creator.socket);
+    guests.pop().close();
+    const roster = await departed;
+    assert.equal(roster.players.length, remaining);
+    assert.equal(roster.sfu, remaining > 2);
+    assert.equal(roster.epoch, remaining > 2 ? 2 : 3);
+  }
+  const staleIce = await post(roomPath + "/ice", { epoch: 1 }, skirmish.seat);
+  assert.equal(staleIce.status, 409);
+  const currentIce = await post(roomPath + "/ice", { epoch: 3 }, skirmish.seat);
+  assert.equal((await currentIce.json()).relayReason, "budget");
+  const directOffer = nextMessage(guests[0]);
+  creator.socket.send(JSON.stringify({ type: "offer", epoch: 3, id: 2, sdp: "two-player-offer" }));
+  assert.deepEqual(await directOffer, { type: "offer", id: 1, epoch: 3, sdp: "two-player-offer" });
   const directAnswer = nextMessage(creator.socket);
-  guests.at(-1).send(JSON.stringify({ type: "answer", epoch: 1, id: 1, sdp: "eight-player-answer" }));
-  assert.deepEqual(await directAnswer, { type: "answer", id: 8, epoch: 1, sdp: "eight-player-answer" });
-  const departed = nextMessage(creator.socket);
-  guests.pop().close();
-  assert.equal((await departed).players.length, 7);
+  guests[0].send(JSON.stringify({ type: "answer", epoch: 3, id: 1, sdp: "two-player-answer" }));
+  assert.deepEqual(await directAnswer, { type: "answer", id: 2, epoch: 3, sdp: "two-player-answer" });
+
+  const backToSfu = nextMessage(creator.socket);
+  const returning = await (await post(roomPath + "/join", { name: "Returning", fingerprint, skirmishProtocol: 1 })).json();
+  const returned = await connect(returning);
+  assert.equal(returned.roster.sfu, true);
+  assert.equal(returned.roster.epoch, 4);
+  assert.equal((await backToSfu).players.length, 3);
   creator.socket.close();
-  console.log("PASS: real Workers runtime, one Skirmish invitation for eight humans, scoped direct signaling and departure updates.");
+  console.log("PASS: real Workers runtime, one invitation for eight humans, SFU transitions from two to three and back, and bidirectional direct signaling after a departure.");
 } finally { await mf.dispose(); }

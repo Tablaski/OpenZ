@@ -10,6 +10,40 @@ export function json(data, status = 200) {
 export function randomToken(bytes = 24) {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(bytes)))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
+export async function peerIce(env, storage, room, player) {
+  let budget;
+  const direct = reason => json({ iceServers: STUN, relay: false, relayReason: reason, relayRemainingBytes: budget?.relayRemainingBytes });
+  if (env.TURN_ENABLED !== "true") return direct("disabled");
+  if (!env.TURN_KEY_ID || !env.TURN_API_TOKEN) return direct("unavailable");
+  // Expired credentials are never reused. Cached credentials do not authorize
+  // a new allocation after the budget has closed.
+  try {
+    const response = await env.RELAY_BUDGET.get(env.RELAY_BUDGET.idFromName("account")).fetch(new Request("https://internal/check"));
+    if (!response.ok) return direct("unavailable");
+    budget = await response.json();
+  } catch { return direct("unavailable"); }
+  if (budget.allowed !== true) return direct(["budget", "busy", "disabled"].includes(budget.reason) ? budget.reason : "unavailable");
+  if (!player.ice || !(player.iceExpires > Date.now())) {
+    const ttl = Math.min(21600, Math.max(600, Number(env.TURN_TTL) || 21600));
+    let response;
+    try {
+      response = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate`, {
+        method: "POST", headers: { Authorization: `Bearer ${env.TURN_API_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ttl }), signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) return direct("unavailable");
+      const credentials = await response.json();
+      // libjuice supports TURN over UDP. Avoid advertising unsupported TCP/TLS paths.
+      const source = Array.isArray(credentials.iceServers) ? credentials.iceServers : [credentials.iceServers];
+      player.ice = source.filter(server => server && typeof server.username === "string" && server.username && typeof server.credential === "string" && server.credential).map(server => ({ urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => typeof url === "string" && /^turn:/.test(url) && !url.includes("transport=tcp")), username: server.username, credential: server.credential })).filter(server => server.urls.length);
+      if (!player.ice.length) return direct("unavailable");
+      player.iceExpires = Date.now() + ttl * 1000;
+      await storage.put("room", room);
+    } catch { return direct("unavailable"); }
+  }
+  return json({ iceServers: [...STUN, ...player.ice], relay: true, relayRemainingBytes: budget.relayRemainingBytes });
+}
+
 export function validRoom(room) { return /^OPNZ-[A-F0-9]{24}$/.test(room); }
 // All rooms share one guard. Only the remaining allowance is exposed to authenticated seats.
 export function billingPeriod(day, now = Date.now()) {
@@ -179,39 +213,8 @@ export class DuelRoom {
           await this.ctx.storage.put("room", room);
           await this.ctx.storage.setAlarm(room.expires);
         }
-        let budget;
-        const direct = reason => json({ iceServers: STUN, relay: false, relayReason: reason, relayRemainingBytes: budget?.relayRemainingBytes });
-        if (this.env.TURN_ENABLED !== "true") return direct("disabled");
-        if (!room.guest) return direct("waiting");
-        const player = room[role];
-        if (!this.env.TURN_KEY_ID || !this.env.TURN_API_TOKEN) return direct("unavailable");
-        // Expired credentials are never reused. Cached credentials do not authorize
-        // a new allocation after the budget has closed.
-        try {
-          const response = await this.env.RELAY_BUDGET.get(this.env.RELAY_BUDGET.idFromName("account")).fetch(new Request("https://internal/check"));
-          if (!response.ok) return direct("unavailable");
-          budget = await response.json();
-        } catch { return direct("unavailable"); }
-        if (budget.allowed !== true) return direct(["budget", "busy", "disabled"].includes(budget.reason) ? budget.reason : "unavailable");
-        if (!player.ice || !(player.iceExpires > Date.now())) {
-          const ttl = Math.min(21600, Math.max(600, Number(this.env.TURN_TTL) || 21600));
-          let response;
-          try {
-          response = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate`, {
-            method: "POST", headers: { Authorization: `Bearer ${this.env.TURN_API_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ ttl }), signal: AbortSignal.timeout(8000)
-          });
-          if (!response.ok) return direct("unavailable");
-          const credentials = await response.json();
-          // libjuice supports TURN over UDP. Avoid advertising unsupported TCP/TLS paths.
-          const source = Array.isArray(credentials.iceServers) ? credentials.iceServers : [credentials.iceServers];
-          player.ice = source.filter(server => server && typeof server.username === "string" && server.username && typeof server.credential === "string" && server.credential).map(server => ({ urls: (Array.isArray(server.urls) ? server.urls : [server.urls]).filter(url => typeof url === "string" && /^turn:/.test(url) && !url.includes("transport=tcp")), username: server.username, credential: server.credential })).filter(server => server.urls.length);
-          if (!player.ice.length) return direct("unavailable");
-          player.iceExpires = Date.now() + ttl * 1000;
-          await this.ctx.storage.put("room", room);
-          } catch { return direct("unavailable"); }
-        }
-        return json({ iceServers: [...STUN, ...player.ice], relay: true, relayRemainingBytes: budget.relayRemainingBytes });
+        if (!room.guest) return json({ iceServers: STUN, relay: false, relayReason: "waiting" });
+        return await peerIce(this.env, this.ctx.storage, room, room[role]);
       }
       if (path !== "/socket" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return json({ error: "Expected a connection upgrade." }, 400);
       if (this.ctx.getWebSockets(role).length) return json({ error: "This player is already connected." }, 409);
@@ -242,10 +245,12 @@ export class DuelRoom {
     try { socket.close(1000, "Closed"); } catch { /* Already closed. */ }
   }
   async webSocketError(socket) { await this.webSocketClose(socket); }
-  async alarm() {
-    const room = await this.ctx.storage.get("room");
-    if (room?.skirmish) return this.ctx.blockConcurrencyWhile(() => new SkirmishRoom(this.ctx, this.env).alarm(room));
-    for (const socket of this.ctx.getWebSockets()) socket.close(1000, "Invitation expired.");
-    await this.ctx.storage.deleteAll();
+  alarm() {
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const room = await this.ctx.storage.get("room");
+      if (room?.skirmish) return new SkirmishRoom(this.ctx, this.env).alarm(room);
+      for (const socket of this.ctx.getWebSockets()) socket.close(1000, "Invitation expired.");
+      await this.ctx.storage.deleteAll();
+    });
   }
 }

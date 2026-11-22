@@ -21,6 +21,8 @@ static class SkirmishChecks
         check(world.Objects.Where(o => o.IsFort).Select(o => o.Owner).OrderBy(team => team).SequenceEqual(teams), "P03M01 has its three native fort owners");
         check(teams.All(team => world.UnitCount(team) > 0 && world.MilitaryValue(team) > 0), "All three seats have starting units and attacking power");
         world.ConfigureThreePlayerSkirmish(ZBotDifficulty.Easy, ZBotDifficulty.Normal, 12);
+        world.SetSkirmishAlliances(new[] { 0, 1, 2 });
+        world.ConfigureSkirmishRules(new SkirmishRules(), Array.Empty<int>());
         check(world.Bots.Select(b => (b.Team, b.Difficulty)).SequenceEqual(new[] { (Team.Blue, ZBotDifficulty.Easy), (Team.Green, ZBotDifficulty.Normal) }), "Both bots keep their separately selected difficulty");
         for (int i = 0; i < 1200; i++) world.Tick(ZConst.TICK);
         check(world.Bots[0].Rounds == 0 && world.Bots[1].Rounds > 0, "Green bot thinks while Easy blue is still waiting");

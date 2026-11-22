@@ -22,7 +22,7 @@ if (Get-ChildItem -LiteralPath $capturePath | Select-Object -First 1) {
 }
 
 $roles = 'host', 'guest1', 'guest2'
-$clients = foreach ($role in $roles) {
+function Start-TestClient([string]$role) {
     $options = @('-screen-fullscreen', '0', '-screen-width', '960', '-screen-height', '540',
         '-logFile', ('"' + (Join-Path $capturePath ($role + '.log')) + '"'),
         '-oz-duel-skirmish-proof', ('"' + $capturePath + '"'), '-oz-duel-proof-three-humans', $role,
@@ -30,6 +30,24 @@ $clients = foreach ($role in $roles) {
     if ($RelayOnly) { $options += '-oz-duel-relay-only' }
     Start-Process -FilePath $compiledPath -ArgumentList $options -PassThru
 }
+
+$hostClient = Start-TestClient 'host'
+$invitationPath = Join-Path $capturePath 'join.txt'
+$invitationDeadline = (Get-Date).AddMinutes(2.5)
+while ($true) {
+    if ($hostClient.HasExited -or (Get-Date) -ge $invitationDeadline) {
+        throw "The host could not create an invitation. See $capturePath."
+    }
+    if (Test-Path -LiteralPath $invitationPath -PathType Leaf) {
+        try {
+            $invitation = [IO.File]::Open($invitationPath, 'Open', 'Read', 'None')
+            try { if ($invitation.Length -gt 0) { break } }
+            finally { $invitation.Dispose() }
+        } catch [IO.IOException] {}
+    }
+    Start-Sleep -Milliseconds 200
+}
+$clients = @($hostClient, (Start-TestClient 'guest1'), (Start-TestClient 'guest2'))
 
 $deadline = (Get-Date).AddMinutes(5)
 while (@($clients | Where-Object { -not $_.HasExited }).Count -gt 0 -and (Get-Date) -lt $deadline) {

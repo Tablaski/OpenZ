@@ -1,4 +1,4 @@
-param([string]$Unity = '', [string]$OutputDirectory = '')
+param([string]$Unity = '', [string]$OutputDirectory = '', [switch]$ShowProgress)
 $ErrorActionPreference = 'Stop'
 $duelRoot = Split-Path $PSScriptRoot -Parent
 $duelProject = Join-Path $duelRoot 'source'
@@ -48,7 +48,35 @@ try {
         }
     }
     Write-Output ('Building the release. Progress log: ' + $duelLog)
-    $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WorkingDirectory $duelRoot -WindowStyle Hidden -Wait -PassThru
+    if ($ShowProgress) { [IO.File]::WriteAllText($duelLog, '') }
+    $duelBuild = Start-Process -FilePath $Unity -ArgumentList $duelArguments -WorkingDirectory $duelRoot -WindowStyle Hidden -Wait:(-not $ShowProgress) -PassThru
+    if ($ShowProgress) {
+        $logReader = $null
+        $elapsed = [Diagnostics.Stopwatch]::StartNew()
+        $nextHeartbeat = 30
+        try {
+            do {
+                $finished = $duelBuild.WaitForExit(1000)
+                if (!$logReader) {
+                    try {
+                        $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+                        $logReader = [IO.StreamReader]::new([IO.File]::Open($duelLog, 'Open', 'Read', $sharing))
+                    } catch [IO.IOException] {
+                        # Unity may still be opening its log.
+                    }
+                }
+                if ($logReader) {
+                    while ($null -ne ($line = $logReader.ReadLine())) { Write-Host $line }
+                }
+                if (!$finished -and $elapsed.Elapsed.TotalSeconds -ge $nextHeartbeat) {
+                    Write-Host ('Unity is still building ({0:hh\:mm\:ss} elapsed).' -f $elapsed.Elapsed)
+                    $nextHeartbeat = $elapsed.Elapsed.TotalSeconds + 30
+                }
+            } until ($finished)
+        } finally {
+            if ($logReader) { $logReader.Dispose() }
+        }
+    }
     if ($duelBuild.ExitCode -ne 0) { throw "Unity build failed. Read $duelLog" }
     $duelResult = if ($OutputDirectory) { Join-Path $OutputDirectory 'BUILD_RESULT.txt' } else { Join-Path $duelRoot 'builds\OpenZ-Release\BUILD_RESULT.txt' }
     if (-not (Test-Path -LiteralPath $duelResult) -or -not (Get-Content -LiteralPath $duelResult -Raw).StartsWith('Succeeded')) {

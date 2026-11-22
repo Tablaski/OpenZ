@@ -5,10 +5,10 @@ pushd "%~dp0"
 echo.
 echo  OpenZ - Windows release build
 echo  Close the Unity editor for this project before continuing.
-echo  Keep this window open until the build finishes.
+echo  Unity progress will appear below. Keep this window open until the build finishes.
 echo  Run this launcher only once; a second window cannot build the same project.
 echo.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\Build-Duel.ps1" -OutputDirectory "%~dp0builds\OpenZ-Release"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\Build-Duel.ps1" -OutputDirectory "%~dp0builds\OpenZ-Release" -ShowProgress
 if errorlevel 1 goto failed
 echo.
 echo  SUCCESS! Your game is in builds\OpenZ-Release\openz-vk.exe

@@ -277,7 +277,8 @@ static class SkirmishChecks
             room.MarkLoaded("host", room.Revision);
             room.ConfigureWorld(world, 12);
             check(room.MatchLoaded && world.Bots.Single().Team == Team.Blue && world.Bots.Single().Difficulty == ZBotDifficulty.Easy &&
-                world.HasSkirmishProduction && world.SkirmishFriendlyFire && world.DuelRadarLoss == RadarLossRule.FogAndZoom,
+                world.HasSkirmishProduction && room.Rules.FriendlyFire && !world.SkirmishFriendlyFire &&
+                world.DuelRadarLoss == RadarLossRule.FogAndZoom,
                 entry.Id + " launches one human and one bot with the selected battle and balancing rules");
             check(world.MapFactoryTech("vehicle_factory") == (original.Vehicles == 0 ? 0 : 5) &&
                 world.MapFactoryTech("robot_factory") == (original.Robots == 0 ? 0 : 4),

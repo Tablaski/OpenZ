@@ -37,6 +37,7 @@ static class Program
                 string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
                 SkirmishChecks.CheckTeamplay(File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt")),
                     File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", OzAiMapCatalog.ThreePlayerSkirmish.Id + "_grid.json")), Check);
+                MultiplayerRoomChecks.Run(Check, Reject);
                 Console.WriteLine("PASS: " + checks + " teamplay checks.");
                 return 0;
             }

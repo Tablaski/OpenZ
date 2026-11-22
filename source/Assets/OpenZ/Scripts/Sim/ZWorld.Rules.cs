@@ -333,20 +333,22 @@ namespace OpenZ.Sim
 
         void EliminateTeam(ZObject fort, Team team)
         {
+            bool linked = linkedDefeatFort >= 0 && AreAllied(team, GetAny(linkedDefeatFort)?.Owner ?? Team.Neutral);
             if (Map.skirmish)
             {
                 if (HasIndividualDefeatSequence && SkirmishEliminated(team)) return;
                 skirmishEliminated |= 1 << (int)team;
-                if (HasIndividualDefeatSequence && linkedDefeatFort < 0 && !GameOver && !NoGameEnd)
+                if (HasIndividualDefeatSequence && !linked && !GameOver && !NoGameEnd)
                     skirmishEliminationEvent = Events.Count;
             }
             Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY,
-                value = (float)team, flag2 = linkedDefeatFort >= 0, otherId = linkedDefeatFort });
+                value = (float)team, flag2 = linked, otherId = linked ? linkedDefeatFort : -1 });
             foreach (var o in Objects.ToList())
                 if (o != fort && o.Owner == team && o.Kind != ZKind.MapItem && !o.Destroyed && o.MaxHealth > 0) { o.SetHealth(0); UpdateObjectHealth(o); }
             foreach (var f in Flags.ToList()) if (f.Owner == team) AwardZone(f, Team.Neutral);
-            if (!Map.skirmish || !SkirmishAllForOne || linkedDefeatFort >= 0) return;
+            if (!Map.skirmish || !SkirmishAllForOne || linked) return;
 
+            int previousDefeatFort = linkedDefeatFort;
             linkedDefeatFort = fort.Id;
             try
             {
@@ -357,7 +359,7 @@ namespace OpenZ.Sim
                     UpdateObjectHealth(allyFort);
                 }
             }
-            finally { linkedDefeatFort = -1; }
+            finally { linkedDefeatFort = previousDefeatFort; }
         }
 
         /// <summary>Every 1 s: the game ends when at most one team still owns a robot, vehicle or cannon.</summary>

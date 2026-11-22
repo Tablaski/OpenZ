@@ -90,7 +90,7 @@ namespace OpenZ.Multiplayer
         }
 
         OzAiMap[] SkirmishAiMapsFor(int size) =>
-            skirmishAiMaps.Where(map => OzAiMapCatalog.LobbyPlayerCount(map, skirmishAiMaps) == size).ToArray();
+            skirmishAiMaps.Where(map => map.Starts == size).ToArray();
 
         void SelectSkirmishCatalog(bool official)
         {
@@ -222,19 +222,30 @@ namespace OpenZ.Multiplayer
             var panel = Panel("TEAMS", x, 185, width, 780);
             Button(panel, "TEAMS", width - 317, 54, 124, () => SetSkirmishFreeForAll(false), !rules.FreeForAll, height: 37);
             Button(panel, "FREE FOR ALL", width - 184, 54, 160, () => SetSkirmishFreeForAll(true), rules.FreeForAll, height: 37);
-            int active = localSkirmish.Bots.Length + 1;
+            var bots = localSkirmish.Bots;
+            int active = bots.Length + 1;
             int host = localSkirmish.HostPosition;
-            var roster = localSkirmish.Bots.Select(bot => (Seat: bot.Position, Team: bot.Alliance,
+            var roster = bots.Select(bot => (Seat: bot.Position, Team: bot.Alliance,
                 Label: $"AI Bot {bot.Position + (bot.Position < host ? 1 : 0)}", Level: (ZBotDifficulty?)bot.Difficulty))
                 .Prepend((Seat: host, Team: localSkirmish.Members.Single().Alliance, Label: "You", Level: (ZBotDifficulty?)null)).ToArray();
             int[] alliances = roster.Select(member => member.Team).Append(skirmishExtraTeam).Where(team => team >= 0)
                 .Distinct().OrderBy(team => team).ToArray();
 
+            Label(panel, "ALL BOTS", 24, 108, 120, 16, OzUi.Muted);
+            for (int i = 0; i < LobbyBotDifficulties.Length; i++)
+            {
+                var level = LobbyBotDifficulties[i];
+                string difficultyName = BotDifficultyName(level).ToUpperInvariant();
+                var button = Button(panel, difficultyName, width - 293 + i * 91, 98, 87,
+                    () => SetSkirmishBotDifficulty(level), bots.Length > 0 && bots.All(bot => bot.Difficulty == level),
+                    bots.Length > 0, height: 37);
+                button.name = "ALL BOTS " + difficultyName;
+            }
             Label(panel, rules.FreeForAll ? $"{active} players · each plays for their own side" :
-                "Drag a card onto a team, or select a card and team.", 24, 104, width - 48, 16, OzUi.Muted);
+                "Drag a card onto a team, or select a card and team.", 24, 145, width - 48, 16, OzUi.Muted);
             float contentHeight = active * 44 + (rules.FreeForAll ? 0 : alliances.Length * 55);
-            float listHeight = Mathf.Min(575, contentHeight);
-            var list = Scroll(panel, 24, 134, width - 48, listHeight, false, contentHeight);
+            float listHeight = Mathf.Min(534, contentHeight);
+            var list = Scroll(panel, 24, 175, width - 48, listHeight, false, contentHeight);
             skirmishTeamViewport = list.parent.GetComponent<ScrollRect>();
             skirmishTeamViewport.verticalNormalizedPosition = skirmishTeamScroll;
             skirmishTeamViewport.onValueChanged.AddListener(position => skirmishTeamScroll = position.y);
@@ -271,7 +282,7 @@ namespace OpenZ.Multiplayer
                 y += groupHeight + 8;
             }
 
-            Button(panel, "+ ADD TEAM", 24, 144 + listHeight, 160, () =>
+            Button(panel, "+ ADD TEAM", 24, 185 + listHeight, 160, () =>
             {
                 skirmishExtraTeam = Enumerable.Range(0, active).First(team => !alliances.Contains(team));
                 dirty = true;
@@ -308,6 +319,13 @@ namespace OpenZ.Multiplayer
                     dirty = true;
                 }, level == difficulty.Value, height: 32);
             }
+        }
+
+        void SetSkirmishBotDifficulty(ZBotDifficulty difficulty)
+        {
+            foreach (var bot in localSkirmish.Bots)
+                localSkirmish.SetBot(LocalSkirmishHost, bot.Position, bot.Alliance, difficulty);
+            dirty = true;
         }
 
         void SetSkirmishFreeForAll(bool enabled)

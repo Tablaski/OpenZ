@@ -168,12 +168,14 @@ namespace OpenZ.Multiplayer
             Click("SKIRMISH");
             yield return null;
             yield return null;
-            Click("6 players");
+            if (DuelRuntime.I.Menus.GetComponentsInChildren<Button>().Single(button => button.name == "6 players").interactable)
+                throw new InvalidOperationException("The six-player filter must be disabled.");
+            Click("8 players");
             yield return null;
             yield return null;
-            if (DuelRuntime.I.Menus.GetComponentsInChildren<SkirmishCardDrag>().Length != 6)
-                throw new InvalidOperationException("The six-player filter must show one human and five bots.");
-            DuelProofCapture.Save(Path.Combine(folder, "04-six-participants.png"), true);
+            if (DuelRuntime.I.Menus.GetComponentsInChildren<SkirmishCardDrag>().Length != 8)
+                throw new InvalidOperationException("The eight-player filter must show one human and seven bots.");
+            DuelProofCapture.Save(Path.Combine(folder, "04-eight-participants.png"), true);
             Click("4 players");
             yield return null;
             yield return null;

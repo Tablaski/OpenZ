@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.39 (22 Nov 2026)
+
+- Solo — Gaming Options and Allowed Units are now in the main deployment bar, to the left of Difficulty and Head Start.
+
 ## OpenZ-VK 1.5.38 (22 Nov 2026)
 
 - Solo and multiplayer — Choose a 1.5, 3, 5 or 10 second minimap radar sweep interval. An active radar's minimap icon turns white during each sweep, and white corner marks identify the building on the battlefield.

@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace OpenZ
 {
     /// <summary>
-    ///   [ OBJECTIVE card ]  ....  [ DIFFICULTY | HEAD START | SHUTTLE ]  [ DEPLOY ]
+    ///   [ OBJECTIVE card ]  ....  [ GAMING OPTIONS | ALLOWED UNITS ]  [ DIFFICULTY | HEAD START | SHUTTLE ]  [ DEPLOY ]
     ///  * Three shared lines: every block and the card put their small label (caps top <see cref="LabelY"/>), their control row
     ///    (<see cref="RowY"/>, <see cref="RowH"/> tall) and their hint (caps top <see cref="HintY"/>) on the same y; the stack is
     ///    centred on the bar (1020), as DEPLOY is.
@@ -29,6 +29,8 @@ namespace OpenZ
         // ---- the shared lines (canvas units, 1080 u tall, top-left origin)
         public const float LabelY = 987f, RowY = 1001f, RowH = 34f, HintY = 1045f, LineTop = 985f, LineBottom = 1055f;
         public const float CardY = 975f, CardH = 90f, DeployY = 990f, DeployH = 60f, ErrorY = 944f;
+        public const float SoloButtonWidth = 144f, SoloButtonGap = 8f, SoloButtonHeight = 34f;
+        const float ObjectiveRoom = 228f;
         // ---- wide (16:10 and wider) / narrow (4:3) / compact (5:4) canvases
         public const float WideFrom = 1600f, CompactBelow = 1400f;
         public const float MarginWide = 120f, MarginNarrow = 96f, MarginCompact = 96f, DeployWide = 300f, DeployNarrow = 264f, DeployCompact = 240f;
@@ -87,7 +89,10 @@ namespace OpenZ
             /// <summary>How far DIFFICULTY and HEAD START move when the SHUTTLE slot comes or goes: one block and one gap.</summary>
             public float Slide => blockW + gap;
             /// <summary>The room the card has: from the margin to the gap before DIFFICULTY in the three-block row.</summary>
-            public float CardRoom => X(0, 3) - cardGap - m;
+            float SpaceBeforeDifficulty => X(0, 3) - cardGap - m;
+            public bool StackSoloButtons => SpaceBeforeDifficulty < ObjectiveRoom + 2f * (SoloButtonWidth + SoloButtonGap);
+            public float SoloButtonsWidth => StackSoloButtons ? SoloButtonWidth : 2f * SoloButtonWidth + SoloButtonGap;
+            public float CardRoom => SpaceBeforeDifficulty - SoloButtonsWidth - SoloButtonGap;
         }
 
         public static Layout Lay(float cw)
@@ -100,6 +105,9 @@ namespace OpenZ
                 toDeploy = w ? ToDeployWide : c ? ToDeployCompact : ToDeployNarrow, cardGap = w ? CardGapWide : c ? CardGapCompact : CardGapNarrow
             };
             l.deployX = cw - l.m - l.deployW;
+            float marginReduction = Mathf.Clamp((ObjectiveRoom - l.CardRoom) * 0.5f, 0f, l.m - 16f);
+            l.m -= marginReduction;
+            l.deployX += marginReduction;
             return l;
         }
 
@@ -142,6 +150,7 @@ namespace OpenZ
             slotsWant = OzShuttleStart.HasSlot(levels[focusCard].Id) ? 3 : 2;
             slideNow = slideFrom = slideTo = slotsWant == 3 ? 0f : L.Slide; slideAt = -10f;
             BuildShuttleStart(p, L);                                                                       // first: the blocks that slide into its slot draw (and take clicks) over it while it fades
+            BuildSoloSettings(p);
 
             float bw = L.blockW, ry = OzDeployBar.RowY, rh = OzDeployBar.RowH, mid = rh * 0.5f;
             SlidePart(Hairline(p, "Line0", L.X(0, 3) + bw + L.gap * 0.5f, OzDeployBar.LineTop));                                 // between DIFFICULTY and HEAD START (the one left of SHUTTLE comes and goes with it)

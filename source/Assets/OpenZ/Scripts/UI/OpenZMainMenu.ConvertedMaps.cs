@@ -48,38 +48,36 @@ namespace OpenZ
 
         void BuildSoloSettings(RectTransform parent)
         {
-            const float gap = 8f, height = 46f;
-            float right = deployLay.X(0, 3) - gap;
-            float left = cardRt.anchoredPosition.x + cardRt.rect.width + gap;
-            bool extraRow = right - left < 368f;
-            float width = extraRow ? 218f : Mathf.Min(218f, (right - left - gap) * 0.5f);
-            float x = extraRow ? (CW - 2 * width - gap) * 0.5f : right - 2 * width - gap;
-            float y = extraRow ? 914f : OzDeployBar.DeployY;
-            if (extraRow)
-            {
-                var plate = Hud.Kit(parent, "Solo settings plate", "Select/deploy_bar", new OzRect(0, 906, CW, 56), null);
-                if (!plate.sprite) plate.color = OzUi.GM800;
-                plate.raycastTarget = false;
-            }
+            const float gap = OzDeployBar.SoloButtonGap, height = OzDeployBar.SoloButtonHeight;
+            const float width = OzDeployBar.SoloButtonWidth;
+            bool stacked = deployLay.StackSoloButtons;
+            float x = deployLay.X(0, 3) - deployLay.cardGap - deployLay.SoloButtonsWidth;
+            float y = stacked ? OzDeployBar.RowY - (height + gap) * 0.5f : OzDeployBar.RowY;
 
             const string label = OzBattleOptions.SoloLabel;
-            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(width, height), HudButtonKind.Large, 15, .04f);
+            soloGamingButton = HudButton.Make(parent, "SoloGamingOptions", label, new Vector2(width, height), HudButtonKind.Small, 13, .04f);
             soloGamingButton.Rt.Place(new OzRect(x, y, width, height));
-            soloGamingButton.Label.FillParent(OzH.C, 16, 0, 16, 0);
+            soloGamingButton.Label.FillParent(OzH.C, 8, 0, 8, 0);
+            SlidePart(soloGamingButton.Rt);
             OzForkOptions.Highlight(soloGamingButton, label);
             AddHot(soloGamingButton.Rt, View.Select, OzBehaviorOptions.ShowGaming, null, soloGamingButton, "ui_menu_select");
 
-            soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits", "ALLOWED UNITS", new Vector2(width, height), HudButtonKind.Large, 15, .04f);
-            soloAllowedButton.Rt.Place(new OzRect(x + width + gap, y, width, height));
-            soloAllowedButton.Label.FillParent(OzH.C, 16, 0, 16, 0);
+            soloAllowedButton = HudButton.Make(parent, "SoloAllowedUnits", "ALLOWED UNITS", new Vector2(width, height), HudButtonKind.Small, 13, .04f);
+            soloAllowedButton.Rt.Place(stacked ? new OzRect(x, y + height + gap, width, height) : new OzRect(x + width + gap, y, width, height));
+            soloAllowedButton.Label.FillParent(OzH.C, 8, 0, 8, 0);
+            SlidePart(soloAllowedButton.Rt);
             OzForkOptions.Highlight(soloAllowedButton, OzSoloAllowedUnits.Label);
             AddHot(soloAllowedButton.Rt, View.Select, () => OzSoloAllowedUnits.Show(null), null, soloAllowedButton, "ui_menu_select");
+        }
 
+        void BuildAiCategoryControls(RectTransform parent)
+        {
             if (!aiCampaign) return;
 
+            const float gap = 8f, height = 46f;
             float tabWidth = Mathf.Min(216f, CW * 0.16f);
             float tabsX = (CW - AiGroups.Length * tabWidth) * 0.5f;
-            float tabsY = extraRow ? 852f : 886f;
+            const float tabsY = 886f;
             for (int i = 0; i < AiGroups.Length; i++)
             {
                 int group = i;

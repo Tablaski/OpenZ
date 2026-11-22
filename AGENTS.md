@@ -71,4 +71,6 @@
 
 ## Visual previews
 
+- Keep all UX changes as close as possible to the original game's design, including layout, controls, visual style and interaction patterns. Deviate only for a concrete reason, such as readability, accessibility or a new feature that the existing design cannot accommodate.
+
 - When the maintainer asks for a visual, show the exact proposed result as a screenshot-equivalent image. Match the game's real look and feel, including its layout, typography, controls, colors and original assets. Show each requested state. Use the live game when the target is already implemented, or compose a faithful target preview from real game captures and assets when it is pending. Identify the image as a target preview or a runtime capture as applicable.

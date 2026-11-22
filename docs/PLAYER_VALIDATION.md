@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.39 solo battlefield selection
+
+- Pending in a compiled game. Check that Gaming Options and Allowed Units stay in the deployment bar to the left of Difficulty and Head Start in both the OpenZ campaign and AI Maps. Check 16:9, 16:10, 4:3 and 5:4, switch between maps with and without the Shuttle option, and open and close both panels. Confirm the objective, faction label and AI Maps category controls remain readable.
+
 ## OpenZ-VK 1.5.38 radar and flag controls
 
 - Pending in a compiled game. Verify the four interval buttons and five flag size buttons in both Game options menus. Confirm flag and pole scale changes live on territory, fort and Unit Editor flags.

@@ -6,7 +6,7 @@
 
 # OpenZ-VK
 
-**OpenZ-VK 1.5.33** is an experimental fork of [OpenZ](https://github.com/playopenz/OpenZ) 1.5, the fan remake of **Z** by **The Bitmap Brothers**.
+**OpenZ-VK 1.5.51** is an experimental fork of [OpenZ](https://github.com/playopenz/OpenZ) 1.5, the fan remake of **Z** by **The Bitmap Brothers**.
 
 ## Why this fork?
 
@@ -35,7 +35,7 @@ This is **work in progress**, not a claim of perfect Z fidelity. If you remember
 
 Download **OpenZ-VK-Installer.exe** from [the latest OpenZ-VK release](https://github.com/Tablaski/OpenZ/releases/latest).
 
-- **Compiled-game ZIPs:** ready to play, with no Unity or Git required. For manual installation, extract both ZIPs from the same release into one folder and run **openz-vk.exe**.
+- **Compiled-game ZIPs:** ready to play, with no Unity or Git required. For manual installation, extract all Windows ZIP parts from the same release into one folder and run **openz-vk.exe**.
 - **Source code:** the editable code on stable **main** or development **dev**; it must be compiled before playing. Development versions are distributed as source code only.
 - **Unity:** the editor required to compile the source code; the installer helps you install the correct version.
 - **Resource ZIPs:** the OpenZ 1.5 base assets with required fork adaptations, needed for source compilation. The installer reuses matching files across updates.

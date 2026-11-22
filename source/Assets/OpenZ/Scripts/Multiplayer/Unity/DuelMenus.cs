@@ -648,7 +648,15 @@ namespace OpenZ.Multiplayer
                 value => { rules.VehicleTech = value; save(rules); }, !proposal || editable);
             RoomTechRow(tech, "ROBOTS", compact ? 105 : 128, mapTech.Robots, rules.RobotTech, editable,
                 value => { rules.RobotTech = value; save(rules); }, !proposal || editable);
-            Label(tech, "Fort tech " + TechLabel(rules.VehicleTech > 0 && (!proposal || mapTech.Vehicles > 0) ? rules.VehicleTech : mapTech.Fort), 16, compact ? 149 : 179, 399, 17, OzUi.Ink);
+            int fortTech = rules.VehicleTech > 0 && (!proposal || mapTech.Vehicles > 0) ? rules.VehicleTech : mapTech.Fort;
+            int fortY = compact ? 149 : 179;
+            if (proposal)
+            {
+                Label(tech, "FORT", 16, fortY, 140, 17, OzUi.Ink);
+                Label(tech, TechLabel(mapTech.Fort), 165, fortY, 62, 17, OzUi.Muted);
+                Label(tech, TechLabel(fortTech), 284, fortY, 63, 17, fortTech == mapTech.Fort ? OzUi.Ink : OzUi.Amber);
+            }
+            else Label(tech, "Fort tech " + TechLabel(fortTech), 16, fortY, 399, 17, OzUi.Ink);
             if (!proposal || editable) Button(tech, "RESET TO MAP DEFAULTS", 16, compact ? 177 : 218, 354, () =>
             {
                 rules.VehicleTech = rules.RobotTech = 0;

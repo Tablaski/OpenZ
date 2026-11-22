@@ -366,15 +366,15 @@ namespace OpenZ.Multiplayer
 
         public void Restart() => Restart(null);
 
-        public void Restart(string map, int vehicleTech = 0, int robotTech = 0)
+        public void Restart(string map, int? vehicleTech = null, int? robotTech = null)
         {
             Require(DuelPhase.Playing);
             if (map != null)
             {
                 var next = rules.Copy();
                 next.SelectMap(map);
-                next.VehicleTech = vehicleTech;
-                next.RobotTech = robotTech;
+                if (vehicleTech.HasValue) next.VehicleTech = vehicleTech.Value;
+                if (robotTech.HasValue) next.RobotTech = robotTech.Value;
                 next.Validate();
                 rules = next;
                 Revision++;

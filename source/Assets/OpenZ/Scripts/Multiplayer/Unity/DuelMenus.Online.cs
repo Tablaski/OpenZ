@@ -480,7 +480,8 @@ namespace OpenZ.Multiplayer
                 ? OnlineDialog("SELECT MAP", 160, 108, 1600, 916, "BACK TO ASK TO CHANGE MAP",
                     () => { choosingRequestMap = false; dirty = true; })
                 : OnlineDialog("CHOOSE A MAP", 160, 82, 1600, 916, "BACK TO LOBBY");
-            Button(panel, "OPENZ MAPS", 24, 67, 250, () => SwitchCatalog(true), onlineOfficial);
+            Button(panel, "OPENZ MAPS", 24, 67, 250, () => SwitchCatalog(true), onlineOfficial,
+                !inMatch || Catalog(2, true).Length > 0);
             Button(panel, "AI MAPS", 284, 67, 250, () => SwitchCatalog(false), !onlineOfficial);
             if (onlineOfficial) Label(panel, "2 PLAYERS", 555, 82, 340, 17, OzUi.Muted);
             else for (int i = 0; i < onlineMapSizes.Length; i++)

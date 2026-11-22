@@ -1075,7 +1075,16 @@ namespace OpenZ.Multiplayer
             if (MatchPaused) PublishMatchPause(-1);
             Game.World.DuelSurrender(View.TeamSlot(seat));
         }
-        void Fail(string reason) { if (restartPromptOpen) OzConfirm.Dismiss(); Disconnect(); Status = reason; Playing = false; Menus.ShowError(); }
+        void Fail(string reason)
+        {
+            if (restartPromptOpen) OzConfirm.Dismiss();
+            ClearMatchRequest();
+            ClearRoomVote();
+            Disconnect();
+            Status = reason;
+            Playing = false;
+            Menus.ShowError();
+        }
         public void ReportError(string reason) => Fail(reason);
         public void Close()
         {

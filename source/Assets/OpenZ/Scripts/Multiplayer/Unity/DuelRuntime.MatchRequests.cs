@@ -61,8 +61,10 @@ namespace OpenZ.Multiplayer
         {
             get
             {
-                int seat = SkirmishRoom ? RoomPosition : LocalSeat;
-                return seat < 0 ? 0 : Math.Max(0, mapRequestAvailableAt[seat] - Now);
+                double available = SkirmishRoom
+                    ? IsHost ? roomMapRequestAvailableAt.GetValueOrDefault(RoomHostId) : localRoomMapRequestAvailableAt
+                    : mapRequestAvailableAt[LocalSeat];
+                return Math.Max(0, available - Now);
             }
         }
         internal int ProposedVehicleTech => SkirmishRoom ? roomVoteState?.VehicleTech ?? 0 : matchRequest?.VehicleTech ?? 0;

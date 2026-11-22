@@ -265,7 +265,7 @@ namespace OpenZ.Sim
                 SetTarget(wtx, wty);
                 if (stoppable) StartPath(); else SetVelocity();
                 foreach (var f in World.Flags)                                             // run for flags (:2729-2747)
-                    if (Dist(f.LocX, f.LocY, wp.x, wp.y) <= 32) { CaptureRun(wp.x, wp.y); break; }   // DV54: a capture runs (ZObject.AiCombat.cs)   // parity P9: Zod DistanceFromCoords measures from the flag's loc (top-left), zobject.cpp:908-916
+                    if ((f.Owner == Owner || !World.AreAllied(Owner, f.Owner)) && Dist(f.LocX, f.LocY, wp.x, wp.y) <= 32) { CaptureRun(wp.x, wp.y); break; }   // DV54: a capture runs (ZObject.AiCombat.cs)   // parity P9: Zod DistanceFromCoords measures from the flag's loc (top-left), zobject.cpp:908-916
             }
             if (CheckAttackTo(wp)) return;
             if (stoppable && GrabOnTheWay(wp)) return;                                  // DV84: a flag / an empty vehicle right beside the way of a plain move (ZObject.GrabCertain.cs)
@@ -770,7 +770,7 @@ namespace OpenZ.Sim
             if (!IsMinion && agro == null && Waypoints.Count == 0 && !HoldPosition && !CrocWary)       // DV68: a unit holding position takes no flag / crate by itself
             {
                 if (CanMove && !startHold) foreach (var f in World.Flags)
-                        if (f.Owner != Owner && (!grabHold || CloseGrabFlag(f)) && Within(CenterX, CenterY, f.CenterX, f.CenterY, World.S.auto_grab_flag_distance) && !(grabOne && GrabClaimed(f)) && !CrocSwampWay(f) && !PathUnreachable(f) && CanSee(f)
+                        if (!World.AreAllied(Owner, f.Owner) && (!grabHold || CloseGrabFlag(f)) && Within(CenterX, CenterY, f.CenterX, f.CenterY, World.S.auto_grab_flag_distance) && !(grabOne && GrabClaimed(f)) && !CrocSwampWay(f) && !PathUnreachable(f) && CanSee(f)
                             && !(grabOne && CloserGrabber(f, false))) (flags ??= new List<ZObject>()).Add(f);   // DV55: player-ordered units take a flag within ZWorld.CloseGrabFlagPx; the closest unit goes
                 if (!grabHold && !startHold && CanPickupGrenades()) foreach (var g in World.GrenadeCratesOr(World.Objects))
                         if (g.Type == "grenades" && !g.Destroyed && g.KillAt < 0 && Within(CenterX, CenterY, g.CenterX, g.CenterY, World.S.auto_grab_vehicle_distance) && !(grabOne && GrabClaimed(g)) && !CrocSwampWay(g) && !PathUnreachable(g) && !TeammateEntering(g) && CanSee(g)) (crates ??= new List<ZObject>()).Add(g);

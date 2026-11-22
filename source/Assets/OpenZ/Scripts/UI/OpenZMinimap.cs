@@ -278,7 +278,7 @@ namespace OpenZ
                     if (im.color != (Color)c) im.color = c;
                     var a = PxToLocal(o.LocX + o.WidthPix * 0.1f, o.LocY + o.HeightPix * 0.1f); var b = PxToLocal(o.LocX + o.WidthPix * 0.9f, o.LocY + o.HeightPix * 0.9f);
                     im.rectTransform.anchoredPosition = new Vector2(a.x, b.y); im.rectTransform.sizeDelta = new Vector2(Mathf.Max(4f, b.x - a.x), Mathf.Max(4f, a.y - b.y));
-                    if (highlightRadars && o.Type == "radar" && !o.Destroyed && o.KillAt < 0 && !OzFogOfWar.Covers(o))
+                    if (highlightRadars && o.Type == "radar" && !o.Destroyed && o.KillAt < 0 && (IsFriendlyRadar(o) || !OzFogOfWar.Covers(o)))
                         MarkRadar(o, im);
                 }
                 else if (o.Kind == ZKind.MapItem && o.Type == "flag" && !o.Destroyed)

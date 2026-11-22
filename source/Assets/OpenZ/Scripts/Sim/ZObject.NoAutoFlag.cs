@@ -164,7 +164,7 @@ namespace OpenZ.Sim
             var wp = Waypoints[0];
             if (wp.mode != WpMode.Move || wp.playerGiven || wp.refId < 0) return;
             var f = World.Get(wp.refId);
-            if (f == null || f.Kind != ZKind.MapItem || f.Type != "flag" || f.Owner == Owner || !SquadUnderFire) return;
+            if (f == null || f.Kind != ZKind.MapItem || f.Type != "flag" || World.AreAllied(Owner, f.Owner) || !SquadUnderFire) return;
             if (grabId == f.Id) grabId = -1;
             KillWP();
             IsRunning = false;

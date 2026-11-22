@@ -109,7 +109,7 @@ namespace OpenZ.Sim
             ZObject best = null; double bd = double.MaxValue; bool bestEnter = false;
             if (!MarchGrabOwnsFlags) foreach (var f in World.Flags)                             // 1.5 DV203 (kit march_grab_r3): a robot's flags are DV203's look above
             {
-                if (f.Owner == Owner) continue;
+                if (World.AreAllied(Owner, f.Owner)) continue;
                 double d = Dist(CenterX, CenterY, f.CenterX, f.CenterY);
                 if (d > ZWorld.CloseGrabPx || d >= bd || GrabClaimed(f) || PathUnreachable(f) || !CanSee(f) || CloserGrabber(f, false) || AutoFlagWayHeld()) continue;   // DV130: not while the squad is under fire
                 best = f; bd = d; bestEnter = false;

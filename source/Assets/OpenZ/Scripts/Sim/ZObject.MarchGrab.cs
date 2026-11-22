@@ -104,7 +104,7 @@ namespace OpenZ.Sim
             bool? flagHeld = null;
             foreach (var f in World.Flags)
             {
-                if (f.Owner == Owner || f.Destroyed || MgSentFor(key, f.Id) || GrabClaimed(f)) continue;
+                if (World.AreAllied(Owner, f.Owner) || f.Destroyed || MgSentFor(key, f.Id) || GrabClaimed(f)) continue;
                 foreach (var m in team)
                 {
                     long d = Sq(m, f);

@@ -50,6 +50,7 @@ static class SkirmishChecks
     internal static void CheckTeamplay(string settings, string grid, Action<bool, string> check)
     {
         CheckTeamDefense(settings, grid, check);
+        CheckTeamAdvance(settings, grid, check);
         foreach (int cap in new[] { 50, 25 })
         {
             var world = ZWorld.Create(settings, grid, 12);
@@ -84,6 +85,8 @@ static class SkirmishChecks
             check(unit.Waypoints.Any(w => w.mode == WpMode.UnitRepair) && station.CanRepairUnit(Team.Red) && !station.CanRepairUnit(Team.Green),
                 "The authority accepts repairs from the station owner’s allies only");
 
+            if (cap == 50) CheckRepairOwnership(world, station, unit, check);
+
             var radar = world.CreateObject("building", "radar", 400, 160, Team.Blue);
             world.CreateObject("building", "radar", 480, 160, Team.Red);
             var picture = new OzRadarLineRule();
@@ -96,6 +99,21 @@ static class SkirmishChecks
             picture.Observe(world);
             check(!picture.Covered(Team.Red) && !picture.Covered(Team.Blue), "Losing the last allied radar ends the picture for both seats");
         }
+    }
+
+    static void CheckRepairOwnership(ZWorld world, ZObject station, ZObject unit, Action<bool, string> check)
+    {
+        bool inPlace = ZWorld.RepairInPlaceDeviation;
+        try
+        {
+            ZWorld.RepairInPlaceDeviation = false;
+            check(station.SetRepairUnit(unit), "An allied station can start the legacy repair cycle");
+            world.SendWaypoints(Team.Red, unit, Array.Empty<ZWaypoint>());
+            while (world.Time <= station.RepairTime + .1) world.Tick(ZConst.TICK);
+            check(world.UnitObjects.Any(o => o.Id > station.Id && o.Type == unit.Type && o.Owner == Team.Red && o.Health == o.MaxHealth),
+                "The legacy repair cycle returns the vehicle to its original owner");
+        }
+        finally { ZWorld.RepairInPlaceDeviation = inPlace; }
     }
 
     static void CheckTeamDefense(string settings, string grid, Action<bool, string> check)
@@ -121,6 +139,25 @@ static class SkirmishChecks
         }
     }
 
+    static void CheckTeamAdvance(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        world.Map.skirmish = true;
+        world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+        world.ConfigureSkirmishRules(new SkirmishRules(), Array.Empty<int>());
+        var forts = world.Objects.Where(o => o.IsFort && o.Owner != Team.Green).ToArray();
+        var flag = world.Flags.First(f => f.Owner == Team.Neutral && forts.All(o =>
+            !ZObject.Within(f.CenterX, f.CenterY, o.CenterX, o.CenterY, 400)));
+        var teammate = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Red, 1);
+        var reinforcement = world.CreateRobotGroup("tough", flag.LocX, flag.LocY, Team.Blue, 1);
+        var enemy = world.CreateRobotGroup("grunt", flag.LocX, flag.LocY, Team.Green, 1);
+        teammate.AttackObject = enemy;
+        var bot = new ZBot(world, Team.Blue, 12);
+        bot.CoordinateWithAllies(new System.Collections.Generic.List<ZObject> { reinforcement });
+        check(reinforcement.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == enemy.Id),
+            "A bot reinforces an ally’s attack in neutral territory");
+    }
+
     static void CheckTwoStartSkirmish(string root, string settings, Action<bool, string> check)
     {
         string buildSettings = File.ReadAllText(Path.Combine(root, "source/ProjectSettings/EditorBuildSettings.asset"));
@@ -130,8 +167,7 @@ static class SkirmishChecks
         foreach (var entry in entries)
         {
             string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
-            CheckTeamplay(settings, grid, check);
-        var world = ZWorld.Create(settings, grid, 12);
+            var world = ZWorld.Create(settings, grid, 12);
             var original = world.Map.FactoryTech();
             check(original.Vehicles == world.MapFactoryTech("vehicle_factory") &&
                 original.Robots == world.MapFactoryTech("robot_factory") &&
@@ -184,8 +220,7 @@ static class SkirmishChecks
             foreach (var entry in maps)
             {
                 string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
-                CheckTeamplay(settings, grid, check);
-        var world = ZWorld.Create(settings, grid, 12);
+                var world = ZWorld.Create(settings, grid, 12);
                 var forts = world.Objects.Where(o => o.IsFort).Select(o => (int)o.Owner).OrderBy(owner => owner);
                 check(forts.SequenceEqual(Enumerable.Range(1, starts)), entry.Id + " retains each native fort owner");
                 check(!DuelRules.IsMapAllowed(entry.Id), entry.Id + " remains unavailable to a two-seat duel");

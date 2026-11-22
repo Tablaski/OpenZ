@@ -44,7 +44,7 @@ namespace OpenZ.Sim
         {
             IdleSweepChecks++;
             ZObject target = null;
-            foreach (var f in Objects) if (f.IsFort && !f.Destroyed && f.Owner != team && f.Owner != Team.Neutral) { target = f; break; }
+            foreach (var f in Objects) if (f.IsFort && !f.Destroyed && !AreAllied(team, f.Owner) && f.Owner != Team.Neutral) { target = f; break; }
             var forgotten = new List<ZObject>();
             foreach (var o in Objects)
             {

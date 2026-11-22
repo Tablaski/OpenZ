@@ -65,7 +65,7 @@ namespace OpenZ.Sim
                         if (friendly + TeamplayPower(unit) < hostile * .75) continue;
                         if (!diversion && Difficulty != ZBotDifficulty.Easy && friendly > hostile && fortThreats.Length == 0)
                         {
-                            var flank = W.Flags.Where(f => f.Owner != Team.Neutral && !W.AreAllied(Team, f.Owner) &&
+                            var flank = W.Flags.Where(f => W.AreAllied(f.Owner, front.Target.Owner) &&
                                 D(f, front.Target) >= 2 * TeamBattleRadius && D(unit, f) <= TeamFortRadius &&
                                 enemies.All(e => D(e, f) > TeamBattleRadius) && CanReachTeamPoint(unit, f, f.CenterX, f.CenterY))
                                 .OrderBy(f => D(unit, f)).FirstOrDefault();

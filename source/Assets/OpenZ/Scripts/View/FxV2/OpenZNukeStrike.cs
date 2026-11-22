@@ -128,6 +128,15 @@ namespace OpenZ
         Transform plane, missile; AudioSource engine; Light missileLight;
         Vector3 releasePos, missilePrev; float smokeRemainder; bool released, whooshed;
 
+        public static bool JoinImpact(Team backgroundTeam, Action collapse)
+        {
+            var strike = backgroundTeam == Team.Neutral ? current :
+                backgroundStrikes.TryGetValue(backgroundTeam, out var pending) ? pending : null;
+            if (!strike || strike.impacted) return false;
+            strike.onImpact += collapse;
+            return true;
+        }
+
         /// <summary>Starts (or joins) the strike on a fort. onImpact runs at the impact (collapse the model + NukeFx). Returns false
         /// when strikes are off (the caller then does the old immediate nuke).</summary>
         public static bool Begin(Vector3 fortCentre, bool ours, Action onImpact, Team backgroundTeam = Team.Neutral)

@@ -18,6 +18,7 @@ namespace OpenZ.Multiplayer
         Action<string> onlineUnitChoice;
         string[] onlineUnitOptions;
         int[] onlineTeams;
+        bool onlineAllForOne;
         int onlineTeamsRevision, onlineDragSeat = -1, onlineTeamCount;
         int onlineRoleRevision;
         string onlinePlayerMenu;
@@ -74,12 +75,16 @@ namespace OpenZ.Multiplayer
                 Button(root, "INVITE PLAYERS", 1560, 41, 300, () => OpenOnlinePopup(OnlinePopup.Invite), true);
             else Label(root, "Joined as " + local.Name, 1460, 52, 400, 18, OzUi.Muted);
             Button(root, "FREE FOR ALL", 1530, 125, 179, () => SetMode(true), rules.FreeForAll, editable);
-            Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable);
+            bool teamsSupported = MultiplayerRoom.CanFormEqualTeams(map.Starts - closed.Length);
+            Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable && teamsSupported);
+            if (!teamsSupported)
+                Label(root, "This player count cannot form equal teams.", 1136, 137, 380, 15, OzUi.Muted);
 
             void SetMode(bool freeForAll)
             {
                 if (rules.FreeForAll == freeForAll) return;
                 rules.FreeForAll = freeForAll;
+                onlineTeams = null;
                 CloseOnlinePlayerMenu();
                 R.SetRoomRules(rules);
             }
@@ -90,6 +95,7 @@ namespace OpenZ.Multiplayer
             else BuildRoomRules(map.Starts, editable, rules, R.SetRoomRules);
 
             onlinePlayerAnchor = null; onlineMenuPerson = null;
+            if (onlineTeams != null && onlineTeamsRevision != hosted?.Revision) onlineTeams = null;
             if (onlineTeams != null) DrawOnlineEditTeams(people, bots, hosted.Starts);
             else DrawOnlineRoster(map.Starts, people, bots, closed, rules.FreeForAll, editable);
             DrawOnlineChat();
@@ -98,6 +104,7 @@ namespace OpenZ.Multiplayer
             int ready = people.Count(person => person.Ready && person.Seat >= 0);
             int open = map.Starts - active - bots.Length - closed.Length;
             string status = R.EndLobbyOpen ? "Waiting for players to return from the match" : local.Observer ? "Ghost · watching this match" :
+                (hosted?.StartBlocker ?? joined.StartBlocker) == MatchStartBlocker.UnequalTeams ? MultiplayerRoom.EqualTeamSizeWarning :
                 people.Any(person => person.Seat < 0 && !person.Observer) ? "Players waiting for a starting position" :
                 open > 0 ? $"Fill or close {open} open {(open == 1 ? "position" : "positions")}" :
                 ready < active ? $"Waiting for {people.First(person => person.Seat >= 0 && !person.Ready).Name} · {ready} / {active} ready" :
@@ -108,7 +115,7 @@ namespace OpenZ.Multiplayer
                 Button(root, local.Ready && !R.EndLobbyOpen ? "CANCEL READY" : "READY", hosted != null ? 1430 : 1636, 998, 212,
                     () => R.SetRoomReady(!local.Ready), !local.Ready, R.Connected && local.Seat >= 0 && !R.EndLobbyOpen);
             if (hosted != null)
-                Button(root, "LAUNCH MATCH", 1654, 998, 206, R.LaunchRoom, true, R.RoomCanLaunch);
+                Button(root, "LAUNCH MATCH", 1654, 998, 206, R.LaunchRoom, true, onlineTeams == null && R.RoomCanLaunch);
 
             if (roomCustomUnits && editable) BuildRoomCustomUnits(rules, R.SetRoomRules);
             if (roomPresets && editable) BuildRoomArmyPresets(rules, R.SetRoomRules);
@@ -218,8 +225,12 @@ namespace OpenZ.Multiplayer
                 Group("WAITING FOR A POSITION", OzUi.Muted);
                 foreach (var person in waiting) Unseated(person);
             }
-            if (!freeForAll && R.IsHost)
-                Button(panel, "EDIT TEAMS", 459, 516, 206, () => StartOnlineTeamEdit(starts, active, bots), enabled: editable, height: 35);
+            if (!freeForAll)
+            {
+                Label(panel, AllForOneLabel(R.RoomRules.AllForOne), 24, 520, 410, 17, OzUi.Ink);
+                if (R.IsHost)
+                    Button(panel, "EDIT TEAMS", 459, 516, 206, () => StartOnlineTeamEdit(starts, active, bots), enabled: editable, height: 35);
+            }
 
             void Group(string title, Color tint, bool ghost = false)
             {
@@ -396,6 +407,7 @@ namespace OpenZ.Multiplayer
             onlineTeamCount = active.Select(person => person.Team).Concat(bots.Select(bot => bot.Alliance)).DefaultIfEmpty(0).Max() + 1;
             onlineTeamCount = Math.Max(2, onlineTeamCount);
             onlineTeamsRevision = R.HostedRoom.Revision;
+            onlineAllForOne = R.RoomRules.AllForOne;
             onlineDragSeat = -1;
             dirty = true;
         }
@@ -405,14 +417,19 @@ namespace OpenZ.Multiplayer
             var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name))
                 .Concat(bots.Select(bot => (Seat: bot.Position, Name: "🤖 AI · " + BotDifficultyName(bot.Difficulty)))).ToArray();
             var panel = Panel("EDIT TEAMS", 1170, 185, 690, 568);
-            Label(panel, "Drag a participant onto a team, or select a row and then a team.", 24, 53, 640, 16, OzUi.Muted);
-            var teams = Scroll(panel, 24, 82, 640, 413, false, Mathf.Max(413, onlineTeamCount * 48 + roster.Length * 37));
+            Button(panel, AllForOneLabel(onlineAllForOne), 24, 51, 280,
+                () => { onlineAllForOne = !onlineAllForOne; dirty = true; }, onlineAllForOne, height: 35);
+            Label(panel, AllForOneDescription, 24, 94, 640, 16, OzUi.Ink);
+            bool balanced = MultiplayerRoom.HasEqualTeams(roster.Select(person => onlineTeams[person.Seat]));
+            Label(panel, balanced ? "Drag a participant onto a team, or select a row and then a team." :
+                MultiplayerRoom.EqualTeamSizeWarning, 24, 124, 640, 16, balanced ? OzUi.Muted : OzUi.Amber);
+            var teams = Scroll(panel, 24, 152, 640, 343, false, Mathf.Max(343, onlineTeamCount * 48 + roster.Length * 37));
             float y = 0;
             for (int team = 0; team < onlineTeamCount; team++)
             {
                 int destination = team;
                 var assigned = roster.Where(person => onlineTeams[person.Seat] == destination).ToArray();
-                var target = Button(teams, "TEAM " + (team + 1), 0, y, 640, () => Move(destination), height: 39);
+                var target = Button(teams, $"TEAM {team + 1} · {assigned.Length}", 0, y, 640, () => Move(destination), height: 39);
                 AddOnlineEvent(target, EventTriggerType.Drop, _ => Move(destination));
                 y += 43;
                 foreach (var person in assigned)
@@ -437,7 +454,7 @@ namespace OpenZ.Multiplayer
             {
                 var next = onlineTeams;
                 onlineTeams = null;
-                R.ApplyRoomTeams(onlineTeamsRevision, next);
+                R.ApplyRoomTeams(onlineTeamsRevision, next, onlineAllForOne);
                 dirty = true;
             }, true, height: 43);
 

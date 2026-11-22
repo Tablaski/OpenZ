@@ -304,6 +304,14 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ elimination + game end (zserver.cpp:277-367, 1675-1729)
         int skirmishEliminated;
         int skirmishEliminationEvent = -1;
+        int linkedDefeatFort = -1;
+
+        internal Team LinkedDefeatLeader(Team team)
+        {
+            int index = Events.FindIndex(e => e.type == ZEventType.TeamEliminated && e.flag2 && (Team)(int)e.value == team);
+            if (index < 0) return Team.Neutral;
+            return GetAny(Events[index].otherId)?.Owner ?? Team.Neutral;
+        }
 
         internal bool IsFinalSkirmishFort(Team team) => HasIndividualDefeatSequence && GameOver &&
             Events.Exists(e => e.type == ZEventType.TeamEliminated && e.flag && (Team)(int)e.value == team);
@@ -329,12 +337,27 @@ namespace OpenZ.Sim
             {
                 if (HasIndividualDefeatSequence && SkirmishEliminated(team)) return;
                 skirmishEliminated |= 1 << (int)team;
-                if (HasIndividualDefeatSequence && !GameOver && !NoGameEnd) skirmishEliminationEvent = Events.Count;
+                if (HasIndividualDefeatSequence && linkedDefeatFort < 0 && !GameOver && !NoGameEnd)
+                    skirmishEliminationEvent = Events.Count;
             }
-            Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY, value = (float)team });
+            Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY,
+                value = (float)team, flag2 = linkedDefeatFort >= 0, otherId = linkedDefeatFort });
             foreach (var o in Objects.ToList())
                 if (o != fort && o.Owner == team && o.Kind != ZKind.MapItem && !o.Destroyed && o.MaxHealth > 0) { o.SetHealth(0); UpdateObjectHealth(o); }
             foreach (var f in Flags.ToList()) if (f.Owner == team) AwardZone(f, Team.Neutral);
+            if (!Map.skirmish || !SkirmishAllForOne || linkedDefeatFort >= 0) return;
+
+            linkedDefeatFort = fort.Id;
+            try
+            {
+                foreach (var allyFort in Objects.Where(o => o.IsFort && o.Owner != team && AreAllied(team, o.Owner) && !o.Destroyed).ToArray())
+                {
+                    if (allyFort.Destroyed) continue;
+                    allyFort.SetHealth(0);
+                    UpdateObjectHealth(allyFort);
+                }
+            }
+            finally { linkedDefeatFort = -1; }
         }
 
         /// <summary>Every 1 s: the game ends when at most one team still owns a robot, vehicle or cannon.</summary>

@@ -10,7 +10,7 @@ namespace OpenZ.Multiplayer
     {
         public int TerritoryCap = 50, FortSpeedup, VehicleTech, RobotTech, PlanningSeconds;
         public bool ProgressiveTerritory, ProgressiveFort, ClassicUnits, NerfedHowitzers, FriendlyFire, ClassicDynamics;
-        public bool FreeForAll;
+        public bool FreeForAll, AllForOne;
         public RadarLossRule RadarLoss;
         public bool CustomRoster;
         public string[] CustomUnits = Array.Empty<string>();
@@ -119,8 +119,26 @@ namespace OpenZ.Multiplayer
         public RoomBot[] Bots => bots.Values.OrderBy(bot => bot.Position).ToArray();
         public int[] ClosedPositions => closed.OrderBy(position => position).ToArray();
         public SkirmishRules Rules => rules.Copy();
-        public MatchStartBlocker StartBlocker => MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
-            .Concat(bots.Keys.Concat(closed).Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
+        public bool SupportsTeams => CanFormEqualTeams(Starts - closed.Count);
+        internal const string EqualTeamSizeWarning = "Teams must have the same number of players (at least two per team).";
+        internal static bool CanFormEqualTeams(int positions) => positions >= 4 &&
+            Enumerable.Range(2, positions / 2 - 1).Any(teamCount => positions % teamCount == 0);
+        internal static bool HasEqualTeams(IEnumerable<int> alliances)
+        {
+            var sizes = alliances.GroupBy(alliance => alliance).Select(team => team.Count()).ToArray();
+            return sizes.Length >= 2 && sizes[0] >= 2 && sizes.All(size => size == sizes[0]);
+        }
+
+        public MatchStartBlocker StartBlocker
+        {
+            get
+            {
+                var seats = MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
+                    .Concat(bots.Keys.Concat(closed).Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
+                return seats == MatchStartBlocker.None && !rules.FreeForAll && !HasEqualTeams(ActiveAlliances())
+                    ? MatchStartBlocker.UnequalTeams : seats;
+            }
+        }
         public bool CanLaunch => CanLaunchWithHostReady && Member(HostId).Ready;
         public bool CanLaunchWithHostReady => !Launched && StartBlocker == MatchStartBlocker.None &&
             ActiveAlliances().Distinct().Skip(1).Any() &&
@@ -132,6 +150,7 @@ namespace OpenZ.Multiplayer
             if (string.IsNullOrWhiteSpace(hostId)) throw new ArgumentException("Missing host identity.", nameof(hostId));
             HostId = hostId;
             this.allowSoloConversions = allowSoloConversions;
+            rules.AllForOne = !allowSoloConversions;
             Starts = MapStarts(map);
             Capacity = Starts;
             Map = map;
@@ -170,6 +189,13 @@ namespace OpenZ.Multiplayer
             RequireHostSetup(sender);
             if (next?.Valid != true) throw new ArgumentException("Invalid Skirmish rules.");
             rules = next.Copy();
+            NormalizeTeamMode();
+            InvalidateReady();
+        }
+
+        void NormalizeTeamMode()
+        {
+            rules.FreeForAll |= !SupportsTeams;
             if (rules.FreeForAll)
             {
                 foreach (var member in members.Values.Where(member => member.Seat.Position >= 0).ToArray())
@@ -177,7 +203,6 @@ namespace OpenZ.Multiplayer
                 foreach (var bot in bots.Values.ToArray())
                     bots[bot.Position] = new RoomBot(bot.Position, bot.Position, bot.Difficulty);
             }
-            InvalidateReady();
         }
 
         public void SetClosed(string sender, int position, bool value)
@@ -188,6 +213,7 @@ namespace OpenZ.Multiplayer
             if (value ? closed.Add(position) : closed.Remove(position))
             {
                 bots.Remove(position);
+                if (!rules.FreeForAll && !SupportsTeams) NormalizeTeamMode();
                 InvalidateReady();
             }
         }
@@ -262,17 +288,20 @@ namespace OpenZ.Multiplayer
                 rules.AiFactoryCapture[to] = oldRules.AiFactoryCapture[from];
                 Array.Copy(oldRules.Extras, from * 4, rules.Extras, to * 4, 4);
             }
+            NormalizeTeamMode();
             InvalidateReady();
         }
 
-        public void SetAlliances(string sender, int revision, int[] alliances)
+        public void SetAlliances(string sender, int revision, int[] alliances, bool? allForOne = null)
         {
             RequireHostSetup(sender);
             if (revision != Revision || rules.FreeForAll || alliances?.Length != Starts ||
                 alliances.Any(value => value < 0 || value >= Starts)) return;
-            bool changed = members.Values.Any(member => member.Seat.MayUsePlayerCommands &&
+            bool changed = (allForOne.HasValue && rules.AllForOne != allForOne.Value) ||
+                members.Values.Any(member => member.Seat.MayUsePlayerCommands &&
                 member.Alliance != alliances[member.Seat.Position]) || bots.Values.Any(bot => bot.Alliance != alliances[bot.Position]);
             if (!changed) return;
+            if (allForOne.HasValue) rules.AllForOne = allForOne.Value;
             foreach (var member in members.Values.Where(member => member.Seat.MayUsePlayerCommands).ToArray())
                 members[member.Id] = new RoomMember(member.Id, member.Name, member.Seat, alliances[member.Seat.Position]);
             foreach (var bot in bots.Values.ToArray())
@@ -326,6 +355,7 @@ namespace OpenZ.Multiplayer
                     members[member.Id] = new RoomMember(member.Id, member.Name, new MatchSeatAssignment(MatchSeatRole.Human, position), position);
                     break;
                 }
+            NormalizeTeamMode();
             InvalidateReady();
         }
 

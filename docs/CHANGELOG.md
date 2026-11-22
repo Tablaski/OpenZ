@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.50 (22 Nov 2026)
+
+- Online multiplayer and Skirmish — Teams need the same number of players, with at least two on each side. The lobby warns about uneven teams and blocks launch. Teams mode is available only when the starting positions in use can form equal teams.
+- Online multiplayer and Skirmish — With **All for one** enabled, losing one fort destroys every allied fort together. The camera focuses on the first fort to fall. The option is on by default online and off by default in local Skirmish.
+
 ## OpenZ-VK 1.5.49 (22 Nov 2026)
 
 - Team matches — Allied bots defend threatened forts and occupied territory, reinforce a teammate’s attack, and look for opportunities to capture an undefended enemy flag. They prioritise their own fort when it is in danger.

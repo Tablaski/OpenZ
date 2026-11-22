@@ -89,7 +89,8 @@ namespace OpenZ.Multiplayer
 
             Button(root, "BACK TO MULTIPLAYER", 60, 988, 320, ShowConnect, height: 52);
             bool canLaunch = localSkirmish.CanLaunchWithHostReady;
-            if (!canLaunch) Label(root, "Assign at least two opposing teams.", 400, 1003, 860, 20, OzUi.Amber);
+            if (!canLaunch) Label(root, localSkirmish.StartBlocker == MatchStartBlocker.UnequalTeams
+                ? MultiplayerRoom.EqualTeamSizeWarning : "Assign at least two opposing teams.", 400, 1003, 1040, 20, OzUi.Amber);
             Button(root, "START GAME", 1580, 988, 280, LaunchLocalSkirmish, true, canLaunch, height: 52);
             if (roomCustomUnits) BuildRoomCustomUnits(rules, SaveLocalRules);
             if (roomPresets) BuildRoomArmyPresets(rules, SaveLocalRules);
@@ -229,10 +230,14 @@ namespace OpenZ.Multiplayer
             BuildRoomOpeningOrders(preview, 467, 535, 257, rules, true, SaveLocalRules);
         }
 
+        static string AllForOneLabel(bool enabled) => $"💪 ALL FOR ONE · {(enabled ? "ON" : "OFF")}";
+        const string AllForOneDescription = "When an ally loses their fort, all allies lose immediately.";
+
         void BuildSkirmishTeams(SkirmishRules rules, float x, float width)
         {
             var panel = Panel("TEAMS", x, 185, width, 780);
-            Button(panel, "TEAMS", width - 317, 54, 124, () => SetSkirmishFreeForAll(false), !rules.FreeForAll, height: 37);
+            Button(panel, "TEAMS", width - 317, 54, 124, () => SetSkirmishFreeForAll(false), !rules.FreeForAll,
+                localSkirmish.SupportsTeams, height: 37);
             Button(panel, "FREE FOR ALL", width - 184, 54, 160, () => SetSkirmishFreeForAll(true), rules.FreeForAll, height: 37);
             var bots = localSkirmish.Bots;
             int active = bots.Length + 1;
@@ -253,11 +258,23 @@ namespace OpenZ.Multiplayer
                     bots.Length > 0, height: 37);
                 button.name = "ALL BOTS " + difficultyName;
             }
-            Label(panel, rules.FreeForAll ? $"{active} players · each plays for their own side" :
+            Label(panel, rules.FreeForAll ? localSkirmish.SupportsTeams ? $"{active} players · each plays for their own side" :
+                "This player count cannot form equal teams." :
                 "Drag a card onto a team, or select a card and team.", 24, 145, width - 48, 16, OzUi.Muted);
+            int listTop = 175;
+            if (!rules.FreeForAll)
+            {
+                Button(panel, AllForOneLabel(rules.AllForOne), 24, 175, 248, () =>
+                {
+                    rules.AllForOne = !rules.AllForOne;
+                    SaveLocalRules(rules);
+                }, rules.AllForOne, height: 35);
+                Label(panel, AllForOneDescription, 24, 214, width - 48, 15, OzUi.Ink);
+                listTop = 244;
+            }
             float contentHeight = active * 44 + (rules.FreeForAll ? 0 : alliances.Length * 55);
-            float listHeight = Mathf.Min(534, contentHeight);
-            var list = Scroll(panel, 24, 175, width - 48, listHeight, false, contentHeight);
+            float listHeight = Mathf.Min(709 - listTop, contentHeight);
+            var list = Scroll(panel, 24, listTop, width - 48, listHeight, false, contentHeight);
             skirmishTeamViewport = list.parent.GetComponent<ScrollRect>();
             skirmishTeamViewport.verticalNormalizedPosition = skirmishTeamScroll;
             skirmishTeamViewport.onValueChanged.AddListener(position => skirmishTeamScroll = position.y);
@@ -294,7 +311,7 @@ namespace OpenZ.Multiplayer
                 y += groupHeight + 8;
             }
 
-            Button(panel, "+ ADD TEAM", 24, 185 + listHeight, 160, () =>
+            Button(panel, "+ ADD TEAM", 24, listTop + 10 + listHeight, 160, () =>
             {
                 skirmishExtraTeam = Enumerable.Range(0, active).First(team => !alliances.Contains(team));
                 dirty = true;

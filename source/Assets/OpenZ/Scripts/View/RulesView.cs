@@ -159,9 +159,12 @@ namespace OpenZ
             if (o.IsFort)
             {
                 bool individualDefeat = game.World.HasIndividualDefeatSequence;
-                bool ours = o.Owner == game.player;
+                var leader = game.World.LinkedDefeatLeader(o.Owner);
+                var focusTeam = leader == Team.Neutral ? o.Owner : leader;
+                bool ours = focusTeam == game.player ||
+                    game.World.SkirmishAllForOne && game.World.AreAllied(focusTeam, game.player);
                 bool inBackground = individualDefeat && (game.World.GameOver
-                    ? !game.World.IsFinalSkirmishFort(o.Owner) : !ours);
+                    ? !game.World.IsFinalSkirmishFort(focusTeam) : !ours);
                 var c = game.CenterWorld(o);
                 var fg = Static(o.Id);
                 System.Action boom = () =>
@@ -170,9 +173,14 @@ namespace OpenZ
                     if (individualDefeat ? skirmishNukes.Add(o.Owner) : Time.time - lastNukeFx > 5f)
                     {
                         lastNukeFx = Time.time;
-                        NukeFx.Trigger(c, inBackground);
+                        NukeFx.Trigger(c, inBackground || leader != Team.Neutral);
                     }
                 };
+                if (leader != Team.Neutral)
+                {
+                    if (!OpenZNukeStrike.JoinImpact(inBackground ? leader : Team.Neutral, boom)) boom();
+                    return;
+                }
                 // fx_v2: the nuke is delivered (bomber fly-by, the bomb falls, slow-motion impact); the fort stands until it hits
                 if (!OpenZNukeStrike.Begin(c, ours, boom, inBackground ? o.Owner : Team.Neutral)) boom();
                 if (!inBackground)

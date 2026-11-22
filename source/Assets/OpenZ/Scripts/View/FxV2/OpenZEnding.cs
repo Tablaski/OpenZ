@@ -194,7 +194,8 @@ namespace OpenZ
                         Begin(team, e, false);
                     }
                     else if (!running && team != Team.Neutral && (!game.World.HasIndividualDefeatSequence ||
-                        (!game.World.GameOver && team == game.player)))
+                        (!game.World.GameOver && !e.flag2 && (team == game.player ||
+                            game.World.SkirmishAllForOne && game.World.AreAllied(team, game.player)))))
                         Begin(team, e, game.World.HasIndividualDefeatSequence);
                     continue;
                 }

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace OpenZ.Multiplayer
 {
     internal enum MatchSeatRole { Human, Bot, Observer }
-    internal enum MatchStartBlocker { None, UnassignedPlayer, InvalidAssignment, EmptyStartingPositions, NoActiveHuman }
+    internal enum MatchStartBlocker { None, UnassignedPlayer, InvalidAssignment, EmptyStartingPositions, NoActiveHuman, UnequalTeams }
 
     // A negative position is reserved for observers and humans still waiting for a position.
     internal readonly struct MatchSeatAssignment

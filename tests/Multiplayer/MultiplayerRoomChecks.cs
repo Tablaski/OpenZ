@@ -11,6 +11,17 @@ static class MultiplayerRoomChecks
     {
         const string host = "host-link-id", guest = "guest-link-id", extra = "extra-link-id";
         var room = new MultiplayerRoom(host, "Host", "SMP03M01");
+        var unsupported = room.Rules;
+        unsupported.FreeForAll = false;
+        room.SetRules(host, unsupported);
+        check(!room.SupportsTeams && room.Rules.FreeForAll && room.Rules.AllForOne, "Three-start online rooms disable Teams and keep the online option default");
+        check(!new MultiplayerRoom(host, "Host", "SMP03M01", allowSoloConversions: true).Rules.AllForOne,
+            "Local Skirmish defaults All for one off");
+        check(MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 1, 1, 1 }) &&
+            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 1, 1, 2, 2 }) &&
+            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 0, 1, 1, 1, 1 }) &&
+            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 1, 1, 2, 2, 3, 3 }) &&
+            !MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 1, 1, 2 }), "Equal team sizes support several valid six- and eight-player layouts");
         room.Join(guest, "Guest");
         check(room.Starts == 3 && room.StartBlocker == MatchStartBlocker.EmptyStartingPositions, "A missing third participant blocks the three-start room");
         reject(() => room.SetBot(guest, 2, 1, ZBotDifficulty.Easy), "Guests cannot assign bots");
@@ -80,18 +91,24 @@ static class MultiplayerRoomChecks
     static void CheckCoop(Action<bool, string> check, Action<Action, string> reject)
     {
         const string host = "host", guest = "guest";
-        var room = new MultiplayerRoom(host, "Host", "SMP03M01");
+        var room = new MultiplayerRoom(host, "Host", "SMP04M01");
         room.Join(guest, "Guest");
         var rules = room.Rules;
         rules.FreeForAll = false;
         room.SetRules(host, rules);
         room.AssignHuman(host, guest, 1, 0);
         room.SetBot(host, 2, 0, ZBotDifficulty.Easy);
+        room.SetBot(host, 3, 0, ZBotDifficulty.Easy);
         room.SetReady(host, room.Revision, true);
         room.SetReady(guest, room.Revision, true);
         reject(() => room.Launch(host), "A cooperative room still requires an opposing alliance");
 
         room.SetBot(host, 2, 1, ZBotDifficulty.Easy);
+        room.SetReady(host, room.Revision, true);
+        room.SetReady(guest, room.Revision, true);
+        check(room.StartBlocker == MatchStartBlocker.UnequalTeams && !room.CanLaunch, "Unequal teams block launch even when every human is ready");
+        reject(() => room.Launch(host), "The authoritative launch gate rejects uneven teams");
+        room.SetBot(host, 3, 1, ZBotDifficulty.Easy);
         room.SetReady(host, room.Revision, true);
         room.SetReady(guest, room.Revision, true);
         room.Launch(host);
@@ -100,7 +117,7 @@ static class MultiplayerRoomChecks
 
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
         var settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
-        var grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SMP03M01_grid.json"));
+        var grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SMP04M01_grid.json"));
         var world = ZWorld.Create(settings, grid, 12);
         room.ConfigureWorld(world, 12);
         var red = world.Objects.First(o => o.Owner == Team.Red && o.IsUnit && o.CanAttack());
@@ -113,10 +130,36 @@ static class MultiplayerRoomChecks
             "Co-op allies cannot target each other or enter each other's forts");
         world.Tick(ZConst.TICK);
         check(!world.GameOver, "The opposing bot keeps the co-op match running");
-        check(world.SurrenderSkirmish(Team.Green), "Eliminating the last opposing seat resolves co-op");
+        world.Events.Clear();
+        var firstFort = world.Objects.First(o => o.IsFort && o.Owner == Team.Yellow);
+        firstFort.SetHealth(0);
+        world.UpdateObjectHealth(firstFort);
+        check(world.SkirmishEliminated(Team.Yellow) && world.SkirmishEliminated(Team.Green) &&
+            world.Objects.Where(o => o.IsFort && (o.Owner == Team.Green || o.Owner == Team.Yellow)).All(o => o.Destroyed),
+            "All for one destroys the other ally's forts in the same simulation step");
+        check(world.LinkedDefeatLeader(Team.Green) == Team.Yellow, "Linked fort effects follow the first one that fell");
+        world.Tick(ZConst.TICK);
+        check(world.IsFinalSkirmishFort(Team.Yellow) && !world.IsFinalSkirmishFort(Team.Green), "The decisive camera cue stays on the first fort");
         for (int tick = 0; tick < 150; tick++) world.Tick(ZConst.TICK);
         check(world.IsWinningSeat(Team.Red) && world.IsWinningSeat(Team.Blue) &&
             !world.IsWinningSeat(Team.Green), "Both co-op seats share victory");
+
+        rules.AllForOne = false;
+        var independent = ZWorld.Create(settings, grid, 12);
+        room.ConfigureWorld(independent, 12);
+        independent.ConfigureSkirmishRules(rules, Array.Empty<int>());
+        check(independent.SurrenderSkirmish(Team.Yellow) && !independent.SkirmishEliminated(Team.Green) && !independent.GameOver,
+            "When All for one is off the surviving ally stays in the match");
+
+        var lastUnit = ZWorld.Create(settings, grid, 12);
+        room.ConfigureWorld(lastUnit, 12);
+        foreach (var unit in lastUnit.Objects.Where(o => o.Owner == Team.Blue && o.IsUnit && !o.IsFortDefender).ToArray())
+        {
+            unit.SetHealth(0);
+            lastUnit.UpdateObjectHealth(unit);
+        }
+        check(lastUnit.SkirmishEliminated(Team.Blue) && lastUnit.SkirmishEliminated(Team.Red) &&
+            lastUnit.LinkedDefeatLeader(Team.Red) == Team.Blue, "Losing the last unit also triggers the linked fort defeat");
     }
 
     static void CheckLobbyRules(Action<bool, string> check, Action<Action, string> reject)

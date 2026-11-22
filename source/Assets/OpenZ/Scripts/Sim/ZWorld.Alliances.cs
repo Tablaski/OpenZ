@@ -12,6 +12,7 @@ namespace OpenZ.Sim
         readonly double[] alliancePower = new double[8], allianceFlags = new double[8], skirmishTerritory = new double[8], skirmishFort = new double[8];
         internal bool HasSkirmishProduction => skirmishProduction != null;
         internal bool HasIndividualDefeatSequence { get; private set; }
+        internal bool SkirmishAllForOne => SkirmishHasTeams && skirmishRules?.AllForOne == true && !skirmishRules.FreeForAll;
         internal bool SkirmishHasTeams { get; private set; }
 
         internal void ConfigureSkirmishRules(SkirmishRules rules, int[] closed, bool replica = false)

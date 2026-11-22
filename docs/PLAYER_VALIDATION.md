@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.50 equal teams and All for one
+
+- Pending in a compiled game. Check the disabled Teams button on a three-start map and the launch warning for uneven teams. Check 2 × 3 and 3 × 2 with six positions and 2 × 4 and 4 × 2 with eight. Include bots, closed positions and Ghosts.
+- Check the online and local defaults, the biceps icon and explanation, and that changing the rule online clears readiness. With All for one on, trigger a fort loss by destruction, infiltration and loss of the last unit. Check allied forts explode together and the camera focuses on the first fort. Include a three-team match to verify an early team loss and a separate final elimination. Repeat with the rule off.
+
 ## OpenZ-VK 1.5.49 team matches
 
 - Passed source validation. All Unity runtime scripts compile. The headless suite passed 8,524 core and real-map checks, including 30 targeted teamplay checks, plus 464 separate behavior and movement checks.

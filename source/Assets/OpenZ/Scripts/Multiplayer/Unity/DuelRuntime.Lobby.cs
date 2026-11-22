@@ -41,10 +41,10 @@ namespace OpenZ.Multiplayer
             PublishRoom();
         }
 
-        internal void ApplyRoomTeams(int revision, int[] teams)
+        internal void ApplyRoomTeams(int revision, int[] teams, bool allForOne)
         {
             if (room == null || room.Launched || RoomHostReady) return;
-            room.SetAlliances(RoomHostId, revision, teams);
+            room.SetAlliances(RoomHostId, revision, teams, allForOne);
             PublishRoom();
         }
 
@@ -111,6 +111,7 @@ namespace OpenZ.Multiplayer
                     Add("Map", "Map → " + OzAiMapCatalog.FindSkirmishMap(room.Map).Name);
                 else if (seats != previousRoomSeats) Add("Positions", "Players, teams or positions updated");
                 if (rules.FreeForAll != old.FreeForAll) Add("Mode", rules.FreeForAll ? "Mode → Free for All" : "Mode → Teams");
+                if (rules.AllForOne != old.AllForOne) Add("All for one", rules.AllForOne ? "All for one → On" : "All for one → Off");
                 if (rules.PlanningSeconds != old.PlanningSeconds) Add("Planning", $"Opening orders → {rules.PlanningSeconds} s");
                 if (rules.VehicleTech != old.VehicleTech || rules.RobotTech != old.RobotTech) Add("Tech", "Factory tech updated");
                 if (rules.TerritoryCap != old.TerritoryCap || rules.ProgressiveTerritory != old.ProgressiveTerritory ||

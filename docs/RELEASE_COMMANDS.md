@@ -13,13 +13,14 @@ Replace the example paths with individual files you have reviewed. If a push fai
 
 ## Publish stable from main
 
-Start on a clean, synchronized `dev`. Review the README and the changelog introduction and version entry on `dev`. Save reviewed English GitHub notes outside the checkout as `$env:TEMP\openz-release-notes.md`. Label gameplay changes `1 vs 1`, `Solo` or `Solo + 1 vs 1`.
+Start on a clean, synchronized `dev`. Review the README and the changelog introduction and version entry on `dev`. Save reviewed English GitHub notes and short Discord emoji bullets outside the checkout. Label gameplay changes `1 vs 1`, `Solo` or `Solo + 1 vs 1`. Keep Discord highlights focused on new fork features, starting with multiplayer.
 
 ```powershell
 $notes = Join-Path $env:TEMP 'openz-release-notes.md'
+$discord = Join-Path $env:TEMP 'openz-discord-highlights.md'
 .\tools\Publish-Main.ps1 -NotesFile $notes -DryRun
 .\tools\Publish-Main.ps1 -NotesFile $notes -PrepareOnly
-.\tools\Publish-Main.ps1 -NotesFile $notes
+.\tools\Publish-Main.ps1 -NotesFile $notes -DiscordHighlightsFile $discord
 ```
 
 Dry Run uses the local remote-tracking refs. Prepare Only can push a source-only metadata commit to `dev`. It runs the checks, builds and packages the candidate under `builds/release-<version>/`. Test that same compiled game, including both Changes & Updates tabs and the relevant checks in [the validation record](PLAYER_VALIDATION.md). Run the final command and type the displayed `PUBLISH v<version>` confirmation. A matching interrupted draft can be resumed with the same command and assets.
@@ -32,4 +33,4 @@ To prepare a new version, supply reviewed text for the changelog introduction an
 .\tools\Publish-Main.ps1 -NotesFile $notes -Version '1.5.43' -ChangelogIntroFile (Join-Path $env:TEMP 'openz-changelog-intro.md') -ChangelogEntryFile (Join-Path $env:TEMP 'openz-changelog-entry.md') -PrepareOnly
 ```
 
-Use the verified public release URL for the Discord announcement. Keep the release logs and validation record with the candidate.
+After verification, use the ready-to-post `DISCORD_ANNOUNCEMENT.md` in the release folder. Use `-DeclareStable` only when the maintainer explicitly declares the version stable.

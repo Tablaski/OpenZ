@@ -4,6 +4,8 @@ param(
     [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version,
     [string]$ChangelogEntryFile,
     [string]$ChangelogIntroFile,
+    [string]$DiscordHighlightsFile,
+    [switch]$DeclareStable,
     [string]$Unity = $env:UNITY_EDITOR_PATH,
     [switch]$DryRun,
     [switch]$PrepareOnly,
@@ -45,6 +47,7 @@ function Invoke-Check([string]$Name, [scriptblock]$Command) {
 }
 
 function Assert-ArchiveCoverage([string[]]$Archives, [string]$ManifestPath) {
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
     $remaining = @{}
@@ -64,6 +67,7 @@ function Assert-ArchiveCoverage([string[]]$Archives, [string]$ManifestPath) {
 }
 
 function New-GameArchives([string]$Player, [string]$Destination) {
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $files = @(Get-ChildItem -LiteralPath $Player -File -Recurse -Force | Where-Object {
         $_.FullName.Substring($Player.Length + 1) -notmatch '(^|[\\/])[^\\/]*(?:_BurstDebugInformation_DoNotShip|_BackUpThisFolder_ButDontShipItWithYourGame)(?:[\\/]|$)'
@@ -117,6 +121,12 @@ foreach ($url in @((Invoke-Git @('remote', 'get-url', 'origin')), (Invoke-Git @(
 $notes = (Resolve-Path -LiteralPath $NotesFile).Path
 $notesText = [IO.File]::ReadAllText($notes)
 if ([string]::IsNullOrWhiteSpace($notesText)) { throw 'Supply reviewed English GitHub release notes.' }
+$discordHighlights = if ($DiscordHighlightsFile) {
+    [IO.File]::ReadAllText((Resolve-Path -LiteralPath $DiscordHighlightsFile).Path).Trim()
+}
+if (!$DryRun -and !$PrepareOnly -and [string]::IsNullOrWhiteSpace($discordHighlights)) {
+    throw 'Supply reviewed English Discord highlights with -DiscordHighlightsFile.'
+}
 
 $dev = Invoke-Git @('rev-parse', 'refs/heads/dev')
 $main = Invoke-Git @('rev-parse', 'refs/heads/main')
@@ -283,7 +293,20 @@ try {
     & $publisher -PlayerDirectory $player -Tag $tag -NotesFile $notes -AdditionalAssets $assets -Publish
     $published = Invoke-RestMethod -Uri "$github/releases/latest" -Headers @{'User-Agent' = 'OpenZ-VK-release'}
     if ($published.tag_name -ne $tag -or $published.draft -or $published.prerelease) { throw "Could not verify $tag as the latest public release." }
+    $installerAsset = @($published.assets | Where-Object name -CEQ 'OpenZ-VK-Installer.exe')
+    $expectedDownload = "https://github.com/Tablaski/OpenZ/releases/download/$tag/OpenZ-VK-Installer.exe"
+    if ($installerAsset.Count -ne 1 -or $installerAsset[0].browser_download_url -cne $expectedDownload) {
+        throw 'The published installer download URL could not be verified.'
+    }
     Write-Output "Verified $($published.html_url)"
+    $disk = [char]::ConvertFromUtf32(0x1F4BE)
+    $warning = [string][char]0x26A0 + [char]0xFE0F
+    $announcement = "OpenZ-VK $Version is out ! $expectedDownload. It includes :`n`n$discordHighlights`n`n" +
+        "$disk Don't forget: you can update faster with the installer without redownloading everything."
+    if (!$DeclareStable) { $announcement += "`n$warning Not fully tested version, please report bugs." }
+    $announcementPath = Join-Path $releaseDirectory 'DISCORD_ANNOUNCEMENT.md'
+    [IO.File]::WriteAllText($announcementPath, $announcement + "`n", $utf8)
+    Write-Output "Discord announcement: $announcementPath"
 } finally {
     if ($ownsReleaseMutex) { $releaseMutex.ReleaseMutex() }
     $releaseMutex.Dispose()

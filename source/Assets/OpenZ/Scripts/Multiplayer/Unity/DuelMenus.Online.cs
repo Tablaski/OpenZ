@@ -248,7 +248,7 @@ namespace OpenZ.Multiplayer
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
                     OzAiMapBadge.Head(row.transform, new OzRect(43, 5, 21, 21));
-                    Label(row.transform, "AI  ·  " + BotDifficultyName(bot.Difficulty), 70, 7, 350, 17, OzUi.Ink);
+                    Label(row.transform, "🤖 AI  ·  " + BotDifficultyName(bot.Difficulty), 70, 7, 350, 17, OzUi.Ink);
                     if (editable && seat < R.HostedRoom.Capacity)
                         AddPlayerMenu(row.transform, 2, "seat:" + seat);
                 }
@@ -401,7 +401,7 @@ namespace OpenZ.Multiplayer
         void DrawOnlineEditTeams(OnlinePerson[] people, RoomBot[] bots, int starts)
         {
             var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name))
-                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI · " + BotDifficultyName(bot.Difficulty)))).ToArray();
+                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "🤖 AI · " + BotDifficultyName(bot.Difficulty)))).ToArray();
             var panel = Panel("EDIT TEAMS", 1170, 185, 690, 568);
             Label(panel, "Drag a participant onto a team, or select a row and then a team.", 24, 53, 640, 16, OzUi.Muted);
             var teams = Scroll(panel, 24, 82, 640, 413, false, Mathf.Max(413, onlineTeamCount * 48 + roster.Length * 37));
@@ -771,7 +771,7 @@ namespace OpenZ.Multiplayer
         {
             var panel = Panel("PLAYER ADVANTAGE", 60, 185, 1092, 568);
             var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name, person.Team))
-                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).OrderBy(member => member.Seat).ToArray();
+                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "🤖 AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).OrderBy(member => member.Seat).ToArray();
             if (roster.Length == 0) return;
             if (!roster.Any(member => member.Seat == onlinePlayerSeat)) onlinePlayerSeat = roster[0].Seat;
             int selected = onlinePlayerSeat;

@@ -44,6 +44,8 @@ namespace OpenZ.Multiplayer
         internal bool SkirmishRoom => room != null || roomGuest != null;
         internal MultiplayerRoom HostedRoom => room;
         internal RoomSnapshot JoinedRoom => roomGuest?.View;
+        internal bool RoomBotAt(int seat) => room?.Bots.Any(bot => bot.Position == seat) == true ||
+            JoinedRoom?.Bots.Any(bot => bot.Position == seat) == true;
         internal SkirmishRules RoomRules => room?.Rules ?? JoinedRoom?.Rules;
         internal bool RoomVoiceMuted { get; private set; }
         internal bool RoomParticipantMuted(string id) => int.TryParse(id, out int number) && RoomTransport?.IsVoiceMuted(number) == true;

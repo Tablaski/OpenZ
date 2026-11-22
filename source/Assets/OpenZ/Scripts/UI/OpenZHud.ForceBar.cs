@@ -91,10 +91,11 @@ namespace OpenZ
             {
                 var team = (Team)(i + 1);
                 bool eliminated = W.SkirmishEliminated(team);
+                string botMark = skirmishNetwork && Multiplayer.DuelRuntime.I?.RoomBotAt(i) == true ? "🤖 " : "";
                 if (skirmishNetwork && skirmishSeatCount > 4)
-                    skirmishSeats[i].Set($"{i + 1}{(eliminated ? " OUT" : "")}");
+                    skirmishSeats[i].Set($"{botMark}{i + 1}{(eliminated ? " OUT" : "")}");
                 else
-                    skirmishSeats[i].Set($"{i + 1} · {TeamColors.Name(team)}{(eliminated ? " · OUT" : team == Player ? " · YOU" : "")}");
+                    skirmishSeats[i].Set($"{botMark}{i + 1} · {TeamColors.Name(team)}{(eliminated ? " · OUT" : team == Player ? " · YOU" : "")}");
                 if (skirmishNetwork) RefreshSkirmishPing(i);
                 int units = eliminated ? 0 : W.UnitCount(team);
                 skirmishUnits[i].Set(units.ToString());

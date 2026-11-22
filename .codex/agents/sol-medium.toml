@@ -1,0 +1,5 @@
+name = "sol_medium"
+description = "Standard development, features, and gameplay changes."
+model = "gpt-6.2-sol"
+model_reasoning_effort = "medium"
+developer_instructions = "Implement the assigned feature through its normal entry points, preserve existing behavior where required, and report focused verification and remaining risks."

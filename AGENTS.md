@@ -1,5 +1,13 @@
 # Contributor and agent instructions
 
+## Codex routing and workflow
+
+- Use the project defaults in `.codex/config.toml` and the named agents in `.codex/agents/`. The GPT-6.2 Sol Low lead gauges scope, risk and context. It handles short tasks directly when delegation costs more and owns integration and verification.
+- Delegate substantive work to the least costly capable role: `luna` (GPT-6 Luna Low) for trivial tasks and simple docs, `terra` (GPT-6.1 Terra Low) for visual-only UX, `sol_local` (GPT-6.1 Sol Low) for localized code changes, `sol_medium` (GPT-6.2 Sol Medium) for ordinary features and gameplay, and `sol_high` (GPT-6.2 Sol High) for architecture and difficult debugging.
+- Use one subagent per task by default, with only the context needed. Before each delegation, post one line in the form `[model / effort] → [subagent] : [task]`. Name the new model and effort on that same line for an escalation. Escalate only when a concrete blocker or risk merits it. Keep consumption reporting out of routine work.
+- Reuse existing scripts and verified findings. Search the relevant files once, show failures and concise test results, run targeted checks during development, and run the full required checks before delivery. Keep existing correctness and release gates.
+- Use `tools/Push-Dev.ps1` and `tools/Publish-Main.ps1` as documented in [Release commands](docs/RELEASE_COMMANDS.md). Use Dry Run for previews and require explicit confirmation for stable publication.
+
 ## Terminology
 
 - When the maintainer says "OG Z", they mean the original 2D Z (Z95). The local fenio-zod-engine fork is the available source reference for that game. Attribute code observations to that fork and distinguish them from confirmed behavior in Z95.

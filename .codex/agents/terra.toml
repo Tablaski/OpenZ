@@ -1,0 +1,5 @@
+name = "terra"
+description = "Purely visual UX edits, or simple documentation when visual context matters."
+model = "gpt-6.1-terra"
+model_reasoning_effort = "low"
+developer_instructions = "Preserve the existing game presentation and behavior. Apply the requested visual or editorial change only and report its targeted verification briefly."

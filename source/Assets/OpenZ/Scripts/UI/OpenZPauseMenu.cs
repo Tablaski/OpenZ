@@ -36,7 +36,7 @@ namespace OpenZ
         sealed class Slider { public RectTransform track; public Image fill, thumb; public OzText value; public string key, bus; public float v, w; public Action<float> apply; }
         readonly List<Slider> sliders = new List<Slider>(); Slider dragging;
         OzGraphicsQualityButtons graphicsQuality;
-        sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; public MapReadabilityChoices choices; }
+        sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; }
         readonly List<Toggle> toggles = new List<Toggle>();
         int optTab; readonly List<HudButton> optTabBtns = new List<HudButton>();                             // options tabs (OzSettingTips.TabNames)
         int buildKeysTab;
@@ -248,7 +248,6 @@ namespace OpenZ
             AddToggle(p, toggles.Count, OzForceBarOption.Label, null, null, true);
             { var fb = toggles[toggles.Count - 1]; fb.value.At(w - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, w - 130); fb.row.OnClick = c => { OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active, 1); OzSfx.Ui("ui_tab_switch"); }; fb.row.OnRightClick = c => OzForceBarOption.StepMatch(OpenZ.Multiplayer.DuelRuntime.Active, -1); }
             AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, v => OzBattleOptions.SoloDamage = v);
-            AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, v => OzBattleOptions.SoloShake = v);
             AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
             { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
             AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
@@ -654,7 +653,6 @@ namespace OpenZ
             }
             foreach (var t in toggles)
             {
-                if (t.choices != null) { t.choices.Refresh(); continue; }
                 if (t.label == OzForkOptions.ChatLabel) { t.value.Set(OzForkOptions.ChatName); continue; }
                 if (t.label == OzMapReadabilityOptions.BorderLabel) { t.value.Set(OzMapReadabilityOptions.BorderName); continue; }
                 if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }

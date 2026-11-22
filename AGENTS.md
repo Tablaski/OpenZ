@@ -2,9 +2,19 @@
 
 ## Codex routing and workflow
 
-- Use the project defaults in `.codex/config.toml` and the named agents in `.codex/agents/`. The GPT-6.2 Sol Low lead gauges scope, risk and context. It handles short tasks directly when delegation costs more and owns integration and verification.
-- Delegate substantive work to the least costly capable role: `luna` (GPT-6 Luna Low) for trivial tasks and simple docs, `terra` (GPT-6.1 Terra Low) for visual-only UX, `sol_local` (GPT-6.1 Sol Low) for localized code changes, `sol_medium` (GPT-6.2 Sol Medium) for ordinary features and gameplay, and `sol_high` (GPT-6.2 Sol High) for architecture and difficult debugging.
-- Use one subagent per task by default, with only the context needed. Before starting each task or handing it to another agent, tell the maintainer which actual model and reasoning effort will do the work and what it will do. Use the form `[Model: GPT-6.1 Sol | Reasoning: Low] → [Subagent: sol_local] : [Implement the Game options controls]`. For work handled directly, write `Lead` in place of the subagent field and give the lead's actual model and reasoning effort. Write the reasoning level explicitly (for example, Low, Medium or High). If the actual model or reasoning level is unavailable, state that it is unavailable. Repeat the announcement before any handoff or escalation, naming the new assignment. Escalate only when a concrete blocker or risk merits it. Keep consumption reporting out of routine work.
+- Use the project defaults in `.codex/config.toml` and the agent configurations in `.codex/agents/`. The lead gauges scope, risk and context, handles short tasks directly when delegation costs more, and owns integration and verification.
+- Delegate substantive work to the least costly capable model and reasoning level. Use this mapping for configured defaults and maintainer-facing names:
+
+  | Configuration | Displayed model | Displayed reasoning in French | Assignment |
+  | --- | --- | --- | --- |
+  | Lead | GPT-6.2 Sol | Faible | Coordination, integration and verification |
+  | `luna` | GPT-6 Luna | Faible | Trivial tasks and simple documentation |
+  | `terra` | GPT-6.1 Terra | Faible | Visual-only UX |
+  | `sol_local` | GPT-6.1 Sol | Faible | Localized code changes |
+  | `sol_medium` | GPT-6.2 Sol | Moyen | Ordinary features and gameplay |
+  | `sol_high` | GPT-6.2 Sol | Élevé | Architecture and difficult debugging |
+
+- Use one subagent per task by default, with only the context needed. Before starting each task or handing it to another agent, announce the assignment in the maintainer's language, for example `[GPT-6.1 Sol | Réflexion faible] → [Sous-agent] Modifier les réglages de jeu.` Use `Agent principal` for work handled directly. Show the model name, including its version, and the actual reasoning level in plain language. Keep technical identifiers such as `sol_local` and `low` in configuration and tool calls. If the active model or reasoning level is unavailable, state that it is unavailable. Repeat the announcement before each handoff or escalation. Escalate only when a concrete blocker or risk merits it. Keep consumption reporting out of routine work.
 - Reuse existing scripts and verified findings. Search the relevant files once, show failures and concise test results, run targeted checks during development, and run the full required checks before delivery. Keep existing correctness and release gates.
 - Use `tools/Push-Dev.ps1` and `tools/Publish-Main.ps1` as documented in [Release commands](docs/RELEASE_COMMANDS.md). Use Dry Run for previews and require explicit confirmation for stable publication.
 

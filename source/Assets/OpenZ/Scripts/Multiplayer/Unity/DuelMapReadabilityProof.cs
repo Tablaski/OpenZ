@@ -20,21 +20,25 @@ namespace OpenZ.Multiplayer
                 original[key] = PlayerPrefs.HasKey(key) ? PlayerPrefs.GetFloat(key) : (float?)null;
             const string borderKey = OzMapReadabilityOptions.BorderPref;
             int? originalBorders = PlayerPrefs.HasKey(borderKey) ? PlayerPrefs.GetInt(borderKey) : (int?)null;
+            const string radarKey = OzMapReadabilityOptions.RadarPref;
+            int? originalRadars = PlayerPrefs.HasKey(radarKey) ? PlayerPrefs.GetInt(radarKey) : (int?)null;
             try
             {
                 pause.OpenOptions(OzSettingTips.TabGame);
                 if (!pause.ProofOptTabRows.Contains(OzMapReadabilityOptions.FlagLabel) || !pause.ProofOptTabRows.Contains(OzMapReadabilityOptions.BorderLabel) ||
                     !pause.ProofOptTabRows.Contains(OzMapReadabilityOptions.RadarSweepLabel))
                     throw new Exception("Live map-readability settings are missing from in-match GAME options.");
-                foreach (float size in new[] { 1.5f, 2f, 2.5f, 3f, 1f })
+                OzMapReadabilityOptions.FlagSize = 1f;
+                foreach (float size in new[] { 3f, 2.5f, 2f, 1.5f, 1f })
                 {
-                    ClickChoice(pause, OzMapReadabilityOptions.FlagLabel, size);
+                    Click(pause, OzMapReadabilityOptions.FlagLabel, previous: true);
                     yield return new WaitForSecondsRealtime(.2f);
                     if (OzMapReadabilityOptions.FlagSize != size || !flags.FlagsUseSize(size)) throw new Exception("FLAG SIZE did not update existing flags to " + size + "x.");
                 }
-                foreach (float interval in new[] { 1.5f, 3f, 5f, 10f })
+                OzMapReadabilityOptions.RadarSweepSeconds = 5f;
+                foreach (float interval in new[] { 3f, 1.5f, 0f, 5f })
                 {
-                    ClickChoice(pause, OzMapReadabilityOptions.RadarSweepLabel, interval);
+                    Click(pause, OzMapReadabilityOptions.RadarSweepLabel, previous: true);
                     if (OzMapReadabilityOptions.RadarSweepSeconds != interval) throw new Exception("The radar sweep interval did not update.");
                 }
                 OzMapReadabilityOptions.Borders = false;
@@ -55,20 +59,20 @@ namespace OpenZ.Multiplayer
             {
                 foreach (var v in original) { if (v.Value.HasValue) PlayerPrefs.SetFloat(v.Key, v.Value.Value); else PlayerPrefs.DeleteKey(v.Key); }
                 if (originalBorders.HasValue) PlayerPrefs.SetInt(borderKey, originalBorders.Value); else PlayerPrefs.DeleteKey(borderKey);
+                if (originalRadars.HasValue) PlayerPrefs.SetInt(radarKey, originalRadars.Value); else PlayerPrefs.DeleteKey(radarKey);
                 PlayerPrefs.Save(); OzMapReadabilityOptions.Reload();
             }
         }
-        static void ClickChoice(OpenZPauseMenu pause, string label, float value)
-        {
-            var button = pause.ProofMapReadabilityChoice(label, value);
-            if (button == null) throw new Exception("Missing native choice: " + label + " " + value);
-            button.OnClick(new HudClick());
-        }
-        static void Click(OpenZPauseMenu pause, string label)
+        static void Click(OpenZPauseMenu pause, string label, bool previous = false)
         {
             var rows = (IEnumerable)typeof(OpenZPauseMenu).GetField("toggles", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(pause);
             foreach (var row in rows) if ((string)row.GetType().GetField("label").GetValue(row) == label)
-            { var button = (HudButton)row.GetType().GetField("row").GetValue(row); button.OnClick(new HudClick()); return; }
+            {
+                var button = (HudButton)row.GetType().GetField("row").GetValue(row);
+                if (previous) button.OnRightClick(new HudClick { right = true });
+                else button.OnClick(new HudClick());
+                return;
+            }
             throw new Exception("Missing native option: " + label);
         }
     }

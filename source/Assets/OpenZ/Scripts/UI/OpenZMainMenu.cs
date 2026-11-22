@@ -84,7 +84,7 @@ namespace OpenZ
         // options (same keys and look as OpenZPauseMenu)
         sealed class Slider { public RectTransform track; public Image fill, thumb; public OzText value; public string key, bus; public float v, w; }
         readonly List<Slider> sliders = new List<Slider>(); Slider dragging;
-        sealed class Toggle { public HudButton row; public Image knob; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale; public string[] names; public string label; public Func<string> cycleName; public int tab; public MapReadabilityChoices choices; }
+        sealed class Toggle { public HudButton row; public Image knob; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale; public string[] names; public string label; public Func<string> cycleName; public int tab; }
         readonly List<Toggle> toggles = new List<Toggle>();
         static readonly float[] Scales = OzText.ScalePresets;
 
@@ -340,7 +340,6 @@ namespace OpenZ
             AddCycle(p, toggles.Count, OzForceBarOption.Label, () => OzForceBarOption.Name, OzForceBarOption.Step);
             toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OptW - 2 * OzLayout.OptX - 130);
             AddToggle(p, toggles.Count, OzBattleOptions.DamageLabel, () => OzBattleOptions.SoloDamage, value => OzBattleOptions.SoloDamage = value);
-            AddToggle(p, toggles.Count, OzBattleOptions.ShakeLabel, () => OzBattleOptions.SoloShake, value => OzBattleOptions.SoloShake = value);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             int labelHotIndex = hots.Count;
             graphicsQuality = new OzGraphicsQualityButtons(p, OptW - 2 * OzLayout.OptX, (button, preset) =>
@@ -486,7 +485,6 @@ namespace OpenZ
             foreach (var t in toggles)
             {
                 if (t.label == OzQuality.Label) continue;
-                if (t.choices != null) { t.choices.Refresh(); continue; }
                 if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab(OzSettings.ResolutionName)); continue; }   // 1.5 issue 8: the value alone, no arrows (the mouse button sets the way: OzSettings.ResolutionClick)
                 if (t.cycleName != null) { t.value.Set(OzText.Tab($"◀  {t.cycleName()}  ▶")); continue; }
                 if (t.scale) { int pct = Mathf.RoundToInt(OzText.SavedScale * 100); t.value.Set(OzText.Tab($"◀  {pct}%  ▶")); continue; }

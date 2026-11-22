@@ -1,5 +1,11 @@
 # Player validation record
 
+## Game options controls
+
+- Pending in a compiled game. In both Game options menus, use the arrows in both directions and check wraparound for Flag Size (1x, 1.5x, 2x, 2.5x, 3x) and Minimap Radar Sweep (Off, 1.5 s, 3 s, 5 s). Check live flag scaling and radar sweep timing.
+- Toggle damaged tank effects on and off. Check the oil trails on moving critically damaged tanks and the shake on stationary and moving critically damaged tanks. With Reduced Motion on, check that tank shake is suppressed and radar outlines remain visible at an active interval.
+- Check saved preferences after reopening the game, including a legacy 10-second radar interval, a disabled radar setting and a profile with just one of the two tank effects enabled.
+
 ## OpenZ-VK 1.5.42 radar-loss camera framing
 
 - Pending in a compiled game. On Car Park at 16:9, compare the locked view near the red fort with the reference capture (97 m height, 55° pitch). Check Zoom Lock and Fog + Zoom in solo and 1 vs 1. After losing the last radar, verify that wheel, touch and gamepad cannot change the zoom and that panning remains available. Recover a radar and verify that zoom controls return. Check normal camera behavior with Fog and Off.

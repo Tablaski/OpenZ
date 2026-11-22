@@ -92,7 +92,10 @@ namespace OpenZ.Multiplayer
             const string exactKey = "oz_zod_exact";
             int? exact = PlayerPrefs.HasKey(exactKey) ? PlayerPrefs.GetInt(exactKey) : (int?)null;
             bool tactical = OzTacticalPause.On;
-            bool oil = OzBattleOptions.SoloDamage, shake = OzBattleOptions.SoloShake, reduced = OzMotion.Reduced;
+            const string oilKey = OzBattleOptions.TankDamageKey, shakeKey = OzBattleOptions.TankShakeKey;
+            int? oil = PlayerPrefs.HasKey(oilKey) ? PlayerPrefs.GetInt(oilKey) : (int?)null;
+            int? shake = PlayerPrefs.HasKey(shakeKey) ? PlayerPrefs.GetInt(shakeKey) : (int?)null;
+            bool reduced = OzMotion.Reduced;
             try
             {
                 PlayerPrefs.SetInt(exactKey, 0);
@@ -189,8 +192,8 @@ namespace OpenZ.Multiplayer
                 if (exact.HasValue) PlayerPrefs.SetInt(exactKey, exact.Value);
                 else PlayerPrefs.DeleteKey(exactKey);
                 OzTacticalPause.On = tactical;
-                OzBattleOptions.SoloDamage = oil;
-                OzBattleOptions.SoloShake = shake;
+                if (oil.HasValue) PlayerPrefs.SetInt(oilKey, oil.Value); else PlayerPrefs.DeleteKey(oilKey);
+                if (shake.HasValue) PlayerPrefs.SetInt(shakeKey, shake.Value); else PlayerPrefs.DeleteKey(shakeKey);
                 OzMotion.Reduced = reduced;
                 PlayerPrefs.Save();
             }
@@ -221,7 +224,6 @@ namespace OpenZ.Multiplayer
             int Marks() => game.GetComponent<OzCripplingTrails>()?.Emitted ?? 0;
             var initial = Marks();
             OzBattleOptions.SoloDamage = true;
-            OzBattleOptions.SoloShake = true;
             OzMotion.Reduced = false;
             tank.Health = 310;
             Pose(true, origin);
@@ -238,8 +240,9 @@ namespace OpenZ.Multiplayer
             OzMotion.Reduced = false;
             OzBattleOptions.SoloDamage = false;
             tank.Health = 100;
-            Require(Quaternion.Angle(Pose(true, origin + Vector3.right * 2), Quaternion.identity) > .05f &&
-                Marks() == initial + 1, "Shake cannot operate independently of oil.");
+            Require(Pose(true, origin + Vector3.right * 2) == Quaternion.identity &&
+                Marks() == initial + 1, "Turning damage effects off did not stop both oil and shake.");
+            OzBattleOptions.SoloDamage = true;
             tank.Health = 1000;
             Require(Pose(false, origin) == Quaternion.identity, "The shake continued after repair.");
             Debug.Log("[Release proof] Oil and shake checked at 31%, 30%, 10% and repaired health.");

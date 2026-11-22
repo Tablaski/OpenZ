@@ -133,14 +133,17 @@ namespace OpenZ.Multiplayer
             double tick = r.Game.World.Time;
             yield return new WaitForSecondsRealtime(.4f);
             Check(r.Game.World.Time == tick, "Simulation did not pause.");
+            Check(DuelRuntime.MatchPlayPaused && !string.IsNullOrEmpty(r.MapChangeRequester) && r.MatchRequestSeconds > 0,
+                "The pause did not expose the requester's name and selection deadline.");
             r.SendChat(host ? "Let's play the jungle next." : "Can we try another map?");
-            if (!host) r.SelectMatchMap("L16");
-            foreach (var step in WaitFor(() => r.MatchMap == "L16" && r.Chat.Count >= 2, "shared map and chat")) yield return step;
+            foreach (var step in WaitFor(() => r.Chat.Count >= 2, "match chat during selection")) yield return step;
             yield return null;
             Shot("map-choice");
             foreach (var step in Sync("map-choice")) yield return step;
-            if (!host) Click("SUGGEST MAP");
+            if (!host) r.SubmitMapChange("L16", 5, 4);
             foreach (var step in WaitFor(() => r.MatchMapSuggested, "locked map suggestion")) yield return step;
+            Check(r.MatchMap == "L16" && r.ProposedVehicleTech == 5 && r.ProposedRobotTech == 4 && r.MatchRequestSeconds > 28,
+                "The vote did not inherit the proposal or restart its deadline.");
             yield return null;
             Shot("map-suggested");
             foreach (var step in Sync("map-suggested")) yield return step;
@@ -149,13 +152,17 @@ namespace OpenZ.Multiplayer
             yield return null;
             Shot("map-declined");
             foreach (var step in Sync("map-declined")) yield return step;
-            if (host) { r.RequestMapChange(); r.SelectMatchMap("L16"); r.SuggestMatchMap(); }
+            Check(host ? r.MapChangeCooldownSeconds == 0 : r.MapChangeCooldownSeconds > 0,
+                "The map change cooldown did not apply only to the requester.");
+            if (host) { r.RequestMapChange(); r.SubmitMapChange("L16", 5, 4); }
             foreach (var step in WaitFor(() => r.MatchMapSuggested, "host map suggestion")) yield return step;
             yield return null;
             if (!host) Click("ACCEPT");
             foreach (var step in WaitFor(() => r.Playing && r.Game && r.View.Map == "L16" && r.Game.World.Time > 1, "replacement map", 70)) yield return step;
             Check(r.Rules.NerfedHowitzers && r.Rules.RadarLoss == RadarLossRule.FogAndZoom &&
                 r.Rules.FortTurretsFor(0).Length == 4, "Frozen rules changed during map replacement.");
+            Check(r.Rules.VehicleTech == 5 && r.Rules.RobotTech == 4 && r.MapChangeCooldownSeconds == 0,
+                "The map replacement did not apply factory tech or clear the cooldown.");
             int borderX = 0, borderY = 0;
             if (host)
             {

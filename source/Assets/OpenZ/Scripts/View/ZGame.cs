@@ -538,12 +538,23 @@ namespace OpenZ
         public static int RuleTicksLastFrame; public static float RuleMsLastFrame;
 
         internal int SkirmishPlanningSeconds { get; private set; }
-        double skirmishPlanningUntil;
-        internal double SkirmishPlanningLeft => System.Math.Max(0, skirmishPlanningUntil - Time.realtimeSinceStartupAsDouble);
+        double skirmishPlanningUntil, skirmishPlanningPausedAt = -1;
+        internal double SkirmishPlanningLeft => System.Math.Max(0, skirmishPlanningUntil -
+            (skirmishPlanningPausedAt >= 0 ? skirmishPlanningPausedAt : Time.realtimeSinceStartupAsDouble));
         internal void StartSkirmishPlanning(int seconds)
         {
+            skirmishPlanningPausedAt = -1;
             SkirmishPlanningSeconds = seconds;
             if (seconds > 0) skirmishPlanningUntil = Time.realtimeSinceStartupAsDouble + seconds;
+        }
+
+        internal void PauseSkirmishPlanning(bool pause)
+        {
+            double now = Time.realtimeSinceStartupAsDouble;
+            if (pause && SkirmishPlanningLeft > 0 && skirmishPlanningPausedAt < 0) skirmishPlanningPausedAt = now;
+            if (pause || skirmishPlanningPausedAt < 0) return;
+            skirmishPlanningUntil += now - skirmishPlanningPausedAt;
+            skirmishPlanningPausedAt = -1;
         }
 
         // duel game clock

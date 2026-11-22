@@ -71,6 +71,14 @@ static class Program
         Check(lobby.Phase == DuelPhase.Loading && lobby.StartAt < 0 && lobby.Name(0) == "Host" && lobby.Name(1) == "Guest", "Restart lost seats or loading barrier");
         lobby.MarkLoaded(0, lobby.Revision, 110); Check(!lobby.Advance(200), "Restart started before guest loaded");
         lobby.MarkLoaded(1, lobby.Revision, 210); Check(lobby.Advance(213), "Restart failed after both loaded");
+        string previousMap = lobby.Rules.Map;
+        Reject(() => lobby.Restart("L16", 7, 4), "Invalid proposed factory tech accepted");
+        Check(lobby.Phase == DuelPhase.Playing && lobby.Rules.Map == previousMap, "An invalid proposal changed the running duel");
+        lobby.Restart("L16", 5, 4);
+        Check(lobby.Rules.Map == "L16" && lobby.Rules.VehicleTech == 5 && lobby.Rules.RobotTech == 4 &&
+            lobby.Rules.HandicapEnabled, "Map replacement did not apply just the selected map and factory tech");
+        lobby.MarkLoaded(0, lobby.Revision, 220); lobby.MarkLoaded(1, lobby.Revision, 220);
+        Check(lobby.Advance(223), "The proposed replacement map did not load");
         int playedRevision = lobby.Revision; lobby.ReturnToLobby();
         Check(lobby.Phase == DuelPhase.Lobby && !lobby.Ready(0) && !lobby.Ready(1) && lobby.Revision > playedRevision && lobby.Rules.HandicapEnabled, "Return to lobby lost rules or kept readiness");
         Reject(lobby.Restart, "Restart allowed outside match");

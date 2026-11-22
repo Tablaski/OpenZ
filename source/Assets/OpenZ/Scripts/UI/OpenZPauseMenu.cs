@@ -112,7 +112,7 @@ namespace OpenZ
                 });
                 bPauseMatch.Rt.TL(OzLayout.PauseBtnX + halfWidth + 8, row, halfWidth, 41);
                 bPauseMatch.Tooltip = $"Pause the match now. You can also hold Esc for {DuelEscapeHoldSeconds} seconds.";
-                Big(OpenZ.Multiplayer.DuelRuntime.I.IsHost ? "CHANGE MAP" : "ASK TO CHANGE MAP", HudButtonStyle.Normal,
+                Big("ASK TO CHANGE MAP", HudButtonStyle.Normal,
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
             }
@@ -139,7 +139,7 @@ namespace OpenZ
                     }, id => OzSfx.Ui(id), canvas.sortingOrder + 10);
                 });
                 if (onlineSkirmish)
-                    skirmishMapVote = Big("PROPOSE MAP CHANGE", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowRoomVote());
+                    skirmishMapVote = Big("ASK TO CHANGE MAP", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 if (onlineSkirmish && OpenZ.Multiplayer.DuelRuntime.I.IsHost)
                     Big("MANAGE PLAYERS", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.ShowRoomPlayers());
             }

@@ -203,7 +203,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-duel-13-ghost-follow\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-duel-14-map-requests\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
                 .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));
@@ -737,7 +737,7 @@ namespace OpenZ.Multiplayer
         {
             ZGame.RuleTicksLastFrame = 0; ZGame.RuleMsLastFrame = 0;
             if (!Active) return false;
-            game.gameSpeed = 1; game.paused = false; Time.timeScale = I.MatchPaused ? 0 : 1;
+            game.gameSpeed = 1; game.paused = false; Time.timeScale = MatchPlayPaused ? 0 : 1;
             if (!I.Playing || !I.Connected || I.MatchSuspended) return true;
             if (I.SkirmishRoom) { I.DriveRoom(game); return true; }
             if (I.IsHost)
@@ -1063,7 +1063,7 @@ namespace OpenZ.Multiplayer
 
         public void Surrender()
         {
-            if (!Playing || !Game || RoomObserver) return;
+            if (!Playing || !Game || RoomObserver || MapChangeActive) return;
             if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Surrender, Array.Empty<byte>()));
             else if (SkirmishRoom) Game.World.SurrenderSkirmish(LocalTeam);
             else ApplySurrender(0);
@@ -1071,6 +1071,7 @@ namespace OpenZ.Multiplayer
 
         void ApplySurrender(int seat)
         {
+            if (MapChangeActive) return;
             if (MatchPaused) PublishMatchPause(-1);
             Game.World.DuelSurrender(View.TeamSlot(seat));
         }
@@ -1079,6 +1080,7 @@ namespace OpenZ.Multiplayer
         public void Close()
         {
             ClearMatchRequest();
+            Array.Clear(mapRequestAvailableAt, 0, mapRequestAvailableAt.Length);
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
             Disconnect(); OnlineMode = false; guestRelease = null;

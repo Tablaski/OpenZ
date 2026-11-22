@@ -73,7 +73,14 @@ namespace OpenZ.Multiplayer
         public void ShowError() { page = Page.Error; dirty = true; }
         public void ShowInGameMenu() { if (R.MatchMenusBlocked) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
         public void ShowCommunications() { OpenChat(); }
-        internal void ShowRoomVote() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.RoomVote; dirty = true; }
+        internal void ShowRoomVote()
+        {
+            FindFirstObjectByType<OpenZPauseMenu>()?.Close();
+            if (OzConfirm.Blocks) OzConfirm.Dismiss();
+            ResetMapChangeDraft();
+            page = Page.RoomVote;
+            dirty = true;
+        }
         internal void CloseRoomVote() { if (page == Page.RoomVote) CloseOverlay(); }
         public void CloseOverlay() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Entry; dirty = true; }
         public void NotifyChat(string message) => NotifyMatch(message, chat: true);
@@ -132,9 +139,10 @@ namespace OpenZ.Multiplayer
             if (dirty) { dirty = false; Build(); }
             R.Voice.ChatMonitoring = chatInputMeter && R.Connected;
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
-            if (page == Page.MatchRequest) requestTime?.Set(Math.Ceiling(R.MatchRequestSeconds) + " s");
+            if ((page == Page.MatchRequest || page == Page.RoomVote) && R.MapChangeActive)
+                requestTime?.Set(Math.Ceiling(R.MapChangeSeconds) + " s");
+            else if (page == Page.MatchRequest) requestTime?.Set(Math.Ceiling(R.MatchRequestSeconds) + " s");
             if (BattlefieldLoading) UpdateBattlefieldLoading();
-            if (page == Page.RoomVote && R.RoomVoteMap != null) requestTime?.Set(Math.Ceiling(R.RoomVoteSeconds) + " s");
             if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
             lobbyConnectionStatus?.Set(R.ConnectionStatus);
@@ -233,7 +241,7 @@ namespace OpenZ.Multiplayer
                 return;
             }
             if (page == Page.Chat) { BuildChat(); return; }
-            if (page == Page.RoomVote) { BuildRoomVote(); return; }
+            if (page == Page.RoomVote) { BuildMapChange(); return; }
             if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
             if (page == Page.MatchRequest || page == Page.Reconnect) { BuildMatchRequestPage(); return; }
             if (BattlefieldLoading) { BuildBattlefieldLoading(); return; }
@@ -322,41 +330,11 @@ namespace OpenZ.Multiplayer
         }
         const string LocalSkirmishHost = "local";
         MultiplayerRoom localSkirmish;
-        int roomVoteSelection;
         internal MultiplayerRoom LocalSkirmishMatch(string map) =>
             localSkirmish?.Launched == true && localSkirmish.Map == map ? localSkirmish : null;
         internal void ClearLocalSkirmishMatch()
         {
             if (localSkirmish?.Launched == true) localSkirmish.ReturnToLobby(LocalSkirmishHost);
-        }
-
-        void BuildRoomVote()
-        {
-            var panel = Panel("MAP CHANGE", 490, 160, 940, 310);
-            if (R.RoomVoteMap != null)
-            {
-                Label(panel, OzAiMapCatalog.Find(R.RoomVoteMap).Name, 34, 72, 670, 30, OzUi.Ink);
-                requestTime = Label(panel, "", 790, 70, 130, 28, OzUi.Amber);
-                Label(panel, "The first Go or Veto decides. The map changes when time runs out.", 34, 136, 855, 17, OzUi.Muted);
-                Button(panel, "GO", 34, 192, 250, () => R.CastRoomVote(MapChangeBallot.Go), true, R.RoomCanVote);
-                Button(panel, "VETO", 300, 192, 250, () => R.CastRoomVote(MapChangeBallot.Veto), enabled: R.RoomCanVote);
-            }
-            else
-            {
-                string current = R.HostedRoom?.Map ?? R.JoinedRoom?.Map;
-                var maps = OzAiMapCatalog.MultiplayerMaps.Where(map => map.Id != current && DuelRuntime.IsRoomMap(map)).ToArray();
-                if (maps.Length > 0)
-                {
-                    int index = roomVoteSelection % maps.Length;
-                    var target = maps[index];
-                    Label(panel, target.Name + "  ·  " + target.Starts + " players", 154, 82, 630, 26, OzUi.Ink);
-                    Button(panel, "<", 34, 70, 102, () => { roomVoteSelection = (index + maps.Length - 1) % maps.Length; dirty = true; });
-                    Button(panel, ">", 804, 70, 102, () => { roomVoteSelection = (index + 1) % maps.Length; dirty = true; });
-                    Button(panel, "PROPOSE MAP", 34, 192, 430, () => R.ProposeRoomMap(target.Id), true, R.RoomCanVote);
-                }
-            }
-            Button(panel, "BACK TO MATCH", 570, 192, 336, CloseOverlay);
-            BuildChatPanel(490, 484, 940, 284);
         }
 
         int roomTab, roomSelectedSeat;
@@ -657,7 +635,7 @@ namespace OpenZ.Multiplayer
         }
 
         void BuildRoomMapTech(Transform panel, float x, float y, (int Vehicles, int Robots, int Fort) mapTech,
-            SkirmishRules rules, bool editable, Action<SkirmishRules> save, bool compact = false)
+            SkirmishRules rules, bool editable, Action<SkirmishRules> save, bool compact = false, bool proposal = false)
         {
             var tech = Hud.Img(panel, "Maximum factory tech", OzUi.GM950).rectTransform;
             tech.TL(x, y, 431, compact ? 225 : 275);
@@ -665,13 +643,13 @@ namespace OpenZ.Multiplayer
             int headings = compact ? 44 : 54;
             Label(tech, "FACTORY", 16, headings, 126, 15, OzUi.Muted);
             Label(tech, "MAP", 163, headings, 80, 15, OzUi.Muted);
-            Label(tech, "ACTIVE", 277, headings, 80, 15, OzUi.Muted);
+            Label(tech, proposal && !editable ? "PROPOSED" : "ACTIVE", 277, headings, 125, 15, OzUi.Muted);
             RoomTechRow(tech, "VEHICLES", compact ? 65 : 83, mapTech.Vehicles, rules.VehicleTech, editable,
-                value => { rules.VehicleTech = value; save(rules); });
+                value => { rules.VehicleTech = value; save(rules); }, !proposal || editable);
             RoomTechRow(tech, "ROBOTS", compact ? 105 : 128, mapTech.Robots, rules.RobotTech, editable,
-                value => { rules.RobotTech = value; save(rules); });
-            Label(tech, "Fort tech " + TechLabel(rules.VehicleTech > 0 ? rules.VehicleTech : mapTech.Fort), 16, compact ? 149 : 179, 399, 17, OzUi.Ink);
-            Button(tech, "RESET TO MAP DEFAULTS", 16, compact ? 177 : 218, 354, () =>
+                value => { rules.RobotTech = value; save(rules); }, !proposal || editable);
+            Label(tech, "Fort tech " + TechLabel(rules.VehicleTech > 0 && (!proposal || mapTech.Vehicles > 0) ? rules.VehicleTech : mapTech.Fort), 16, compact ? 149 : 179, 399, 17, OzUi.Ink);
+            if (!proposal || editable) Button(tech, "RESET TO MAP DEFAULTS", 16, compact ? 177 : 218, 354, () =>
             {
                 rules.VehicleTech = rules.RobotTech = 0;
                 save(rules);
@@ -743,15 +721,15 @@ namespace OpenZ.Multiplayer
         static bool HasSkirmishScene(OzAiMap map) =>
             SceneUtility.GetBuildIndexByScenePath(map.ScenePath) >= 0 && Resources.Load<TextAsset>("OpenZ/Maps/" + map.Id + "_grid");
 
-        void RoomTechRow(Transform panel, string label, int y, int original, int level, bool editable, Action<int> save)
+        void RoomTechRow(Transform panel, string label, int y, int original, int level, bool editable, Action<int> save, bool showButtons = true)
         {
             int active = level == 0 ? original : level;
             Label(panel, label, 16, y + 8, 140, 17, OzUi.Ink);
             Label(panel, TechLabel(original), 165, y + 8, 62, 17, OzUi.Muted);
-            Button(panel, "−", 223, y, 43, () => save(active - 1 == original ? 0 : active - 1),
+            if (showButtons) Button(panel, "−", 223, y, 43, () => save(active - 1 == original ? 0 : active - 1),
                 enabled: editable && active > 1, height: 36);
             Label(panel, TechLabel(active), 284, y + 8, 63, 17, level == 0 ? OzUi.Ink : OzUi.Amber);
-            Button(panel, "+", 359, y, 43, () => save(active + 1 == original ? 0 : active + 1),
+            if (showButtons) Button(panel, "+", 359, y, 43, () => save(active + 1 == original ? 0 : active + 1),
                 enabled: editable && active > 0 && active < 6, height: 36);
         }
 

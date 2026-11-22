@@ -474,9 +474,12 @@ namespace OpenZ.Multiplayer
             return maps.Where(map => OzAiMapCatalog.LobbyPlayerCount(map, maps) == size).ToArray();
         }
 
-        void DrawOnlineGallery()
+        void DrawOnlineGallery(bool inMatch = false)
         {
-            var panel = OnlineDialog("CHOOSE A MAP", 160, 82, 1600, 916, "BACK TO LOBBY");
+            var panel = inMatch
+                ? OnlineDialog("SELECT MAP", 160, 108, 1600, 916, "BACK TO ASK TO CHANGE MAP",
+                    () => { choosingRequestMap = false; dirty = true; })
+                : OnlineDialog("CHOOSE A MAP", 160, 82, 1600, 916, "BACK TO LOBBY");
             Button(panel, "OPENZ MAPS", 24, 67, 250, () => SwitchCatalog(true), onlineOfficial);
             Button(panel, "AI MAPS", 284, 67, 250, () => SwitchCatalog(false), !onlineOfficial);
             if (onlineOfficial) Label(panel, "2 PLAYERS", 555, 82, 340, 17, OzUi.Muted);
@@ -485,7 +488,7 @@ namespace OpenZ.Multiplayer
                 int size = onlineMapSizes[i];
                 Button(panel, size.ToString(), 548 + i * 58, 67, 53, () =>
                 { onlineMapSize = size; onlineMapPage = 0; dirty = true; }, onlineMapSize == size,
-                    OnlineGalleryMaps(size, false).Length > 0);
+                    Catalog(size, false).Length > 0);
             }
             string[] worlds = { "", "desert", "volcanic", "arctic", "jungle", "city" };
             for (int i = 0; i < worlds.Length; i++)
@@ -497,7 +500,7 @@ namespace OpenZ.Multiplayer
             var search = Input(panel, "", 1075, 67, 333, onlineMapSearch, value => onlineMapSearch = value, 70);
             search.onSubmit.AddListener(_ => { onlineMapPage = 0; dirty = true; });
             Button(panel, "SEARCH", 1418, 67, 158, () => { onlineMapPage = 0; dirty = true; });
-            var maps = OnlineGalleryMaps(onlineMapSize, onlineOfficial).Where(map =>
+            var maps = Catalog(onlineMapSize, onlineOfficial).Where(map =>
                 (onlineWorld.Length == 0 || map.World == onlineWorld) &&
                 (string.IsNullOrWhiteSpace(onlineMapSearch) || map.Name.IndexOf(onlineMapSearch.Trim(), StringComparison.OrdinalIgnoreCase) >= 0 ||
                     map.Id.IndexOf(onlineMapSearch.Trim(), StringComparison.OrdinalIgnoreCase) >= 0)).ToArray();
@@ -508,8 +511,9 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < visible.Length; i++)
             {
                 var map = visible[i];
-                var card = Button(panel, map.Name, 24 + i % 3 * 520, 173 + i / 3 * 316, 510,
-                    () => { onlineProposedMap = map.Id; dirty = true; }, map.Id == onlineProposedMap, height: 304);
+                bool current = inMatch && map.Id == R.Game.level;
+                var card = Button(panel, current ? map.Name + " (CURRENT MAP)" : map.Name, 24 + i % 3 * 520, 173 + i / 3 * 316, 510,
+                    () => { onlineProposedMap = map.Id; dirty = true; }, map.Id == onlineProposedMap, !current, height: 304);
                 var texture = SkirmishMinimap(map);
                 if (texture)
                 {
@@ -519,20 +523,23 @@ namespace OpenZ.Multiplayer
                     float w = texture.width * scale, h = texture.height * scale;
                     image.rectTransform.TL((510 - w) / 2, 8 + (260 - h) / 2, w, h);
                     image.raycastTarget = false;
+                    if (inMatch && !map.IsOfficial) OzAiMapBadge.Stamp(image.rectTransform, w);
                 }
             }
             if (maps.Length == 0) Label(panel, "No maps match these filters.", 32, 193, 1000, 23, OzUi.Ink);
             var candidate = maps.FirstOrDefault(map => map.Id == onlineProposedMap);
             var room = R.HostedRoom;
-            var active = room.Members.Where(member => member.Seat.Role != MatchSeatRole.Observer).ToArray();
+            var active = inMatch ? Array.Empty<RoomMember>() :
+                room.Members.Where(member => member.Seat.Role != MatchSeatRole.Observer).ToArray();
             Button(panel, "<", 24, 833, 78, () => { onlineMapPage--; dirty = true; }, enabled: onlineMapPage > 0);
             Label(panel, $"Page {onlineMapPage + 1} / {last + 1}", 115, 850, 280, 18, OzUi.Muted);
             Button(panel, ">", 260, 833, 78, () => { onlineMapPage++; dirty = true; }, enabled: onlineMapPage < last);
             if (candidate != null)
                 Label(panel, active.Length > onlineMapSize ? $"Choose {onlineMapSize} active players. The others stay as ghosts." :
                     $"{candidate.Name} · {onlineMapSize} active positions", 360, 847, 850, 17, OzUi.Ink);
-            Button(panel, active.Length > onlineMapSize ? "CHOOSE ACTIVE PLAYERS" : "SELECT MAP", 1206, 829, 370, () =>
+            Button(panel, inMatch ? "CONFIRM MAP" : active.Length > onlineMapSize ? "CHOOSE ACTIVE PLAYERS" : "SELECT MAP", 1206, 829, 370, () =>
             {
+                if (inMatch) { SelectMapChangeDraft(candidate.Id); return; }
                 if (active.Length <= onlineMapSize)
                 {
                     ApplyOnlineMap(active.Select(member => member.Id).ToArray());
@@ -545,12 +552,24 @@ namespace OpenZ.Multiplayer
                     onlineActives.Add(member.Id);
                 onlineRoleRevision = room.Revision;
                 OpenOnlinePopup(OnlinePopup.ActivePlayers);
-            }, true, candidate != null, 53);
+            }, true, candidate != null && (!inMatch || candidate.Id != R.Game.level), 53);
+
+            OzAiMap[] Catalog(int size, bool official)
+            {
+                if (!inMatch) return OnlineGalleryMaps(size, official);
+                var catalog = DuelRuntime.RoomMaps.Where(map => map.IsOfficial == official && map.Starts == size);
+                if (!R.SkirmishRoom) return catalog.Where(map => DuelRules.IsMapAllowed(map.Id)).ToArray();
+                int humans = R.IsHost
+                    ? R.HostedRoom.Members.Count(member => member.Seat.MayUsePlayerCommands)
+                    : R.JoinedRoom.Humans.Count(member => member.Position >= 0 && !member.Observer);
+                return catalog.Where(map => map.Starts >= humans).ToArray();
+            }
 
             void SwitchCatalog(bool official)
             {
                 onlineOfficial = official;
-                onlineMapSize = official ? 2 : OnlineGalleryMaps(onlineMapSize, false).Length > 0 ? onlineMapSize : 3;
+                onlineMapSize = official ? 2 : Catalog(onlineMapSize, false).Length > 0 ? onlineMapSize :
+                    inMatch ? onlineMapSizes.FirstOrDefault(size => Catalog(size, false).Length > 0) : 3;
                 onlineMapPage = 0;
                 onlineWorld = "";
                 dirty = true;

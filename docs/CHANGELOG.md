@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.48 (22 Nov 2026)
+
+- Online multiplayer — Asking to change the map pauses the match for everyone. The HUD shows who made the request and how much time remains. The requester has 30 seconds to choose a map and its factory tech, and the other players get a fresh 30 seconds to respond. A player must wait three minutes between requests unless the map changes.
+- Online multiplayer — Browse maps with the lobby's paged minimap gallery. Compare factory tech with the map defaults and reset it before sending. The vote shows the proposed map and factory tech together.
+
 ## OpenZ-VK 1.5.47 (22 Nov 2026)
 
 - Skirmish and online multiplayer — Loading screens show the battlefield minimap and its planet. Skirmish shows when it is setting up teams and bots. Online, you can see when your map has loaded and the match is waiting for the other players.

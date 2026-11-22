@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,18 +7,23 @@ namespace OpenZ.Multiplayer
     public sealed partial class DuelMenus
     {
         OzText requestTime;
-        bool requestAiMaps;
-        float requestMapScroll;
-        string shownRequestMap;
+        bool choosingRequestMap;
+        string requestDraftMap;
+        SkirmishRules requestDraftTech;
+
+        void ResetMapChangeDraft()
+        {
+            choosingRequestMap = false;
+            requestDraftMap = null;
+            requestDraftTech = new SkirmishRules();
+        }
 
         internal void ShowMatchRequest()
         {
             if (R.ConnectionInterrupted) return;
             FindFirstObjectByType<OpenZPauseMenu>()?.Close();
             if (OzConfirm.Blocks) OzConfirm.Dismiss();
-            requestAiMaps = OzAiMapCatalog.Find(R.MatchMap ?? R.View.Map) != null;
-            shownRequestMap = null;
-            requestMapScroll = 1;
+            ResetMapChangeDraft();
             page = Page.MatchRequest;
             dirty = true;
         }
@@ -34,6 +38,7 @@ namespace OpenZ.Multiplayer
 
         void BuildMatchRequestPage()
         {
+            if (page == Page.MatchRequest && R.MapChangeActive) { BuildMapChange(); return; }
             var shade = Hud.Img(root, "Match pause", new Color(0, 0, 0, .88f));
             shade.rectTransform.Fill();
             shade.raycastTarget = true;
@@ -56,56 +61,107 @@ namespace OpenZ.Multiplayer
                 return;
             }
 
-            var panel = Panel("CHANGE MAP", 135, 80, 1650, 920);
-            if (!R.MatchRequestOwner && shownRequestMap != R.MatchMap && R.MatchMap != null)
+        }
+
+        void BuildMapChange()
+        {
+            var shade = Hud.Img(root, "Map change pause", new Color(0, 0, 0, .57f));
+            shade.rectTransform.Fill();
+            shade.raycastTarget = true;
+            bool voting = R.SkirmishRoom ? R.ProposedMap != null : R.MatchMapSuggested;
+            bool editing = R.MapChangeOwner && !voting;
+            string requester = R.MapChangeRequester ?? "A player";
+            if (editing && choosingRequestMap) DrawOnlineGallery(inMatch: true);
+            else if (!voting && !editing)
             {
-                requestAiMaps = OzAiMapCatalog.Find(R.MatchMap) != null;
-                requestMapScroll = 1;
+                var waiting = Panel("ASK TO CHANGE MAP", 605, 416, 710, 214);
+                Label(waiting, $"{requester} asked to change the map and is choosing a battlefield.", 28, 93, 654, 22, OzUi.Ink);
             }
-            shownRequestMap = R.MatchMap;
-            requestTime = Label(panel, "", 1440, 24, 180, 42, OzUi.Amber);
-            Label(panel, "Your lobby rules carry over. Return to the lobby to change them. You have 30 seconds to agree.", 26, 68, 1480, 19, OzUi.Ink);
-            Button(panel, "OPENZ MAPS", 26, 108, 240, () => { requestAiMaps = false; requestMapScroll = 1; dirty = true; }, !requestAiMaps);
-            Button(panel, "AI MAPS", 278, 108, 240, () => { requestAiMaps = true; requestMapScroll = 1; dirty = true; }, requestAiMaps);
-            var maps = requestAiMaps ? OzAiMapCatalog.Playable.Where(m => m.Duel).Select(OzAiMapGallery.Definition).ToArray()
-                : OzLevelDef.All.Where(m => DuelRules.IsMapAllowed(m.Id)).ToArray();
-            var list = Scroll(panel, 26, 172, 510, 470, false, Math.Max(470, maps.Length * 56));
-            var scroll = list.parent.GetComponent<ScrollRect>();
-            scroll.verticalNormalizedPosition = requestMapScroll;
-            scroll.onValueChanged.AddListener(p => requestMapScroll = p.y);
-            bool mayPick = R.MatchRequestOwner && !R.MatchMapSuggested;
-            for (int i = 0; i < maps.Length; i++)
-            {
-                var map = maps[i];
-                Button(list, map.Number + " · " + map.Name, 0, i * 56, 485, () => R.SelectMatchMap(map.Id),
-                    R.MatchMap == map.Id, mayPick && map.Id != R.View.Map);
-            }
-            string selectedId = R.MatchMap ?? R.View.Map;
-            var selected = OzAiMapGallery.Definition(selectedId);
-            var preview = Resources.Load<Texture2D>("OpenZ/AiMaps/Previews/" + selectedId)
-                ?? Resources.Load<Texture2D>("OpenZ/Menu/" + selectedId + "_poster");
-            if (preview)
-            {
-                var image = Hud.Node("Map preview", panel).gameObject.AddComponent<RawImage>();
-                image.texture = preview;
-                image.rectTransform.TL(572, 172, 820, 360);
-                image.uvRect = OzLevelPreview.Cover((float)preview.width / preview.height, 820f / 360);
-                image.raycastTarget = false;
-            }
-            Label(panel, selected?.Name ?? selectedId, 572, 545, 800, 24, OzUi.Ink);
-            string request = R.MatchRequestOwner
-                ? R.MatchMapSuggested ? "Waiting for " + R.OpponentName + "." : "Select a map to suggest to " + R.OpponentName + "."
-                : R.MatchMapSuggested ? R.OpponentName + " suggests this map. Accept starts it. Decline resumes this duel."
-                    : R.OpponentName + " is choosing a map.";
-            Label(panel, request, 572, 584, 1000, 18, OzUi.Muted);
-            if (R.MatchRequestOwner)
-                Button(panel, "SUGGEST MAP", 1120, 625, 470, R.SuggestMatchMap, true, mayPick && R.MatchMap != null);
             else
             {
-                Button(panel, "ACCEPT", 1120, 625, 225, () => R.AnswerMatchRequest(true), true, R.MatchMapSuggested);
-                Button(panel, "DECLINE", 1365, 625, 225, () => R.AnswerMatchRequest(false), false, R.MatchMapSuggested);
+                string mapId = voting ? R.ProposedMap : requestDraftMap;
+                var panel = Panel(voting ? "MAP CHANGE VOTE" : "ASK TO CHANGE MAP", 215, 176, 1490, 728);
+                string status = editing ? "Choose a map and review its factory tech before sending your proposal." :
+                    $"{requester} proposes this map and factory tech.";
+                Label(panel, status, 31, 78, 1426, 22, OzUi.Ink);
+                DrawMapChangeDetails(panel, mapId, editing);
+                if (editing)
+                {
+                    Button(panel, "BACK TO MATCH", 31, 640, 260, R.CancelMapChange);
+                    Button(panel, "PROPOSE MAP", 1117, 640, 340,
+                        () => R.SubmitMapChange(requestDraftMap, requestDraftTech.VehicleTech, requestDraftTech.RobotTech),
+                        true, mapId != null, 48);
+                }
+                else if (R.SkirmishRoom)
+                {
+                    Label(panel, $"{R.RoomVotesNeeded} matching votes decide. If time runs out, the map changes.", 31, 638, 855, 19, OzUi.Muted);
+                    Button(panel, "VETO", 951, 628, 239, () => R.CastRoomVote(MapChangeBallot.Veto), enabled: R.CanCastRoomMapVote);
+                    Button(panel, "GO", 1205, 628, 252, () => R.CastRoomVote(MapChangeBallot.Go), true, R.CanCastRoomMapVote);
+                }
+                else if (!R.MapChangeOwner)
+                {
+                    Button(panel, "DECLINE", 951, 628, 239, () => R.AnswerMatchRequest(false));
+                    Button(panel, "ACCEPT", 1205, 628, 252, () => R.AnswerMatchRequest(true), true);
+                }
+                else Label(panel, $"Waiting for {R.OpponentName} to respond.", 31, 638, 845, 19, OzUi.Muted);
             }
-            BuildChatPanel(161, 786, 1598, 190);
+
+            var notice = Panel(voting ? "PAUSED · MAP CHANGE VOTE" : "PAUSED · MAP SELECTION", 110, 14, 380, 94);
+            Label(notice, $"{requester} requested a map change", 23, 58, 285, 15, OzUi.Ink);
+            requestTime = Label(notice, "", 309, 50, 66, 25, OzUi.Amber);
+        }
+
+        void DrawMapChangeDetails(RectTransform panel, string mapId, bool editing)
+        {
+            var mapPanel = Hud.Img(panel, "Selected battlefield", OzUi.GM950).rectTransform;
+            mapPanel.TL(31, 120, 785, 479);
+            var map = OzAiMapCatalog.FindSkirmishMap(mapId);
+            var definition = OzAiMapGallery.Definition(mapId);
+            Label(mapPanel, map?.Name ?? definition?.Name ?? "SELECT MAP", 18, 25, 506, 23, OzUi.Amber);
+            if (editing) Button(mapPanel, "SELECT MAP", 520, 13, 247, OpenMapChangeGallery);
+            if (mapId == null) return;
+            var mini = map != null ? SkirmishMinimap(map) : GeneratedSkirmishMinimap(mapId);
+            if (mini)
+            {
+                var image = Hud.Node("Tactical minimap", mapPanel).gameObject.AddComponent<RawImage>();
+                image.texture = mini;
+                float scale = Mathf.Min(700f / mini.width, 385f / mini.height);
+                float w = mini.width * scale, h = mini.height * scale;
+                image.rectTransform.TL((785 - w) / 2, 72 + (385 - h) / 2, w, h);
+                image.raycastTarget = false;
+                if (map != null && !map.IsOfficial) OzAiMapBadge.Stamp(image.rectTransform, w);
+            }
+
+            var mapTech = ReadMapTech(mapId);
+            var rules = editing ? requestDraftTech : new SkirmishRules
+                { VehicleTech = R.ProposedVehicleTech, RobotTech = R.ProposedRobotTech };
+            BuildRoomMapTech(panel, 834, 120, mapTech, rules, editing, updated =>
+            {
+                requestDraftTech = updated;
+                dirty = true;
+            }, proposal: true);
+        }
+
+        void OpenMapChangeGallery()
+        {
+            choosingRequestMap = true;
+            onlineProposedMap = requestDraftMap;
+            onlineOfficial = requestDraftMap == null ? !R.SkirmishRoom : OzAiMapCatalog.Find(requestDraftMap) == null;
+            onlineMapSize = R.SkirmishRoom ? OzAiMapCatalog.FindSkirmishMap(requestDraftMap ?? R.Game.level)?.Starts ?? 3 : 2;
+            onlineMapSearch = onlineWorld = "";
+            onlineMapPage = 0;
+            dirty = true;
+        }
+
+        void SelectMapChangeDraft(string map)
+        {
+            if (map != requestDraftMap)
+            {
+                requestDraftMap = map;
+                requestDraftTech.VehicleTech = requestDraftTech.RobotTech = 0;
+            }
+            choosingRequestMap = false;
+            dirty = true;
         }
     }
 }

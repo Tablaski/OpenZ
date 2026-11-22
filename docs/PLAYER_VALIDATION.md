@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.48 in-match map changes
+
+- Pending in a compiled game. In a duel and a room with three or more players, open Ask to Change Map from a guest and a host. Check the named HUD countdown for the requester, other players and Ghosts. Verify time and orders stay frozen through selection and through the fresh 30-second response window.
+- Check gallery filters, paging and search, the current map marker, factory tech adjustments and reset. Verify accepted changes carry the proposed values and leave the other lobby rules intact. Check cancellation, selection timeout, veto or decline, and each mode's existing response-timeout behavior.
+- After a cancelled or refused request, check that the same player sees the remaining three-minute wait and that a different player can request immediately. Check that an applied map change clears the wait.
+
 ## OpenZ-VK 1.5.47 Skirmish and multiplayer loading
 
 - The five catalog biomes have matching 1920 × 1080 backgrounds in the local AI Maps package. The multiplayer suite still stops at the baseline assertion `Team edits publish as one revision` in `MultiplayerRoomChecks.cs:71`.

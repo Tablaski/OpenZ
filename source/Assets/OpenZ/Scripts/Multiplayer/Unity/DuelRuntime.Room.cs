@@ -34,6 +34,8 @@ namespace OpenZ.Multiplayer
             RoomTransport.Remotes.All(link => IsRoomGhost(link.Id) || link.Ready && roomLinks.ContainsKey(link.Id));
         int RoomPosition => IsHost ? room?.HostPosition ?? -1 : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Position ?? -1;
         MapChangeVote roomVote;
+        RoomVoteState roomVoteState;
+        bool localRoomBallot;
         string roomVoteMap;
         int loadedRoomRevision = -1, roomVoteSequence;
         int activeRoomVote;
@@ -41,6 +43,8 @@ namespace OpenZ.Multiplayer
         internal string RoomVoteMap => roomVoteMap;
         internal double RoomVoteSeconds => Math.Max(0, roomVoteDeadline - Now);
         internal bool RoomCanVote => RoomPosition >= 0 && Playing && Game && !Game.World.GameOver && !Game.World.SkirmishEliminated(LocalTeam);
+        internal bool CanCastRoomMapVote => RoomCanVote && !MapChangeOwner && !localRoomBallot && roomVoteMap != null;
+        internal int RoomVotesNeeded => roomVoteState?.VotesNeeded ?? 0;
         internal bool SkirmishRoom => room != null || roomGuest != null;
         internal MultiplayerRoom HostedRoom => room;
         internal RoomSnapshot JoinedRoom => roomGuest?.View;
@@ -187,6 +191,7 @@ namespace OpenZ.Multiplayer
             {
                 case DuelMessage.RoomCommand:
                 case DuelMessage.RoomOrder:
+                    if (packet.Kind == DuelMessage.RoomOrder && MapChangeActive) return true;
                     if (sender != null && roomLinks.TryGetValue(sender.Id, out var link) && link.Receive(packet, false) && packet.Kind == DuelMessage.RoomCommand)
                     {
                         PublishRoom();
@@ -433,7 +438,7 @@ namespace OpenZ.Multiplayer
                     }
                     return;
                 case DuelMessage.Surrender:
-                    if (IsHost && Playing && Game && room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
+                    if (IsHost && Playing && Game && !MapChangeActive && room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
                         Game.World.SurrenderSkirmish(room.HumanTeam(RoomGuest(sender.Id)));
                     return;
                 case DuelMessage.EndReady:
@@ -587,7 +592,7 @@ namespace OpenZ.Multiplayer
             world.SetSkirmishAlliances(alliances);
             world.ConfigureSkirmishRules(snapshot.Rules, snapshot.Closed, replica: true);
             roomGuest.AttachBattlefield(world);
-            world.DuelForward = order => RoomPosition >= 0 && Playing && Connected && !world.SkirmishEliminated(LocalTeam) && roomGuest.SendOrder(order);
+            world.DuelForward = order => RoomPosition >= 0 && Playing && Connected && !MapChangeActive && !world.SkirmishEliminated(LocalTeam) && roomGuest.SendOrder(order);
         }
 
         void FinishRoomLoading()
@@ -633,13 +638,13 @@ namespace OpenZ.Multiplayer
             wireSentAtMatchStart = WireStateSent;
         }
 
-        void DriveRoom(ZGame game)
+        void DriveRoom(ZGame game, bool advance = true)
         {
             if (!IsHost || roomEpoch != RoomTransport.Epoch) return;
             var links = RoomTransport.Remotes;
             if (room.Members.Count(member => member.Id != RoomHostId && !roomDeparted.Contains(int.Parse(member.Id))) != roomLinks.Count ||
                 links.Any(link => roomLinks.ContainsKey(link.Id) && !link.Ready)) return;
-            if (game.SkirmishPlanningLeft <= 0)
+            if (advance && game.SkirmishPlanningLeft <= 0)
             {
                 game.DuelAdvance(Time.unscaledDeltaTime);
                 roomSimulationPeak = Math.Max(roomSimulationPeak, ZGame.RuleMsLastFrame);
@@ -661,7 +666,7 @@ namespace OpenZ.Multiplayer
                 SnapshotHz = roomTuning.Hz;
             }
             if (roomLinks.Count == 0) { pendingEvents.Clear(); return; }
-            if ((roomFullState || game.World.GameOver && !sentGameOver || now - lastSnapshot >= 1d / SnapshotHz) && queued < 64 * 1024)
+            if ((!advance || roomFullState || game.World.GameOver && !sentGameOver || now - lastSnapshot >= 1d / SnapshotHz) && queued < 64 * 1024)
             {
                 long started = Stopwatch.GetTimestamp();
                 var delta = roomCapture.CaptureDelta(game.World, roomFullState);
@@ -691,26 +696,25 @@ namespace OpenZ.Multiplayer
         [Serializable] sealed class RoomVoteRequest
         {
             public int Revision, Vote, Ballot;
+            public int VehicleTech, RobotTech;
+            public bool Cancel;
             public string Map;
         }
 
         [Serializable] sealed class RoomVoteState
         {
             public int Revision, Vote;
-            public string Map;
+            public int Seat, VehicleTech, RobotTech, VotesNeeded;
+            public string Map, Name;
             public MapChangeResult Result;
-        }
-
-        internal void ProposeRoomMap(string map)
-        {
-            if (!RoomCanVote || roomVoteMap != null) return;
-            SendRoomVoteRequest(new RoomVoteRequest { Revision = loadedRoomRevision, Map = map });
         }
 
         internal void CastRoomVote(MapChangeBallot ballot)
         {
-            if (!RoomCanVote || roomVoteMap == null) return;
+            if (!CanCastRoomMapVote || RoomVoteSeconds <= 0) return;
+            localRoomBallot = true;
             SendRoomVoteRequest(new RoomVoteRequest { Revision = loadedRoomRevision, Vote = activeRoomVote, Ballot = (int)ballot });
+            Menus.Refresh();
         }
 
         void SendRoomVoteRequest(RoomVoteRequest request)
@@ -723,32 +727,56 @@ namespace OpenZ.Multiplayer
         {
             if (request == null || !Playing || !Game || Game.World.GameOver ||
                 request.Revision != room.Revision || sender == Team.Neutral || Game.World.SkirmishEliminated(sender)) return;
+            int seat = (int)sender - 1;
             if (request.Vote == 0)
             {
-                if (roomVote != null || request.Map == room.Map || string.IsNullOrEmpty(request.Map) ||
-                    !IsRoomMap(OzAiMapCatalog.FindSkirmishMap(request.Map))) return;
-                var eligible = room.Members.Where(member => member.Seat.MayUsePlayerCommands &&
-                    !Game.World.SkirmishEliminated(room.HumanTeam(member.Id))).Select(member => member.Seat.Position);
-                roomVote = new MapChangeVote(eligible, Now);
-                var state = new RoomVoteState { Revision = room.Revision, Vote = ++roomVoteSequence, Map = request.Map };
-                SendJson(DuelMessage.RoomVoteState, state);
-                ShowRoomVote(state);
+                if (activeRoomVote != 0 || !string.IsNullOrEmpty(request.Map) || Now < mapRequestAvailableAt[seat]) return;
+                var member = room.Members.First(candidate => candidate.Seat.MayUsePlayerCommands && candidate.Seat.Position == seat);
+                DriveRoom(Game, advance: false);
+                PublishRoomVote(new RoomVoteState { Revision = room.Revision, Vote = ++roomVoteSequence,
+                    Seat = seat, Name = member.Name });
                 return;
             }
-            if (roomVote == null || request.Vote != activeRoomVote) return;
-            FinishRoomVote(roomVote.Cast((int)sender - 1, (MapChangeBallot)request.Ballot, Now));
+            if (request.Vote != activeRoomVote || Now >= roomVoteDeadline) return;
+            if (roomVoteMap == null && seat == roomVoteState.Seat)
+            {
+                if (request.Cancel) { FinishRoomVote(MapChangeResult.Refuse); return; }
+                var candidate = OzAiMapCatalog.FindSkirmishMap(request.Map);
+                if (request.Map == room.Map || string.IsNullOrEmpty(request.Map) ||
+                    !IsRoomMap(candidate) || candidate.Starts < room.Members.Count(member => member.Seat.MayUsePlayerCommands) ||
+                    !ValidMapTech(request.VehicleTech, request.RobotTech)) return;
+                var eligible = room.Members.Where(member => member.Seat.MayUsePlayerCommands &&
+                    !Game.World.SkirmishEliminated(room.HumanTeam(member.Id))).Select(member => member.Seat.Position).ToArray();
+                roomVote = new MapChangeVote(eligible, Now);
+                PublishRoomVote(new RoomVoteState { Revision = room.Revision, Vote = activeRoomVote, Seat = seat,
+                    Name = roomVoteState.Name, Map = request.Map, VehicleTech = request.VehicleTech,
+                    RobotTech = request.RobotTech, VotesNeeded = (eligible.Length + 1) / 2 });
+            }
+            else if (roomVote != null && seat != roomVoteState.Seat)
+                FinishRoomVote(roomVote.Cast(seat, (MapChangeBallot)request.Ballot, Now));
+        }
+
+        void PublishRoomVote(RoomVoteState state)
+        {
+            SendJson(DuelMessage.RoomVoteState, state);
+            ShowRoomVote(state);
         }
 
         void FinishRoomVote(MapChangeResult result)
         {
             if (result == MapChangeResult.Pending) return;
-            var state = new RoomVoteState { Revision = room.Revision, Vote = activeRoomVote, Map = roomVoteMap, Result = result };
+            var state = roomVoteState;
+            state.Result = result;
             roomVote = null;
-            SendJson(DuelMessage.RoomVoteState, state);
-            ShowRoomVote(state);
+            PublishRoomVote(state);
             if (result != MapChangeResult.Apply) return;
+            Array.Clear(mapRequestAvailableAt, 0, mapRequestAvailableAt.Length);
             ReturnRoomToLobby();
             room.SelectMap(RoomHostId, state.Map);
+            var rules = room.Rules;
+            rules.VehicleTech = state.VehicleTech;
+            rules.RobotTech = state.RobotTech;
+            room.SetRules(RoomHostId, rules);
             FillRoomBots();
             foreach (var member in room.Members.Where(member => member.Seat.MayUsePlayerCommands))
                 room.SetReady(member.Id, room.Revision, true);
@@ -762,36 +790,55 @@ namespace OpenZ.Multiplayer
 
         void ShowRoomVote(RoomVoteState state)
         {
-            if (RoomObserver || state == null || state.Vote <= 0 || state.Revision != loadedRoomRevision ||
-                string.IsNullOrEmpty(state.Map) || !IsRoomMap(OzAiMapCatalog.FindSkirmishMap(state.Map))) return;
+            if (state == null || state.Vote <= 0 || state.Revision != loadedRoomRevision ||
+                state.Seat < 0 || state.Seat >= mapRequestAvailableAt.Length ||
+                (!string.IsNullOrEmpty(state.Map) && !IsRoomMap(OzAiMapCatalog.FindSkirmishMap(state.Map)))) return;
+            if (string.IsNullOrEmpty(state.Map)) state.Map = null;
             if (state.Result == MapChangeResult.Pending)
             {
-                if (state.Vote <= activeRoomVote) return;
+                bool opening = activeRoomVote == 0 && state.Map == null;
+                if (!opening && (state.Vote != activeRoomVote || roomVoteMap != null || state.Map == null)) return;
                 activeRoomVote = state.Vote;
+                roomVoteState = state;
                 roomVoteMap = state.Map;
-                roomVoteDeadline = Now + MapChangeVote.DurationSeconds;
-                Menus.ShowRoomVote();
+                roomVoteDeadline = IsHost && roomVote != null ? roomVote.Deadline : Now + MapChangeVote.DurationSeconds;
+                if (opening)
+                {
+                    localRoomBallot = false;
+                    mapRequestAvailableAt[state.Seat] = Now + MapRequestCooldown;
+                    SetMapChangePause(true);
+                    Menus.ShowRoomVote();
+                }
+                else Menus.Refresh();
                 return;
             }
-            if (activeRoomVote != state.Vote || roomVoteMap == null) return;
+            if (activeRoomVote != state.Vote) return;
+            activeRoomVote = 0;
+            roomVoteState = null;
             roomVoteMap = null;
-            string mapName = OzAiMapCatalog.FindSkirmishMap(state.Map).Name;
-            string notice = state.Result == MapChangeResult.Apply ? "Map change accepted: " + mapName : "Map change refused: " + mapName;
-            AddChat(notice);
+            SetMapChangePause(false);
+            if (state.Result == MapChangeResult.Apply) Array.Clear(mapRequestAvailableAt, 0, mapRequestAvailableAt.Length);
+            string mapName = OzAiMapCatalog.FindSkirmishMap(state.Map)?.Name;
+            string notice = state.Result == MapChangeResult.Apply ? "Map change accepted: " + mapName :
+                state.Map == null ? "Map change request ended." : "Map change refused: " + mapName;
             Menus.CloseRoomVote();
-            Menus.NotifyChat(notice);
+            Menus.NotifyMatch(notice);
         }
 
         void UpdateRoomVote()
         {
-            if (roomVote == null || !Playing || !Game) return;
-            FinishRoomVote(Game.World.GameOver ? MapChangeResult.Refuse : roomVote.Advance(Now));
+            if (!IsHost || activeRoomVote == 0 || !Playing || !Game) return;
+            if (Game.World.GameOver || roomVote == null && Now >= roomVoteDeadline)
+                FinishRoomVote(MapChangeResult.Refuse);
+            else if (roomVote != null) FinishRoomVote(roomVote.Advance(Now));
         }
 
         void ClearRoomVote()
         {
             roomVote = null;
+            roomVoteState = null;
             roomVoteMap = null;
+            if (activeRoomVote != 0) SetMapChangePause(false);
             activeRoomVote = roomVoteSequence = 0;
             loadedRoomRevision = -1;
         }

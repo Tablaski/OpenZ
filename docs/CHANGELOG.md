@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.42 (22 Nov 2026)
+
+- Solo + 1 vs 1 — When you lose your last radar with Zoom Lock enabled, the camera locks at a fixed zoom level with the usual battlefield angle.
+
 ## OpenZ-VK 1.5.41 (22 Nov 2026)
 
 - Solo — Factory Tech is available from the deployment bar for both the OpenZ campaign and AI Maps. Each map keeps its own factory settings.

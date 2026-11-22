@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.42 radar-loss camera framing
+
+- Pending in a compiled game. On Car Park at 16:9, compare the locked view near the red fort with the reference capture (97 m height, 55° pitch). Check Zoom Lock and Fog + Zoom in solo and 1 vs 1. After losing the last radar, verify that wheel, touch and gamepad cannot change the zoom and that panning remains available. Recover a radar and verify that zoom controls return. Check normal camera behavior with Fog and Off.
+
 ## OpenZ-VK 1.5.41 solo factory technology
 
 - Pending in a compiled game. Open Factory Tech from the deployment bar in the official campaign and AI Maps. Change a factory level on an official map, deploy, and verify the level and difficulty tech bonus in play. Verify an unrelated map keeps its own settings and Restore Campaign Defaults restores the official map's default behavior.
@@ -205,7 +209,7 @@
 
 ## OpenZ-VK 1.5.5 radar visibility
 
-- Pending solo and 1 vs 1 check: with Zoom Lock and Fog + Zoom, lose the last radar, verify the wider 82.5 m overhead view and try wheel, touch or gamepad zoom. Capture or rebuild a radar and check normal zoom returns. Check that Fog and Off keep normal camera behavior.
+- See the OpenZ-VK 1.5.42 radar-loss camera framing check for the current zoom level and controls.
 - Pending minimap check: compare friendly, neutral, visible enemy, fogged and ruined radars. Check that capture or repair starts the friendly sweep and enemy capture or destruction stops it. Check clipping near the map edge, Reduced Motion, and the Options → Game toggle before and after restarting.
 
 ## OpenZ-VK 1.5.4 duel audio

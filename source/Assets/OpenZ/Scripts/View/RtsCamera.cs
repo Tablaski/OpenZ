@@ -154,7 +154,9 @@ namespace OpenZ
         public static float FreeFloorEaseSeconds = 0.15f, FreeFloorDiscM = 4f;
         float floorEased, floorVel; int floorFrame = -10;
 
-        internal const float RadarLockHeight = 82.5f;
+        // Match the Car Park reference framing at the standard 32-degree field of view.
+        internal const float RadarLockHeight = 97f;
+        const float RadarLockPitch = 55f;
         float startingRadarPitch;
         bool radarZoomWasLocked;
         void Start() { targetHeight = height; startingRadarPitch = pitch; Place(); }
@@ -212,11 +214,11 @@ namespace OpenZ
             bool radarZoom = OzRadarLoss.I && OzRadarLoss.I.Zoom;
             if (radarZoom || radarZoomWasLocked)
             {
-                pitch = Mathf.MoveTowards(pitch, radarZoom ? 89 : startingRadarPitch, 150 * Time.unscaledDeltaTime);
+                pitch = Mathf.MoveTowards(pitch, radarZoom ? RadarLockPitch : startingRadarPitch, 150 * Time.unscaledDeltaTime);
                 if (radarZoom)
                 {
                     targetHeight = Mathf.Clamp(RadarLockHeight, minHeight, maxHeight);
-                    freeTilt = Mathf.Clamp(freeTilt, 63 - pitch, 89 - pitch);
+                    freeTilt = Mathf.Clamp(freeTilt, RadarLockPitch - pitch, 89f - pitch);
                 }
                 radarZoomWasLocked = radarZoom || !Mathf.Approximately(pitch, startingRadarPitch);
             }

@@ -30,11 +30,16 @@ static class SkirmishChecks
         check(!world.GameOver && world.SurrenderSkirmish(Team.Red), "Human can surrender without ending a three-side skirmish");
         check(world.SkirmishEliminated(Team.Red) && !world.SurrenderSkirmish(Team.Red) &&
             !world.Objects.Any(o => o.Owner == Team.Red && o.IsUnit && !o.Destroyed), "Surrender eliminates the human seat exactly once");
+        check(world.Events.Count(e => e.type == ZEventType.TeamEliminated) == 1 && !world.IsFinalSkirmishFort(Team.Red),
+            "An early elimination produces one HUD event and no final camera cue");
         for (int i = 0; i < 150; i++) world.Tick(ZConst.TICK);
         check(!world.GameOver && world.UnitCount(Team.Blue) > 0 && world.UnitCount(Team.Green) > 0, "Both bots remain in the match after the human surrenders");
         var blue = world.Objects.Single(o => o.IsFort && o.Owner == Team.Blue);
         blue.SetHealth(0);
         world.UpdateObjectHealth(blue);
+        world.Tick(ZConst.TICK);
+        check(world.IsFinalSkirmishFort(Team.Blue) && !world.IsFinalSkirmishFort(Team.Red),
+            "The authoritative end check marks only the decisive fort in the elimination tick");
         for (int i = 0; i < 150; i++) world.Tick(ZConst.TICK);
         check(world.GameOver && world.Winner == Team.Green, "The last remaining contender wins, including green");
     }

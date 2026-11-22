@@ -7,12 +7,12 @@ namespace OpenZ
     {
         public const string FlagLabel = "FLAG SIZE", BorderLabel = "DOTTED TERRITORY BORDERS";
         public const string RadarLabel = "MINIMAP RADARS", RadarPref = "oz_vk_minimap_radars";
-        public const string RadarTip = "MINIMAP RADARS|With a Radar Loss Consequence selected, highlight visible radars and show a white sweep from active radars you own. Reduced motion keeps the outlines.|";
-        public const string RadarSweepLabel = "RADAR SWEEP INTERVAL", RadarSweepPref = "oz_vk_radar_sweep_seconds";
-        public const string RadarSweepTip = "RADAR SWEEP INTERVAL|Seconds between sweeps from each active radar you own. Requires Minimap Radars and a Radar Loss Consequence.|";
+        public const string RadarTip = "MINIMAP RADARS|Highlight visible radars and show a white sweep from active radars you own. Reduced motion keeps the radar outlines.|";
+        public const string RadarSweepLabel = "MINIMAP RADAR SWEEP INTERVAL", RadarSweepPref = "oz_vk_radar_sweep_seconds";
+        public const string RadarSweepTip = RadarSweepLabel + "|Seconds between sweeps from your active radars when Minimap Radars is on. Reduced motion keeps the radar outlines.|";
         public const string FlagPref = "oz_flag_size", BorderPref = "oz_territory_borders";
         public const string FlagTip = "FLAG SIZE|Display flags and their poles at x1 (original), x2 or x4. Applies immediately to territory and fort flags, including flags added in the Unit Editor. Capture distance, territory ownership and gameplay are unchanged.|";
-        public const string BorderTip = "DOTTED TERRITORY BORDERS|Show bright round LED boundaries in each territory owner's colour, or grey for neutral territory, like Zod Engine's zone markers. The marks follow the ground and water, skip walls/buildings and recolour immediately after a capture. Choose OFF, x1, x2 or x4. Visual only; applies immediately and is saved.|";
+        public const string BorderTip = "DOTTED TERRITORY BORDERS|Show outlined dots in each territory owner's colour, with dark grey on Arctic and white on City for neutral territory. The marks follow the ground and water, skip walls and buildings, and recolour after a capture. Choose OFF, x1, x2 or x4.|";
         static readonly int[] RadarSweepIntervals = { 3, 5, 10 };
         static int size = -1, borders = -1, radars = -1, radarSweepIndex = -1;
         public static bool Radars

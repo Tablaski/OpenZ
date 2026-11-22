@@ -9,24 +9,23 @@ player chooses their own presentation; no simulation or network rules change.
   flags. Capture distances and ownership do not change. Flag motion, capture
   animations and night effects remain attached; ground capture rings keep their
   original size.
-- **DOTTED TERRITORY BORDERS**: OFF by default. Thin, softly edged dashes,
-  0.18 metres wide, about 0.8 metres long every 2 metres, drawn just inside each
-  territory. Adjacent territories can show their own colours independently.
-  Unowned territory uses grey. Colours follow capture and visual team-colour
-  changes. Marks follow terrain/water and skip impassable walls and buildings.
-- **MINIMAP RADARS**: On by default when a Radar Loss Consequence is selected.
-  Visible intact radars get an outline. A white ring expands and fades around
-  active friendly radars, and the radar's marker lights up white during the
-  sweep. Reduced Motion keeps the outlines. Radar Loss set to Off uses the
-  standard OpenZ minimap.
-- **RADAR SWEEP INTERVAL**: Choose 3, 5 or 10 seconds between sweeps from each
-  active friendly radar. The default is 3 seconds.
+- **DOTTED TERRITORY BORDERS**: Choose Off, x1, x2 or x4. Round dots sit just
+  inside each territory. A light rim and dark outer edge keep team colours
+  distinct across bright and dark terrain. Neutral territory uses dark grey
+  on Arctic maps, white on City maps and light grey elsewhere. Colours follow
+  capture and visual team-colour changes. Marks follow ground and shallow water
+  and skip impassable tiles and buildings.
+- **MINIMAP RADARS**: On by default. Visible intact radars get an outline. A
+  white ring expands and fades around active friendly radars, and their markers
+  light up white during the sweep. Reduced Motion keeps the radar outlines.
+  This presentation option works with any Radar Loss Consequence setting.
+- **MINIMAP RADAR SWEEP INTERVAL**: Choose 3, 5 or 10 seconds between sweeps
+  from your active radars. The default is 3 seconds.
 
 The reference is local Zod Engine's `ZMap::SetupAllZoneInfo` and `DoZoneEffects`
 in `src/zmap.cpp`: owner-coloured markers along passable perimeter tiles, with
-separate water markers. OpenZ renders these as static 3D ground dashes rather
-than importing sprites or changing map resources. Existing capture flashes are
-separate from the optional persistent border display.
+separate water markers. OpenZ-VK renders these as 3D ground dots. The optional
+persistent border display and capture flashes are separate effects.
 
 Native validation is included in the requested release's multiplayer proof:
 both option menus, flag cycles while options are open, border enable/disable,

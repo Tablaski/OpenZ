@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.36 (22 Nov 2026)
+
+- Solo and multiplayer — Minimap radars sweep at the selected 3, 5 or 10 second interval, including in matches with Radar Loss Consequence turned off. Look for **Minimap Radar Sweep Interval** in Options → Game.
+- Solo and multiplayer — Dotted territory borders use contrasting outlines so team colours are easier to see on snow, pavement and near lava and water. Neutral dots are dark grey on Arctic maps and white on City maps.
+
 ## OpenZ-VK 1.5.35 (22 Nov 2026)
 
 - Solo and multiplayer — Choose one combat profile for the match. Use standard OpenZ behavior, select Z Classic or load a saved custom profile.

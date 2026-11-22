@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using OpenZ.Multiplayer;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -54,6 +53,8 @@ namespace OpenZ
         sealed class RadarMarker { public Image Ring, Sweep, Dot; public ZObject Radar; public float Diameter; }
         readonly List<RadarMarker> radarMarkers = new List<RadarMarker>();
         int radarUsed;
+        int radarSweepInterval;
+        double radarSweepStarted, nextRadarSweep;
         sealed class Ping { public Image img; public float t0, delay, r0, r1, dur; public Color c; public Vector2 at; }
         readonly List<Ping> pings = new List<Ping>();
         bool dragFly, rallyPress; Vector2 lastFly;
@@ -258,7 +259,7 @@ namespace OpenZ
 
             // marker layer (guide 9.5): buildings in the owner colour, flags, then every unit (Zod draws every object)
             bldUsed = unitUsed = radarUsed = 0;
-            bool highlightRadars = OzRadarLoss.RuleFor(W) != RadarLossRule.Off && OzMapReadabilityOptions.Radars;
+            bool highlightRadars = OzMapReadabilityOptions.Radars;
             foreach (var o in W.Objects)
             {
                 if (o.Kind == ZKind.Building && !o.IsBridge && !OzRadarLoss.Covers(o))
@@ -346,6 +347,9 @@ namespace OpenZ
             {
                 var root = Hud.Node("Radar", radarLayer); root.Fill();
                 var sweep = RadarRing(root, "Sweep", Color.white);
+                var outline = sweep.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0f, 0f, 0f, .8f);
+                outline.effectDistance = new Vector2(1f, 1f);
                 var ring = RadarRing(root, "Marker", OzUi.Ink);
                 var dot = Hud.Img(root, "Sweep origin", Color.white);
                 dot.rectTransform.anchorMin = dot.rectTransform.anchorMax = Vector2.zero;
@@ -367,25 +371,43 @@ namespace OpenZ
 
         void DrawRadarSweeps()
         {
-            if (radarUsed == 0) return;
-            const float sweepTime = 2.1f;
-            float period = OzMapReadabilityOptions.RadarSweepSeconds;
-            bool animate = !OzMotion.Reduced;
-            float now = OzMotion.Now;
+            const float sweepTime = 1.25f;
+            bool hasActiveRadar = false;
+            for (int i = 0; i < radarUsed; i++)
+                if (IsFriendlyRadar(radarMarkers[i].Radar)) { hasActiveRadar = true; break; }
+
+            double now = Time.unscaledTimeAsDouble;
+            int interval = OzMapReadabilityOptions.RadarSweepSeconds;
+            if (!hasActiveRadar || !OzMapReadabilityOptions.Radars || OzMotion.Reduced)
+                radarSweepInterval = 0;
+            else if (radarSweepInterval != interval)
+            {
+                radarSweepInterval = interval;
+                radarSweepStarted = now;
+                nextRadarSweep = now + interval;
+            }
+            else if (now >= nextRadarSweep)
+            {
+                radarSweepStarted = now;
+                nextRadarSweep += interval * (1 + System.Math.Floor((now - nextRadarSweep) / interval));
+            }
+
+            float progress = (float)((now - radarSweepStarted) / sweepTime);
+            bool sweeping = radarSweepInterval > 0 && progress < 1f;
             for (int i = 0; i < radarUsed; i++)
             {
                 var mark = radarMarkers[i];
-                var radar = mark.Radar;
-                float elapsed = Mathf.Repeat(now + (radar.Id % 11) * .29f, period);
-                bool visible = animate && radar.Owner == hud.Player && !radar.Destroyed && radar.KillAt < 0 && elapsed < sweepTime;
+                bool visible = sweeping && IsFriendlyRadar(mark.Radar);
                 mark.Sweep.gameObject.SetActiveFast(visible);
                 mark.Dot.gameObject.SetActiveFast(visible);
                 if (!visible) continue;
-                float progress = elapsed / sweepTime;
-                mark.Sweep.rectTransform.sizeDelta = Vector2.one * (mark.Diameter + 36f * progress);
-                mark.Sweep.color = OzUi.A(Color.white, .65f * (1f - progress));
+                mark.Sweep.rectTransform.sizeDelta = Vector2.one * (mark.Diameter + 4f + 36f * progress);
+                mark.Sweep.color = OzUi.A(Color.white, 1f - progress);
+                mark.Dot.color = OzUi.A(Color.white, 1f - progress);
             }
         }
+
+        bool IsFriendlyRadar(ZObject radar) => radar.Owner != Team.Neutral && radar.Owner == hud.Player && !radar.Destroyed && radar.KillAt < 0;
 
         /// <summary>Pooled marker: the pool entry's sprite follows `rel` (buildings and flags share one pool).</summary>
         Image NextPooled(List<Image> pool, ref int used, string name, string rel, Image.Type type)
@@ -454,6 +476,8 @@ namespace OpenZ
         {
             if (img) { float n = Mathf.Clamp01(Shader.GetGlobalFloat(NightId)); float k = Mathf.Lerp(1f, 0.62f, n); img.color = new Color(k, k, k * 1.04f, 1f); }
             if (hud == null || W == null || !MapRect) return;
+            if (Time.unscaledTime >= nextRefresh || (OzMotion.Now - zoneBlendAt < 0.35f)) { nextRefresh = Time.unscaledTime + 1f / Mathf.Max(1f, refreshHz); RefreshObjects(); }
+            DrawRadarSweeps();
             var m = Mouse.current; var kb = Keyboard.current; if (m == null) return;
             Vector2 mp = hud.Pointer;
             bool modal = hud.Modal;
@@ -482,8 +506,6 @@ namespace OpenZ
                 else if (act == OzRallyMinimap.RightAct.Rally) { hud.Rally.AddPoint(px.x, px.y, shift); PingOrder(px); }
             }
 
-            if (Time.unscaledTime >= nextRefresh || (OzMotion.Now - zoneBlendAt < 0.35f)) { nextRefresh = Time.unscaledTime + 1f / Mathf.Max(1f, refreshHz); RefreshObjects(); }
-            DrawRadarSweeps();
             DrawFrustum();
             DrawRally();
             DrawPings();

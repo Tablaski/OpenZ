@@ -16,7 +16,10 @@ namespace OpenZ
         readonly List<MeshRenderer> borders = new List<MeshRenderer>();
         readonly List<Mesh> meshes = new List<Mesh>();
         float waterY = float.NegativeInfinity;
-        const float Inset = 1.1f, Lift = 0.10f, Alpha = 1f;
+        const float Inset = 1.1f, Lift = 0.10f;
+        static readonly float[] DotRadii = { 1f, 1.32f, 1.65f, 1.9f };
+        static readonly Color[] DotColors = { Color.white, Color.red, Color.black, Color.clear };
+        const int DotSides = 16;
         int shownSize;
         /// <summary>Z draws no zone borders in the world (territory reads from flags, building colours and the minimap);
         /// </summary>
@@ -41,6 +44,7 @@ namespace OpenZ
                 mr.enabled = ShowBorders;
                 borders.Add(mr); meshes.Add(mesh);
                 var m = new Material(shader) { name = "ZoneBorder" + z.Id }; mr.sharedMaterial = m;
+                m.SetFloat("_OutlinedDots", 1f);
                 zones.Add((m, z.Id, (Team)(-1)));
             }
             shownSize = OzMapReadabilityOptions.BorderSize;
@@ -68,14 +72,20 @@ namespace OpenZ
                 // Track displayed colours as well, so a live team-colour swap updates the borders.
                 var painted = TeamColors.Shown(owner);
                 if (painted == shown) continue;
-                var c = BorderColor(owner); c.a = Alpha;
-                m.SetColor("_Color", c);
+                m.SetColor("_Color", BorderColor(owner));
                 zones[i] = (m, id, painted);
             }
         }
 
-        // The displayed blue needs a bright cyan-blue base; multiplying the old dark paint by the LED core was insufficient on City grey.
-        public static Color BorderColor(Team owner) => owner==Team.Neutral ? new Color(.8f,.8f,.8f) : TeamColors.Shown(owner)==Team.Blue ? new Color(.30f,.68f,1f) : TeamColors.Paint(owner);
+        Color BorderColor(Team owner) => TeamColors.Shown(owner) switch
+        {
+            Team.Neutral when game.World.Map.planet == "arctic" => new Color(.22f, .22f, .22f),
+            Team.Neutral when game.World.Map.planet == "city" || OzCity.IsBridgeGame(game.level) => Color.white,
+            Team.Neutral => new Color(.8f, .8f, .8f),
+            Team.Red => new Color(1f, .24f, .19f),
+            Team.Blue => new Color(.30f, .68f, 1f),
+            var shown => TeamColors.OriginalPaint(shown),
+        };
 
         Mesh BuildZoneMesh(ZZone z)
         {
@@ -83,18 +93,18 @@ namespace OpenZ
             var v = new List<Vector3>(); var col = new List<Color>(); var t = new List<int>();
             // zone rectangle in world metres: x = px / 8, z = -py / 8
             float x0 = z.X / 8f + Inset, x1 = (z.X + z.W) / 8f - Inset, z0 = -z.Y / 8f - Inset, z1 = -(z.Y + z.H) / 8f + Inset;
-            Edge(v, col, t, new Vector3(x0, 0, z0), new Vector3(x1, 0, z0), Vector3.back, map);      // top edge, band grows inward
-            Edge(v, col, t, new Vector3(x1, 0, z1), new Vector3(x0, 0, z1), Vector3.forward, map);   // bottom
-            Edge(v, col, t, new Vector3(x0, 0, z1), new Vector3(x0, 0, z0), Vector3.right, map);     // left
-            Edge(v, col, t, new Vector3(x1, 0, z0), new Vector3(x1, 0, z1), Vector3.left, map);      // right
+            Edge(v, col, t, new Vector3(x0, 0, z0), new Vector3(x1, 0, z0), map);
+            Edge(v, col, t, new Vector3(x1, 0, z1), new Vector3(x0, 0, z1), map);
+            Edge(v, col, t, new Vector3(x0, 0, z1), new Vector3(x0, 0, z0), map);
+            Edge(v, col, t, new Vector3(x1, 0, z0), new Vector3(x1, 0, z1), map);
             if (v.Count == 0) return null;
             var m = new Mesh { name = "ZoneBorder", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             m.SetVertices(v); m.SetColors(col); m.SetTriangles(t, 0); m.RecalculateBounds();
             return m;
         }
 
-        // Round luminous cores and a broad translucent halo; unlit colours stay visible at night.
-        void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, Vector3 inward, ZMapData map)
+        // A solid coloured core with a light rim and a dark outer edge, readable on both bright and dark terrain.
+        void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, ZMapData map)
         {
             float len = Vector3.Distance(a, b), radius = .06f * Mathf.Max(1, OzMapReadabilityOptions.BorderSize);
             int count = Mathf.Max(1, Mathf.FloorToInt(len / 2.8f));
@@ -107,31 +117,40 @@ namespace OpenZ
                 for (int j = 0; j < 8; j++)
                 {
                     float angle = j * Mathf.PI / 4;
-                    var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radius;
+                    var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * (radius * DotRadii[DotRadii.Length - 1]);
                     if (game.GroundY(q.x, q.z) > game.TerrainY(q.x, q.z) + 1.2f) { blocked = true; break; }
                 }
                 if (blocked) continue;
-                int start = v.Count;
-                // A bright centre disk, coloured ring and feathered halo, each following the ground.
-                float[] radii = { 0, radius * .55f, radius, radius * 1.6f };
-                Color[] colours = { new Color(3, 3, 3, 1), new Color(2.4f, 2.4f, 2.4f, 1), Color.white, new Color(1, 1, 1, 0) };
-                for (int ring = 0; ring < 4; ring++)
-                    for (int j = 0; j < 16; j++)
+                int center = v.Count;
+                v.Add(DotGround(p, cls)); col.Add(Color.white);
+                int start = center + 1;
+                for (int ring = 0; ring < DotRadii.Length; ring++)
+                    for (int j = 0; j < DotSides; j++)
                     {
-                        float angle = j * Mathf.PI / 8;
-                        var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * radii[ring];
-                        float y = game.GroundY(q.x, q.z);
-                        if (cls == ZClass.Water) y = Mathf.Max(y, OzWaterLevel.At(game.level, q.x, q.z, waterY));
-                        v.Add(new Vector3(q.x, y + Lift, q.z)); col.Add(colours[ring]);
+                        float angle = j * (2f * Mathf.PI / DotSides);
+                        var q = p + new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle)) * (radius * DotRadii[ring]);
+                        v.Add(DotGround(q, cls)); col.Add(DotColors[ring]);
                     }
-                for (int ring = 0; ring < 3; ring++)
-                    for (int j = 0; j < 16; j++)
+                for (int j = 0; j < DotSides; j++)
+                {
+                    t.Add(center); t.Add(start + (j + 1) % DotSides); t.Add(start + j);
+                }
+                for (int ring = 0; ring < DotRadii.Length - 1; ring++)
+                    for (int j = 0; j < DotSides; j++)
                     {
-                        int k = start + ring * 16 + j, next = start + ring * 16 + (j + 1) % 16;
-                        t.Add(k); t.Add(next); t.Add(k + 16);
-                        t.Add(next); t.Add(next + 16); t.Add(k + 16);
+                        int k = start + ring * DotSides + j, next = start + ring * DotSides + (j + 1) % DotSides;
+                        t.Add(k); t.Add(next); t.Add(k + DotSides);
+                        t.Add(next); t.Add(next + DotSides); t.Add(k + DotSides);
                     }
             }
+        }
+
+        Vector3 DotGround(Vector3 p, ZClass cls)
+        {
+            float y = game.GroundY(p.x, p.z);
+            if (cls == ZClass.Water) y = Mathf.Max(y, OzWaterLevel.At(game.level, p.x, p.z, waterY));
+            p.y = y + Lift;
+            return p;
         }
         public bool BordersUsePreference()
         { foreach (var b in borders) if (b && b.enabled != ShowBorders) return false; return borders.Count > 0; }

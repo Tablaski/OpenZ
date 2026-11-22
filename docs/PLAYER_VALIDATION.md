@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.36 minimap radar and territory border contrast
+
+- Pending in a compiled game. Check the full Minimap Radar Sweep Interval label in both Game options menus. Time several consecutive sweep starts at each interval (3, 5 and 10 seconds), including after a live interval change, with Radar Loss Consequence off and on.
+- Check one and several friendly radars, losing and regaining the last friendly radar, enemy radar visibility, Minimap Radars off and Reduced Motion on.
+- Compare dark grey neutral dots on Arctic and white neutral dots on City and Bridge Game. Check red and blue next to lava, rivers and coastal water in daylight and at night, at x1, x2 and x4 and at maximum zoom-out. Verify owner colours after capture and a team-colour swap, and check that border dots still follow the ground and shallow water.
+
 ## OpenZ-VK 1.5.34 large-map performance
 
 - Source checkpoint `7d6fc13a` passed 8,488 core and real-map checks, including byte-for-byte comparison of the room's combined capture and delta path with the prior sender. Coverage includes changed and unchanged scenery, in-place map data edits, removals, full refresh and restart.

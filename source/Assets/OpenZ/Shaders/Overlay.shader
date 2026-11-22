@@ -5,6 +5,7 @@ Shader "OpenZ/Overlay"
     Properties
     {
         _Color ("Color", Color) = (1,1,1,1)
+        _OutlinedDots ("Outlined territory dots", Float) = 0
         [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 4
         _Scan ("Scanline strength on fill areas (0 = none)", Range(0, 1)) = 0
         _ScanPeriod ("Scanline period (screen pixels)", Float) = 4
@@ -26,12 +27,22 @@ Shader "OpenZ/Overlay"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             CBUFFER_START(UnityPerMaterial)
             half4 _Color;
+            half _OutlinedDots;
             half _Scan, _ScanPeriod, _ScanDrift;
             CBUFFER_END
             struct A { float4 pos : POSITION; half4 col : COLOR; };
             struct V { float4 pos : SV_POSITION; half4 col : COLOR; half fill : TEXCOORD0; };
             // fill = 1 on the vertices of a wash (grey vertex colour), 0 on outlines (white) and their dark edges (black)
-            V vert(A i) { V o; o.pos = TransformObjectToHClip(i.pos.xyz); o.col = i.col * _Color; o.fill = step(0.5, i.col.r) * step(i.col.r, 0.9); return o; }
+            V vert(A i)
+            {
+                V o;
+                o.pos = TransformObjectToHClip(i.pos.xyz);
+                o.col = i.col * _Color;
+                // Territory dots store outline brightness in red and team-colour weight in green.
+                if (_OutlinedDots > 0.5) o.col.rgb = lerp(i.col.rrr, _Color.rgb, i.col.g);
+                o.fill = step(0.5, i.col.r) * step(i.col.r, 0.9);
+                return o;
+            }
             half4 frag(V i) : SV_Target
             {
                 half4 c = i.col;

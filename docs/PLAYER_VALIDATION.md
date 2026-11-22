@@ -5,6 +5,7 @@
 - Compare Desert P08M01 and Hunters against 1.5.33 with the same resolution, graphics settings, camera and bot roster. Record main-thread, simulation and 99th-percentile frame times after loading, including at maximum zoom.
 - In an online match, verify obstacle damage, destruction, movement, full-state refresh and reconnection. Compare host capture time and guest view updates with the preceding build.
 - Verify that unit selection, hover precedence, damaged-unit bars and squads moving off camera behave consistently in Skirmish and on a guest.
+- Verify that decorative border pillars without a simulation object stay visible, and that bound pillars still crack and collapse after explosives damage in solo and on a guest.
 
 ## OpenZ-VK 1.5.33 online lobby and Ghost spectators
 

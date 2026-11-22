@@ -18,12 +18,25 @@ namespace OpenZ
         int stage;                                                             // 0 intact, 1 damaged, 2 rubble
         float nextPoll;
         LinkedListNode<RockPillar> healthPollNode;
+        bool hasSimHealth = true;
 
         const int MaxLiveChunks = 72;
         static readonly List<GameObject> live = new List<GameObject>();
 
-        void OnEnable()
+        void OnEnable() => RegisterHealthPoll();
+
+        internal void BindSimulation(ZObject rock)
         {
+            OnDisable();
+            simId = rock.Id;
+            hasSimHealth = rock.MaxHealth > 0;
+            nextPoll = 0f;
+            RegisterHealthPoll();
+        }
+
+        void RegisterHealthPoll()
+        {
+            if (!isActiveAndEnabled || simId < 0 || !hasSimHealth || stage != 0) return;
             healthPollNode ??= new LinkedListNode<RockPillar>(this);
             RockPillarHealth.Register(healthPollNode);
         }
@@ -34,7 +47,6 @@ namespace OpenZ
         {
             if (stage >= 1) return float.PositiveInfinity;
             if (now < nextPoll) return nextPoll;
-            if (simId < 0) return now;
             nextPoll = now + 0.2f;
             var o = world.Get(simId);
             if (o != null && o.MaxHealth > 0 && o.Health <= o.MaxHealth / 2) Damage();
@@ -47,6 +59,7 @@ namespace OpenZ
         {
             if (stage >= 1) return;
             stage = 1;
+            healthPollNode?.List?.Remove(healthPollNode);
             StartCoroutine(DamageRoutine(Random.Range(0f, 0.25f)));
         }
 
@@ -72,6 +85,7 @@ namespace OpenZ
             if (stage >= 2) return;
             bool wasIntact = stage == 0;
             stage = 2;
+            healthPollNode?.List?.Remove(healthPollNode);
             StartCoroutine(BreakRoutine(blast, wasIntact, Random.Range(0f, 0.4f)));
         }
 

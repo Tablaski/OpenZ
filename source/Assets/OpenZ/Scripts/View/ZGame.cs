@@ -418,7 +418,7 @@ namespace OpenZ
             foreach (var o in World.Objects)
             {
                 if (o.Source != null && (o.Kind == ZKind.MapItem || o.Kind == ZKind.Building) && byName.TryGetValue($"{o.Type}_{o.Source.x}_{o.Source.y}", out var st))
-                { StaticViews[o.Id] = st.gameObject; var rp = st.GetComponent<RockPillar>(); if (rp) rp.simId = o.Id; }
+                { StaticViews[o.Id] = st.gameObject; var rp = st.GetComponent<RockPillar>(); if (rp) rp.BindSimulation(o); }
                 else if (o.Source != null && o.Kind == ZKind.MapItem && o.Type != "rock")
                 {   // critic L02 #9 (crate stays after pickup): rebuilt props may carry another name; bind the nearest same-type object
                     var c = CenterWorld(o, false); Transform best = null; float bd = 9f;

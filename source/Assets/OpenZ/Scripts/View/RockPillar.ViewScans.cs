@@ -36,8 +36,12 @@ namespace OpenZ
             if (now < nextPoll || !ZGame.I || ZGame.I.World == null) return;
             var world = ZGame.I.World;
             nextPoll = float.PositiveInfinity;
-            for (var node = pillars.First; node != null; node = node.Next)
+            for (var node = pillars.First; node != null;)
+            {
+                var next = node.Next;
                 nextPoll = Mathf.Min(nextPoll, node.Value.CheckHealth(world, now));
+                node = next;
+            }
         }
     }
 }

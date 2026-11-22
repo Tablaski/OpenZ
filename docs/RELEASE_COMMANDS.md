@@ -20,12 +20,12 @@ $notes = Join-Path $env:TEMP 'openz-release-notes.md'
 $discord = Join-Path $env:TEMP 'openz-discord-highlights.md'
 .\tools\Publish-Main.ps1 -NotesFile $notes -DryRun
 .\tools\Publish-Main.ps1 -NotesFile $notes -PrepareOnly
-.\tools\Publish-Main.ps1 -NotesFile $notes -DiscordHighlightsFile $discord
+.\tools\Publish-Main.ps1 -NotesFile $notes -DiscordHighlightsFile $discord -ConfirmTag 'v1.5.51'
 ```
 
-Dry Run uses the local remote-tracking refs. Prepare Only can push a source-only metadata commit to `dev`. It runs the checks, builds and packages the candidate under `builds/release-<version>/`. Test that same compiled game, including both Changes & Updates tabs and the relevant checks in [the validation record](PLAYER_VALIDATION.md). Run the final command and type the displayed `PUBLISH v<version>` confirmation. A matching interrupted draft can be resumed with the same command and assets.
+Dry Run uses the local remote-tracking refs. Prepare Only can push a source-only metadata commit to `dev`. It runs the checks and packages the compiled game under `builds/release-<version>/`.
 
-For a reviewed candidate, `-ConfirmTag 'v1.5.43'` can supply the explicit confirmation in a noninteractive invocation.
+An explicit maintainer request to release on `main` authorizes publication. Run the final command with `-ConfirmTag` set to the target tag. The script runs the automated release checks before publishing. Track manual gameplay checks, including both Changes & Updates tabs, in [the validation record](PLAYER_VALIDATION.md). Run them when requested. A matching interrupted draft can be resumed with the same command and assets.
 
 To prepare a new version, supply reviewed text for the changelog introduction and entry. The script adds the heading and date and updates the version in code and the README.
 

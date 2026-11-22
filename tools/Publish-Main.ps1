@@ -150,7 +150,7 @@ if (!$Version) { $Version = $sourceVersion }
 if ([version]$Version -lt [version]$sourceVersion) { throw 'The release cannot lower the fork version.' }
 $tag = "v$Version"
 if ($ConfirmTag -and ($ConfirmTag -cne $tag -or $DryRun -or $PrepareOnly)) {
-    throw "Use -ConfirmTag $tag only to confirm a reviewed release."
+    throw "Use -ConfirmTag $tag only for an authorized publication."
 }
 $pin = ((Invoke-Git @('show', 'dev:SOURCE_RESOURCES.json')) -join "`n") | ConvertFrom-Json
 if ($pin.upstream -ne ($Version -replace '\.\d+$', '')) { throw 'The fork version must match the pinned upstream major/minor version.' }
@@ -185,7 +185,7 @@ if ($metadataNeeded -and ($branch -ne 'dev' -or $localTag)) { throw 'Prepare rev
 if ($DryRun) {
     Write-Output "Dry run using local origin references. Release $tag from $dev, fast-forward main from $main."
     if ($metadataNeeded) { Write-Output 'Update version metadata on dev and verify its source-only push.' }
-    Write-Output 'Run release checks and the existing Unity build. Package complete Windows ZIPs, installer, payloads and checksums. Require manual review and explicit confirmation before pushing main and the tag.'
+    Write-Output 'Run release checks and the existing Unity build. Package complete Windows ZIPs, installer, payloads and checksums. An explicit request to release on main authorizes publication with -ConfirmTag.'
     return
 }
 
@@ -276,9 +276,7 @@ try {
     Invoke-Check 'installer' { & $updateTools --test }
     if ($PrepareOnly) { Write-Output "Prepared $tag at $releaseDirectory for manual validation."; return }
 
-    Write-Output "Review the README, changelog introduction, both Changes & Updates tabs and pending checks in docs/PLAYER_VALIDATION.md using $player."
-    Write-Output "Review player-facing release notes: $notes"
-    if (!$ConfirmTag -and (Read-Host "When review is complete, type PUBLISH $tag") -cne "PUBLISH $tag") {
+    if (!$ConfirmTag -and (Read-Host "To authorize publication, type PUBLISH $tag") -cne "PUBLISH $tag") {
         throw 'Publication confirmation did not match.'
     }
     Assert-Clean

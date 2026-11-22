@@ -31,7 +31,7 @@ namespace OpenZ.Multiplayer
         string previewKey;
         Texture2D mapPreview;
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
-        OzText ping, voiceStatus, planningTime;
+        OzText ping, lobbyConnectionStatus, voiceStatus, planningTime;
         Image planningProgress;
         InputField chatField;
         OzText chatHistory;
@@ -137,6 +137,7 @@ namespace OpenZ.Multiplayer
             if (page == Page.RoomVote && R.RoomVoteMap != null) requestTime?.Set(Math.Ceiling(R.RoomVoteSeconds) + " s");
             if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
+            lobbyConnectionStatus?.Set(R.ConnectionStatus);
             voiceStatus?.Set(R.Voice.Status);
             if (inputMeter) { inputMeter.rectTransform.anchorMax = new Vector2(R.Voice.InputLevel, 1); inputMeter.color = R.Voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go; }
             meterValue?.Set("INPUT LEVEL: " + Mathf.RoundToInt(R.Voice.InputLevel * 100) + "%");
@@ -176,7 +177,7 @@ namespace OpenZ.Multiplayer
             if (overlayRoot) { overlayRoot.gameObject.SetActive(false); Destroy(overlayRoot.gameObject); }
             if (page != Page.Lobby && page != Page.Skirmish) ReleaseLobbyFlyby();
             lobbyFlybyImage = null;
-            ping = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = planningProgress = null; chatField = null;
+            ping = lobbyConnectionStatus = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = planningProgress = null; chatField = null;
             speakerValue = windowsOutput = chatVoiceStatus = null;
             chatHistory = chatGain = null; lobbyChatScroll = null; lobbyChatLog = null;
             chatMicrophoneCapsule = chatMicrophoneMuted = chatInputMeter = null;
@@ -763,7 +764,7 @@ namespace OpenZ.Multiplayer
         {
             if (R.View == null)
             {
-                loading = Label(root, R.ConnectionStatus, 180, 350, 1500, 28, OzUi.Ink);
+                lobbyConnectionStatus = Label(root, R.ConnectionStatus, 180, 350, 1500, 28, OzUi.Ink);
                 Button(root, "CANCEL", 80, 1000, 250, Leave);
                 return;
             }

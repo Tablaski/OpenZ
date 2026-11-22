@@ -2,6 +2,8 @@
 
 ## OpenZ-VK 1.5.47 Skirmish and multiplayer loading
 
+- The five catalog biomes have matching 1920 × 1080 backgrounds in the local AI Maps package. The multiplayer suite still stops at the baseline assertion `Team edits publish as one revision` in `MultiplayerRoomChecks.cs:71`.
+
 - Pending in a compiled game. Start a Skirmish on a wide or tall AI Map with bots. Check the planet, unclipped minimap, readable map name, progress and preparation text. Repeat on an official map and at 16:9 and 4:3.
 - Start an online 1 vs 1 match and a room with three or more active players and a Ghost. Delay one active player's load and verify that ready clients show MAP LOADED while they wait, then enter the match together. In a match with opening orders, check the transition into the planning phase.
 - Repeat after a restart and a map change. Check that the new map title, minimap, planet and progress replace the previous values. Disconnect during loading and verify that the error screen remains usable.

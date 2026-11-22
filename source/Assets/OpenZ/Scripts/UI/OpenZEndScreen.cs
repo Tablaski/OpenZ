@@ -16,7 +16,15 @@ namespace OpenZ
     public sealed class OpenZMatchStats
     {
         public readonly Dictionary<Team, int> Built = new Dictionary<Team, int>(), Kills = new Dictionary<Team, int>(), Losses = new Dictionary<Team, int>(), PeakZones = new Dictionary<Team, int>();
-        public readonly List<(float t, int red, int blue)> Samples = new List<(float, int, int)>();
+        public const int TeamCount = (int)Team.Black;
+        public readonly List<(float t, int[] forces)> Samples = new List<(float, int[])>();
+
+        public static int[] Forces(ZWorld world)
+        {
+            var counts = new int[TeamCount];
+            world.CountMatchForces(counts);
+            return counts;
+        }
         public readonly List<(float t, Team team)> Captures = new List<(float, Team)>();
         public readonly HashSet<Team> FortLost = new HashSet<Team>();
         double nextSample;
@@ -29,16 +37,19 @@ namespace OpenZ
         public void Tick(ZWorld w)
         {
             if (w == null || w.GameOver) return;
-            while (w.Time >= nextSample) { Samples.Add(((float)nextSample, w.UnitCount(Team.Red), w.UnitCount(Team.Blue))); nextSample += 10.0; }
+            while (w.Time >= nextSample) { Samples.Add(((float)nextSample, Forces(w))); nextSample += 10.0; }
         }
 
         void UpdatePeaks(ZWorld w)
         {
-            int r = 0, b = 0, g = 0;
-            foreach (var z in w.Zones) { if (z.Owner == Team.Red) r++; else if (z.Owner == Team.Blue) b++; else if (z.Owner == Team.Green) g++; }
-            if (r > Get(PeakZones, Team.Red)) PeakZones[Team.Red] = r;
-            if (b > Get(PeakZones, Team.Blue)) PeakZones[Team.Blue] = b;
-            if (g > Get(PeakZones, Team.Green)) PeakZones[Team.Green] = g;
+            var counts = new int[TeamCount];
+            foreach (var zone in w.Zones)
+                if (zone.Owner != Team.Neutral) counts[(int)zone.Owner - 1]++;
+            for (int i = 0; i < counts.Length; i++)
+            {
+                var team = (Team)(i + 1);
+                if (counts[i] > Get(PeakZones, team)) PeakZones[team] = counts[i];
+            }
         }
 
         public void OnEvent(ZWorld w, ZEvent e)
@@ -84,6 +95,10 @@ namespace OpenZ
         readonly List<RectTransform> plates = new List<RectTransform>(); readonly List<OzText> plateValues = new List<OzText>(); readonly List<Image> plateFlash = new List<Image>();
         readonly List<System.Func<float, string>> plateFormat = new List<System.Func<float, string>>(); readonly List<float> plateTarget = new List<float>(), plateShown = new List<float>();
         readonly List<HudButton> buttons = new List<HudButton>(); Image focusRing; int focus;
+        OzRect chartHome;
+        RectTransform matchTable;
+        OzText lobbyCountdown;
+        int lastCountdownSecond = -1;
         OzChartGraphic chart; readonly List<OzText> chartTicks = new List<OzText>();
         /// <summary></summary>
         Image dimImage; float dimTarget;
@@ -108,8 +123,7 @@ namespace OpenZ
             bannerField = typeof(RulesView).GetField("banner", BindingFlags.NonPublic | BindingFlags.Instance);   // its OnGUI banner is replaced by this screen
         }
 
-        // duel owns its end screen
-            void Update()
+        void Update()
         {
             if (OpenZ.Multiplayer.DuelRuntime.Active && game && game.World != null && game.World.GameOver)
             {
@@ -122,6 +136,16 @@ namespace OpenZ
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
             if (!IsShown) return;
             Animate();
+            if (lobbyCountdown != null)
+            {
+                var duel = OpenZ.Multiplayer.DuelRuntime.I;
+                int seconds = duel.EndLobbySeconds;
+                if (seconds != lastCountdownSecond)
+                {
+                    lastCountdownSecond = seconds;
+                    lobbyCountdown.Set($"AUTO RETURN IN  00:{seconds:00}");
+                }
+            }
             if (!OpenZ.Multiplayer.DuelRuntime.CapturesInput && !OzConfirm.Blocks) HandleKeys();
         }
 
@@ -144,6 +168,9 @@ namespace OpenZ
             // critic L02 #5a: a second Show (a new game-over state, or a staged one) must not stack on the first
             if (root) for (int i = root.childCount - 1; i >= 0; i--) Destroy(root.GetChild(i).gameObject);
             plates.Clear(); plateValues.Clear(); plateFlash.Clear(); plateFormat.Clear(); plateTarget.Clear(); plateShown.Clear(); buttons.Clear(); chartTicks.Clear();
+            matchTable = scoreRt = null;
+            lobbyCountdown = null;
+            lastCountdownSecond = -1;
             IsShown = true; AnyShown = true; t0 = OzMotion.Now; skipped = false; shakeDone = false;
             OzEndingVignette.Release();
             if (hud) hud.SetVisible(false);                                                              // critic: the HUD stayed drawn over the end screen
@@ -231,37 +258,62 @@ namespace OpenZ
             subtitle.rectTransform.anchorMin = subtitle.rectTransform.anchorMax = new Vector2(0.5f, 1); subtitle.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             subtitle.rectTransform.anchoredPosition = new Vector2(0, -OzLayout.EndSubtitleMid);
 
-            // stat plates
+            // Keep the original solo and duel statistics layout.
+            var runtime = OpenZ.Multiplayer.DuelRuntime.I;
+            var participants = OpenZ.Multiplayer.DuelRuntime.Active && runtime.SkirmishRoom
+                ? runtime.EndMatchParticipants() : System.Array.Empty<(Team team, string name)>();
+            bool showMatchTable = participants.Length >= 3;
+            bool largeMatchTable = participants.Length > 4;
+            if (showMatchTable)
+            {
+                flankL.gameObject.SetActive(false);
+                flankR.gameObject.SetActive(false);
+            }
             var st = hud.Stats;
             float sx0 = cx - (4 * OzLayout.EndStatW + 3 * OzLayout.EndStatGap) * 0.5f;
             int zonesTotal = W.Zones.Count, zonesMine = 0; foreach (var z in W.Zones) if (z.Owner == me) zonesMine++;
             float speed = game.gameSpeed;
-            Stat(0, sx0, "clock", "MISSION TIME", (float)W.Time, v => UnitInfo.Duration(v), $"GAME TIME · SPEED {speed:0.##}×", accent);
-            Stat(1, sx0, "factory", "UNITS BUILT", OpenZMatchStats.Get(st.Built, me), v => Mathf.RoundToInt(v).ToString(), $"{TeamColors.Name(enemy)} BUILT {OpenZMatchStats.Get(st.Built, enemy)}", accent);
-            Stat(2, sx0, "flag", "TERRITORIES", zonesMine, v => $"{Mathf.RoundToInt(v)}/{zonesTotal}", $"PEAK {OpenZMatchStats.Get(st.PeakZones, me)} · {TeamColors.Name(enemy)} PEAK {OpenZMatchStats.Get(st.PeakZones, enemy)}", accent);
-            Stat(3, sx0, "crosshair", "KILLS", OpenZMatchStats.Get(st.Kills, me), v => Mathf.RoundToInt(v).ToString(), $"LOSSES {OpenZMatchStats.Get(st.Losses, me)}", accent);
+            if (showMatchTable)
+                BuildMatchTable(sx0, participants, me, winner, accent, largeMatchTable);
+            else
+            {
+                Stat(0, sx0, "clock", "MISSION TIME", (float)W.Time, v => UnitInfo.Duration(v), $"GAME TIME · SPEED {speed:0.##}×", accent);
+                Stat(1, sx0, "factory", "UNITS BUILT", OpenZMatchStats.Get(st.Built, me), v => Mathf.RoundToInt(v).ToString(), $"{TeamColors.Name(enemy)} BUILT {OpenZMatchStats.Get(st.Built, enemy)}", accent);
+                Stat(2, sx0, "flag", "TERRITORIES", zonesMine, v => $"{Mathf.RoundToInt(v)}/{zonesTotal}", $"PEAK {OpenZMatchStats.Get(st.PeakZones, me)} · {TeamColors.Name(enemy)} PEAK {OpenZMatchStats.Get(st.PeakZones, enemy)}", accent);
+                Stat(3, sx0, "crosshair", "KILLS", OpenZMatchStats.Get(st.Kills, me), v => Mathf.RoundToInt(v).ToString(), $"LOSSES {OpenZMatchStats.Get(st.Losses, me)}", accent);
+            }
 
             // forces chart
-            chartRt = Hud.Node("Chart", root).Place(new OzRect(OzAnchor.TC, sx0, OzLayout.EndChartY, OzLayout.EndChartW, OzLayout.EndChartH));
+            chartHome = new OzRect(OzAnchor.TC, sx0, showMatchTable ? largeMatchTable ? 436 : 677 : OzLayout.EndChartY,
+                OzLayout.EndChartW, largeMatchTable ? 368 : OzLayout.EndChartH);
+            chartRt = Hud.Node("Chart", root).Place(chartHome);
             if (OzKit.Available) Hud.Shadow(chartRt, "Panels/panel_lg_mask");
-            var cp = Hud.Kit(chartRt, "Plate", "EndScreen/chart_plate", new OzRect(0, 0, OzLayout.EndChartW, OzLayout.EndChartH), null);
+            var cp = Hud.Kit(chartRt, "Plate", "EndScreen/chart_plate", new OzRect(0, 0, chartHome.w, chartHome.h), null);
             if (!OzKit.Available) cp.color = HudStyle.Slate;
             Hud.Label(chartRt, "Title", "FORCES OVER TIME", 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(16, 14);
-            Hud.Chip(chartRt, "Red", new OzRect(OzLayout.EndChartW - 16 - 58, 12, 58, 16), TeamColors.Name(Team.Red), OzUi.TeamPaint(Team.Red), OzUi.Ink, 9, 0.16f);
-            Hud.Chip(chartRt, "Blue", new OzRect(OzLayout.EndChartW - 80 - 58, 12, 58, 16), TeamColors.Name(Team.Blue), OzUi.TeamPaint(Team.Blue), OzUi.Ink, 9, 0.16f);
+            var chartTeams = participants.Length >= 2 ? participants.Select(person => person.team).ToArray() : new[] { Team.Blue, Team.Red };
+            for (int i = 0; i < chartTeams.Length; i++)
+            {
+                var team = chartTeams[i];
+                Hud.Chip(chartRt, team.ToString(), new OzRect(chartHome.w - 16 - (chartTeams.Length - i) * 76, 12, 70, 16),
+                    TeamColors.Name(team), OzUi.TeamPaint(team), OzUi.Ink, 9, 0.10f);
+            }
             var gr = OzLayout.EndChartGraph;
+            gr = new OzRect(gr.x, gr.y, gr.w, gr.h + chartHome.h - OzLayout.EndChartH);
             var cg = Hud.Node("Graph", chartRt).Place(gr);
             if (!cg.GetComponent<CanvasRenderer>()) cg.gameObject.AddComponent<CanvasRenderer>();          // gate re-check: the Graph had none, so the chart never drew
             chart = cg.gameObject.AddComponent<OzChartGraphic>(); chart.raycastTarget = false;
             st.Tick(W);
-            var samples = new List<(float, int, int)>(st.Samples);
-            samples.Add(((float)W.Time, W.UnitCount(Team.Red), W.UnitCount(Team.Blue)));
-            if (samples.Count < 2) samples.Insert(0, (0f, samples[0].Item2, samples[0].Item3));        // critic #5b: a line needs 2 points
-            chart.Samples = samples; chart.Duration = Mathf.Max(1f, (float)W.Time); chart.Reveal = 0f;
+            int stride = Mathf.Max(1, (st.Samples.Count + 511) / 512);
+            var samples = st.Samples.Where((sample, index) => index % stride == 0).ToList();
+            samples.Add(((float)W.Time, OpenZMatchStats.Forces(W)));
+            if (samples.Count < 2) samples.Insert(0, (0f, samples[0].forces));
+            chart.Samples = samples; chart.Teams = chartTeams;
+            chart.Duration = Mathf.Max(1f, (float)W.Time); chart.Reveal = 0f;
             foreach (var c in st.Captures) if (c.team == winner && winner != Team.Neutral) chart.Marks.Add(c.t);
             // peak + 10 % rounded up to a nice 4-gridline step (was a fixed 70: a 6-unit fight drew two flat lines on the floor), the
             // gridlines get their counts, the time ticks sit on round times (10 s .. 30 min steps) at their true x, plus the end time
-            int peak = 1; foreach (var sm in samples) peak = Mathf.Max(peak, Mathf.Max(sm.Item2, sm.Item3));
+            int peak = Mathf.Max(1, samples.Max(sample => chartTeams.Max(team => sample.forces[(int)team - 1])));
             int ystep = NiceStep(peak * 1.1f / 4f, new[] { 1, 2, 3, 5, 10, 15, 20, 25, 50, 100 });
             chart.YMax = ystep * 4;
             for (int gl = 1; gl <= 4; gl++)
@@ -279,15 +331,27 @@ namespace OpenZ
             Debug.Log("[OpenZ] end screen layout: " + LayoutStatus);
 
             // buttons + hint
-            BuildScore(accent, sx0);                                                                     // score, rank and the level's table (OpenZEndScreen.Score.cs)
+            if (largeMatchTable) chartRt.gameObject.SetActive(false);
+            if (!showMatchTable) BuildScore(accent, sx0);
             bool duelMatch = OpenZ.Multiplayer.DuelRuntime.Active;
             bool localSkirmish = !duelMatch && W.Map.skirmish;
             string primary = duelMatch ? "RETURN TO LOBBY" : localSkirmish ? "PLAY AGAIN" : win ? "CONTINUE" : "RETRY";
             if (duelMatch)
             {
-                string leave = OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom ? "LEAVE MATCH" : "LEAVE DUEL";
-                Button(0, primary, cx - 270, 310, HudButtonStyle.Primary, () => OpenZ.Multiplayer.DuelRuntime.I.ReadyForLobby(), "RETURN TO LOBBY|Return when both players have finished viewing the match statistics.|ENTER");
-                Button(1, leave, cx + 50, 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), leave + "|Disconnect and return to the main menu.|ESC");
+                const string leave = "LEAVE GAME";
+                bool autoReturn = runtime.TimedEndLobby;
+                if (autoReturn)
+                {
+                    var timer = Hud.Kit(root, "Auto return timer", "EndScreen/chart_plate",
+                        new OzRect(OzAnchor.TC, cx - 48, OzLayout.EndButtonsY, 185, OzLayout.EndButtonH), null);
+                    timer.raycastTarget = false;
+                    timer.gameObject.AddComponent<CanvasGroup>();
+                    lobbyCountdown = Hud.Label(timer.transform, "Countdown", "AUTO RETURN IN  00:30", 14, OzUi.Amber, 0.06f, OzStyle.Plain).FillParent(OzH.C);
+                    runtime.StartEndLobbyCountdown();
+                }
+                Button(0, primary, cx - (autoReturn ? 370 : 270), 310, HudButtonStyle.Primary, runtime.ReadyForLobby,
+                    autoReturn ? "RETURN TO LOBBY|Return to the lobby now.|ENTER" : "RETURN TO LOBBY|Return when everyone has finished viewing the match statistics.|ENTER");
+                Button(1, leave, cx + (autoReturn ? 151 : 50), 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), leave + "|Disconnect and return to the main menu.|ESC");
             }
             else if (localSkirmish)
             {
@@ -303,9 +367,10 @@ namespace OpenZ
                    win ? "CONTINUE|The next operation.|ENTER" : "RETRY|Fight this battle again.|ENTER");
             Button(2, "MAIN MENU", cx + 110, 220, HudButtonStyle.Normal, OzScenes.MainMenu, OzScenes.HasMenu ? "MAIN MENU|Back to the front end.|ESC" : "MAIN MENU|The front end is not in the build yet: this loads the first level.|ESC");
             }
+            if (largeMatchTable) BuildChartToggle(sx0);
             focusRing = Hud.Kit(root, "Focus", "Buttons/btn_l_focus", new OzRect(OzAnchor.TC, cx - 104, OzLayout.EndButtonsY - 4, 208, 58), OzUi.Amber);
             focusRing.enabled = OzKit.Available; focus = duelMatch || localSkirmish ? 0 : 1;
-            hint = Hud.Label(root, "Hint", duelMatch ? "ENTER  RETURN TO LOBBY     ESC  LEAVE" : $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
+            hint = Hud.Label(root, "Hint", duelMatch ? "ENTER  RETURN TO LOBBY     ESC  LEAVE GAME" : $"ENTER  {primary}     R  REPLAY     ESC  MAIN MENU", 9, OzUi.Muted, 0.2f, OzStyle.Plain);
             hint.At(0, OzLayout.EndHintY, OzH.C, false, 800);
             hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 1); hint.rectTransform.pivot = new Vector2(0.5f, 1);
             hint.rectTransform.anchoredPosition = new Vector2(0, -(OzLayout.EndHintY + 0.3635f * 9 - 8.1f));
@@ -348,6 +413,70 @@ namespace OpenZ
             plates.Add(p); plateValues.Add(v); plateFlash.Add(fl); plateFormat.Add(fmt); plateTarget.Add(value); plateShown.Add(0f);
         }
 
+        void BuildMatchTable(float x, (Team team, string name)[] participants, Team local, Team winner, Color accent, bool large)
+        {
+            float width = OzLayout.EndChartW;
+            float height = large ? 425 : 220;
+            matchTable = Hud.Node("Match statistics", root).Place(new OzRect(OzAnchor.TC, x, 436, width, height));
+            Hud.Kit(matchTable, "Plate", "EndScreen/chart_plate", new OzRect(0, 0, width, height), null);
+            Hud.Label(matchTable, "Title", "MATCH STATISTICS", 17, accent, 0.08f).At(26, 17);
+            Hud.Label(matchTable, "Mission time", "MISSION TIME   " + UnitInfo.Duration((float)game.World.Time), 16, OzUi.Ink, 0.07f)
+                .At(width - 26, 17, OzH.R, false, 240);
+
+            var headers = new[] { "PLAYER", "UNITS BUILT", "TERRITORIES", "PEAK", "KILLS", "LOSSES" };
+            var columns = new[] { 58f, 395f, 545f, 654f, 767f, 881f };
+            for (int i = 0; i < headers.Length; i++)
+                Hud.Label(matchTable, headers[i], headers[i], 14, OzUi.Muted, 0.05f, OzStyle.Plain)
+                    .At(columns[i], 51, i == 0 ? OzH.L : OzH.C, false, 114);
+
+            var world = game.World;
+            var stats = hud.Stats;
+            float rowHeight = large ? 34 : participants.Length == 4 ? 35 : 44;
+            for (int i = 0; i < participants.Length; i++)
+            {
+                var (team, name) = participants[i];
+                var row = Hud.Node(team.ToString(), matchTable).Place(new OzRect(26, 69 + i * rowHeight, width - 52, rowHeight - 3));
+                var fill = Hud.Img(row, "Background", i % 2 == 0 ? OzUi.GM950 : OzUi.GM900);
+                fill.rectTransform.Fill(); fill.raycastTarget = false;
+                var marker = Hud.Img(row, "Team color", OzUi.TeamText(team));
+                marker.rectTransform.Place(new OzRect(12, (rowHeight - 3 - 13) * 0.5f, 10, 13));
+                marker.raycastTarget = false;
+                var safeName = name.Replace('<', '‹').Replace('>', '›');
+                if (safeName.Length > 19) safeName = safeName.Substring(0, 18) + "…";
+                float mid = (rowHeight - 3) * 0.5f;
+                Hud.Label(row, "Name", safeName + (team == local ? " (YOU)" : ""), 17, OzUi.Ink, 0f)
+                    .At(32, mid, OzH.L, true, 224);
+                bool won = winner != Team.Neutral && world.AreAllied(winner, team);
+                if (won) Hud.Label(row, "Winner", "WINNER", 13, accent).At(260, mid, OzH.L, true, 90);
+                var values = new[] { OpenZMatchStats.Get(stats.Built, team).ToString(),
+                    $"{world.Zones.Count(zone => zone.Owner == team)}/{world.Zones.Count}",
+                    OpenZMatchStats.Get(stats.PeakZones, team).ToString(),
+                    OpenZMatchStats.Get(stats.Kills, team).ToString(),
+                    OpenZMatchStats.Get(stats.Losses, team).ToString() };
+                for (int col = 0; col < values.Length; col++)
+                    Hud.Label(row, headers[col + 1], values[col], 17, OzUi.Ink, 0f, OzStyle.Plain)
+                        .At(columns[col + 1] - 26, mid, OzH.C, true, 100);
+            }
+        }
+
+        void BuildChartToggle(float x)
+        {
+            var toggle = HudButton.Make(root, "Toggle match statistics", "FORCES OVER TIME",
+                new Vector2(242, 36), HudButtonKind.Large, 14, 0.08f, HudButtonStyle.Normal, true);
+            toggle.Rt.Place(new OzRect(OzAnchor.TC, x + OzLayout.EndChartW - 268, 809, 242, 36));
+            toggle.Priority = 100;
+            toggle.OnClick = _ =>
+            {
+                if (!Revealed || OzMotion.Now - skipAt < 0.3f) { Skip(); return; }
+                bool showChart = !chartRt.gameObject.activeSelf;
+                matchTable.gameObject.SetActive(!showChart);
+                chartRt.gameObject.SetActive(showChart);
+                toggle.Label.Set(showChart ? "MATCH STATISTICS" : "FORCES OVER TIME");
+                OzSfx.Ui("ui_confirm");
+            };
+            buttons.Add(toggle);
+        }
+
         void Button(int i, string label, float x, float w, HudButtonStyle style, System.Action act, string tip)
         {
             var b = HudButton.Make(root, "Btn" + label, label, new Vector2(w, OzLayout.EndButtonH), HudButtonKind.Large, style == HudButtonStyle.Primary ? 16 : 15, 0.16f, style, true);
@@ -377,7 +506,12 @@ namespace OpenZ
             if (OzMotion.Now - skipAt < 0.3f) return;
             if (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[focus].OnClick?.Invoke(default); }
             else if (!OpenZ.Multiplayer.DuelRuntime.Active && kb.rKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[0].OnClick?.Invoke(default); }
-            else if (kb.escapeKey.wasPressedThisFrame) { OzSfx.Ui("ui_click"); buttons[buttons.Count - 1].OnClick?.Invoke(default); }
+            else if (kb.escapeKey.wasPressedThisFrame)
+            {
+                OzSfx.Ui("ui_click");
+                int leave = OpenZ.Multiplayer.DuelRuntime.Active ? 1 : buttons.Count - 1;
+                buttons[leave].OnClick?.Invoke(default);
+            }
         }
 
         // ------------------------------------------------------------------ reveal timeline (guide 9.13), unscaled seconds from game over
@@ -445,7 +579,8 @@ namespace OpenZ
             }
             // 2.20 chart plate rises; lines draw left -> right over 1.1 s
             float kc = OzEase.OutCubic(T(2.2f, OzMotion.Dur(0.26f)));
-            chartRt.Place(new OzRect(OzAnchor.TC, OzLayout.RefW * 0.5f - OzLayout.EndChartW * 0.5f, OzLayout.EndChartY + 24f * (1f - kc), OzLayout.EndChartW, OzLayout.EndChartH));
+            chartRt.Place(new OzRect(OzAnchor.TC, chartHome.x, chartHome.y + 24f * (1f - kc), chartHome.w, chartHome.h));
+            if (matchTable) SetGroupAlpha(matchTable, kc);
             SetGroupAlpha(chartRt, kc);
             float reveal = T(2.3f, OzMotion.Dur(1.1f));
             if (!Mathf.Approximately(chart.Reveal, reveal)) { chart.Reveal = reveal; chart.SetVerticesDirty(); }
@@ -461,6 +596,7 @@ namespace OpenZ
                 SetA(focusRing, kbtn * (0.75f + 0.25f * Mathf.Sin(now * 4f)));
             }
             hint.Alpha = kbtn;
+            if (lobbyCountdown != null) SetGroupAlpha((RectTransform)lobbyCountdown.rectTransform.parent, kbtn);
         }
 
         static void Hazard(RawImage hz, float dir, float kh, float now)

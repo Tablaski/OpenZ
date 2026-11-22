@@ -254,6 +254,7 @@ namespace OpenZ.Multiplayer
                 roomLinks.Clear();
                 roomFullState = true;
                 roomFinalStatsPending = roomFinalStats != null;
+                roomPublishedReturnedSeats = -1;
                 roomWireBytes = 0;
                 roomStateArrival = 0;
                 motionHistory.Reset();
@@ -301,6 +302,8 @@ namespace OpenZ.Multiplayer
             if (IsHost && (!session || Playing)) PublishRoomLatency();
             if (IsHost && roomFinalStatsPending && !roomFullState && sentGameOver)
                 roomFinalStatsPending = !transport.Send(roomFinalStats);
+            if (IsHost && room.Launched && TimedEndLobby && Game && Game.World.GameOver)
+                PublishRoomEndLobbyStatus(transport);
             UpdateRoomVote();
             if (Game && session && !IsHost)
             {
@@ -434,8 +437,17 @@ namespace OpenZ.Multiplayer
                         Game.World.SurrenderSkirmish(room.HumanTeam(RoomGuest(sender.Id)));
                     return;
                 case DuelMessage.EndReady:
-                    if (IsHost && Playing && Game && Game.World.GameOver && room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
-                    { roomEndReady.Add(sender.Id); TryReturnToLobby(); }
+                    if (IsHost && Playing && Game && Game.World.GameOver && packet.Payload.Length == 0 &&
+                        room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
+                    {
+                        roomEndReady.Add(sender.Id);
+                        TryReturnToLobby();
+                    }
+                    else if (!IsHost && sender.Id == 1 && session && packet.Payload.Length == 1)
+                    {
+                        roomReturnedSeats = packet.Payload[0];
+                        Menus.Refresh();
+                    }
                     return;
                 case DuelMessage.MatchStats:
                     if (!IsHost && Game && Game.World.GameOver) Handle(packet);
@@ -485,6 +497,25 @@ namespace OpenZ.Multiplayer
             Menus.NotifyChat(line.Replace("<", "‹").Replace(">", "›"));
         }
 
+        void PublishRoomEndLobbyStatus(SkirmishOnline transport)
+        {
+            int seats = 0;
+            foreach (var member in room.Members)
+            {
+                if (!member.Seat.MayUsePlayerCommands) continue;
+                bool returned = member.Id == RoomHostId ? localEndReady :
+                    int.TryParse(member.Id, out int id) && (roomEndReady.Contains(id) || roomDeparted.Contains(id));
+                if (returned) seats |= 1 << member.Seat.Position;
+            }
+            if (seats != roomReturnedSeats)
+            {
+                roomReturnedSeats = seats;
+                Menus.Refresh();
+            }
+            if (seats != roomPublishedReturnedSeats && transport.Send(new DuelPacket(DuelMessage.EndReady, new[] { (byte)seats })))
+                roomPublishedReturnedSeats = seats;
+        }
+
         void ReturnRoomToLobby()
         {
             room.ReturnToLobby(RoomHostId);
@@ -502,6 +533,7 @@ namespace OpenZ.Multiplayer
             roomDeparted.Clear();
             roomEndReady.Clear();
             roomEpoch = roomDrainIndex = 0;
+            ResetEndLobby();
             roomLoadedScene = false;
             RoomVoiceMuted = false;
             roomReplicaChanged = false;

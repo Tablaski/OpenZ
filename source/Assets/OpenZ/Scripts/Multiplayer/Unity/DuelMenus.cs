@@ -56,6 +56,19 @@ namespace OpenZ.Multiplayer
         public void SetInvitation(string value) { invite = value; advanced = value.IndexOf("address=", StringComparison.OrdinalIgnoreCase) >= 0; ShowConnect(); }
         string invitationNotice;
         public void ShowLobby() { ResetOnlineLobby(); invitationNotice = null; lobbyTab = LobbyTab.Map; roomTab = 0; roomModeration = null; roomFullMap = roomCustomUnits = combatDropdown = roomPresets = false; page = Page.Lobby; dirty = true; }
+        internal void ShowEndLobby()
+        {
+            invitationNotice = null;
+            lobbyTab = LobbyTab.Map;
+            roomTab = 0;
+            pickerGroup = -1;
+            lobbyDialog = LobbyDialog.None;
+            CloseOnlinePlayerMenu();
+            OpenOnlinePopup(OnlinePopup.None);
+            page = Page.Lobby;
+            dirty = true;
+        }
+
         internal void ShowRoomPlayers() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); roomModeration = null; page = Page.RoomPlayers; dirty = true; }
         public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
@@ -109,7 +122,7 @@ namespace OpenZ.Multiplayer
                         if (key.keyCode != Key.Escape) PlayerPrefs.SetInt(bindingTalk ? "oz_duel_talk_key" : "oz_duel_chat_key", (int)key.keyCode);
                         bindingChat = bindingTalk = false; PlayerPrefs.Save(); dirty = true; break;
                     }
-            if (!R.MatchMenusBlocked && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
+            if (!R.EndLobbyOpen && !R.MatchMenusBlocked && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
             {
                 if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
                 { page = Page.Diagnostics; dirty = true; }
@@ -850,11 +863,12 @@ namespace OpenZ.Multiplayer
                 var accent = Hud.Img(card, "Team accent", teamColor);
                 accent.rectTransform.TL(0, 0, 5, 112); accent.raycastTarget = false;
                 Label(card, player ?? "Waiting for player", 24, 58, 325, 26, OzUi.Ink);
-                bool ready = R.View.ReadyForTeam(team);
+                bool waitingForResults = R.WaitingForEndLobby(hostTeam == R.IsHost, team);
+                bool ready = !R.EndLobbyOpen && R.View.ReadyForTeam(team);
                 var status = Hud.Img(card, "Ready background", ready ? new Color(.13f, .26f, .18f) : OzUi.GM950);
                 status.rectTransform.TL(355, 15, 181, 46); status.raycastTarget = false;
-                var label = Hud.Label(status.transform, "Ready status", player == null ? "WAITING" : ready ? "READY" : "NOT READY",
-                    23, ready ? (Color)OzUi.Go : OzUi.Ink).FillParent(OzH.C);
+                var label = Hud.Label(status.transform, "Ready status", player == null || waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY",
+                    23, waitingForResults ? (Color)OzUi.Amber : ready ? (Color)OzUi.Go : OzUi.Ink).FillParent(OzH.C);
                 label.graphic.raycastTarget = false;
                 if (hostTeam == R.IsHost && player != null)
                     Button(card, "CHANGE NAME", 355, 67, 181, () =>

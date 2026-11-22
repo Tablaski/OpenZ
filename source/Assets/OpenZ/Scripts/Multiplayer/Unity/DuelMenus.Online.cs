@@ -28,7 +28,7 @@ namespace OpenZ.Multiplayer
         readonly Dictionary<int, OzText> onlinePingLabels = new Dictionary<int, OzText>();
         readonly Dictionary<int, OzText> onlineVariationLabels = new Dictionary<int, OzText>();
 
-        bool OnlineEditing => R.HostedRoom != null && !R.RoomHostReady;
+        bool OnlineEditing => !R.EndLobbyOpen && R.HostedRoom != null && !R.RoomHostReady;
         bool OnlineRoomPage => page == Page.Lobby && R.SkirmishRoom;
         static readonly int[] onlineMapSizes = { 2, 3, 4, 6, 8 };
 
@@ -49,7 +49,7 @@ namespace OpenZ.Multiplayer
             var map = OzAiMapCatalog.FindSkirmishMap(hosted?.Map ?? joined?.Map);
             var rules = hosted?.Rules ?? joined.Rules;
             bool editable = OnlineEditing;
-            if (hosted != null && !onlineInviteShown)
+            if (hosted != null && !onlineInviteShown && !R.EndLobbyOpen)
             {
                 onlineInviteShown = true;
                 onlinePopup = OnlinePopup.Invite;
@@ -97,7 +97,7 @@ namespace OpenZ.Multiplayer
             int active = people.Count(person => person.Seat >= 0);
             int ready = people.Count(person => person.Ready && person.Seat >= 0);
             int open = map.Starts - active - bots.Length - closed.Length;
-            string status = local.Observer ? "Ghost · watching this match" :
+            string status = R.EndLobbyOpen ? "Waiting for players to return from the match" : local.Observer ? "Ghost · watching this match" :
                 people.Any(person => person.Seat < 0 && !person.Observer) ? "Players waiting for a starting position" :
                 open > 0 ? $"Fill or close {open} open {(open == 1 ? "position" : "positions")}" :
                 ready < active ? $"Waiting for {people.First(person => person.Seat >= 0 && !person.Ready).Name} · {ready} / {active} ready" :
@@ -105,8 +105,8 @@ namespace OpenZ.Multiplayer
             Label(root, status, 291, 1012, 810, 18, OzUi.Amber);
             Button(root, R.TransportLabel + " · CONNECTION", 1130, 998, 285, () => OpenOnlinePopup(OnlinePopup.Connection));
             if (!local.Observer)
-                Button(root, local.Ready ? "CANCEL READY" : "READY", hosted != null ? 1430 : 1636, 998, 212,
-                    () => R.SetRoomReady(!local.Ready), !local.Ready, R.Connected && local.Seat >= 0);
+                Button(root, local.Ready && !R.EndLobbyOpen ? "CANCEL READY" : "READY", hosted != null ? 1430 : 1636, 998, 212,
+                    () => R.SetRoomReady(!local.Ready), !local.Ready, R.Connected && local.Seat >= 0 && !R.EndLobbyOpen);
             if (hosted != null)
                 Button(root, "LAUNCH MATCH", 1654, 998, 206, R.LaunchRoom, true, R.RoomCanLaunch);
 
@@ -240,10 +240,12 @@ namespace OpenZ.Multiplayer
                 if (humansBySeat.TryGetValue(seat, out var human))
                 {
                     Label(row.transform, human.Name + (human.Local ? " · YOU" : human.Host ? " · HOST" : ""), 43, 8, 343, 17, OzUi.Ink);
-                    Label(row.transform, human.Ready ? "READY" : "NOT READY", 387, 8, 100, 14, human.Ready ? OzUi.Go : OzUi.Amber);
+                    bool waitingForResults = R.WaitingForEndLobby(human.Local, seat);
+                    bool ready = !R.EndLobbyOpen && human.Ready;
+                    Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", 387, 8, 100, 14, ready ? OzUi.Go : OzUi.Amber);
                     if (!human.Host)
                         onlinePingLabels[seat] = Label(row.transform, "", 494, 8, 88, 14, OzUi.Muted);
-                    if (human.Local || R.IsHost && !human.Host) AddPlayerMenu(row.transform, 2, human.Local ? "self" : human.Id, human);
+                    if (!R.EndLobbyOpen && (human.Local || R.IsHost && !human.Host)) AddPlayerMenu(row.transform, 2, human.Local ? "self" : human.Id, human);
                 }
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
@@ -266,7 +268,7 @@ namespace OpenZ.Multiplayer
             {
                 if (person.Observer) DrawGhostIcon(content, 8, y + 6, 19);
                 Label(content, person.Name + (person.Local ? " · YOU" : ""), person.Observer ? 36 : 9, y + 7, 500, 17, OzUi.Ink);
-                if (person.Local || R.IsHost) AddPlayerMenu(content, y, person.Local ? "self" : person.Id, person);
+                if (!R.EndLobbyOpen && (person.Local || R.IsHost)) AddPlayerMenu(content, y, person.Local ? "self" : person.Id, person);
                 y += 36;
             }
         }

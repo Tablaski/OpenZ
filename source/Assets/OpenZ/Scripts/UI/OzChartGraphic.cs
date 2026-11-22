@@ -9,7 +9,9 @@ namespace OpenZ
     /// lines, amber markers at the winner's zone captures; `Reveal` draws it left to right.</summary>
     public sealed class OzChartGraphic : MaskableGraphic
     {
-        public List<(float t, int red, int blue)> Samples; public List<float> Marks = new List<float>();
+        public List<(float t, int[] forces)> Samples;
+        public Team[] Teams;
+        public List<float> Marks = new List<float>();
         public float Duration = 1f, Reveal = 1f;
         /// <summary></summary>
         public float YMax = 70f;
@@ -20,8 +22,8 @@ namespace OpenZ
             for (int g = 1; g <= 3; g++) Quad(vh, r.xMin, r.yMin + h * g / 4f - 0.5f, w, 1f, OzUi.A(OzUi.Khaki, 0.07f));
             if (Samples == null || Samples.Count == 0) return;
             float end = Mathf.Max(1f, Duration), cut = r.xMin + w * Mathf.Clamp01(Reveal);
-            Series(vh, r, end, cut, true, OzUi.A(OzUi.TeamPaint(Team.Blue), 0.24f), OzUi.Mark(Team.Blue));
-            Series(vh, r, end, cut, false, OzUi.A(OzUi.TeamPaint(Team.Red), 0.24f), OzUi.Mark(Team.Red));
+            foreach (var team in Teams)
+                Series(vh, r, end, cut, (int)team - 1, OzUi.A(OzUi.TeamPaint(team), Teams.Length > 2 ? 0f : 0.24f), OzUi.Mark(team));
             foreach (var t in Marks)
             {
                 float x = r.xMin + w * Mathf.Clamp01(t / end); if (x > cut) continue;
@@ -32,13 +34,13 @@ namespace OpenZ
             }
         }
 
-        void Series(VertexHelper vh, Rect r, float end, float cut, bool blue, Color fill, Color line)
+        void Series(VertexHelper vh, Rect r, float end, float cut, int teamIndex, Color fill, Color line)
         {
             Vector2 prev = default; bool has = false;
             for (int k = 0; k < Samples.Count; k++)
             {
                 var s = Samples[k];
-                var p = new Vector2(r.xMin + r.width * Mathf.Clamp01(s.t / end), r.yMin + r.height * Mathf.Clamp01((blue ? s.blue : s.red) / Mathf.Max(1f, YMax)));
+                var p = new Vector2(r.xMin + r.width * Mathf.Clamp01(s.t / end), r.yMin + r.height * Mathf.Clamp01(s.forces[teamIndex] / Mathf.Max(1f, YMax)));
                 if (has)
                 {
                     var a = prev; var b = p;

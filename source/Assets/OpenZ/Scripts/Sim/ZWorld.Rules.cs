@@ -153,6 +153,12 @@ namespace OpenZ.Sim
             foreach (var o in UnitObjects) if (o.Owner == t && !o.IsFortDefender) n++;
             return n;
         }
+        internal void CountMatchForces(int[] counts)
+        {
+            foreach (var unit in UnitObjects)
+                if (unit.Owner != Team.Neutral && !unit.IsFortDefender) counts[(int)unit.Owner - 1]++;
+        }
+
         public bool UnitLimitReached(Team t) => t != Team.Neutral && UnitCount(t) >= MAX_UNITS_PER_TEAM;
 
         /// <summary>zbuilding.cpp:429-452: stored cannons of every building in the zone + every cannon object in the zone (any team).</summary>

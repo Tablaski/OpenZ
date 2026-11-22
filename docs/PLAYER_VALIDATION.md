@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.46 multiplayer results and lobby return
+
+- Pending in a compiled game: compare the host and guests' final counters and force histories in three-player and eight-player matches, including a team win and an earlier elimination. Check Victory and Defeat, long names, the chart toggle with keyboard and mouse, and the table at 16:9 and 4:3.
+- In two-, three- and eight-human sessions, let different players return by button and by timeout. Verify Waiting and Not Ready on the correct player rows and that another match can start after everyone returns. Include the host returning first, a player leaving from results, a Ghost, a direct-to-relay route change and a mixed human/bot room. Confirm solo and bot matches have no countdown.
+
 ## OpenZ-VK 1.5.45 multiplayer routing and compression
 
 - Pending in a compiled game using the updated invitation service. On two networks that can connect directly, start a 1 vs 1 game from a magic-link lobby. Verify Direct in Connection Details and compression Off by default in the host's network diagnostics (Ctrl+Alt+Up with the pointer in the top-left corner).

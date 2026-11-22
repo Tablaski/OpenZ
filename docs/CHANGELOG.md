@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.46 (22 Nov 2026)
+
+- Online matches with three or more players — The Victory and Defeat screens show each player's units built, territories, kills and losses. In larger matches, switch between the full table and the Forces Over Time graph.
+- Online multiplayer — In human-only matches, return to the lobby immediately or let the results screen's 30-second countdown take you there. Players who are still viewing their results appear as Waiting.
+
 ## OpenZ-VK 1.5.45 (22 Nov 2026)
 
 - 1 vs 1 — Two people in an online lobby or match connect directly whenever their networks allow it. If a larger room drops to two people, it switches back to this connection automatically. TURN is available as a fallback.

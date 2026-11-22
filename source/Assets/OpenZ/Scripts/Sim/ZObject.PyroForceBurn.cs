@@ -36,7 +36,7 @@ namespace OpenZ.Sim
         /// is valid for this unit although CanAttackObject says no (the waypoint is not in the unit's list yet). The other checks of
         /// CanAttackObject stay: a weapon, a standing target, not of the unit's own team.</summary>
         internal bool PyroBurnOrderOk(ZObject t, ZWaypoint wp) =>
-            t != null && CanAttack() && !t.Destroyed && Owner != t.Owner && PyroBurnUnit(t) && IsPyroBurnOrder(wp, t);
+            t != null && CanAttack() && !t.Destroyed && PyroBurnUnit(t) && !World.AreAllied(Owner, t.Owner) && IsPyroBurnOrder(wp, t);
 
         bool PyroBurnUnit(ZObject o) =>
             ZWorld.PyroForceBurnDeviation && IsRobot && Type == "pyro" && o != null && o.Kind == ZKind.Building && World != null && World.IsHumanTeam(Owner);
@@ -55,7 +55,7 @@ namespace OpenZ.Sim
         /// rule showed NO.</summary>
         public static bool PyroBurnCursor(ZObject h, IEnumerable<ZObject> selection, Team player, bool ctrl)
         {
-            if (!PyroForceBurnDeviation || !ctrl || h == null || h.Destroyed || h.Kind != ZKind.Building || h.Owner == player || selection == null) return false;
+            if (!PyroForceBurnDeviation || !ctrl || h == null || h.Destroyed || h.Kind != ZKind.Building || (h.Owner == player || h.World?.AreAllied(player, h.Owner) == true) || selection == null) return false;
             foreach (var u in selection)
                 if (u != null && !u.Destroyed && u.Owner == player && u.IsRobot && u.Type == "pyro" && u.CanAttack()) return true;
             return false;

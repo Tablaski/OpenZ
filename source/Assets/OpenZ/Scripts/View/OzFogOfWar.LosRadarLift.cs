@@ -35,7 +35,7 @@ namespace OpenZ
             for (int i = 0; i < list.Count; i++)
             {
                 var o = list[i];
-                if (o != null && o.Kind == ZKind.Building && o.Type == "radar" && o.Owner == player && !o.Destroyed && o.KillAt < 0) return true;
+                if (o != null && o.ProvidesRadarTo(player)) return true;
             }
             return false;
         }

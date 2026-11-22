@@ -73,7 +73,7 @@ namespace OpenZ
             if (contactMaterial) Destroy(contactMaterial);
             if (contactRing) Destroy(contactRing);
         }
-        internal static bool Covers(ZObject obj) => I && I.Fog && obj != null && obj.Owner != I.seat &&
+        internal static bool Covers(ZObject obj) => I && I.Fog && obj != null && obj.Owner != I.seat && obj.World?.AreAllied(obj.Owner, I.seat) != true &&
             (obj.IsUnit || obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag") &&
             !I.Visible(obj.CenterX, obj.CenterY);
 
@@ -113,7 +113,7 @@ namespace OpenZ
             foreach (var obj in world.Objects)
             {
                 if (obj.Type != "radar") continue;
-                bool ownedAndRunning = obj.Owner == seat && !obj.Destroyed;
+                bool ownedAndRunning = obj.ProvidesRadarTo(seat);
                 if (ownedAndRunning) active++;
                 if (obj.Destroyed && knownRadars.TryGetValue(obj.Id, out bool stillOurs) && stillOurs) destroyedRadars.Add(obj.Id);
                 knownRadars[obj.Id] = ownedAndRunning;
@@ -158,14 +158,14 @@ namespace OpenZ
             Sight.Clear();
             foreach (var zone in world.Zones)
             {
-                if (zone.Owner != seat) continue;
+                if (!game.World.AreAllied(zone.Owner, seat)) continue;
                 int left = Sight.CellX(zone.X), right = Sight.CellX(zone.X + zone.W - 1);
                 int top = Sight.CellY(zone.Y), bottom = Sight.CellY(zone.Y + zone.H - 1);
                 for (int y = top; y <= bottom; y++)
                     for (int x = left; x <= right; x++) Sight.Target[y * Sight.W + x] = 255;
             }
             foreach (var unit in world.Objects)
-                if (unit.Owner == seat && unit.IsUnit && !unit.Destroyed)
+                if (game.World.AreAllied(unit.Owner, seat) && unit.IsUnit && !unit.Destroyed)
                     Sight.Stamp(unit.CenterX, unit.CenterY, OzFogOfWar.SightPx(unit, world.S.agro_distance));
             Sight.ShowAll();
             SightRevision++;
@@ -176,7 +176,7 @@ namespace OpenZ
             liveViews.Clear();
             foreach (var view in game.LiveViewValues)
             {
-                if (!view || view.Obj == null || view.Obj.Owner == seat || view.Obj.Owner == Team.Neutral || !view.Obj.IsUnit) continue;
+                if (!view || view.Obj == null || game.World.AreAllied(view.Obj.Owner, seat) || view.Obj.Owner == Team.Neutral || !view.Obj.IsUnit) continue;
                 RecordContact(view.Obj, view.gameObject, false);
             }
             foreach (var entry in game.StaticViews)

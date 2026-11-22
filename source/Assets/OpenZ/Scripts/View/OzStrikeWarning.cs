@@ -68,7 +68,7 @@ namespace OpenZ
         /// <summary>The human player owns a radar now (a standing radar building of his team).</summary>
         public static bool OwnsRadar(ZWorld w, Team t)
         {
-            foreach (var o in w.Objects) if (o.Kind == ZKind.Building && o.Type == "radar" && o.Owner == t && !o.Destroyed) return true;
+            foreach (var o in w.Objects) if (o.ProvidesRadarTo(t)) return true;
             return false;
         }
 

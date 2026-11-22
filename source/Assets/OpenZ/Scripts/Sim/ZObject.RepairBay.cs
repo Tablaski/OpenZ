@@ -132,7 +132,7 @@ namespace OpenZ.Sim
         {
             if (RepairOccupantId < 0) { RepairingUnit = false; return; }
             var u = World.Get(RepairOccupantId);
-            bool onPad = u != null && !u.Destroyed && u.KillAt < 0 && u.Owner == Owner && CanRepairUnit(u.Owner) && u.OnRepairPad(Id);
+            bool onPad = u != null && !u.Destroyed && u.KillAt < 0 && CanRepairUnit(u.Owner) && u.OnRepairPad(Id);
             bool inBay = u != null && !u.Destroyed && u.KillAt < 0 && u.InRepairBay(Id);                 // claimed at the entrance, held until it is out again
             if (!onPad)
             {

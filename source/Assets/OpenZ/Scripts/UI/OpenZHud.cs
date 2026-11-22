@@ -536,7 +536,9 @@ namespace OpenZ
                         var team = (Team)(int)e.value; var old = (Team)e.radius;
                         int fx = e.x, fy = e.y;
                         System.Action fly = () => { if (rts) rts.FlyTo(ZGame.PxToWorld(fx, fy)); };
-                        if (team == Player && old != Player) { Toast("TERRITORY CAPTURED", "flag", false, fly); if (e.flag && OzRadarTruth.StandingRadarOf(W, e.objId, team)) Toast("RADAR ACTIVATED", "radar", false, fly); }   // 1.4 radar_voice_fix: a standing radar only (FlagCaptured.flag marks every zone with a radar, a ruin too: View/OzRadarTruth.cs)
+                        if (team == Player && old != Player) Toast("TERRITORY CAPTURED", "flag", false, fly);
+                        if (Player != Team.Neutral && !W.AreAllied(old, Player) && W.AreAllied(team, Player) && e.flag &&
+                            OzRadarTruth.StandingRadarOf(W, e.objId, Player)) Toast("RADAR ACTIVATED", "radar", false, fly);   // 1.4 radar_voice_fix: a standing radar only (FlagCaptured.flag marks every zone with a radar, a ruin too: View/OzRadarTruth.cs)
                         else if (old == Player && team != Player) { Toast("TERRITORY LOST", "flag", true, fly); Minimap?.PingAlert(fx, fy); }
                         Minimap?.FlashZones();
                         break;

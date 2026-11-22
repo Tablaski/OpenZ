@@ -36,6 +36,7 @@ namespace OpenZ.Sim
 
         // ---- repair station (brepair.cpp)
         public bool RepairingUnit; public double RepairTime;
+        internal Team RepairTeam;
         public string RepairType, RepairDriverType; public readonly List<int> RepairDrivers = new List<int>();
         public readonly List<ZWaypoint> RepairWaypoints = new List<ZWaypoint>();
 
@@ -117,7 +118,10 @@ namespace OpenZ.Sim
             (Destroyed ? ZWorld.CraneAnyRuinDeviation || Owner == Team.Neutral || team == Owner            // DV74: a destroyed building / bridge in any zone (Zod: own or neutral)
                        : (Owner == Team.Neutral || team == Owner) && ZWorld.CraneFixDeviation && Health < MaxHealth && GetCraneCenter(out _, out _));   // DV61: a damaged standing one too (own or neutral)
         public bool CanBeRepaired() => Kind == ZKind.Vehicle && !Destroyed && Health < MaxHealth;        // zvehicle.cpp:170-176
-        public bool CanRepairUnit(Team team) => Type == "repair" && Owner != Team.Neutral && team == Owner && !Destroyed;   // brepair.cpp:473-480
+        internal bool ProvidesRadarTo(Team team) => Kind == ZKind.Building && Type == "radar" &&
+            Owner != Team.Neutral && (Owner == team || World?.AreAllied(team, Owner) == true) && !Destroyed && KillAt < 0;
+
+        public bool CanRepairUnit(Team team) => Type == "repair" && Owner != Team.Neutral && (team == Owner || World?.AreAllied(team, Owner) == true) && !Destroyed;   // brepair.cpp:473-480
 
         // ------------------------------------------------------------------ production (zbuilding.cpp)
         /// <summary>zbuilding.cpp:633-667: T = base * (1 - 0.5 z) * (1 + 1.25 (1 - hp/max)), from the ORIGINAL start time.</summary>
@@ -226,6 +230,7 @@ namespace OpenZ.Sim
         public bool SetRepairUnit(ZObject unit)
         {
             if (unit == null || RepairingUnit || !CanRepairUnit(unit.Owner)) return false;
+            RepairTeam = unit.Owner;
             RepairType = unit.Type; RepairDriverType = unit.DriverType;
             RepairDrivers.Clear(); RepairDrivers.AddRange(unit.Drivers);
             RepairCrew = unit.CrewOf();                                                                    // veterancy_v1 DV12

@@ -101,9 +101,17 @@ namespace OpenZ.Sim
             return (double)n / Flags.Count;
         }
 
+        double AlliedFlagFraction(Team team)
+        {
+            if (!SkirmishHasTeams || Flags.Count == 0) return TeamFlagFraction(team);
+            int count = 0;
+            foreach (var flag in Flags) if (AreAllied(team, flag.Owner)) count++;
+            return (double)count / Flags.Count;
+        }
+
         void ResetZoneOwnagePercentages()
         {
-            foreach (var b in Objects) if (b.IsProducer) b.ResetBuildTime(TeamFlagFraction(b.Owner));
+            foreach (var b in Objects) if (b.IsProducer) b.ResetBuildTime(AlliedFlagFraction(b.Owner));
         }
 
         /// <summary>Every 0.2 s: the first enemy robot / vehicle whose box touches a flag takes its zone.</summary>
@@ -213,7 +221,9 @@ namespace OpenZ.Sim
         void BuildingRepairUnit(ZObject st)
         {
             if (!st.GetRepairCenter(out int x, out int y)) return;
-            var u = CreateObject("vehicle", st.RepairType, x, y, st.Owner);
+            Team owner = SkirmishHasTeams ? st.RepairTeam : st.Owner;
+            if (SkirmishHasTeams && SkirmishEliminated(owner)) return;
+            var u = CreateObject("vehicle", st.RepairType, x, y, owner);
             if (st.RepairDrivers.Count > 0) { u.DriverType = st.RepairDriverType; u.Drivers.Clear(); u.Drivers.AddRange(st.RepairDrivers); u.ResetDamageInfo(); }
             if (st.RepairDrivers.Count > 0) u.SetCrew(st.RepairCrew);                                    // veterancy_v1 DV12
             st.RestoreRepairPassengers(u);                                                               // apc_v1 DV15

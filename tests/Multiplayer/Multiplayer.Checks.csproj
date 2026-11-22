@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/*.cs" Link="Core/%(Filename)%(Extension)" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Sim/*.cs" Link="Simulation/%(Filename)%(Extension)" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/OzRadarLineRule.cs" Link="View/OzRadarLineRule.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/Simulation/*.cs" Link="Adapter/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

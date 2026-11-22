@@ -204,7 +204,7 @@ namespace OpenZ.Sim
                 case WpMode.Move:
                 {
                     var t = BotObject(w.refId);
-                    return t == null || !(t.Kind == ZKind.MapItem && t.Type == "flag" && t.Owner != Team);  // never off the way to a flag
+                    return t == null || !(t.Kind == ZKind.MapItem && t.Type == "flag" && !W.AreAllied(Team, t.Owner));  // never off the way to a flag
                 }
                 default: return false;                                                          // attack, fort entry, agro, dodge, repair, crane ...
             }
@@ -278,7 +278,7 @@ namespace OpenZ.Sim
             {
                 ev.fromMode = wps[0].mode;
                 var t0 = BotObject(wps[0].refId);
-                ev.fromFlag = t0 != null && t0.Kind == ZKind.MapItem && t0.Type == "flag" && t0.Owner != Team;
+                ev.fromFlag = t0 != null && t0.Kind == ZKind.MapItem && t0.Type == "flag" && !W.AreAllied(Team, t0.Owner);
             }
             int before = Orders;
             Command(u, g);

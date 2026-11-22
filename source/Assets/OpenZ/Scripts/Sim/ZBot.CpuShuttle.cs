@@ -147,7 +147,7 @@ namespace OpenZ.Sim
             list.Clear();
             foreach (var o in Objects)
             {
-                if (o.Destroyed || o.KillAt >= 0 || o.Owner == me || o.Owner == Team.Neutral) continue;
+                if (o.Destroyed || o.KillAt >= 0 || AreAllied(me, o.Owner) || o.Owner == Team.Neutral) continue;
                 if (o.IsFort || o.Kind == ZKind.Cannon || o.Kind == ZKind.Robot || (o.Kind == ZKind.Vehicle && !o.IsShuttle)) list.Add(o);
             }
             return list;
@@ -190,7 +190,7 @@ namespace OpenZ.Sim
             }
             foreach (var o in Objects)
             {
-                if (o.Destroyed || o.KillAt >= 0 || o.Owner == me || o.Owner == Team.Neutral) continue;
+                if (o.Destroyed || o.KillAt >= 0 || AreAllied(me, o.Owner) || o.Owner == Team.Neutral) continue;
                 if (o.IsFort)
                 {
                     if (fort < 0) fort = CpuShuttleFortReachPx();
@@ -418,7 +418,7 @@ namespace OpenZ.Sim
         {
             if (cwFlag < 0) return;
             var f = W.Get(cwFlag);
-            if (f != null && f.Owner == Team) { CpuShuttleCaptures++; CsLog(CpuShuttleEventKind.Captured, null, flag: cwFlag, x: f.CenterX, y: f.CenterY); CsRunEnd("captured"); return; }
+            if (f != null && W.AreAllied(Team, f.Owner)) { CpuShuttleCaptures++; CsLog(CpuShuttleEventKind.Captured, null, flag: cwFlag, x: f.CenterX, y: f.CenterY); CsRunEnd("captured"); return; }
             bool any = false;
             foreach (int id in cwIds) { var r = W.Get(id); if (CsAlive(r) && r.Owner == Team) { any = true; break; } }
             if (f == null || !any || W.Time - cwSince > ZWorld.CpuShuttleCaptureWatchSec)
@@ -604,7 +604,7 @@ namespace OpenZ.Sim
             var foes = W.CpuShuttleFoes(Team, csFoes);
             foreach (var f in W.Flags)
             {
-                if (f == null || Gone(f) || f.Owner == Team || f.Id == skipFlag) continue;
+                if (f == null || Gone(f) || W.AreAllied(Team, f.Owner) || f.Id == skipFlag) continue;
                 long d = CsD2(s.ShuttleLineX, s.ShuttleLineY, f.CenterX, f.CenterY);
                 if (d < min2) continue;
                 if (W.CpuShuttleThreat(foes, f.CenterX, f.CenterY) > 0) continue;
@@ -764,7 +764,7 @@ namespace OpenZ.Sim
             }
             if (s.ShuttleAirborne || s.ShuttleTakeOffHeld)                                              // up there (coming down too: a new goal takes it up again) or about to take off
             {
-                bool bad = f == null || Gone(f) || f.Owner == Team || W.CpuShuttleThreat(Team, f.CenterX, f.CenterY) > 0 || W.CpuShuttleThreat(Team, csSpotX, csSpotY) > 0;
+                bool bad = f == null || Gone(f) || W.AreAllied(Team, f.Owner) || W.CpuShuttleThreat(Team, f.CenterX, f.CenterY) > 0 || W.CpuShuttleThreat(Team, csSpotX, csSpotY) > 0;
                 if (bad || s.ShuttleState == ZShuttleState.Hover)
                 {
                     if (!bad) { CsLog(CpuShuttleEventKind.Hover, s, flag: csFlag, x: csSpotX, y: csSpotY, note: s.ShuttleNoLand); csBadSpots.Add((csSpotX, csSpotY)); csSpotTries++; }
@@ -822,7 +822,7 @@ namespace OpenZ.Sim
                 }
                 CpuShuttleUnloads++;
                 var f = W.Get(csFlag);
-                bool order = lead != null && f != null && !Gone(f) && f.Owner != Team;
+                bool order = lead != null && f != null && !Gone(f) && !W.AreAllied(Team, f.Owner);
                 if (order) CsSend(lead, new ZWaypoint { mode = WpMode.Move, refId = f.Id, x = f.CenterX, y = f.CenterY, attackTo = true, playerGiven = true });
                 CsLog(CpuShuttleEventKind.Unloaded, s, unit: lead != null ? lead.Id : -1, flag: csFlag, note: order ? null : "no flag order");
                 if (order) { cwFlag = f.Id; cwSince = W.Time; }

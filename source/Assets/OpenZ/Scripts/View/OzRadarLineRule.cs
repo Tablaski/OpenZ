@@ -32,7 +32,7 @@ namespace OpenZ
         public const double HoldSec = 10.0;
         /// <summary>A picture seen at the first look of a new world before this game time is the level start's (it counts as had).</summary>
         public const double StartSec = 2.0;
-        const int Teams = 3;                                                                   // Team.Neutral, Red, Blue
+        const int Teams = (int)Team.Black + 1;
 
         ZWorld world;
         double nextScan = double.NegativeInfinity;
@@ -42,7 +42,12 @@ namespace OpenZ
         readonly bool[] had = new bool[Teams];                                                 // the team has had a picture that counts in this game
         readonly double[] since = new double[Teams];                                           // game time the current picture started
         readonly int[] pictures = new int[Teams];                                              // how often the team's picture started in this game
-        readonly HashSet<int>[] starters = { new HashSet<int>(), new HashSet<int>(), new HashSet<int>() };   // the radars that started the current picture
+        readonly HashSet<int>[] starters = new HashSet<int>[Teams];
+
+        public OzRadarLineRule()
+        {
+            for (int i = 0; i < Teams; i++) starters[i] = new HashSet<int>();
+        }
         readonly List<int> drop = new List<int>();
 
         /// <summary>Counters of this game for the checks: lines chosen per kind, radar captures with no line (a ruin).</summary>
@@ -81,13 +86,13 @@ namespace OpenZ
             for (int t = 1; t < Teams; t++)
             {
                 bool c = false;
-                foreach (var r in radars) if ((int)r.Owner == t && !r.Destroyed) { c = true; break; }
+                foreach (var r in radars) if (r.ProvidesRadarTo((Team)t)) { c = true; break; }
                 var s = starters[t];
                 if (c && !covered[t])
                 {   // the picture starts: the radars standing now are the ones that started it
                     pictures[t]++; s.Clear(); since[t] = w.Time;
                     if (firstLook && w.Time <= StartSec) had[t] = true;                           // a radar of the team at the level start (no line then)
-                    foreach (var r in radars) if ((int)r.Owner == t && !r.Destroyed) s.Add(r.Id);
+                    foreach (var r in radars) if (r.ProvidesRadarTo((Team)t)) s.Add(r.Id);
                 }
                 else
                 {
@@ -96,7 +101,7 @@ namespace OpenZ
                     {   // a starting radar the team no longer holds standing cannot start this picture again (lost and retaken while
                         // another radar kept the picture = a plain line)
                         drop.Clear();
-                        foreach (int id in s) { var r = Radar(id); if (r == null || (int)r.Owner != t || r.Destroyed) drop.Add(id); }
+                        foreach (int id in s) { var r = Radar(id); if (r == null || !r.ProvidesRadarTo((Team)t)) drop.Add(id); }
                         foreach (int id in drop) s.Remove(id);
                     }
                 }
@@ -116,7 +121,7 @@ namespace OpenZ
             bool standing = false, started = false;
             foreach (var b in flag.LinkedObjects)
             {
-                if (b == null || b.Type != "radar" || (int)b.Owner != t || b.Destroyed) continue;
+                if (b == null || !b.ProvidesRadarTo(team)) continue;
                 standing = true;
                 if (starters[t].Contains(b.Id)) started = true;
             }

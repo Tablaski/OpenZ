@@ -294,12 +294,12 @@ namespace OpenZ
             // stay (map knowledge); enemy robots, vehicles and cannons need an intact radar of ours.
             if (hud.IsGhostViewer && hud.GhostView == null) seat = Multiplayer.DuelRuntime.GhostVisionTeam;
             bool radar = !RadarRule || loss && loss.Fog || hud.IsGhostViewer && seat == Team.Neutral;
-            if (!radar) foreach (var b in W.Objects) if (b.Kind == ZKind.Building && b.Type == "radar" && !b.Destroyed && b.Owner == seat) { radar = true; break; }
+            if (!radar) foreach (var b in W.Objects) if (b.ProvidesRadarTo(seat)) { radar = true; break; }
             HasRadar = radar;
             foreach (var o in W.UnitObjects)
             {
                 if (o.Destroyed || o.KillAt >= 0) continue;
-                if (!radar && o.Owner != seat && o.Owner != Team.Neutral) continue;
+                if (!radar && !W.AreAllied(seat, o.Owner) && o.Owner != Team.Neutral) continue;
                 if (OzFogOfWar.Covers(o)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no dot for a unit the fog hides (the soft cover let it show through)
                 bool selected = o.Owner == seat && sel.Contains(o.Leader ?? o);
                 string rel = o.Kind == ZKind.Robot ? "Minimap/mm_unit" : o.Kind == ZKind.Vehicle ? "Minimap/mm_vehicle" : "Minimap/mm_cannon";
@@ -414,11 +414,11 @@ namespace OpenZ
                 if (!visible) continue;
                 sweepingRadars.Add(mark.Radar);
                 mark.Sweep.rectTransform.sizeDelta = Vector2.one * (mark.Diameter + 4f + 36f * progress);
-                mark.Sweep.color = OzUi.A(Color.white, 1f - progress);
+                mark.Sweep.color = OzUi.A(OzUi.Mark(mark.Radar.Owner), 1f - progress);
             }
         }
 
-        bool IsFriendlyRadar(ZObject radar) => radar.Owner != Team.Neutral && radar.Owner == hud.DisplayPlayer && !radar.Destroyed && radar.KillAt < 0;
+        bool IsFriendlyRadar(ZObject radar) => radar.ProvidesRadarTo(hud.DisplayPlayer);
 
         /// <summary>Pooled marker: the pool entry's sprite follows `rel` (buildings and flags share one pool).</summary>
         Image NextPooled(List<Image> pool, ref int used, string name, string rel, Image.Type type)

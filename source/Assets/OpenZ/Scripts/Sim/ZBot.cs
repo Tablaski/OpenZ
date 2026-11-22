@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace OpenZ.Sim
 {
@@ -183,6 +184,7 @@ namespace OpenZ.Sim
             var units = new List<ZObject>(); var targeted = new List<ZObject>(); var targets = new List<ZObject>();
             CollectOurUnits_3(units, targeted);
             CollectOurTargets_3(targets, allOut);
+            CoordinateWithAllies(units);
             GunManRound(units, targeted, targets);                                         // 1.3 item 11 DV157: squads man the empty guns they pass and the ones at the frontier (ZBot.CpuGunMan.cs); with the switch off it returns at once
             CarParkRound(units, targeted, targets);                                        // boarding_nb_v1 DV37 (L17, Normal CPU): squads to empty vehicles first
             var escorts = ElectrobotHoldBack(units);                                       // DV72: the Electrobot leaves with a unit ordered out near him (ZBot.Electrobot.cs)
@@ -207,7 +209,12 @@ namespace OpenZ.Sim
         {
             percent = 0.35; delay = 4;
             flagOwners.Clear(); int ours = 0;
-            foreach (var f in W.Flags) { flagOwners.Add(f.Owner); if (f.Owner == Team) ours++; }
+            bool teamplay = W.HasActiveAlly(Team);
+            foreach (var f in W.Flags)
+            {
+                if (!teamplay || !flagOwners.Any(owner => W.AreAllied(owner, f.Owner))) flagOwners.Add(f.Owner);
+                if (f.Owner == Team || teamplay && W.AreAllied(Team, f.Owner)) ours++;
+            }
             if (flagOwners.Count == 0) return true;
             if (W.Flags.Count == 0) return true;
             double owned = 1.0 * ours / W.Flags.Count, fair = 1.0 / flagOwners.Count;
@@ -239,7 +246,7 @@ namespace OpenZ.Sim
                     {
                         if (t.Kind == ZKind.MapItem && t.Type == "flag")
                         {
-                            if (t.Owner != Team) { targeted.Add(t); continue; }
+                            if (!W.AreAllied(Team, t.Owner)) { targeted.Add(t); continue; }
                         }
                         else
                         {
@@ -267,7 +274,7 @@ namespace OpenZ.Sim
                         break;
                     case ZKind.Building:
                         if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) targets.Add(t); }
-                        else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed) targets.Add(t); }
+                        else if (t.Type == "repair") { if (t.CanRepairUnit(Team)) targets.Add(t); }
                         if (CraneJob(t)) targets.Add(t);
                         break;
                     case ZKind.Cannon: case ZKind.Vehicle:
@@ -311,7 +318,7 @@ namespace OpenZ.Sim
         /// <summary>The crane jobs the CPU picks (zbot.cpp: every building its crane may repair). DV74 lets a crane rebuild a ruin in
         /// any zone; the CPU takes bridges and the ruins of its own or a neutral zone only, as before: a building rebuilt in the other
         /// side's zone would belong to that side.</summary>
-        bool CraneJob(ZObject t) => t.CanBeRepairedByCrane(Team) && (t.IsBridge || t.Owner == Team.Neutral || t.Owner == Team);
+        bool CraneJob(ZObject t) => t.CanBeRepairedByCrane(Team) && (t.IsBridge || t.Owner == Team.Neutral || W.AreAllied(Team, t.Owner));
 
         /// <summary>Bot target point: building centre, else top-left + 8 (zbot.cpp:437-447).</summary>
         static void TargetPoint(ZObject t, out int x, out int y)
@@ -343,7 +350,7 @@ namespace OpenZ.Sim
                             break;
                         case ZKind.Building:
                             if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) add = true; }
-                            else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed && u.CanBeRepaired()) add = true; }
+                            else if (t.Type == "repair") { if (t.CanRepairUnit(Team) && u.CanBeRepaired()) add = true; }
                             if (CraneJob(t) && u.Kind == ZKind.Vehicle && u.Type == "crane") add = true;
                             break;
                         case ZKind.Cannon: case ZKind.Vehicle:
@@ -396,7 +403,7 @@ namespace OpenZ.Sim
 
         /// <summary>zbot.cpp:279-392: one waypoint replacing the unit's orders; attack aims at the top-left + 8, everything
         /// else at the centre; attack_to and player_given set; sent as SEND_WAYPOINTS (SendBotDevWaypointList :1434-1451).</summary>
-        void Command(ZObject u, ZObject t, bool finisher = false)
+        void Command(ZObject u, ZObject t, bool finisher = false, bool coordinated = false)
         {
             WpMode mode = WpMode.None;
             switch (t.Kind)
@@ -407,8 +414,9 @@ namespace OpenZ.Sim
                     break;
                 case ZKind.Building:
                     if (t.IsFort) { if (!W.AreAllied(t.Owner, Team) && t.Owner != Team.Neutral && !t.Destroyed) mode = WpMode.EnterFort; }
-                    else if (t.Type == "repair") { if (t.Owner == Team && !t.Destroyed) mode = WpMode.UnitRepair; }
+                    else if (t.Type == "repair") { if (t.CanRepairUnit(Team)) mode = WpMode.UnitRepair; }
                     if (CraneJob(t)) mode = WpMode.CraneRepair;
+                    if (coordinated && u.CanAttackObject(t)) mode = WpMode.Attack;
                     break;
                 case ZKind.Cannon: case ZKind.Vehicle:
                     if (t.Owner == Team.Neutral && !t.Destroyed) mode = WpMode.Enter;
@@ -418,13 +426,18 @@ namespace OpenZ.Sim
                     if (u.CanAttackObject(t)) mode = WpMode.Attack;
                     break;
             }
+            int x = mode == WpMode.Attack ? t.LocX + 8 : t.CenterX;
+            int y = mode == WpMode.Attack ? t.LocY + 8 : t.CenterY;
+            IssueOrder(u, t, mode, x, y, finisher, coordinated);
+        }
+
+        void IssueOrder(ZObject u, ZObject t, WpMode mode, int x, int y, bool finisher, bool coordinated)
+        {
             if (mode == WpMode.None) return;
             bool hostile = mode == WpMode.Attack || mode == WpMode.EnterFort;
             if (Difficulty == ZBotDifficulty.Easy && hostile && !finisher && easyAttackers >= EASY_MAX_ATTACKERS) { EasyHeldBack++; return; }   // DV60: finishing a won game is not an attack wave
-            if (!finisher && DefendTurn(u, t, mode)) return;                                  // DV136: from 8:00 one in four attack / capture orders becomes a defend order, given there (ZBot.CpuDefend.cs); with the switch off it is false at once
-            var wp = new ZWaypoint { mode = mode, refId = t.Id, attackTo = true, playerGiven = true };
-            if (mode != WpMode.Attack) { wp.x = t.CenterX; wp.y = t.CenterY; }
-            else { wp.x = t.LocX + 8; wp.y = t.LocY + 8; }
+            if (!finisher && !coordinated && DefendTurn(u, t, mode)) return;                                  // DV136: from 8:00 one in four attack / capture orders becomes a defend order, given there (ZBot.CpuDefend.cs); with the switch off it is false at once
+            var wp = new ZWaypoint { mode = mode, refId = t.Id, x = x, y = y, attackTo = true, playerGiven = true };
             if (!W.SendWaypoints(Team, u, new[] { wp })) { RejectedOrders++; return; }
             if (ClientView) Relay(u);                                                 // the server relays the list it kept, also when CheckWaypoint
                                                                                       // dropped ours (zcore.cpp:539-566, zserver_events.cpp:392-407)
@@ -443,7 +456,7 @@ namespace OpenZ.Sim
         {
             var targets = new List<ZObject>();
             CollectOurTargets_3(targets, true);
-            targets.RemoveAll(t => t.Owner == Team || (t.Owner == Team.Neutral && t.Type != "flag"));
+            targets.RemoveAll(t => W.AreAllied(Team, t.Owner) || (t.Owner == Team.Neutral && t.Type != "flag"));
             MatchTargets_3(units, targets);
             GiveOutOrders_3(units, targets);
             aiList.Clear();

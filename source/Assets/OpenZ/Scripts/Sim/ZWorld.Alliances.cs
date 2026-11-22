@@ -67,6 +67,7 @@ namespace OpenZ.Sim
                     CreateRobotGroup(type, x, y, team);
                 }
             }
+            ResetZoneOwnagePercentages();
             UpdateSkirmishProduction(true);
         }
 
@@ -99,7 +100,7 @@ namespace OpenZ.Sim
                         alliancePower[candidate] == alliancePower[rival] && allianceFlags[candidate] > allianceFlags[rival]) rival = candidate;
                 }
                 double lead = rival < 0 ? 0 : ZForceComparison.RelativePercent(alliancePower[own], alliancePower[rival]);
-                double territory = skirmishProduction.TerritoryTimeReduction(TeamFlagFraction(team), lead);
+                double territory = skirmishProduction.TerritoryTimeReduction(allianceFlags[own], lead);
                 double speed = lead >= 0 ? 1 : skirmishProduction.FortCatchupSpeed(-lead,
                     skirmishProduction.TerritoryTimeReduction(allianceFlags[rival], -lead));
                 double fort = 1 - Math.Min(1 - territory, 1 / speed) / (1 - territory);
@@ -120,7 +121,7 @@ namespace OpenZ.Sim
             int seat = (int)building.Owner - 1;
             double health = building.MaxHealth > 0 ? Math.Max(0, Math.Min(1, (double)building.Health / building.MaxHealth)) : 1;
             if ((uint)seat >= (uint)skirmishAlliances.Length) return seconds * (1 - .5 * building.ZoneOwnage) * (1 + 1.25 * (1 - health));
-            double territory = DuelIsReplica ? skirmishProduction.TerritoryTimeReduction(TeamFlagFraction(building.Owner), 0) : skirmishTerritory[seat];
+            double territory = DuelIsReplica ? skirmishProduction.TerritoryTimeReduction(AlliedFlagFraction(building.Owner), 0) : skirmishTerritory[seat];
             double fort = building.IsFort ? skirmishFort[seat] : 0;
             return Math.Max(1, seconds * (1 - territory) * (1 - fort) * (1 + 1.25 * (1 - health)) * skirmishRules.BuildPercent[seat] / 100);
         }
@@ -128,6 +129,14 @@ namespace OpenZ.Sim
         internal void SetSkirmishAlliances(int[] alliances)
         {
             skirmishAlliances = (int[])alliances.Clone();
+        }
+
+        internal bool HasActiveAlly(Team team)
+        {
+            if (!SkirmishHasTeams) return false;
+            for (int seat = 1; seat <= skirmishAlliances.Length; seat++)
+                if ((Team)seat != team && AreAllied(team, (Team)seat) && !SkirmishEliminated((Team)seat)) return true;
+            return false;
         }
 
         public bool AreAllied(Team left, Team right)

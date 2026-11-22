@@ -858,7 +858,7 @@ namespace OpenZ.Sim
             tx = ty = 0; ids?.Clear();
             var army = new List<ZObject>();
             foreach (var o in W.Objects)
-                if (o.IsMobile && !o.IsMinion && o.Owner != Team && o.Owner != Team.Neutral && SgAlive(o) && !o.IsFortDefender) army.Add(o);
+                if (o.IsMobile && !o.IsMinion && !W.AreAllied(Team, o.Owner) && o.Owner != Team.Neutral && SgAlive(o) && !o.IsFortDefender) army.Add(o);
             if (army.Count == 0) return false;
             long g2 = (long)ZWorld.StrikeGatherPx * ZWorld.StrikeGatherPx;
             ZObject best = null; int bestN = 0; long bestD = 0;
@@ -1185,7 +1185,7 @@ namespace OpenZ.Sim
                 foreach (int id in sgTargetIds)
                 {
                     var t = W.Get(id);
-                    if (t == null || !SgAlive(t) || t.Owner == Team || t.Owner == Team.Neutral) continue;
+                    if (t == null || !SgAlive(t) || W.AreAllied(Team, t.Owner) || t.Owner == Team.Neutral) continue;
                     sx += t.CenterX; sy += t.CenterY; k++;
                 }
                 int nx, ny;

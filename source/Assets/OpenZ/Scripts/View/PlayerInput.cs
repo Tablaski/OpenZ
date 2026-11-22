@@ -687,7 +687,7 @@ namespace OpenZ
             if (u.U == null) return false;
             double r = u.U.attack_radius + W.S.agro_distance;
             foreach (var o in W.Objects)
-                if ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner != Team.Neutral && o.Owner != u.Owner && !o.Destroyed
+                if ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner != Team.Neutral && !W.AreAllied(u.Owner, o.Owner) && !o.Destroyed
                     && (o.CenterX - u.CenterX) * (double)(o.CenterX - u.CenterX) + (o.CenterY - u.CenterY) * (double)(o.CenterY - u.CenterY) <= r * r)
                     return true;
             return false;
@@ -705,8 +705,12 @@ namespace OpenZ
             if (alt) wp.attackTo = false;
             if (h == null) return wp;
             wp.refId = h.Id;
-            if (h.Type == "flag") return wp;                                                // move onto the flag = capture
-            bool notOurs = BothSides ? h.Owner != u.Owner : h.Owner != game.player;   // 1.2 item 6: per unit in the playground (red units attack a blue one, blue units move to it)
+            bool notOurs = !W.AreAllied(BothSides ? u.Owner : game.player, h.Owner);
+            if (h.Type == "flag")
+            {
+                if (!notOurs && W.SkirmishHasTeams) wp.refId = -1;
+                return wp;
+            }
             // zplayer.cpp:2746-2881 special rows
             // orders never divert to fight on the way (Zod's attackTo diversion hijacked them, zobject.cpp:2561/2645)
             if (u.CanBeRepaired() && h.CanRepairUnit(u.Owner)) { wp.mode = WpMode.UnitRepair; wp.attackTo = false; wp.x = h.CenterX - 8; wp.y = h.CenterY; return wp; }

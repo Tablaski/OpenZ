@@ -829,7 +829,12 @@ namespace OpenZ.Sim
                 case WpMode.ForceMove: if (!o.CanMove) return false; wp.mode = WpMode.Move; return true;
                 case WpMode.Dodge: if (!o.CanMove) return false; wp.mode = WpMode.Attack; return o.CanAttackObject(Get(wp.refId));   // Zod falls through into AGRO
                 case WpMode.Agro: wp.mode = WpMode.Attack; return o.CanAttackObject(Get(wp.refId));
-                case WpMode.Attack: return o.CanAttackObject(Get(wp.refId)) || o.PyroBurnOrderOk(Get(wp.refId), wp) || AttackOrderFallback(o, ref wp);   // DV113: the player's Ctrl order sends a Pyro at a building or bridge (ZObject.PyroForceBurn.cs); 1.3 item 29 DV158: a player's unit that cannot attack it walks to the clicked point (ZWorld.OrderFallback.cs)
+                case WpMode.Attack:
+                {
+                    var target = Get(wp.refId);
+                    if (target != null && target.Owner != o.Owner && AreAllied(o.Owner, target.Owner)) return false;
+                    return o.CanAttackObject(target) || o.PyroBurnOrderOk(target, wp) || AttackOrderFallback(o, ref wp);
+                }
                 case WpMode.Enter: { var t = Get(wp.refId); return o.CanMove && o.IsRobot && t != null && (t.CanBeEntered() || t.CanTakePassengers(o)) && o.EvilMayEnter(t); }   // apc_v1 DV15: + passengers
                 case WpMode.PickupGrenades: { var t = Get(wp.refId); return o.CanPickupGrenades() && t != null && t.Type == "grenades"; }
                 case WpMode.CraneRepair: { var t = Get(wp.refId); return o.CanMove && o.Kind == ZKind.Vehicle && o.Type == "crane" && t != null && t.CanBeRepairedByCrane(o.Owner); }

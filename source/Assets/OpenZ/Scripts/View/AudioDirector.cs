@@ -1725,13 +1725,11 @@ namespace OpenZ
             if (team == Player && !flagView)
             {
                 if (Time.time - lastTerritoryAnn >= 6f) { lastTerritoryAnn = Time.time; Announce("ann_territory_captured"); }   // a repeat stays silent
-                if (e.flag) Schedule(1.2f, () => { var line = OzRadarLine.EventFor(W, team, e.objId); if (line != null) Announce(line); });   // FlagCaptured.flag = the zone has a radar; 1.2 item 16: first radar / back online / another radar, a ruin: none (View/OzRadarLine.cs)
             }
-            if (old == Player && team != Player)
-            {
-                if (!flagView) { UI("ter_zone_lost"); Announce("ann_territory_lost"); }
-                if (e.flag) RadarLostAsk(e);                                                   // 1.4 radar_voice_fix: only when our LAST standing radar was taken (not a ruin, not while another stands), right behind "Territory lost." (View/AudioDirector.VoiceFloor.cs)
-            }
+            if (e.flag && Player != Team.Neutral && W.AreAllied(team, Player) && (!flagView || team != Player))
+                Schedule(1.2f, () => { var line = OzRadarLine.EventFor(W, Player, e.objId); if (line != null) Announce(line); });
+            if (old == Player && team != Player && !flagView) { UI("ter_zone_lost"); Announce("ann_territory_lost"); }
+            if (e.flag && Player != Team.Neutral && W.AreAllied(old, Player) && !W.AreAllied(team, Player)) RadarLostAsk(e);
         }
 
         // ---- production heuristics (preferred: the production window calls Announce itself and sets manualProductionAnnounce)

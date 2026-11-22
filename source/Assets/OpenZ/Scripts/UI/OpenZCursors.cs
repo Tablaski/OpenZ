@@ -98,7 +98,7 @@ namespace OpenZ
                 if (crane && h.CanBeRepairedByCrane(me)) return "repair";
                 if (repairable && h.CanRepairUnit(me)) return "repair";
                 if (h.Destroyed) return canMove ? "move" : "cannon";                           // endgame_ui_v1: rubble is a plain move (PlayerInput.BuildWaypoint), never the red attack
-                if (h.Owner != me)
+                if (h.Owner != me && h.World?.AreAllied(me, h.Owner) != true)
                 {
                     bool door = h.CanEnterFort(me) && (OnDoor(h, mp) || (canMove && input.FortEnterAt(h)));   // 1.4: the gate zone and the fort's body too (View/PlayerInput.FortGate.cs)
                     bool ctrlHeld = Keyboard.current != null && Keyboard.current.ctrlKey.isPressed;

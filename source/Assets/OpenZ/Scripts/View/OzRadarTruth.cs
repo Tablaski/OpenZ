@@ -25,7 +25,7 @@ namespace OpenZ
         {
             var f = w != null ? w.GetAny(flagId) : null;
             if (f == null) return false;
-            foreach (var b in f.LinkedObjects) if (b != null && b.Type == "radar" && b.Owner == team && !b.Destroyed) return true;
+            foreach (var b in f.LinkedObjects) if (b != null && b.ProvidesRadarTo(team)) return true;
             return false;
         }
 
@@ -40,7 +40,7 @@ namespace OpenZ
             {
                 if (b == null || b.Type != "radar") continue;
                 any = true;
-                if (!b.Destroyed && b.Owner != player) { taken = true; break; }
+                if (!b.Destroyed && !w.AreAllied(b.Owner, player)) { taken = true; break; }
             }
             if (!any) { why = "the zone has no radar"; return false; }
             if (!taken) { why = "the zone's radar is a ruin (it showed nothing)"; return false; }

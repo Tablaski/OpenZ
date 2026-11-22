@@ -36,7 +36,7 @@ namespace OpenZ.Sim
             if (W.Time + TIME_EPS < nextFinish) return;
             nextFinish = W.Time + ZWorld.BotFinishInterval;
             bool anyFort = false;
-            foreach (var o in W.Objects) if (o.IsFort && !o.Destroyed && o.Owner != Team && o.Owner != Team.Neutral) { anyFort = true; break; }
+            foreach (var o in W.Objects) if (o.IsFort && !o.Destroyed && !W.AreAllied(Team, o.Owner) && o.Owner != Team.Neutral) { anyFort = true; break; }
             if (!anyFort) return;
             int lim = (LastAllOut ? ZWorld.BotFinishTilesAllOut : ZWorld.BotFinishTiles) * 16;
             var sent = new List<ZObject>();
@@ -53,7 +53,7 @@ namespace OpenZ.Sim
                 ZObject f = null; double fd = double.MaxValue;
                 foreach (var o in W.Objects)
                 {
-                    if (!o.IsFort || o.Destroyed || o.Owner == Team || o.Owner == Team.Neutral || !o.CanEnterFort(Team)) continue;
+                    if (!o.IsFort || o.Destroyed || W.AreAllied(Team, o.Owner) || o.Owner == Team.Neutral || !o.CanEnterFort(Team)) continue;
                     double dx = o.CenterX - u.CenterX, dy = o.CenterY - u.CenterY, d = Math.Sqrt(dx * dx + dy * dy);
                     if (d < fd) { fd = d; f = o; }
                 }

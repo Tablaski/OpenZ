@@ -16,6 +16,7 @@ static class SkirmishChecks
         CheckMatchSeats(check);
         CheckTwoStartSkirmish(root, settings, check);
         string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+        CheckTeamplay(settings, grid, check);
         var world = ZWorld.Create(settings, grid, 12);
         var teams = new[] { Team.Red, Team.Blue, Team.Green };
         check(world.Objects.Where(o => o.IsFort).Select(o => o.Owner).OrderBy(team => team).SequenceEqual(teams), "P03M01 has its three native fort owners");
@@ -46,6 +47,80 @@ static class SkirmishChecks
         check(world.GameOver && world.Winner == Team.Green, "The last remaining contender wins, including green");
     }
 
+    internal static void CheckTeamplay(string settings, string grid, Action<bool, string> check)
+    {
+        CheckTeamDefense(settings, grid, check);
+        foreach (int cap in new[] { 50, 25 })
+        {
+            var world = ZWorld.Create(settings, grid, 12);
+            world.Map.skirmish = true;
+            world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+            world.ConfigureSkirmishRules(new SkirmishRules { TerritoryCap = cap, FriendlyFire = true }, Array.Empty<int>());
+            for (int i = 0; i < world.Flags.Count; i++)
+                world.AwardZone(world.Flags[i], i < 2 ? Team.Red : i == world.Flags.Count - 1 ? Team.Green : Team.Blue);
+            world.UpdateSkirmishProduction();
+            var red = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+            var blue = world.Objects.Single(o => o.IsFort && o.Owner == Team.Blue);
+            var green = world.Objects.Single(o => o.IsFort && o.Owner == Team.Green);
+            double share = (world.Flags.Count - 1d) / world.Flags.Count;
+            check(Math.Abs(red.ZoneOwnage - share) < 1e-9 && blue.ZoneOwnage == red.ZoneOwnage &&
+                Math.Abs(red.BuildTimeModified(100) - (100 - Math.Min(cap, 50 * share))) < 1e-9 &&
+                red.BuildTimeModified(100) == blue.BuildTimeModified(100), "Allies share the territory multiplier at cap " + cap);
+            check(green.ZoneOwnage == world.TeamFlagFraction(Team.Green), "An opposing seat keeps its own territory share");
+            var flag = world.Flags[2];
+            var unit = world.CreateObject("vehicle", "light", flag.LocX, flag.LocY, Team.Red);
+            var attack = new ZWaypoint { mode = WpMode.Attack, refId = blue.Id, x = blue.CenterX, y = blue.CenterY, forceFire = true };
+            var pyro = world.CreateRobotGroup("pyro", flag.LocX, flag.LocY, Team.Red);
+            world.SendWaypoints(Team.Red, unit, new[] { attack });
+            world.SendWaypoints(Team.Red, pyro, new[] { attack });
+            check(unit.Waypoints.Count == 0 && pyro.Waypoints.Count == 0 && !blue.CanEnterFort(Team.Red),
+                "A normal or forced attack and a fort entry cannot target an ally even with friendly fire enabled");
+            world.Tick(.25);
+            check(flag.Owner == Team.Blue, "A teammate standing on an allied flag cannot capture it");
+
+            var station = world.CreateObject("building", "repair", 160, 160, Team.Blue);
+            unit.Health = Math.Max(1, unit.MaxHealth / 2);
+            world.SendWaypoints(Team.Red, unit, new[] { new ZWaypoint { mode = WpMode.UnitRepair, refId = station.Id, x = station.CenterX, y = station.CenterY } });
+            check(unit.Waypoints.Any(w => w.mode == WpMode.UnitRepair) && station.CanRepairUnit(Team.Red) && !station.CanRepairUnit(Team.Green),
+                "The authority accepts repairs from the station owner’s allies only");
+
+            var radar = world.CreateObject("building", "radar", 400, 160, Team.Blue);
+            world.CreateObject("building", "radar", 480, 160, Team.Red);
+            var picture = new OzRadarLineRule();
+            picture.Observe(world);
+            check(picture.Covered(Team.Red) && picture.Covered(Team.Blue) && !radar.ProvidesRadarTo(Team.Green), "Allied radar appears for both seats");
+            radar.Health = 0;
+            picture.Observe(world);
+            check(picture.Covered(Team.Red) && picture.Covered(Team.Blue), "The allied backup radar keeps the picture online");
+            foreach (var o in world.Objects.Where(o => o.ProvidesRadarTo(Team.Red))) o.Health = 0;
+            picture.Observe(world);
+            check(!picture.Covered(Team.Red) && !picture.Covered(Team.Blue), "Losing the last allied radar ends the picture for both seats");
+        }
+    }
+
+    static void CheckTeamDefense(string settings, string grid, Action<bool, string> check)
+    {
+        foreach (bool allied in new[] { false, true })
+        foreach (bool allyIsBot in new[] { false, true })
+        {
+            var world = ZWorld.Create(settings, grid, 12);
+            world.Map.skirmish = true;
+            world.SetSkirmishAlliances(allied ? new[] { 0, 0, 1 } : new[] { 0, 1, 2 });
+            world.ConfigureSkirmishRules(new SkirmishRules(), Array.Empty<int>());
+            var fort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+            var spawn = world.UnitObjects.First(o => o.Owner == Team.Red && o.IsRobot && !o.IsMinion);
+            var defender = world.CreateRobotGroup("tough", spawn.LocX, spawn.LocY, Team.Blue, 1);
+            var enemy = world.CreateRobotGroup("grunt", spawn.LocX, spawn.LocY, Team.Green, 1);
+            enemy.AttackObject = fort;
+            var bot = new ZBot(world, Team.Blue, 12);
+            world.Bots.Add(bot);
+            if (allyIsBot) world.Bots.Add(new ZBot(world, Team.Red, 13));
+            bot.CoordinateWithAllies(new System.Collections.Generic.List<ZObject> { defender });
+            check(allied == defender.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == enemy.Id),
+                "Fort relief requires an alliance and works with either a human or a bot teammate");
+        }
+    }
+
     static void CheckTwoStartSkirmish(string root, string settings, Action<bool, string> check)
     {
         string buildSettings = File.ReadAllText(Path.Combine(root, "source/ProjectSettings/EditorBuildSettings.asset"));
@@ -55,7 +130,8 @@ static class SkirmishChecks
         foreach (var entry in entries)
         {
             string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
-            var world = ZWorld.Create(settings, grid, 12);
+            CheckTeamplay(settings, grid, check);
+        var world = ZWorld.Create(settings, grid, 12);
             var original = world.Map.FactoryTech();
             check(original.Vehicles == world.MapFactoryTech("vehicle_factory") &&
                 original.Robots == world.MapFactoryTech("robot_factory") &&
@@ -108,7 +184,8 @@ static class SkirmishChecks
             foreach (var entry in maps)
             {
                 string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
-                var world = ZWorld.Create(settings, grid, 12);
+                CheckTeamplay(settings, grid, check);
+        var world = ZWorld.Create(settings, grid, 12);
                 var forts = world.Objects.Where(o => o.IsFort).Select(o => (int)o.Owner).OrderBy(owner => owner);
                 check(forts.SequenceEqual(Enumerable.Range(1, starts)), entry.Id + " retains each native fort owner");
                 check(!DuelRules.IsMapAllowed(entry.Id), entry.Id + " remains unavailable to a two-seat duel");

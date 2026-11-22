@@ -57,7 +57,7 @@ namespace OpenZ.Sim
         internal void HelpCall(ZObject v, ZObject a)
         {
             if (!HelpDeviation || v == null || a == null || !v.IsUnit || !a.IsUnit || a.Destroyed || a.KillAt >= 0) return;
-            if (v.Owner == Team.Neutral || a.Owner == Team.Neutral || a.Owner == v.Owner) return;
+            if (v.Owner == Team.Neutral || a.Owner == Team.Neutral || AreAllied(a.Owner, v.Owner)) return;
             if (Time < v.helpNext) return;
             v.helpNext = Time + HelpCooldown;
             HelpCalls++;
@@ -177,8 +177,8 @@ namespace OpenZ.Sim
             foreach (var t in W.Objects)
             {
                 if (Gone(t) || !VisibleToBot(t)) continue;
-                if (t.Kind == ZKind.MapItem && t.Type == "flag" && t.Owner != Team) flags.Add(t);
-                else if (t.Owner != Team && t.Owner != Team.Neutral && !t.Destroyed && (t.IsUnit || t.IsFort)) hostile.Add(t);
+                if (t.Kind == ZKind.MapItem && t.Type == "flag" && !W.AreAllied(Team, t.Owner)) flags.Add(t);
+                else if (!W.AreAllied(Team, t.Owner) && t.Owner != Team.Neutral && !t.Destroyed && (t.IsUnit || t.IsFort)) hostile.Add(t);
             }
             int sent = 0;
             foreach (var u in wave)

@@ -149,7 +149,7 @@ namespace OpenZ.Sim
                 foreach (int j in CpuDefendNeighbours(i))
                 {
                     var o = Zones[j];
-                    if (o.Owner == team || o.Owner == Team.Neutral) continue;
+                    if (AreAllied(team, o.Owner) || o.Owner == Team.Neutral) continue;
                     int x0 = Math.Max(z.X, o.X), x1 = Math.Min(z.X + z.W, o.X + o.W), y0 = Math.Max(z.Y, o.Y), y1 = Math.Min(z.Y + z.H, o.Y + o.H);
                     int px = Math.Max(x0, Math.Min(x1, f.CenterX)), py = Math.Max(y0, Math.Min(y1, f.CenterY));   // the shared edge's point nearest the flag
                     long ddx = px - f.CenterX, ddy = py - f.CenterY, d2 = ddx * ddx + ddy * ddy;

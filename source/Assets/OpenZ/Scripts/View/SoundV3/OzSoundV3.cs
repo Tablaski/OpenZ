@@ -547,7 +547,7 @@ namespace OpenZ
                 ZObject best = null; float bd = float.MaxValue; var c = Camera.main ? Camera.main.transform.position : Vector3.zero;
                 foreach (var o in game.World.Objects)
                 {
-                    if (o.Kind != ZKind.Building || o.Type != "radar" || o.Destroyed || o.Owner == game.player || o.Owner == Team.Neutral) continue;
+                    if (o.Kind != ZKind.Building || o.Type != "radar" || o.Destroyed || game.World.AreAllied(o.Owner, game.player) || o.Owner == Team.Neutral) continue;
                     var p = game.CenterWorld(o); if (!OnScreen(p, 0.05f)) continue;
                     float d = (p - c).sqrMagnitude; if (d < bd) { bd = d; best = o; }
                 }

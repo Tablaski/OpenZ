@@ -6,6 +6,12 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.49 (22 Nov 2026)
+
+- Team matches — Allied bots defend threatened forts and occupied territory, reinforce a teammate’s attack, and look for opportunities to capture an undefended enemy flag. They prioritise their own fort when it is in danger.
+- Team matches — Attack orders cannot target teammates’ units or buildings. You can use an ally’s repair centre and keep control of your repaired vehicle.
+- Team matches — Allies share radar coverage and the territory bonus to production. The minimap shows each radar sweep in its owner’s colour.
+
 ## OpenZ-VK 1.5.48 (22 Nov 2026)
 
 - Online multiplayer — Asking to change the map pauses the match for everyone. The HUD shows who made the request and how much time remains. The requester has 30 seconds to choose a map and its factory tech, and the other players get a fresh 30 seconds to respond. A player must wait three minutes between requests unless the map changes.

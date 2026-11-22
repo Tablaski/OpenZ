@@ -104,12 +104,12 @@ namespace OpenZ
 
         /// <summary>The factor o's health bar is drawn with: the shared fade factor for an enemy, 1 for the player's own and neutral objects
         /// (and whenever the rule is off).</summary>
-        public static float BarAlpha(ZObject o) => o == null ? 1f : Live.Alpha(o.Owner);
+        public static float BarAlpha(ZObject o) => o == null || world?.AreAllied(o.Owner, Live.Human) == true ? 1f : Live.Alpha(o.Owner);
         /// <summary>The rule hides o's health now (an enemy, no standing radar of the player's).</summary>
-        public static bool Hides(ZObject o) => o != null && Live.Hides(o.Owner);
+        public static bool Hides(ZObject o) => o != null && world?.AreAllied(o.Owner, Live.Human) != true && Live.Hides(o.Owner);
         /// <summary>o's health bar is not drawn this frame (an enemy at factor Hidden or under): the unit panel's NEEDS RADAR label goes with it.</summary>
-        public static bool BarOff(ZObject o) => o != null && Live.BarOff(o.Owner);
+        public static bool BarOff(ZObject o) => o != null && world?.AreAllied(o.Owner, Live.Human) != true && Live.BarOff(o.Owner);
         /// <summary>An enemy mark this frame: its bar drawn or held back (Play check counters only).</summary>
-        public static void Note(ZObject o, bool drawn) { if (o == null || !OzRadarBarsRule.IsEnemy(o.Owner, Live.Human)) return; if (drawn) EnemyShown++; else EnemyHidden++; }
+        public static void Note(ZObject o, bool drawn) { if (o == null || world?.AreAllied(o.Owner, Live.Human) == true || !OzRadarBarsRule.IsEnemy(o.Owner, Live.Human)) return; if (drawn) EnemyShown++; else EnemyHidden++; }
     }
 }

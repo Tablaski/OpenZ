@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 1.5.49 team matches
+
+- Pending in a compiled game. Play local Skirmish and online matches with human and bot teammates, including two bots on the same team. Check that bots defend their own fort first, relieve a threatened allied fort or territory, and can reinforce an allied attack or take an undefended enemy flag. Compare with solo and free-for-all bots.
+- Try normal, Ctrl and queued attack orders against allied units and buildings. Move onto an allied flag and verify that it retains its owner. Check that the Friendly Fire option still controls incidental damage.
+- Send a damaged vehicle to an ally’s repair centre by click and by hotkey. Check the queue, the repaired unit’s owner and what happens if the centre changes hands. Include a shuttle where available.
+- Capture two radars with different allies, then lose them one at a time. Compare host and guest minimaps, sweep colours, enemy tracking and health bars, fog, zoom and radar alerts. Check that construction times change with the alliance’s combined flag share, including with a custom territory cap and an explicit seat handicap.
+
 ## OpenZ-VK 1.5.48 in-match map changes
 
 - Pending in a compiled game. In a duel and a room with three or more players, open Ask to Change Map from a guest and a host. Check the named HUD countdown for the requester, other players and Ghosts. Verify time and orders stay frozen through selection and through the fresh 30-second response window.

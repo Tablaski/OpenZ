@@ -90,7 +90,7 @@ namespace OpenZ.Sim
                 if (!done && wps[0].refId >= 0)
                 {
                     var t = BotObject(wps[0].refId);
-                    if (t == null || Gone(t) || (t.Destroyed && t.Kind != ZKind.Building) || (t.Kind == ZKind.MapItem && t.Type == "flag" && t.Owner == Team)) done = true;
+                    if (t == null || Gone(t) || (t.Destroyed && t.Kind != ZKind.Building) || (t.Kind == ZKind.MapItem && t.Type == "flag" && W.AreAllied(Team, t.Owner))) done = true;
                     else if (t.Kind == ZKind.Building && t.Type == "repair") continue;                     // DV137's trip (held above while it runs)
                 }
                 if (!done && W.Time + TIME_EPS >= s.still + BigTankDriveStallSec)
@@ -136,13 +136,13 @@ namespace OpenZ.Sim
             double[] way;
             using (W.Path.Kind(W.GridKindOf(u))) way = W.StrikeWayField(u.CenterX, u.CenterY, false);
             ZObject fort = null;
-            foreach (var o in W.Objects) if (o.IsFort && o.Owner != Team && o.Owner != Team.Neutral && !o.Destroyed) { fort = o; break; }
+            foreach (var o in W.Objects) if (o.IsFort && !W.AreAllied(Team, o.Owner) && o.Owner != Team.Neutral && !o.Destroyed) { fort = o; break; }
             // the flags: the smallest 2 x road-from-the-tank + flag-to-enemy-fort (tiles), ties by object order: the near zones first, of two alike
             //     the one toward the enemy
             var cands = new List<(int score, int road, int id, ZObject f)>();
             foreach (var f in W.Flags)
             {
-                if (f.Owner == Team || Gone(f) || Skipped(u, f.Id)) continue;
+                if (W.AreAllied(Team, f.Owner) || Gone(f) || Skipped(u, f.Id)) continue;
                 int a = WayTiles(way, f.LocX + 8, f.LocY + 8, BigTankReachTiles);
                 if (a == int.MaxValue) continue;
                 int b = fort != null ? Tiles(f.LocX + 8, f.LocY + 8, fort.CenterX, fort.CenterY) : 0;
@@ -194,7 +194,7 @@ namespace OpenZ.Sim
             foreach (var o in W.Objects)
             {
                 if (o.Kind != ZKind.Robot && o.Kind != ZKind.Vehicle && o.Kind != ZKind.Cannon) continue;
-                if (o.Owner == Team || o.Owner == Team.Neutral || Gone(o) || o.Destroyed || !VisibleToBot(o) || Skipped(u, o.Id)) continue;
+                if (W.AreAllied(Team, o.Owner) || o.Owner == Team.Neutral || Gone(o) || o.Destroyed || !VisibleToBot(o) || Skipped(u, o.Id)) continue;
                 if (o.ShuttleAirborne || !u.CanAttackObject(o)) continue;
                 int r = WayTiles(way, o.LocX + 8, o.LocY + 8, ring);
                 if (r < bestRoad || (r == bestRoad && best != null && o.Id < best.Id)) { best = o; bestRoad = r; }
@@ -227,7 +227,7 @@ namespace OpenZ.Sim
             foreach (var o in W.Objects)
             {
                 if (o.Kind != ZKind.Robot && o.Kind != ZKind.Vehicle && o.Kind != ZKind.Cannon) continue;
-                if (o.Owner == Team || o.Owner == Team.Neutral || Gone(o) || o.Destroyed || !VisibleToBot(o) || Skipped(u, o.Id)) continue;
+                if (W.AreAllied(Team, o.Owner) || o.Owner == Team.Neutral || Gone(o) || o.Destroyed || !VisibleToBot(o) || Skipped(u, o.Id)) continue;
                 if (o.ShuttleAirborne || !u.CanAttackObject(o)) continue;
                 long dx = o.CenterX - cx, dy = o.CenterY - cy, d = dx * dx + dy * dy;
                 if (d > lim) continue;

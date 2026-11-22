@@ -216,6 +216,10 @@ namespace OpenZ
                 if (split) DrawSquadBars(cam, sf, hover, 1f, pointed);
                 HoverRectLog(hover, hr);
             }
+            if (hud.Minimap && hud.hudVisible)
+                foreach (var radar in hud.Minimap.SweepingRadars)
+                    if (MeshRect(cam, radar, out var radarRect))
+                        Draw(radarRect, sf, radar, Color.white, 1, false, -1, false, 1f);
             if (always)
                 foreach (var o in W.UnitObjects)
                 {

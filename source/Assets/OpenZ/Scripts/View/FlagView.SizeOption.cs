@@ -4,16 +4,16 @@ namespace OpenZ
 {
     public partial class FlagView
     {
-        int appliedFlagSize = -1;
+        float appliedFlagSize = -1f;
         void ApplyFlagSize()
         {
-            int size = OzMapReadabilityOptions.FlagSize;
+            float size = OzMapReadabilityOptions.FlagSize;
             if (size == appliedFlagSize) return;
             foreach (var f in flags) if (f.root) f.root.localScale = Vector3.one * size;
             appliedFlagSize = size;
             RebuildLooks();
         }
-        public bool FlagsUseSize(int size)
+        public bool FlagsUseSize(float size)
         {
             if (flags.Count == 0) return false;
             foreach (var f in flags) if (f.root && (f.root.localScale - Vector3.one * size).sqrMagnitude > .001f) return false;

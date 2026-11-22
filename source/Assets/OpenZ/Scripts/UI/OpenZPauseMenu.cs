@@ -36,7 +36,7 @@ namespace OpenZ
         sealed class Slider { public RectTransform track; public Image fill, thumb; public OzText value; public string key, bus; public float v, w; public Action<float> apply; }
         readonly List<Slider> sliders = new List<Slider>(); Slider dragging;
         OzGraphicsQualityButtons graphicsQuality;
-        sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; }
+        sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; public MapReadabilityChoices choices; }
         readonly List<Toggle> toggles = new List<Toggle>();
         int optTab; readonly List<HudButton> optTabBtns = new List<HudButton>();                             // options tabs (OzSettingTips.TabNames)
         int buildKeysTab;
@@ -643,12 +643,11 @@ namespace OpenZ
             }
             foreach (var t in toggles)
             {
+                if (t.choices != null) { t.choices.Refresh(); continue; }
                 if (t.label == OzForkOptions.ChatLabel) { t.value.Set(OzForkOptions.ChatName); continue; }
                 if (t.label == OzMapReadabilityOptions.BorderLabel) { t.value.Set(OzMapReadabilityOptions.BorderName); continue; }
-                if (t.label == OzMapReadabilityOptions.RadarSweepLabel) { t.value.Set(OzText.Tab($"◀  {OzMapReadabilityOptions.RadarSweepName}  ▶")); continue; }
                 if (t.label == OzBehaviorLibrary.TanksLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Tanks)); continue; }
                 if (t.label == OzBehaviorLibrary.RobotsLabel) { t.value.Set(OzBehaviorLibrary.SelectedName(OpenZ.Sim.ZBehaviorFamily.Robots)); continue; }
-                if (t.label == OzMapReadabilityOptions.FlagLabel) { t.value.Set(OzText.Tab("◀  " + OzMapReadabilityOptions.FlagName + "  ▶")); continue; }
                 if (t.label == OzHudLayout.Label) { t.value.Set("DRAG THE PANELS  ▶"); continue; }
                 if (t.label == NightShadows.Label) { t.value.Set(OzText.Tab($"◀  {NightShadows.Name}  ▶")); continue; }
                 if (t.label == OzTouch.Label) { t.value.Set(OzText.Tab($"◀  {OzTouch.ModeName}  ▶")); continue; }

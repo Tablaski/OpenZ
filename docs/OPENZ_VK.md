@@ -22,7 +22,10 @@ loading, faction selection, paused and end-screen recordings.
 
 Company/product remain OpenZ/OpenZ to retain existing PlayerPrefs and persistent
 files. Moving or replacing a player folder does not change this identity. Keep
-keys such as oz_flag_size (1/2/4), oz_ui_scale and the audio/camera settings stable.
+keys such as oz_ui_scale and the audio/camera settings stable. Fractional flag
+sizes and radar intervals use new keys. Earlier radar intervals and the 1x and
+2x flag choices carry forward. The former 4x flag choice is read as 3x, and the
+legacy value remains available to earlier versions.
 The territory-border key retains 0=OFF and 1=x1 and now also accepts 2 and 4.
 Already-saved choices are preserved. Microphone mode is saved; Tap to speak starts
 with transmission stopped and requires a fresh tap after losing focus/connection.

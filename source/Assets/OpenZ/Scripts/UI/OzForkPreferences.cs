@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 22;
+        public const int Schema = 23;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -78,7 +78,8 @@ namespace OpenZ
                 Add(OzBattleOptions.TankShakeKey, "Int");
                 Add(OzBattleOptions.SoloRadarKey, "Int");
                 Add(OzMapReadabilityOptions.RadarPref, "Int");
-                Add(OzMapReadabilityOptions.RadarSweepPref, "Int");
+                Add(OzMapReadabilityOptions.LegacyRadarSweepPref, "Int");
+                Add(OzMapReadabilityOptions.RadarSweepPref, "Float");
                 Add(OzTacticalPause.PrefKey, "Int");
                 Add(OzBindings.DefOf(OzAction.TacticalPause).pref, "Int");
                 Add(OzRobotSizeOption.Pref, "Int");
@@ -116,7 +117,8 @@ namespace OpenZ
                 Add("oz_exposed_drivers", "Int");
                 Add("oz_fgtilt_auto", "String");
                 Add("oz_fire_on_move", "Int");
-                Add("oz_flag_size", "Int");
+                Add(OzMapReadabilityOptions.LegacyFlagPref, "Int");
+                Add(OzMapReadabilityOptions.FlagPref, "Float");
                 Add("oz_flagview", "Int");
                 Add("oz_fort_defender", "Int");
                 Add("oz_fort_mortar", "Int");

@@ -1,3 +1,5 @@
+using System;
+using System.Globalization;
 using UnityEngine;
 
 namespace OpenZ
@@ -8,47 +10,60 @@ namespace OpenZ
         public const string FlagLabel = "FLAG SIZE", BorderLabel = "DOTTED TERRITORY BORDERS";
         public const string RadarLabel = "MINIMAP RADARS", RadarPref = "oz_vk_minimap_radars";
         public const string RadarTip = "MINIMAP RADARS|Highlight visible radars and show a white sweep from active radars you own. Reduced motion keeps the radar outlines.|";
-        public const string RadarSweepLabel = "MINIMAP RADAR SWEEP INTERVAL", RadarSweepPref = "oz_vk_radar_sweep_seconds";
+        public const string RadarSweepLabel = "MINIMAP RADAR SWEEP INTERVAL", RadarSweepPref = "oz_vk_minimap_radar_interval", LegacyRadarSweepPref = "oz_vk_radar_sweep_seconds";
         public const string RadarSweepTip = RadarSweepLabel + "|Seconds between sweeps from your active radars when Minimap Radars is on. Reduced motion keeps the radar outlines.|";
-        public const string FlagPref = "oz_flag_size", BorderPref = "oz_territory_borders";
-        public const string FlagTip = "FLAG SIZE|Display flags and their poles at x1 (original), x2 or x4. Applies immediately to territory and fort flags, including flags added in the Unit Editor. Capture distance, territory ownership and gameplay are unchanged.|";
+        public const string FlagPref = "oz_vk_flag_scale", LegacyFlagPref = "oz_flag_size", BorderPref = "oz_territory_borders";
+        public const string FlagTip = "FLAG SIZE|Choose 1x (original), 1.5x, 2x, 2.5x or 3x for flags and poles. Applies immediately to territory and fort flags, including flags added in the Unit Editor. Capture distance, territory ownership and gameplay are unchanged.|";
         public const string BorderTip = "DOTTED TERRITORY BORDERS|Show outlined dots in each territory owner's colour, with dark grey on Arctic and white on City for neutral territory. The marks follow the ground and water, skip walls and buildings, and recolour after a capture. Choose OFF, x1, x2 or x4.|";
-        static readonly int[] RadarSweepIntervals = { 3, 5, 10 };
-        static int size = -1, borders = -1, radars = -1, radarSweepIndex = -1;
+        internal static readonly float[] RadarSweepIntervals = { 1.5f, 3f, 5f, 10f };
+        internal static readonly float[] FlagSizes = { 1f, 1.5f, 2f, 2.5f, 3f };
+        static float flagSize, radarSweepSeconds;
+        static int borders = -1, radars = -1;
         public static bool Radars
         {
             get { if (radars < 0) radars = PlayerPrefs.GetInt(RadarPref, 1); return radars != 0; }
             set { radars = value ? 1 : 0; PlayerPrefs.SetInt(RadarPref, radars); PlayerPrefs.Save(); }
         }
-        static int RadarSweepIndex
+        public static float RadarSweepSeconds
         {
             get
             {
-                if (radarSweepIndex < 0)
-                    radarSweepIndex = Mathf.Max(0, System.Array.IndexOf(RadarSweepIntervals, PlayerPrefs.GetInt(RadarSweepPref, RadarSweepIntervals[0])));
-                return radarSweepIndex;
+                if (radarSweepSeconds == 0f)
+                {
+                    float saved = PlayerPrefs.GetFloat(RadarSweepPref, PlayerPrefs.GetInt(LegacyRadarSweepPref, 3));
+                    radarSweepSeconds = Array.IndexOf(RadarSweepIntervals, saved) >= 0 ? saved : 3f;
+                }
+                return radarSweepSeconds;
+            }
+            set
+            {
+                if (Array.IndexOf(RadarSweepIntervals, value) < 0) return;
+                radarSweepSeconds = value;
+                PlayerPrefs.SetFloat(RadarSweepPref, value);
+                PlayerPrefs.Save();
             }
         }
-        public static int RadarSweepSeconds => RadarSweepIntervals[RadarSweepIndex];
-        public static string RadarSweepName => RadarSweepSeconds + " s";
-        public static void StepRadarSweep(int direction)
+        public static float FlagSize
         {
-            int count = RadarSweepIntervals.Length;
-            radarSweepIndex = (RadarSweepIndex + (direction < 0 ? count - 1 : 1)) % count;
-            PlayerPrefs.SetInt(RadarSweepPref, RadarSweepSeconds);
-            PlayerPrefs.Save();
+            get
+            {
+                if (flagSize == 0f)
+                {
+                    int previous = PlayerPrefs.GetInt(LegacyFlagPref, 1);
+                    float saved = PlayerPrefs.GetFloat(FlagPref, previous == 4 ? 3f : previous);
+                    flagSize = Array.IndexOf(FlagSizes, saved) >= 0 ? saved : 1f;
+                }
+                return flagSize;
+            }
+            set
+            {
+                if (Array.IndexOf(FlagSizes, value) < 0) return;
+                flagSize = value;
+                PlayerPrefs.SetFloat(FlagPref, value);
+                PlayerPrefs.Save();
+            }
         }
-        public static int FlagSize
-        {
-            get { if (size < 0) { int v = PlayerPrefs.GetInt(FlagPref, 1); size = v == 2 || v == 4 ? v : 1; } return size; }
-            set { size = value == 2 || value == 4 ? value : 1; PlayerPrefs.SetInt(FlagPref, size); PlayerPrefs.Save(); }
-        }
-        public static string FlagName => "x" + FlagSize;
-        public static void StepFlag(int direction)
-        {
-            int index = FlagSize == 1 ? 0 : FlagSize == 2 ? 1 : 2;
-            index = (index + (direction < 0 ? 2 : 1)) % 3; FlagSize = index == 0 ? 1 : index == 1 ? 2 : 4;
-        }
+        internal static string FormatChoice(float value) => value.ToString("0.#", CultureInfo.InvariantCulture);
         public static int BorderSize
         {
             get { if (borders < 0) { int v = PlayerPrefs.GetInt(BorderPref, 1); borders = v == 1 || v == 2 || v == 4 ? v : 0; } return borders; }
@@ -61,6 +76,6 @@ namespace OpenZ
             int[] sizes = { 0, 1, 2, 4 }; BorderSize = sizes[(index + (direction < 0 ? 3 : 1)) % 4];
         }
         public static bool Borders { get => BorderSize > 0; set => BorderSize = value ? 1 : 0; }
-        public static void Reload() { size = borders = radars = radarSweepIndex = -1; }
+        public static void Reload() { flagSize = radarSweepSeconds = 0f; borders = radars = -1; }
     }
 }

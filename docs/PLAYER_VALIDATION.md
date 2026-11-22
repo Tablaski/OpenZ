@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.38 radar and flag controls
+
+- Pending in a compiled game. Verify the four interval buttons and five flag size buttons in both Game options menus. Confirm flag and pole scale changes live on territory, fort and Unit Editor flags.
+- Time each radar interval, including 1.5 seconds. Check that the minimap icon turns white and the battlefield brackets appear together for each sweep with Radar Loss Consequence off and on. Check Minimap Radars off and the static minimap outlines with Reduced Motion enabled.
+- Reload an older settings profile with the saved 4x flag size and another with 2x. Verify the choices read as 3x and 2x, respectively, and that the previously saved 3, 5 or 10 second intervals carry forward.
+
 ## OpenZ-VK 1.5.37 Desert rendering experiment
 
 - Source checkpoint `b020f292` compiled against the Unity 6000.3.27f2 release runtime references. The corresponding Desert material has instancing enabled. The 4K FPS target remains unverified.

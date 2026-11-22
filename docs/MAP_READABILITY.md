@@ -4,7 +4,7 @@ Both the main menu and the current match expose these preferences in OPTIONS >
 GAME. They apply immediately and are saved per installation. Each multiplayer
 player chooses their own presentation; no simulation or network rules change.
 
-- **FLAG SIZE**: x1 (original), x2 or x4. Scales the visible flag and pole at the
+- **FLAG SIZE**: 1x (original), 1.5x, 2x, 2.5x or 3x. Scales the visible flag and pole at the
   same ground/roof anchor. Includes territory, fort and newly placed laboratory
   flags. Capture distances and ownership do not change. Flag motion, capture
   animations and night effects remain attached; ground capture rings keep their
@@ -17,9 +17,10 @@ player chooses their own presentation; no simulation or network rules change.
   and skip impassable tiles and buildings.
 - **MINIMAP RADARS**: On by default. Visible intact radars get an outline. A
   white ring expands and fades around active friendly radars, and their markers
-  light up white during the sweep. Reduced Motion keeps the radar outlines.
+  light up white during the sweep. White brackets identify the emitting radar
+  on the battlefield. Reduced Motion keeps the radar outlines on the minimap.
   This presentation option works with any Radar Loss Consequence setting.
-- **MINIMAP RADAR SWEEP INTERVAL**: Choose 3, 5 or 10 seconds between sweeps
+- **MINIMAP RADAR SWEEP INTERVAL**: Choose 1.5, 3, 5 or 10 seconds between sweeps
   from your active radars. The default is 3 seconds.
 
 The reference is local Zod Engine's `ZMap::SetupAllZoneInfo` and `DoZoneEffects`

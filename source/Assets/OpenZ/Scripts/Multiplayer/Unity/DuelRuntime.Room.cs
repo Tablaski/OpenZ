@@ -16,8 +16,7 @@ namespace OpenZ.Multiplayer
         MultiplayerRoomGuestLink roomGuest;
         readonly Dictionary<int, MultiplayerRoomHostLink> roomLinks = new Dictionary<int, MultiplayerRoomHostLink>();
         readonly HashSet<int> roomDeparted = new HashSet<int>(), roomEndReady = new HashSet<int>();
-        readonly DuelReplica.CaptureBuffer roomCapture = new DuelReplica.CaptureBuffer();
-        DuelDeltaSender roomDelta;
+        DuelReplica.CaptureBuffer roomCapture;
         SkirmishNetworkTuning roomTuning;
         int roomEpoch, roomDrainIndex, roomEndReadyEpoch = -1;
         bool roomFullState, roomReplicaChanged;
@@ -495,7 +494,7 @@ namespace OpenZ.Multiplayer
             roomLoadedScene = false;
             RoomVoiceMuted = false;
             roomReplicaChanged = false;
-            roomDelta = null;
+            roomCapture = null;
         }
 
         bool roomLoadedScene;
@@ -565,7 +564,7 @@ namespace OpenZ.Multiplayer
                 room.ConfigureWorld(Game.World, 19);
                 Game.DuelBindStartingViews();
                 foreach (var link in roomLinks.Values) link.AttachBattlefield(Game.World);
-                roomDelta = new DuelDeltaSender();
+                roomCapture = new DuelReplica.CaptureBuffer();
                 roomTuning = new SkirmishNetworkTuning();
                 roomFullState = true;
                 roomSimulationPeak = 0;
@@ -619,9 +618,8 @@ namespace OpenZ.Multiplayer
             if ((roomFullState || game.World.GameOver && !sentGameOver || now - lastSnapshot >= 1d / SnapshotHz) && queued < 64 * 1024)
             {
                 long started = Stopwatch.GetTimestamp();
-                var snapshot = roomCapture.Capture(game.World);
+                var delta = roomCapture.CaptureDelta(game.World, roomFullState);
                 long captured = Stopwatch.GetTimestamp();
-                var delta = roomDelta.CaptureImmutable(snapshot, roomFullState);
                 int eventCount = Math.Min(pendingEvents.Count, DuelEventCodec.MaxEvents);
                 var events = eventCount == pendingEvents.Count ? pendingEvents : pendingEvents.GetRange(0, eventCount);
                 var packet = MultiplayerRoomPackets.Battlefield(room.Revision, delta, events, compress: true);

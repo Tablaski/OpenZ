@@ -7,6 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using OpenZ.Multiplayer;
 
 namespace OpenZ.Sim
 {
@@ -108,11 +109,18 @@ namespace OpenZ.Sim
             readonly BinaryWriter writer;
             readonly bool cacheFields;
             ZWorld authority;
+            DuelDelta pendingDelta;
+            long deltaSequence;
             public int SerializedFieldsLastCapture { get; private set; }
             public int ReusedFieldsLastCapture { get; private set; }
             public int CachedObjectCount => objects.Count;
             public CaptureBuffer(bool cacheFields = true) { this.cacheFields = cacheFields; writer = new BinaryWriter(stream); }
             void Begin() { stream.Position = 0; stream.SetLength(0); }
+            void Reuse(int key, byte[] record)
+            {
+                next.Add(key, record);
+                if (pendingDelta?.Full == true) pendingDelta.Changed.Add(key, record);
+            }
             byte[] End(int key, byte[] old = null)
             {
                 int length = checked((int)stream.Length);
@@ -120,7 +128,24 @@ namespace OpenZ.Sim
                 if (old == null) previous.TryGetValue(key, out old);
                 var record = old != null && buffer.AsSpan(0, length).SequenceEqual(old) ? old : stream.ToArray();
                 next.Add(key, record);
+                if (pendingDelta != null && (pendingDelta.Full || !ReferenceEquals(record, old)))
+                    pendingDelta.Changed.Add(key, record);
                 return record;
+            }
+
+            /// <summary>Capture and diff together for the room's ordered stream. Use a fresh buffer for each match.</summary>
+            internal DuelDelta CaptureDelta(ZWorld world, bool full)
+            {
+                var delta = new DuelDelta { Baseline = deltaSequence, Sequence = deltaSequence + 1,
+                    Full = full || !ReferenceEquals(authority, world) || deltaSequence == 0 };
+                pendingDelta = delta;
+                try
+                {
+                    Capture(world);
+                    deltaSequence = delta.Sequence;
+                    return delta;
+                }
+                finally { pendingDelta = null; }
             }
             /// <summary>Borrowed dictionary, valid until the next capture. Published arrays must remain immutable.</summary>
             public Dictionary<int, byte[]> Capture(ZWorld world)
@@ -159,7 +184,7 @@ namespace OpenZ.Sim
                     }
                     bool live = world.Get(o.Id) != null;
                     if (state != null && state.Described && state.Type == o.Type && state.Live == live)
-                        next.Add(key, previous[key]);
+                        Reuse(key, previous[key]);
                     else
                     {
                         Begin(); writer.Write(o.Type); writer.Write((int)o.Kind); writer.Write(live); End(key);
@@ -169,7 +194,7 @@ namespace OpenZ.Sim
                     int mapChanges = mapItem ? TrackMap(o, state.Values) : 0;
                     if (mapItem && mapChanges == 0)
                     {
-                        for (int j = 0; j < indices.Length; j++) next.Add(key + indices[j] + 1, state.Records[j]);
+                        for (int j = 0; j < indices.Length; j++) Reuse(key + indices[j] + 1, state.Records[j]);
                         ReusedFieldsLastCapture += indices.Length;
                         continue;
                     }
@@ -179,7 +204,7 @@ namespace OpenZ.Sim
                         var slot = Slots[i];
                         if (state != null && (mapItem ? (mapChanges & (1 << j)) == 0 : !slot.Track(o, state.Values[j])))
                         {
-                            next.Add(key + i + 1, state.Records[j]); ReusedFieldsLastCapture++; continue;
+                            Reuse(key + i + 1, state.Records[j]); ReusedFieldsLastCapture++; continue;
                         }
                         Begin(); slot.Writer(writer, o);
                         var record = End(key + i + 1, state?.Records[j]);
@@ -188,6 +213,9 @@ namespace OpenZ.Sim
                     }
                     if (o.IsUnit) { Begin(); o.DuelWriteMotion(writer); End(key + Stride - 1); }
                 }
+                if (pendingDelta != null && !pendingDelta.Full)
+                    foreach (var key in previous.Keys)
+                        if (!next.ContainsKey(key)) pendingDelta.Removed.Add(key);
                 var oldObjects = objects; objects = nextObjects; nextObjects = oldObjects;
                 // Release histories for objects no longer live or retained in the graveyard.
                 nextObjects.Clear();

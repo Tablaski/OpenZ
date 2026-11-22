@@ -17,16 +17,20 @@ static class CaptureCacheChecks
         var world = ZWorld.Create(settings, map); world.ConfigureDuel(new DuelRules { Map = "L02" }, false);
         var cached = new DuelReplica.CaptureBuffer();
         var ordinary = new DuelReplica.CaptureBuffer(false);
+        var room = new DuelReplica.CaptureBuffer();
         var cachedSender = new DuelDeltaSender(); var ordinarySender = new DuelDeltaSender();
         byte[] retained = null, retainedCopy = null;
         int samples = 0;
+        ZWorld comparedWorld = null;
         void Compare(string label)
         {
             var actual = cached.Capture(world); var expected = ordinary.Capture(world);
             check(actual.Count == expected.Count && actual.All(p => expected.TryGetValue(p.Key, out var bytes) && bytes.SequenceEqual(p.Value)), label + ": stale cached field");
-            bool full = samples++ % 17 == 0;
-            check(DuelDeltaCodec.Encode(cachedSender.CaptureImmutable(actual, full)).SequenceEqual(
-                DuelDeltaCodec.Encode(ordinarySender.CaptureImmutable(expected, full))), label + ": cache changed delta bytes");
+            bool full = samples++ % 17 == 0 || world != comparedWorld;
+            comparedWorld = world;
+            var wire = DuelDeltaCodec.Encode(ordinarySender.CaptureImmutable(expected, full));
+            check(DuelDeltaCodec.Encode(cachedSender.CaptureImmutable(actual, full)).SequenceEqual(wire), label + ": cache changed delta bytes");
+            check(DuelDeltaCodec.Encode(room.CaptureDelta(world, full)).SequenceEqual(wire), label + ": room capture changed delta bytes");
             if (retained == null) { retained = actual[0]; retainedCopy = (byte[])retained.Clone(); }
             check(retained.SequenceEqual(retainedCopy), label + ": cache changed a retained packet");
         }

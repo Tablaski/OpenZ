@@ -2,6 +2,7 @@
 
 ## OpenZ-VK 1.5.49 team matches
 
+- Passed source validation. All Unity runtime scripts compile. The headless suite passed 8,524 core and real-map checks, including 30 targeted teamplay checks, plus 464 separate behavior and movement checks.
 - Pending in a compiled game. Play local Skirmish and online matches with human and bot teammates, including two bots on the same team. Check that bots defend their own fort first, relieve a threatened allied fort or territory, and can reinforce an allied attack or take an undefended enemy flag. Compare with solo and free-for-all bots.
 - Try normal, Ctrl and queued attack orders against allied units and buildings. Check that the Friendly Fire option still controls incidental damage and that tanks and Jeeps do not ram or run over allies.
 - Hover over an allied flag with both an eligible and an ineligible force. Check the capture cursor or red cross, including hardware cursor mode and a Ghost following the player. Confirm a blocked click leaves existing orders intact. Move onto the flag and check that it transfers with its buildings only if the claimant owns fewer factories and the flag is closer to the claimant’s fort. Confirm treating a ruined factory as still owned and that an in-team transfer leaves the shared radar and territory discount active.

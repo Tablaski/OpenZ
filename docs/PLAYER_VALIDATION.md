@@ -2,7 +2,10 @@
 
 ## OpenZ-VK 1.5.33 online lobby and Ghost spectators
 
-- Pending in the compiled game. Create and join an online lobby from the invitation link. Confirm the minimap gallery, shared settings, team drag and drop, unit pickers, AI Help, connection details, text and voice, and Ready lock and cancellation.
+- Windows build `70a36c96` passed 7,651 core and real-map simulation checks and Unity wire validation. The native WebRTC direct and local SFU checks passed. All 44 installer checks passed.
+- Three compiled instances on one PC joined using the same online invitation. All three reached the match with distinct forts and no bots in the active-only scenario. With two active humans, one Ghost and a bot, the match launched without the Ghost readying up. The Ghost received the host camera and open fort, then switched to free camera. That scenario passed with default transport and again with relay forced.
+- Reports and captures are in `builds/captures/three-seated-1.5.33-final/`, `builds/captures/ghost-1.5.33-verified/` and `builds/captures/ghost-relay-1.5.33-verified/`.
+- Pending in the compiled game: manually check the minimap gallery, shared settings, team drag and drop, unit pickers, AI Help, connection details, text and voice, and Ready lock and cancellation. The capture shows missing glyphs on two compact voice buttons.
 - Switch an eight-human lobby to a four-start map. Confirm the four active players, four Ghosts, single rules revision, spectator free camera, isolated match communications and return to lobby. Run once over direct transport and once over relay.
 - Start an official two-start map and an AI map with bots. Check initial armies, radar penalties and the optional idle-unit and factory-capture AI Help rules.
 - Run `tools/Test-OnlineGhost.ps1 -CompiledGame <build-folder>` from PowerShell to exercise one host, one active guest, one Ghost and a bot on a single Windows PC. Confirm each report passes and check the two captures. Repeat with `-RelayOnly` if the relay offer is active.

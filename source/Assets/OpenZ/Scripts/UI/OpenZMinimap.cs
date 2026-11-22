@@ -239,7 +239,8 @@ namespace OpenZ
             float blend = OzMotion.Reduced ? 1f : Mathf.Clamp01((OzMotion.Now - zoneBlendAt) / 0.3f);
             if (blend >= 1f) System.Array.Copy(baseBuf, buf, buf.Length);
             else for (int i = 0; i < buf.Length; i++) buf[i] = Color32.Lerp(prevBase[i], baseBuf[i], blend);
-            var sel = hud.input.Selection;
+            var sel = hud.input.DisplaySelection;
+            var seat = hud.DisplayPlayer;
             // texture layer: bridges, rocks, grenade crates (buildings, flags and units are crisp markers on top)
             foreach (var o in W.Objects)
             {
@@ -291,15 +292,16 @@ namespace OpenZ
             }
             // Zod the radar has no effect, bradar.cpp: a view-only rule, listed in the parity report). Buildings, flags and zones
             // stay (map knowledge); enemy robots, vehicles and cannons need an intact radar of ours.
-            bool radar = !RadarRule || loss && loss.Fog;
-            if (!radar) foreach (var b in W.Objects) if (b.Kind == ZKind.Building && b.Type == "radar" && !b.Destroyed && b.Owner == hud.Player) { radar = true; break; }
+            if (hud.IsGhostViewer && hud.GhostView == null) seat = Multiplayer.DuelRuntime.GhostVisionTeam;
+            bool radar = !RadarRule || loss && loss.Fog || hud.IsGhostViewer && seat == Team.Neutral;
+            if (!radar) foreach (var b in W.Objects) if (b.Kind == ZKind.Building && b.Type == "radar" && !b.Destroyed && b.Owner == seat) { radar = true; break; }
             HasRadar = radar;
             foreach (var o in W.UnitObjects)
             {
                 if (o.Destroyed || o.KillAt >= 0) continue;
-                if (!radar && o.Owner != hud.Player && o.Owner != Team.Neutral) continue;
+                if (!radar && o.Owner != seat && o.Owner != Team.Neutral) continue;
                 if (OzFogOfWar.Covers(o)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no dot for a unit the fog hides (the soft cover let it show through)
-                bool selected = o.Owner == hud.Player && sel.Contains(o.Leader ?? o);
+                bool selected = o.Owner == seat && sel.Contains(o.Leader ?? o);
                 string rel = o.Kind == ZKind.Robot ? "Minimap/mm_unit" : o.Kind == ZKind.Vehicle ? "Minimap/mm_vehicle" : "Minimap/mm_cannon";
                 float sz = o.Kind == ZKind.Robot ? 5f : o.Kind == ZKind.Vehicle ? 6f : 5f;
                 var p = PxToLocal((float)o.PosX + o.WidthPix * 0.5f, (float)o.PosY + o.HeightPix * 0.5f);
@@ -315,7 +317,7 @@ namespace OpenZ
             if (loss && loss.Fog)
                 foreach (var contact in loss.Contacts.Values)
                 {
-                    if (loss.Visible(contact.X, contact.Y) || contact.Team == hud.Player) continue;
+                    if (loss.Visible(contact.X, contact.Y) || contact.Team == seat) continue;
                     if (contact.Fixed && contact.Kind == ZKind.Building && contact.Type != "bridge_vert" && contact.Type != "bridge_horz")
                     {
                         var im = NextPooled(bldPool, ref bldUsed, "Last known building", "Minimap/mm_building", Image.Type.Sliced);
@@ -416,7 +418,7 @@ namespace OpenZ
             }
         }
 
-        bool IsFriendlyRadar(ZObject radar) => radar.Owner != Team.Neutral && radar.Owner == hud.Player && !radar.Destroyed && radar.KillAt < 0;
+        bool IsFriendlyRadar(ZObject radar) => radar.Owner != Team.Neutral && radar.Owner == hud.DisplayPlayer && !radar.Destroyed && radar.KillAt < 0;
 
         /// <summary>Pooled marker: the pool entry's sprite follows `rel` (buildings and flags share one pool).</summary>
         Image NextPooled(List<Image> pool, ref int used, string name, string rel, Image.Type type)

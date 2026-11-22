@@ -289,7 +289,7 @@ namespace OpenZ.Multiplayer
             }
             PingMs = (float)remotes.Select(link => link.Ping).DefaultIfEmpty().Max();
             if (!IsHost && roomGuest != null && remotes.Any(link => link.Ready)) Status = "Connected · " + transport.Route;
-            if (IsHost && !session) PublishRoomLatency();
+            if (IsHost && (!session || Playing)) PublishRoomLatency();
             UpdateRoomVote();
             if (Game && session && !IsHost)
             {
@@ -382,7 +382,7 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.Pong:
                     if (packet.Payload.Length != 8 || BitConverter.ToDouble(packet.Payload, 0) != sender.LastPing) return;
                     double sample = (Now - sender.LastPing) * 1000;
-                    sender.Jitter += (.2 * (Math.Abs(sample - sender.Ping) - sender.Jitter));
+                    if (sender.Ping > 0) sender.Jitter += .2 * (Math.Abs(sample - sender.Ping) - sender.Jitter);
                     sender.Ping = sender.Ping == 0 ? sample : sender.Ping + .25 * (sample - sender.Ping);
                     sender.BasePing = Math.Min(sender.BasePing, sender.Ping);
                     return;

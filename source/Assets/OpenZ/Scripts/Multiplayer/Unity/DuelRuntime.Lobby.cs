@@ -11,6 +11,7 @@ namespace OpenZ.Multiplayer
         [Serializable] internal sealed class LobbyPing
         {
             public int Seat, Ping, Variation;
+            public bool Disconnected;
         }
 
         [Serializable] sealed class RoomLobbyStatus
@@ -20,6 +21,10 @@ namespace OpenZ.Multiplayer
         }
 
         internal LobbyPing[] RoomPings { get; private set; } = Array.Empty<LobbyPing>();
+        double lastRoomLatencyAt = double.NegativeInfinity;
+        internal bool HasFreshRoomLatency => Now - lastRoomLatencyAt < 5;
+        internal int RoomHostPosition => IsHost ? (room?.HostPosition ?? -1) :
+            (JoinedRoom?.Humans.FirstOrDefault(member => member.Host)?.Position ?? -1);
         internal bool RoomObserver => JoinedRoom?.Humans.Any(member => member.Local && member.Observer) == true;
         internal bool RoomHostReady => room?.Members.Any(member => member.Id == room.HostId && member.Ready) ??
             JoinedRoom?.Humans.Any(member => member.Host && member.Ready) == true;
@@ -62,27 +67,35 @@ namespace OpenZ.Multiplayer
             }
             if (Now < publishRoomLatencyAt) return;
             publishRoomLatencyAt = Now + 1.5;
-            RoomPings = RoomTransport.Remotes.Where(link => link.Ready && link.Ping > 0 && roomLinks.ContainsKey(link.Id))
-                .Select(link => (Link: link, Member: room.Members.FirstOrDefault(member => member.Id == RoomGuest(link.Id))))
-                .Where(entry => entry.Member.Seat.MayUsePlayerCommands).Select(entry => new LobbyPing
+            var remotes = RoomTransport.Remotes;
+            RoomPings = room.Members.Where(member => member.Id != RoomHostId && member.Seat.MayUsePlayerCommands)
+                .Select(member => (Member: member, Link: remotes.FirstOrDefault(link => member.Id == RoomGuest(link.Id))))
+                .Where(entry => session || (entry.Link != null && entry.Link.Ready && entry.Link.Ping > 0))
+                .Select(entry => new LobbyPing
                 {
                     Seat = entry.Member.Seat.Position,
-                    Ping = (int)Math.Min(5000, Math.Round(entry.Link.Ping)),
-                    Variation = (int)Math.Min(5000, Math.Round(entry.Link.Jitter))
+                    Ping = (int)Math.Min(5000, Math.Round(entry.Link?.Ping ?? 0)),
+                    Variation = (int)Math.Min(5000, Math.Round(entry.Link?.Jitter ?? 0)),
+                    Disconnected = session && (entry.Link == null || !entry.Link.Ready ||
+                        Now - entry.Link.LastPacketAt > 5)
                 }).ToArray();
+            lastRoomLatencyAt = Now;
             SendJson(DuelMessage.RoomLobbyStatus, new RoomLobbyStatus { Links = RoomPings });
         }
 
         void ReceiveRoomLobbyStatus(DuelPacket packet)
         {
-            if (packet.Payload.Length > 4096 || session) return;
+            if (packet.Payload.Length > 4096) return;
             var status = ReadJson<RoomLobbyStatus>(packet);
             if (status == null) return;
-            if (status.Change?.Length > 0 && status.Change.Length <= 512 && !status.Change.Any(char.IsControl))
+            if (!session && status.Change?.Length > 0 && status.Change.Length <= 512 && !status.Change.Any(char.IsControl))
                 AddChat(RoomSettingsChatPrefix + status.Change);
             if (status.Links != null && status.Links.Length <= 8 && status.Links.All(link => link != null &&
                 link.Seat >= 0 && link.Seat < 8 && link.Ping >= 0 && link.Ping <= 5000 && link.Variation >= 0 && link.Variation <= 5000))
+            {
                 RoomPings = status.Links;
+                lastRoomLatencyAt = Now;
+            }
         }
 
         void PublishRoomChanges()
@@ -130,6 +143,7 @@ namespace OpenZ.Multiplayer
             previousLobbyRules = null;
             previousRoomMap = previousRoomSeats = null;
             RoomPings = Array.Empty<LobbyPing>();
+            lastRoomLatencyAt = double.NegativeInfinity;
             pendingRoomChanges.Clear();
             publishRoomChangesAt = publishRoomLatencyAt = 0;
         }

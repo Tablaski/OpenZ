@@ -29,6 +29,21 @@ namespace OpenZ
         [Tooltip("Zod: the window sits next to its building in map space; off = docked at the left of the screen")] public bool anchorToBuilding = true;
 
         public ZObject Building { get; private set; }
+        internal string GhostHoveredTile => tiles.Find(tile => tile.btn == hud.HotButton)?.unit;
+        internal bool GhostTilePressed => hud.HotButton?.Pressed == true;
+        internal bool GhostWindowRight => win && win.pivot.x > .5f;
+        internal Vector2 GhostWindowTopLeft
+        {
+            get
+            {
+                if (!win || Building == null) return Vector2.zero;
+                var pos = win.anchoredPosition;
+                if (GhostWindowRight) pos.x -= win.sizeDelta.x * curScale;
+                var size = hud.CanvasSize;
+                return new Vector2(Mathf.Clamp01(pos.x / Mathf.Max(1, size.x)), Mathf.Clamp01(pos.y / Mathf.Max(1, size.y)));
+            }
+        }
+        HudButton ghostHotTile;
         public bool IsOpen => Building != null;
         public RectTransform WindowRect => win;
 
@@ -170,16 +185,21 @@ namespace OpenZ
         public static int Opens;
         public void Open(ZObject b)
         {
-            if (b == null || !b.IsProducer || b.Owner != hud.Player || b.Destroyed) return;             // bfort/brobot/bvehicle MakeGuiWindow: no window for a destroyed building
+            if (hud.IsGhostViewer || b == null || !b.IsProducer || b.Owner != hud.Player || b.Destroyed) return;
             Opens++;
             if (Building != b && hud.Rally) hud.Rally.Disarm();
+            OpenView(b);
+            OpenZHud.UiClickSound();
+        }
+
+        void OpenView(ZObject b)
+        {
             bool was = Building != null;
             Building = b; builtId = -1; nextText = 0f; closing = null;
             win.gameObject.SetActive(true); win.SetAsLastSibling();
             if (!was) openAt = OzMotion.Now;
             progShown = (float)b.ProductionProgress; lastProg = progShown; lastCurUnit = b.CurUnit;
             Refresh(); Position(was ? 1f : 0f);
-            OpenZHud.UiClickSound();
         }
 
         public void Close() => Close(false);
@@ -208,6 +228,11 @@ namespace OpenZ
         void Update()
         {
             if (hud == null || W == null) return;
+            if (hud.IsGhostViewer)
+            {
+                RefreshGhostView();
+                return;
+            }
             var m = Mouse.current; var kb = Keyboard.current; if (m == null) return;
             var b = Building;
             if (b != null && (b.Owner != hud.Player || W.Get(b.Id) == null)) { Close(); b = null; }            // captured or gone (gwproduction.cpp:106-111)
@@ -254,6 +279,51 @@ namespace OpenZ
                     break;
                 }
             Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
+        }
+
+        void RefreshGhostView()
+        {
+            var view = hud.GhostView;
+            var factory = view != null && view.Factory >= 0 ? W.Get(view.Factory) : null;
+            if (factory != null && (!factory.IsProducer || factory.Destroyed || factory.Owner != (Team)(view.Seat + 1))) factory = null;
+            if (factory != Building)
+            {
+                ClearGhostHighlight();
+                if (factory == null) Close();
+                else OpenView(factory);
+            }
+            if (factory == null)
+            {
+                if (closing != null)
+                {
+                    float k = OzMotion.T(closeAt, OzMotion.Dur(0.1f, true));
+                    cg.alpha = 1f - k;
+                    if (k >= 1f) { closing = null; win.gameObject.SetActive(false); }
+                }
+                return;
+            }
+            Refresh();
+            var hot = string.IsNullOrEmpty(view.ProductionTile) ? null : tiles.Find(tile => tile.unit == view.ProductionTile)?.btn;
+            if (hot != ghostHotTile)
+            {
+                ClearGhostHighlight();
+                ghostHotTile = hot;
+            }
+            if (hot != null && (!hot.Hovered || hot.Pressed != view.TilePressed))
+            {
+                hot.Hovered = true;
+                hot.Pressed = view.TilePressed;
+                hot.Refresh();
+            }
+            Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
+        }
+
+        void ClearGhostHighlight()
+        {
+            if (ghostHotTile == null) return;
+            ghostHotTile.Hovered = ghostHotTile.Pressed = false;
+            ghostHotTile.Refresh();
+            ghostHotTile = null;
         }
 
         internal bool UsesBuildKey(Key key) => Building != null && Building.Owner == hud.Player && OzBuildKeys.IsLetter(key) &&
@@ -463,7 +533,8 @@ namespace OpenZ
 
             // current unit (or the hovered tile's estimate while idle)
             string hover = null;
-            foreach (var t in tiles) if (t.btn == hud.HotButton) hover = t.unit;
+            if (hud.IsGhostViewer) hover = hud.GhostView?.ProductionTile;
+            else foreach (var t in tiles) if (t.btn == hud.HotButton) hover = t.unit;
             bool building = b.Building && b.CurUnit != null;
             string shown = building ? b.CurUnit : hover ?? (tiles.Count > 0 ? tiles[0].unit : null);
             float prog = building ? (float)b.ProductionProgress : 0f;
@@ -610,7 +681,8 @@ namespace OpenZ
             // The window is placed beside the building ONCE (open / another building / a canvas resize) and then holds that
             // screen spot while the camera scrolls; only the leader line follows the building
             bool fresh = pinnedFor != Building || pinnedCs != cs || !pinned.HasValue;
-            if (anchorToBuilding)
+            var ghostView = hud.GhostView;
+            if (ghostView?.AnchorProduction ?? anchorToBuilding)
             {
                 var sr = hud.input.ScreenRect(Building);
                 if (sr.width > 0 && sr.height > 0 && sr.xMax > 0 && sr.xMin < Screen.width && sr.yMax > 0 && sr.yMin < Screen.height)
@@ -645,10 +717,16 @@ namespace OpenZ
                 minBottom = MinBottom(topLeft.x, topLeft.x + size.x);
             }
             topLeft.y = Mathf.Clamp(topLeft.y, Mathf.Min(top, minBottom + size.y), top);
+            if (ghostView != null)
+            {
+                topLeft.x = Mathf.Clamp(ghostView.ProductionX * cs.x, OzLayout.M, Mathf.Max(OzLayout.M, cs.x - OzLayout.M - size.x));
+                topLeft.y = Mathf.Clamp(ghostView.ProductionY * cs.y, size.y, cs.y);
+            }
             win.anchoredPosition = topLeft;
             // open: scale 0.96 -> 1 from the anchor side + alpha, 160 ms
             bool rightSide = anchor.HasValue && anchor.Value.x > topLeft.x + size.x * 0.5f;
-            if (fresh) pinnedRight = rightSide; else rightSide = pinnedRight;                                // (5): the scale-in side is fixed too
+            if (ghostView != null) rightSide = ghostView.ProductionRight;
+            else if (fresh) pinnedRight = rightSide; else rightSide = pinnedRight;                          // (5): the scale-in side is fixed too
             win.pivot = new Vector2(rightSide ? 1 : 0, 1);
             win.anchoredPosition = topLeft + new Vector2(rightSide ? size.x : 0, 0);
             win.localScale = Vector3.one * curScale * Mathf.Lerp(0.96f, 1f, openK);

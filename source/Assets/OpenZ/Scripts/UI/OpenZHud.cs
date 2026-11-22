@@ -55,6 +55,11 @@ namespace OpenZ
         public readonly OpenZMatchStats Stats = new OpenZMatchStats();
         public ZWorld W => game ? game.World : null;
         public Team Player => game ? game.player : Team.Red;
+        internal RectTransform GhostScorePanel => top;
+        internal bool GhostFactoryListOpen => factoryListOpen;
+        internal bool IsGhostViewer => Multiplayer.DuelRuntime.I && Multiplayer.DuelRuntime.I.MatchGhost;
+        internal Multiplayer.DuelRuntime.GhostFrame GhostView => IsGhostViewer ? Multiplayer.DuelRuntime.I.CurrentGhostView : null;
+        internal Team DisplayPlayer => GhostView is { } view ? (Team)(view.Seat + 1) : Player;
         /// <summary>The pause menu or the end screen owns the mouse and keyboard.</summary>
         public bool Modal => (Pause && Pause.IsOpen) || (EndScreen && EndScreen.IsShown) || Arranging || ArrangeHeld || OzUeHooks.HudModal;   // ARRANGE INTERFACE owns the mouse too, also for the moment it waits for the pause menu to close (OpenZHud.Arrange.cs); 1.2 item 6: the Unit editor's dialogs
 
@@ -297,7 +302,7 @@ namespace OpenZ
             int minPriority = OzConfirm.Blocks ? int.MaxValue : (modal || exited) ? 100 : Production && Production.IsOpen && Contains(Production.WindowRect, Pointer) ? 10 : int.MinValue;
             if (PointerOverUi)
                 for (int i = buttons.Count - 1; i >= 0; i--)
-                    if (buttons[i].Priority >= minPriority && (hudVisible || buttons[i].Priority >= 100) && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
+                    if (buttons[i].Priority >= minPriority && !(IsGhostViewer && buttons[i].Priority == 10) && (hudVisible || buttons[i].Priority >= 100) && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
             if (over != HotButton) { if (HotButton != null) { HotButton.Hovered = false; HotButton.Refresh(); } HotButton = over; if (over != null) { over.Hovered = true; over.Refresh(); } }
             if (!modal && over != null && over.Interactable && Production && OzBindings.Pressed(OzAction.RestartProduction))
                 Production.RestartHovered(over);
@@ -320,7 +325,7 @@ namespace OpenZ
             if (lr && leftDown != null)
             {
                 var b = leftDown; leftDown = null; b.Pressed = false; b.Refresh();
-                if (b == over && b.Interactable && b.OnClick != null)
+                if (b == over && b.Interactable && b.OnClick != null && !(IsGhostViewer && b.Priority == 10))
                 {
                     var click = Click(kb, false);
                     click.longPress = Time.unscaledTime - leftPressedAt >= LongClickSeconds;
@@ -331,7 +336,7 @@ namespace OpenZ
             if (rr && rightDown != null)
             {
                 var b = rightDown; rightDown = null;
-                if (b == over && b.Interactable && b.OnRightClick != null) { b.OnRightClick(Click(kb, true)); UiClickSound(); }
+                if (b == over && b.Interactable && b.OnRightClick != null && !(IsGhostViewer && b.Priority == 10)) { b.OnRightClick(Click(kb, true)); UiClickSound(); }
             }
 
             // b30 (a player of 1.0): a press on an own fort / factory
@@ -860,15 +865,16 @@ namespace OpenZ
 
         int GroupOf(ZObject u)
         {
-            var groups = Groups;
+            var groups = IsGhostViewer ? input.GhostGroups : Groups;
             for (int d = 1; d <= 10; d++) { int k = d % 10; if (groups.TryGetValue(k, out var g) && g.Contains(u)) return k; }
             return -1;
         }
 
         HudButton exitBtn; float panelHide;
-        bool CanExit(ZObject o) => o != null && !o.Destroyed && (o.Owner == Player || OzUeHooks.BothTeams(o.Owner)) && OzShuttleAirOffers.Exit(o) && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only; K430b: the button, its key, the touch key, the gamepad: never a shuttle up in the air (UI/OzShuttleAirOffers.cs); 1.2 item 6: both teams in the playground
+        bool CanExit(ZObject o) => o != null && !o.Destroyed && (o.Owner == DisplayPlayer || OzUeHooks.BothTeams(o.Owner)) && OzShuttleAirOffers.Exit(o) && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only; K430b: the button, its key, the touch key, the gamepad: never a shuttle up in the air (UI/OzShuttleAirOffers.cs); 1.2 item 6: both teams in the playground
         public void ExitSelected()
         {
+            if (IsGhostViewer) return;
             bool any = false, crew = false;
             foreach (var o in new List<ZObject>(input.Selection)) if (CanExit(o)) { crew = true; any |= input.EjectUnit(o); }
             if (crew) CrewExitUsed();                                                                      // 1.4 DV171: EXIT CREW used: no driver for 0.4 s (a double-click, E twice: UI/OpenZHud.VehicleExit.cs)
@@ -883,17 +889,19 @@ namespace OpenZ
 
         void RefreshUnitPanel()
         {
-            var sel = input.Selection;
+            var sel = input.DisplaySelection;
+            var view = GhostView;
             bool canExit = false; foreach (var o in sel) if (CanExit(o)) { canExit = true; break; }
             exitBtn.Rt.gameObject.SetActiveFast(canExit);
             RefreshDriverTab(sel, canExit);                                                                  // 1.4 DV171: EXIT DRIVER while EXIT CREW is not shown (UI/OpenZHud.VehicleExit.cs)
             int h = sel.Count; foreach (var o in sel) h = h * 31 + o.Id;
             bool changed = false;
-            if (h != selHash || hudUnit == null || !sel.Contains(hudUnit) || hudUnit.Destroyed)
+            if (h != selHash || hudUnit == null || !sel.Contains(hudUnit) || hudUnit.Destroyed || view != null && view.Portrait != hudUnit.Id)
             {
                 selHash = h;
                 var was = hudUnit;
-                hudUnit = sel.Count > 0 ? sel[Random.Range(0, sel.Count)] : null;
+                hudUnit = view != null ? sel.Find(unit => unit.Id == view.Portrait) ?? sel.FirstOrDefault()
+                    : sel.Count > 0 ? sel[Random.Range(0, sel.Count)] : null;
                 changed = true;
                 if (hudUnit != null) { unitAt = OzMotion.Now; portrait.Reselect(hudUnit == was); }
             }
@@ -1552,18 +1560,20 @@ namespace OpenZ
         void RefreshBottomBar()
         {
             if (OzMotion.Now < nextBottom) return; nextBottom = OzMotion.Now + 0.2f;
+            Team display = DisplayPlayer;
+            bool displayFactoryList = IsGhostViewer ? GhostView?.FactoryList == true : factoryListOpen;
             int nR = 0, nV = 0, nG = 0, nB = 0;
             foreach (var o in W.Objects)
             {
-                if (o.Owner != Player || o.Destroyed || o.IsFortDefender) continue;                   // fort_defender_v1 DV41
+                if (o.Owner != display || o.Destroyed || o.IsFortDefender) continue;                   // fort_defender_v1 DV41
                 if (o.Kind == ZKind.Robot) nR++; else if (o.Kind == ZKind.Vehicle) nV++; else if (o.Kind == ZKind.Cannon) nG++;
                 else if (o.IsProducer) nB++;
             }
             SetInteract(bR, nR > 0); SetInteract(bV, nV > 0); SetInteract(bG, nG > 0); SetInteract(bB, nB > 0);   // greyed like Zod (zplayer.cpp:1457-1568)
-            if (bB.Selected != factoryListOpen) { bB.Selected = factoryListOpen; bB.Refresh(); }
+            if (bB.Selected != displayFactoryList) { bB.Selected = displayFactoryList; bB.Refresh(); }
             KeyCount(cR, bR, nR, 0); KeyCount(cV, bV, nV, 1); KeyCount(cB, bB, nB, 2); KeyCount(cG, bG, nG, 3);
-            var groups = Groups; var sel = input.Selection;
-            selAlive.Clear(); foreach (var o in sel) if (o != null && !o.Destroyed && o.Owner == Player) selAlive.Add(o);
+            var groups = IsGhostViewer ? input.GhostGroups : Groups; var sel = input.DisplaySelection;
+            selAlive.Clear(); foreach (var o in sel) if (o != null && !o.Destroyed && o.Owner == display) selAlive.Add(o);
             for (int d = 0; d < 10; d++)
             {
                 // alive members only: PlayerInput prunes the selection every frame but a group only when it is recalled, so a
@@ -1574,11 +1584,11 @@ namespace OpenZ
                     typeCount.Clear();
                     foreach (var o in g)
                     {
-                        if (o == null || o.Destroyed || o.Owner != Player) continue;
+                        if (o == null || o.Destroyed || o.Owner != display) continue;
                         n++; if (!selAlive.Contains(o)) all = false;
                         int c = typeCount.TryGetValue(o.Type, out var k) ? k + 1 : 1; typeCount[o.Type] = c; if (c > best) best = c;
                     }
-                    foreach (var o in g) if (o != null && !o.Destroyed && o.Owner == Player && typeCount[o.Type] == best) { topType = o.Type; break; }   // most common type, first seen wins
+                    foreach (var o in g) if (o != null && !o.Destroyed && o.Owner == display && typeCount[o.Type] == best) { topType = o.Type; break; }   // most common type, first seen wins
                 }
                 var b = groupBtn[d];
                 bool empty = n == 0;
@@ -1642,7 +1652,7 @@ namespace OpenZ
 
         void RefreshFactoryList()
         {
-            bool want = factoryListOpen && hudVisible && !exited;
+            bool want = (IsGhostViewer ? GhostView?.FactoryList == true : factoryListOpen) && hudVisible && !exited;
             if (want && !factoryShown) { factoryOpenAt = OzMotion.Now; OzSfx.Ui("ui_panel_open", 0.7f); }
             else if (!want && factoryShown && !factoryListOpen && hudVisible) OzSfx.Ui("ui_panel_close", 0.7f);   // audio_v2: the list closes with a cue
             factoryShown = want;
@@ -1656,7 +1666,7 @@ namespace OpenZ
             if (OzMotion.Now < nextFactory) return; nextFactory = OzMotion.Now + 0.2f;
             // Zod order: forts, then robot factories, then vehicle factories (gwfactory_list.cpp:333-367); reused lists, no LINQ garbage
             var list = factoryList; list.Clear();
-            foreach (var o in W.Objects) if (o.IsProducer && o.Owner == Player) list.Add(o);
+            foreach (var o in W.Objects) if (o.IsProducer && o.Owner == DisplayPlayer) list.Add(o);
             list.Sort(FactoryOrder);
             bool same = factoryBuilt && factoryIds.Count == list.Count;
             for (int i = 0; same && i < list.Count; i++) same = factoryIds[i] == list[i].Id;

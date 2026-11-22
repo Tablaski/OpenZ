@@ -117,7 +117,8 @@ namespace OpenZ
             Jammed = active == 0;
             Fog = Jammed && (rule == RadarLossRule.Fog || rule == RadarLossRule.FogAndZoom);
             if (Fog && Sight == null) Sight = new OzFowMask(world.Map.WidthPix, world.Map.HeightPix);
-            Zoom = Jammed && (rule == RadarLossRule.Zoom || rule == RadarLossRule.FogAndZoom);
+            bool freeGhost = DuelRuntime.I && DuelRuntime.I.MatchGhost && !DuelRuntime.I.GhostFollowing;
+            Zoom = !freeGhost && Jammed && (rule == RadarLossRule.Zoom || rule == RadarLossRule.FogAndZoom);
             if (Jammed && !wasJammed && hud) hud.ClearRadarCommunications();
             if (destroyedRadars.Count > 0)
             {

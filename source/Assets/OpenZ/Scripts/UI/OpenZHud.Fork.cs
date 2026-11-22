@@ -7,11 +7,12 @@ namespace OpenZ
     public partial class OpenZHud
     {
         HudButton forkMicrophone;
+        RectTransform forkWordmark;
         RectTransform forkMicrophoneMenu;
         Image forkMicrophoneMeter;
         void BuildForkHud()
         {
-            var badge = Hud.Node("OpenZ-VK", Root); badge.TL(16, 10, 112, 40);
+            var badge = forkWordmark = Hud.Node("OpenZ-VK", Root); badge.TL(16, 10, 112, 40);
             var wordmark = Hud.Kit(badge, "Wordmark", "Wordmarks/wm_openz_vk_menu", new OzRect(0, 0, 112, 40), null, Image.Type.Simple);
             wordmark.preserveAspect = true;
             wordmark.raycastTarget = false;
@@ -43,6 +44,8 @@ namespace OpenZ
         }
         void TickForkHud()
         {
+            if (!IsGhostViewer && forkWordmark && forkWordmark.anchoredPosition != new Vector2(16, -10))
+                forkWordmark.TL(16, 10, 112, 40);
             if (forkMicrophone == null || !DuelRuntime.I) return;
             var voice = DuelRuntime.I.Voice;
             forkMicrophone.Label.Set("MIC: " + voice.ModeName);
@@ -52,6 +55,16 @@ namespace OpenZ
             if (!visible) forkMicrophoneMenu.gameObject.SetActive(false);
             forkMicrophoneMeter.rectTransform.anchorMax = new Vector2(voice.InputLevel, 1);
             forkMicrophoneMeter.color = voice.InputLevel > .95f ? OzUi.AlertText : OzForkOptions.Accent;
+        }
+
+        internal void PlaceGhostWordmark(bool besideScore, float scoreRight, float bandBottom)
+        {
+            if (!forkWordmark) return;
+            float right = ScreenToCanvas(new Vector2(scoreRight, 0)).x + 14;
+            bool rightFits = right + 112 < CanvasWidth - 130;
+            float x = besideScore && rightFits ? right : 16;
+            float y = besideScore && !rightFits ? CanvasSize.y - ScreenToCanvas(new Vector2(0, bandBottom)).y + 8 : 10;
+            if (forkWordmark.anchoredPosition != new Vector2(x, -y)) forkWordmark.TL(x, y, 112, 40);
         }
     }
 }

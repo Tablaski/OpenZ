@@ -154,7 +154,9 @@ namespace OpenZ
             var kbd = UnityEngine.InputSystem.Keyboard.current;
             bool queuing = (kbd != null && kbd.shiftKey.isPressed) || input.Pending.Count > 0;
             bool showPath = queuing || now - Mathf.Max(input.SelectTime, input.MarkerTime) < 3f;
-            foreach (var o in input.Selection)
+            bool ghost = OpenZ.Multiplayer.DuelRuntime.I && OpenZ.Multiplayer.DuelRuntime.I.MatchGhost;
+            var tracked = ghost ? OpenZ.Multiplayer.DuelRuntime.I.CurrentGhostView : null;
+            foreach (var o in input.DisplaySelection)
             {
                 if (o.Destroyed || o.KillAt >= 0) continue;                                                   // KC4b: got into a vehicle / gun / troop carrier / fort (or leaving the game): no ring left on the map
                 float r = (o.Kind == ZKind.Robot ? 0.95f * OzHeroSquadView.Tall(o) : 1.9f) * OzRingClock.Pulse;   // subtle pulse (K403: on the rings' own frame clock, View/OzRingClock.cs: smooth in a fixed-step recording too); KC4b: a hero's ring grows with him
@@ -163,6 +165,11 @@ namespace OpenZ
                 if (!o.IsShuttle) { if (!OzBigTanks.Is(o.Type) && BoardingView.FigureAt(o, ref cp)) Draw(selRing, cp + Vector3.up * 0.25f, r, selMat); }   /* K431: none while it is still inside its carrier, at its figure while it gets out (View/BoardingView.ExitRings.cs) */                   // clears the render terrain (it can sit above the collider), still under the feet
                 else OzShuttleShadowRing.Draw(g, o, r / 1.9f, selMat);                                  // K256e: the shuttle's own ring (View/OzShuttleShadowRing.cs): inside its frame, the tank's band, on the drawn ground; none in the air, on a deck or in a crash landing
                 foreach (var m in o.Minions) { if (m.KillAt >= 0) continue; var mp = g.Views.TryGetValue(m.Id, out var mv) ? mv.transform.position : g.CenterWorld(m); if (BoardingView.FigureAt(m, ref mp)) { OzLavaWade.Lift(ref mp, 0.2f); Draw(selRing, mp + Vector3.up * 0.25f, 0.7f * OzHeroSquadView.Tall(m), minionMat); } }   /* K431: a member still inside its carrier gets no ring, one getting out its ring at its figure */   // KC4b: a hero's size; none for a member that left the map
+                if (ghost)
+                {
+                    if (tracked != null) DrawGhostRoute(g, o, tracked);
+                    continue;
+                }
                 if (o.Patrolling)
                 {
                     var pa = Px(g, o.PatrolAx, o.PatrolAy, out bool paDeck); var pb = Px(g, o.PatrolBx, o.PatrolBy, out bool pbDeck);
@@ -216,6 +223,45 @@ namespace OpenZ
                 }
             }
             // (the old pulsing yellow order ring at input.MarkerPos is gone: the restyled HUD draws the "-ED" order marker,
+        }
+
+        void DrawGhostRoute(ZGame game, ZObject unit, OpenZ.Multiplayer.DuelRuntime.GhostFrame view)
+        {
+            var route = System.Array.Find(view.Routes, item => item.Unit == unit.Id);
+            if (route == null) return;
+            if (route.Patrolling)
+            {
+                var from = Px(game, route.PatrolFrom.x, route.PatrolFrom.y, out bool fromDeck);
+                var to = Px(game, route.PatrolTo.x, route.PatrolTo.y, out bool toDeck);
+                Leg(game, from, fromDeck, to, toDeck, .7f, 1.6f, .1f, .14f, markerMat);
+                Draw(ring, from + Vector3.up * .1f, .8f, markerMat);
+                Draw(ring, to + Vector3.up * .1f, .8f, markerMat);
+            }
+            if (!view.ShowRoute) return;
+            var prev = game.CenterWorld(unit);
+            bool prevDeck = OnDeck(prev);
+            foreach (var point in route.Path) DrawPoint(point, false);
+            for (int i = 1; i < route.Waypoints.Length; i++) DrawPoint(route.Waypoints[i], false);
+            float age = view.OrderAge + OpenZ.Multiplayer.DuelRuntime.I.GhostFrameAge;
+            if (view.Queueing || age < OpenZUnitOverlay.OrderMarkLife)
+                foreach (var waypoint in route.Waypoints) Draw(ring, Px(game, waypoint.x, waypoint.y, out _) + Vector3.up * .08f, .45f, pathMat);
+            if (route.Draft.Length == 0) return;
+            if (route.HasDraftFrom) prev = Px(game, route.DraftFrom.x, route.DraftFrom.y, out prevDeck);
+            else { prev = game.CenterWorld(unit); prevDeck = OnDeck(prev); }
+            foreach (var point in route.Draft) DrawPoint(point, true);
+
+            void DrawPoint(Vector2Int point, bool draft)
+            {
+                var pos = Px(game, point.x, point.y, out bool deck);
+                if (draft)
+                {
+                    Leg(game, prev, prevDeck, pos, deck, .6f, .9f, .12f, .16f, markerMat);
+                    Draw(ring, pos + Vector3.up * .1f, .7f, markerMat);
+                }
+                else Leg(game, prev, prevDeck, pos, deck, .8f, 1.2f, .1f, .12f, pathMat);
+                prev = pos;
+                prevDeck = deck;
+            }
         }
 
         /// <summary>A map point on the surface drawn there (rendered ground, bridge deck or water surface); deck = it is a bridge deck.</summary>

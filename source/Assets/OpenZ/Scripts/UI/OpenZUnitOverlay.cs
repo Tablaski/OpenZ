@@ -68,7 +68,7 @@ namespace OpenZ
         int aiBadgesUsed;
         readonly Dictionary<ZObject, int> groupOf = new Dictionary<ZObject, int>();
         SelectionOverlay rings;
-        Image order; float orderShownFor = -100f; string orderGlyph;
+        Image order; string orderGlyph;
         RectTransform rally; bool always;
 
         sealed class Mark
@@ -188,15 +188,18 @@ namespace OpenZ
             if (hideSelectionRings && rings && rings.enabled) rings.enabled = false;
             var cam = hud.rts ? RtsCam() : Camera.main; if (!cam) { Hide(); return; }
             float sf = canvas.scaleFactor > 0 ? canvas.scaleFactor : 1f;
-            var W = game.World; var sel = hud.input.Selection;
+            var W = game.World; var sel = hud.input.DisplaySelection;
+            var view = hud.GhostView;
             if (Time.unscaledTime > nextAlways) { nextAlways = Time.unscaledTime + 0.5f; always = AlwaysBars; }
 
             groupOf.Clear();
-            var groups = hud.Bridge?.Groups;
+            var groups = hud.IsGhostViewer ? hud.input.GhostGroups : hud.Bridge?.Groups;
             if (groups != null) foreach (var kv in groups) foreach (var o in kv.Value) if (o != null && !groupOf.ContainsKey(o)) groupOf[o] = kv.Key;
 
             HoverMember = null; HoverShownId = -1; HoverShown01 = -1f;
-            ZObject hover = hud.PointerOverUi || PlayerInput.MatchDecided(W) ? null : HoverUnit(cam, hud.Pointer);   // 1.2 item 68: nothing hovered once the match is decided (View/PlayerInput.MatchEnd.cs)
+            bool hideHover = hud.IsGhostViewer ? view == null || !view.HasMouse || view.PointerOverUi : hud.PointerOverUi;
+            var pointer = view != null ? new Vector2(view.MouseX * Screen.width, view.MouseY * Screen.height) : hud.Pointer;
+            ZObject hover = hideHover || PlayerInput.MatchDecided(W) ? null : HoverUnit(cam, pointer);   // 1.2 item 68: nothing hovered once the match is decided (View/PlayerInput.MatchEnd.cs)
             var pointed = HoverMember;                                                                       // the robot under the pointer itself (a squad member, not its leader)
             foreach (var u in sel)
             {
@@ -466,7 +469,7 @@ namespace OpenZ
         /// player chose); an enemy = the enemy's shown team colour (blue when the enemy is blue, red when the player chose blue);
         /// neutral grey. Buildings keep the amber frame; health bars keep green / amber / red by health.</summary>
         public static Color OwnSelection = new Color(0.34f, 0.96f, 0.46f, 1f);
-        Color BracketColor(ZObject o) => o.Owner == hud.Player && !OzUeHooks.TeamBrackets ? OwnSelection : OzUeHooks.DarkMarks ? OzUeHooks.DeepMark(o.Owner) : o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner);   // 1.2 item 6: the playground's brackets in each team's colour (both teams pick); 1.3 item 26: in the deep tone on its light floors
+        Color BracketColor(ZObject o) => o.Owner == hud.DisplayPlayer && !OzUeHooks.TeamBrackets ? OwnSelection : OzUeHooks.DarkMarks ? OzUeHooks.DeepMark(o.Owner) : o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner);   // 1.2 item 6: the playground's brackets in each team's colour (both teams pick); 1.3 item 26: in the deep tone on its light floors
 
         /// <summary>(g) proof: hover rect changes of a unit that has not moved (the rect is logged in whole pixels; a still unit under a
         /// still camera must give 0 changes). Counters read by the Play check.</summary>
@@ -633,18 +636,18 @@ namespace OpenZ
         // ------------------------------------------------------------------ order marker ("-ED" cursor echo, guide 9.9)
         void DrawOrderMarker(Camera cam, float sf)
         {
-            var inp = hud.input; float age = Time.unscaledTime - inp.MarkerTime;
+            var inp = hud.input;
+            var view = hud.GhostView;
+            float age = hud.IsGhostViewer
+                ? view == null ? float.MaxValue : view.OrderAge + Multiplayer.DuelRuntime.I.GhostFrameAge
+                : Time.unscaledTime - inp.MarkerTime;
             // 1.0 scale in 0.12 s) that fades out by OrderMarkLife and is gone
             bool on = age >= 0f && age < OrderMarkLife && order.sprite != null;
             order.gameObject.SetActiveFast(on);
             if (!on) return;
-            if (!Mathf.Approximately(orderShownFor, inp.MarkerTime))
-            {
-                orderShownFor = inp.MarkerTime;
-                string g = hud.Cursors ? hud.Cursors.OrderMark : "placed";
-                if (g != orderGlyph) { orderGlyph = g; var s = OzKit.GetSprite("Cursors/mark_" + g); if (s) order.sprite = s; }
-            }
-            var sp = cam.WorldToScreenPoint(inp.MarkerPos);
+            string g = view?.OrderMark ?? (hud.Cursors ? hud.Cursors.OrderMark : "placed");
+            if (g != orderGlyph) { orderGlyph = g; var s = OzKit.GetSprite("Cursors/mark_" + g); if (s) order.sprite = s; }
+            var sp = cam.WorldToScreenPoint(view != null ? new Vector3(view.OrderX, view.OrderY, view.OrderZ) : inp.MarkerPos);
             if (sp.z < 0) { order.gameObject.SetActiveFast(false); return; }
             order.rectTransform.anchoredPosition = Px(sp, sf);
             const float popT = 0.12f, fadeT = 0.14f;

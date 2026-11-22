@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 1.5.43 Ghost point of view and connection HUD
+
+- Pending in a compiled game. In an eight-player online match, check that the Ghost controls, scores and pings fit without overlap at 16:9, 16:10 and 4:3. Switch directly between players, return to Free Cam, and check visibility when a player disconnects or is eliminated.
+- Follow a player while they pan, zoom, move the cursor, select units, queue an order with waypoints and change a factory's production. Compare both screens and verify that the spectator sees the same native controls and cues.
+- In a match with fog of war, check that follow mode uses the followed player's visibility and that Free Cam can toggle the fog. In a match without fog, verify the fog control is hidden.
+- Check that the network indicator follows each seat across ordinary latency, connection degradation and disconnects. Verify that bots and unused seats do not show fabricated network readings.
+
 ## Game options controls
 
 - Pending in a compiled game. In both Game options menus, use the arrows in both directions and check wraparound for Flag Size (1x, 1.5x, 2x, 2.5x, 3x) and Minimap Radar Sweep (Off, 1.5 s, 3 s, 5 s). Check live flag scaling and radar sweep timing.

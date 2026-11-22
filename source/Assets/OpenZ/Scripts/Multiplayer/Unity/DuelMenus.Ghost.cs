@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -11,54 +10,150 @@ namespace OpenZ.Multiplayer
     public sealed partial class DuelMenus
     {
         static Sprite ghostIcon;
-        bool ghostOptions, ghostShowCursor = true, ghostShowOrders = true, ghostShowProduction = true;
-        int ghostShownTarget = -2, ghostShownClick, ghostShownOrder;
-        int ghostProductionId = -1;
-        string ghostProductionState, ghostProductionEvent;
-        float ghostProductionUntil;
-        float ghostClickUntil, ghostOrderUntil, ghostClickX, ghostClickY;
-        OzText ghostStatus, ghostSelectionText, ghostActionText, ghostFactoryText;
-        RectTransform ghostCursor, ghostClickMarker, ghostOrderMarker, ghostFactoryPanel, ghostLayer;
-        readonly List<RectTransform> ghostUnitMarkers = new List<RectTransform>(32);
+        readonly List<RectTransform> ghostSeatButtons = new List<RectTransform>(8);
+        readonly Vector3[] ghostCorners = new Vector3[4];
+        RectTransform ghostLayer, ghostBand, ghostFreeButton, ghostFogControl;
+        OzText ghostStatus, ghostFogStatus;
+        RawImage ghostCursor;
+        int ghostSeatMask;
+        float ghostBandWidth, ghostBandHeight, ghostTargetsAt;
 
         void BuildGhostView()
         {
-            ghostUnitMarkers.Clear();
+            ghostSeatButtons.Clear();
             ghostLayer = Hud.Node("Ghost overlay", root);
             ghostLayer.Fill();
-            var badge = Panel("", 25, 85, 520, 78);
-            DrawGhostIcon(badge, 24, 19, 22);
-            Label(badge, "GHOST", 54, 20, 430, 20, OzForkOptions.Accent);
-            ghostStatus = Label(badge, "", 24, 46, 472, 17, OzUi.Muted);
+            ghostBand = Hud.Node("Ghost controls", ghostLayer);
+            Hud.Plate(ghostBand, "md", 0, OzForkOptions.Accent);
+            DrawGhostIcon(ghostBand, 14, 9, 23);
+            Label(ghostBand, "GHOST", 44, 13, 67, 17, OzForkOptions.Accent);
+            ghostStatus = Label(ghostBand, "", 115, 16, 270, 13, OzUi.Muted);
+
             var targets = R.GhostTargets;
-            var players = Panel("FOLLOW PLAYER", 25, 177, 380, 62 + 43 * targets.Length);
-            for (int i = 0; i < targets.Length; i++)
+            ghostSeatMask = TargetMask(targets);
+            foreach (var target in targets)
             {
-                var target = targets[i];
-                Button(players, target.Name, 20, 52 + i * 43, 340, () => R.FollowGhostTarget(target.Position),
-                    R.GhostFollowing && R.GhostTarget == target.Position, height: 38);
+                int seat = target.Position;
+                var tint = OzUi.Mark((Team)(seat + 1));
+                ghostSeatButtons.Add(GhostButton((seat + 1).ToString(), target.Name, tint,
+                    R.GhostFollowing && R.GhostTarget == seat, () => R.FollowGhostTarget(seat), true));
+            }
+            ghostFreeButton = GhostButton("FREE CAM", "Free camera", OzForkOptions.Accent, !R.GhostFollowing,
+                () => R.SetGhostCameraMode(false));
+            ghostFogControl = null;
+            ghostFogStatus = null;
+            if (R.GhostFogAvailable)
+            {
+                if (R.GhostFollowing)
+                {
+                    ghostFogControl = Hud.Node("Player fog status", ghostBand);
+                    ghostFogStatus = Hud.Label(ghostFogControl, "Fog status", "", 12, OzUi.Muted).FillParent(OzH.C);
+                    ghostFogStatus.graphic.raycastTarget = false;
+                }
+                else ghostFogControl = GhostButton(R.GhostFog ? "FOG ON" : "FOG OFF", "Fog of war",
+                    OzForkOptions.Accent, R.GhostFog, () => { R.GhostFog = !R.GhostFog; dirty = true; });
             }
 
-            var controls = Panel("SPECTATOR CONTROLS", 25, 734, 1015, 128);
-            Button(controls, "< PREVIOUS · Q", 20, 58, 150, () => R.CycleGhostTarget(-1), enabled: targets.Length > 0, height: 42);
-            Button(controls, "NEXT · E >", 180, 58, 140, () => R.CycleGhostTarget(1), enabled: targets.Length > 0, height: 42);
-            Button(controls, R.GhostFollowing ? "FREE CAMERA · F" : "FOLLOW · F", 330, 58, 207,
-                () => R.SetGhostCameraMode(!R.GhostFollowing), enabled: targets.Length > 0, height: 42);
-            Button(controls, "RECENTER · R", 547, 58, 180, () => R.SetGhostCameraMode(true), enabled: targets.Length > 0, height: 42);
-            Button(controls, "VIEW OPTIONS", 737, 58, 253, () => { ghostOptions = !ghostOptions; dirty = true; }, ghostOptions, height: 42);
-
-            var activity = Panel("LIVE ACTIONS", 1054, 720, 475, 142);
-            ghostSelectionText = Label(activity, "", 22, 57, 430, 16, OzUi.Ink);
-            ghostActionText = Label(activity, "", 22, 93, 430, 16, OzUi.Muted);
-            ghostFactoryPanel = Panel("PRODUCTION OPEN", 416, 177, 502, 136);
-            ghostFactoryText = Label(ghostFactoryPanel, "", 24, 60, 454, 17, OzUi.Ink).Body(24, 60, 454);
-            if (ghostOptions) DrawGhostOptions();
-
-            ghostCursor = Marker("➤", 31, OzUi.Ink);
-            ghostClickMarker = Marker("◉", 36, OzUi.Amber);
-            ghostOrderMarker = Marker("◎", 38, OzUi.Amber);
-            ghostShownTarget = -2;
+            ghostCursor = Hud.Node("Tracked player cursor", ghostLayer).gameObject.AddComponent<RawImage>();
+            ghostCursor.raycastTarget = false;
+            ghostCursor.enabled = false;
+            ghostBandWidth = 0;
+            ghostTargetsAt = 0;
             TickGhostView();
+        }
+
+        static int TargetMask(RoomSnapshot.Human[] targets)
+        {
+            int mask = 0;
+            foreach (var target in targets) mask |= 1 << target.Position;
+            return mask;
+        }
+
+        RectTransform GhostButton(string caption, string name, Color tint, bool active, Action click, bool seat = false)
+        {
+            var rect = Hud.Node(name, ghostBand);
+            var bg = Hud.Img(rect, "Button", Color.Lerp(OzUi.GM950, tint, active ? .45f : seat ? .24f : .07f));
+            bg.rectTransform.Fill();
+            bg.raycastTarget = true;
+            Hud.Border(rect, active || seat ? tint : OzUi.Ink2, active ? 2f : 1f);
+            var label = Hud.Label(rect, "Label", caption, seat ? 14 : 12, OzUi.Ink).FillParent(OzH.C);
+            label.graphic.raycastTarget = false;
+            var button = rect.gameObject.AddComponent<Button>();
+            button.targetGraphic = bg;
+            button.onClick.AddListener(() => click());
+            return rect;
+        }
+
+        internal bool HideGhostLocalPointer(Vector2 pointer) => page == Page.Entry && ghostBand && ghostBand.gameObject.activeInHierarchy &&
+            R.GhostFollowing && R.CurrentGhostView != null && Application.isFocused && !OpenZHud.Contains(ghostBand, pointer) &&
+            pointer.x >= 0 && pointer.y >= 0 && pointer.x < Screen.width && pointer.y < Screen.height;
+
+        internal void TickGhostView()
+        {
+            if (page != Page.Entry || !R.MatchGhost || !ghostLayer || !ghostLayer.gameObject.activeInHierarchy || !R.Game) return;
+            var hud = OpenZHud.I;
+            bool showControls = hud && !(hud.Pause && hud.Pause.IsOpen) && !OzConfirm.Blocks;
+            ghostBand.gameObject.SetActiveFast(showControls);
+
+            if (Time.unscaledTime >= ghostTargetsAt)
+            {
+                ghostTargetsAt = Time.unscaledTime + .25f;
+                var targets = R.GhostTargets;
+                if (TargetMask(targets) != ghostSeatMask || R.GhostFogAvailable != (ghostFogControl != null)) dirty = true;
+                var tracked = Array.Find(targets, member => member.Position == R.GhostTarget);
+                ghostStatus.Set(R.GhostFollowing && tracked != null ? "FOLLOWING " + tracked.Name : "FREE CAMERA");
+            }
+            if (ghostFogStatus != null)
+                ghostFogStatus.Set(OzRadarLoss.I && OzRadarLoss.I.Fog ? "FOG ON" : "FOG OFF");
+            if (showControls) LayoutGhostBand(hud);
+
+            var view = R.CurrentGhostView;
+            ghostCursor.enabled = ghostBand.gameObject.activeSelf && view != null && view.HasMouse;
+            if (!ghostCursor.enabled) return;
+            bool arrow = string.IsNullOrEmpty(view.Cursor) || view.Cursor == "arrow";
+            int frame = (int)(Time.unscaledTime / .2f) & 3;
+            ghostCursor.texture = OzSoftCursor.GhostTexture(view.Cursor, frame, view.Seat == (int)Team.Blue - 1);
+            float size = 32 * Mathf.Clamp(OzText.UiScale, .5f, 2);
+            ghostCursor.rectTransform.TL(ghostLayer.rect.width * view.MouseX - size * (arrow ? .125f : .5f),
+                ghostLayer.rect.height * (1 - view.MouseY) - size * (arrow ? .09375f : .5f), size, size);
+        }
+
+        void LayoutGhostBand(OpenZHud hud)
+        {
+            const float left = 18, gap = 12, maxWidth = 470;
+            var score = hud.GhostScorePanel;
+            if (!score || !score.gameObject.activeInHierarchy) { ghostBand.gameObject.SetActiveFast(false); return; }
+            score.GetWorldCorners(ghostCorners);
+            float scale = Mathf.Max(.01f, canvas.scaleFactor);
+            float room = ghostCorners[1].x / scale - gap - left;
+            float y = (Screen.height - ghostCorners[1].y) / scale;
+            float scoreHeight = (ghostCorners[1].y - ghostCorners[0].y) / scale;
+            const float minWidth = 224;
+            bool besideScore = room >= minWidth;
+            float width = besideScore ? Mathf.Min(room, maxWidth) : Mathf.Min(maxWidth, ghostLayer.rect.width - left * 2);
+            float height = Mathf.Clamp(scoreHeight, 92, 122);
+            var pos = new Vector2(left, y + (besideScore ? 0 : scoreHeight + 8));
+            hud.PlaceGhostWordmark(besideScore, ghostCorners[2].x, Screen.height - (pos.y + height) * scale);
+            if (ghostBand.anchoredPosition != new Vector2(pos.x, -pos.y) || ghostBandWidth != width || ghostBandHeight != height)
+                ghostBand.TL(pos.x, pos.y, width, height);
+            if (ghostBandWidth == width && ghostBandHeight == height) return;
+            ghostBandWidth = width;
+            ghostBandHeight = height;
+
+            const float inset = 14, spacing = 5, buttonHeight = 32;
+            float freeWidth = width < 275 ? 61 : 88;
+            float fogWidth = width < 275 ? 55 : 72;
+            float rowY = height - 13 - buttonHeight;
+            float extra = freeWidth + spacing + (ghostFogControl ? fogWidth + spacing : 0);
+            bool sameRow = width >= inset * 2 + extra + ghostSeatButtons.Count * 32;
+            float freeX = width - inset - extra + spacing;
+            ghostFreeButton.TL(freeX, sameRow ? rowY : 8, freeWidth, buttonHeight);
+            if (ghostFogControl) ghostFogControl.TL(freeX + freeWidth + spacing, sameRow ? rowY : 8, fogWidth, buttonHeight);
+            ghostStatus.SetActive(sameRow);
+            float space = width - inset * 2 - (sameRow ? extra : 0);
+            float seatWidth = Mathf.Clamp((space - Mathf.Max(0, ghostSeatButtons.Count - 1) * spacing) / Mathf.Max(1, ghostSeatButtons.Count), 18, 40);
+            for (int i = 0; i < ghostSeatButtons.Count; i++)
+                ghostSeatButtons[i].TL(inset + i * (seatWidth + spacing), rowY, seatWidth, buttonHeight);
         }
 
         static void DrawGhostIcon(Transform parent, float x, float y, float size)
@@ -90,128 +185,6 @@ namespace OpenZ.Multiplayer
             icon.sprite = ghostIcon;
             icon.rectTransform.TL(x, y, size, size);
             icon.raycastTarget = false;
-        }
-
-        RectTransform Marker(string name, int size, Color color)
-        {
-            var marker = Hud.Node(name, ghostLayer);
-            var text = Hud.Label(marker, name, name, size, color).FillParent(OzH.C);
-            text.graphic.raycastTarget = false;
-            marker.gameObject.SetActive(false);
-            return marker;
-        }
-
-        void DrawGhostOptions()
-        {
-            var panel = Panel("VIEW OPTIONS", 633, 352, 610, 358);
-            Button(panel, "CLOSE", 440, 12, 145, () => { ghostOptions = false; dirty = true; }, height: 36);
-            Label(panel, "VISION", 24, 69, 250, 18, OzUi.Ink);
-            Label(panel, "Use the tracked player's radar and fog.", 24, 94, 350, 14, OzUi.Muted);
-            Button(panel, "PLAYER FOG", 342, 67, 118, () => { R.GhostFog = true; dirty = true; }, R.GhostFog, height: 39);
-            Button(panel, "FULL MAP", 469, 67, 117, () => { R.GhostFog = false; dirty = true; }, !R.GhostFog, height: 39);
-            Toggle("PLAYER CURSOR", "Show their mouse and click markers.", 131, ghostShowCursor, value => ghostShowCursor = value);
-            Toggle("SELECTIONS & ORDERS", "Highlight selected units and show order markers.", 196, ghostShowOrders, value => ghostShowOrders = value);
-            Toggle("PRODUCTION", "Show the open factory and its unit queue.", 261, ghostShowProduction, value => ghostShowProduction = value);
-
-            void Toggle(string name, string description, int y, bool value, Action<bool> change)
-            {
-                Label(panel, name, 24, y + 2, 430, 18, OzUi.Ink);
-                Label(panel, description, 24, y + 29, 430, 14, OzUi.Muted);
-                Button(panel, "OFF", 446, y, 64, () => { change(false); dirty = true; }, !value, height: 39);
-                Button(panel, "ON", 521, y, 64, () => { change(true); dirty = true; }, value, height: 39);
-            }
-        }
-
-        internal void TickGhostView()
-        {
-            if (page != Page.Entry || !R.MatchGhost || !ghostLayer || !ghostLayer.gameObject.activeInHierarchy || !R.Game) return;
-            var view = R.GhostFollowing ? R.GhostView : null;
-            var target = R.GhostTargets.FirstOrDefault(person => person.Position == R.GhostTarget);
-            ghostStatus?.Set(R.GhostFollowing && target != null ?
-                $"Following {target.Name} · {(R.GhostFog ? "Player fog" : "Full map")}" : "Free camera · Full map");
-            if (ghostShownTarget != R.GhostTarget)
-            {
-                ghostShownTarget = R.GhostTarget;
-                ghostShownClick = view?.Click ?? 0;
-                ghostShownOrder = view?.Order ?? 0;
-                ghostClickUntil = ghostOrderUntil = 0;
-                ghostProductionId = -1;
-                ghostProductionUntil = 0;
-            }
-            var camera = Camera.main;
-            bool hasView = view != null && camera;
-            float now = Time.unscaledTime;
-            if (hasView && ghostShowCursor && view.HasMouse)
-            {
-                CursorAt(ghostCursor, view.MouseX, view.MouseY, 35);
-                if (view.Click != ghostShownClick)
-                {
-                    ghostShownClick = view.Click;
-                    ghostClickUntil = now + (view.MouseButton == 2 ? .65f : .35f);
-                    ghostClickX = view.MouseX;
-                    ghostClickY = view.MouseY;
-                }
-            }
-            else ghostCursor.gameObject.SetActive(false);
-            if (hasView && ghostShowCursor && now < ghostClickUntil) CursorAt(ghostClickMarker, ghostClickX, ghostClickY, 38);
-            else ghostClickMarker.gameObject.SetActive(false);
-            if (hasView && view.Order != ghostShownOrder)
-            {
-                ghostShownOrder = view.Order;
-                ghostOrderUntil = now + 2.5f;
-            }
-            if (hasView && ghostShowOrders && now < ghostOrderUntil)
-                WorldMarker(ghostOrderMarker, camera, new Vector3(view.OrderX, 0, view.OrderZ), 38);
-            else ghostOrderMarker.gameObject.SetActive(false);
-
-            int used = 0;
-            var world = R.Game.World;
-            if (hasView && ghostShowOrders)
-            {
-                foreach (int id in view.Selected)
-                {
-                    var unit = world.Get(id);
-                    if (unit == null || unit.Destroyed || unit.Owner != (Team)(view.Seat + 1)) continue;
-                    if (used == ghostUnitMarkers.Count) ghostUnitMarkers.Add(Marker("◇", 28, OzUi.Amber));
-                    WorldMarker(ghostUnitMarkers[used++], camera, ZGame.PxToWorld(unit.CenterX, unit.CenterY), 32);
-                }
-            }
-            for (int i = used; i < ghostUnitMarkers.Count; i++) ghostUnitMarkers[i].gameObject.SetActive(false);
-            ghostSelectionText?.Set(hasView && ghostShowOrders ? $"{used} selected" : "");
-            ghostActionText?.Set(hasView && ghostShowOrders && now < ghostOrderUntil ? "Order issued" : "");
-
-            var factory = hasView && ghostShowProduction ? world.Get(view.Factory) : null;
-            if (factory != null && (factory.Owner != (Team)(view.Seat + 1) || !factory.IsProducer || factory.Destroyed)) factory = null;
-            ghostFactoryPanel.gameObject.SetActive(factory != null);
-            if (factory != null)
-            {
-                string queue = factory.Queue.Count == 0 ? "Empty" : string.Join(", ", factory.Queue.Select(UnitName));
-                string state = (factory.Building ? UnitName(factory.CurUnit) : "Idle") + " · Queue " + queue;
-                if (factory.Id == ghostProductionId && ghostProductionState != state)
-                {
-                    ghostProductionEvent = state;
-                    ghostProductionUntil = now + 3.5f;
-                }
-                ghostProductionId = factory.Id;
-                ghostProductionState = state;
-                ghostFactoryText.Set($"{UnitName(factory.Type)} · {(factory.Building ? UnitName(factory.CurUnit) : "Idle")}\nQueue · {queue}");
-            }
-            else ghostProductionId = -1;
-            if (hasView && ghostShowProduction && now < ghostProductionUntil)
-                ghostActionText?.Set(ghostProductionEvent);
-
-            void CursorAt(RectTransform marker, float px, float py, float size)
-            {
-                marker.TL(ghostLayer.rect.width * px - size / 2, ghostLayer.rect.height * (1 - py) - size / 2, size, size);
-                marker.gameObject.SetActive(true);
-            }
-
-            void WorldMarker(RectTransform marker, Camera cam, Vector3 at, float size)
-            {
-                var uv = cam.WorldToViewportPoint(at);
-                if (uv.z <= 0 || uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) { marker.gameObject.SetActive(false); return; }
-                CursorAt(marker, uv.x, uv.y, size);
-            }
         }
 
         void HandleGhostKeys()

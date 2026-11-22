@@ -166,6 +166,7 @@ namespace OpenZ
             void Update()
         {
             if (OpenZ.Multiplayer.DuelRuntime.CapturesInput || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return;
+            if (OpenZ.Multiplayer.DuelRuntime.I && OpenZ.Multiplayer.DuelRuntime.I.MatchGhost && OpenZ.Multiplayer.DuelRuntime.I.GhostFollowing) return;
             if (!Application.isPlaying) { Place(); return; }
             if (OzFpsView.HoldsCamera) return;                                                   // 1.4 fps_view: the first-person view has the camera (View/OzFpsView.cs); false while it is off
             if (targetHeight < 0) targetHeight = height;

@@ -23,13 +23,18 @@ namespace OpenZ
         /// HD/cur_pickup_256_*; order mark Kit/Cursors/mark_pickedup), no longer the flag-capture cursor "grab" (the flag between brackets,
         /// kept for flags).</summary>
         public const string GrenadeCursor = "pickup";
-        OpenZHud hud; float lastMarker = -10f; string previous = "arrow"; bool set;
+        OpenZHud hud; float lastMarker = -10f; string previous = "arrow"; bool set, hidLocalGhostPointer;
 
         public void Build(OpenZHud h) { hud = h; lastMarker = h.input ? h.input.MarkerTime : -10f; }
 
         void LateUpdate()
         {
             if (hud == null || hud.input == null || hud.W == null) return;
+            var mouse = Mouse.current;
+            bool hide = hud.IsGhostViewer && mouse != null && Multiplayer.DuelRuntime.I.Menus &&
+                Multiplayer.DuelRuntime.I.Menus.HideGhostLocalPointer(mouse.position.ReadValue());
+            if (hide && Cursor.visible) { Cursor.visible = false; hidLocalGhostPointer = true; }
+            else if (!hide && hidLocalGhostPointer) { Cursor.visible = true; hidLocalGhostPointer = false; }
             string c = OzShuttleOrderAim.Cursor(Decide(), hud);                                   // K256g SHUTTLE ORDERS: NO where only shuttles would take the move and none can ever land there (View/OzShuttleOrderAim.cs)
             if (!Mathf.Approximately(hud.input.MarkerTime, lastMarker)) { lastMarker = hud.input.MarkerTime; OrderMark = Ed(previous); }   // the cursor at order time
             OzSoundV3.CursorChanged(SoundName(previous), SoundName(c), hud.input.Hover);              // sound_v3: lock / nono / world hover (1.2 item 17: the grenade hand sounds as "grab" did)
@@ -38,7 +43,11 @@ namespace OpenZ
             OzKit.TickCursor(c); set = true;
         }
 
-        void OnDisable() { if (set) { OzKit.ResetCursor(); set = false; } }                     // ui_quality_v1: the software cursor too
+        void OnDisable()
+        {
+            if (hidLocalGhostPointer) { Cursor.visible = true; hidLocalGhostPointer = false; }
+            if (set) { OzKit.ResetCursor(); set = false; }
+        }
 
         /// <summary>1.2 item 17: OzSoundV3.CursorChanged takes the grenade hand as "grab", so its lock blip is the one it always had.</summary>
         static string SoundName(string c) => c == GrenadeCursor ? "grab" : c;

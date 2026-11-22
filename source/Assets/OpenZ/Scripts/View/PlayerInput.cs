@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using OpenZ.Multiplayer;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -20,6 +21,10 @@ namespace OpenZ
         public ZGame game;
         public RtsCamera cam;
         public readonly List<ZObject> Selection = new List<ZObject>();
+        readonly List<ZObject> ghostSelected = new List<ZObject>();
+        readonly Dictionary<int, List<ZObject>> ghostGroups = new Dictionary<int, List<ZObject>>();
+        internal List<ZObject> DisplaySelection => DuelRuntime.I && DuelRuntime.I.MatchGhost ? ghostSelected : Selection;
+        internal Dictionary<int, List<ZObject>> GhostGroups => ghostGroups;
         System.Predicate<ZObject> selPrune;
         readonly Dictionary<ZObject, List<ZWaypoint>> pending = new Dictionary<ZObject, List<ZWaypoint>>();
         /// <summary>Shift was held when the right button went down: that click belongs to the waypoint queue even when Shift is let
@@ -32,6 +37,7 @@ namespace OpenZ
         public ZObject Hover { get; private set; }
 
         Vector2 boxStart; bool lDown, dragging;
+        internal bool TryGetSelectionBox(out Vector2 start) { start = boxStart; return lDown && dragging; }
         float lastCycleTime = -100f; char lastCycleKind; int lastCycleId = -1;
 
         // order marker ("-ED" cursor echo, 3 s) and path display
@@ -56,6 +62,28 @@ namespace OpenZ
         }
         ZWorld W => game.World;
 
+        internal void ApplyGhostSelection(DuelRuntime.GhostFrame frame)
+        {
+            ghostSelected.Clear();
+            foreach (var group in ghostGroups.Values) group.Clear();
+            if (frame == null) return;
+            Team team = (Team)(frame.Seat + 1);
+            void Resolve(int[] ids, List<ZObject> into)
+            {
+                foreach (int id in ids)
+                {
+                    var unit = W.Get(id);
+                    if (unit != null && !unit.Destroyed && unit.IsUnit && unit.Owner == team && !into.Contains(unit)) into.Add(unit);
+                }
+            }
+            Resolve(frame.Selected, ghostSelected);
+            foreach (var group in frame.Groups)
+            {
+                if (!ghostGroups.TryGetValue(group.Key, out var members)) ghostGroups.Add(group.Key, members = new List<ZObject>());
+                Resolve(group.Units, members);
+            }
+        }
+
         void Awake()
         {
             realBounds.Clear();
@@ -71,11 +99,12 @@ namespace OpenZ
             if (OpenZ.Multiplayer.DuelRuntime.CapturesInput || OpenZ.Multiplayer.DuelRuntime.MatchPlayPaused) return;
             var mouse = Mouse.current; var kb = Keyboard.current;
             if (mouse == null || kb == null || game == null || game.World == null) return;
-            if (game.World.SkirmishEliminated(game.player))
+            if (DuelRuntime.I && DuelRuntime.I.MatchGhost || game.World.SkirmishEliminated(game.player))
             {
                 Selection.Clear();
                 pending.Clear();
                 Hover = null;
+                lDown = dragging = false;
                 if (Placing != null) CancelPlace();
                 return;
             }
@@ -844,9 +873,21 @@ namespace OpenZ
         static Texture2D white;
         void OnGUI()
         {
-            if (!lDown || !dragging || Mouse.current == null) return;
+            Vector2 a, b;
+            if (DuelRuntime.I && DuelRuntime.I.MatchGhost)
+            {
+                var view = DuelRuntime.I.CurrentGhostView;
+                if (view == null || !view.Box || !view.HasMouse) return;
+                a = new Vector2(view.BoxX * Screen.width, view.BoxY * Screen.height);
+                b = new Vector2(view.MouseX * Screen.width, view.MouseY * Screen.height);
+            }
+            else
+            {
+                if (!lDown || !dragging || Mouse.current == null) return;
+                a = boxStart;
+                b = Mouse.current.position.ReadValue();
+            }
             if (!white) { white = new Texture2D(1, 1); white.SetPixel(0, 0, Color.white); white.Apply(); }
-            Vector2 a = boxStart, b = Mouse.current.position.ReadValue();
             var r = Rect.MinMaxRect(Mathf.Min(a.x, b.x), Screen.height - Mathf.Max(a.y, b.y), Mathf.Max(a.x, b.x), Screen.height - Mathf.Min(a.y, b.y));
             GUI.color = new Color(1, 1, 1, 0.08f); GUI.DrawTexture(r, white);
             GUI.color = new Color(1, 1, 1, 0.9f);

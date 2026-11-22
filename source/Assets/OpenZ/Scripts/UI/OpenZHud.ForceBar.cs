@@ -18,6 +18,9 @@ namespace OpenZ
         float forceShare = .5f;
         int skirmishSeatCount;
         readonly OzText[] skirmishSeats = new OzText[8], skirmishUnits = new OzText[8], skirmishPower = new OzText[8];
+        readonly OzText[] skirmishPings = new OzText[8];
+        readonly Image[,] skirmishSignals = new Image[8, 3];
+        bool skirmishNetwork;
         readonly RectTransform[] skirmishSegments = new RectTransform[8];
         readonly double[] skirmishShares = new double[8], skirmishScores = new double[8];
         RectTransform skirmishUnitRow, skirmishPowerRow, skirmishRail;
@@ -38,12 +41,28 @@ namespace OpenZ
             skirmishRail = Hud.Node("BalanceRail", top); skirmishRail.TL(194, 109, 720, 4);
             Hud.Img(skirmishRail, "Track", OzUi.GM950).rectTransform.Fill();
             skirmishSeatCount = OzAiMapCatalog.FindSkirmishMap(game.level)?.Starts ?? 3;
+            skirmishNetwork = Multiplayer.DuelRuntime.I?.SkirmishRoom == true;
             float column = 720f / skirmishSeatCount;
             for (int i = 0; i < skirmishSeatCount; i++)
             {
                 var team = (Team)(i + 1);
                 float x = 194 + (i + .5f) * column;
-                skirmishSeats[i] = Hud.Label(top, "Participant", "", skirmishSeatCount > 4 ? 12 : 18, OzUi.TeamText(team)).At(x, 44, OzH.C, true, column - 3);
+                float networkWidth = skirmishNetwork ? 54 : 0;
+                skirmishSeats[i] = Hud.Label(top, "Participant", "", skirmishSeatCount > 4 ? 12 : 18, OzUi.TeamText(team))
+                    .At(x - networkWidth * .5f, 44, OzH.C, true, column - 3 - networkWidth);
+                if (skirmishNetwork)
+                {
+                    float right = x + column * .5f;
+                    skirmishPings[i] = Hud.Label(top, "Participant ping", "", 13, OzUi.Ink).At(right - 19, 44, OzH.R, true, 38);
+                    for (int bar = 0; bar < 3; bar++)
+                    {
+                        int height = 3 + bar * 3;
+                        var signal = Hud.Img(top, "Connection health", OzUi.Muted);
+                        signal.rectTransform.TL(right - 15 + bar * 4, 49 - height, 3, height);
+                        signal.gameObject.SetActive(false);
+                        skirmishSignals[i, bar] = signal;
+                    }
+                }
                 skirmishUnits[i] = Hud.Label(skirmishUnitRow, "Count", "", 18, OzUi.Ink).At(x, 10, OzH.C, true, column - 3);
                 skirmishPower[i] = Hud.Label(skirmishPowerRow, "Score", "", skirmishSeatCount > 4 ? 14 : 18, OzUi.Ink).At(x, 10, OzH.C, true, column - 3);
                 skirmishSegments[i] = Hud.Img(skirmishRail, "Share", OzUi.Mark(team)).rectTransform;
@@ -72,7 +91,11 @@ namespace OpenZ
             {
                 var team = (Team)(i + 1);
                 bool eliminated = W.SkirmishEliminated(team);
-                skirmishSeats[i].Set($"{i + 1} · {TeamColors.Name(team)}{(eliminated ? " · OUT" : team == Player ? " · YOU" : "")}");
+                if (skirmishNetwork && skirmishSeatCount > 4)
+                    skirmishSeats[i].Set($"{i + 1}{(eliminated ? " OUT" : "")}");
+                else
+                    skirmishSeats[i].Set($"{i + 1} · {TeamColors.Name(team)}{(eliminated ? " · OUT" : team == Player ? " · YOU" : "")}");
+                if (skirmishNetwork) RefreshSkirmishPing(i);
                 int units = eliminated ? 0 : W.UnitCount(team);
                 skirmishUnits[i].Set(units.ToString());
                 skirmishScores[i] = showPower && !eliminated ? W.MilitaryValue(team) : 0;
@@ -89,6 +112,27 @@ namespace OpenZ
                 float width = total > 0 ? (float)(720 * skirmishShares[i] / total) : 0;
                 skirmishSegments[i].TL(x, 0, width, 4);
                 x += width;
+            }
+        }
+
+        void RefreshSkirmishPing(int seat)
+        {
+            var runtime = Multiplayer.DuelRuntime.I;
+            var reading = runtime != null && runtime.HasFreshRoomLatency
+                ? Array.Find(runtime.RoomPings, entry => entry.Seat == seat)
+                : null;
+            bool measured = reading != null && reading.Ping > 0 && !reading.Disconnected;
+            skirmishPings[seat].Set(runtime != null && runtime.RoomHostPosition == seat ? "HOST" :
+                reading?.Disconnected == true ? "— ×" : measured ? $"{reading.Ping} ms" : "");
+            int health = !measured ? 0 : reading.Ping >= 160 || reading.Variation >= 35 ? 1 :
+                reading.Ping >= 95 || reading.Variation >= 15 ? 2 : 3;
+            Color color = health == 3 ? new Color32(166, 205, 122, 255) :
+                health == 2 ? new Color32(234, 196, 123, 255) : new Color32(243, 146, 121, 255);
+            for (int bar = 0; bar < 3; bar++)
+            {
+                var signal = skirmishSignals[seat, bar];
+                signal.gameObject.SetActiveFast(measured);
+                signal.color = bar < health ? color : OzUi.A(OzUi.Muted, .4f);
             }
         }
 

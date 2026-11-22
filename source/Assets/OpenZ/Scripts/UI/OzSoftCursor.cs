@@ -89,6 +89,14 @@ namespace OpenZ
             return t != null || art == name ? t : Frames(name)[frame & 3];
         }
 
+        internal static Texture2D GhostTexture(string name, int frame, bool blue)
+        {
+            if (System.Array.IndexOf(Names, name) < 0) name = "arrow";
+            string art = OzKit.CursorArt(name, blue);
+            return Frames(art)[frame & 3] ?? Frames(name)[frame & 3] ??
+                OzKit.GetTexture("Cursors/cur_" + name + "_32_" + (frame & 3));
+        }
+
         static Texture2D[] Frames(string art)
         {
             if (!frames.TryGetValue(art, out var f))

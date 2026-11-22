@@ -11,27 +11,51 @@ namespace OpenZ.Multiplayer
     {
         [Serializable] internal sealed class GhostFrame
         {
-            public int Seat, Revision, Click, MouseButton, Order, Factory;
-            public float X, Y, Z, FocusX, FocusZ, Height, Pitch, Yaw, Fov, MouseX, MouseY, OrderX, OrderZ;
-            public bool HasMouse;
+            public int Seat, Revision, Factory, Portrait;
+            public float X, Y, Z, FocusX, FocusZ, Height, Pitch, Yaw, Roll, Fov, MouseX, MouseY, OrderX, OrderY, OrderZ;
+            public float BoxX, BoxY, OrderAge, ProductionX, ProductionY;
+            public bool HasMouse, Box, PointerOverUi, ShowRoute, Queueing, AnchorProduction, FactoryList, ProductionRight, TilePressed;
+            public string Cursor, OrderMark, ProductionTile;
             public int[] Selected;
+            public GhostRoute[] Routes;
+            public GhostGroup[] Groups;
         }
 
+        [Serializable] internal sealed class GhostRoute
+        {
+            public int Unit;
+            public Vector2Int[] Path, Waypoints, Draft;
+            public bool HasDraftFrom, Patrolling;
+            public Vector2Int DraftFrom, PatrolFrom, PatrolTo;
+        }
+
+        [Serializable] internal sealed class GhostGroup
+        {
+            public int Key;
+            public int[] Units;
+        }
+
+        const int GhostMaxSelection = 384, GhostMaxRoutes = 96, GhostMaxPoints = 32, GhostMaxGroupMembers = 384;
+        const int GhostMaxPayload = 40 * 1024;
         readonly Dictionary<int, int> ghostFollowers = new Dictionary<int, int>();
         readonly Dictionary<int, double> ghostNextFrameFrom = new Dictionary<int, double>();
-        readonly List<int> ghostSelection = new List<int>(32);
+        readonly List<int> ghostSelection = new List<int>(GhostMaxSelection);
+        readonly List<GhostRoute> ghostRoutes = new List<GhostRoute>(GhostMaxRoutes);
+        readonly List<GhostGroup> ghostGroups = new List<GhostGroup>(10);
         RtsCamera ghostCamera;
         Camera ghostLens;
         PlayerInput ghostPlayerInput;
         double ghostNextFrame, ghostNextSubscribe, ghostFrameAt;
-        int ghostClick, ghostMouseButton, ghostOrder;
-        float ghostLastMarker = -10;
         float ghostSavedFov;
         bool ghostWasFollowing;
         internal int GhostTarget { get; private set; } = -1;
         internal bool GhostFollowing { get; private set; }
-        internal bool GhostFog { get; set; } = true;
+        internal bool GhostFog { get; set; }
         internal GhostFrame GhostView { get; private set; }
+        internal GhostFrame CurrentGhostView => MatchGhost && GhostFollowing && Now - ghostFrameAt < 1.5 ? GhostView : null;
+        internal float GhostFrameAge => (float)Math.Max(0, Now - ghostFrameAt);
+        internal bool GhostFogAvailable => Game && Game.World != null &&
+            (OzRadarLoss.RuleFor(Game.World) is RadarLossRule.Fog or RadarLossRule.FogAndZoom);
         bool showingMatchGhost;
         bool LocalMatchGhost => RoomObserver || EliminatedMatchSeat(RoomPosition);
         internal bool MatchGhost => LocalMatchGhost && (RoomObserver || !OpenZEnding.Running);
@@ -42,8 +66,16 @@ namespace OpenZ.Multiplayer
         bool IsMatchGhost(int id) => IsRoomGhost(id) || room?.Members.Any(member =>
             member.Id == RoomGuest(id) && EliminatedMatchSeat(member.Seat.Position)) == true;
 
-        internal static Team GhostVisionTeam => I && I.MatchGhost && I.Playing && I.GhostFollowing && I.GhostFog && I.GhostTarget >= 0
-            ? (Team)(I.GhostTarget + 1) : Team.Neutral;
+        internal static Team GhostVisionTeam
+        {
+            get
+            {
+                if (!I || !I.MatchGhost || !I.Playing || (!I.GhostFollowing && !I.GhostFog)) return Team.Neutral;
+                int seat = I.GhostTarget;
+                if (seat < 0 || !I.GhostFollowing && I.EliminatedMatchSeat(seat)) seat = I.GhostTargets.FirstOrDefault()?.Position ?? -1;
+                return seat < 0 ? Team.Neutral : (Team)(seat + 1);
+            }
+        }
 
         internal RoomSnapshot.Human[] GhostTargets => JoinedRoom?.Humans.Where(member => member.Position >= 0 && !member.Observer &&
             (!Game || !Game.World.SkirmishEliminated((Team)(member.Position + 1)))).OrderBy(member => member.Position).ToArray()
@@ -52,7 +84,7 @@ namespace OpenZ.Multiplayer
         internal void FollowGhostTarget(int seat)
         {
             if (!MatchGhost || !GhostTargets.Any(member => member.Position == seat)) return;
-            if (GhostTarget != seat) GhostView = null;
+            if (GhostTarget != seat || !GhostFollowing) GhostView = null;
             GhostTarget = seat;
             GhostFollowing = true;
             ghostNextSubscribe = 0;
@@ -69,6 +101,7 @@ namespace OpenZ.Multiplayer
                 return;
             }
             GhostFollowing = false;
+            GhostView = null;
             ghostNextSubscribe = 0;
             Menus.Refresh();
         }
@@ -101,45 +134,103 @@ namespace OpenZ.Multiplayer
                 : JoinedRoom?.Humans.Any(member => member.Observer || EliminatedMatchSeat(member.Position)) == true;
             if (!observers) return;
             if (!ReadyGhostCamera()) return;
-            var pointer = Mouse.current;
-            if (pointer != null && (pointer.leftButton.wasPressedThisFrame || pointer.rightButton.wasPressedThisFrame))
-            {
-                ghostClick++;
-                ghostMouseButton = pointer.rightButton.wasPressedThisFrame ? 2 : 1;
-            }
-            if (ghostPlayerInput && ghostPlayerInput.MarkerTime != ghostLastMarker)
-            {
-                ghostOrder++;
-                ghostLastMarker = ghostPlayerInput.MarkerTime;
-            }
             if (Now < ghostNextFrame || QueuedSendBytes > 32768) return;
-            ghostNextFrame = Now + .10;
+            ghostNextFrame = Now + .065;
             int seat = RoomPosition;
             var pose = ghostLens.transform;
             var look = pose.rotation.eulerAngles;
             var focus = ghostCamera.focus;
+            var pointer = Mouse.current;
             var mouse = pointer?.position.ReadValue() ?? Vector2.zero;
+            var hud = OpenZHud.I;
+            var production = hud ? hud.Production : null;
+            var productionPosition = production ? production.GhostWindowTopLeft : Vector2.zero;
             var order = ghostPlayerInput ? ghostPlayerInput.MarkerPos : Vector3.zero;
+            float now = Time.unscaledTime;
+            float orderAge = ghostPlayerInput ? Mathf.Clamp(now - ghostPlayerInput.MarkerTime, 0, 4) : 4;
+            bool queuing = ghostPlayerInput && ((Keyboard.current?.shiftKey.isPressed ?? false) || ghostPlayerInput.Pending.Count > 0);
+            bool showRoute = ghostPlayerInput && (queuing || now - Mathf.Max(ghostPlayerInput.SelectTime, ghostPlayerInput.MarkerTime) < 3);
+            Vector2 boxStart = default;
+            bool box = ghostPlayerInput && ghostPlayerInput.TryGetSelectionBox(out boxStart);
             ghostSelection.Clear();
+            ghostRoutes.Clear();
+            ghostGroups.Clear();
+            int pointBudget = 650;
             if (ghostPlayerInput)
+            {
                 foreach (var selected in ghostPlayerInput.Selection)
                 {
-                    if (ghostSelection.Count == 32) break;
-                    if (selected != null && !selected.Destroyed && selected.Owner == LocalTeam) ghostSelection.Add(selected.Id);
+                    if (ghostSelection.Count == GhostMaxSelection) break;
+                    if (selected == null || selected.Destroyed || selected.Owner != LocalTeam) continue;
+                    ghostSelection.Add(selected.Id);
+                    if ((!showRoute && !selected.Patrolling) || ghostRoutes.Count == GhostMaxRoutes || pointBudget == 0) continue;
+                    ghostPlayerInput.Pending.TryGetValue(selected, out var draft);
+                    if (!selected.Patrolling && !selected.IsMoving && selected.Waypoints.Count == 0 && (draft == null || draft.Count == 0)) continue;
+                    // Keep the draft visible when the frame reaches its route budget.
+                    var draftPoints = CaptureGhostWaypoints(draft, ref pointBudget);
+                    var waypointPoints = CaptureGhostWaypoints(selected.Waypoints, ref pointBudget);
+                    var path = new List<Vector2Int>();
+                    if (selected.IsMoving && pointBudget > 0)
+                    {
+                        path.Add(new Vector2Int(selected.CurrentTarget.x, selected.CurrentTarget.y));
+                        pointBudget--;
+                    }
+                    if (selected.PathPoints != null)
+                        foreach (var p in selected.PathPoints)
+                        {
+                            if (pointBudget == 0 || path.Count == GhostMaxPoints) break;
+                            path.Add(new Vector2Int(p.x, p.y));
+                            pointBudget--;
+                        }
+                    bool hasDraftFrom = OzShiftAppend.PreviewFrom(selected, out int qx, out int qy);
+                    ghostRoutes.Add(new GhostRoute { Unit = selected.Id, Path = path.ToArray(), Waypoints = waypointPoints,
+                        Draft = draftPoints, HasDraftFrom = hasDraftFrom, DraftFrom = new Vector2Int(qx, qy),
+                        Patrolling = selected.Patrolling, PatrolFrom = new Vector2Int(selected.PatrolAx, selected.PatrolAy),
+                        PatrolTo = new Vector2Int(selected.PatrolBx, selected.PatrolBy) });
                 }
-            var factory = OpenZHud.I && OpenZHud.I.Production ? OpenZHud.I.Production.Building : null;
+                if (hud?.Bridge?.Groups is { } groups)
+                {
+                    int members = GhostMaxGroupMembers;
+                    foreach (var group in groups)
+                    {
+                        if (group.Key is < 0 or > 9 || group.Value == null || members == 0) continue;
+                        var units = group.Value.Where(unit => unit != null && !unit.Destroyed && unit.Owner == LocalTeam)
+                            .Take(members).Select(unit => unit.Id).ToArray();
+                        if (units.Length == 0) continue;
+                        ghostGroups.Add(new GhostGroup { Key = group.Key, Units = units });
+                        members -= units.Length;
+                    }
+                }
+            }
             var frame = new GhostFrame
             {
-                Seat = seat, Revision = loadedRoomRevision, Click = ghostClick, MouseButton = ghostMouseButton,
-                Order = ghostOrder, OrderX = order.x, OrderZ = order.z, Factory = factory?.Id ?? -1,
-                X = pose.position.x, Y = pose.position.y, Z = pose.position.z, Pitch = look.x, Yaw = look.y,
+                Seat = seat, Revision = loadedRoomRevision, Factory = production?.Building?.Id ?? -1, Portrait = hud?.HudUnit?.Id ?? -1,
+                OrderX = order.x, OrderY = order.y, OrderZ = order.z, OrderAge = orderAge, ShowRoute = showRoute, Queueing = queuing,
+                X = pose.position.x, Y = pose.position.y, Z = pose.position.z, Pitch = look.x, Yaw = look.y, Roll = look.z,
                 FocusX = focus.x, FocusZ = focus.z, Height = ghostCamera.height, Fov = ghostLens.fieldOfView,
-                HasMouse = pointer != null && Screen.width > 0 && Screen.height > 0,
-                MouseX = Mathf.Clamp01(mouse.x / Math.Max(1, Screen.width)), MouseY = Mathf.Clamp01(mouse.y / Math.Max(1, Screen.height)),
-                Selected = ghostSelection.ToArray()
+                HasMouse = pointer != null && Cursor.visible && mouse.x >= 0 && mouse.y >= 0 && mouse.x < Screen.width && mouse.y < Screen.height,
+                MouseX = GhostX(mouse.x), MouseY = GhostY(mouse.y), Box = box, BoxX = GhostX(boxStart.x), BoxY = GhostY(boxStart.y),
+                PointerOverUi = hud && hud.PointerOverUi, Cursor = hud?.Cursors?.Current, OrderMark = hud?.Cursors?.OrderMark,
+                AnchorProduction = production && production.anchorToBuilding, ProductionTile = production?.GhostHoveredTile,
+                ProductionX = productionPosition.x, ProductionY = productionPosition.y,
+                ProductionRight = production && production.GhostWindowRight, TilePressed = production && production.GhostTilePressed,
+                FactoryList = hud && hud.GhostFactoryListOpen,
+                Selected = ghostSelection.ToArray(), Routes = ghostRoutes.ToArray(), Groups = ghostGroups.ToArray()
             };
             if (IsHost) ForwardGhostFrame(frame);
             else SendGhostPacketToHost(DuelMessage.RoomGhostView, frame);
+        }
+
+        static float GhostX(float value) => Mathf.Clamp01(value / Math.Max(1, Screen.width));
+        static float GhostY(float value) => Mathf.Clamp01(value / Math.Max(1, Screen.height));
+
+        static Vector2Int[] CaptureGhostWaypoints(IReadOnlyList<ZWaypoint> source, ref int budget)
+        {
+            int count = Math.Min(budget, Math.Min(source?.Count ?? 0, GhostMaxPoints));
+            var result = new Vector2Int[count];
+            for (int i = 0; i < count; i++) result[i] = new Vector2Int(source[i].x, source[i].y);
+            budget -= count;
+            return result;
         }
 
         bool ReadyGhostCamera()
@@ -168,14 +259,14 @@ namespace OpenZ.Multiplayer
                 if (!IsHost) SendGhostPacketToHost(DuelMessage.RoomGhostFollow, new GhostRequest { Seat = GhostFollowing ? GhostTarget : -1,
                     Revision = loadedRoomRevision });
             }
-            bool tracking = GhostFollowing && GhostView != null && Now - ghostFrameAt < 1.5;
+            var view = CurrentGhostView;
+            bool tracking = view != null;
             if (tracking)
             {
                 if (!ghostWasFollowing) ghostSavedFov = ghostLens.fieldOfView;
-                var view = GhostView;
                 ghostCamera.FocusGhostView(new Vector3(view.FocusX, 0, view.FocusZ), view.Height);
                 ghostLens.fieldOfView = view.Fov;
-                ghostCamera.transform.SetPositionAndRotation(new Vector3(view.X, view.Y, view.Z), Quaternion.Euler(view.Pitch, view.Yaw, 0));
+                ghostCamera.transform.SetPositionAndRotation(new Vector3(view.X, view.Y, view.Z), Quaternion.Euler(view.Pitch, view.Yaw, view.Roll));
             }
             else if (ghostWasFollowing)
             {
@@ -183,6 +274,7 @@ namespace OpenZ.Multiplayer
                 ghostCamera.Place();
             }
             ghostWasFollowing = tracking;
+            ghostPlayerInput?.ApplyGhostSelection(view);
             Menus.TickGhostView();
         }
 
@@ -196,7 +288,7 @@ namespace OpenZ.Multiplayer
 
         void ReadGhostPacket(SkirmishOnline.Link sender, DuelPacket packet)
         {
-            if (!Playing || !Game || packet.Payload.Length == 0 || packet.Payload.Length > 4096) return;
+            if (!Playing || !Game || packet.Payload.Length == 0 || packet.Payload.Length > GhostMaxPayload) return;
             if (packet.Kind == DuelMessage.RoomGhostFollow)
             {
                 if (!IsHost || !IsMatchGhost(sender.Id)) return;
@@ -211,7 +303,7 @@ namespace OpenZ.Multiplayer
             {
                 if (IsMatchGhost(sender.Id) || (ghostFollowers.Count == 0 && !(MatchGhost && GhostFollowing)) ||
                     ghostNextFrameFrom.TryGetValue(sender.Id, out double next) && Now < next) return;
-                ghostNextFrameFrom[sender.Id] = Now + .075;
+                ghostNextFrameFrom[sender.Id] = Now + .045;
             }
             else if (sender.Id != 1 || !MatchGhost || !GhostFollowing) return;
             var frame = ReadJson<GhostFrame>(packet);
@@ -230,14 +322,27 @@ namespace OpenZ.Multiplayer
         }
 
         bool ValidGhostFrame(GhostFrame frame) => frame != null && frame.Revision == loadedRoomRevision &&
-            frame.Seat >= 0 && frame.Seat < 8 && frame.Selected?.Length <= 32 &&
-            frame.MouseX >= 0 && frame.MouseX <= 1 && frame.MouseY >= 0 && frame.MouseY <= 1 &&
+            frame.Seat >= 0 && frame.Seat < 8 && frame.Selected?.Length <= GhostMaxSelection &&
+            frame.Routes?.Length <= GhostMaxRoutes && frame.Routes.All(r => r != null && ValidGhostPoints(r.Path) &&
+                ValidGhostPoints(r.Waypoints) && ValidGhostPoints(r.Draft) && (!r.HasDraftFrom || ValidGhostPoint(r.DraftFrom)) &&
+                (!r.Patrolling || ValidGhostPoint(r.PatrolFrom) && ValidGhostPoint(r.PatrolTo))) &&
+            frame.Groups?.Length <= 10 && frame.Groups.All(g => g != null && g.Key is >= 0 and < 10 && g.Units?.Length <= GhostMaxGroupMembers) &&
+            frame.Groups.Sum(g => g.Units.Length) <= GhostMaxGroupMembers &&
+            UnitInterval(frame.MouseX) && UnitInterval(frame.MouseY) && UnitInterval(frame.BoxX) && UnitInterval(frame.BoxY) &&
+            UnitInterval(frame.ProductionX) && UnitInterval(frame.ProductionY) &&
+            frame.OrderAge >= 0 && frame.OrderAge <= 4 && (frame.Cursor?.Length ?? 0) <= 16 && (frame.OrderMark?.Length ?? 0) <= 16 &&
+            (frame.ProductionTile?.Length ?? 0) <= 40 &&
             frame.Fov >= 10 && frame.Fov <= 120 && frame.Height > 0 && frame.Height < 1000 &&
             FiniteCoordinate(frame.X) && FiniteCoordinate(frame.Y) && FiniteCoordinate(frame.Z) &&
             FiniteCoordinate(frame.FocusX) && FiniteCoordinate(frame.FocusZ) && FiniteCoordinate(frame.Pitch) &&
-            FiniteCoordinate(frame.Yaw) && FiniteCoordinate(frame.OrderX) && FiniteCoordinate(frame.OrderZ);
+            FiniteCoordinate(frame.Yaw) && FiniteCoordinate(frame.Roll) && FiniteCoordinate(frame.OrderX) &&
+            FiniteCoordinate(frame.OrderY) && FiniteCoordinate(frame.OrderZ);
 
         static bool FiniteCoordinate(float value) => value > -10000 && value < 10000;
+        static bool UnitInterval(float value) => value >= 0 && value <= 1;
+        bool ValidGhostPoints(Vector2Int[] points) => points?.Length <= GhostMaxPoints && points.All(ValidGhostPoint);
+        bool ValidGhostPoint(Vector2Int point) => point.x >= -256 && point.y >= -256 &&
+            point.x <= Game.World.Map.WidthPix + 256 && point.y <= Game.World.Map.HeightPix + 256;
 
         void ForwardGhostFrame(GhostFrame frame)
         {
@@ -259,15 +364,14 @@ namespace OpenZ.Multiplayer
             showingMatchGhost = false;
             GhostTarget = -1;
             GhostFollowing = false;
+            GhostFog = false;
             GhostView = null;
             ghostFollowers.Clear();
             ghostNextFrameFrom.Clear();
             ghostCamera = null;
             ghostLens = null;
             ghostPlayerInput = null;
-            ghostClick = ghostMouseButton = ghostOrder = 0;
             ghostNextFrame = ghostNextSubscribe = ghostFrameAt = 0;
-            ghostLastMarker = -10;
             ghostWasFollowing = false;
         }
     }

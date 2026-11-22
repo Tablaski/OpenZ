@@ -207,7 +207,7 @@ namespace OpenZ.Multiplayer
                         PublishLobby();
                         LoadScene();
                     }
-                    else Menus.ShowLoading();
+                    else Menus.ShowMultiplayerLoading(state.Map, waitingForHost: true);
                     break;
                 case RequestResult.ReturnToLobby:
                     if (IsHost) { lobby.ReturnToLobby(); PublishLobby(); }

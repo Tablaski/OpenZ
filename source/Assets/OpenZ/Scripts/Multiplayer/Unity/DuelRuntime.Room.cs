@@ -570,9 +570,8 @@ namespace OpenZ.Multiplayer
             session = loadStarted = true;
             if (IsHost) RoomTransport.IsSpectatorVoice = id => session && IsRoomGhost(id);
             Status = "Loading the battlefield…";
-            Menus.ShowLoading();
             OzPlayBlue.Disarm("multiplayer skirmish");
-            SceneManager.LoadSceneAsync(map.ScenePath);
+            BeginBattlefieldLoad(map.Id, map.ScenePath);
         }
 
         void AttachRoomWorld(ZWorld world)

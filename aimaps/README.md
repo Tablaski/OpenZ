@@ -143,6 +143,11 @@ Source maps originate from The Zod Engine by Michael Bok / Nighsoft and the
 original Z layouts by The Bitmap Brothers. Preserve these credits, the repository licenses and upstream
 attribution. No authorship of the original layouts is claimed by this fork.
 
+The orbital backgrounds in `Resources/OpenZ/AiMaps/Loading/` adapt the OpenZ
+intro's `IC_Planet_BaseColor.png` with new surface detail, biome colours and
+lighting. Credit OpenZ for the original texture. These backgrounds are shared
+under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
 ## Validation
 
 `BAKE-REPORT.txt` records every source map and generated object count.

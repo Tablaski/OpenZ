@@ -611,7 +611,7 @@ namespace OpenZ.Multiplayer
                     break;
                 case DuelMessage.RestartBegin:
                     if (IsHost || !Playing) throw new InvalidDataException("Unexpected restart.");
-                    ResetMatchForRestart(); Menus.ShowLoading(); break;
+                    ResetMatchForRestart(); Menus.ShowMultiplayerLoading(View.Map, waitingForHost: true); break;
                 case DuelMessage.RestartNotice:
                     if (IsHost || packet.Payload.Length > 240) throw new InvalidDataException("Invalid restart notice.");
                     if (restartPromptOpen) OzConfirm.Dismiss();
@@ -639,10 +639,29 @@ namespace OpenZ.Multiplayer
         {
             wireSentAtMatchStart = WireStateSent;
             matchStateReceived = 0;
-            Status = "Loading both teams…"; Menus.ShowLoading();
+            Status = "Loading the battlefield…";
             string scene = OzAiMapCatalog.Find(View.Map)?.Scene ?? OzLevelDef.All.FirstOrDefault(m => m.Id == View.Map)?.Scene
                 ?? (View.Map == "L19" ? "L19_Mayhem_Converted" : "L17_CarPark");
-            OzPlayBlue.Disarm("duel"); SceneManager.LoadSceneAsync(scene);
+            OzPlayBlue.Disarm("duel");
+            BeginBattlefieldLoad(View.Map, scene);
+        }
+
+        int battlefieldLoadRequest;
+
+        void BeginBattlefieldLoad(string mapId, string scene)
+        {
+            Menus.ShowMultiplayerLoading(mapId);
+            StartCoroutine(LoadBattlefield(scene, ++battlefieldLoadRequest));
+        }
+
+        IEnumerator LoadBattlefield(string scene, int request)
+        {
+            // Give the overlay one rendered frame before Unity starts loading the battlefield.
+            yield return null;
+            yield return null;
+            if (request != battlefieldLoadRequest || !session || peer == null || !Menus.MultiplayerLoading) yield break;
+            try { Menus.TrackBattlefieldLoad(scene); }
+            catch (Exception error) { Debug.LogException(error); Fail(error.Message); }
         }
         void SceneLoaded(Scene scene, LoadSceneMode mode)
         {
@@ -662,6 +681,7 @@ namespace OpenZ.Multiplayer
                 var fort = Game.World.Objects.FirstOrDefault(o => o.IsFort && o.Owner == LocalTeam);
                 if (camera && fort != null) { camera.focus = ZGame.PxToWorld(fort.CenterX, fort.CenterY); camera.Place(); }
             }
+            Menus.MarkBattlefieldReady();
             if (SkirmishRoom) FinishRoomLoading();
             else if (!IsHost) peer.Send(new DuelPacket(DuelMessage.Loaded, Array.Empty<byte>()));
             else { lobby.MarkLoaded(0, View.Revision, Now); ScheduleStart(); }
@@ -1076,6 +1096,7 @@ namespace OpenZ.Multiplayer
         }
         void Disconnect()
         {
+            battlefieldLoadRequest++;
             if (Playing && peer != null) LogPerformance("disconnect");
             cancellation?.Cancel(); cancellation?.Dispose(); cancellation = null;
             listener?.Stop(); listener = null; peer?.Dispose(); peer = null;

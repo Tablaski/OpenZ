@@ -203,8 +203,14 @@ namespace OpenZ.Multiplayer
                 var generatedAsset = Resources.Load<Texture2D>("OpenZ/AiMaps/Previews/" + map.Id);
                 if (generatedAsset) return generatedAsset;
             }
-            if (!skirmishGeneratedMinimaps.TryGetValue(map.Id, out var texture))
-                skirmishGeneratedMinimaps[map.Id] = texture = OzLevelInfo.Load(map.Id).Mini;
+            return GeneratedSkirmishMinimap(map.Id);
+        }
+
+        Texture2D GeneratedSkirmishMinimap(string mapId)
+        {
+            if (string.IsNullOrEmpty(mapId)) return null;
+            if (!skirmishGeneratedMinimaps.TryGetValue(mapId, out var texture))
+                skirmishGeneratedMinimaps[mapId] = texture = OzLevelInfo.Load(mapId).Mini;
             return texture;
         }
 

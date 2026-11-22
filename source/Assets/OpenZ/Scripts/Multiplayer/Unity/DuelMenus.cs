@@ -31,7 +31,7 @@ namespace OpenZ.Multiplayer
         string previewKey;
         Texture2D mapPreview;
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
-        OzText ping, loading, voiceStatus, planningTime;
+        OzText ping, voiceStatus, planningTime;
         Image planningProgress;
         InputField chatField;
         OzText chatHistory;
@@ -70,7 +70,6 @@ namespace OpenZ.Multiplayer
         }
 
         internal void ShowRoomPlayers() { FindFirstObjectByType<OpenZPauseMenu>()?.Close(); roomModeration = null; page = Page.RoomPlayers; dirty = true; }
-        public void ShowLoading() { page = Page.Loading; dirty = true; }
         public void ShowError() { page = Page.Error; dirty = true; }
         public void ShowInGameMenu() { if (R.MatchMenusBlocked) return; CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.Open(); }
         public void ShowCommunications() { OpenChat(); }
@@ -134,7 +133,7 @@ namespace OpenZ.Multiplayer
             R.Voice.ChatMonitoring = chatInputMeter && R.Connected;
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
             if (page == Page.MatchRequest) requestTime?.Set(Math.Ceiling(R.MatchRequestSeconds) + " s");
-            if (page == Page.SkirmishLoading) UpdateSkirmishLoading();
+            if (BattlefieldLoading) UpdateBattlefieldLoading();
             if (page == Page.RoomVote && R.RoomVoteMap != null) requestTime?.Set(Math.Ceiling(R.RoomVoteSeconds) + " s");
             if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
@@ -145,12 +144,6 @@ namespace OpenZ.Multiplayer
             speakerValue?.Set("VOICE PLAYBACK: " + Mathf.RoundToInt(R.Voice.SpeakerVolume * 100) + "%");
             windowsOutput?.Set(OzWindowsSound.OutputStatus);
             if (chatInputMeter) UpdateChatMicrophone();
-            if (loading != null)
-            {
-                int seconds = R.View?.PlanningSeconds ?? 0;
-                loading.Set(R.Countdown < 0 ? R.ConnectionStatus : seconds == 0 ? "STARTING IN " + Math.Ceiling(R.Countdown)
-                    : "OPENING ORDERS IN " + Math.Ceiling(Math.Max(0, R.Countdown - seconds)));
-            }
             if (planningTime != null)
             {
                 var game = ZGame.I;
@@ -183,7 +176,7 @@ namespace OpenZ.Multiplayer
             if (overlayRoot) { overlayRoot.gameObject.SetActive(false); Destroy(overlayRoot.gameObject); }
             if (page != Page.Lobby && page != Page.Skirmish) ReleaseLobbyFlyby();
             lobbyFlybyImage = null;
-            ping = loading = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = planningProgress = null; chatField = null;
+            ping = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = planningProgress = null; chatField = null;
             speakerValue = windowsOutput = chatVoiceStatus = null;
             chatHistory = chatGain = null; lobbyChatScroll = null; lobbyChatLog = null;
             chatMicrophoneCapsule = chatMicrophoneMuted = chatInputMeter = null;
@@ -242,7 +235,7 @@ namespace OpenZ.Multiplayer
             if (page == Page.RoomVote) { BuildRoomVote(); return; }
             if (page == Page.Diagnostics) { BuildDiagnosticsPanel(); return; }
             if (page == Page.MatchRequest || page == Page.Reconnect) { BuildMatchRequestPage(); return; }
-            if (page == Page.SkirmishLoading) { BuildSkirmishLoading(); return; }
+            if (BattlefieldLoading) { BuildBattlefieldLoading(); return; }
             var background = Hud.Img(overlayRoot, "Background", OzUi.GM950); background.rectTransform.Fill(); background.raycastTarget = true;
             if (page == Page.Skirmish || OnlineRoomPage) background.transform.SetAsFirstSibling();
             var poster = Resources.Load<Texture2D>("OpenZ/Menu/" + (R.View?.Map ?? "L02") + "_poster");
@@ -257,7 +250,6 @@ namespace OpenZ.Multiplayer
             if (page == Page.Connect) BuildConnect();
             else if (page == Page.Skirmish) BuildSkirmish();
             else if (page == Page.Lobby) { if (R.SkirmishRoom) BuildOnlineRoom(); else BuildLobby(); }
-            else if (page == Page.Loading) { loading = Label(root, R.Status, 250, 430, 1400, 38, OzUi.Amber); }
             else if (page == Page.Game) BuildGameMenu();
             else if (page == Page.RoomPlayers) BuildInMatchRoomPlayers();
             else if (page == Page.Microphone) BuildMicrophone();
@@ -625,47 +617,8 @@ namespace OpenZ.Multiplayer
             localSkirmish.Launch(LocalSkirmishHost);
             localSkirmish.MarkLoaded(LocalSkirmishHost, localSkirmish.Revision);
             OzPlayBlue.Disarm("local skirmish");
-            skirmishLoadingMap = map;
-            page = Page.SkirmishLoading;
-            dirty = true;
+            ShowBattlefieldLoading(map.Id, Page.SkirmishLoading);
             StartCoroutine(LoadSkirmishMap(map));
-        }
-
-        OzAiMap skirmishLoadingMap;
-        AsyncOperation skirmishLoad;
-        OzText skirmishLoadText;
-        Image skirmishLoadFill;
-
-        void BuildSkirmishLoading()
-        {
-            var backdrop = Hud.Img(root, "Loading backdrop", OzUi.GM950);
-            backdrop.rectTransform.Fill(); backdrop.raycastTarget = true;
-            var poster = SkirmishMinimap(skirmishLoadingMap);
-            if (poster)
-            {
-                float h = 460, w = Math.Min(680, h * poster.width / poster.height);
-                var preview = Hud.Node("Map preview", root).gameObject.AddComponent<RawImage>();
-                preview.texture = poster;
-                preview.rectTransform.Place(new OzRect(OzAnchor.TC, 960 - w / 2, 193, w, h));
-                preview.raycastTarget = false;
-            }
-            var panel = Hud.Node("Loading status", root);
-            panel.Place(new OzRect(OzAnchor.TC, 500, 690, 920, 230));
-            Hud.Plate(panel, "md", 0, OzUi.AmberLo);
-            Label(panel, "SKIRMISH · " + skirmishLoadingMap.Name.ToUpperInvariant(), 35, 37, 850, 30, OzUi.Ink);
-            skirmishLoadText = Label(panel, "", 35, 99, 850, 20, OzUi.Amber);
-            var track = Hud.Img(panel, "Load track", OzUi.GM950);
-            track.rectTransform.TL(35, 139, 850, 15);
-            skirmishLoadFill = Hud.Img(track.transform, "Load progress", OzUi.Amber);
-            skirmishLoadFill.rectTransform.Fill(); skirmishLoadFill.raycastTarget = false;
-            UpdateSkirmishLoading();
-        }
-
-        void UpdateSkirmishLoading()
-        {
-            float progress = skirmishLoad?.progress ?? 0;
-            skirmishLoadText?.Set(progress >= .9f ? "PREPARING BATTLEFIELD" : $"LOADING BATTLEFIELD · {Mathf.FloorToInt(100 * progress / .9f)}%");
-            if (skirmishLoadFill) skirmishLoadFill.rectTransform.anchorMax = new Vector2(Math.Min(1, progress / .9f), 1);
         }
 
         IEnumerator LoadSkirmishMap(OzAiMap map)
@@ -673,18 +626,18 @@ namespace OpenZ.Multiplayer
             // Let the loading screen render before Unity begins scene I/O.
             yield return null;
             yield return null;
-            try { skirmishLoad = SceneManager.LoadSceneAsync(map.ScenePath, LoadSceneMode.Single); }
+            if (page != Page.SkirmishLoading) yield break;
+            try { TrackBattlefieldLoad(map.ScenePath); }
             catch (Exception error)
             {
                 Debug.LogException(error);
                 localSkirmish.ReturnToLobby(LocalSkirmishHost);
-                ShowError();
+                R.ReportError("Unable to load " + map.Name + ".");
             }
-            if (skirmishLoad == null) yield break;
-            yield return skirmishLoad;
+            if (battlefieldLoad == null) yield break;
+            yield return battlefieldLoad;
             yield return null;
-            skirmishLoad = null;
-            CloseOverlay();
+            if (page == Page.SkirmishLoading) CloseOverlay();
         }
 
         string roomTechMap;

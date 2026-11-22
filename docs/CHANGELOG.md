@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.47 (22 Nov 2026)
+
+- Skirmish and online multiplayer — Loading screens show the battlefield minimap and its planet. Skirmish shows when it is setting up teams and bots. Online, you can see when your map has loaded and the match is waiting for the other players.
+
 ## OpenZ-VK 1.5.46 (22 Nov 2026)
 
 - Online matches with three or more players — The Victory and Defeat screens show each player's units built, territories, kills and losses. In larger matches, switch between the full table and the Forces Over Time graph.

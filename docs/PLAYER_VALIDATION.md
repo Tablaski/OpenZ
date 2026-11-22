@@ -6,6 +6,8 @@
 
 ## OpenZ-VK 1.5.40 fort destruction in multiplayer
 
+- Source checkpoint `5ebb4b02` compiled against the Unity 6000.3.27f2 release runtime references. Skirmish simulation checks reached the room test suite, which stopped at `Team edits publish as one revision`. The same assertion fails on the parent checkpoint `75fde69e`.
+
 - Pending in a compiled game. In a two-participant match, destroy either fort and verify both clients see the existing ending and results.
 - Start an online match with at least three occupied seats, including a bot, and repeat with the host and a guest eliminated first. Verify only the defeated client sees the cinematic camera, while the other clients retain camera and unit control and see one elimination notice. Check that the flyover and explosion remain visible when looking toward the fort, including when two forts fall nearly together.
 - After the sequence, verify free camera, following surviving human players, the Ghost overlay, text chat and order rejection for the eliminated client. Verify the last surviving team still triggers the normal results and starting a new match clears the previous Ghost state.

@@ -47,6 +47,12 @@ namespace OpenZ.Multiplayer
             dirty = true;
         }
 
+        internal void ReturnToLocalSkirmishLobby()
+        {
+            ShowSkirmish();
+            OzScenes.MainMenu();
+        }
+
         void BuildSkirmish()
         {
             if (localSkirmish == null)

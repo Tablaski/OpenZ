@@ -77,6 +77,7 @@
 - Pending in a compiled game. Open Multiplayer → Skirmish at 16:9, 4:3 and ultrawide resolutions. Check the three aligned panels, complete minimaps, 3D preview, map tech, opening orders and the Start Game button.
 - Switch between OpenZ Maps and AI Maps. Verify the 2, 3, 4 and 8 player filters and that 6 is disabled. Check that Desert P08M01 and Hunters each start with one human and seven bots.
 - In Teams and Free For All, use each All Bots difficulty button and check that every bot changes difficulty in place. Change one bot individually and check that the group selection clears for the mixed roster.
+- In a local Skirmish match, cancel Quit to Lobby once and verify the match can resume. Then confirm Quit to Lobby and verify the map, teams, bot difficulties and rules are available for another match.
 - Move participants by dragging and by selecting a card followed by a team. Verify dropping outside a team leaves the assignment intact. Check difficulty, scrolling with eight participants, adding a team, Free for All, swapping starting sides and the two-opposing-teams requirement.
 
 ## OpenZ-VK 1.5.30 solo map selection

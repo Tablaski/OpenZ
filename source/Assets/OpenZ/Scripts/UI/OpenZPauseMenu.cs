@@ -67,6 +67,8 @@ namespace OpenZ
             if (!OzKit.Available) pp.color = HudStyle.Slate;
             bool duel = OpenZ.Multiplayer.DuelRuntime.Active;
             bool onlineSkirmish = duel && OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom;
+            var multiplayerMenus = Multiplayer.DuelRuntime.I?.Menus;
+            bool localSkirmish = !duel && multiplayerMenus?.LocalSkirmishMatch(game.level) != null;
             var ms = OzKit.GetSprite("Wordmarks/mask_paused");
             if (duel)
                 Hud.Label(pausePanel, "MatchMenu", "MATCH MENU", 56, OzUi.Ink, 0.02f).At(OzLayout.PauseWordX, OzLayout.PauseWordY, OzH.L, false, OzLayout.PauseBtnW);
@@ -113,6 +115,15 @@ namespace OpenZ
                 Big(OpenZ.Multiplayer.DuelRuntime.I.IsHost ? "CHANGE MAP" : "ASK TO CHANGE MAP", HudButtonStyle.Normal,
                     () => OpenZ.Multiplayer.DuelRuntime.I.RequestMapChange());
                 Big("RETURN TO LOBBY", HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.RequestLobbyReturn());
+            }
+            else if (localSkirmish)
+            {
+                Big("QUIT TO LOBBY", HudButtonStyle.Danger, () =>
+                    OzConfirm.Ask("QUIT TO THE SKIRMISH LOBBY?", "THE CURRENT MATCH WILL END.", () =>
+                    {
+                        Close();
+                        multiplayerMenus.ReturnToLocalSkirmishLobby();
+                    }, id => OzSfx.Ui(id), canvas.sortingOrder + 10));
             }
             else if (game.World?.Map.skirmish == true && !(onlineSkirmish && OpenZ.Multiplayer.DuelRuntime.I.MatchGhost))
             {

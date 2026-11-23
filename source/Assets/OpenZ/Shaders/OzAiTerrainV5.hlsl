@@ -111,10 +111,14 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
         float drift = smoothstep(.55,.82,dune);
         float glaze = V5LakeIceMask(palette);
         float2 crystal = V5Cells(p * float2(.38,.54) + V5Noise(p * .86) * .12);
-        float cracks = (1 - smoothstep(.003,.018,crystal.y)) * smoothstep(.37,.69,V5Noise(p * .63));
+        float fractureWidth = max(.011,pixel * .31);
+        float cracks = (1 - smoothstep(.003,fractureWidth,crystal.y)) * smoothstep(.49,.73,V5Noise(p * .63));
+        float2 scratches = float2(dot(p,float2(.82,.57)),dot(p,float2(-.57,.82)));
+        float scoring = smoothstep(.68,.85,V5Noise(scratches * float2(.55,12.4))) * V5Resolved(pixel,12.4);
+        float bubbles = smoothstep(.74,.91,V5Noise(p * 8.6)) * V5Resolved(pixel,8.6);
         float blue = V5Noise(p * .19) * .76 + V5Noise(p * .92) * .24;
-        half3 ice = lerp(half3(.034,.123,.184),half3(.115,.266,.339),blue);
-        ice += half3(.14,.21,.25) * (cracks * .49 + smoothstep(.64,.84,V5Noise(p * 1.13)) * .19);
+        half3 ice = lerp(half3(.026,.106,.146),half3(.10,.246,.301),blue);
+        ice += half3(.14,.21,.25) * (cracks * .49 + scoring * .14 + bubbles * .17);
         terrain = lerp(terrain * (1 + drift * .071 + grit * .15), ice, glaze * .94);
         elevation = lerp(elevation + drift * .017, -cracks * .0025,glaze);
         float driftOnRoad = smoothstep(.63,.82,dune + medium * .12) * (.30 + .53 * (1 - road));

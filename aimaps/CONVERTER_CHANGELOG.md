@@ -2,6 +2,8 @@
 
 ## V5 — five material studies on V4 geometry
 
+The Jungle target circulated with V4.1.5.54 was an edited preview. The implemented V4 relief shipped in the source for 1.5.56 and had distinct stepped sections in the ravines. V5 in 1.5.62 smooths the walls and bottoms of the two cuts in a render-only mesh, preserving the original raised road, bridge clearance, picking mesh and native tile classes. Open Arctic water reuses the 1.5.56 shader and material settings. The ice shader adds fine cracks, scoring and trapped bubbles under a view-dependent reflection. The snow on roads is retained. Use `-oz-ai-maps-v5 -oz-preview-wide` with the Unity capture entry point for the five wide 4K views.
+
 Launch with `-oz-ai-maps-v5` to enable V5 on Desert (SM02), Molten Kombat (SM08), Chilly Willy (SM11), The Jungle (SM16) and The Car Park (SM17). Other maps continue to use V4. The V3 switch takes precedence.
 
 - The approved direction for the revision is material detail on the existing OpenZ scene. V5 and V4 share vertices, triangle indices, the collider, shoreline shape, bridge decks, ramps and placements. The first V5 study (`a1e835ca`, refined in `d37fd441`) trialled higher exterior relief and procedural props. The revision retains that history and removes those effects from the active renderer.

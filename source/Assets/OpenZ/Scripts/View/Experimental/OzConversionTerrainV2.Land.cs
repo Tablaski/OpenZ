@@ -97,8 +97,6 @@ namespace OpenZ.Experimental
                 look.SetTexture("_LeafyMask", leaves == null ? Texture2D.blackTexture
                     : NewTexture(w, h, leaves, true, "Jungle moss and foliage cover"));
                 look.SetVector("_CrackRule", Vector4.zero);
-                if (IsPaletteV5 && mapId == "SM16")
-                    look.SetVector("_OzAiV4PreserveRect", new Vector4(72, 51, 132, 195));
             }
             else
             {

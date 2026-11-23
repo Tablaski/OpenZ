@@ -101,7 +101,8 @@ namespace OpenZ.Experimental
                     rockFace.SetVector("_OzAiV5GroundRect", new Vector4(0, -2 * map.height, .5f / map.width, .5f / map.height));
                 }
             }
-            terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
+            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 && mapId == "SM16"
+                ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
             if (IsPaletteV5 && map.planet == "volcanic") BuildVolcanicVents(map, Height, bridgeClearance);
@@ -145,6 +146,42 @@ namespace OpenZ.Experimental
                 triangles.Add(b);
                 triangles.Add(c);
             }
+        }
+
+        Mesh JungleRavineSurface(ZMapData map, List<Vector3> source, List<Vector2> uv, List<int>[] channels,
+            int stride, int step, OzAiTerrainV4.Bridge[] bridges)
+        {
+            var surface = new List<Vector3>(source);
+            int across = Mathf.Max(1, 2 / step), along = Mathf.Max(1, 4 / step);
+            for (int index = along * stride; index < source.Count - along * stride; index++)
+            {
+                var point = source[index];
+                float x = point.x, z = -point.z;
+                float left = Mathf.Min(x - 74, 99 - x), right = Mathf.Min(x - 109, 129 - x);
+                float interior = Mathf.Min(Mathf.Max(left, right), Mathf.Min(z - 54, 192 - z));
+                if (interior <= 0 || Mask(map, x, z, Road) > 0 ||
+                    System.Array.Exists(bridges, bridge => bridge.Clearance(x, z) > 0)) continue;
+                float surfaceY = 0, total = 0;
+                for (int row = -along; row <= along; row++)
+                for (int col = -across; col <= across; col++)
+                {
+                    float weight = (along + 1 - Mathf.Abs(row)) * (across + 1 - Mathf.Abs(col));
+                    surfaceY += source[index + row * stride + col].y * weight;
+                    total += weight;
+                }
+                var role = map.ClassAt(Mathf.FloorToInt(x * .5f), Mathf.FloorToInt(z * .5f));
+                float limit = role is ZClass.Impassable or ZClass.Water or ZClass.DeepWater ? 1.9f : .55f;
+                float adjustment = Mathf.Clamp(surfaceY / total - point.y, -limit, limit);
+                point.y += adjustment * Mathf.SmoothStep(0, 1, interior / 3);
+                surface[index] = point;
+            }
+            var mesh = NewMesh("SM16 ravine render surface", surface);
+            mesh.SetUVs(0, uv);
+            mesh.subMeshCount = channels.Length;
+            for (int i = 0; i < channels.Length; i++) mesh.SetTriangles(channels[i], i, false);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         static float TerraceAdjustment(ZMapData map, OzJungleTerracesV4 terraces, float x, float z, float height)
@@ -326,8 +363,6 @@ namespace OpenZ.Experimental
             look.DisableKeyword("_WATER_FLOWMAP");
             if (look.HasProperty("_UseFlowMap")) look.SetFloat("_UseFlowMap", 0);
             if (useV4 && map.planet == "arctic") ArcticWaterLook(look);
-            if (IsPaletteV5 && map.planet == "arctic" && look.HasProperty("_OzAiWaterV5"))
-                look.SetFloat("_OzAiWaterV5", 1);
             generated.Add(look);
             surface.GetComponent<MeshRenderer>().sharedMaterial = look;
             if (IsPaletteV5 && map.planet == "city") BuildCityOutfalls(map);

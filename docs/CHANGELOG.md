@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.62 (23 Nov 2026)
+
+- AI Maps — The experimental V5 examples restore the V4 open water on Arctic, refine the lake ice and soften the cliffs alongside the raised road on The Jungle.
+
 ## OpenZ-VK 1.5.61 (23 Nov 2026)
 
 - Solo and Skirmish — The 2026 AI prioritizes an exposed fort entrance. It can also bombard a fort or hunt the remaining enemy units, and uses its available forces to decide how to deal with surviving turrets.

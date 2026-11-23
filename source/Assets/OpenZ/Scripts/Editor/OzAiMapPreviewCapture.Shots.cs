@@ -132,6 +132,21 @@ namespace OpenZ.EditorTools
             if (FullMapVisible(map)) throw new InvalidOperationException("A shot frames the complete map on " + game.level);
         }
 
+        static Shot WideShot(OzAiMap entry, ZMapData map)
+        {
+            var focus = entry.Id switch
+            {
+                "SM02" => new Vector3(102, 1, -67),
+                "SM08" => new Vector3(109, 1, -97),
+                "SM11" => new Vector3(135, 1, -94),
+                "SM16" => new Vector3(106, 1, -102),
+                _ => new Vector3(151, 1, -158)
+            };
+            float heading = entry.Id == "SM16" ? -4 : entry.Id == "SM17" ? 147 : -32;
+            return new Shot("wide oblique view", focus, Vector3.zero, heading, 0, 39, 0,
+                Mathf.Clamp(Mathf.Min(map.width,map.height) * 1.1f, 84, 110), 0, 53, 1);
+        }
+
         static Shot RimShot(OzAiMap entry, ZMapData map)
         {
             float heading = entry.World == "desert" ? -22 : entry.World == "city" ? 20 : 8;

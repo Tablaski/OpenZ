@@ -330,7 +330,7 @@ Shader "OpenZ/Sand"
                 {
                     float4 field = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, i.uv, 0);
                     materialHeight = OZAiV5Surface(albedo, w, ozPxm, _OzAiTerrainProfile, field.r, field.a);
-                    if (_OzAiTerrainProfile > 4.5) iceGlaze = V5LakeIceMask(field.a);
+                    if (_OzAiTerrainProfile > 4.5) iceGlaze = V5LakeIceMask(field.a) * (1-smoothstep(.18,.47,field.r));
                 }
                 if (_OzCraterRole > 1.5)
                 {
@@ -359,8 +359,9 @@ Shader "OpenZ/Sand"
                 {
                     float3 reflected = reflect(-inputData.viewDirectionWS,inputData.normalWS);
                     half horizon = pow(1 - saturate(dot(inputData.normalWS,inputData.viewDirectionWS)),3);
-                    half cloud = V5Noise(reflected.xz * 1.9 + i.positionWS.xz * .043);
-                    c.rgb += half3(.18,.31,.42) * (.06 + .66*horizon) * (.25 + .75*cloud) * iceGlaze;
+                    float2 reflectedSky = reflected.xz * 3 + i.positionWS.xz * .038;
+                    half cloud = smoothstep(.36,.70,V5Noise(reflectedSky) * .72 + V5Noise(reflectedSky * 2.3) * .28);
+                    c.rgb += half3(.19,.30,.40) * (.12 + .55*horizon) * (.25 + .75*cloud) * iceGlaze;
                 }
                 c.rgb = OZNightEnvFix(c.rgb, inputData, s, 0);                          // night_v2: ground = environment class
                 // soft warm shadows: shadowed sand keeps a warm bounce instead of going grey

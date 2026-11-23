@@ -22,7 +22,7 @@ namespace OpenZ.EditorTools
         static OzAiMap[] entries;
         static string output, ffmpeg, clip;
         static int index, frame, loadedAt, lastFrame, width, height;
-        static bool comparison, stills, force, rim, bridgeStills, review;
+        static bool comparison, stills, force, rim, bridgeStills, review, wide;
         static Camera camera;
         static RenderTexture target;
         static Texture2D image;
@@ -88,7 +88,8 @@ namespace OpenZ.EditorTools
 
             output = Path.GetFullPath(Arg("-oz-preview-output") ?? "../.local/ai-map-previews");
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
-            comparison = args.Contains("-oz-preview-comparisons");
+            wide = args.Contains("-oz-preview-wide");
+            comparison = wide || args.Contains("-oz-preview-comparisons");
             rim = comparison && args.Contains("-oz-preview-rim");
             bridgeStills = comparison && args.Contains("-oz-preview-bridges");
             review = comparison && args.Contains("-oz-preview-v5-review");
@@ -207,7 +208,9 @@ namespace OpenZ.EditorTools
             lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
             var planned = Plan(entry, game);
             var border = RimShot(entry, game.World.Map);
-            if (review)
+            if (wide)
+                shots = new[] { WideShot(entry, game.World.Map) };
+            else if (review)
             {
                 RecordTerrainGeometry(entry, terrain);
                 var selected = new System.Collections.Generic.List<Shot> { border, TerrainReviewShot(entry, planned[0]) };
@@ -242,8 +245,6 @@ namespace OpenZ.EditorTools
         {
             var ground = terrain.transform.Find("COL_Terrain");
             Mesh mesh = ground.GetComponent<MeshCollider>().sharedMesh;
-            if (ground.GetComponent<MeshFilter>().sharedMesh != mesh)
-                throw new InvalidOperationException("Rendered and collision terrain differ on " + entry.Id);
             using var data = new MemoryStream();
             using var writer = new BinaryWriter(data);
             writer.Write(mesh.vertexCount);

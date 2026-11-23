@@ -104,6 +104,8 @@ static class BalanceChecks
             firing.Objects.RemoveAll(o => o.IsUnit && o != attacker);
             int distance = roof ? attacker.WidthPix / 2 + ZObject.FortGunMinEdgePx + 8 : 96;
             var target = firing.CreateObject("vehicle", "jeep", attacker.CenterX + distance - 16, attacker.CenterY - 16, Team.Blue);
+            target.Health = target.MaxHealth = int.MaxValue / 2;
+            target.CanBeSnipedFlag = false;
             var fire = typeof(ZObject).GetMethod("ProcessAttackDamage", BindingFlags.Instance | BindingFlags.NonPublic);
             firing.Events.Clear();
             for (int i = 0; i < 120; i++)

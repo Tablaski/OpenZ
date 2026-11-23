@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.62 V5 wide views
+
+- Checkpoint `8cff09e2` passed 9,073 headless simulation checks. The Unity Editor rendered five native 3840 × 2160 oblique screenshots with `-oz-preview-wide -oz-ai-maps-v5`. The Arctic open-water shader, base water material and native map grids match 1.5.56.
+- SM16 uses a separate render mesh for the two ravines. The original collision mesh, road and bridge clearance are retained. The rendered ravines still show local breaks at native water boundaries. Player-driven traversal and bridge tests remain pending.
+
 ## OpenZ-VK 1.5.61 victory choices
 
 - Source checkpoint `b43c22ee` passed 9,073 core and real-map simulation checks. The focused scenarios prove that a Heavy and a mixed group enter after the guarding turret falls, that a Heavy can destroy a vulnerable fort by bombardment with the gate still guarded, and that the bot can defeat the last opposing unit without attacking or entering the fort. The engine then destroys the defeated side's fort.

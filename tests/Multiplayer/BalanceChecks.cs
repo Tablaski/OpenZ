@@ -101,7 +101,7 @@ static class BalanceChecks
             var attacker = roof ? firing.Objects.First(o => o.IsFort && o.Owner == Team.Red) :
                 mounted ? firing.Objects.Single(o => o.Type == type && o.Owner == Team.Red && !o.Ejectable) :
                 firing.CreateObject("cannon", type, 256, 256, Team.Red);
-            foreach (var unit in firing.Objects.Where(o => o.IsUnit && o != attacker).ToArray()) firing.DeleteObject(unit);
+            firing.Objects.RemoveAll(o => o.IsUnit && o != attacker);
             int distance = roof ? attacker.WidthPix / 2 + ZObject.FortGunMinEdgePx + 8 : 96;
             var target = firing.CreateObject("vehicle", "jeep", attacker.CenterX + distance - 16, attacker.CenterY - 16, Team.Blue);
             var fire = typeof(ZObject).GetMethod("ProcessAttackDamage", BindingFlags.Instance | BindingFlags.NonPublic);

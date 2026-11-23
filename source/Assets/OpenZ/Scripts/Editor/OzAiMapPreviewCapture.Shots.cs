@@ -151,8 +151,8 @@ namespace OpenZ.EditorTools
         {
             var map = battle.World.Map;
             var center = new Vector3(map.width, 0, -map.height);
-            var bridge = battle.World.Objects.Where(obj => obj.IsBridge && !obj.Destroyed)
-                .OrderBy(obj => (battle.CenterWorld(obj, false) - center).sqrMagnitude).FirstOrDefault();
+            var bridge = battle.World.Objects.Where(obj => obj.IsBridge).OrderBy(obj => obj.Destroyed)
+                .ThenBy(obj => (battle.CenterWorld(obj, false) - center).sqrMagnitude).FirstOrDefault();
             if (bridge == null)
             {
                 shot = default;

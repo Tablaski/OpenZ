@@ -63,10 +63,11 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
         float2 wind = float2(dot(p, float2(.88,.47)), dot(p, float2(-.47,.88)));
         float sheet = V5Noise(float2(wind.x * .10, wind.y * .19 + coarse * .55));
         float streak = smoothstep(.46,.78,sheet) * (.32 + .68 * palette);
-        float ripple = sin(wind.y * 13 + V5Noise(wind * .21) * 5 + coarse * 1.8);
-        ripple *= V5Resolved(pixel, 2.2) * smoothstep(.2,.62,coarse);
-        terrain *= lerp(half3(1.025,1.012,1),half3(.72,.65,.57),streak) * (1 + ripple * .064 + grit * .24);
-        elevation += ripple * .014;
+        float duneField = smoothstep(.43,.74,V5Noise(wind * float2(.22,.13) + 19));
+        float ripple = sin(wind.y * 13 + V5Noise(wind * .24) * 8 + coarse * 2.5);
+        ripple *= V5Resolved(pixel, 2.2) * duneField;
+        terrain *= lerp(half3(1.025,1.012,1),half3(.72,.65,.57),streak) * (1 + ripple * .053 + grit * .24);
+        elevation += ripple * .005;
     }
     else if (biome < 2.5)
     {
@@ -129,6 +130,11 @@ float V5Rock(inout half3 albedo, float3 p, float3 normalWS, float biome, float p
     float warmth = V5Noise(p.xz * .25 + p.y * .13);
     half3 tint = biome < 1.5 ? half3(.77,.67,.57) : biome > 4.5 ? half3(.65,.76,.87) : half3(.74,.71,.70);
     albedo *= lerp((half3)1,tint,cracks * .62) * (1 + layers*.31 + (warmth-.5)*.15);
+    if (biome < 1.5)
+    {
+        half mineral = dot(albedo, half3(.30,.59,.11));
+        albedo = lerp(albedo,mineral * half3(1.12,1.03,.87),.22 + top*.16);
+    }
     return layers * .031 - cracks * .021;
 }
 

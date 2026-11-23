@@ -137,12 +137,20 @@ namespace OpenZ.Sim
 
                 ZObject entrant = null;
                 double quickest = level >= ZBotDifficulty.Skilled ? 28 : 14;
+                var roof = fort.FortDefenderMan;
+                double roofDamage = 0;
+                if (roof != null && enemies.Contains(roof))
+                {
+                    roofDamage = roof.Damage * 2;
+                    roofDamage += Math.Min(2, roof.FortDefenderGrenades) * world.S.grenade_damage * ZConst.MAX_UNIT_HEALTH;
+                }
                 foreach (var unit in units)
                 {
                     if (unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == WpMode.EnterFort &&
                         unit.Waypoints[0].refId == fort.Id) { entrant = null; break; }
                     if (unit == sortieCrew || unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP() ||
-                        HasMissionOtherThanCombat(unit) || (unit.Type == "crane" && level != ZBotDifficulty.Zod)) continue;
+                        HasMissionOtherThanCombat(unit) || unit.Health <= roofDamage ||
+                        (unit.Type == "crane" && level != ZBotDifficulty.Zod)) continue;
                     long distanceSquared = ZAiGeometry.DistanceSquared(unit, x, y);
                     if (distanceSquared > 320L * 320) continue;
                     double distance = Math.Sqrt(distanceSquared);
@@ -160,7 +168,7 @@ namespace OpenZ.Sim
         {
             foreach (var enemy in enemies)
             {
-                if (!enemy.IsUnit || !enemy.CanAttack()) continue;
+                if (!enemy.IsUnit || enemy.IsFortDefender || !enemy.CanAttack()) continue;
                 int guardRadius = Math.Max(160, enemy.AttackRadius + 32);
                 if (ZAiGeometry.DistanceSquared(enemy, x, y) <= (long)guardRadius * guardRadius ||
                     ZAiGeometry.DistanceSquared(enemy, fort.CenterX, fort.CenterY) <= (long)guardRadius * guardRadius)

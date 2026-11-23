@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.53 (23 Nov 2026)
+
+- Local Skirmish — Losing your fort now ends the match and opens the Defeat screen with your match statistics, even when several opponents are still in play.
+
 ## OpenZ-VK 1.5.52 (23 Nov 2026)
 
 - Solo + 1 vs 1 — AI Maps now offers Desert (02), Pyro Technics (07), The Jungle (16) and The Car Park (17) alongside the official OpenZ levels.

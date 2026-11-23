@@ -101,7 +101,7 @@ namespace OpenZ
             OpenZEnding.OnEndScreen();                                                       // endings_v1: camera back to the player, held deaths finish
             OzFortInferno.DuckAll(-14f, 1f, "end screen");
             bool won = game && game.World != null && game.World.IsWinningSeat(game.player);
-            bool draw = game && game.World != null && game.World.Winner == Team.Neutral;
+            bool draw = game && game.World != null && game.World.IsDraw;
             if (!draw) AudioDirector.UI(won ? "ter_victory_sfx" : "ter_defeat_sfx");
             if (!draw) AudioDirector.UI(won ? "ui_victory_hit" : "ui_defeat_hit");                         // sound_v3: the hit also with music off            // the sting with the screen
             Debug.Log($"[OpenZ] end sequence: end screen ({why}) {Time.time - overAt:F1} s after the game over");
@@ -109,7 +109,7 @@ namespace OpenZ
 
         IEnumerator Run(Team winner)
         {
-            bool draw = winner == Team.Neutral, won = winner == game.player;
+            bool draw = game.World.IsDraw, won = winner == game.player;
             // 1) the strike: wait for its impact (it may still be in the air: the fort fell up to ~1 s before the game over)
             float t0 = Time.time;                                                            // game time: the pause menu freezes the sequence
             while (Time.time - t0 < NoStrikeDelay && !OpenZNukeStrike.Active && OpenZNukeStrike.LastImpactTime < overAt - 8f) yield return null;

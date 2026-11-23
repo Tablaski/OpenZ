@@ -16,6 +16,7 @@ static class SkirmishChecks
         CheckMatchSeats(check);
         CheckTwoStartSkirmish(root, settings, check);
         string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+        CheckLocalDefeat(settings, grid, check);
         CheckTeamplay(settings, grid, check);
         var world = ZWorld.Create(settings, grid, 12);
         var teams = new[] { Team.Red, Team.Blue, Team.Green };
@@ -45,6 +46,52 @@ static class SkirmishChecks
             "The authoritative end check marks only the decisive fort in the elimination tick");
         for (int i = 0; i < 150; i++) world.Tick(ZConst.TICK);
         check(world.GameOver && world.Winner == Team.Green, "The last remaining contender wins, including green");
+    }
+
+    static void CheckLocalDefeat(string settings, string grid, Action<bool, string> check)
+    {
+        ZWorld Create(int[] alliances, int[] closed, bool allForOne = false)
+        {
+            var world = ZWorld.Create(settings, grid, 12);
+            world.SetSkirmishAlliances(alliances);
+            world.ConfigureSkirmishRules(new SkirmishRules { AllForOne = allForOne }, closed);
+            world.LocalSkirmishPlayer = Team.Green;
+            world.Tick(ZConst.TICK);
+            return world;
+        }
+
+        void DestroyFort(ZWorld world, Team team)
+        {
+            var fort = world.Objects.Single(o => o.IsFort && o.Owner == team);
+            fort.SetHealth(0);
+            world.UpdateObjectHealth(fort);
+        }
+
+        var freeForAll = Create(new[] { 0, 1, 2 }, Array.Empty<int>());
+        DestroyFort(freeForAll, Team.Green);
+        freeForAll.Tick(ZConst.TICK);
+        check(freeForAll.GameOver && freeForAll.LocalSkirmishDefeat && !freeForAll.IsDraw &&
+            freeForAll.Winner == Team.Neutral && freeForAll.IsFinalSkirmishFort(Team.Green) &&
+            freeForAll.UnitCount(Team.Red) > 0 && freeForAll.UnitCount(Team.Blue) > 0,
+            "Local fort loss ends a contested Skirmish as a defeat and identifies the local fort for the camera");
+
+        var twoSeats = Create(new[] { 0, 1, 2 }, new[] { 1 });
+        check(twoSeats.SurrenderSkirmish(Team.Green) && twoSeats.GameOver &&
+            twoSeats.LocalSkirmishDefeat && twoSeats.Winner == Team.Red,
+            "Local surrender on a two-seat map ends immediately with the surviving opponent as winner");
+
+        var botFalls = Create(new[] { 0, 1, 2 }, Array.Empty<int>());
+        DestroyFort(botFalls, Team.Red);
+        botFalls.Tick(ZConst.TICK);
+        check(!botFalls.GameOver && !botFalls.LocalSkirmishDefeat && !botFalls.IsFinalSkirmishFort(Team.Red),
+            "The local player can keep fighting after an unrelated bot only is eliminated");
+
+        var linked = Create(new[] { 0, 1, 1 }, Array.Empty<int>(), allForOne: true);
+        DestroyFort(linked, Team.Blue);
+        linked.Tick(ZConst.TICK);
+        check(linked.GameOver && linked.LocalSkirmishDefeat && linked.Winner == Team.Red &&
+            linked.IsFinalSkirmishFort(Team.Blue) && !linked.IsFinalSkirmishFort(Team.Green),
+            "All for one uses the first allied fort for the local defeat camera");
     }
 
     internal static void CheckTeamplay(string settings, string grid, Action<bool, string> check)

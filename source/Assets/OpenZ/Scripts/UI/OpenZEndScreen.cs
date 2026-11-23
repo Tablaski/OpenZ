@@ -176,7 +176,7 @@ namespace OpenZ
             OzEndingVignette.Release();
             if (hud) hud.SetVisible(false);                                                              // critic: the HUD stayed drawn over the end screen
             var W = game.World; var me = hud.Player;
-            kind = winner == Team.Neutral ? "draw" : W.AreAllied(winner, me) ? "victory" : "defeat";
+            kind = W.LocalSkirmishDefeat ? "defeat" : winner == Team.Neutral ? "draw" : W.AreAllied(winner, me) ? "victory" : "defeat";
             win = kind == "victory";
             canvas.gameObject.SetActive(true);
             post = kind == "victory" ? new OzPost("OZ_EndScreen", -45f, -0.9f, 0.35f) : kind == "defeat" ? new OzPost("OZ_EndScreen", -70f, -1.1f, 0.45f) : new OzPost("OZ_EndScreen", -60f, -1f, 0.4f);
@@ -250,8 +250,9 @@ namespace OpenZ
                 wmFace.enabled = wmGlow.enabled = wmFlash.enabled = false;
                 Hud.Label(wmRoot, "Text", kind.ToUpperInvariant(), 118, win ? (Color)OzUi.AmberHi : (Color)OzUi.Ink, -0.015f, OzStyle.Glow).FillParent(OzH.C);
             }
+            string defeat = hud.Stats.FortLost.Contains(me) ? "YOUR FORT HAS FALLEN" : "YOUR FORCES ARE GONE";
             string sub = win ? $"{TeamColors.Name(me)} FORCES HOLD {level}"
-                       : kind == "defeat" ? $"{(W != null && hud.Stats.FortLost.Contains(me) ? "YOUR FORT HAS FALLEN" : "YOUR FORCES ARE GONE")} · {TeamColors.Name(enemy)} HOLDS {level.Replace("THE ", "THE ")}"
+                       : kind == "defeat" ? (winner == Team.Neutral ? defeat : $"{defeat} · {TeamColors.Name(enemy)} HOLDS {level}")
                        : "STALEMATE · NO FORCES LEFT";
             subtitle = Hud.Label(root, "Subtitle", sub, OzLayout.EndSubtitleSize, win ? (Color)OzUi.Ink : kind == "defeat" ? (Color)OzUi.AlertText : (Color)OzUi.Ink2, 0.22f);
             subtitle.rectTransform.anchorMin = subtitle.rectTransform.anchorMax = new Vector2(0.5f, 1);
@@ -292,7 +293,9 @@ namespace OpenZ
             var cp = Hud.Kit(chartRt, "Plate", "EndScreen/chart_plate", new OzRect(0, 0, chartHome.w, chartHome.h), null);
             if (!OzKit.Available) cp.color = HudStyle.Slate;
             Hud.Label(chartRt, "Title", "FORCES OVER TIME", 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(16, 14);
-            var chartTeams = participants.Length >= 2 ? participants.Select(person => person.team).ToArray() : new[] { Team.Blue, Team.Red };
+            var chartTeams = participants.Length >= 2 ? participants.Select(person => person.team).ToArray()
+                : W.LocalSkirmishPlayer != Team.Neutral ? W.Bots.Select(bot => bot.Team).Append(me).Distinct().OrderBy(team => team).ToArray()
+                : new[] { Team.Blue, Team.Red };
             for (int i = 0; i < chartTeams.Length; i++)
             {
                 var team = chartTeams[i];

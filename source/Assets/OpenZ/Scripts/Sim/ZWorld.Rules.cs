@@ -305,6 +305,9 @@ namespace OpenZ.Sim
         int skirmishEliminated;
         int skirmishEliminationEvent = -1;
         int linkedDefeatFort = -1;
+        internal Team LocalSkirmishPlayer { get; set; }
+        internal bool LocalSkirmishDefeat => SkirmishEliminated(LocalSkirmishPlayer);
+        internal bool IsDraw => Winner == Team.Neutral && !LocalSkirmishDefeat;
 
         internal Team LinkedDefeatLeader(Team team)
         {
@@ -327,7 +330,7 @@ namespace OpenZ.Sim
             if (fort == null) return false;
             fort.SetHealth(0);
             UpdateObjectHealth(fort);
-            if (HasIndividualDefeatSequence) CheckEndGame();
+            if (HasIndividualDefeatSequence || LocalSkirmishDefeat) CheckEndGame();
             return true;
         }
 
@@ -337,9 +340,11 @@ namespace OpenZ.Sim
             if (Map.skirmish)
             {
                 if (HasIndividualDefeatSequence && SkirmishEliminated(team)) return;
-                skirmishEliminated |= 1 << (int)team;
-                if (HasIndividualDefeatSequence && !linked && !GameOver && !NoGameEnd)
+                bool localFort = LocalSkirmishPlayer != Team.Neutral &&
+                    (team == LocalSkirmishPlayer || SkirmishAllForOne && AreAllied(team, LocalSkirmishPlayer));
+                if (HasIndividualDefeatSequence && !linked && !GameOver && !NoGameEnd && (localFort || !LocalSkirmishDefeat))
                     skirmishEliminationEvent = Events.Count;
+                skirmishEliminated |= 1 << (int)team;
             }
             Events.Add(new ZEvent { type = ZEventType.TeamEliminated, objId = fort.Id, x = fort.CenterX, y = fort.CenterY,
                 value = (float)team, flag2 = linked, otherId = linked ? linkedDefeatFort : -1 });
@@ -369,12 +374,17 @@ namespace OpenZ.Sim
             if (GameOver) { if (EndFreezeDeviation) HoldAfterGameOver(); return; }
             int elimination = skirmishEliminationEvent;
             skirmishEliminationEvent = -1;
-            if (Time < nextEndCheck && elimination < 0) return;
+            if (Time < nextEndCheck && elimination < 0 && !LocalSkirmishDefeat) return;
             if (Time >= nextEndCheck) nextEndCheck = Time + 1.0;
             var teams = new HashSet<Team>();
             foreach (var o in Objects) if (o.IsUnit && o.Owner != Team.Neutral && !o.Destroyed && !o.IsFortDefender) teams.Add(o.Owner);   // fort_defender_v1 DV41
             var winner = teams.Count == 0 ? Team.Neutral : teams.Min();
-            if (teams.Any(team => !AreAllied(winner, team))) return;
+            if (teams.Any(team => !AreAllied(winner, team)))
+            {
+                if (!LocalSkirmishDefeat) return;
+                winner = Team.Neutral;
+            }
+            if (LocalSkirmishDefeat && AreAllied(winner, LocalSkirmishPlayer)) winner = Team.Neutral;
             GameOver = true; Winner = winner;
             if (elimination >= 0)
             {

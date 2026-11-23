@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.53 local Skirmish defeat
+
+- Pending in a compiled game. Lose your fort in a local Skirmish with two or more opponents. Check that the camera follows the falling fort, then the Defeat screen shows the statistics and Play Again works. Repeat with a swapped seat, surrender, and a team match with All for one. Check that the loss of a bot alone leaves the match running and that an early online elimination still leads to Ghost view.
+
 ## OpenZ-VK 1.5.52 restored AI Maps
 
 - Pending in a compiled game. Check the four restored AI maps under Z Original in solo and in the two-player lobby. Check previews and launch each map in both modes. Verify that the matching official levels still launch from OpenZ Maps and Ballerman's Map is absent.

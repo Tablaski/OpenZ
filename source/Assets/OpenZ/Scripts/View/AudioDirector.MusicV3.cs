@@ -89,7 +89,7 @@ namespace OpenZ
                     }
                 }
             }
-            int result = w.IsWinningSeat(Player) ? 1 : w.Winner == Team.Neutral ? 0 : -1;
+            int result = w.IsWinningSeat(Player) ? 1 : w.IsDraw ? 0 : -1;
             var inp = new MusicInput
             {
                 dt = Mathf.Min(dt, 0.1f), gameDt = paused ? 0f : simDt, playDt = paused ? 0f : Mathf.Min(dt, 0.1f), enabled = MusicOn, paused = paused, battle = danger != Danger.Calm,

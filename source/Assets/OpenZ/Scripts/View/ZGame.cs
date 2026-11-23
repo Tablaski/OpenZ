@@ -272,6 +272,7 @@ namespace OpenZ
                 if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });
                 if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });
             }
+            if (skirmish && !OpenZ.Multiplayer.DuelRuntime.Active) World.LocalSkirmishPlayer = player;
             foreach (var b in World.Bots) Debug.Log($"[OpenZ] CPU {b.Team}: {b.Difficulty}{(b.Difficulty == ZBotDifficulty.Easy ? $" (waits {ZBot.EASY_START_DELAY:0} s, max wave {ZBot.EASY_MAX_WAVE}, max attackers {ZBot.EASY_MAX_ATTACKERS})" : " (Zod bot)")}");
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;

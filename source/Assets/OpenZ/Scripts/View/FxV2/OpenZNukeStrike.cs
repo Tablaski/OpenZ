@@ -342,7 +342,9 @@ namespace OpenZ
             try { act?.Invoke(); }
             catch (Exception e) { Debug.LogException(e); }
             if (!InBackground) OpenZBloomDirector.Flash(1f);
-            if (!playground && !InBackground && ZGame.I?.World?.HasIndividualDefeatSequence != true) StartCoroutine(SlowMotion());                                // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
+            var world = ZGame.I?.World;
+            if (!playground && !InBackground && (world?.HasIndividualDefeatSequence != true || world.LocalSkirmishDefeat))
+                StartCoroutine(SlowMotion());                                                             // 1.3 item 2: the Unit editor owns the time scale (its PAUSE)
             if (!InBackground) StartCoroutine(Aftermath());
             if (ownsEnding) { try { Impacted?.Invoke(target, ours); } catch (Exception e) { Debug.LogException(e); } }
             Debug.Log($"[OpenZ] nuke strike impact at {target} ({(playground ? "the Unit editor's NUKE" : ours ? "our fort" : "enemy fort")}), {Time.time - t0:F1} s after the {(playground ? "call" : "fort fell")}");

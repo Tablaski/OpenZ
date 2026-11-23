@@ -2,10 +2,13 @@
 
 ## OpenZ-VK 1.5.61 victory choices
 
+- Source checkpoint `b43c22ee` passed 9,073 core and real-map simulation checks. The focused scenarios prove that a Heavy and a mixed group enter after the guarding turret falls, that a Heavy can destroy a vulnerable fort by bombardment with the gate still guarded, and that the bot can defeat the last opposing unit without attacking or entering the fort. The engine then destroys the defeated side's fort.
+- The local Windows release build succeeded with zero errors. It embeds version 1.5.62 and source commit `8cff09e2`, which includes the tested AI changes and the subsequent terrain update. Its modified-tree flag is set. The output folder retains the original `OpenZ-VK-1.5.61-dev` name.
 - Pending in a compiled game. Confirm that the exposed entrance takes priority, that surviving turret types and health affect the decision, and that the bot can also win by bombarding the fort or eliminating the remaining army.
 
 ## OpenZ-VK 1.5.60 exposed fort
 
+- The Windows release build succeeded and the source passed 9,071 simulation checks. This build contains the exposed-fort fix. The 1.5.61 build covers the expanded victory logic.
 - Pending in a compiled game. Observe a Heavy and a mixed group after they clear fort defenses, then check that the bot sends one nearby unit through the entrance. Repeat with a surviving turret.
 
 ## OpenZ-VK 1.5.59 V5 material examples

@@ -10,6 +10,8 @@ namespace OpenZ.Sim
 
         ZObject bridgeShooter, preparedBridge;
         double bridgeShotBefore, bridgePlanExpires;
+        ZObject sortieCrew, sortieCannon, sortieFlag, diversionUnit;
+        double nextSortie = 120, sortieDeadline;
 
         void ChooseInfrastructureDefense()
         {
@@ -152,6 +154,86 @@ namespace OpenZ.Sim
             if (bridgeShooter.Waypoints.Count > 0 && bridgeShooter.Waypoints[0].refId == preparedBridge.Id &&
                 !orders.Stop(bridgeShooter, preparedBridge)) return;
             bridgeShooter = preparedBridge = null;
+        }
+
+        void ManageCrewSortie()
+        {
+            if (sortieCrew != null)
+            {
+                if (sortieCrew.Owner != team || !Alive(sortieCrew) || !sortieCannon.CanBeEntered())
+                {
+                    sortieCrew = sortieCannon = sortieFlag = null;
+                    return;
+                }
+                if (world.Time >= sortieDeadline || world.AreAllied(team, sortieFlag.Owner) ||
+                    !world.CanCaptureFlag(team, sortieFlag) ||
+                    DangerousFor(sortieCannon) != null || DangerousFor(sortieFlag) != null)
+                {
+                    Issue(sortieCrew, sortieCannon, WpMode.Enter);
+                    return;
+                }
+                if (sortieCrew.Waypoints.Count == 0) Issue(sortieCrew, sortieFlag, WpMode.Move);
+                return;
+            }
+            if (world.Time < nextSortie) return;
+            nextSortie = world.Time + 20;
+            if (homeThreatened || sight.HasLimitedInformation || !orders.CanSpendTwice) return;
+
+            foreach (var gun in allies)
+            {
+                if (gun.Owner != team || gun.Kind != ZKind.Cannon || !gun.CanEjectDrivers() ||
+                    gun.AttackObject != null || gun.Drivers.Count == 0 || DangerousFor(gun) != null ||
+                    ZAiGeometry.DistanceSquared(gun, home.CenterX, home.CenterY) < 260L * 260) continue;
+                foreach (var flag in objectives)
+                {
+                    if (flag.Type != "flag" || world.AreAllied(team, flag.Owner) ||
+                        !world.CanCaptureFlag(team, flag) || assigned.ContainsKey(flag.Id) ||
+                        ZAiGeometry.DistanceSquared(gun, flag.CenterX, flag.CenterY) > 104L * 104 ||
+                        DangerousFor(flag) != null) continue;
+                    var crew = orders.Eject(gun);
+                    if (crew == null) return;
+                    sortieCannon = gun;
+                    sortieCrew = crew;
+                    sortieFlag = flag;
+                    sortieDeadline = world.Time + 13;
+                    if (Reachable(crew, flag.CenterX, flag.CenterY, 1)) Issue(crew, flag, WpMode.Move);
+                    else sortieDeadline = world.Time;
+                    return;
+                }
+            }
+        }
+
+        void TryDiversion()
+        {
+            if (world.Time < 120 || !AssaultReady || diversionUnit != null || homeThreatened ||
+                world.Time < assaultArrival - 10 || world.Time > assaultArrival - 4 || !orders.Available ||
+                !assaultFort.GetCreationMovePoint(out int gateX, out int gateY)) return;
+
+            var defender = DangerousFor(assaultFort);
+            if (defender == null || defender.AttackRadius <= 0) return;
+            int partners = 0;
+            foreach (var unit in units)
+                if (EligibleAssault(unit) && ZAiGeometry.DistanceSquared(unit, gateX, gateY) < 500L * 500) partners++;
+            if (partners < 3) return;
+            foreach (var unit in units)
+            {
+                bool crane = unit.Type == "crane";
+                if (!crane && unit.Type != "jeep" && unit.Type != "grunt") continue;
+                if (unit == sortieCrew || !Attending(unit) || unit.Health < unit.MaxHealth * .66 ||
+                    HasMissionOtherThanCombat(unit) || !crane && strategicRatio < .8 ||
+                    ZAiGeometry.DistanceSquared(unit, defender.CenterX, defender.CenterY) > 320L * 320) continue;
+                double dx = gateX - assaultFort.CenterX, dy = gateY - assaultFort.CenterY;
+                double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    int x = gateX + (int)(-dy * side * 120 / length);
+                    int y = gateY + (int)(dx * side * 120 / length);
+                    if (ZAiGeometry.DistanceSquared(defender, x, y) > (long)defender.AttackRadius * defender.AttackRadius ||
+                        !Reachable(unit, x, y) || !IssueMove(unit, x, y)) continue;
+                    diversionUnit = unit;
+                    return;
+                }
+            }
         }
     }
 }

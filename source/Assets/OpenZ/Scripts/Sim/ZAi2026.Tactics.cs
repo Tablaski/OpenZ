@@ -135,6 +135,7 @@ namespace OpenZ.Sim
             double bestScore = 0;
             foreach (var target in objectives)
             {
+                if (target == sortieCannon) continue;
                 assigned.TryGetValue(target.Id, out int commitments);
                 if (commitments > 0 && (target.Type == "flag" || target.Type == "grenades" || target.CanBeEntered() || target.Type == "repair")) continue;
                 double distance = ZAiGeometry.Distance(unit, target);

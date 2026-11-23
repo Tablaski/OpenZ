@@ -97,6 +97,7 @@ namespace OpenZ.Sim
                 assaultFort = fort;
             }
             if (assaultFort == null) return;
+            diversionUnit = null;
             earlyAssaultUsed |= early;
             assaultArrival = world.Time + (level == ZBotDifficulty.Zod ? 16 : 11);
             assaultUntil = assaultArrival + 9;

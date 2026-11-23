@@ -70,6 +70,12 @@ static class Ai2026Checks
             planned.Clear();
         }
         check(order.Actions == ZAiTuning.For(ZBotDifficulty.Zod).Burst, "Burst is bounded independently of the minute budget");
+
+        var sortieOrder = new ZAiOrders(world, Team.Blue, ZAiTuning.For(ZBotDifficulty.Skilled));
+        var cannon = world.CreateObject("cannon", "gatling", fort.LocX + 130, fort.LocY, Team.Blue);
+        var crew = sortieOrder.Eject(cannon);
+        check(crew != null && crew.IsRobot && crew.Owner == Team.Blue && cannon.CanBeEntered() &&
+            sortieOrder.Actions == 1, "A cannon sortie uses the existing crew command and counts once");
     }
 
     static void CheckProfiles(string settings, string grid, Action<bool, string> check)

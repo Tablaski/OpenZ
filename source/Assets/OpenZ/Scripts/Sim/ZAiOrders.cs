@@ -51,6 +51,20 @@ namespace OpenZ.Sim
             return true;
         }
 
+        internal ZObject Eject(ZObject cannon)
+        {
+            int firstEvent = world.Events.Count;
+            if (!Available || !world.Eject(team, cannon)) return null;
+            Record();
+            for (int i = firstEvent; i < world.Events.Count; i++)
+            {
+                var item = world.Events[i];
+                if (item.type == ZEventType.Ejected && item.objId == cannon.Id)
+                    return world.Get(item.otherId);
+            }
+            return null;
+        }
+
         internal bool Send(ZObject unit, ZWaypoint wp, HashSet<int> planned)
         {
             if (!Available || !Apply(unit, wp, planned)) return false;

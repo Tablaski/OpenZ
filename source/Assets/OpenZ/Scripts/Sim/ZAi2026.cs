@@ -66,6 +66,11 @@ namespace OpenZ.Sim
                 EvaluateStrategy();
             }
             ChooseDefense();
+            if (level >= ZBotDifficulty.Skilled)
+            {
+                ManageCrewSortie();
+                TryDiversion();
+            }
             Act();
             if (world.Time >= nextProduction && orders.Available)
             {
@@ -168,7 +173,8 @@ namespace OpenZ.Sim
             {
                 var unit = units[cursor];
                 cursor = (cursor + 1) % count;
-                if (planned.Contains(unit.Id) || unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP()) continue;
+                if (planned.Contains(unit.Id) || unit == sortieCrew || unit == diversionUnit && AssaultReady ||
+                    unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP()) continue;
                 if (HandleTactics(unit) || unit.Waypoints.Count != 0 || OpeningIdle(unit)) continue;
                 var objective = PickObjective(unit, out var mode);
                 if (objective != null)
@@ -226,7 +232,8 @@ namespace OpenZ.Sim
                 foreach (var other in units)
                 {
                     if (group.Count >= limit) break;
-                    if (other == unit || other.IsRobot != unit.IsRobot || planned.Contains(other.Id) ||
+                    if (other == unit || other == sortieCrew || other == diversionUnit && AssaultReady ||
+                        other.IsRobot != unit.IsRobot || planned.Contains(other.Id) ||
                         mode == WpMode.EnterFort && !EligibleAssault(other) || OpeningIdle(other) ||
                         other.Stunned || other.BehaviorDodging || other.Waypoints.Count != 0 || other.AttackObject != null ||
                         ZAiGeometry.DistanceSquared(other, unit.CenterX, unit.CenterY) > 100L * 100 ||

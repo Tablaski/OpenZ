@@ -28,6 +28,7 @@ namespace OpenZ.EditorTools
         static Texture2D image;
         static Process encoder;
         static ZGame game;
+        static DayNight lighting;
         static Shot[] shots;
         static double worldTime;
 
@@ -125,6 +126,7 @@ namespace OpenZ.EditorTools
                 while (offset >= shots[active].Frames) offset -= shots[active++].Frames;
                 var shot = shots[active];
                 Pose(shot, comparison || stills ? .5f : offset / (shot.Frames - 1f));
+                if (lighting) lighting.Apply(.08f);
                 RenderSettings.fog = false;
                 Atmosphere.DebugFog = 2;
                 Shader.SetGlobalFloat("_AtmoEnabled", 0);
@@ -191,8 +193,9 @@ namespace OpenZ.EditorTools
             game.paused = true;
             worldTime = game.World.Time;
             var terrain = UnityEngine.Object.FindFirstObjectByType<OzConversionTerrainV2>();
-            if (!terrain || !terrain.IsPaletteV3 || terrain.IsPaletteV4 != OzAiTerrainV4.Active(entry.World))
+            if (!terrain || !terrain.IsPaletteV3 || terrain.IsPaletteV4 != (entry.Variant == "V4"))
                 throw new InvalidOperationException("Wrong terrain profile for " + entry.Id);
+            lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
             shots = Plan(entry, game);
             camera = Camera.main;
             camera.GetComponent<RtsCamera>().enabled = false;

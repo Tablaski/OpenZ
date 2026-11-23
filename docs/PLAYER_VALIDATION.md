@@ -2,6 +2,7 @@
 
 ## OpenZ-VK 1.5.56 five-biome V4 and preview capture
 
+- Passed 9,032 headless simulation checks. The capture inventory lists 88 enabled AI Maps. The runtime C# scripts and the V4 HLSL fragment include compiled separately. Native map files, decoded grids and build scene assets were unchanged.
 - Pending in Unity. The editor returned 198 and reported no valid licence. Use `tools/Refresh-AiMapPreviews.ps1` for the 88 map videos and five matched V3/V4 comparisons once Unity is available. The currently published package contains the earlier previews.
 - Inspect snow and gravel, frost boundaries, open water, both bridge axes and the preserved ramps in the Arctic maps, including an intact, destroyed and repaired crossing. Compare both sides of each bridge in the captures. Verify that robots can still wade in the original Arctic water and vehicles use the same crossings.
 - Review the 88 unique clips and check the selected map's video in solo, the online lobby and local Skirmish. Confirm stationary units throughout, distinguishable factories, radars, forts and rock formations, and the high straight road on SM16. Check that no shot frames the whole map at once and check poster fallback.

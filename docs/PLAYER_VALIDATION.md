@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.60 exposed fort
+
+- Pending in a compiled game. Observe a Heavy and a mixed group after they clear fort defenses, then check that the bot sends one nearby unit through the entrance. Repeat with a surviving turret.
+
 ## OpenZ-VK 1.5.59 V5 material examples
 
 - Compare the five opt-in scenes at the same Unity camera positions in V4 and V5. Record the shared mesh hash and inspect both bridge mouths. Validate intact, damaged and repaired crossings and perimeter interactions in a compiled game when requested.

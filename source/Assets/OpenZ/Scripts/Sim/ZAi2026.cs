@@ -66,6 +66,7 @@ namespace OpenZ.Sim
                 EvaluateStrategy();
             }
             ChooseDefense();
+            TryTakeOpenFort();
             if (level >= ZBotDifficulty.Skilled)
             {
                 ManageCrewSortie();

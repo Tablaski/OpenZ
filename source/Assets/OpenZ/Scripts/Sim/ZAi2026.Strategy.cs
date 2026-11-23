@@ -127,6 +127,48 @@ namespace OpenZ.Sim
         bool AssaultReady => assaultFort != null && Alive(assaultFort) &&
             sight.CanSee(assaultFort.CenterX, assaultFort.CenterY, false);
 
+        void TryTakeOpenFort()
+        {
+            if (!orders.Available) return;
+            foreach (var fort in enemies)
+            {
+                if (!fort.IsFort || !fort.CanEnterFort(team) || !fort.GetCreationMovePoint(out int x, out int y) ||
+                    !sight.CanSee(x, y) || GateIsDefended(fort, x, y)) continue;
+
+                ZObject entrant = null;
+                double quickest = level >= ZBotDifficulty.Skilled ? 28 : 14;
+                foreach (var unit in units)
+                {
+                    if (unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == WpMode.EnterFort &&
+                        unit.Waypoints[0].refId == fort.Id) { entrant = null; break; }
+                    if (unit == sortieCrew || unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP() ||
+                        HasMissionOtherThanCombat(unit) || (unit.Type == "crane" && level != ZBotDifficulty.Zod)) continue;
+                    long distanceSquared = ZAiGeometry.DistanceSquared(unit, x, y);
+                    if (distanceSquared > 320L * 320) continue;
+                    double distance = Math.Sqrt(distanceSquared);
+                    double arrival = distance / AssaultSpeed(unit, distance);
+                    if (arrival >= quickest || !Reachable(unit, x, y, 2)) continue;
+                    quickest = arrival;
+                    entrant = unit;
+                }
+                // An exposed gate is a local opportunity. A lone tank can exploit it before the next strategic round.
+                if (entrant != null && Issue(entrant, fort, WpMode.EnterFort)) return;
+            }
+        }
+
+        bool GateIsDefended(ZObject fort, int x, int y)
+        {
+            foreach (var enemy in enemies)
+            {
+                if (!enemy.IsUnit || !enemy.CanAttack()) continue;
+                int guardRadius = Math.Max(160, enemy.AttackRadius + 32);
+                if (ZAiGeometry.DistanceSquared(enemy, x, y) <= (long)guardRadius * guardRadius ||
+                    ZAiGeometry.DistanceSquared(enemy, fort.CenterX, fort.CenterY) <= (long)guardRadius * guardRadius)
+                    return true;
+            }
+            return false;
+        }
+
         bool TryAssault(ZObject unit)
         {
             if (!AssaultReady || !EligibleAssault(unit) || !assaultFort.GetCreationMovePoint(out int x, out int y)) return false;

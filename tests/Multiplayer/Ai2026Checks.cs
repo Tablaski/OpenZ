@@ -40,6 +40,8 @@ static class Ai2026Checks
         CheckRadar(settings, grid, check);
         CheckRoom(root, settings, check);
         CheckTeamRelief(root, settings, check);
+        CheckOpenFort(settings, ZBotDifficulty.Zod, reinforce: false, check: check);
+        CheckOpenFort(settings, ZBotDifficulty.Skilled, reinforce: true, check: check);
     }
 
     static ZWorld Match(string settings, string grid, ZBotDifficulty level)
@@ -47,6 +49,40 @@ static class Ai2026Checks
         var world = ZWorld.Create(settings, grid, 45);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
         return world;
+    }
+
+    static void CheckOpenFort(string settings, ZBotDifficulty level, bool reinforce, Action<bool, string> check)
+    {
+        const int side = 64;
+        string tiles = string.Join(",", new int[side * side]);
+        string grid = $@"{{""file"":""fort-opportunity"",""width"":{side},""height"":{side},""planet"":""desert"",
+            ""classes"":[{tiles}],""tiles"":[{tiles}],""zones"":[],""objects"":[
+                {{""kind"":""building:fort_front"",""x"":24,""y"":8,""owner"":""red"",""health_percent"":100}},
+                {{""kind"":""building:fort_back"",""x"":24,""y"":46,""owner"":""blue"",""health_percent"":100}}]}}";
+        var world = ZWorld.Create(settings, grid, 45);
+        var fort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+        fort.GetCreationMovePoint(out int x, out int y);
+        var turret = world.CreateObject("cannon", "gatling", x + 90, y - 24, Team.Red);
+        turret.Health = turret.MaxHealth = 500000;
+        var heavy = world.CreateObject("vehicle", "heavy", x - 16, y + 80, Team.Blue);
+        if (reinforce) world.CreateRobotGroup("sniper", x - 56, y + 64, Team.Blue, 1);
+        world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
+        int Entries() => world.UnitObjects.Count(o => o.Owner == Team.Blue && !o.IsMinion &&
+            o.Waypoints.Any(wp => wp.mode == WpMode.EnterFort && wp.refId == fort.Id));
+        for (int i = 0; i < 220; i++) world.Tick(ZConst.TICK);
+        check(Entries() == 0, level + " does not take the exposed-fort shortcut while a turret guards the entrance");
+        turret.SetHealth(0);
+        int entrants = 0;
+        for (int i = 0; i < 100; i++)
+        {
+            world.Tick(ZConst.TICK);
+            entrants = Math.Max(entrants, Entries());
+        }
+        check(entrants == 1 && (reinforce || heavy.Waypoints.Any(wp => wp.mode == WpMode.EnterFort)),
+            level + " commits one nearby entrant immediately when the last turret falls");
+        for (int i = 0; i < 5000 && !fort.Destroyed; i++) world.Tick(ZConst.TICK);
+        check(fort.Destroyed && world.Events.Any(e => e.type == ZEventType.FortEntered && e.otherId == fort.Id),
+            level + " follows the entry order through to defeating the fort");
     }
 
     static void CheckCommands(string settings, string grid, Action<bool, string> check)

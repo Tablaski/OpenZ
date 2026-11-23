@@ -203,7 +203,7 @@ namespace OpenZ.Sim
         {
             if (unit.Waypoints.Count == 0) return false;
             var order = unit.Waypoints[0];
-            return order.mode != WpMode.Move && order.mode != WpMode.Attack;
+            return order.mode != WpMode.Move && order.mode != WpMode.Attack && order.mode != WpMode.Agro;
         }
 
         double FlagImportance(ZObject flag)

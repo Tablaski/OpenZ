@@ -40,8 +40,14 @@ static class Ai2026Checks
         CheckRadar(settings, grid, check);
         CheckRoom(root, settings, check);
         CheckTeamRelief(root, settings, check);
-        CheckOpenFort(settings, ZBotDifficulty.Zod, reinforce: false, check: check);
-        CheckOpenFort(settings, ZBotDifficulty.Skilled, reinforce: true, check: check);
+        bool roofDefense = ZWorld.FortDefenderDeviation;
+        try
+        {
+            ZWorld.FortDefenderDeviation = false;
+            CheckOpenFort(settings, ZBotDifficulty.Zod, reinforce: false, check: check);
+            CheckOpenFort(settings, ZBotDifficulty.Skilled, reinforce: true, check: check);
+        }
+        finally { ZWorld.FortDefenderDeviation = roofDefense; }
     }
 
     static ZWorld Match(string settings, string grid, ZBotDifficulty level)
@@ -65,7 +71,7 @@ static class Ai2026Checks
         var turret = world.CreateObject("cannon", "gatling", x + 90, y - 24, Team.Red);
         turret.Health = turret.MaxHealth = 500000;
         // Keep the opponent in the match after the turret falls, away from the entrance.
-        world.CreateObject("vehicle", "jeep", 48, 64, Team.Red);
+        var reserve = world.CreateObject("vehicle", "jeep", 48, 64, Team.Red);
         var heavy = world.CreateObject("vehicle", "heavy", x - 16, y + 80, Team.Blue);
         if (reinforce) world.CreateRobotGroup("sniper", x - 56, y + 64, Team.Blue, 1);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
@@ -74,6 +80,10 @@ static class Ai2026Checks
         for (int i = 0; i < 220; i++) world.Tick(ZConst.TICK);
         check(Entries() == 0, level + " does not take the exposed-fort shortcut while a turret guards the entrance");
         turret.SetHealth(0);
+        world.SendWaypoints(Team.Blue, heavy, new[] { new ZWaypoint
+        {
+            mode = WpMode.Attack, refId = reserve.Id, x = reserve.CenterX, y = reserve.CenterY
+        } });
         int entrants = 0;
         for (int i = 0; i < 100; i++)
         {

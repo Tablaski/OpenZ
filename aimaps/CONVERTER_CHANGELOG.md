@@ -2,7 +2,7 @@
 
 ## V4 — surface detail, clean crossings and continuous cliffs
 
-V4 renders desert, volcanic, city and jungle AI Maps that already use the V3 palette. It applies in solo, Skirmish and online matches. Arctic keeps its existing art kit. Pass `-oz-ai-maps-v3` to the same compiled game or Unity preview process to compare the earlier appearance.
+V4 renders desert, volcanic, city and jungle AI Maps that already use the V3 palette. It applies in solo, Skirmish and online matches when the existing scene loads. Existing maps require no conversion or scene rebake. To add a new map, decode its native file and bake its scene with the V3 palette enabled. Catalogue videos and posters are separate assets. Regenerate them with the preview capture tool after reviewing the live terrain. Arctic keeps its existing art kit. Pass `-oz-ai-maps-v3` to the same compiled game or Unity preview process to compare the earlier appearance.
 
 ### Rendering stages
 
@@ -16,6 +16,7 @@ V4 renders desert, volcanic, city and jungle AI Maps that already use the V3 pal
 - Keep the native `.map` bytes, decoded grids, tile classes, road and lava masks, objects, starting positions, territories, IDs and gameplay rules intact. Unity uses the terrain surface for selection and view height. Bridge decks and movement rules retain their existing simulation bindings.
 - The shader property starts at zero on official materials, V2 and V3. V4 adds no per-map texture pack or duplicate scene.
 - Headless checks cover native map loads, movement and bridge states as well as V4 bridge envelopes and ridge masks. The runtime checks are listed in [the player validation record](../docs/PLAYER_VALIDATION.md).
+- The palette scan was checked against 17 jungle entries. It identifies raised road sections in The Jungle (16), both Expansion 31 layouts, Jungle 1 and Jungle1vs1. Other matching layouts can contain recessed ground without a raised road section.
 - The comparison plates are target previews derived from real V3 captures. Use identical camera, lighting, zoom and resolution for future Unity captures. Inspect both sides and approaches of each visible bridge.
 
 ## V3 — second palette review

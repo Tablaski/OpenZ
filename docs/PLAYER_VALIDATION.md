@@ -2,7 +2,7 @@
 
 ## OpenZ-VK 1.5.54 AI Maps V4
 
-- Source checks passed on `63a46b2a`. The Unity runtime C# scripts compiled with existing warnings, the V4 HLSL include compiled as a Direct3D fragment shader, and 8,791 headless checks passed, including 45 V4 clearance and ridge checks. The V4 commit leaves the native maps, grids and scenes byte-for-byte unchanged.
+- Source checks passed on `5a9edcb4`. The Unity runtime C# scripts compiled with existing warnings, the V4 HLSL include compiled separately as a Direct3D fragment shader, and 8,816 headless checks passed, including 70 V4 checks. The V4 changes leave the native maps, grids and scenes byte-for-byte unchanged.
 - Pending in Unity. The local Editor reports no valid licence. Compile the terrain shaders, compare V3 and V4 at identical camera positions in 4K, and review ground and roads on SM02, SM08, SM16 and SM17.
 - Verify both edges and approaches of every bridge in the comparison scenes, including Desert P03M01, the two lava bridges on SM08 and destroyed spans on SM17. Move robots and vehicles through intact and repaired bridges. Confirm destroyed spans remain blocked and ground picking works near the rails.
 - Check the raised central road shelf and flanking depressions in SM16 against the native map and official OpenZ scene. Check continuity along the shelf, the open entrances and native side gaps. Try both starting sides, ground picking around the lip and object placement on the plateau. Verify that `-oz-ai-maps-v3` restores the previous visuals.

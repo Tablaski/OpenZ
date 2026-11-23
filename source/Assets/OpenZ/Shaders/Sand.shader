@@ -324,8 +324,12 @@ Shader "OpenZ/Sand"
 #endif
                 if (_OzAiTerrainProfile > .5)
                     OZAiV4Surface(albedo, w, ozPxm, _OzAiTerrainProfile, OZSdf(i.uv).r);
+                float materialHeight = 0;
                 if (_OzAiTerrainV5 > .5)
-                    OZAiV5Surface(albedo, w, ozPxm, _OzAiTerrainProfile, OZSdf(i.uv).r);
+                {
+                    float4 field = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, i.uv, 0);
+                    materialHeight = OZAiV5Surface(albedo, w, ozPxm, _OzAiTerrainProfile, field.r, field.a);
+                }
                 if (_OzCraterRole > 1.5)
                 {
                     half4 dc = SAMPLE_TEXTURE2D(_OzCraterDecal, sampler_OzCraterDecal, i.uv1);
@@ -340,6 +344,8 @@ Shader "OpenZ/Sand"
                 inputData.positionWS = i.positionWS; inputData.positionCS = i.positionCS;
                 inputData.normalWS = NormalizeNormalPerPixel(i.normalWS);
                 inputData.normalWS = OZDetailNormal(inputData.normalWS, ozNrm);                 // textures_v2 detail normal
+                if (_OzAiTerrainV5 > .5)
+                    inputData.normalWS = V5Normal(inputData.normalWS, i.positionWS, materialHeight);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 inputData.fogCoord = i.fog; inputData.bakedGI = SampleSH(inputData.normalWS);

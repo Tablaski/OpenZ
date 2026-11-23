@@ -209,7 +209,8 @@ namespace OpenZ.EditorTools
             var border = RimShot(entry, game.World.Map);
             if (review)
             {
-                var selected = new System.Collections.Generic.List<Shot> { border, planned[0].AsStill("terrain") };
+                RecordTerrainGeometry(entry, terrain);
+                var selected = new System.Collections.Generic.List<Shot> { border, TerrainReviewShot(entry, planned[0]) };
                 if (TryBridgeShot(entry, game, out var crossing)) selected.Add(crossing);
                 shots = selected.ToArray();
             }
@@ -235,6 +236,34 @@ namespace OpenZ.EditorTools
                 });
             }
             Debug.Log($"[AI map previews] {index + 1}/{entries.Length} {entry.Id}: {string.Join(", ", shots.Select(shot => shot.Subject))}");
+        }
+
+        static void RecordTerrainGeometry(OzAiMap entry, OzConversionTerrainV2 terrain)
+        {
+            var ground = terrain.transform.Find("COL_Terrain");
+            Mesh mesh = ground.GetComponent<MeshCollider>().sharedMesh;
+            if (ground.GetComponent<MeshFilter>().sharedMesh != mesh)
+                throw new InvalidOperationException("Rendered and collision terrain differ on " + entry.Id);
+            using var data = new MemoryStream();
+            using var writer = new BinaryWriter(data);
+            writer.Write(mesh.vertexCount);
+            foreach (var p in mesh.vertices)
+            {
+                writer.Write(p.x);
+                writer.Write(p.y);
+                writer.Write(p.z);
+            }
+            writer.Write(mesh.subMeshCount);
+            for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+            {
+                int[] indices = mesh.GetTriangles(submesh);
+                writer.Write(indices.Length);
+                foreach (int triangleIndex in indices) writer.Write(triangleIndex);
+            }
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            data.Position = 0;
+            string metric = BitConverter.ToString(sha.ComputeHash(data)).Replace("-", "");
+            File.WriteAllText(Path.Combine(output, entry.Id + ".geometry.txt"), metric + Environment.NewLine);
         }
 
         static void Close()

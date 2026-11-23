@@ -480,9 +480,19 @@ Shader "OpenZ/JungleGround"
                 if (_OzAiTerrainProfile > .5)
                     OZAiV4Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile,
                         SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g);
+                float materialHeight = 0;
                 if (_OzAiTerrainV5 > .5)
-                    OZAiV5Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile,
-                        SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g);
+                {
+                    float road = SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g;
+                    materialHeight = OZAiV5Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile, road, sgr.b);
+                    float cliff = smoothstep(.22,.65,1 - abs(nrm0.y));
+                    if (cliff > 0)
+                    {
+                        half3 rock = albedo;
+                        materialHeight += cliff * V5Rock(rock, P, nrm0, _OzAiTerrainProfile, px3);
+                        albedo = lerp(albedo, rock, cliff);
+                    }
+                }
                 if (_StudRule.w > 0.001) albedo = OZJStuds(P, px3, albedo);
                 if (patch)
                 {   // the crater patch: bare earth in the bowl, then the crater decal (UV1): no second draw, cannot z-fight
@@ -510,6 +520,8 @@ Shader "OpenZ/JungleGround"
                 InputData inputData = (InputData)0;
                 inputData.positionWS = P; inputData.positionCS = i.positionCS;
                 inputData.normalWS = nrm0;
+                if (_OzAiTerrainV5 > .5)
+                    inputData.normalWS = V5Normal(nrm0, P, materialHeight);
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(P);
                 inputData.shadowCoord = TransformWorldToShadowCoord(P);
                 inputData.fogCoord = 0; inputData.bakedGI = SampleSH(inputData.normalWS);

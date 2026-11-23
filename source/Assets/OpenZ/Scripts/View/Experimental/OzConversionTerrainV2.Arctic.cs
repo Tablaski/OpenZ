@@ -31,7 +31,8 @@ namespace OpenZ.Experimental
                 float frost = useV4 ? Mathf.SmoothStep(0, 1, crust * 1.35f) : crust;
                 var color = Color.Lerp(Color.Lerp(snow, ice, frost * .85f), gravel, roadWeight * (.83f + stones * .17f));
                 albedo[row * w + col] = color;
-                if (useV4) roadField[row * w + col] = new Color(road, 0, 0, 1);
+                if (useV4) roadField[row * w + col] = new Color(road, 0, 0,
+                    IsPaletteV5 ? Mask(map, x + offset, z, ArcticIceTile) : 1);
             }
             var material = new Material(ground) { name = "Wind-packed Arctic snow" };
             material.SetTexture("_BaseMap", NewTexture(w, h, albedo, false, "Snow drifts, gravel and frozen banks"));
@@ -39,6 +40,8 @@ namespace OpenZ.Experimental
             generated.Add(material);
             return material;
         }
+
+        static bool ArcticIceTile(ZMapData map, int index) => OzAiTerrainV5.ArcticIceAt(map, index);
 
         static void ArcticWaterLook(Material water)
         {
@@ -53,5 +56,6 @@ namespace OpenZ.Experimental
             water.SetFloat("_RippleSpeed", .085f);
             water.SetFloat("_CausticsStrength", .21f);
         }
+
     }
 }

@@ -105,7 +105,7 @@ namespace OpenZ.Experimental
             }
 
             public static Color LandPaint(string world, Vector2 weights, float wet, float solid, float rawRoad, float road,
-                float noise, float coarse, float x, float z)
+                float noise, float coarse, float x, float z, bool textureV5)
             {
                 float shoulder = 4 * rawRoad * (1 - rawRoad);
                 float shore = Mathf.SmoothStep(0, 1, wet * 2.65f);
@@ -134,7 +134,8 @@ namespace OpenZ.Experimental
                         break;
                     default:
                         color = Color.Lerp(new Color32(209, 173, 119, 255), new Color32(162, 132, 109, 255), weights.x * .9f);
-                        color = Color.Lerp(color, new Color32(145, 136, 77, 255), weights.y * .9f);
+                        var darkSand = textureV5 ? new Color32(154, 118, 87, 255) : new Color32(145, 136, 77, 255);
+                        color = Color.Lerp(color, darkSand, weights.y * .9f);
                         color = Color.Lerp(color, new Color32(155, 112, 78, 255), Mathf.Max(shore, solid * .55f));
                         var windblown = new Color32(199, 155, 103, 255);
                         color = Color.Lerp(color, windblown, shoulder * (1 - wet) * .6f);

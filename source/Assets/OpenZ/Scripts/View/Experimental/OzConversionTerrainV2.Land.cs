@@ -49,7 +49,7 @@ namespace OpenZ.Experimental
                 }
                 color *= shade;
                 if (palette != null)
-                    color = PaletteV3.LandPaint(map.planet, terrainRoles, wet, solid, rawRoad, road, noise, coarse, x, z);
+                    color = PaletteV3.LandPaint(map.planet, terrainRoles, wet, solid, rawRoad, road, noise, coarse, x, z, IsPaletteV5);
                 float mark = !jungle && road > .65f ? RoadMark(map, roadEdges, x, z, city) : -.5f;
                 color = Color.Lerp(color, city ? new Color(.73f, .67f, .43f) : new Color(.84f, .76f, .56f),
                     Mathf.SmoothStep(0, 1, (mark + .035f) * 12) * .8f);
@@ -75,7 +75,7 @@ namespace OpenZ.Experimental
                     }
                 }
                 else weightsA[index] = new Color(rawRoad, city ? 0 : .5f + mark * .5f,
-                    city ? .5f + mark * .5f : 0, 0);
+                    city ? .5f + mark * .5f : 0, IsPaletteV5 ? terrainRoles.x : 0);
             }
 
             var look = new Material(ground) { name = palette == null ? "Converted " + map.planet + " ground" : map.planet + " palette V3" };

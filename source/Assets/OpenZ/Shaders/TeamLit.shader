@@ -62,6 +62,7 @@ Shader "OpenZ/TeamLit"
         _TopMin ("Plateau blend start (normal.y)", Range(0,1)) = 0.62
         _TopMax ("Plateau blend end (normal.y)", Range(0,1)) = 0.8
         _TriScale ("Triplanar horizontal scale (1/m)", Float) = 0.045
+        [HideInInspector] _OzAiRockV5 ("AI map V5 rock profile", Float) = 0
         _TriHeight ("Triplanar strata height (m per texture)", Float) = 18
         _SatScale ("Non-team Saturation Scale", Range(0,2)) = 1
         _ValScale ("Non-team Value Scale", Range(0,2)) = 1
@@ -145,6 +146,7 @@ Shader "OpenZ/TeamLit"
             half _TeamLift;
             half _Triplanar; half _TriVertical; half _TopBlend; half4 _TopColor; half _TopMin; half _TopMax;
             float _TriScale;
+            float _OzAiRockV5;
             float _TriHeight;
             half _SatScale;
             half _ValScale;
@@ -329,6 +331,7 @@ Shader "OpenZ/TeamLit"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "OpenZNightV2.hlsl"                                            // night_v2: night classes, day-sky reflection fix
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
+            #include "OzAiTerrainV5.hlsl"
             #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             #include "OpenZRust.hlsl"
 
@@ -719,6 +722,12 @@ Shader "OpenZ/TeamLit"
                     albedo += _DarkColor.rgb * (1 - smoothstep(0.0, _DarkThreshold, lum)) * (1 - teamMask);
                 }
 
+                float materialHeight = 0;
+                if (_OzAiRockV5 > .5 && _Triplanar > .5)
+                {
+                    float pixel = max(length(ddx(i.positionWS)), length(ddy(i.positionWS)));
+                    materialHeight = V5Rock(albedo, i.positionWS, normalize(i.normalWS), _OzAiRockV5, pixel);
+                }
                 SurfaceData s = (SurfaceData)0;
                 s.albedo = albedo; s.alpha = 1; s.metallic = _Metallic * (1 - teamMask); s.smoothness = _Smoothness;
                 s.occlusion = 1; s.emission = _EmissionColor.rgb; s.normalTS = half3(0, 0, 1);
@@ -749,6 +758,8 @@ Shader "OpenZ/TeamLit"
                     float3 fn = normalize(cross(ddy(i.positionWS), ddx(i.positionWS)));
                     d.normalWS = dot(fn, d.normalWS) < 0 ? -fn : fn;
                 }
+                if (_OzAiRockV5 > .5 && _Triplanar > .5)
+                    d.normalWS = V5Normal(d.normalWS, i.positionWS, materialHeight);
                 d.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
                 // shadow_fix 01: receiver-side normal offset along the geometric normal (the facet normal when _FlatShade, never the normal map)
                 float3 ozShadowN = _FlatShade > 0.5 ? (float3)d.normalWS : (float3)NormalizeNormalPerPixel(i.normalWS);

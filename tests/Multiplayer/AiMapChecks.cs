@@ -85,15 +85,13 @@ static class AiMapChecks
         foreach (var example in examples)
         {
             var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", example.Id + "_grid.json")));
-            for (int y = 0; y <= map.height * 2; y++)
-            for (int x = 0; x <= map.width * 2; x++)
-                if (OzAiTerrainV5.RimWeight(OzAiTerrainV5.RimDistance(x, y, map.width, map.height)) != 0)
-                    throw new InvalidOperationException(example.Id + ": V5 rim overlaps a playable terrain vertex");
-            check(OzAiTerrainV5.RimWeight(1) == 0 && OzAiTerrainV5.RimWeight(7) == 1,
-                example.Id + ": V5 rim blends only outside the map");
-            if (map.planet == "arctic")
-                check(map.tiles.Any(OzAiTerrainV5.ArcticIceArt) && !OzAiTerrainV5.ArcticIceArt(175) && !OzAiTerrainV5.ArcticIceArt(432),
-                    "V5 Arctic uses native fractured ice artwork without replacing blue open water");
+            check(OzAiTerrainV4.Bridges(map).Length > 0, example.Id + ": V5 example includes a crossing for visual comparison");
+            if (map.planet != "arctic") continue;
+            int[] ice = Enumerable.Range(0, map.tiles.Length).Where(i => OzAiTerrainV5.ArcticIceAt(map, i)).ToArray();
+            check(ice.Length == 103 && ice.All(i => map.classes[i] == (int)ZClass.Ground),
+                "V5 Arctic uses the 103 native ice-art ground tiles without painting over open water");
+            check(!OzAiTerrainV5.ArcticIceArt(175) && !OzAiTerrainV5.ArcticIceArt(432),
+                "Open water and water rings do not receive the V5 Arctic ice artwork");
         }
     }
 

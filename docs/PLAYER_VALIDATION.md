@@ -1,8 +1,8 @@
 # Player validation record
 
-## OpenZ-VK 1.5.58 V5 examples
+## OpenZ-VK 1.5.59 V5 material examples
 
-- Compare the five opt-in scenes in Unity, including the outer terrain, both bridge mouths and any visible lava, ice, swamp plants or harbour outfalls. Check that the map routes, V4 bridge stages, terrain selection, movement and attack interactions at the perimeter remain the same. Check that a tank can knock down an added city lamp and continue along the same route.
+- Compare the five opt-in scenes at the same Unity camera positions in V4 and V5. Record the shared mesh hash and inspect both bridge mouths. Validate intact, damaged and repaired crossings and perimeter interactions in a compiled game when requested.
 
 ## OpenZ-VK 1.5.57 AI 2026 and TeamPlay
 

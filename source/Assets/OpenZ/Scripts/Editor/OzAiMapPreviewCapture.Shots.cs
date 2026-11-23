@@ -140,6 +140,13 @@ namespace OpenZ.EditorTools
                 heading, 0, 66, 0, 68, 0, 47, 24);
         }
 
+        static Shot TerrainReviewShot(OzAiMap entry, Shot planned) => entry.Id switch
+        {
+            "SM08" => new Shot("terrain", new Vector3(116, 1, -107), Vector3.zero, 29, 0, 57, 0, 68, 0, 44, 1),
+            "SM11" => new Shot("terrain", new Vector3(139, 1, -100), Vector3.zero, 20, 0, 61, 0, 55, 0, 44, 1),
+            _ => planned.AsStill("terrain")
+        };
+
         static bool TryBridgeShot(OzAiMap entry, ZGame battle, out Shot shot)
         {
             var map = battle.World.Map;

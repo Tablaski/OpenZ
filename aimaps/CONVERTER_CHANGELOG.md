@@ -1,16 +1,15 @@
 # AI Maps converter changelog
 
-## V5 — five visual prototypes
+## V5 — five material studies on V4 geometry
 
-Launch with `-oz-ai-maps-v5` to enable V5 on Desert (SM02), Molten Kombat (SM08), Chilly Willy (SM11), The Jungle (SM16) and The Car Park (SM17). Other maps continue to use V4. The V3 switch takes precedence. These examples use the existing official OpenZ material and scene assets, with procedural geometry and palette detail informed by the native maps and reference images.
+Launch with `-oz-ai-maps-v5` to enable V5 on Desert (SM02), Molten Kombat (SM08), Chilly Willy (SM11), The Jungle (SM16) and The Car Park (SM17). Other maps continue to use V4. The V3 switch takes precedence.
 
-- The renderer copies the V4 mesh and shapes the outside apron after a one-metre separation. The original collider, gameplay grid and bridge geometry keep their V4 representation. The scenery uses the Ignore Raycast layer and has no collider. Placement keeps the V4 bridge envelope clear.
-- Desert adds irregular mineral stains, weathered sandstone strata, ribbed cacti, violet flowers and finer palm silhouettes. The bridge art retains its existing material and mechanical stages.
-- Volcanic rims add scoria cones and rock pitting. The native hot-tile mask increases the contrast between glowing lava and its cooled crust without changing traversal.
-- Arctic uses the native fractured-ice artwork IDs, including 246–248, 264–268 and 468–477, matched against the atlas and playable grids. The resulting shards are scenery and keep the native tile class. The perimeter features snowcaps, cave recesses and icicles, with windblown road snow, tracks and sparse coloured growth inland.
-- Jungle adds muddy patches, lilies, reeds and thin mist above wet areas. V4 still provides the raised road and ravines on The Jungle.
-- City adds worn concrete joints and inlays, grates, tropical palms and harbour outfalls. New lightweight street lamps fall when a tank overlaps them, without blocking movement or becoming combat targets.
-- Use `OzAiMapPreviewCapture.Run` with `-oz-ai-maps-v5 -oz-preview-comparisons` for the five main 4K stills. Add `-oz-preview-rim` for angles that focus on the outer cliffs. Keep both sets outside tracked game assets until reviewed.
+- The approved direction for the revision is material detail on the existing OpenZ scene. V5 and V4 share vertices, triangle indices, the collider, shoreline shape, bridge decks, ramps and placements. The first V5 study (`a1e835ca`, refined in `d37fd441`) trialled higher exterior relief and procedural props. The revision retains that history and removes those effects from the active renderer.
+- `OzAiTerrainV5.hlsl` layers metre-scale weathering, resolvable detail and bump normals over the official OpenZ shaders and textures. The gradient-based bump is applied in the lighting pass. The layer scales fade with the measured pixel footprint and leave road boundaries and markings to the existing masks. Terrain V5 and rock V5 material properties default to zero.
+- Desert uses the native gravel and scrub regions to guide mineral stains, darker sand, wind patterns and sandstone grain. Volcanic uses angular scoria and porous basalt over L07's materials, and the native hot-tile mask for the contrast between hot lava and cooled crust.
+- Arctic uses 103 ground tiles from SM11 that depict fractured ice in the native atlas. The shader colours and shades the ice pattern on those tiles. Native open water, crossing rules and all other tile classifications are preserved.
+- Jungle uses the existing mud weight to refine the mineral brown and grass transition. Its roads and ravines come from V4. City aligns chipped joints to the established 6.6 × 4.7 m staggered paving and limits coloured inlays to the original service-yard mask. Neither example adds vegetation or scene objects.
+- `OzAiMapPreviewCapture.Run` with `-oz-preview-comparisons -oz-preview-v5-review` captures the border, terrain and a crossing in each example. Repeat with `-oz-ai-maps-v5` to compare from identical cameras. A geometry hash records actual Unity render and collision data for every scene. Keep the resulting captures outside tracked game assets.
 
 ## V4 — surface detail, clean crossings and continuous cliffs
 

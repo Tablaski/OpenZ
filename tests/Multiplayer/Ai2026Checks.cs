@@ -135,14 +135,19 @@ static class Ai2026Checks
         var tank = world.CreateObject("vehicle", "light", 348, 778, Team.Blue);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, ZBotDifficulty.Skilled));
         bool hunted = false;
+        bool attackedFort = false;
+        int lastFortHealth = fort.Health;
         for (int i = 0; i < 3000 && !world.GameOver; i++)
         {
+            if (!jeep.Destroyed) lastFortHealth = fort.Health;
             world.Tick(ZConst.TICK);
             hunted |= tank.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == jeep.Id);
+            attackedFort |= world.UnitObjects.Any(o => o.Owner == Team.Blue &&
+                o.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == fort.Id));
         }
-        check(hunted && world.GameOver && world.Winner == Team.Blue && !fort.Destroyed,
-            $"Skilled pursues the last opponent and wins while its fort is still standing" +
-            $" (hunted {hunted}, winner {world.Winner}, fort HP {fort.Health}, jeep HP {jeep.Health})");
+        check(hunted && jeep.Destroyed && world.GameOver && world.Winner == Team.Blue &&
+            !attackedFort && lastFortHealth == fort.MaxHealth && !world.Events.Any(e => e.type == ZEventType.FortEntered),
+            "Skilled wins by killing the last unit, causing the engine to destroy the undamaged fort");
     }
 
     static void CheckCommands(string settings, string grid, Action<bool, string> check)

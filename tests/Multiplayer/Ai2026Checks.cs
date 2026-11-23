@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using OpenZ;
+using OpenZ.Multiplayer;
+using OpenZ.Sim;
+
+static class Ai2026Checks
+{
+    internal static void Run(Action<bool, string> check)
+    {
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
+        string settings = File.ReadAllText(Path.Combine(root, "source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
+        string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps/SM07_grid.json"));
+        foreach (var level in ZAiDifficulty.Modern)
+        {
+            var first = Match(settings, grid, level);
+            var second = Match(settings, grid, level);
+            for (int tick = 0; tick < 1500; tick++)
+            {
+                first.Tick(ZConst.TICK);
+                second.Tick(ZConst.TICK);
+            }
+            var actual = first.Bots[0].ModernController;
+            var repeat = second.Bots[0].ModernController;
+            check(actual != null && actual.Actions > 0, level + " has issued a real action");
+            check(actual.Actions == repeat.Actions && actual.FirstActionAt == repeat.FirstActionAt &&
+                actual.StrategicRatio == repeat.StrategicRatio &&
+                first.UnitObjects.Select(o => (o.Id, o.LocX, o.LocY, o.Health, o.Owner))
+                    .SequenceEqual(second.UnitObjects.Select(o => (o.Id, o.LocX, o.LocY, o.Health, o.Owner))),
+                level + " reproduces its decisions at a fixed seed");
+            if (level == ZBotDifficulty.Noob)
+                check(actual.FirstActionAt >= 5 && actual.FirstActionAt < 10.05, "Noob starts after five to ten seconds");
+            if (level == ZBotDifficulty.Alright)
+                check(actual.FirstActionAt >= 2 && actual.FirstActionAt < 4.05, "Alright starts after two to four seconds");
+        }
+        CheckCommands(settings, grid, check);
+        CheckProfiles(settings, grid, check);
+        CheckRoom(root, settings, check);
+    }
+
+    static ZWorld Match(string settings, string grid, ZBotDifficulty level)
+    {
+        var world = ZWorld.Create(settings, grid, 45);
+        world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
+        return world;
+    }
+
+    static void CheckCommands(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        var order = new ZAiOrders(world, Team.Blue, ZAiTuning.For(ZBotDifficulty.Zod));
+        var planned = new HashSet<int>();
+        var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Blue);
+        var blue = world.CreateObject("vehicle", "light", fort.LocX + 16, fort.LocY, Team.Blue);
+        var second = world.CreateObject("vehicle", "jeep", fort.LocX + 32, fort.LocY, Team.Blue);
+        var red = world.CreateObject("vehicle", "light", fort.LocX - 16, fort.LocY, Team.Red);
+        var wp = ZWaypoint.Move(fort.CenterX + 110, fort.CenterY + 50);
+        check(!order.Send(red, wp, planned) && order.Actions == 0, "Rejected enemy orders do not count");
+        check(order.Send(new List<ZObject> { blue, second }, wp, planned) && order.Actions == 1 && planned.Count == 2,
+            "A group order counts as one successful action");
+        planned.Clear();
+        check(!order.Send(blue, wp, planned) && order.Actions == 1, "Repeated orders do not count");
+        for (int i = 0; i < 20; i++)
+        {
+            order.Send(blue, ZWaypoint.Move(wp.x + 40 * (i + 1), wp.y), planned);
+            planned.Clear();
+        }
+        check(order.Actions == ZAiTuning.For(ZBotDifficulty.Zod).Burst, "Burst is bounded independently of the minute budget");
+    }
+
+    static void CheckProfiles(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        var light = world.CreateObject("vehicle", "light", 220, 220, Team.Blue);
+        var medium = world.CreateObject("vehicle", "medium", 380, 220, Team.Red);
+        check(ZAiCombat.Avoidance(light, medium) == 0, "Native combat does not assume a dodging bonus");
+        var profile = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks);
+        world.SetBehavior(profile);
+        double classic = ZAiCombat.Avoidance(light, medium);
+        profile.Set("light", ZBehaviorKey.Chance, 0);
+        world.SetBehavior(profile);
+        check(classic > 0 && ZAiCombat.Avoidance(light, medium) == 0, "AI reads the active tank profile and its per-type override");
+    }
+
+    static void CheckRoom(string root, string settings, Action<bool, string> check)
+    {
+        var entry = OzAiMapCatalog.ThreePlayerSkirmish;
+        var room = new MultiplayerRoom("host", "Host", entry.Id, allowSoloConversions: true);
+        room.SetBot("host", 1, 1, ZBotDifficulty.Zod);
+        room.SetBot("host", 2, 2, ZBotDifficulty.Easy);
+        room.SetReady("host", room.Revision, true);
+        room.Launch("host");
+        room.MarkLoaded("host", room.Revision);
+        string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
+        var world = ZWorld.Create(settings, grid, 12);
+        room.ConfigureWorld(world, 12);
+        for (int tick = 0; tick < 400; tick++) world.Tick(ZConst.TICK);
+        check(world.Bots.Single(b => b.Difficulty == ZBotDifficulty.Zod).ModernController?.Actions > 0 &&
+            world.Bots.Single(b => b.Difficulty == ZBotDifficulty.Easy).ModernController == null,
+            "A normal room launches modern and legacy opponents together");
+    }
+}

@@ -44,7 +44,7 @@ namespace OpenZ.Sim
         public int BigTankPairsAdded { get; private set; }
 
         /// <summary>DV199, ZBot.MatchTargets_3 / FinishGame: the region test of unit u and target t at point (tx, ty).</summary>
-        bool BotPairRegion(ZObject u, ZObject t, int ux, int uy, int tx, int ty)
+        internal bool BotPairRegion(ZObject u, ZObject t, int ux, int uy, int tx, int ty)
         {
             bool zod = InSameRegion(ux, uy, tx, ty, u.Kind == ZKind.Robot);
             if (!BotBigTank(u)) return zod;

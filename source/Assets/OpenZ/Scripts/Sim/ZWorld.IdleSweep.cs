@@ -37,7 +37,7 @@ namespace OpenZ.Sim
             if (nextIdleSweep < 0) nextIdleSweep = IdleSweepEvery * IdleSweepSlow();       // K434: x 1.3 while an Easy computer plays (Sim/ZBot.EasySlow.cs)
             if (Time < nextIdleSweep) return;
             nextIdleSweep += IdleSweepEvery * IdleSweepSlow();
-            foreach (var bot in Bots) if (!bot.Ignored) IdleSweep(bot.Team);
+            foreach (var bot in Bots) if (!bot.Ignored && !ZAiDifficulty.IsModern(bot.Difficulty)) IdleSweep(bot.Team);
         }
 
         void IdleSweep(Team team)

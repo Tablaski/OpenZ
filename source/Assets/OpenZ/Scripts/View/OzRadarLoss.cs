@@ -90,7 +90,7 @@ namespace OpenZ
             {
                 if (world != game.World)
                 {
-                    mapHasRadar = worldHasRadar(game.World.Map);
+                    mapHasRadar = ZBattleSight.MapHasRadar(game.World.Map);
                 }
                 world = game.World; seat = vision;
                 Sight = null;
@@ -120,10 +120,10 @@ namespace OpenZ
             }
             bool wasJammed = Jammed, wasFog = Fog;
             Jammed = active == 0;
-            Fog = Jammed && (rule == RadarLossRule.Fog || rule == RadarLossRule.FogAndZoom);
+            Fog = Jammed && ZBattleSight.RadarFog(rule);
             if (Fog && Sight == null) Sight = new OzFowMask(world.Map.WidthPix, world.Map.HeightPix);
             bool freeGhost = DuelRuntime.I && DuelRuntime.I.MatchGhost && !DuelRuntime.I.GhostFollowing;
-            Zoom = !freeGhost && Jammed && (rule == RadarLossRule.Zoom || rule == RadarLossRule.FogAndZoom);
+            Zoom = !freeGhost && Jammed && ZBattleSight.RadarZoom(rule);
             if (Jammed && !wasJammed && hud) hud.ClearRadarCommunications();
             if (destroyedRadars.Count > 0)
             {
@@ -145,28 +145,9 @@ namespace OpenZ
             UpdateStatic();
         }
 
-        static bool worldHasRadar(ZMapData map)
-        {
-            if (map?.objects == null) return false;
-            foreach (var obj in map.objects)
-                if (obj.kind == "building:radar") return true;
-            return false;
-        }
-
         void UpdateSight()
         {
-            Sight.Clear();
-            foreach (var zone in world.Zones)
-            {
-                if (!game.World.AreAllied(zone.Owner, seat)) continue;
-                int left = Sight.CellX(zone.X), right = Sight.CellX(zone.X + zone.W - 1);
-                int top = Sight.CellY(zone.Y), bottom = Sight.CellY(zone.Y + zone.H - 1);
-                for (int y = top; y <= bottom; y++)
-                    for (int x = left; x <= right; x++) Sight.Target[y * Sight.W + x] = 255;
-            }
-            foreach (var unit in world.Objects)
-                if (game.World.AreAllied(unit.Owner, seat) && unit.IsUnit && !unit.Destroyed)
-                    Sight.Stamp(unit.CenterX, unit.CenterY, OzFogOfWar.SightPx(unit, world.S.agro_distance));
+            ZBattleSight.StampRadarLoss(world, seat, Sight);
             Sight.ShowAll();
             SightRevision++;
         }

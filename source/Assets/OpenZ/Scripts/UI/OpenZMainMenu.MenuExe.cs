@@ -296,6 +296,7 @@ namespace OpenZ
             string tip = null; RectTransform rowRt = null;
             var hr = proofTipRow ? proofTipRow : hotOver != null ? hotOver.rt : null;
             if (view == View.Main && side == Side.Options && hr && optTips.TryGetValue(hr, out var t)) { tip = t; rowRt = hr; }
+            if (view == View.Select && hr && optTips.TryGetValue(hr, out var aiTip)) { tip = aiTip; rowRt = hr; }
             if (rowRt != optTipFor) { optTipFor = rowRt; optTipSince = OzMotion.Now; }
             bool want = tip != null && OzMotion.Now - optTipSince > 0.3f;
             float dur = Mathf.Max(0.01f, OzMotion.Dur(0.12f, true));

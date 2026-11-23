@@ -38,7 +38,7 @@ namespace OpenZ.Sim
     /// 2.5x slower, orders at most <see cref="ZBot.EASY_MAX_WAVE"/> units per round and keeps at most
     /// <see cref="ZBot.EASY_MAX_ATTACKERS"/> units on hostile orders (attack, enter the enemy fort) at a time.
     /// PlayerPrefs "oz_difficulty": 0 = Normal, 1 = Easy (read by ZGame).</summary>
-    public enum ZBotDifficulty { Normal = 0, Easy = 1, Hard = 2 }
+    public enum ZBotDifficulty { Normal = 0, Easy = 1, Hard = 2, Noob = 3, Alright = 4, Skilled = 5, Zod = 6 }
 
     public sealed partial class ZBot
     {
@@ -56,6 +56,9 @@ namespace OpenZ.Sim
         public readonly Team Team;
         readonly ZWorld W;
         readonly ZRng rng;                                    // the bot runs its own client: its own rand()
+        readonly int seed;
+        ZAi2026 modern;
+        ZAiTeamPlay teamPlay;
         double nextAiTime = 0, lastOrderTime = 0;             // ZBot::ZBot (zbot.cpp:10-11)
 
         /// <summary>Zod "Manage Bots: Off" / bots_start_ignored (zbot.cpp:111-112): still receives the game state, gives no
@@ -106,13 +109,17 @@ namespace OpenZ.Sim
         readonly Dictionary<ZObject, List<ZObject>> aiOrig = new Dictionary<ZObject, List<ZObject>>();
         readonly HashSet<Team> flagOwners = new HashSet<Team>();
 
-        public ZBot(ZWorld world, Team team, int seed)
+        public ZBot(ZWorld world, Team team, int seed, ZBotDifficulty difficulty = ZBotDifficulty.Normal)
         {
-            W = world; Team = team; rng = new ZRng(seed * 7919 + (int)team); mixRng = MixRng(seed, team);   // DV148: the mech / medium tank coin's own stream (ZBot.MechMix.cs)
+            W = world; Team = team; this.seed = seed; rng = new ZRng(seed * 7919 + (int)team); mixRng = MixRng(seed, team);   // DV148: the mech / medium tank coin's own stream (ZBot.MechMix.cs)
+            Difficulty = difficulty;
+            if (ZAiDifficulty.IsModern(difficulty)) return;
             BuildClientRegions();
             // connect: the objects arrive without any waypoint list (waypoints only travel in relays)
             foreach (var o in W.Objects) if (o.IsMobile) known[o.Id] = new Known { live = o.Owner == Team };
         }
+
+        internal ZAi2026 ModernController => modern;
 
         // ------------------------------------------------------------------ demo switch
         /// <summary>Zod seeds per team as used by ZGame / OpenZBotMatch (red = seed, blue = seed + 101).</summary>
@@ -146,6 +153,15 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ loop (called by ZWorld.Tick every server tick)
         public void Tick()
         {
+            if (ZAiDifficulty.IsModern(Difficulty))
+            {
+                if (!Ignored && !W.SkirmishEliminated(Team) && !W.DuelDefersOrders && !W.GameOver)
+                {
+                    modern ??= new ZAi2026(W, Team, seed, Difficulty);
+                    modern.Tick();
+                }
+                return;
+            }
             if (ClientView) ObserveRelays();                  // the event handler runs every 10 ms loop (zbot.cpp:39-57)
             StrikeGroupTick();                                // DV107 enemy strike groups: forming, march, release (ZBot.StrikeGroup.cs); with the switch off it returns at once
             CpuShuttleTick();                                 // DV138 the computer flies its shuttles: one step a second, Normal and Easy (Sim/ZBot.CpuShuttle.cs); with the switch off it returns at once
@@ -202,6 +218,13 @@ namespace OpenZ.Sim
             }
             if (escorts != null) ElectrobotEscort(escorts, idleAll, targetsOrig);          // DV72
             lastOrderTime = W.Time;
+        }
+
+        internal void CoordinateWithAllies(List<ZObject> units)
+        {
+            if (units.Count == 0 || !W.HasActiveAlly(Team)) return;
+            teamPlay ??= new ZAiTeamPlay(W, Team);
+            teamPlay.CoordinateLegacy(this, units);
         }
 
         /// <summary>zbot.cpp:635-691. Returns all_out; neutral counts as a flag owner.</summary>
@@ -403,7 +426,7 @@ namespace OpenZ.Sim
 
         /// <summary>zbot.cpp:279-392: one waypoint replacing the unit's orders; attack aims at the top-left + 8, everything
         /// else at the centre; attack_to and player_given set; sent as SEND_WAYPOINTS (SendBotDevWaypointList :1434-1451).</summary>
-        void Command(ZObject u, ZObject t, bool finisher = false, bool coordinated = false)
+        internal void Command(ZObject u, ZObject t, bool finisher = false, bool coordinated = false)
         {
             WpMode mode = WpMode.None;
             switch (t.Kind)
@@ -431,7 +454,7 @@ namespace OpenZ.Sim
             IssueOrder(u, t, mode, x, y, finisher, coordinated);
         }
 
-        void IssueOrder(ZObject u, ZObject t, WpMode mode, int x, int y, bool finisher, bool coordinated)
+        internal void IssueOrder(ZObject u, ZObject t, WpMode mode, int x, int y, bool finisher, bool coordinated)
         {
             if (mode == WpMode.None) return;
             bool hostile = mode == WpMode.Attack || mode == WpMode.EnterFort;

@@ -313,7 +313,7 @@ namespace OpenZ.Multiplayer
         {
             RequireHostSetup(sender);
             CheckPosition(position, alliance);
-            if (difficulty < ZBotDifficulty.Normal || difficulty > ZBotDifficulty.Hard) throw new ArgumentOutOfRangeException(nameof(difficulty));
+            if (!ZAiDifficulty.IsValid(difficulty)) throw new ArgumentOutOfRangeException(nameof(difficulty));
             if (members.Values.Any(member => member.Seat.Position == position)) throw new InvalidOperationException("The starting position is occupied.");
             closed.Remove(position);
             if (bots.TryGetValue(position, out var existing) && existing.Alliance == alliance && existing.Difficulty == difficulty) return;

@@ -48,7 +48,8 @@ namespace OpenZ
         public const float HideAt = 0.5f;
         /// <summary>Sight: a unit's attack radius + Zod's agro distance + this pad, at least <see cref="UnitSightMinPx"/> (a grunt 184 px = 23 m);
         /// a building half its longest side + <see cref="BuildingSightPadPx"/>; a flag of ours <see cref="FlagSightPx"/>.</summary>
-        public const int UnitSightPadPx = 24, UnitSightMinPx = 184, BuildingSightPadPx = 128, FlagSightPx = 128;
+        public const int UnitSightPadPx = ZBattleSight.UnitSightPadPx, UnitSightMinPx = ZBattleSight.UnitSightMinPx,
+            BuildingSightPadPx = ZBattleSight.BuildingSightPadPx, FlagSightPx = ZBattleSight.FlagSightPx;
 
         /// <summary>This match has the fog (decided at its start; the testing panel can switch it).</summary>
         public static bool Wanted => I && I.wanted;
@@ -227,13 +228,7 @@ namespace OpenZ
 
         // ---------------------------------------------------------------- sight
         /// <summary>The sight radius (Zod px) of an object of the player's side, 0 = it opens nothing.</summary>
-        public static int SightPx(ZObject o, int agro)
-        {
-            if (o.IsUnit) return Mathf.Max(UnitSightMinPx, (o.U != null ? o.U.attack_radius : 0) + agro + UnitSightPadPx);
-            if (o.Kind == ZKind.Building) return Mathf.Max(o.WidthPix, o.HeightPix) / 2 + BuildingSightPadPx;
-            if (o.Kind == ZKind.MapItem && o.Type == "flag") return FlagSightPx;
-            return 0;
-        }
+        public static int SightPx(ZObject o, int agro) => ZBattleSight.Radius(o, agro);
 
         /// <summary>Stamps every object of the player's side (all = also those that did not move since their last stamp).</summary>
         void StampRound(bool all)

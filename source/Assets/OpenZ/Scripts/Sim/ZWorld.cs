@@ -114,7 +114,7 @@ namespace OpenZ.Sim
             if (bots.Length >= forts.Length || bots.Any(bot => !forts.Contains(bot.Team)) ||
                 bots.Select(bot => bot.Team).Distinct().Count() != bots.Length)
                 throw new ArgumentException("Invalid bot assignments for this skirmish.", nameof(assignments));
-            foreach (var bot in bots) Bots.Add(new ZBot(this, bot.Team, ZBot.SeedFor(bot.Team, seed)) { Difficulty = bot.Difficulty });
+            foreach (var bot in bots) Bots.Add(new ZBot(this, bot.Team, ZBot.SeedFor(bot.Team, seed), bot.Difficulty));
         }
 
         /// <summary>

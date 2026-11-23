@@ -368,9 +368,26 @@ namespace OpenZ.Multiplayer
                 var room = R.HostedRoom;
                 bool bot = room.Bots.Any(entry => entry.Position == seat);
                 bool closed = room.ClosedPositions.Contains(seat);
-                foreach (var level in LobbyBotDifficulties)
-                    ActionButton(BotDifficultyName(level).ToUpperInvariant() + " AI", () => R.SetRoomBot(seat, level),
-                        selected: bot && room.Bots.Any(entry => entry.Position == seat && entry.Difficulty == level));
+                var tip = Label(list, "", 8, y, width - 16, 12, OzUi.Muted);
+                y += 21;
+                DifficultyGroup("1996 AI", LobbyBotDifficulties);
+                DifficultyGroup("2026 AI", ZAiDifficulty.Modern);
+
+                void DifficultyGroup(string title, ZBotDifficulty[] levels)
+                {
+                    Label(list, title, 8, y, width - 16, 14, OzUi.Muted);
+                    y += 24;
+                    float cell = (width - 16 - (levels.Length - 1) * 4) / (float)levels.Length;
+                    for (int i = 0; i < levels.Length; i++)
+                    {
+                        var level = levels[i];
+                        var choice = Button(list, BotDifficultyName(level).ToUpperInvariant(), 8 + i * (cell + 4), y, cell,
+                            () => { CloseOnlinePlayerMenu(); R.SetRoomBot(seat, level); },
+                            bot && room.Bots.Any(entry => entry.Position == seat && entry.Difficulty == level), height: 36);
+                        AddLobbyTip(choice, tip, ZAiDifficulty.Hint(level));
+                    }
+                    y += 40;
+                }
                 ActionButton(bot ? "REMOVE BOT" : "OPEN POSITION", () => { if (bot) R.SetRoomBot(seat, null); else R.SetRoomClosed(seat, false); }, bot || closed);
                 ActionButton("CLOSE POSITION", () => R.SetRoomClosed(seat, true), !closed);
                 foreach (var member in room.Members.Where(member => member.Seat.Position < 0))

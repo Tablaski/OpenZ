@@ -250,31 +250,39 @@ namespace OpenZ.Multiplayer
             int[] alliances = roster.Select(member => member.Team).Append(skirmishExtraTeam).Where(team => team >= 0)
                 .Distinct().OrderBy(team => team).ToArray();
 
-            Label(panel, "ALL BOTS", 24, 108, 120, 16, OzUi.Muted);
-            for (int i = 0; i < LobbyBotDifficulties.Length; i++)
+            var difficultyTip = Label(panel, "", 24, 184, width - 48, 13, OzUi.Muted);
+            AllBotsRow(98, "ALL BOTS · 1996", LobbyBotDifficulties);
+            AllBotsRow(139, "ALL BOTS · 2026", ZAiDifficulty.Modern);
+            void AllBotsRow(float y, string title, ZBotDifficulty[] levels)
             {
-                var level = LobbyBotDifficulties[i];
-                string difficultyName = BotDifficultyName(level).ToUpperInvariant();
-                var button = Button(panel, difficultyName, width - 293 + i * 91, 98, 87,
-                    () => SetSkirmishBotDifficulty(level), bots.Length > 0 && bots.All(bot => bot.Difficulty == level),
-                    bots.Length > 0, height: 37);
-                button.name = "ALL BOTS " + difficultyName;
+                Label(panel, title, 24, y + 10, 160, 15, OzUi.Muted);
+                for (int i = 0; i < levels.Length; i++)
+                {
+                    var level = levels[i];
+                    string difficultyName = BotDifficultyName(level).ToUpperInvariant();
+                    var button = Button(panel, difficultyName, width - 24 - (levels.Length - i) * 73, y, 69,
+                        () => SetSkirmishBotDifficulty(level), bots.Length > 0 && bots.All(bot => bot.Difficulty == level),
+                        bots.Length > 0, height: 37);
+                    button.name = "ALL BOTS " + difficultyName;
+                    AddLobbyTip(button, difficultyTip, ZAiDifficulty.Hint(level));
+                }
             }
             Label(panel, rules.FreeForAll ? localSkirmish.SupportsTeams ? $"{active} players · each plays for their own side" :
                 "This player count cannot form equal teams." :
-                "Drag a card onto a team, or select a card and team.", 24, 145, width - 48, 16, OzUi.Muted);
-            int listTop = 175;
+                "Drag a card onto a team, or select a card and team.", 24, 207, width - 48, 16, OzUi.Muted);
+            int listTop = 233;
             if (!rules.FreeForAll)
             {
-                Button(panel, AllForOneLabel(rules.AllForOne), 24, 175, 248, () =>
+                Button(panel, AllForOneLabel(rules.AllForOne), 24, 233, 248, () =>
                 {
                     rules.AllForOne = !rules.AllForOne;
                     SaveLocalRules(rules);
                 }, rules.AllForOne, height: 35);
-                Label(panel, AllForOneDescription, 24, 214, width - 48, 15, OzUi.Ink);
-                listTop = 244;
+                Label(panel, AllForOneDescription, 24, 272, width - 48, 15, OzUi.Ink);
+                listTop = 302;
             }
-            float contentHeight = active * 44 + (rules.FreeForAll ? 0 : alliances.Length * 55);
+            const int memberHeight = 70;
+            float contentHeight = active * memberHeight + (rules.FreeForAll ? 0 : alliances.Length * 55);
             float listHeight = Mathf.Min(709 - listTop, contentHeight);
             var list = Scroll(panel, 24, listTop, width - 48, listHeight, false, contentHeight);
             skirmishTeamViewport = list.parent.GetComponent<ScrollRect>();
@@ -285,8 +293,8 @@ namespace OpenZ.Multiplayer
             {
                 foreach (var member in roster)
                 {
-                    BuildSkirmishMember(list, member.Seat, member.Label, member.Level, width - 48, y, true);
-                    y += 44;
+                    BuildSkirmishMember(list, member.Seat, member.Label, member.Level, width - 48, y, true, difficultyTip);
+                    y += memberHeight;
                 }
                 return;
             }
@@ -294,7 +302,7 @@ namespace OpenZ.Multiplayer
             foreach (int team in alliances)
             {
                 int count = roster.Count(member => member.Team == team);
-                float groupHeight = 47 + count * 44;
+                float groupHeight = 47 + count * memberHeight;
                 var group = Hud.Img(list, $"Team {team + 1}", OzUi.GM900);
                 group.rectTransform.TL(0, y, width - 48, groupHeight);
                 group.raycastTarget = true;
@@ -307,8 +315,8 @@ namespace OpenZ.Multiplayer
                 float row = 41;
                 foreach (var member in roster.Where(member => member.Team == team))
                 {
-                    BuildSkirmishMember(group.transform, member.Seat, member.Label, member.Level, width - 48, row, false);
-                    row += 44;
+                    BuildSkirmishMember(group.transform, member.Seat, member.Label, member.Level, width - 48, row, false, difficultyTip);
+                    row += memberHeight;
                 }
                 y += groupHeight + 8;
             }
@@ -320,18 +328,19 @@ namespace OpenZ.Multiplayer
             }, enabled: skirmishExtraTeam < 0 && Enumerable.Range(0, active).Any(team => !alliances.Contains(team)), height: 40);
         }
 
-        void BuildSkirmishMember(Transform parent, int seat, string name, ZBotDifficulty? difficulty, float width, float y, bool freeForAll)
+        void BuildSkirmishMember(Transform parent, int seat, string name, ZBotDifficulty? difficulty, float width, float y, bool freeForAll, OzText tip)
         {
+            const int choicesWidth = 270;
             if (freeForAll)
             {
                 var row = Hud.Img(parent, name, OzUi.GM900);
-                row.rectTransform.TL(6, y, width - 12, 38);
+                row.rectTransform.TL(6, y, width - 12, difficulty.HasValue ? 64 : 38);
                 row.raycastTarget = false;
-                Label(row.transform, name, 16, 9, width - (difficulty.HasValue ? 228 : 45), 17, OzUi.Ink);
+                Label(row.transform, name, 16, 9, width - (difficulty.HasValue ? choicesWidth : 45), 17, OzUi.Ink);
             }
             else
             {
-                var card = Button(parent, "::   " + name, 6, y, width - (difficulty.HasValue ? 220 : 12), () =>
+                var card = Button(parent, "::   " + name, 6, y, width - (difficulty.HasValue ? choicesWidth : 12), () =>
                 {
                     if (skirmishDragGhost || skirmishDragFrame == Time.frameCount) return;
                     skirmishSelectedSeat = skirmishSelectedSeat == seat ? -1 : seat;
@@ -340,15 +349,22 @@ namespace OpenZ.Multiplayer
                 card.gameObject.AddComponent<SkirmishCardDrag>().Configure(this, seat, name);
             }
             if (!difficulty.HasValue) return;
-            for (int i = 0; i < LobbyBotDifficulties.Length; i++)
+            Row("1996", LobbyBotDifficulties, y + 1);
+            Row("2026", ZAiDifficulty.Modern, y + 33);
+            void Row(string generation, ZBotDifficulty[] levels, float top)
             {
-                var level = LobbyBotDifficulties[i];
-                Button(parent, BotDifficultyName(level).ToUpperInvariant(), width - 210 + i * 68, y + 3, 64, () =>
+                Label(parent, generation, width - choicesWidth + 4, top + 7, 38, 11, OzUi.Muted);
+                for (int i = 0; i < levels.Length; i++)
                 {
-                    var bot = localSkirmish.Bots.Single(entry => entry.Position == seat);
-                    localSkirmish.SetBot(LocalSkirmishHost, seat, bot.Alliance, level);
-                    dirty = true;
-                }, level == difficulty.Value, height: 32);
+                    var level = levels[i];
+                    var option = Button(parent, BotDifficultyName(level).ToUpperInvariant(), width - 222 + i * 54, top, 51, () =>
+                    {
+                        var bot = localSkirmish.Bots.Single(entry => entry.Position == seat);
+                        localSkirmish.SetBot(LocalSkirmishHost, seat, bot.Alliance, level);
+                        dirty = true;
+                    }, level == difficulty.Value, height: 30);
+                    AddLobbyTip(option, tip, ZAiDifficulty.Hint(level));
+                }
             }
         }
 

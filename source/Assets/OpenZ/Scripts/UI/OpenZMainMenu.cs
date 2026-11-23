@@ -499,6 +499,7 @@ namespace OpenZ
 
         void SetDifficulty(GameDifficulty d)
         {
+            OzAiSoloChoice.Level = ZBotDifficulty.Normal;
             if (OpenZDifficulty.Choice == d) return;   // 1.4 MAYHEM: the choice (oz_difficulty, and oz_mayhem for MAYHEM)
             OpenZDifficulty.Choice = d;                                                                    // saves PlayerPrefs oz_difficulty; ZGame reads it at level start
             Debug.Log($"[OpenZ Menu] difficulty: {OpenZDifficulty.Label(d)}");
@@ -864,7 +865,9 @@ namespace OpenZ
         void RefreshDeployBar()
         {
             var d = OpenZDifficulty.Level; var pick = OpenZDifficulty.Choice;                              // 1.4 MAYHEM: the buttons and the hint show the choice; HEAD START and the SHUTTLE slot read the rules' difficulty (MAYHEM = HARD)
-            SetSelected(cpuNormal, pick == GameDifficulty.Hard); SetSelected(cpuEasy, pick == GameDifficulty.Easy); SetSelected(cpuMedium, pick == GameDifficulty.Medium); SetSelected(cpuMayhem, pick == GameDifficulty.Mayhem);
+            bool classic = !ZAiDifficulty.IsModern(OzAiSoloChoice.Level);
+            SetSelected(cpuNormal, classic && pick == GameDifficulty.Hard); SetSelected(cpuEasy, classic && pick == GameDifficulty.Easy); SetSelected(cpuMedium, classic && pick == GameDifficulty.Medium); SetSelected(cpuMayhem, classic && pick == GameDifficulty.Mayhem);
+            for (int i = 0; i < cpuModern.Length; i++) SetSelected(cpuModern[i], ZAiDifficulty.Modern[i] == OzAiSoloChoice.Level);
             cpuHint.Set(OzDeployBar.CpuHint(pick));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
             RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips

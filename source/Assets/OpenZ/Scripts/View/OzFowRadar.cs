@@ -26,7 +26,7 @@ namespace OpenZ
     public sealed class OzFowRadar
     {
         /// <summary>The radar circle: 384 Zod px = 48 m (8 px = 1 m), to the outer end of the soft edge as every sight circle.</summary>
-        public const int CirclePx = 384;
+        public const int CirclePx = Sim.ZBattleSight.RadarSightPx;
         /// <summary>The opening's length (s, real time).</summary>
         public const float GrowSeconds = 2.5f;
         /// <summary>The most one frame moves the growth (s): a hitch slows it down, it never jumps.</summary>

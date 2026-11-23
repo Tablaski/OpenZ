@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.57 AI 2026 and TeamPlay
+
+- Pending in a compiled game. Verify the two difficulty groups and tooltips on the solo deploy screen, the local Skirmish roster and the online host's seat menu. Launch each generation, mix them in teams, change the host combat profile before launch, and try a mixed room with All for One and Friendly Fire.
+- Compare evenly matched tanks in OpenZ and Z Classic, then test the higher levels on a bridge map and on Desert P08M01. Check fort defense, scouting with radar loss, range management, team assistance, fort rushing, and speed under a seven-Zod roster. Calibrate difficulty and win rates after longer matches.
+
 ## OpenZ-VK 1.5.56 five-biome V4 and preview capture
 
 - Passed 9,032 headless simulation checks. The capture inventory lists 88 enabled AI Maps. The runtime C# scripts and the V4 HLSL fragment include compiled separately. Native map files, decoded grids and build scene assets were unchanged.

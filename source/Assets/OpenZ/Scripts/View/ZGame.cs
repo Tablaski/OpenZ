@@ -23,6 +23,7 @@ namespace OpenZ
         [Tooltip("Zod CPU players (zbot.cpp). Z: the player is red, the CPU is blue; both on = bot vs bot")] public bool blueBot = true, redBot = false;
         [Tooltip("CPU strength vs the human: Normal = the Zod bot 1:1, Easy = OpenZ handicap. PlayerPrefs oz_difficulty (0/1) overrides; bot vs bot is always Normal")]
         public ZBotDifficulty difficulty = ZBotDifficulty.Normal;
+        internal ZBotDifficulty SoloAi2026 { get; private set; }
         [Tooltip("Easy / Medium / Hard: CPU handicap, the player's unit unlocks and the L02 head start. Hard = the Zod CPU and build lists, plus a missile cannon on each fort")]
         public GameDifficulty gameDifficulty = GameDifficulty.Hard;
         /// <summary>
@@ -250,6 +251,14 @@ namespace OpenZ
             ZWorld.CustomStatsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzLevelStats.Wanted(level, demo); OzLevelStats.AtLevelStart(this, st.text);   // 1.2 item 60 DV142: UNIT STATS CUSTOM (the battlefield screen's choice, armed by the player's own DEPLOY; off in 'Zod exact', a bot match, the Unit editor): every unit of both teams is made from the Unit editor's Custom stats; OPENZ: nothing changes (View/OzLevelStats.cs, Sim/ZWorld.CustomStats.cs)
             // duel game creation
             OpenZ.Multiplayer.DuelRuntime.PrepareGame(this); World = ZWorld.Create(st.text, map.text, seed, !skirmish && ParkedStartOn(level)); if (onlineSkirmish) World.Map.skirmish = true; OzBehaviorLibrary.AtWorldStart(this); OpenZ.Multiplayer.DuelRuntime.WorldCreated(this);
+            if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && !demo && blueBot != redBot && !OzUeHooks.Active &&
+                (skirmishMap?.Solo == true || OzLevelDef.All.Any(definition => definition.Id == level)))
+            {
+                SoloAi2026 = OzAiSoloChoice.Level;
+                World.ModernBotFog = IsMayhem;
+                World.ModernBotLineOfSight = OzFogOfWar.LosOn;
+                World.ModernBotSoloRadar = OzBattleOptions.SoloRadar;
+            }
             if (!skirmish) OzSoloAllowedUnits.Apply(this);
             if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active &&
                 (skirmishMap?.Solo == true || OzLevelDef.All.Any(definition => definition.Id == level)))
@@ -269,11 +278,11 @@ namespace OpenZ
             }
             else
             {
-                if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101) { Difficulty = BotDifficulty(Team.Blue) });
-                if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed) { Difficulty = BotDifficulty(Team.Red) });
+                if (blueBot) World.Bots.Add(new ZBot(World, Team.Blue, seed + 101, BotDifficulty(Team.Blue)));
+                if (redBot) World.Bots.Add(new ZBot(World, Team.Red, seed, BotDifficulty(Team.Red)));
             }
             if (skirmish && !OpenZ.Multiplayer.DuelRuntime.Active) World.LocalSkirmishPlayer = player;
-            foreach (var b in World.Bots) Debug.Log($"[OpenZ] CPU {b.Team}: {b.Difficulty}{(b.Difficulty == ZBotDifficulty.Easy ? $" (waits {ZBot.EASY_START_DELAY:0} s, max wave {ZBot.EASY_MAX_WAVE}, max attackers {ZBot.EASY_MAX_ATTACKERS})" : " (Zod bot)")}");
+            foreach (var b in World.Bots) Debug.Log($"[OpenZ] CPU {b.Team}: {b.Difficulty}{(ZAiDifficulty.IsModern(b.Difficulty) ? " (2026)" : b.Difficulty == ZBotDifficulty.Easy ? " (1996 Easy)" : " (1996)")}");
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;
             BindViews();
@@ -394,7 +403,8 @@ namespace OpenZ
         public static bool ParkedStartOn(string level) => level == "L17" && PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt(ParkedStartPref, 1) == 1;
 
         /// <summary>Easy only applies to a CPU playing against the human; bot vs bot (both CPUs) always runs the Zod bot.</summary>
-        public ZBotDifficulty BotDifficulty(Team t) => blueBot && redBot ? ZBotDifficulty.Normal : t != player ? difficulty : ZBotDifficulty.Normal;
+        public ZBotDifficulty BotDifficulty(Team t) => blueBot && redBot || t == player ? ZBotDifficulty.Normal :
+            ZAiDifficulty.IsModern(SoloAi2026) ? SoloAi2026 : difficulty;
 
         /// <summary>Difficulty unlocks (deviation, Hard = none): the human's factories and fort read their build list higher up.
         /// Bots never get a bonus; bot vs bot runs Zod lists on both sides.</summary>

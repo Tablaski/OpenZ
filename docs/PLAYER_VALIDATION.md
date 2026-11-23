@@ -6,7 +6,9 @@
 
 ## OpenZ-VK 1.5.59 V5 material examples
 
-- Compare the five opt-in scenes at the same Unity camera positions in V4 and V5. Record the shared mesh hash and inspect both bridge mouths. Validate intact, damaged and repaired crossings and perimeter interactions in a compiled game when requested.
+- Checkpoint `9b1481e8` passed 9,065 headless simulation checks. In Unity 6000.3.27f2, five V4 and five V5 scenes produced 30 native 3840 × 2160 captures with matching cameras. Vertex and triangle hashes matched on all five terrains. The render and collision components used the same mesh in each scene.
+- The paired Unity runs loaded the same rock and bridge IDs and the same current and maximum health. The Desert example retained all 163 destructible rocks and four bridges. Across the five scenes, 12 bridge records matched, including the initially destroyed City crossings. Native files, decoded grids and baked scene files were unchanged.
+- Pending in a compiled game. Validate player-driven movement and attack interactions on the perimeter and across intact, destroyed and repaired bridges.
 
 ## OpenZ-VK 1.5.57 AI 2026 and TeamPlay
 

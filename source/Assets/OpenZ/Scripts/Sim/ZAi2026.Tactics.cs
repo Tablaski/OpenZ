@@ -13,7 +13,9 @@ namespace OpenZ.Sim
                 if (mode != WpMode.Move && mode != WpMode.Attack) return false;
             }
 
-            if (defenseThreat != null && unit.CanAttackObject(defenseThreat) && Attending(unit) &&
+            if (defenseThreat != null &&
+                (!assigned.TryGetValue(defenseThreat.Id, out int responding) || responding < defenseCommitment) &&
+                unit.CanAttackObject(defenseThreat) && Attending(unit) &&
                 ZAiGeometry.DistanceSquared(unit, defenseFort.CenterX, defenseFort.CenterY) <= 600L * 600 &&
                 (defenseFort == home || teamPlay.CanRelease(unit, home, defenseFort, homeThreatened)) &&
                 SafeShot(unit, defenseThreat) && Reachable(unit, defenseThreat.CenterX, defenseThreat.CenterY, 6))

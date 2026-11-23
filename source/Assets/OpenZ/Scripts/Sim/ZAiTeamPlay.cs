@@ -30,11 +30,17 @@ namespace OpenZ.Sim
             {
                 if (!enemy.IsUnit || !enemy.CanAttack() && !enemy.CanMove) continue;
                 double distance = ZAiGeometry.Distance(fort, enemy);
-                if (distance > TeamFortRadius && enemy.AttackObject != fort) continue;
+                bool attacking = enemy.AttackObject == fort;
+                if (!attacking)
+                {
+                    if (distance > TeamFortRadius) continue;
+                    double closing = enemy.Dx * (fort.CenterX - enemy.CenterX) + enemy.Dy * (fort.CenterY - enemy.CenterY);
+                    if (distance > Math.Max(120, enemy.AttackRadius + 45) && closing <= 0) continue;
+                }
                 double entry = Math.Max(0, distance - 40) / Math.Max(1, enemy.MoveSpeed);
                 double pressure = enemy.CanAttack() ? ZAiCombat.Firepower(enemy) * 28 / Math.Max(1, fort.Health) : 0;
                 double value = 1 / (1 + entry / 12) + pressure;
-                if (enemy.AttackObject == fort) value += 1;
+                if (attacking) value += 1;
                 if (enemy.IsMoving && enemy.CanMove) value *= 1.2;
                 urgency += value;
                 if (value <= priority) continue;

@@ -25,6 +25,7 @@ namespace OpenZ.Sim
         ZObject home, defenseFort, defenseThreat;
         ZAiTeamPlay.Threat supportFront;
         bool homeThreatened;
+        int defenseCommitment;
         double nextTactics, nextStrategy, nextFocus, nextProduction;
         int cursor, focusX, focusY;
 
@@ -137,11 +138,14 @@ namespace OpenZ.Sim
             supportFront = teamPlay.SupportFront(allies, enemies, level, tuning, Occasion);
             defenseFort = home;
             defenseThreat = own.Enemy;
+            double defenseUrgency = own.Urgency;
             if (help.Enemy != null && (own.Enemy == null || world.SkirmishAllForOne && help.Urgency > own.Urgency * 1.2))
             {
                 defenseFort = help.Fort;
                 defenseThreat = help.Enemy;
+                defenseUrgency = help.Urgency;
             }
+            defenseCommitment = Math.Min(level >= ZBotDifficulty.Skilled ? 4 : 2, 1 + (int)defenseUrgency);
             if (defenseThreat == null && level >= ZBotDifficulty.Alright)
                 ChooseInfrastructureDefense();
 

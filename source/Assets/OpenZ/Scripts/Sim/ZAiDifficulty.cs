@@ -10,10 +10,10 @@ namespace OpenZ.Sim
 
         internal static string Hint(ZBotDifficulty level) => level switch
         {
-            ZBotDifficulty.Noob => "A slow start and loose defense. Individual units often miss opportunities.",
-            ZBotDifficulty.Alright => "Captures quickly, groups some units and responds to nearby threats.",
-            ZBotDifficulty.Skilled => "Plans reinforcements, exploits range and coordinates attacks.",
-            ZBotDifficulty.Zod => "Micromanages active fronts and looks for decisive fort openings.",
+            ZBotDifficulty.Noob => "Slow openings, scattered troops and frequent mistakes.",
+            ZBotDifficulty.Alright => "Quick captures and local defense with small groups.",
+            ZBotDifficulty.Skilled => "Uses range, reinforcements and coordinated attacks.",
+            ZBotDifficulty.Zod => "Micromanages fronts and looks for openings at forts.",
             ZBotDifficulty.Easy => "The classic opponent with a slower start and smaller attacks.",
             ZBotDifficulty.Hard => "The classic opponent with more aggressive attacks.",
             _ => "The classic OpenZ opponent."

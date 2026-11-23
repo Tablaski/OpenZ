@@ -16,6 +16,7 @@ namespace OpenZ.Experimental
 
         public bool IsPaletteV3 { get; private set; }
         public bool IsPaletteV4 { get; private set; }
+        public bool IsPaletteV5 { get; private set; }
 
         const int Apron = 24;
         readonly List<Object> generated = new List<Object>();
@@ -38,6 +39,7 @@ namespace OpenZ.Experimental
             var bridgeSpans = BridgeSpans(map);
             bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
             IsPaletteV4 = useV4;
+            IsPaletteV5 = useV4 && OzAiTerrainV5.Active(mapId);
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
@@ -89,10 +91,14 @@ namespace OpenZ.Experimental
                 : map.planet == "volcanic" && !useV4 ? cliff : TiledRock(cliff, useV4);
             var floor = map.planet == "jungle" ? surfaceGround
                 : map.planet == "volcanic" ? pit : TiledRock(pit, useV4);
-            terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
-            terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
+            var materials = new[] { surfaceGround, rockFace, floor };
+            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? RenderV5Rim(map, vertices, uv, channels) : mesh;
+            terrain.AddComponent<MeshRenderer>().sharedMaterials = IsPaletteV5
+                ? new[] { surfaceGround, rockFace, floor, V5Scenery(map.planet, "V5 landscape", true) } : materials;
+            if (IsPaletteV5) surfaceGround.SetFloat("_OzAiTerrainV5", 1);
             BuildWater(map, useV4);
             if (terraces?.HasTerraces == true) SeatTerraceViews();
+            if (IsPaletteV5) DressV5(map, terrain.GetComponent<MeshCollider>(), bridgeClearance);
 
             float Height(float x, float z)
             {

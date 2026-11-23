@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.58 (23 Nov 2026)
+
+- AI Maps — Try an experimental V5 look on one map per planet with `-oz-ai-maps-v5`. The examples feature new cliffs, terrain materials and scenery. Bridge layouts and crossing rules remain the same.
+
 ## OpenZ-VK 1.5.57 (23 Nov 2026)
 
 - Solo and Skirmish — Choose the 2026 AI in Noob, Alright, Skilled or Zod. Higher levels coordinate more units, use firing range and repairs more effectively, anticipate production and look for openings at forts. The 1996 opponents remain available.

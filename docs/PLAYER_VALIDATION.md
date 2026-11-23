@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.58 V5 examples
+
+- Compare the five opt-in scenes in Unity, including the outer terrain, both bridge mouths and any visible lava, ice, swamp plants or harbour outfalls. Check that the map routes, V4 bridge stages, terrain selection, movement and attack interactions at the perimeter remain the same. Check that a tank can knock down an added city lamp and continue along the same route.
+
 ## OpenZ-VK 1.5.57 AI 2026 and TeamPlay
 
 - Source checkpoint `189e5aa8` passed 9,056 core and real-map simulation checks, including 24 AI 2026 checks. All Unity runtime C# scripts compiled with the Unity compiler and references. These checks used the committed source in isolation from concurrent workspace edits.

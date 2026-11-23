@@ -55,6 +55,7 @@ static class AiMapChecks
         CheckArctic(root, settings, check, reject);
         CheckCatalogV3(root, settings, check);
         CheckTerrainV4(root, check);
+        CheckTerrainV5(root, check);
         foreach(var entry in OzAiMapCatalog.All)
         {
             var mapFile=Path.Combine(root,"aimaps/Resources/OpenZ/Maps",entry.Id+"_grid.json");
@@ -73,6 +74,26 @@ static class AiMapChecks
             check(!receiver.Execute(new DuelOrder{Sequence=1,ObjectId=red.Id,Kind=DuelOrderKind.Stop})&&receiver.Execute(new DuelOrder{Sequence=2,ObjectId=blue.Id,Kind=DuelOrderKind.Stop}),entry.Id+": authoritative orders preserve team control");
             var state=DuelReplica.Capture(world); var client=ZWorld.Create(settings,json,1935); client.ConfigureDuel(rules,true); DuelReplica.Apply(client,state);
             check(client.Objects.Count==world.Objects.Count,entry.Id+": initial replica object count");
+        }
+    }
+
+    static void CheckTerrainV5(string root, Action<bool, string> check)
+    {
+        var examples = OzAiMapCatalog.SkirmishMaps.Where(map => OzAiTerrainV5.HasExample(map.Id)).ToArray();
+        check(examples.Length == 5 && examples.Select(map => map.World).Distinct().Count() == 5,
+            "V5 contains one example per biome");
+        foreach (var example in examples)
+        {
+            var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", example.Id + "_grid.json")));
+            for (int y = 0; y <= map.height * 2; y++)
+            for (int x = 0; x <= map.width * 2; x++)
+                if (OzAiTerrainV5.RimWeight(OzAiTerrainV5.RimDistance(x, y, map.width, map.height)) != 0)
+                    throw new InvalidOperationException(example.Id + ": V5 rim overlaps a playable terrain vertex");
+            check(OzAiTerrainV5.RimWeight(1) == 0 && OzAiTerrainV5.RimWeight(7) == 1,
+                example.Id + ": V5 rim blends only outside the map");
+            if (map.planet == "arctic")
+                check(map.tiles.Any(OzAiTerrainV5.ArcticIceArt) && !OzAiTerrainV5.ArcticIceArt(175) && !OzAiTerrainV5.ArcticIceArt(432),
+                    "V5 Arctic uses native fractured ice artwork without replacing blue open water");
         }
     }
 

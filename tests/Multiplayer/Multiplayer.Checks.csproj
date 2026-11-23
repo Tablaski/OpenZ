@@ -15,6 +15,7 @@
     <Compile Include="../../source/Assets/OpenZ/Scripts/View/OzRadarLineRule.cs" Link="View/OzRadarLineRule.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/View/OzFowMask.cs" Link="View/OzFowMask.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzAiTerrainV4.cs" Link="View/OzAiTerrainV4.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzAiTerrainV5.cs" Link="View/OzAiTerrainV5.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzJungleTerracesV4.cs" Link="View/OzJungleTerracesV4.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/Simulation/*.cs" Link="Adapter/%(Filename)%(Extension)" />
   </ItemGroup>

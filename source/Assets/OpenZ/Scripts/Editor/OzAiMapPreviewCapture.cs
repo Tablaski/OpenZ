@@ -22,7 +22,7 @@ namespace OpenZ.EditorTools
         static OzAiMap[] entries;
         static string output, ffmpeg, clip;
         static int index, frame, loadedAt, lastFrame, width, height;
-        static bool comparison, stills, force;
+        static bool comparison, stills, force, rim;
         static Camera camera;
         static RenderTexture target;
         static Texture2D image;
@@ -87,6 +87,7 @@ namespace OpenZ.EditorTools
             output = Path.GetFullPath(Arg("-oz-preview-output") ?? "../.local/ai-map-previews");
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
             comparison = args.Contains("-oz-preview-comparisons");
+            rim = comparison && args.Contains("-oz-preview-rim");
             stills = args.Contains("-oz-preview-skirmish-posters");
             force = args.Contains("-oz-preview-force");
             width = comparison ? 3840 : 960;
@@ -193,10 +194,11 @@ namespace OpenZ.EditorTools
             game.paused = true;
             worldTime = game.World.Time;
             var terrain = UnityEngine.Object.FindFirstObjectByType<OzConversionTerrainV2>();
-            if (!terrain || !terrain.IsPaletteV3 || terrain.IsPaletteV4 != (entry.Variant == "V4"))
+            if (!terrain || !terrain.IsPaletteV3 || terrain.IsPaletteV4 != (entry.Variant != "V3") ||
+                terrain.IsPaletteV5 != (entry.Variant == "V5"))
                 throw new InvalidOperationException("Wrong terrain profile for " + entry.Id);
             lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
-            shots = Plan(entry, game);
+            shots = rim ? new[] { RimShot(entry, game.World.Map) } : Plan(entry, game);
             camera = Camera.main;
             camera.GetComponent<RtsCamera>().enabled = false;
             camera.enabled = false;

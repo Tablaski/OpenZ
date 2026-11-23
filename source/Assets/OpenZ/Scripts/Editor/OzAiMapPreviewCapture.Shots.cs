@@ -130,6 +130,14 @@ namespace OpenZ.EditorTools
             if (FullMapVisible(map)) throw new InvalidOperationException("A shot frames the complete map on " + game.level);
         }
 
+        static Shot RimShot(OzAiMap entry, ZMapData map)
+        {
+            float heading = entry.World == "desert" ? -22 : entry.World == "city" ? 20 : 8;
+            float x = map.width * (entry.World == "arctic" ? .52f : .82f);
+            return new Shot("outer cliffs and battlefield below", new Vector3(x, 3, -13), Vector3.zero,
+                heading, 0, 51, 0, 69, 0, 48, 24);
+        }
+
         static bool FullMapVisible(ZMapData map)
         {
             for (int corner = 0; corner < 4; corner++)

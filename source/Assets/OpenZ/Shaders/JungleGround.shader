@@ -13,6 +13,7 @@ Shader "OpenZ/JungleGround"
         [NoScaleOffset] _BaseMap ("Far ground picture (the layers baked from above)", 2D) = "white" {}
         _BaseColor ("Tint", Color) = (1,1,1,1)
         [HideInInspector] _OzAiTerrainProfile ("AI map terrain V4 profile", Float) = 0
+        [HideInInspector] _OzAiTerrainV5 ("AI map terrain V5 detail", Float) = 0
         _Smoothness ("Smoothness", Range(0,1)) = 0.06
         [NoScaleOffset] _Layers ("Layers: grass, verge, mud, rock, wet floor, road, swamp bed, moss top, ruin paving, cliff side (A = height)", 2DArray) = "" {}
         [NoScaleOffset] _SplatA ("Weights A: grass, verge, mud, rock", 2D) = "black" {}
@@ -61,6 +62,7 @@ Shader "OpenZ/JungleGround"
         CBUFFER_START(UnityPerMaterial)
             half4 _BaseColor; half _Smoothness;
             float _OzAiTerrainProfile;
+            float _OzAiTerrainV5;
             float4 _GroundRect; float _LayerTile; float4 _FarPx; half _CraterMud;
             half4 _StudColor; float4 _StudRule; float4 _MapTiles; half _RimCutOn;
             float4 _GrassMood; float4 _GrassWarm; float4 _GrassCool; float4 _LookCal; float4 _GrassTint;
@@ -120,6 +122,7 @@ Shader "OpenZ/JungleGround"
             TEXTURE2D(_OzCraterDecal); SAMPLER(sampler_OzCraterDecal);
             TEXTURE2D(_RoadStuds); SAMPLER(sampler_point_clamp);
             #include "OzAiTerrainV4.hlsl"
+            #include "OzAiTerrainV5.hlsl"
             TEXTURE2D(_CrackMask);                                                  // road wear (read with sampler_linear_clamp)
             TEXTURE2D(_LeafyMask); SAMPLER(sampler_linear_clamp);
             TEXTURE2D(_OzLowPuddleMask);                                            // rain puddles on the low grass and the gravel paths (global: OzJungleWeather.LowPuddles.cs): R = depth of a hollow, B = a path's puddle; read with sampler_linear_clamp
@@ -476,6 +479,9 @@ Shader "OpenZ/JungleGround"
                 albedo *= _BaseColor.rgb;
                 if (_OzAiTerrainProfile > .5)
                     OZAiV4Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile,
+                        SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g);
+                if (_OzAiTerrainV5 > .5)
+                    OZAiV5Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile,
                         SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g);
                 if (_StudRule.w > 0.001) albedo = OZJStuds(P, px3, albedo);
                 if (patch)

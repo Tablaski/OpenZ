@@ -82,7 +82,7 @@ registers the reference maps and the additional Molten Kombat trial.
 
 See the [converter changelog](CONVERTER_CHANGELOG.md) for the current V4 renderer, its V3 comparison switch and the original palette mappings.
 
-The playable catalog uses V3. The four prototype conversions of official OpenZ missions are kept as editor references. The Arctic maps use the original Arctic art kit.
+V3 supplies the palette roles and base materials for V4. The prototype conversions of the official OpenZ missions remain available as editor references. Arctic maps use the original Arctic art kit.
 The shared Molten Kombat entry covers both solo and 1v1.
 
 ```powershell

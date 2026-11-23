@@ -38,17 +38,14 @@ namespace OpenZ.Experimental
             bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
+            var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
             bool UnderBridge(ZMapData data, int index) => bridgeSpans[index];
             bool StraightRidge(ZMapData data, int index) => ridges[index];
             for (int row = 0; row <= height; row++)
             for (int col = 0; col <= width; col++)
             {
                 float x = col * step - Apron, z = row * step - Apron;
-                float clearance = 0;
-                foreach (var bridge in bridgeClearance)
-                    clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
-                float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
-                vertices.Add(new Vector3(x, Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge), -z));
+                vertices.Add(new Vector3(x, Height(x, z), -z));
                 uv.Add(new Vector2(x / (map.width * 2), 1 - z / (map.height * 2)));
             }
 
@@ -93,6 +90,36 @@ namespace OpenZ.Experimental
             terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
             BuildWater(map);
+            if (terraces?.HasTerraces == true) SeatTerraceViews();
+
+            float Height(float x, float z)
+            {
+                float clearance = 0;
+                foreach (var bridge in bridgeClearance)
+                    clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
+                float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
+                float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge);
+                if (terraces?.HasTerraces == true && clearance == 0)
+                    height += TerraceAdjustment(map, terraces, x, z, height);
+                return height;
+            }
+
+            void SeatTerraceViews()
+            {
+                foreach (var root in gameObject.scene.GetRootGameObjects())
+                {
+                    if (root.name != "ZodObjects") continue;
+                    foreach (Transform view in root.transform)
+                    {
+                        if (view.name.StartsWith("bridge_", System.StringComparison.Ordinal)) continue;
+                        var position = view.position;
+                        float x = position.x, z = -position.z;
+                        if (TerraceAdjustment(map, terraces, x, z, 0) == 0) continue;
+                        float reference = Elevation(map, x, z, Mask(map, x, z, UnderBridge), 0, 0);
+                        view.position += Vector3.up * (Height(x, z) - reference);
+                    }
+                }
+            }
 
             void AddTriangle(int a, int b, int c)
             {
@@ -103,6 +130,19 @@ namespace OpenZ.Experimental
                 triangles.Add(b);
                 triangles.Add(c);
             }
+        }
+
+        static float TerraceAdjustment(ZMapData map, OzJungleTerracesV4 terraces, float x, float z, float height)
+        {
+            float tx = x * .5f - .5f, ty = z * .5f - .5f;
+            int left = Mathf.FloorToInt(tx), top = Mathf.FloorToInt(ty);
+            float fx = tx - left, fy = ty - top;
+            return Read(left, top) * (1 - fx) * (1 - fy) + Read(left + 1, top) * fx * (1 - fy)
+                + Read(left, top + 1) * (1 - fx) * fy + Read(left + 1, top + 1) * fx * fy;
+
+            float Read(int col, int row) =>
+                col >= 0 && row >= 0 && col < map.width && row < map.height &&
+                terraces.TryGetHeight(row * map.width + col, out float sample) ? sample - height : 0;
         }
 
         Material TiledRock(Material original, bool useV4)

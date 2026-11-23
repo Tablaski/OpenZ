@@ -102,9 +102,28 @@ static class AiMapChecks
             check(ridges.Select((ridge, index) => !ridge || (map.classes[index] == (int)ZClass.Impassable &&
                 (!map.HasLava || map.lava[index] == 0))).All(valid => valid), id + ": straight ridges never extend onto roads, water or lava");
             if (id == "SM16")
+            {
                 check(Enumerable.Range(0, map.width).Count(x => Enumerable.Range(0, map.height - 19)
                     .Any(y => Enumerable.Range(y, 20).All(row => ridges[row * map.width + x]))) >= 2,
                     "SM16: native terrain preserves at least two long straight wall runs");
+                var terraces = new OzJungleTerracesV4(map);
+                float HeightAt(int x, int y) => terraces.TryGetHeight(y * map.width + x, out float height) ? height : 0;
+                foreach (int row in new[] { 36, 40, 47, 54, 68 })
+                    check(HeightAt(51, row) > 0 && HeightAt(52, row) > 0 && HeightAt(44, row) < 0 && HeightAt(58, row) < 0,
+                        $"SM16 row {row}: the central road is a raised shelf above both ravines");
+                check(HeightAt(51, 24) == 0 && HeightAt(52, 99) == 0,
+                    "SM16: terrace rules leave both outer approaches open and unraised");
+            }
+        }
+        foreach (var entry in OzAiMapCatalog.Playable.Concat(OzAiMapCatalog.MultiplayerMaps).Where(map => map.World == "jungle"))
+        {
+            var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(grids, entry.Id + "_grid.json")));
+            var terraces = new OzJungleTerracesV4(map);
+            bool roadClear = map.classes.Select((type, index) => type != (int)ZClass.Road ||
+                !terraces.TryGetHeight(index, out float height) || height > 0).All(valid => valid);
+            check(roadClear, entry.Id + ": jungle terrace detection never drops an existing road into a ravine");
+            if (entry.Number == 31)
+                check(terraces.HasTerraces, entry.Id + ": expansion layout with the same jungle palette also gets terraces");
         }
     }
 

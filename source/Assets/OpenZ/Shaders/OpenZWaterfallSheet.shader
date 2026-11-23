@@ -26,6 +26,7 @@ Shader "OpenZ/WaterfallSheet"
         _StreakCut ("Streak threshold (texture g)", Range(0.3, 0.98)) = 0.84
         _BodyAlpha ("Body alpha between the threads (x body alpha)", Range(0, 1)) = 0.35
         _BodyDark ("Body shade (1 = the water tint as is)", Range(0.3, 1.2)) = 0.8
+        [HideInInspector] _FlowScroll ("Self-scrolling flow", Float) = 0
     }
     SubShader
     {
@@ -53,6 +54,7 @@ Shader "OpenZ/WaterfallSheet"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor; half4 _FoamColor; half4 _EmissionColor;
+                float _FlowScroll;
                 half _Alpha; half _FoamStreaks; half _EdgeBright; half _EdgeSoft; float _FadeY; float _FadeRange; half _Wrap;
                 half _LookV2; half _LipFoam; half _FootFoam; half _StreakCut; half _BodyAlpha; half _BodyDark;   // item 227 look v2
             CBUFFER_END
@@ -79,9 +81,10 @@ Shader "OpenZ/WaterfallSheet"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 float3 n = normalize(i.n); n = front ? n : -n;
-                float2 uv1 = i.uv * _BaseMap_ST.xy + _BaseMap_ST.zw;                                   // WaterfallFx scroll
-                float2 uv2 = float2(i.uv.x * 1.63 + 0.37, i.uv.y * 0.58) + float2(-_BaseMap_ST.z * 0.5, _BaseMap_ST.w * 0.62);
-                float2 uv3 = float2(i.uv.x * 2.9 + 0.11, i.uv.y * 1.35) + float2(0.0, _BaseMap_ST.w * 1.31);   // fast foam layer
+                float2 scroll = _BaseMap_ST.zw + float2(0, _Time.y * _FlowScroll);
+                float2 uv1 = i.uv * _BaseMap_ST.xy + scroll;
+                float2 uv2 = float2(i.uv.x * 1.63 + 0.37, i.uv.y * 0.58) + float2(-scroll.x * 0.5, scroll.y * 0.62);
+                float2 uv3 = float2(i.uv.x * 2.9 + 0.11, i.uv.y * 1.35) + float2(0.0, scroll.y * 1.31);
                 half3 t1 = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv1).rgb;
                 half3 t2 = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv2).rgb;
                 half3 t3 = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv3).rgb;

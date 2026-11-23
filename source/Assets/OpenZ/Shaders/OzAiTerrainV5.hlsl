@@ -71,11 +71,11 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
     }
     else if (biome < 2.5)
     {
-        float scoria = smoothstep(.50,.72,V5Noise(p * .53)) * (.52 + .48 * coarse);
+        float scoria = smoothstep(.43,.70,V5Noise(p * .53)) * (.52 + .48 * coarse);
         float2 stone = V5Cells(p * 2.8 + medium * .1);
         float grains = smoothstep(.43,.56,stone.x) * V5Resolved(pixel, 2.8);
         float cleft = (1 - smoothstep(.025,.13,stone.y)) * V5Resolved(pixel, 2.8);
-        terrain *= lerp(half3(1.05,1.035,1.022),half3(.69,.67,.70),scoria) * (1 - .15 * grains - .13 * cleft + grit * .30);
+        terrain *= lerp(half3(1.10,1.10,1.11),half3(.63,.63,.67),scoria) * (1 - .18 * grains - .15 * cleft + grit * .37);
         elevation += (.025 * grains - .020 * cleft) * scoria;
     }
     else if (biome < 3.5)
@@ -104,18 +104,20 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
     {
         float dune = V5Noise(p * float2(.21,.73) + coarse * .9);
         float drift = smoothstep(.55,.82,dune);
-        float glaze = smoothstep(.29,.77,palette);
-        float2 crystal = V5Cells(p * float2(1.36,1.58) + medium * .18);
-        float cracks = (1 - smoothstep(.027,.075,crystal.y)) * V5Resolved(pixel, 1.58);
-        half3 ice = lerp(half3(.082,.23,.33),half3(.32,.55,.66),saturate(.82 - crystal.x + dune * .24));
-        ice = lerp(ice,half3(.51,.68,.77),cracks * .48);
-        terrain = lerp(terrain * (1 + drift * .082 + grit * .15), ice, glaze * .82);
-        elevation += drift * .024 - cracks * glaze * .011;
-        color = lerp(color,terrain,drift * .18 * roadWeight);
+        float glaze = smoothstep(.34,.83,palette);
+        float2 crystal = V5Cells(p * float2(1.78,1.94) + medium * .10);
+        float cracks = (1 - smoothstep(.008,.037,crystal.y)) * V5Resolved(pixel, 1.94);
+        half3 ice = lerp(half3(.19,.37,.48),half3(.33,.51,.59),saturate(.79 - crystal.x + dune * .18));
+        ice += half3(.19,.23,.25) * cracks * .23;
+        terrain = lerp(terrain * (1 + drift * .071 + grit * .15), ice, glaze * .65);
+        elevation += drift * .017 - cracks * glaze * .0035;
+        float driftOnRoad = smoothstep(.63,.82,dune + medium * .12) * (.30 + .53 * (1 - road));
+        float gravel = (V5Noise(p * 8.6) - .5) * V5Resolved(pixel, 8.6);
+        color = lerp(color * (1 + gravel * .30),half3(.65,.73,.78),driftOnRoad);
     }
     float asphalt = (V5Noise(p * 5.8) - .5) * V5Resolved(pixel, 5.8);
     color = lerp(terrain,color * (1 + grit*.28 + asphalt*.16),roadWeight);
-    return lerp(elevation, asphalt * .012 + grit * .006,roadWeight);
+    return lerp(elevation, asphalt * (biome > 4.5 ? .024 : .012) + grit * .006,roadWeight);
 }
 
 float V5Rock(inout half3 albedo, float3 p, float3 normalWS, float biome, float pixel)

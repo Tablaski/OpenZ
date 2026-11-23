@@ -325,10 +325,12 @@ Shader "OpenZ/Sand"
                 if (_OzAiTerrainProfile > .5)
                     OZAiV4Surface(albedo, w, ozPxm, _OzAiTerrainProfile, OZSdf(i.uv).r);
                 float materialHeight = 0;
+                float iceGlaze = 0;
                 if (_OzAiTerrainV5 > .5)
                 {
                     float4 field = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, i.uv, 0);
                     materialHeight = OZAiV5Surface(albedo, w, ozPxm, _OzAiTerrainProfile, field.r, field.a);
+                    if (_OzAiTerrainProfile > 4.5) iceGlaze = smoothstep(.34,.83,field.a);
                 }
                 if (_OzCraterRole > 1.5)
                 {
@@ -340,6 +342,7 @@ Shader "OpenZ/Sand"
 
                 SurfaceData s = (SurfaceData)0;
                 s.albedo = albedo; s.alpha = 1; s.metallic = 0; s.smoothness = _Smoothness; s.occlusion = 1; s.normalTS = half3(0, 0, 1);
+                s.smoothness = lerp(s.smoothness,.69,iceGlaze * .65);
                 InputData inputData = (InputData)0;
                 inputData.positionWS = i.positionWS; inputData.positionCS = i.positionCS;
                 inputData.normalWS = NormalizeNormalPerPixel(i.normalWS);

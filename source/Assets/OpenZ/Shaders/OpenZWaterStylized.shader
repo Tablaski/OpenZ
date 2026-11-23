@@ -109,6 +109,7 @@ Shader "OpenZ/WaterStylized"
         _FoamSpeed ("Foam drift (m per s)", Range(0, 1)) = 0.05
         _FoamBreakup ("Foam break-up", Range(0, 1)) = 0.75
         _FoamSoftness ("Foam softness", Range(0.001, 0.5)) = 0.08
+        [HideInInspector] _OzAiWaterV5 ("AI maps V5 water profile", Float) = 0
         _EdgeFade ("Waterline softening (m of depth)", Range(0.001, 0.3)) = 0.02
         [Header(Wrecks and swimmers in the water  kit water_depth_soft 1.5)]
         _ObjectClarity ("Object under the surface: m to 63 % of its opacity", Range(0.05, 3)) = 0.25
@@ -242,6 +243,7 @@ Shader "OpenZ/WaterStylized"
                 float _FoamSpeed;
                 half _FoamBreakup;
                 half _FoamSoftness;
+                float _OzAiWaterV5;
                 float _EdgeFade;
                 float _ObjectClarity; half _ObjectOpacityMax; float _ObjectEdgeFade; half _ContactRing; float _ContactRingWidth; float _ContactRippleReach; float _ContactRippleSpeed;   // water_depth_soft (1.5)
                 half _ObjectClearBand; float _ObjectClearWidth;
@@ -647,6 +649,18 @@ Shader "OpenZ/WaterStylized"
                 half3 surf = body * (A * (1.0 - fres)) + sky * fres;
                 surf = surf * (1.0 - foam) + foamLit * foam;
                 cover = cover * (1.0 - foam) + foam;
+                if (_OzAiWaterV5 > .5)
+                {
+                    bool cold = _OzAiWaterV5 < 1.5;
+                    float air = WaterValueNoise(xz * float2(.13,.27) + float2(t * .013,-t * .009));
+                    float ribbons = WaterValueNoise(xz * float2(.056,.15) + air * .38);
+                    half veil = smoothstep(.43,.75,ribbons) * smoothstep(.10,.75,d) * (1 - foam) * (1 - .6 * night);
+                    veil *= (cold ? .086 : .12) * (.86 + .14 * (1 - V.y));
+                    half3 vapor = cold ? half3(.41,.60,.71) : half3(.26,.31,.24);
+                    surf = lerp(surf,vapor * diffuse,veil);
+                    cover = lerp(cover,1,veil);
+                    S *= 1 - veil * 1.3;
+                }
                 half trans = 1.0 - cover;
 
                 // ---- fog on the surface part only: MixFog(1) - MixFog(0) = how much of the surface survives

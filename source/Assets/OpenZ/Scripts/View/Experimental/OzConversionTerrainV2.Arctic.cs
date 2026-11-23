@@ -19,9 +19,9 @@ namespace OpenZ.Experimental
                 float z = (h - row - .5f) * 2 / samplesPerTile;
                 float drifts = Mathf.PerlinNoise((x + z * .65f) * .165f, z * .036f);
                 float grain = Mathf.PerlinNoise(x * .74f, z * .74f);
-                float offset = (grain - .5f) * .55f;
+                float offset = (grain - .5f) * (IsPaletteV5 ? .26f : .55f);
                 float road = Mask(map, x + offset, z - offset, Road);
-                float roadWeight = RoadBlend(road, useV4, .27f, .55f);
+                float roadWeight = RoadBlend(road, useV4, IsPaletteV5 ? .37f : .27f, IsPaletteV5 ? .34f : .55f);
                 float wet = Mask(map, x + offset, z, Water);
                 float crust = Mathf.SmoothStep(0, 1, (wet - .05f) * 2.8f);
                 float stones = Mathf.SmoothStep(0, 1, (drifts - .48f) * 1.2f);
@@ -37,6 +37,11 @@ namespace OpenZ.Experimental
             var material = new Material(ground) { name = "Wind-packed Arctic snow" };
             material.SetTexture("_BaseMap", NewTexture(w, h, albedo, false, "Snow drifts, gravel and frozen banks"));
             if (useV4) material.SetTexture("_GroundSdf", NewTexture(w, h, roadField, true, "Arctic road field"));
+            if (IsPaletteV5)
+            {
+                material.SetFloat("_Blur", .14f);
+                material.SetFloat("_DetailNormalStr", 1.25f);
+            }
             generated.Add(material);
             return material;
         }

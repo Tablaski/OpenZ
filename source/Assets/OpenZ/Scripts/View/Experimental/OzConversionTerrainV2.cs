@@ -80,7 +80,7 @@ namespace OpenZ.Experimental
             {
                 "volcanic" => VolcanicGround(map, palette, useV4),
                 "arctic" => ArcticGround(map, useV4),
-                _ => LandGround(map, palette, useV4)
+                _ => LandGround(map, palette, useV4, terraces)
             };
             if (useV4)
             {
@@ -99,7 +99,8 @@ namespace OpenZ.Experimental
             }
             terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
-            BuildWater(map, useV4);
+            BuildWater(map, useV4, terraces);
+            if (IsPaletteV5 && map.planet == "volcanic") BuildVolcanicVents(map, Height, bridgeClearance);
             if (terraces?.HasTerraces == true) SeatTerraceViews();
 
             float Height(float x, float z)
@@ -265,6 +266,12 @@ namespace OpenZ.Experimental
                 shadeColor = Color.Lerp(shadeColor, new Color(.25f, .115f, .065f), Mathf.Clamp01(heat * 1.6f));
                 if (palette != null)
                     shadeColor = palette.VolcanicPaint(map, x, z, road, heat, mottle);
+                if (IsPaletteV5)
+                {
+                    float ashWeight = (1 - road) * (1 - heat) * (.49f + .20f * mottle);
+                    float grey = shadeColor.grayscale * (.88f + .20f * mottle);
+                    shadeColor = Color.Lerp(shadeColor, new Color(grey * 1.01f, grey, grey * 1.035f), ashWeight);
+                }
                 shadeColor.a = Mathf.Clamp01(heat * 1.15f);
                 int index = row * w + col;
                 paint[index] = shadeColor;
@@ -284,22 +291,24 @@ namespace OpenZ.Experimental
             return material;
         }
 
-        void BuildWater(ZMapData map, bool useV4)
+        void BuildWater(ZMapData map, bool useV4, OzJungleTerracesV4 terraces)
         {
             var vertices = new List<Vector3>();
             var indices = new List<int>();
             var underDeck = BridgeWater(map);
             bool WetSurface(ZMapData data, int index) => Water(data, index) || underDeck[index];
+            bool localRavines = IsPaletteV5 && mapId == "SM16" && terraces?.HasTerraces == true;
+            bool Ravine(ZMapData data, int index) => JungleRavine(data, terraces, index);
+            float WaterHeight(float x, float z) => localRavines ? -.33f - 1.65f * Mask(map, x, z, Ravine) : -.33f;
             for (int y = 0; y < map.height * 2; y++)
             for (int x = 0; x < map.width * 2; x++)
             {
                 if (Mask(map, x + .5f, y + .5f, WetSurface) < .12f) continue;
                 int a = vertices.Count;
-                const float waterY = -.33f;
-                vertices.Add(new Vector3(x, waterY, -y));
-                vertices.Add(new Vector3(x + 1, waterY, -y));
-                vertices.Add(new Vector3(x, waterY, -y - 1));
-                vertices.Add(new Vector3(x + 1, waterY, -y - 1));
+                vertices.Add(new Vector3(x, WaterHeight(x, y), -y));
+                vertices.Add(new Vector3(x + 1, WaterHeight(x + 1, y), -y));
+                vertices.Add(new Vector3(x, WaterHeight(x, y + 1), -y - 1));
+                vertices.Add(new Vector3(x + 1, WaterHeight(x + 1, y + 1), -y - 1));
                 indices.AddRange(new[] { a, a + 1, a + 2, a + 2, a + 1, a + 3 });
             }
             if (vertices.Count == 0) return;
@@ -315,8 +324,18 @@ namespace OpenZ.Experimental
             look.DisableKeyword("_WATER_FLOWMAP");
             if (look.HasProperty("_UseFlowMap")) look.SetFloat("_UseFlowMap", 0);
             if (useV4 && map.planet == "arctic") ArcticWaterLook(look);
+            if (IsPaletteV5 && look.HasProperty("_OzAiWaterV5") && (map.planet == "arctic" || localRavines))
+                look.SetFloat("_OzAiWaterV5", localRavines ? 2 : 1);
             generated.Add(look);
             surface.GetComponent<MeshRenderer>().sharedMaterial = look;
+            if (IsPaletteV5 && map.planet == "city") BuildCityOutfalls(map);
+        }
+
+        static bool JungleRavine(ZMapData map, OzJungleTerracesV4 terraces, int index)
+        {
+            int x = index % map.width, y = index / map.width;
+            return y >= 29 && y <= 94 && (x is >= 38 and <= 49 or >= 55 and <= 63) &&
+                terraces.TryGetHeight(index, out var floor) && floor < -2;
         }
 
         static bool Water(ZMapData map, int index) =>

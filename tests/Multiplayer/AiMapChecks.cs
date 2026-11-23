@@ -86,6 +86,10 @@ static class AiMapChecks
         {
             var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", example.Id + "_grid.json")));
             check(OzAiTerrainV4.Bridges(map).Length > 0, example.Id + ": V5 example includes a crossing for visual comparison");
+            if (map.planet == "city")
+                check(Enumerable.Range(0, map.tiles.Length).Count(i =>
+                    OzAiTerrainV5.CityOutfallDirection(map.tiles[i]) != (0, 0) && map.classes[i] == (int)ZClass.Water) == 6,
+                    "V5 City reads six sewer mouths from native tiles without touching the navigation grid");
             if (map.planet != "arctic") continue;
             int[] ice = Enumerable.Range(0, map.tiles.Length).Where(i => OzAiTerrainV5.ArcticIceAt(map, i)).ToArray();
             check(ice.Length == 103 && ice.All(i => map.classes[i] == (int)ZClass.Ground),

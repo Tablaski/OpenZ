@@ -2,6 +2,9 @@
 
 ## OpenZ-VK 1.5.57 AI 2026 and TeamPlay
 
+- Source checkpoint `189e5aa8` passed 9,056 core and real-map simulation checks, including 24 AI 2026 checks. All Unity runtime C# scripts compiled with the Unity compiler and references. These checks used the committed source in isolation from concurrent workspace edits.
+- Against `2ee3c206`, six fixed-seed legacy runs matched over the first 100 simulated seconds. The two maps were SM07 and SM18, with Easy, Normal and Hard. Sampled unit positions, health, ownership, waypoints, production and cumulative A* counts matched.
+- On `96439efb`, Desert P08M01 with seven Normal or seven Zod bots, Friendly Fire and All for One, seed 52, three interleaved runs per generation after warmup. Over simulated seconds 15–60, median mean tick time was 0.870 ms for Normal and 1.086 ms for Zod. The median p99 was 2.678 ms and 3.382 ms respectively. There were 133 and 138 live units at 60 seconds, so the comparisons include the consequences of different decisions. The early-match p99 is above the proposed 5% comparison margin. These are .NET simulation timings.
 - Pending in a compiled game. Verify the two difficulty groups and tooltips on the solo deploy screen, the local Skirmish roster and the online host's seat menu. Launch each generation, mix them in teams, change the host combat profile before launch, and try a mixed room with All for One and Friendly Fire.
 - Compare evenly matched tanks in OpenZ and Z Classic, then test the higher levels on a bridge map and on Desert P08M01. Check fort defense, scouting with radar loss, range management, team assistance, fort rushing, and speed under a seven-Zod roster. Calibrate difficulty and win rates after longer matches.
 

@@ -34,13 +34,6 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/AI Maps/Bake Chilly Willy")]
         public static void Arctic() => Bake(OzAiMapCatalog.ChillyWillyV2.Id);
 
-        [MenuItem("OpenZ/AI Maps/Bake missing catalog scenes")]
-        public static void BakeMissingCatalogScenes()
-        {
-            foreach (var entry in OzAiMapCatalog.All)
-                if (!File.Exists(PackageDisk + "Scenes/" + entry.Scene + ".unity")) Bake(entry.Id);
-        }
-
         [MenuItem("OpenZ/AI Maps/Upgrade the existing catalog to V3")]
         public static void UpgradeCatalog() => UpgradeCatalog(OzAiMapCatalog.Playable);
 
@@ -164,15 +157,14 @@ namespace OpenZ.EditorTools
         // Custom V2 and V3 grids can be baked without adding them to either game menu.
         public static void Bake(string id)
         {
-            bool catalogV3 = OzAiMapCatalog.All.Any(entry => entry.Id == id);
-            if (!catalogV3 && (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Za-z0-9_]+V[23]$")))
-                throw new ArgumentException("Expected a catalog map or a separate SM...V2 or SM...V3 map ID.", nameof(id));
+            if (string.IsNullOrEmpty(id) || !System.Text.RegularExpressions.Regex.IsMatch(id, "^SM[A-Za-z0-9_]+V[23]$"))
+                throw new ArgumentException("Expected a separate SM...V2 or SM...V3 map ID.", nameof(id));
             var asset = Resources.Load<TextAsset>("OpenZ/Maps/" + id + "_grid");
             if (!asset) throw new InvalidOperationException("Missing converted grid " + id);
             var map = ZMapData.FromJson(asset.text);
             var profile = Profile.For(map.planet);
             bool arctic = map.planet == "arctic";
-            bool paletteV3 = catalogV3 || id.EndsWith("V3", StringComparison.Ordinal);
+            bool paletteV3 = id.EndsWith("V3", StringComparison.Ordinal);
             if (arctic) OzArcticArt.Ensure();
             var world = ZWorld.Create(Resources.Load<TextAsset>("OpenZ/default_settings").text, asset.text, 19);
 

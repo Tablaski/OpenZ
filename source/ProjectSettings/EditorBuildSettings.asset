@@ -33,6 +33,9 @@ EditorBuildSettings:
     path: Packages/org.openz.aimaps/Scenes/SM01_Converted.unity
     guid: 6c8093bfd4326dc45b6eff960a972490
   - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM02_Converted.unity
+    guid: bfa5d7fd4c4f97aa8712c986d8dde496
+  - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM03_Converted.unity
     guid: 4dbef34ebc2b0ec4cb42607778ba20ff
   - enabled: 1
@@ -44,6 +47,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM06_Converted.unity
     guid: 3a0affd83c1d3c240b0b47c49b5217af
+  - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM07_Converted.unity
+    guid: 3a116f52754903ac933e45b6ddec9931
   - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM08_Converted.unity
     guid: d6b196da6bf9d6749aef0a7e68f9786b
@@ -68,6 +74,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM15_Converted.unity
     guid: 2505b79310aae8a40820485baf235874
+  - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM16_Converted.unity
+    guid: 57f4eed49b375f70ad78bae1c03248c7
+  - enabled: 1
+    path: Packages/org.openz.aimaps/Scenes/SM17_Converted.unity
+    guid: 233a15418bc09dc1eb8d272f7fd004e1
   - enabled: 1
     path: Packages/org.openz.aimaps/Scenes/SM18_Converted.unity
     guid: 1ef4dc7e3dfdbc941b78da6e49d73eb2

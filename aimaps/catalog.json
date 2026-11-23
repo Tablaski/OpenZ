@@ -1,11 +1,5 @@
 {
   "schema": 1,
-  "excludedOriginalLevels": [
-    2,
-    7,
-    16,
-    17
-  ],
   "maps": [
     {
       "id": "SM01",
@@ -22,6 +16,22 @@
       "width": 64,
       "height": 86,
       "objects": 237
+    },
+    {
+      "id": "SM02",
+      "file": "p02_bb_orig02.map",
+      "name": "Desert",
+      "world": "desert",
+      "number": 2,
+      "balanced": false,
+      "solo": true,
+      "duel": true,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "cd8bd0470c2de73f605ad4d21c2616b0db63387dee76f0cc41ca7b1bd75970f7",
+      "width": 72,
+      "height": 90,
+      "objects": 244
     },
     {
       "id": "SM03",
@@ -86,6 +96,22 @@
       "width": 80,
       "height": 116,
       "objects": 327
+    },
+    {
+      "id": "SM07",
+      "file": "p02_bb_orig07.map",
+      "name": "Pyro Technics",
+      "world": "volcanic",
+      "number": 7,
+      "balanced": false,
+      "solo": true,
+      "duel": true,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "7ca09a6f79448c6414824270570bb225b8b09cbae2ed57214a5cc8882382053f",
+      "width": 84,
+      "height": 110,
+      "objects": 967
     },
     {
       "id": "SM08",
@@ -214,6 +240,38 @@
       "width": 128,
       "height": 104,
       "objects": 256
+    },
+    {
+      "id": "SM16",
+      "file": "p02_bb_orig16.map",
+      "name": "The Jungle",
+      "world": "jungle",
+      "number": 16,
+      "balanced": false,
+      "solo": true,
+      "duel": true,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "5686b08cbbe8c082b3ce268c4fc4358bcf2bf307410a91cb953a5724e57169fb",
+      "width": 104,
+      "height": 128,
+      "objects": 351
+    },
+    {
+      "id": "SM17",
+      "file": "p02_bb_orig17.map",
+      "name": "The Car Park",
+      "world": "city",
+      "number": 17,
+      "balanced": false,
+      "solo": true,
+      "duel": true,
+      "soloException": false,
+      "nameVerified": true,
+      "sha256": "5bb8d934ddbad0e3254619a09c0b7c084e09c3c002def83e0882bb613b6c2421",
+      "width": 110,
+      "height": 128,
+      "objects": 421
     },
     {
       "id": "SM18",

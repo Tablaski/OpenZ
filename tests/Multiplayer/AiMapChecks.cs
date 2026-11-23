@@ -13,8 +13,17 @@ static class AiMapChecks
         string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));
         string settings=File.ReadAllText(Path.Combine(root,"source/Assets/OpenZ/Resources/OpenZ/default_settings.txt"));
         check(OzAiMapCatalog.All.Select(m=>m.Id).Distinct().Count()==OzAiMapCatalog.All.Length,"Unique converted map identities");
-        check(OzAiMapCatalog.All.All(m=>!new[]{2,7,16,17}.Contains(m.Number)),"Other restored OpenZ campaign maps remain excluded");
-        check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==31,"31 solo campaign choices");
+        check(OzAiMapCatalog.Find("SMBallermansMapV3") == null, "Ballerman's Map remains excluded");
+        check(OzAiMapCatalog.All.Count(m=>m.Solo&&m.Number>0)==35,"35 solo campaign choices");
+        foreach (int number in new[] { 2, 7, 16, 17 })
+        {
+            string id = $"SM{number:00}";
+            check(OzAiMapCatalog.Select(true, "Z ORIGINAL").Single(m => m.Number == number).Id == id &&
+                OzAiMapCatalog.SelectMultiplayer(2, "Z ORIGINAL", "all", 0).Single(m => m.Number == number).Id == id,
+                $"Level {number} offers its original AI map in solo and 1 vs 1");
+            check(OzAiMapCatalog.OfficialSkirmishMaps.Single(m => m.Number == number).Id == $"L{number:00}",
+                $"Level {number} retains its official OpenZ selection");
+        }
         check(OzAiMapCatalog.Select(true, "MULTIPLAYER").Length == 13
             && OzAiMapCatalog.Select(true, "MULTIPLAYER").All(map => map.Duel && map.Starts == 2),
             "Only the 13 two-start Zod Engine maps join the solo campaign selector");
@@ -121,7 +130,7 @@ static class AiMapChecks
     {
         foreach (var entry in OzAiMapCatalog.LandV2)
         {
-            check(OzAiMapCatalog.Find(entry.Id) == null, entry.Id + ": official mission is not duplicated in AI Maps");
+            check(OzAiMapCatalog.Find(entry.Id) == null, entry.Id + ": the V2 reference is excluded from the campaign catalog");
             reject(() => new DuelRules { Map = entry.Id }.Validate(), entry.Id + ": the prototype is solo only");
             string json = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", entry.Id + "_grid.json"));
             byte[] native = File.ReadAllBytes(Path.Combine(root, "aimaps/Sources~/maps", entry.File));
@@ -153,8 +162,8 @@ static class AiMapChecks
     static void CheckCatalogV3(string root, string settings, Action<bool,string> check)
     {
         var entries = OzAiMapCatalog.Playable.ToArray();
-        check(entries.Length == 61 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
-            "61 unique AI map variants including Bridge Game");
+        check(entries.Length == 65 && entries.Select(e => e.File).Distinct().Count() == entries.Length,
+            "65 unique AI map variants including the restored campaign maps");
         bool lavaRule = ZWorld.LavaDeviation, crocodileRule = ZWorld.CrocodileDeviation;
         ZWorld.LavaDeviation = true;
         ZWorld.CrocodileDeviation = true;

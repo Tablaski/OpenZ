@@ -3,10 +3,12 @@
 | Map | World | Solo | 1 vs 1 |
 | --- | --- | --- | --- |
 | 01 · Virgin Soldiers | Desert | Yes | Yes |
+| 02 · Desert | Desert | Yes | Yes |
 | 03 · Death Valley | Desert | Yes | Yes |
 | 04 · Desert Islands | Desert | Yes | Yes |
 | 05 · Hot Nuts | Volcanic | Yes | Yes |
 | 06 · Sooty Bolts | Volcanic | Yes | Yes |
+| 07 · Pyro Technics | Volcanic | Yes | Yes |
 | 08 · Molten Kombat | Volcanic | Yes | Yes |
 | 09 · Slippery Jim | Arctic | Yes | Yes |
 | 10 · The Wall | Arctic | Yes | Yes |
@@ -15,6 +17,8 @@
 | 13 · Hot n Steamy | Jungle | Yes | Yes |
 | 14 · Restoration | Jungle | Yes | Yes |
 | 15 · Swamp Fever | Jungle | Yes | Yes |
+| 16 · The Jungle | Jungle | Yes | Yes |
+| 17 · The Car Park | City | Yes | Yes |
 | 18 · Bridge Game | City | Yes | Yes, balanced variant |
 | 19 · Mayhem | City | Yes | Yes |
 | 20 · Z | City | Yes | Yes |

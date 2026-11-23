@@ -6,10 +6,12 @@ namespace OpenZ
         public static readonly OzAiMap[] All =
         {
             new OzAiMap("SM01", "Virgin Soldiers", "desert", "p02_bb_orig01.map", 1, true, true, false, false),
+            new OzAiMap("SM02", "Desert", "desert", "p02_bb_orig02.map", 2, true, true, false, false),
             new OzAiMap("SM03", "Death Valley", "desert", "p02_bb_orig03.map", 3, true, true, false, false),
             new OzAiMap("SM04", "Desert Islands", "desert", "p02_bb_orig04.map", 4, true, true, false, false),
             new OzAiMap("SM05", "Hot Nuts", "volcanic", "p02_bb_orig05.map", 5, true, true, false, false),
             new OzAiMap("SM06", "Sooty Bolts", "volcanic", "p02_bb_orig06.map", 6, true, true, false, false),
+            new OzAiMap("SM07", "Pyro Technics", "volcanic", "p02_bb_orig07.map", 7, true, true, false, false),
             new OzAiMap("SM08", "Molten Kombat", "volcanic", "p02_bb_orig08.map", 8, true, true, false, false),
             new OzAiMap("SM09", "Slippery Jim", "arctic", "p02_bb_orig09.map", 9, true, true, false, false),
             new OzAiMap("SM10", "The Wall", "arctic", "p02_bb_orig10.map", 10, true, true, false, false),
@@ -18,6 +20,8 @@ namespace OpenZ
             new OzAiMap("SM13", "Hot n Steamy", "jungle", "p02_bb_orig13.map", 13, true, true, false, false),
             new OzAiMap("SM14", "Restoration", "jungle", "p02_bb_orig14.map", 14, true, true, false, false),
             new OzAiMap("SM15", "Swamp Fever", "jungle", "p02_bb_orig15.map", 15, true, true, false, false),
+            new OzAiMap("SM16", "The Jungle", "jungle", "p02_bb_orig16.map", 16, true, true, false, false),
+            new OzAiMap("SM17", "The Car Park", "city", "p02_bb_orig17.map", 17, true, true, false, false),
             new OzAiMap("SM18", "Bridge Game", "city", "p02_bb_orig18.map", 18, true, false, false, false),
             new OzAiMap("SM18F", "Bridge Game", "city", "p02_bb_orig18_fixed.map", 18, false, true, true, false),
             new OzAiMap("SM19", "Mayhem", "city", "p02_bb_orig19.map", 19, true, false, false, false),

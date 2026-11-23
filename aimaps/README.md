@@ -5,8 +5,7 @@ map additions without downloading another full OpenZ resource archive.
 `source/Packages/manifest.json` references it directly; there is no copy or
 installation script, second Unity project, or Git LFS requirement.
 
-The catalog offers 45 solo and 44 AI map choices for 1v1. The four restored OpenZ missions are available in the official campaign
-and the OpenZ tab of the lobby gallery.
+The catalog offers 49 solo and 48 AI map choices for 1v1. Levels 02, 07, 16, 17 and 18 have V3 conversions in AI Maps alongside their official versions in the OpenZ campaign and lobby gallery.
 
 - Solo groups the converted maps under Z Original, Z Expansion and Zod Engine.
   It uses the OpenZ mission carousel with a looping 3D preview and minimap on the selected map.

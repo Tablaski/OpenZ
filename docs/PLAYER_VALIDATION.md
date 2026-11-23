@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.52 restored AI Maps
+
+- Pending in a compiled game. Check the four restored AI maps under Z Original in solo and in the two-player lobby. Check previews and launch each map in both modes. Verify that the matching official levels still launch from OpenZ Maps and Ballerman's Map is absent.
+
 ## OpenZ-VK 1.5.51 team chat
 
 - Pending in a compiled game. In an online team match with a Ghost, check teammate delivery from both host and guest, switch to TO ALL, verify the highlighted prefix and delivery to every seat and Ghost, then switch back to TO TEAM and verify opponents receive nothing.

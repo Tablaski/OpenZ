@@ -35,12 +35,20 @@ namespace OpenZ.Experimental
             var uv = new List<Vector2>(vertices.Capacity);
             var channels = new[] { new List<int>(), new List<int>(), new List<int>() };
             var bridgeSpans = BridgeSpans(map);
+            bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
+            var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
+            var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             bool UnderBridge(ZMapData data, int index) => bridgeSpans[index];
+            bool StraightRidge(ZMapData data, int index) => ridges[index];
             for (int row = 0; row <= height; row++)
             for (int col = 0; col <= width; col++)
             {
                 float x = col * step - Apron, z = row * step - Apron;
-                vertices.Add(new Vector3(x, Elevation(map, x, z, Mask(map, x, z, UnderBridge)), -z));
+                float clearance = 0;
+                foreach (var bridge in bridgeClearance)
+                    clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
+                float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
+                vertices.Add(new Vector3(x, Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge), -z));
                 uv.Add(new Vector2(x / (map.width * 2), 1 - z / (map.height * 2)));
             }
 
@@ -69,14 +77,19 @@ namespace OpenZ.Experimental
             IsPaletteV3 = palette != null || (bakeWithPaletteV3 && map.planet == "arctic");
             var surfaceGround = map.planet switch
             {
-                "volcanic" => VolcanicGround(map, palette),
+                "volcanic" => VolcanicGround(map, palette, useV4),
                 "arctic" => ArcticGround(map),
-                _ => LandGround(map, palette)
+                _ => LandGround(map, palette, useV4)
             };
+            if (useV4)
+            {
+                surfaceGround.SetFloat("_OzAiTerrainProfile", OzAiTerrainV4.Profile(map.planet));
+                surfaceGround.name = map.planet + " palette V4";
+            }
             var rockFace = map.planet == "jungle" ? surfaceGround
-                : map.planet == "volcanic" ? cliff : TiledRock(cliff);
+                : map.planet == "volcanic" && !useV4 ? cliff : TiledRock(cliff, useV4);
             var floor = map.planet == "jungle" ? surfaceGround
-                : map.planet == "volcanic" ? pit : TiledRock(pit);
+                : map.planet == "volcanic" ? pit : TiledRock(pit, useV4);
             terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
             BuildWater(map);
@@ -92,18 +105,18 @@ namespace OpenZ.Experimental
             }
         }
 
-        Material TiledRock(Material original)
+        Material TiledRock(Material original, bool useV4)
         {
             var material = new Material(original);
             material.SetFloat("_Triplanar", 1);
-            material.SetFloat("_TriScale", .11f);
+            material.SetFloat("_TriScale", useV4 ? .15f : .11f);
             generated.Add(material);
             return material;
         }
 
         // World-space noise breaks straight grid edges. The centres of ordinary tiles stay near the
         // road grade, while solid tiles rise or sink according to their corresponding palette role.
-        static float Elevation(ZMapData map, float x, float z, float span)
+        static float Elevation(ZMapData map, float x, float z, float span, float clearance, float ridge)
         {
             float warpX = (Mathf.PerlinNoise(x * .27f, z * .27f) - .5f) * .7f;
             float warpZ = (Mathf.PerlinNoise(z * .29f + 7, x * .29f) - .5f) * .7f;
@@ -119,6 +132,8 @@ namespace OpenZ.Experimental
                     + Mask(map, x, z - 2, Solid) + Mask(map, x, z + 2, Solid)) * .25f;
             float bankHeight = Mathf.SmoothStep(0, 1, (solid - .28f) / .72f)
                 * Mathf.Lerp(.35f, 1, Mathf.Clamp01(support * 1.7f));
+            float straight = Mathf.SmoothStep(0, 1, (ridge - .5f) / .36f);
+            bankHeight = Mathf.Lerp(bankHeight, .88f, straight) * (1 - clearance);
             float relief = Mathf.Max(bankHeight, rim);
             float hummock = Mathf.PerlinNoise(x * .085f, z * .085f);
             float baseHeight = (hummock - .42f) * (city ? .11f : .32f) * (1 - road);
@@ -126,6 +141,7 @@ namespace OpenZ.Experimental
             float ravine = Mathf.SmoothStep(0, 1, (Mathf.Max(wet, span) - .20f) / .65f)
                 * Mathf.Lerp(city ? 1.18f : jungle ? .88f : .65f, 2.5f, deep);
             float elevation = city ? 2.75f + hummock * 1.7f : (jungle ? 3.1f : 2.2f) + hummock * 3.4f;
+            elevation = Mathf.Lerp(elevation, (jungle ? 4.9f : city ? 3.6f : 3.9f), straight * .8f);
             if (arctic)
             {
                 float drift = Mathf.PerlinNoise((x + z * .52f) * .16f, z * .049f);
@@ -134,7 +150,10 @@ namespace OpenZ.Experimental
                 elevation += Mathf.SmoothStep(0, 1, (outside - 5) / 18)
                     * (2 + Mathf.PerlinNoise(x * .034f + 57, z * .046f) * 13);
             }
-            return baseHeight + relief * elevation * (1 - Mathf.SmoothStep(0, 1, span * 2)) - ravine;
+            float height = baseHeight + relief * elevation * (1 - Mathf.SmoothStep(0, 1, span * 2)) - ravine;
+            // Keep the lateral bridge envelope below the rails and the water plane.
+            // The falloff reaches zero at both approaches, preserving the road grade.
+            return Mathf.Lerp(height, Mathf.Min(height, -.5f), clearance);
         }
 
         static bool[] BridgeSpans(ZMapData map)
@@ -173,7 +192,7 @@ namespace OpenZ.Experimental
                 Mathf.Lerp(Cell(ix, iy + 1), Cell(ix + 1, iy + 1), tx - ix), ty - iy);
         }
 
-        Material VolcanicGround(ZMapData map, PaletteV3 palette)
+        Material VolcanicGround(ZMapData map, PaletteV3 palette, bool useV4)
         {
             // L07's detail albedo and normals are tileable. Its full-map paint and field are rebuilt
             // here from this layout's road and shore masks, so the original map cannot bleed through.
@@ -188,7 +207,7 @@ namespace OpenZ.Experimental
             {
                 float x = (col + .5f) * 2 / samplesPerTile, z = (h - row - .5f) * 2 / samplesPerTile;
                 float mottle = Mathf.PerlinNoise(x * .13f, z * .13f);
-                float road = Mathf.SmoothStep(0, 1, (Mask(map, x, z, Road) - .22f) / .54f);
+                float road = RoadBlend(Mask(map, x, z, Road), useV4, .22f, .54f);
                 float heat = Mask(map, x, z, Lava);
                 float shade = .81f + mottle * .38f + (Mathf.PerlinNoise(x * .72f, z * .72f) - .5f) * .18f;
                 Color baseColor = Color.Lerp(ash, asphalt, road);

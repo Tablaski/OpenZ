@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenZ.Experimental;
 
 namespace OpenZ
 {
@@ -16,7 +17,7 @@ namespace OpenZ
         public bool IsOfficial => officialScene != null;
         public string Group => ForkOriginal ? "OPENZ-VK" : Number == 0 ? "MULTIPLAYER" : Number > 20 ? "Z EXPANSION" : "Z ORIGINAL";
         public string Title => (Number > 0 ? Number.ToString("00") + " · " : "") + Name;
-        public string Variant => "V3";
+        public string Variant => OzAiTerrainV4.Active(World) ? "V4" : "V3";
         public OzAiMap(string id, string name, string world, string file, int number, bool solo, bool duel, bool balanced, bool soloException, bool forkOriginal = false, int starts = 2, string officialScene = null)
         { Id=id; Name=name; World=world; File=file; Number=number; Solo=solo; Duel=duel; Balanced=balanced; SoloException=soloException; ForkOriginal=forkOriginal; Starts=starts; this.officialScene=officialScene; }
     }

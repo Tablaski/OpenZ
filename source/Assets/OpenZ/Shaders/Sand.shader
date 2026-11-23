@@ -40,6 +40,7 @@ Shader "OpenZ/Sand"
         _DetailStr ("v2 asphalt, dirt, sand, cracks", Vector) = (0.55, 0.5, 0.4, 0.4)
         _DetailNormalStr ("v2 detail normal strength", Range(0,2)) = 1
         _DetailFade ("v2 detail full to (m), min at (m), min amount", Vector) = (110, 260, 0.35, 0)
+        [HideInInspector] _OzAiTerrainProfile ("AI map terrain V4 profile", Float) = 0
         [HideInInspector] _OzCraterRole ("Deformable terrain: 0 none, 1 ground cut under craters (MPB on TER_Ground), 2 crater patch", Float) = 0
         [HideInInspector][NoScaleOffset] _OzCraterDecal ("Deformable terrain: crater decal (UV1)", 2D) = "gray" {}
         [HideInInspector] _OzCraterDecalMul ("Deformable terrain: decal is 2x multiply (linear) instead of straight alpha", Float) = 1
@@ -57,6 +58,7 @@ Shader "OpenZ/Sand"
             float4 _GroundSdf_TexelSize; half _SdfMode; float _SdfRange; float4 _GroundSize; float4 _EdgeIO; float4 _CrispPx; float4 _MarkIO;
             half4 _PlateBevel; half _DetailOn; float4 _DetailTiles; half4 _DetailStr; half _DetailNormalStr; float4 _DetailFade;
             half _OzCraterRole; half _OzCraterDecalMul;
+            float _OzAiTerrainProfile;
         CBUFFER_END
         float4 _OzCraters[12]; float _OzCraterCount;
         void OZCraterClip(float3 positionWS)
@@ -97,6 +99,7 @@ Shader "OpenZ/Sand"
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
             #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
+            #include "OzAiTerrainV4.hlsl"
             TEXTURE2D(_GroundSdf); SAMPLER(sampler_GroundSdf);
             TEXTURE2D(_DetailTex); SAMPLER(sampler_DetailTex);
             TEXTURE2D(_DetailNrm); SAMPLER(sampler_DetailNrm);
@@ -316,6 +319,8 @@ Shader "OpenZ/Sand"
 #else
                 half2 ozNrm = OZDetail(i.positionWS, tex.rgb, albedo);                       // textures_v2 detail
 #endif
+                if (_OzAiTerrainProfile > .5)
+                    OZAiV4Surface(albedo, w, ozPxm, _OzAiTerrainProfile, OZSdf(i.uv).r);
                 if (_OzCraterRole > 1.5)
                 {
                     half4 dc = SAMPLE_TEXTURE2D(_OzCraterDecal, sampler_OzCraterDecal, i.uv1);

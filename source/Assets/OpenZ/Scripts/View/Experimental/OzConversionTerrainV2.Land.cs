@@ -6,7 +6,7 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        Material LandGround(ZMapData map, PaletteV3 palette)
+        Material LandGround(ZMapData map, PaletteV3 palette, bool useV4)
         {
             bool jungle = map.planet == "jungle", city = map.planet == "city";
             int resolution = city ? 12 : 6;
@@ -32,7 +32,7 @@ namespace OpenZ.Experimental
                 float coarse = Mathf.PerlinNoise(z * .048f + 29, x * .048f);
                 float warp = (noise - .5f) * (city ? .06f : .16f);
                 float rawRoad = Mask(map, x + warp, z - warp, Road);
-                float road = Mathf.SmoothStep(0, 1, (rawRoad - .21f) / .58f);
+                float road = RoadBlend(rawRoad, useV4, .21f, .58f);
                 float wet = Mask(map, x, z, Wet);
                 float solid = Mask(map, x, z, Solid);
                 float bank = Mathf.Clamp01(wet * 2.15f);
@@ -111,6 +111,13 @@ namespace OpenZ.Experimental
                 }
             }
             return look;
+        }
+
+        // Both transitions are centred on the same native road boundary.
+        static float RoadBlend(float sample, bool useV4, float start, float width)
+        {
+            float inset = useV4 ? .1f : 0;
+            return Mathf.SmoothStep(0, 1, (sample - start - inset) / (width - 2 * inset));
         }
 
         static float GridDistance(float value, float period) =>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OpenZ;
+using OpenZ.Experimental;
 using OpenZ.Multiplayer;
 using OpenZ.Sim;
 
@@ -53,6 +54,7 @@ static class AiMapChecks
         CheckLandV2(root, settings, check, reject);
         CheckArctic(root, settings, check, reject);
         CheckCatalogV3(root, settings, check);
+        CheckTerrainV4(root, check);
         foreach(var entry in OzAiMapCatalog.All)
         {
             var mapFile=Path.Combine(root,"aimaps/Resources/OpenZ/Maps",entry.Id+"_grid.json");
@@ -71,6 +73,38 @@ static class AiMapChecks
             check(!receiver.Execute(new DuelOrder{Sequence=1,ObjectId=red.Id,Kind=DuelOrderKind.Stop})&&receiver.Execute(new DuelOrder{Sequence=2,ObjectId=blue.Id,Kind=DuelOrderKind.Stop}),entry.Id+": authoritative orders preserve team control");
             var state=DuelReplica.Capture(world); var client=ZWorld.Create(settings,json,1935); client.ConfigureDuel(rules,true); DuelReplica.Apply(client,state);
             check(client.Objects.Count==world.Objects.Count,entry.Id+": initial replica object count");
+        }
+    }
+
+    static void CheckTerrainV4(string root, Action<bool, string> check)
+    {
+        var grids = Path.Combine(root, "aimaps/Resources/OpenZ/Maps");
+        foreach (string id in new[] { "SM02", "SM08", "SM16", "SM17", "SMP03M01" })
+        {
+            var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(grids, id + "_grid.json")));
+            var bridges = OzAiTerrainV4.Bridges(map);
+            var source = map.objects.Where(o => o.Type == "bridge_vert" || o.Type == "bridge_horz").ToArray();
+            check(bridges.Length > 0 && bridges.Length == source.Length, id + ": V4 covers every native bridge, including ruins");
+            for (int i = 0; i < bridges.Length; i++)
+            {
+                var record = source[i];
+                bool vertical = record.Type == "bridge_vert";
+                float length = (5 + (record.extra_links < 100 ? record.extra_links : 0)) * 2;
+                float At(float across, float along) => bridges[i].Clearance(record.x * 2 + (vertical ? across : along),
+                    record.y * 2 + (vertical ? along : across));
+                check(At(-1, length / 2) == 1 && At(4, length / 2) == 1 && At(9, length / 2) == 1,
+                    id + ": V4 clears both outer shoulders and the full deck width");
+                check(At(-3, length / 2) == 0 && At(11, length / 2) == 0 && At(4, 0) == 0 && At(4, length) == 0,
+                    id + ": V4 leaves adjoining land and both bridge approaches at their existing grade");
+            }
+
+            var ridges = OzAiTerrainV4.StraightRidges(map);
+            check(ridges.Select((ridge, index) => !ridge || (map.classes[index] == (int)ZClass.Impassable &&
+                (!map.HasLava || map.lava[index] == 0))).All(valid => valid), id + ": straight ridges never extend onto roads, water or lava");
+            if (id == "SM16")
+                check(Enumerable.Range(0, map.width).Count(x => Enumerable.Range(0, map.height - 19)
+                    .Any(y => Enumerable.Range(y, 20).All(row => ridges[row * map.width + x]))) >= 2,
+                    "SM16: native terrain preserves at least two long straight wall runs");
         }
     }
 

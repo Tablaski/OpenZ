@@ -80,6 +80,8 @@ registers the reference maps and the additional Molten Kombat trial.
 
 ## V3 palette pass
 
+See the [converter changelog](CONVERTER_CHANGELOG.md) for the current V4 renderer, its V3 comparison switch and the original palette mappings.
+
 The playable catalog uses V3. The four prototype conversions of official OpenZ missions are kept as editor references. The Arctic maps use the original Arctic art kit.
 The shared Molten Kombat entry covers both solo and 1v1.
 

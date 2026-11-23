@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.54 AI Maps V4
+
+- Pending in Unity. The local Editor reports no valid licence. Compile the terrain shaders, compare V3 and V4 at identical camera positions in 4K, and review ground and roads on SM02, SM08, SM16 and SM17.
+- Verify both edges and approaches of every bridge in the comparison scenes, including Desert P03M01, the two lava bridges on SM08 and destroyed spans on SM17. Move robots and vehicles through intact and repaired bridges. Confirm destroyed spans remain blocked and ground picking works near the rails.
+- Check the two walls around the straight road in SM16 against the native map and official OpenZ scene. Check that the entrances stay open and the side gaps retain their original positions. Verify that `-oz-ai-maps-v3` restores the previous visuals.
+
 ## OpenZ-VK 1.5.53 local Skirmish defeat
 
 - Pending in a compiled game. Lose your fort in a local Skirmish with two or more opponents. Check that the camera follows the falling fort, then the Defeat screen shows the statistics and Play Again works. Repeat with a swapped seat, surrender, and a team match with All for one. Check that the loss of a bot alone leaves the match running and that an early online elimination still leads to Ghost view.

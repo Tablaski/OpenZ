@@ -46,7 +46,7 @@
 - Automatically clean up `builds/` after each successful local build and after verifying each replacement stable release. Keep the four most recent successful development builds, ordered by their embedded UTC build timestamps, plus the latest verified full release from `main` with its compiled game, ZIPs, installer and update payloads. Count separate successful builds of the same version individually. Remove older build and release outputs, including dedicated performance reference builds. Keep source assets, map packages, captures and backups of untracked resources.
 - Name the converted-map catalog AI Maps in solo and multiplayer. Use the AI stamp and robot head on AI map previews. Offer Allowed units on solo mission selection as well as in the lobby; keep solo choices separate from host-owned multiplayer rules.
 - On every OpenZ rebase, compare newly available official 3D levels against the AI Maps catalog by original map identity. Remove duplicate AI variants, including rebalanced variants, from solo and 1 vs 1. Use the official level in both selectors and migrate saved selections to its ID.
-- Approved exception for Bridge Game: keep the official OpenZ level alongside the AI Maps variants `SM18` (solo) and `SM18F` (1 vs 1). Preserve each selection's map ID.
+- Keep the restored AI Maps versions of levels 02, 07, 16, 17 and 18 alongside their official OpenZ versions. Preserve each selection's map ID, including `SM18` (solo) and `SM18F` (1 vs 1). Keep Ballerman's Map excluded.
 - During a rebase, identify functional conflicts between upstream and fork behavior, including game rules, defaults and menus. Reconcile both where practical. If a conflict requires choosing a behavior, notify the user before resolving it. Group related decisions in one request, explain the concrete effect of each choice, and continue independent work while awaiting the answer.
 
 - Use `dev` for development and `main` for stable versions. Do not create extra branches unless requested.
@@ -89,6 +89,8 @@
 - Distinguish ORIGINAL OpenZ production rules from optional VK balancing rules in labels and help. A disabled territory cap restores the original territorial advantage; it does not disable territorial bonuses. The fort loser bonus is an independent, optional setting based on offensive mobile-unit production value, not territory counts.
 
 ## Visual previews
+
+- Maintain [the detailed AI Maps converter changelog](aimaps/CONVERTER_CHANGELOG.md) whenever conversion rules, mappings or rendering change. Record the per-biome references, architecture, rationale and completed or pending validation. Preserve every converter version and its reproducible inputs. Never overwrite an earlier converter version unless the maintainer explicitly requests it. Keep the native layout, simulation data and map IDs intact. Check both bridge sides and approaches and compare straight cliff runs against native 2D and official 3D references.
 
 - Keep all UX changes as close as possible to the original game's design, including layout, controls, visual style and interaction patterns. Deviate only for a concrete reason, such as readability, accessibility or a new feature that the existing design cannot accommodate.
 

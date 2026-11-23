@@ -79,12 +79,18 @@ static class AiMapChecks
     static void CheckTerrainV4(string root, Action<bool, string> check)
     {
         var grids = Path.Combine(root, "aimaps/Resources/OpenZ/Maps");
-        foreach (string id in new[] { "SM02", "SM08", "SM16", "SM17", "SMP03M01" })
+        var arctic = OzAiMapCatalog.Playable.Concat(OzAiMapCatalog.MultiplayerMaps).Where(map => map.World == "arctic").ToArray();
+        check(OzAiTerrainV4.Profile("arctic") != 0, "Arctic uses the V4 terrain renderer");
+        foreach (string id in new[] { "SM02", "SM08", "SM16", "SM17", "SMP03M01" }.Concat(arctic.Select(map => map.Id)))
         {
             var map = ZMapData.FromJson(File.ReadAllText(Path.Combine(grids, id + "_grid.json")));
             var bridges = OzAiTerrainV4.Bridges(map);
             var source = map.objects.Where(o => o.Type == "bridge_vert" || o.Type == "bridge_horz").ToArray();
-            check(bridges.Length > 0 && bridges.Length == source.Length, id + ": V4 covers every native bridge, including ruins");
+            check(bridges.Length == source.Length, id + ": V4 covers every native bridge, including ruins");
+            if (map.planet == "arctic")
+                check(map.classes.Contains((int)ZClass.Water) && !map.classes.Contains((int)ZClass.DeepWater) &&
+                    map.objects.Where(obj => obj.Type.StartsWith("map_object", StringComparison.Ordinal))
+                        .All(obj => map.ClassAt(obj.x, obj.y) != ZClass.Water), id + ": native open water and shore props retain their classes");
             for (int i = 0; i < bridges.Length; i++)
             {
                 var record = source[i];

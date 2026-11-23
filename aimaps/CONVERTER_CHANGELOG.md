@@ -2,7 +2,9 @@
 
 ## V4 — surface detail, clean crossings and continuous cliffs
 
-V4 renders desert, volcanic, city and jungle AI Maps that already use the V3 palette. It applies in solo, Skirmish and online matches when the existing scene loads. Existing maps require no conversion or scene rebake. To add a new map, decode its native file and bake its scene with the V3 palette enabled. Catalogue videos and posters are separate assets. Regenerate them with the preview capture tool after reviewing the live terrain. Arctic keeps its existing art kit. Pass `-oz-ai-maps-v3` to the same compiled game or Unity preview process to compare the earlier appearance.
+V4 renders all five AI Map biomes when their existing scenes load in solo, Skirmish or online matches. Existing maps require no conversion or scene rebake. To add a new map, decode its native file and bake its scene with the V3 palette enabled. Pass `-oz-ai-maps-v3` to the same compiled game or Unity preview process to compare the earlier appearance.
+
+The Arctic profile retains its snow, slate, bridge and open-water art kit, refining the gravel and snow detail, the frost transition on banks and the depth colours of meltwater. The 18 Arctic scenes use 39,825 native water cells and 54 native bridges. The matching local Zod/Fenio palette shows blue open water and snowy edges. The water-ring tiles are ripple artwork. The six Arctic prop sprites present in these maps depict structures, firs and snow-covered rocks, and their placements are on land. There were no native floating ice props or separate traversable frozen-water surfaces to reproduce. The Arctic profile preserves these native surface classes and passes through the same bridge-clearance logic as the other V4 profiles.
 
 ### Rendering stages
 
@@ -17,7 +19,7 @@ V4 renders desert, volcanic, city and jungle AI Maps that already use the V3 pal
 - The shader property starts at zero on official materials, V2 and V3. V4 adds no per-map texture pack or duplicate scene.
 - Headless checks cover native map loads, movement and bridge states as well as V4 bridge envelopes and ridge masks. The runtime checks are listed in [the player validation record](../docs/PLAYER_VALIDATION.md).
 - The palette scan was checked against 17 jungle entries. It identifies raised road sections in The Jungle (16), both Expansion 31 layouts, Jungle 1 and Jungle1vs1. Other matching layouts can contain recessed ground without a raised road section.
-- The comparison plates are target previews derived from real V3 captures. Use identical camera, lighting, zoom and resolution for future Unity captures. Inspect both sides and approaches of each visible bridge.
+- Catalogue videos and posters use `tools/Refresh-AiMapPreviews.ps1`. The tool renders the same enabled scenes as the game. It stages and decodes the new clips before updating the existing resource paths used by solo, the online lobby and local Skirmish. It records map-specific framing and cuts, avoids full-map views, and keeps the simulation paused. `-ComparisonsOnly` captures one 4K view per biome with matching camera coordinates for V3 and V4. Inspect both sides and approaches of each visible bridge in the resulting live captures.
 
 ## V3 — second palette review
 

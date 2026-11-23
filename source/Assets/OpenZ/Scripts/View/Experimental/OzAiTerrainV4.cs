@@ -16,6 +16,7 @@ namespace OpenZ.Experimental
             "volcanic" => 2,
             "city" => 3,
             "jungle" => 4,
+            "arctic" => 5,
             _ => 0
         };
 

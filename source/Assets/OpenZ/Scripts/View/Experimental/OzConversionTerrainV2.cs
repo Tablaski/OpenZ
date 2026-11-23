@@ -15,6 +15,7 @@ namespace OpenZ.Experimental
         public bool bakeWithPaletteV3;
 
         public bool IsPaletteV3 { get; private set; }
+        public bool IsPaletteV4 { get; private set; }
 
         const int Apron = 24;
         readonly List<Object> generated = new List<Object>();
@@ -36,6 +37,7 @@ namespace OpenZ.Experimental
             var channels = new[] { new List<int>(), new List<int>(), new List<int>() };
             var bridgeSpans = BridgeSpans(map);
             bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
+            IsPaletteV4 = useV4;
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
@@ -75,7 +77,7 @@ namespace OpenZ.Experimental
             var surfaceGround = map.planet switch
             {
                 "volcanic" => VolcanicGround(map, palette, useV4),
-                "arctic" => ArcticGround(map),
+                "arctic" => ArcticGround(map, useV4),
                 _ => LandGround(map, palette, useV4)
             };
             if (useV4)
@@ -89,7 +91,7 @@ namespace OpenZ.Experimental
                 : map.planet == "volcanic" ? pit : TiledRock(pit, useV4);
             terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
-            BuildWater(map);
+            BuildWater(map, useV4);
             if (terraces?.HasTerraces == true) SeatTerraceViews();
 
             float Height(float x, float z)
@@ -274,7 +276,7 @@ namespace OpenZ.Experimental
             return material;
         }
 
-        void BuildWater(ZMapData map)
+        void BuildWater(ZMapData map, bool useV4)
         {
             var vertices = new List<Vector3>();
             var indices = new List<int>();
@@ -304,6 +306,7 @@ namespace OpenZ.Experimental
             // The original current map is tied to the reference scene's dimensions and river.
             look.DisableKeyword("_WATER_FLOWMAP");
             if (look.HasProperty("_UseFlowMap")) look.SetFloat("_UseFlowMap", 0);
+            if (useV4 && map.planet == "arctic") ArcticWaterLook(look);
             generated.Add(look);
             surface.GetComponent<MeshRenderer>().sharedMaterial = look;
         }

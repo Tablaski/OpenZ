@@ -45,10 +45,17 @@ void OZAiV4Surface(inout half3 albedo, float2 worldXZ, float pixelWidth, float p
         scale = 8.0;
         strength = .20;
     }
-    else                              // L16 moss, damp earth and sparse leaf litter.
+    else if (profile < 4.5)            // L16 moss, damp earth and sparse leaf litter.
     {
         scale = 3.8;
         strength = .22;
+    }
+    else                              // Wind-packed Arctic snow and exposed gravel.
+    {
+        scale = 10;
+        strength = .09;
+        form = sin(crossUV.y * 18 + sin(crossUV.x * .9) * 1.4) * .028 *
+            (1 - smoothstep(.035, .13, pixelWidth));
     }
     float aggregate = OZAiV4Grains(crossUV * scale, pixelWidth * scale, .53);
     float earth = fine * .16 - aggregate * strength + form;

@@ -25,7 +25,7 @@ namespace OpenZ.Sim
         ZObject home, defenseFort, defenseThreat;
         ZAiTeamPlay.Threat supportFront;
         bool homeThreatened;
-        int defenseCommitment;
+        int defenseCommitment, observedOpposition;
         double nextTactics, nextStrategy, nextFocus, nextProduction;
         int cursor, focusX, focusY;
 
@@ -86,6 +86,7 @@ namespace OpenZ.Sim
             units.Clear(); producers.Clear(); forts.Clear(); objectives.Clear(); allies.Clear(); enemies.Clear(); infrastructure.Clear();
             assigned.Clear(); planned.Clear();
             home = null;
+            observedOpposition = 0;
             foreach (var o in world.Objects)
             {
                 if (!Alive(o))
@@ -122,6 +123,7 @@ namespace OpenZ.Sim
                     objectives.Add(o);
                 if (o.Owner == Team.Neutral || (!o.IsUnit && o.Kind != ZKind.Building)) continue;
                 if (o.IsUnit || o.IsFort) enemies.Add(o);
+                if (ZWorld.CountsForElimination(o)) observedOpposition++;
                 contacts.TryGetValue(o.Id, out var previous);
                 contacts[o.Id] = new Contact(o, world.Time, o.IsUnit ? ZAiCombat.Power(o) : 0, previous);
             }

@@ -27,6 +27,7 @@ namespace OpenZ.Sim
             if (skilled && Attending(unit) && !homeThreatened && TryAssault(unit)) return true;
             if (!unit.CanAttack() || !Attending(unit)) return false;
             if (TrySupportFront(unit)) return true;
+            if (TryFinishOpposition(unit)) return true;
 
             ZObject closest = null;
             double distance = Math.Max(180, unit.AttackRadius + 96);
@@ -174,7 +175,7 @@ namespace OpenZ.Sim
                     option = WpMode.CraneRepair;
                     value = 55;
                 }
-                else if (level >= ZBotDifficulty.Skilled && target.IsProducer && unit.CanAttackObject(target) &&
+                else if (level >= ZBotDifficulty.Skilled && target.IsProducer && !target.IsFort && unit.CanAttackObject(target) &&
                     !world.AreAllied(team, target.Owner) && target.Owner != Team.Neutral && SafeShot(unit, target) &&
                     unit.AttackRadius >= 175 && DangerousFor(target) == null)
                 {

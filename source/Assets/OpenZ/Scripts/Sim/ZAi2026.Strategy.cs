@@ -136,7 +136,7 @@ namespace OpenZ.Sim
                     !sight.CanSee(x, y) || GateIsDefended(fort, x, y)) continue;
 
                 ZObject entrant = null;
-                double quickest = level >= ZBotDifficulty.Skilled ? 28 : 14;
+                double quickest = level >= ZBotDifficulty.Skilled ? 40 : 24;
                 var roof = fort.FortDefenderMan;
                 double roofDamage = 0;
                 if (roof != null && enemies.Contains(roof))
@@ -152,7 +152,7 @@ namespace OpenZ.Sim
                         HasMissionOtherThanCombat(unit) || unit.Health <= roofDamage ||
                         (unit.Type == "crane" && level != ZBotDifficulty.Zod)) continue;
                     long distanceSquared = ZAiGeometry.DistanceSquared(unit, x, y);
-                    if (distanceSquared > 320L * 320) continue;
+                    if (distanceSquared > 420L * 420) continue;
                     double distance = Math.Sqrt(distanceSquared);
                     double arrival = distance / AssaultSpeed(unit, distance);
                     if (arrival >= quickest || !Reachable(unit, x, y, 2)) continue;
@@ -168,13 +168,17 @@ namespace OpenZ.Sim
         {
             foreach (var enemy in enemies)
             {
-                if (!enemy.IsUnit || enemy.IsFortDefender || !enemy.CanAttack()) continue;
-                int guardRadius = Math.Max(160, enemy.AttackRadius + 32);
-                if (ZAiGeometry.DistanceSquared(enemy, x, y) <= (long)guardRadius * guardRadius ||
-                    ZAiGeometry.DistanceSquared(enemy, fort.CenterX, fort.CenterY) <= (long)guardRadius * guardRadius)
-                    return true;
+                if (GuardsGate(enemy, fort, x, y)) return true;
             }
             return false;
+        }
+
+        static bool GuardsGate(ZObject enemy, ZObject fort, int x, int y)
+        {
+            if (!enemy.IsUnit || enemy.IsFortDefender || !enemy.CanAttack()) return false;
+            int guardRadius = Math.Max(160, enemy.AttackRadius + 32);
+            return ZAiGeometry.DistanceSquared(enemy, x, y) <= (long)guardRadius * guardRadius ||
+                ZAiGeometry.DistanceSquared(enemy, fort.CenterX, fort.CenterY) <= (long)guardRadius * guardRadius;
         }
 
         bool TryAssault(ZObject unit)

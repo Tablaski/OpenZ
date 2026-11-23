@@ -377,7 +377,7 @@ namespace OpenZ.Sim
             if (Time < nextEndCheck && elimination < 0 && !LocalSkirmishDefeat) return;
             if (Time >= nextEndCheck) nextEndCheck = Time + 1.0;
             var teams = new HashSet<Team>();
-            foreach (var o in Objects) if (o.IsUnit && o.Owner != Team.Neutral && !o.Destroyed && !o.IsFortDefender) teams.Add(o.Owner);   // fort_defender_v1 DV41
+            foreach (var o in Objects) if (CountsForElimination(o)) teams.Add(o.Owner);   // fort_defender_v1 DV41
             var winner = teams.Count == 0 ? Team.Neutral : teams.Min();
             if (teams.Any(team => !AreAllied(winner, team)))
             {
@@ -396,6 +396,9 @@ namespace OpenZ.Sim
             Events.Add(new ZEvent { type = ZEventType.GameOver, value = winner != Team.Neutral ? (float)winner : -1 });
             if (EndFreezeDeviation) FreezeAfterGameOver();                                     // endgame_ui_v1 (DV10)
         }
+
+        internal static bool CountsForElimination(ZObject unit) =>
+            unit.IsUnit && unit.Owner != Team.Neutral && !unit.Destroyed && !unit.IsFortDefender;
 
         /// <summary>endgame_ui_v1 (DV10): production off, every unit on the map halts (queued orders dropped, targets released). Units in
         /// a step that Zod never interrupts (a force move, the inside of a repair / crane / fort entry) finish it. No events.</summary>

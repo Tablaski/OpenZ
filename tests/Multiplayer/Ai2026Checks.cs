@@ -46,6 +46,8 @@ static class Ai2026Checks
             ZWorld.FortDefenderDeviation = false;
             CheckOpenFort(settings, ZBotDifficulty.Zod, reinforce: false, check: check);
             CheckOpenFort(settings, ZBotDifficulty.Skilled, reinforce: true, check: check);
+            CheckBombardFort(settings, check);
+            CheckEliminateArmy(settings, check);
         }
         finally { ZWorld.FortDefenderDeviation = roofDefense; }
     }
@@ -59,14 +61,7 @@ static class Ai2026Checks
 
     static void CheckOpenFort(string settings, ZBotDifficulty level, bool reinforce, Action<bool, string> check)
     {
-        const int side = 64;
-        string tiles = string.Join(",", new int[side * side]);
-        string grid = $@"{{""file"":""fort-opportunity"",""width"":{side},""height"":{side},""planet"":""desert"",
-            ""classes"":[{tiles}],""tiles"":[{tiles}],""zones"":[],""objects"":[
-                {{""kind"":""building:fort_front"",""x"":24,""y"":8,""owner"":""red"",""health_percent"":100}},
-                {{""kind"":""building:fort_back"",""x"":24,""y"":46,""owner"":""blue"",""health_percent"":100}}]}}";
-        var world = ZWorld.Create(settings, grid, 45);
-        var fort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+        var world = FortFixture(settings, out var fort);
         fort.GetCreationMovePoint(out int x, out int y);
         var turret = world.CreateObject("cannon", "gatling", x + 90, y - 24, Team.Red);
         turret.Health = turret.MaxHealth = 500000;
@@ -97,6 +92,55 @@ static class Ai2026Checks
         for (int i = 0; i < 5000 && !fort.Destroyed; i++) world.Tick(ZConst.TICK);
         check(fort.Destroyed && world.Events.Any(e => e.type == ZEventType.FortEntered && e.otherId == fort.Id),
             level + " follows the entry order through to defeating the fort");
+    }
+
+    static ZWorld FortFixture(string settings, out ZObject fort)
+    {
+        const int side = 64;
+        string tiles = string.Join(",", new int[side * side]);
+        string grid = $@"{{""file"":""fort-opportunity"",""width"":{side},""height"":{side},""planet"":""desert"",
+            ""classes"":[{tiles}],""tiles"":[{tiles}],""zones"":[],""objects"":[
+                {{""kind"":""building:fort_front"",""x"":24,""y"":8,""owner"":""red"",""health_percent"":100}},
+                {{""kind"":""building:fort_back"",""x"":24,""y"":46,""owner"":""blue"",""health_percent"":100}}]}}";
+        var world = ZWorld.Create(settings, grid, 45);
+        fort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
+        return world;
+    }
+
+    static void CheckBombardFort(string settings, Action<bool, string> check)
+    {
+        var world = FortFixture(settings, out var fort);
+        fort.GetCreationMovePoint(out int x, out int y);
+        var turret = world.CreateObject("cannon", "missile_cannon", x + 70, y + 48, Team.Red);
+        turret.Health = turret.MaxHealth = 500000;
+        fort.Health = 1000;
+        var heavy = world.CreateObject("vehicle", "heavy", fort.LocX - 64, fort.CenterY - 32, Team.Blue);
+        world.Bots.Add(new ZBot(world, Team.Blue, 146, ZBotDifficulty.Skilled));
+        bool attacked = false;
+        for (int i = 0; i < 1800 && !fort.Destroyed; i++)
+        {
+            world.Tick(ZConst.TICK);
+            attacked |= heavy.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == fort.Id);
+        }
+        check(attacked && fort.Destroyed && !world.Events.Any(e => e.type == ZEventType.FortEntered),
+            "Skilled bombards a vulnerable fort with a guarded entrance");
+    }
+
+    static void CheckEliminateArmy(string settings, Action<bool, string> check)
+    {
+        var world = FortFixture(settings, out var fort);
+        var jeep = world.CreateObject("vehicle", "jeep", 132, 660, Team.Red);
+        jeep.Health = 1;
+        var tank = world.CreateObject("vehicle", "light", 410, 658, Team.Blue);
+        world.Bots.Add(new ZBot(world, Team.Blue, 146, ZBotDifficulty.Skilled));
+        bool hunted = false;
+        for (int i = 0; i < 3000 && !world.GameOver; i++)
+        {
+            world.Tick(ZConst.TICK);
+            hunted |= tank.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == jeep.Id);
+        }
+        check(hunted && world.GameOver && world.Winner == Team.Blue && !fort.Destroyed,
+            "Skilled pursues the last opponent and wins while its fort is still standing");
     }
 
     static void CheckCommands(string settings, string grid, Action<bool, string> check)

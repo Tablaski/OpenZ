@@ -1,5 +1,9 @@
 # Player validation record
 
+## OpenZ-VK 1.5.61 victory choices
+
+- Pending in a compiled game. Confirm that the exposed entrance takes priority, that surviving turret types and health affect the decision, and that the bot can also win by bombarding the fort or eliminating the remaining army.
+
 ## OpenZ-VK 1.5.60 exposed fort
 
 - Pending in a compiled game. Observe a Heavy and a mixed group after they clear fort defenses, then check that the bot sends one nearby unit through the entrance. Repeat with a surviving turret.

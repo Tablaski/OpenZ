@@ -101,7 +101,7 @@ static class Ai2026Checks
         string grid = $@"{{""file"":""fort-opportunity"",""width"":{side},""height"":{side},""planet"":""desert"",
             ""classes"":[{tiles}],""tiles"":[{tiles}],""zones"":[],""objects"":[
                 {{""kind"":""building:fort_front"",""x"":24,""y"":8,""owner"":""red"",""health_percent"":100}},
-                {{""kind"":""building:fort_back"",""x"":24,""y"":46,""owner"":""blue"",""health_percent"":100}}]}}";
+                {{""kind"":""building:fort_back"",""x"":44,""y"":50,""owner"":""blue"",""health_percent"":100}}]}}";
         var world = ZWorld.Create(settings, grid, 45);
         fort = world.Objects.Single(o => o.IsFort && o.Owner == Team.Red);
         return world;
@@ -129,7 +129,8 @@ static class Ai2026Checks
     static void CheckEliminateArmy(string settings, Action<bool, string> check)
     {
         var world = FortFixture(settings, out var fort);
-        var jeep = world.CreateObject("vehicle", "jeep", 78, 778, Team.Red);
+        world.StopBuilding(Team.Red, fort);
+        var jeep = world.CreateObject("vehicle", "jeep", 116, 778, Team.Red);
         jeep.Health = 1;
         var tank = world.CreateObject("vehicle", "light", 348, 778, Team.Blue);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, ZBotDifficulty.Skilled));

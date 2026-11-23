@@ -32,8 +32,8 @@ float2 V5Cells(float2 p)
     {
         float2 offset = float2(x, y);
         float2 id = cell + offset;
-        float2 point = .13 + .74 * float2(V5Hash(id), V5Hash(id + 43));
-        float2 delta = offset + point - local;
+        float2 seedPosition = .13 + .74 * float2(V5Hash(id), V5Hash(id + 43));
+        float2 delta = offset + seedPosition - local;
         float d = dot(delta, delta);
         second = min(second, max(d, nearest));
         nearest = min(nearest, d);

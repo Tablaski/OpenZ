@@ -64,6 +64,8 @@ static class Ai2026Checks
         fort.GetCreationMovePoint(out int x, out int y);
         var turret = world.CreateObject("cannon", "gatling", x + 90, y - 24, Team.Red);
         turret.Health = turret.MaxHealth = 500000;
+        // Keep the opponent in the match after the turret falls, away from the entrance.
+        world.CreateObject("vehicle", "jeep", 48, 64, Team.Red);
         var heavy = world.CreateObject("vehicle", "heavy", x - 16, y + 80, Team.Blue);
         if (reinforce) world.CreateRobotGroup("sniper", x - 56, y + 64, Team.Blue, 1);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, level));

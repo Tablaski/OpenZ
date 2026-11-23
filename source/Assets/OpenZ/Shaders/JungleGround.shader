@@ -14,6 +14,7 @@ Shader "OpenZ/JungleGround"
         _BaseColor ("Tint", Color) = (1,1,1,1)
         [HideInInspector] _OzAiTerrainProfile ("AI map terrain V4 profile", Float) = 0
         [HideInInspector] _OzAiTerrainV5 ("AI map terrain V5 detail", Float) = 0
+        [HideInInspector] _OzAiV4PreserveRect ("Retained V4 terrain area", Vector) = (0,0,0,0)
         _Smoothness ("Smoothness", Range(0,1)) = 0.06
         [NoScaleOffset] _Layers ("Layers: grass, verge, mud, rock, wet floor, road, swamp bed, moss top, ruin paving, cliff side (A = height)", 2DArray) = "" {}
         [NoScaleOffset] _SplatA ("Weights A: grass, verge, mud, rock", 2D) = "black" {}
@@ -63,6 +64,7 @@ Shader "OpenZ/JungleGround"
             half4 _BaseColor; half _Smoothness;
             float _OzAiTerrainProfile;
             float _OzAiTerrainV5;
+            float4 _OzAiV4PreserveRect;
             float4 _GroundRect; float _LayerTile; float4 _FarPx; half _CraterMud;
             half4 _StudColor; float4 _StudRule; float4 _MapTiles; half _RimCutOn;
             float4 _GrassMood; float4 _GrassWarm; float4 _GrassCool; float4 _LookCal; float4 _GrassTint;
@@ -483,6 +485,10 @@ Shader "OpenZ/JungleGround"
                 float materialHeight = 0;
                 if (_OzAiTerrainV5 > .5)
                 {
+                    float2 native = P.xz * float2(1,-1);
+                    float2 outside = max(_OzAiV4PreserveRect.xy - native, native - _OzAiV4PreserveRect.zw);
+                    float v5Weight = smoothstep(0,4,max(outside.x,outside.y));
+                    half3 original = albedo;
                     float road = SAMPLE_TEXTURE2D_LOD(_SplatB, sampler_SplatA, guv, 0).g;
                     materialHeight = OZAiV5Surface(albedo, P.xz, ozPxm, _OzAiTerrainProfile, road, sgr.b);
                     float cliff = smoothstep(.22,.65,1 - abs(nrm0.y));
@@ -492,6 +498,8 @@ Shader "OpenZ/JungleGround"
                         materialHeight += cliff * V5Rock(rock, P, nrm0, _OzAiTerrainProfile, px3);
                         albedo = lerp(albedo, rock, cliff);
                     }
+                    albedo = lerp(original,albedo,v5Weight);
+                    materialHeight *= v5Weight;
                 }
                 if (_StudRule.w > 0.001) albedo = OZJStuds(P, px3, albedo);
                 if (patch)

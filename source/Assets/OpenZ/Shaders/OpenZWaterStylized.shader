@@ -651,13 +651,11 @@ Shader "OpenZ/WaterStylized"
                 cover = cover * (1.0 - foam) + foam;
                 if (_OzAiWaterV5 > .5)
                 {
-                    bool cold = _OzAiWaterV5 < 1.5;
                     float air = WaterValueNoise(xz * float2(.13,.27) + float2(t * .013,-t * .009));
                     float ribbons = WaterValueNoise(xz * float2(.056,.15) + air * .38);
                     half veil = smoothstep(.43,.75,ribbons) * smoothstep(.10,.75,d) * (1 - foam) * (1 - .6 * night);
-                    veil *= (cold ? .086 : .12) * (.86 + .14 * (1 - V.y));
-                    half3 vapor = cold ? half3(.41,.60,.71) : half3(.26,.31,.24);
-                    surf = lerp(surf,vapor * diffuse,veil);
+                    veil *= .086 * (.86 + .14 * (1 - V.y));
+                    surf = lerp(surf,half3(.41,.60,.71) * diffuse,veil);
                     cover = lerp(cover,1,veil);
                     S *= 1 - veil * 1.3;
                 }

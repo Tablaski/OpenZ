@@ -63,6 +63,8 @@ Shader "OpenZ/TeamLit"
         _TopMax ("Plateau blend end (normal.y)", Range(0,1)) = 0.8
         _TriScale ("Triplanar horizontal scale (1/m)", Float) = 0.045
         [HideInInspector] _OzAiRockV5 ("AI map V5 rock profile", Float) = 0
+        [HideInInspector] _OzAiV5GroundPaint ("Adjacent AI map ground", 2D) = "white" {}
+        [HideInInspector] _OzAiV5GroundRect ("AI map ground UV bounds", Vector) = (0,0,0,0)
         _TriHeight ("Triplanar strata height (m per texture)", Float) = 18
         _SatScale ("Non-team Saturation Scale", Range(0,2)) = 1
         _ValScale ("Non-team Value Scale", Range(0,2)) = 1
@@ -147,6 +149,7 @@ Shader "OpenZ/TeamLit"
             half _Triplanar; half _TriVertical; half _TopBlend; half4 _TopColor; half _TopMin; half _TopMax;
             float _TriScale;
             float _OzAiRockV5;
+            float4 _OzAiV5GroundRect;
             float _TriHeight;
             half _SatScale;
             half _ValScale;
@@ -332,6 +335,7 @@ Shader "OpenZ/TeamLit"
             #include "OpenZNightV2.hlsl"                                            // night_v2: night classes, day-sky reflection fix
             #include "OpenZWet.hlsl"                                                // weather_l17_v1: rain wetness (globals; 0 = dry = unchanged)
             #include "OzAiTerrainV5.hlsl"
+            TEXTURE2D(_OzAiV5GroundPaint);
             #include "OzCloudShadow.hlsl"                                           // cloud_shadows (1.5): drifting cloud shadows (globals; strength 0 = no cloud = unchanged)
             #include "OpenZRust.hlsl"
 
@@ -727,6 +731,15 @@ Shader "OpenZ/TeamLit"
                 {
                     float pixel = max(length(ddx(i.positionWS)), length(ddy(i.positionWS)));
                     materialHeight = V5Rock(albedo, i.positionWS, normalize(i.normalWS), _OzAiRockV5, pixel);
+                    if (_OzAiV5GroundRect.z > 0)
+                    {
+                        float2 uv = (i.positionWS.xz - _OzAiV5GroundRect.xy) * _OzAiV5GroundRect.zw;
+                        float edge = V5Noise(i.positionWS.xz * 1.8 + i.positionWS.y * .5);
+                        float talus = (1 - smoothstep(.20,1.22,i.positionWS.y - edge * .33)) *
+                            smoothstep(-.30,-.01,i.positionWS.y) * (.32 + .50 * edge);
+                        half3 sediment = SAMPLE_TEXTURE2D(_OzAiV5GroundPaint,sampler_BaseMap,saturate(uv)).rgb;
+                        albedo = lerp(albedo,sediment * (.82 + .17 * edge),talus);
+                    }
                 }
                 SurfaceData s = (SurfaceData)0;
                 s.albedo = albedo; s.alpha = 1; s.metallic = _Metallic * (1 - teamMask); s.smoothness = _Smoothness;

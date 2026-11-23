@@ -136,12 +136,13 @@ namespace OpenZ.EditorTools
         {
             float heading = entry.World == "desert" ? -22 : entry.World == "city" ? 20 : 8;
             float x = map.width * (entry.World == "arctic" ? .52f : .82f);
-            return new Shot("borders", new Vector3(x, 3, -13), Vector3.zero,
+            return new Shot("borders", new Vector3(x, 3, entry.World == "volcanic" ? -19 : -13), Vector3.zero,
                 heading, 0, 66, 0, 68, 0, 47, 24);
         }
 
         static Shot TerrainReviewShot(OzAiMap entry, Shot planned) => entry.Id switch
         {
+            "SM02" => new Shot("terrain", new Vector3(117, 1, -72), Vector3.zero, -38, 0, 58, 0, 65, 0, 43, 1),
             "SM08" => new Shot("terrain", new Vector3(116, 1, -107), Vector3.zero, 29, 0, 57, 0, 68, 0, 44, 1),
             "SM11" => new Shot("terrain", new Vector3(139, 1, -100), Vector3.zero, 20, 0, 61, 0, 55, 0, 44, 1),
             "SM17" => new Shot("terrain", new Vector3(169, 1, -161), Vector3.zero, 154, 0, 58, 0, 52, 0, 43, 1),

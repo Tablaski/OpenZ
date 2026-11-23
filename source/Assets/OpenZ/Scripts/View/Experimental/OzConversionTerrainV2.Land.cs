@@ -6,7 +6,7 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        Material LandGround(ZMapData map, PaletteV3 palette, bool useV4, OzJungleTerracesV4 terraces)
+        Material LandGround(ZMapData map, PaletteV3 palette, bool useV4)
         {
             bool jungle = map.planet == "jungle", city = map.planet == "city";
             int resolution = city ? 12 : 6;
@@ -17,8 +17,6 @@ namespace OpenZ.Experimental
             var weightsB = jungle ? new Color32[w * h] : null;
             var weightsC = jungle ? new Color32[w * h] : null;
             var leaves = jungle && palette != null ? new Color32[w * h] : null;
-            bool localRavines = IsPaletteV5 && mapId == "SM16" && terraces?.HasTerraces == true;
-            bool Ravine(ZMapData data, int tile) => JungleRavine(data, terraces, tile);
             var roadEdges = RoadEdges(map);
             var groundColor = jungle ? new Color32(71, 105, 45, 255)
                 : city ? new Color32(141, 139, 130, 255) : new Color32(212, 158, 100, 255);
@@ -67,7 +65,6 @@ namespace OpenZ.Experimental
                     if (leaves != null)
                     {
                         float mud = Mathf.Max(bank * .86f, terrainRoles.y * (.72f + noise * .28f)) * (1 - road) * (1 - solid);
-                        if (localRavines) mud = Mathf.Max(mud, Mask(map, x, z, Ravine) * (1 - road) * (.75f + noise * .24f));
                         float moss = terrainRoles.x * (.57f + coarse * .4f);
                         float vergeBlend = Mathf.Max(verge, moss * grass * .66f);
                         weightsA[index] = new Color(grass * (1 - mud) * (1 - moss * .58f), vergeBlend * (1 - mud * .68f),
@@ -100,6 +97,8 @@ namespace OpenZ.Experimental
                 look.SetTexture("_LeafyMask", leaves == null ? Texture2D.blackTexture
                     : NewTexture(w, h, leaves, true, "Jungle moss and foliage cover"));
                 look.SetVector("_CrackRule", Vector4.zero);
+                if (IsPaletteV5 && mapId == "SM16")
+                    look.SetVector("_OzAiV4PreserveRect", new Vector4(72, 51, 132, 195));
             }
             else
             {

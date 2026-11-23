@@ -16,6 +16,16 @@ namespace OpenZ.Experimental
             var placed = new List<Vector2>();
             bool RimRock(int x, int z) => x < 0 || z < 0 || x >= map.width || z >= map.height ||
                 Solid(map, z * map.width + x);
+            bool SafeVent(Vector2 point, float radius)
+            {
+                foreach (Vector2 offset in new[] { Vector2.zero, Vector2.right, Vector2.left, Vector2.up, Vector2.down })
+                {
+                    Vector2 tip = point + offset * radius;
+                    if (!RimRock(Mathf.FloorToInt(tip.x / 2), Mathf.FloorToInt(tip.y / 2)) ||
+                        Array.Exists(bridges, bridge => bridge.Clearance(tip.x, tip.y) > 0)) return false;
+                }
+                return true;
+            }
             for (int z = 0; z < map.height; z++)
             for (int x = 0; x < map.width; x++)
             {
@@ -23,11 +33,23 @@ namespace OpenZ.Experimental
                 int index = z * map.width + x;
                 if (map.tiles[index] is not (260 or 263 or 267 or 334 or 354 or 389 or 406 or 425 or 448) || !Solid(map, index)) continue;
                 if (!RimRock(x - 1, z) || !RimRock(x + 1, z) || !RimRock(x, z - 1) || !RimRock(x, z + 1)) continue;
+                float q = Mathf.Repeat(Mathf.Sin(x * 12.9898f + z * 78.233f) * 43758.5453f, 1);
+                if (q < .24f) continue;
                 var p = new Vector2(x * 2 + 1, z * 2 + 1);
-                if (placed.Exists(previous => (previous - p).sqrMagnitude < 130) ||
-                    Array.Exists(bridges, bridge => bridge.Clearance(p.x, p.y) > 0)) continue;
-                float q = Mathf.PerlinNoise(x * .274f + 12, z * .194f + 31);
-                AddVent(p, 1.45f + 1.05f * q, 1.2f + 1.4f * q, q);
+                p += new Vector2(Mathf.Sin(q * 61), Mathf.Cos(q * 42)) * 1.3f;
+                float radius = 1.40f + .83f * q;
+                if (placed.Exists(previous => (previous - p).sqrMagnitude < 248) || !SafeVent(p, radius)) continue;
+                AddVent(p, radius, 1.1f + 1.24f * q, q);
+                int neighbours = q > .62f ? 4 : 3;
+                for (int n = 0; n < neighbours; n++)
+                {
+                    float angle = q * 6.28f + n * 2.37f;
+                    float satelliteSize = .54f + .54f * Mathf.Repeat(q * 9 + n * .39f, 1);
+                    var satellite = p + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) *
+                        (radius + .49f + n * .4f);
+                    if (SafeVent(satellite, satelliteSize))
+                        AddVent(satellite, satelliteSize, satelliteSize * .83f, q + n * .17f);
+                }
                 placed.Add(p);
             }
             if (vertices.Count == 0) return;
@@ -35,6 +57,8 @@ namespace OpenZ.Experimental
             basalt.SetFloat("_UseVertexColor", 1);
             basalt.SetFloat("_TeamMode", 0);
             basalt.SetFloat("_Smoothness", .21f);
+            basalt.SetFloat("_Triplanar", 1);
+            basalt.SetFloat("_OzAiRockV5", 2);
             AddV5SceneryMesh("Volcanic rim vents", vertices, indices, basalt, null, colors);
 
             void AddVent(Vector2 center, float radius, float height, float phase)
@@ -54,11 +78,11 @@ namespace OpenZ.Experimental
                     vertices.Add(new Vector3(point.x, y, -point.y));
                     Color tone = ring switch
                     {
-                        0 => new Color(.061f, .052f, .057f),
-                        1 => new Color(.081f, .067f, .068f),
-                        2 => new Color(.15f, .127f, .119f),
-                        3 => new Color(.106f, .062f, .047f),
-                        _ => new Color(.061f, .038f, .035f)
+                        0 => new Color(.035f, .030f, .033f),
+                        1 => new Color(.049f, .039f, .043f),
+                        2 => new Color(.083f, .067f, .064f),
+                        3 => new Color(.054f, .029f, .023f),
+                        _ => new Color(.030f, .015f, .013f)
                     };
                     colors.Add(tone * (1 + uneven * 1.55f));
                 }

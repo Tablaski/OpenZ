@@ -264,6 +264,9 @@ namespace OpenZ.EditorTools
             data.Position = 0;
             string metric = BitConverter.ToString(sha.ComputeHash(data)).Replace("-", "");
             File.WriteAllText(Path.Combine(output, entry.Id + ".geometry.txt"), metric + Environment.NewLine);
+            var tracked = game.World.Objects.Where(obj => obj.Type == "rock" || obj.IsBridge).OrderBy(obj => obj.Id).ToArray();
+            File.WriteAllLines(Path.Combine(output, entry.Id + ".objects.txt"), tracked.Select(obj =>
+                FormattableString.Invariant($"{obj.Id} {obj.Type} {obj.Health} {obj.MaxHealth}")));
         }
 
         static void Close()

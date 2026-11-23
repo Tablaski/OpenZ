@@ -15,6 +15,8 @@ namespace OpenZ.Experimental
             var flowVertices = new List<Vector3>();
             var flowIndices = new List<int>();
             var flowUv = new List<Vector2>();
+            var flowColors = new List<Color>();
+            var collectors = new Dictionary<int, List<Vector3>>();
             var bridgeClearance = OzAiTerrainV4.Bridges(map);
             bool IsWater(int x, int y) => map.ClassAt(x, y) is ZClass.Water or ZClass.DeepWater;
             for (int y = 1; y < map.height - 1; y++)
@@ -26,11 +28,28 @@ namespace OpenZ.Experimental
                 if (System.Array.Exists(bridgeClearance, bridge => bridge.Clearance(tileX, tileZ) > 0)) continue;
                 var intoCanal = new Vector3(dx, 0, -dy);
                 var side = Vector3.Cross(Vector3.up, intoCanal);
-                var mouth = new Vector3(tileX, .13f, -tileZ) - intoCanal * .42f;
+                var mouth = new Vector3(tileX, .18f, -tileZ) - intoCanal * .48f;
                 AddTube(mouth, side, intoCanal);
-                AddFlow(mouth + intoCanal * .028f - Vector3.up * .18f, side, intoCanal);
+                if (dy > 0 && y > 1 && map.tiles[(y - 2) * map.width + x] == 326)
+                {
+                    var tee = new Vector3(tileX, .72f, -tileZ + 4);
+                    var elbow = new Vector3(tileX, .62f, mouth.z + 1.4f);
+                    if (!collectors.TryGetValue(y, out var run)) collectors.Add(y, run = new List<Vector3>());
+                    run.Add(tee);
+                    AddStraightPipe(tee, elbow, .145f);
+                    AddStraightPipe(elbow, mouth - intoCanal * .84f, .17f);
+                    AddStraightPipe(tee - Vector3.up * .78f, tee, .09f);
+                }
+                else
+                {
+                    var wall = mouth - intoCanal * 1.05f + Vector3.up * .16f;
+                    AddStraightPipe(wall - Vector3.up * .55f, wall, .43f);
+                }
+                AddFlow(mouth + intoCanal * .025f - Vector3.up * .164f, side, intoCanal);
             }
             if (pipeVertices.Count == 0) return;
+            foreach (var run in collectors.Values)
+                AddStraightPipe(run[0] - Vector3.right * .9f, run[run.Count - 1] + Vector3.right * .9f, .19f);
 
             var metal = new Material(Shader.Find("OpenZ/TeamLit")) { name = "Weathered sewer iron" };
             metal.SetColor("_BaseColor", new Color(.28f, .185f, .135f));
@@ -53,12 +72,34 @@ namespace OpenZ.Experimental
             texture.wrapMode = TextureWrapMode.Repeat;
             var flow = new Material(Shader.Find("OpenZ/WaterfallSheet")) { name = "City sewer effluent" };
             flow.SetTexture("_BaseMap", texture);
-            flow.SetColor("_BaseColor", new Color(.71f, .71f, .43f));
-            flow.SetColor("_FoamColor", new Color(.65f, .67f, .45f));
-            flow.SetFloat("_LookV2", 1);
-            flow.SetFloat("_Alpha", .67f);
+            flow.SetColor("_BaseColor", new Color(.57f, .60f, .43f));
+            flow.SetColor("_FoamColor", new Color(.66f, .69f, .51f));
+            flow.SetFloat("_FoamStreaks", .34f);
+            flow.SetFloat("_Alpha", .78f);
+            flow.SetFloat("_EdgeBright", .13f);
             flow.SetFloat("_FlowScroll", 1.1f);
-            AddV5SceneryMesh("Sewer runoff", flowVertices, flowIndices, flow, flowUv);
+            AddV5SceneryMesh("Sewer runoff", flowVertices, flowIndices, flow, flowUv, flowColors);
+
+            void AddStraightPipe(Vector3 a, Vector3 b, float radius)
+            {
+                const int sides = 12;
+                var direction = (b - a).normalized;
+                var side = Vector3.Cross(direction, Mathf.Abs(direction.y) > .8f ? Vector3.forward : Vector3.up).normalized;
+                var up = Vector3.Cross(direction, side);
+                int first = pipeVertices.Count;
+                for (int i = 0; i < sides; i++)
+                {
+                    float angle = 2 * Mathf.PI * i / sides;
+                    var edge = radius * (side * Mathf.Cos(angle) + up * Mathf.Sin(angle));
+                    pipeVertices.Add(a + edge);
+                    pipeVertices.Add(b + edge);
+                }
+                for (int i = 0; i < sides; i++)
+                {
+                    int u = first + i * 2, v = first + (i + 1) % sides * 2;
+                    pipeIndices.AddRange(new[] { u, v, u + 1, v, v + 1, u + 1 });
+                }
+            }
 
             void AddTube(Vector3 mouth, Vector3 side, Vector3 axis)
             {
@@ -83,16 +124,20 @@ namespace OpenZ.Experimental
             void AddFlow(Vector3 start, Vector3 side, Vector3 axis)
             {
                 int first = flowVertices.Count;
-                for (int row = 0; row <= 5; row++)
+                for (int row = 0; row <= 10; row++)
                 {
-                    float t = row / 5f;
-                    float width = .16f + t * .13f;
-                    var point = start + axis * (.95f * t) - Vector3.up * (.28f * t * t);
+                    float t = row / 10f;
+                    float plume = Mathf.SmoothStep(0, 1, (t - .64f) / .36f);
+                    float width = .081f + t * .044f + plume * .23f;
+                    var point = start + axis * (1.15f * t) + Vector3.up * Mathf.Max(-.316f - start.y, -.5f * t * t);
                     flowVertices.Add(point - side * width);
                     flowVertices.Add(point + side * width);
                     flowUv.Add(new Vector2(0, 1 - t));
                     flowUv.Add(new Vector2(1, 1 - t));
-                    if (row == 5) continue;
+                    var tint = new Color(.04f + .19f * plume, .40f, 0, .82f * (1 - plume * .97f));
+                    flowColors.Add(tint);
+                    flowColors.Add(tint);
+                    if (row == 10) continue;
                     int a = first + row * 2;
                     flowIndices.AddRange(new[] { a, a + 1, a + 2, a + 1, a + 3, a + 2 });
                 }

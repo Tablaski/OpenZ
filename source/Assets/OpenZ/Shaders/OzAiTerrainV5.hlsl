@@ -50,6 +50,11 @@ float3 V5Normal(float3 normalWS, float3 positionWS, float height)
     return normalize(normalWS - gradient * (sign(determinant) / max(abs(determinant), 1e-8)));
 }
 
+float V5LakeIceMask(float palette)
+{
+    return smoothstep(.20,.75,palette);
+}
+
 float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float road, float palette)
 {
     float coarse = V5Noise(p * .21 + 11);
@@ -104,13 +109,14 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
     {
         float dune = V5Noise(p * float2(.21,.73) + coarse * .9);
         float drift = smoothstep(.55,.82,dune);
-        float glaze = smoothstep(.34,.83,palette);
-        float2 crystal = V5Cells(p * float2(1.78,1.94) + medium * .10);
-        float cracks = (1 - smoothstep(.008,.037,crystal.y)) * V5Resolved(pixel, 1.94);
-        half3 ice = lerp(half3(.19,.37,.48),half3(.33,.51,.59),saturate(.79 - crystal.x + dune * .18));
-        ice += half3(.19,.23,.25) * cracks * .23;
-        terrain = lerp(terrain * (1 + drift * .071 + grit * .15), ice, glaze * .65);
-        elevation += drift * .017 - cracks * glaze * .0035;
+        float glaze = V5LakeIceMask(palette);
+        float2 crystal = V5Cells(p * float2(.38,.54) + V5Noise(p * .86) * .12);
+        float cracks = (1 - smoothstep(.003,.018,crystal.y)) * smoothstep(.37,.69,V5Noise(p * .63));
+        float blue = V5Noise(p * .19) * .76 + V5Noise(p * .92) * .24;
+        half3 ice = lerp(half3(.034,.123,.184),half3(.115,.266,.339),blue);
+        ice += half3(.14,.21,.25) * (cracks * .49 + smoothstep(.64,.84,V5Noise(p * 1.13)) * .19);
+        terrain = lerp(terrain * (1 + drift * .071 + grit * .15), ice, glaze * .94);
+        elevation = lerp(elevation + drift * .017, -cracks * .0025,glaze);
         float driftOnRoad = smoothstep(.63,.82,dune + medium * .12) * (.30 + .53 * (1 - road));
         float gravel = (V5Noise(p * 8.6) - .5) * V5Resolved(pixel, 8.6);
         color = lerp(color * (1 + gravel * .30),half3(.65,.73,.78),driftOnRoad);
@@ -136,6 +142,14 @@ float V5Rock(inout half3 albedo, float3 p, float3 normalWS, float biome, float p
     {
         half mineral = dot(albedo, half3(.30,.59,.11));
         albedo = lerp(albedo,mineral * half3(1.12,1.03,.87),.22 + top*.16);
+    }
+    if (biome > 4.5)
+    {
+        float packed = V5Noise(p.xz * float2(.52,.93) + warmth * .69);
+        float coat = smoothstep(.42,.90,normalWS.y + (packed-.39)*.34);
+        half3 snow = lerp(half3(.54,.65,.72),half3(.75,.83,.87),packed);
+        albedo = lerp(albedo,snow * (1 + (pebbles-.5)*.10),coat*.83);
+        return lerp(layers*.031 - cracks*.021,(pebbles-.5)*.010,coat);
     }
     return layers * .031 - cracks * .021;
 }

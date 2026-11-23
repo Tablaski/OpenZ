@@ -864,7 +864,7 @@ namespace OpenZ.Sim
                 }
                 else
                 {
-                    int scatter = Type == "howitzer" ? World.HowitzerScatter(DamageRadius) : 16;
+                    int scatter = World.ShellScatter(Type);
                     tx += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
                     ty += BehaviorScatter(AimScatter(World.Rng.Next(scatter * 2) - scatter));
                     ChargeRocketAim(t, ref tx, ref ty);                                                  // DV121: a Tough's rocket at a vehicle that drives at him aims true (Sim/ZObject.JeepCharge.cs)

@@ -42,6 +42,7 @@ namespace OpenZ.Multiplayer
         {
             roomTab = 0;
             skirmishSelectedSeat = -1;
+            pickerGroup = -1;
             roomFullMap = roomCustomUnits = combatDropdown = roomPresets = false;
             page = Page.Skirmish;
             dirty = true;
@@ -94,6 +95,7 @@ namespace OpenZ.Multiplayer
             Button(root, "START GAME", 1580, 988, 280, LaunchLocalSkirmish, true, canLaunch, height: 52);
             if (roomCustomUnits) BuildRoomCustomUnits(rules, SaveLocalRules);
             if (roomPresets) BuildRoomArmyPresets(rules, SaveLocalRules);
+            if (pickerGroup >= 0) BuildSkirmishUnitPicker(rules);
         }
 
         OzAiMap[] SkirmishAiMapsFor(int size) =>

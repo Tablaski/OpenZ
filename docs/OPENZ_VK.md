@@ -98,8 +98,8 @@ changes preserve completed work.
 
 The boost starts as soon as the army trails. Increasing progressively reaches
 full strength at a −20% army gap. With progression disabled the configured boost
-applies in full from the first deficit. Optional Nerfed Howitzers widens shell
-dispersion equally for both teams.
+applies in full from the first deficit. When enabled, Wider Howitzer Spread
+increases shell dispersion for ground and fort-mounted howitzers on every side.
 ## Duel flow
 
 Escape contains Restart level followed by Surrender, with no chat entry. Restart

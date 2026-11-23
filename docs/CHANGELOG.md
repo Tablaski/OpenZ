@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.55 (23 Nov 2026)
+
+- Online multiplayer and Skirmish — **Wider Howitzer Spread** applies only to howitzers on the ground or mounted on fort towers.
+- Online multiplayer and Skirmish — Click a fort turret or starting-unit slot to open the illustrated unit gallery. Pick a unit by its portrait and name or empty the slot.
+
 ## OpenZ-VK 1.5.54 (23 Nov 2026)
 
 - AI Maps — Desert, Volcanic, City and Jungle maps have finer ground and road detail. Bridge sides are clearer and long cliffs follow the original layout more closely.

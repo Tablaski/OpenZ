@@ -1219,6 +1219,11 @@ must be added here and checked together on the next requested release.
 - No player was built or launched. A new release build is recommended for these
   network/menu changes and the accumulated source updates; only the user can
   authorize that build, and its gameplay checks remain pending manual testing.
+## OpenZ-VK 1.5.55 (source only)
+
+- Pending manual lobby checks in online multiplayer, classic duel and local Skirmish: open the illustrated gallery from a turret, shared starting-unit and player advantage slot. Select an allowed unit, clear the slot, close with Escape and check that excluded units do not appear.
+- Pending manual match checks: compare ground and fort-mounted howitzers with Wider Howitzer Spread off and on. Compare other cannons and the fort roof weapon across both settings.
+
 # OpenZ-VK 1.5.35
 
 - Pending manual Windows checks: verify unified combat presets and legacy custom imports in Solo, Unit Editor and multiplayer. Confirm the default, switch to Z Classic and select a saved custom profile.

@@ -55,27 +55,75 @@ static class BalanceChecks
         factoryRules.SelectMap("L18");
         check(factoryRules.VehicleTech == 0 && factoryRules.RobotTech == 0, "New maps must inherit their own tech settings");
 
-        int standard = Misses(false), wider = Misses(true);
-        check(standard == 0 && wider >= 24 && wider < 110, "Optional howitzers must miss more often without eliminating accurate shots");
-        Console.WriteLine("Howitzer impacts outside the blast radius (120 fixed-seed shots): normal " + standard + ", wider spread " + wider);
+        foreach (bool skirmish in new[] { false, true })
+        {
+            string lobby = skirmish ? "Skirmish" : "Duel";
+            foreach (bool mounted in new[] { false, true })
+            {
+                string placement = mounted ? "fort-mounted" : "ground";
+                var standard = Shots(skirmish, false, "howitzer", mounted);
+                var wider = Shots(skirmish, true, "howitzer", mounted);
+                check(standard.All(s => s.dx >= -16 && s.dx < 16 && s.dy >= -16 && s.dy < 16) &&
+                      wider.All(s => s.dx >= -50 && s.dx < 50 && s.dy >= -50 && s.dy < 50) &&
+                      !standard.Any(Missed) && wider.Count(Missed) >= 24 && wider.Count(Missed) < 110 &&
+                      standard.Select(s => s.radius).SequenceEqual(wider.Select(s => s.radius)),
+                    $"{lobby}: {placement} howitzers gain wider spread and miss more often without changing splash radius");
+                foreach (string type in DuelRules.AllowedFortTurrets.Where(type => type != "howitzer"))
+                    check(Shots(skirmish, false, type, mounted).SequenceEqual(Shots(skirmish, true, type, mounted)),
+                        $"{lobby}: {placement} {type} firing is unaffected by the howitzer rule");
+            }
+            check(Shots(skirmish, false, "roof", false).SequenceEqual(Shots(skirmish, true, "roof", false)),
+                $"{lobby}: the separate fort roof weapon is unaffected by the howitzer rule");
+        }
 
-        int Misses(bool nerfed)
+        static bool Missed((ZEventType type, int dx, int dy, int radius, bool flag) shot) =>
+            shot.dx * shot.dx + shot.dy * shot.dy > shot.radius * shot.radius;
+
+        (ZEventType type, int dx, int dy, int radius, bool flag)[] Shots(bool skirmish, bool nerfed, string type, bool mounted)
         {
             var firing = ZWorld.Create(settings, map, 21);
-            firing.ConfigureDuel(new DuelRules { NerfedHowitzers = nerfed }, false);
-            var cannon = firing.CreateObject("cannon", "howitzer", 256, 256, Team.Red);
-            var target = firing.CreateObject("vehicle", "jeep", 352, 256, Team.Blue);
+            if (skirmish)
+            {
+                var room = new SkirmishRules { NerfedHowitzers = nerfed, OverrideFortTurrets = true };
+                Array.Copy(DuelRules.AllowedFortTurrets, room.FortTurrets, 4);
+                firing.SetSkirmishAlliances(new[] { 0, 1 });
+                firing.ConfigureSkirmishRules(room, Array.Empty<int>());
+            }
+            else
+            {
+                var duel = new DuelRules { NerfedHowitzers = nerfed };
+                duel.Common.FortTurrets = DuelRules.AllowedFortTurrets.ToArray();
+                firing.ConfigureDuel(duel, false);
+                firing.DuelApplyStartingArmies();
+            }
+
+            bool roof = type == "roof";
+            var attacker = roof ? firing.Objects.First(o => o.IsFort && o.Owner == Team.Red) :
+                mounted ? firing.Objects.Single(o => o.Type == type && o.Owner == Team.Red && !o.Ejectable) :
+                firing.CreateObject("cannon", type, 256, 256, Team.Red);
+            foreach (var unit in firing.Objects.Where(o => o.IsUnit && o != attacker).ToArray()) firing.DeleteObject(unit);
+            int distance = roof ? attacker.WidthPix / 2 + ZObject.FortGunMinEdgePx + 8 : 96;
+            var target = firing.CreateObject("vehicle", "jeep", attacker.CenterX + distance - 16, attacker.CenterY - 16, Team.Blue);
             var fire = typeof(ZObject).GetMethod("ProcessAttackDamage", BindingFlags.Instance | BindingFlags.NonPublic);
-            int misses = 0;
+            firing.Events.Clear();
             for (int i = 0; i < 120; i++)
             {
-                cannon.AttackObject = target;
-                fire.Invoke(cannon, new object[] { 100d + 10 * i, true });
-                var shot = firing.Events.Last(e => e.type == ZEventType.MissileFired);
-                int dx = shot.x - target.CenterX, dy = shot.y - target.CenterY;
-                if (dx * dx + dy * dy > shot.radius * shot.radius) misses++;
+                double time = 100 + 40 * i;
+                if (roof)
+                {
+                    attacker.ProcessFortGun(time);
+                    attacker.ProcessFortGun(time + ZObject.FortGunLay + 0.1);
+                }
+                else
+                {
+                    attacker.AttackObject = target;
+                    fire.Invoke(attacker, new object[] { time, true });
+                }
             }
-            return misses;
+            var shots = firing.Events.Where(e => e.objId == attacker.Id && (e.type == ZEventType.MissileFired || e.type == ZEventType.Hitscan))
+                .Select(e => (e.type, e.x - target.CenterX, e.y - target.CenterY, e.radius, e.flag)).ToArray();
+            check(shots.Length == 120, $"Expected 120 shots from {type}, got {shots.Length}");
+            return shots;
         }
     }
 

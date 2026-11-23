@@ -374,7 +374,7 @@ namespace OpenZ.Multiplayer
                     Label(panel, help[i], 32 + i * 259, 281, 235, 16, OzUi.Muted).Body(32 + i * 259, 281, 235);
                 }
                 Label(panel, "WIDER HOWITZER SPREAD", 30, 330, 750, 20, OzUi.Amber);
-                Label(panel, "On: howitzers and fort guns land shells farther from their aim point and miss more often.", 30, 365, 790, 16, OzUi.Muted);
+                Label(panel, "On: only howitzers fire with wider spread, on the ground or mounted on a fort.", 30, 365, 790, 16, OzUi.Muted);
                 Button(panel, "OFF", 851, 329, 97, () => { rules.NerfedHowitzers = false; save(rules); }, !rules.NerfedHowitzers, editable);
                 Button(panel, "ON", 959, 329, 97, () => { rules.NerfedHowitzers = true; save(rules); }, rules.NerfedHowitzers, editable);
                 if (!rules.FreeForAll)
@@ -424,18 +424,12 @@ namespace OpenZ.Multiplayer
                     value => value + "%", 600, editable, value => { rules.BuildPercent[seat] = value; save(rules); }, preview: Preview);
             }
             else Label(panel, "Each starting position receives these additions to its map army.", 30, 82, 790, 19, OzUi.Ink);
-            var choices = new[] { "" }.Concat(DuelRules.AllowedExtras.Where(rules.Allows)).ToArray();
             var slots = individual ? rules.Extras : rules.Common;
             for (int i = 0; i < 4; i++)
             {
                 int slot = individual ? seat * 4 + i : i;
-                string unit = slots[slot] ?? "";
-                Button(panel, unit == "" ? "EMPTY" : unit.Replace('_', ' ').ToUpperInvariant(), 30 + i % 2 * 400,
-                    (individual ? 318 : 132) + i / 2 * 54, 388, () =>
-                    {
-                        slots[slot] = choices[(Array.IndexOf(choices, unit) + 1) % choices.Length];
-                        save(rules);
-                    }, enabled: editable);
+                Button(panel, UnitName(slots[slot]), 30 + i % 2 * 400, (individual ? 318 : 132) + i / 2 * 54, 388,
+                    () => OpenArmyPicker(individual ? 2 : 1, slot), enabled: editable);
             }
             if (!individual) return;
             Button(panel, roomArmyTotal ? "HIDE STARTING ARMY" : "VIEW STARTING ARMY", 30, 438, 450, () => { roomArmyTotal = !roomArmyTotal; dirty = true; });
@@ -467,7 +461,7 @@ namespace OpenZ.Multiplayer
                 Array.Clear(rules.FortTurrets, 0, rules.FortTurrets.Length);
                 save(rules);
             }, enabled: editable && rules.OverrideFortTurrets, height: 40);
-            ArmyCards(turrets, rules.FortTurrets, DuelRules.AllowedFortTurrets, true);
+            ArmyCards(turrets, rules.FortTurrets, 0);
 
             var units = Hud.Img(panel, "Additional units", OzUi.GM950).rectTransform;
             units.TL(24, 284, 1044, 248);
@@ -475,22 +469,17 @@ namespace OpenZ.Multiplayer
             Label(units, "Each participant receives these units beside their starting fort.", 18, 50, 690, 17, OzUi.Muted);
             Button(units, "LOAD / SAVE UNIT PRESET", 712, 12, 313, () => { roomPresets = true; presetStatus = presetName = ""; dirty = true; },
                 enabled: editable, height: 40);
-            ArmyCards(units, rules.Common, DuelRules.AllowedExtras, false);
+            ArmyCards(units, rules.Common, 1);
             Label(units, "One robot slot adds one squad.", 18, 199, 850, 16, OzUi.Muted);
 
-            void ArmyCards(RectTransform parent, string[] slots, string[] types, bool mounts)
+            void ArmyCards(RectTransform parent, string[] slots, int group)
             {
-                var choices = new[] { "" }.Concat(types.Where(rules.Allows)).ToArray();
                 for (int i = 0; i < 4; i++)
                 {
                     int slot = i;
                     string unit = slots[i] ?? "";
-                    var card = Button(parent, unit == "" ? "EMPTY" : UnitName(unit), 18 + i * 254, 83, 246, () =>
-                    {
-                        slots[slot] = choices[(Array.IndexOf(choices, unit) + 1) % choices.Length];
-                        if (mounts) rules.OverrideFortTurrets = true;
-                        save(rules);
-                    }, enabled: editable, height: 102);
+                    var card = Button(parent, UnitName(unit), 18 + i * 254, 83, 246,
+                        () => OpenArmyPicker(group, slot), enabled: editable, height: 102);
                     if (unit != "") Portrait(card, unit, 94, 8, 58);
                 }
             }
@@ -952,7 +941,7 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < 4; i++)
             {
                 int slot = i; string type = i < units.Count ? units[i] : "";
-                var button = Button(parent, UnitName(type), x + i * step, y, step - 10, () => { pickerGroup = group; pickerSlot = slot; dirty = true; }, false, editable, 76);
+                var button = Button(parent, UnitName(type), x + i * step, y, step - 10, () => OpenArmyPicker(group, slot), false, editable, 76);
                 button.name = "ARMY SLOT " + group + ":" + slot;
                 Portrait(button, type, (step - 54) / 2, 2, 44);
             }
@@ -987,7 +976,7 @@ namespace OpenZ.Multiplayer
             Label(fort, "Example: 500% × an enemy’s +25% territorial speed gives the fort +125% speed.", 24, 257, 808, 15, OzUi.Muted);
 
             var artillery = Panel("NERFED HOWITZERS", 80, 553, 1740, 59);
-            Label(artillery, "Howitzer shells spread farther from their aim point, so they miss more often for both teams.", 310, 22, 1150, 16, OzUi.Muted);
+            Label(artillery, "On: only howitzers fire with wider spread, on the ground or mounted on a fort.", 310, 22, 1150, 16, OzUi.Muted);
             Button(artillery, rules.NerfedHowitzers ? "ON" : "OFF", 1560, 10, 155,
                 () => { rules.NerfedHowitzers = !rules.NerfedHowitzers; EditLobbyRules(rules); }, rules.NerfedHowitzers, editable, 38);
 
@@ -1072,29 +1061,74 @@ namespace OpenZ.Multiplayer
         void BuildUnitPicker(DuelRules rules, bool editable)
         {
             if (!editable || (pickerGroup == 2 && !rules.HandicapEnabled)) { pickerGroup = -1; return; }
-            var shade = Hud.Img(root, "UnitPickerShade", new Color(0, 0, 0, .85f)); shade.rectTransform.Fill(); shade.raycastTarget = true;
-            var panel = Panel(pickerGroup == 0 ? "ON THE FORT · SELECT CANNON" : "OUTSIDE THE FORT · SELECT UNIT", 340, 180, 1240, 720);
-            var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950); backing.rectTransform.Fill(); backing.transform.SetAsFirstSibling(); backing.raycastTarget = true;
-            Button(panel, "CLOSE", 1030, 14, 180, () => { pickerGroup = -1; dirty = true; });
-            Label(panel, pickerGroup == 0 ? "Fort mounts accept cannons only." : "One robot squad or vehicle per slot.", 24, 72, 1150, 18, OzUi.Muted);
-            if (pickerGroup == 0) BuildPickerCategory(panel, rules, "TURRETS", DuelRules.AllowedFortTurrets.Where(rules.Allows).ToArray(), 112);
+            bool fort = pickerGroup == 0;
+            var slots = fort ? (IList<string>)rules.Common.FortTurrets :
+                pickerGroup == 1 ? rules.Common.StartingUnits : rules.Handicap.StartingUnits;
+            BuildArmyGallery(fort, pickerSlot, slots.ElementAtOrDefault(pickerSlot), rules.Allows,
+                type => SetArmySlot(rules, type), CloseArmyPicker);
+        }
+
+        void OpenArmyPicker(int group, int slot)
+        {
+            pickerGroup = group;
+            pickerSlot = slot;
+            dirty = true;
+        }
+
+        void CloseArmyPicker()
+        {
+            pickerGroup = -1;
+            dirty = true;
+        }
+
+        void BuildSkirmishUnitPicker(SkirmishRules rules)
+        {
+            bool fort = pickerGroup == 0;
+            var slots = fort ? rules.FortTurrets : pickerGroup == 1 ? rules.Common : rules.Extras;
+            int slot = pickerSlot;
+            BuildArmyGallery(fort, slot, slots[slot], rules.Allows, type =>
+            {
+                slots[slot] = type;
+                if (fort) rules.OverrideFortTurrets = true;
+                CloseArmyPicker();
+                SaveLocalRules(rules);
+            }, CloseArmyPicker);
+        }
+
+        void BuildArmyGallery(bool fort, int slot, string selected, Func<string, bool> allows, Action<string> choose, Action close)
+        {
+            var shade = Hud.Img(root, "UnitPickerShade", new Color(0, 0, 0, .85f));
+            shade.rectTransform.Fill();
+            shade.raycastTarget = true;
+            string title = fort ? "ON THE FORT · SELECT CANNON" : "OUTSIDE THE FORT · SELECT UNIT";
+            var panel = Panel(title + " · SLOT " + (slot % 4 + 1), 340, 180, 1240, 720);
+            var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950);
+            backing.rectTransform.Fill();
+            backing.transform.SetAsFirstSibling();
+            backing.raycastTarget = true;
+            Button(panel, "CLOSE", 1030, 14, 180, close);
+            Label(panel, fort ? "Fort mounts accept cannons only." : "One robot squad or vehicle per slot.", 24, 72, 1150, 18, OzUi.Muted);
+            if (fort) Category("TURRETS", DuelRules.AllowedFortTurrets.Where(allows).ToArray(), 112);
             else
             {
-                BuildPickerCategory(panel, rules, "ROBOTS", DuelRules.AllowedExtras.Where(t => ZBuildLists.IsRobot(t) && rules.Allows(t)).ToArray(), 112);
-                BuildPickerCategory(panel, rules, "VEHICLES", DuelRules.AllowedExtras.Where(t => !ZBuildLists.IsRobot(t) && rules.Allows(t)).ToArray(), 292);
+                var units = DuelRules.AllowedExtras.Where(allows);
+                Category("ROBOTS", units.Where(ZBuildLists.IsRobot).ToArray(), 112);
+                Category("VEHICLES", units.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
             }
-            Button(panel, "EMPTY SLOT", 24, 625, 360, () => SetArmySlot(rules, ""));
-        }
-        void BuildPickerCategory(Transform panel, DuelRules rules, string title, string[] types, float y)
-        {
-            var category = Hud.Node(title, panel); category.TL(24, y, 1190, 310);
-            Label(category, title, 0, 0, 1150, 18, OzUi.Amber);
-            for (int i = 0; i < types.Length; i++)
+            Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected));
+
+            void Category(string name, string[] types, float y)
             {
-                string type = types[i];
-                var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138, () => SetArmySlot(rules, type), false, true, 130);
-                button.name = "SELECT " + type;
-                Portrait(button, type, 29, 12, 80);
+                var category = Hud.Node(name, panel); category.TL(24, y, 1190, 310);
+                Label(category, name, 0, 0, 1150, 18, OzUi.Amber);
+                for (int i = 0; i < types.Length; i++)
+                {
+                    string type = types[i];
+                    var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138,
+                        () => choose(type), type == selected, height: 130);
+                    button.name = "SELECT " + type;
+                    Portrait(button, type, 29, 12, 80);
+                }
             }
         }
         void SetArmySlot(DuelRules rules, string type)

@@ -16,7 +16,8 @@ namespace OpenZ.Multiplayer
         bool onlineOfficial, onlineShowSettings = true, onlineInviteShown;
         string onlineWorld = "", onlineMapSearch = "", onlineProposedMap;
         Action<string> onlineUnitChoice;
-        string[] onlineUnitOptions;
+        bool onlineUnitFort;
+        string onlineUnitSelected;
         int[] onlineTeams;
         bool onlineAllForOne;
         int onlineTeamsRevision, onlineDragSeat = -1, onlineTeamCount;
@@ -36,6 +37,7 @@ namespace OpenZ.Multiplayer
         void ResetOnlineLobby()
         {
             onlinePopup = OnlinePopup.None;
+            onlineUnitChoice = null;
             onlineInviteShown = false;
             onlineChatPosition = 0;
             onlineTeams = null;
@@ -125,7 +127,7 @@ namespace OpenZ.Multiplayer
                 case OnlinePopup.Invite: DrawOnlineInvitation(); break;
                 case OnlinePopup.Maps: if (editable) DrawOnlineGallery(); break;
                 case OnlinePopup.ActivePlayers: if (editable) DrawOnlineActivePlayers(); break;
-                case OnlinePopup.Units: if (editable) DrawOnlineUnitPicker(); break;
+                case OnlinePopup.Units: DrawOnlineUnitPicker(rules, editable); break;
                 case OnlinePopup.AiHelp: DrawOnlineAiHelp(people, rules, editable); break;
                 case OnlinePopup.Connection: DrawOnlineConnection(people); break;
             }
@@ -147,6 +149,7 @@ namespace OpenZ.Multiplayer
         void OpenOnlinePopup(OnlinePopup next)
         {
             onlinePopup = next;
+            if (next != OnlinePopup.Units) onlineUnitChoice = null;
             dirty = true;
         }
 
@@ -848,10 +851,10 @@ namespace OpenZ.Multiplayer
                 "50% of standard", "100% · Standard", value => value + "%", 925, editable,
                 value => { rules.BuildPercent[selected] = value; R.SetRoomRules(rules); }, preview: PreviewBuild);
             Label(panel, "EXTRA STARTING UNITS · " + chosen.Name, 24, 393, 1040, 19, OzUi.Amber);
-            DrawOnlineUnitSlots(panel, rules.Extras, selected * 4, DuelRules.AllowedExtras, rules, editable, 423, R.SetRoomRules);
+            DrawOnlineUnitSlots(panel, rules.Extras, selected * 4, rules, editable, 423, R.SetRoomRules);
         }
 
-        void DrawOnlineUnitSlots(Transform panel, string[] slots, int offset, string[] available, SkirmishRules rules,
+        void DrawOnlineUnitSlots(Transform panel, string[] slots, int offset, SkirmishRules rules,
             bool editable, int y, Action<SkirmishRules> save, bool fort = false)
         {
             for (int i = 0; i < 4; i++)
@@ -862,7 +865,8 @@ namespace OpenZ.Multiplayer
                 Action<string> choose = value => { slots[index] = value; if (fort) rules.OverrideFortTurrets = true; save(rules); };
                 var card = Button(panel, string.IsNullOrEmpty(unit) ? (fort ? "+ ADD TURRET" : "+ ADD UNIT") : UnitName(unit), x, y, 250, () =>
                 {
-                    onlineUnitOptions = available.Where(rules.Allows).ToArray();
+                    onlineUnitFort = fort;
+                    onlineUnitSelected = unit;
                     onlineUnitSlot = index % 4;
                     onlineUnitChoice = choose;
                     onlineRoleRevision = R.HostedRoom.Revision;
@@ -876,19 +880,21 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        void DrawOnlineUnitPicker()
+        void DrawOnlineUnitPicker(SkirmishRules rules, bool editable)
         {
-            if (R.HostedRoom.Revision != onlineRoleRevision) { onlinePopup = OnlinePopup.None; return; }
-            var panel = OnlineDialog("CHOOSE UNIT · SLOT " + (onlineUnitSlot + 1), 400, 175, 1120, 734);
-            var scroll = Scroll(panel, 24, 64, 1072, 640, false,
-                Math.Max(640, (onlineUnitOptions.Length + 3) / 4 * 144));
-            for (int i = 0; i < onlineUnitOptions.Length; i++)
+            if (!editable || R.HostedRoom.Revision != onlineRoleRevision)
             {
-                string type = onlineUnitOptions[i];
-                var card = Button(scroll, UnitName(type), i % 4 * 268, i / 4 * 144, 253, () =>
-                    { onlineUnitChoice(type); OpenOnlinePopup(OnlinePopup.None); }, height: 130);
-                Portrait(card, type, 83, 6, 83);
+                OpenOnlinePopup(OnlinePopup.None);
+                return;
             }
+
+            var choose = onlineUnitChoice;
+            int revision = onlineRoleRevision;
+            BuildArmyGallery(onlineUnitFort, onlineUnitSlot, onlineUnitSelected, rules.Allows, type =>
+            {
+                OpenOnlinePopup(OnlinePopup.None);
+                if (OnlineEditing && R.HostedRoom.Revision == revision) choose(type);
+            }, () => OpenOnlinePopup(OnlinePopup.None));
         }
 
         void DrawOnlineAiHelp(OnlinePerson[] people, SkirmishRules rules, bool editable)
@@ -931,12 +937,12 @@ namespace OpenZ.Multiplayer
                 Array.Clear(rules.FortTurrets, 0, rules.FortTurrets.Length);
                 R.SetRoomRules(rules);
             }, enabled: editable && rules.OverrideFortTurrets);
-            DrawOnlineUnitSlots(panel, rules.FortTurrets, 0, DuelRules.AllowedFortTurrets, rules, editable, 151, R.SetRoomRules, fort: true);
+            DrawOnlineUnitSlots(panel, rules.FortTurrets, 0, rules, editable, 151, R.SetRoomRules, fort: true);
             Label(panel, "ADDITIONAL UNITS NEAR THE FORT", 25, 307, 650, 20, OzUi.Amber);
             Label(panel, "Each participant receives these units. A robot slot adds one squad.", 25, 343, 700, 17, OzUi.Ink);
             Button(panel, "LOAD / SAVE UNIT PRESET", 758, 310, 307, () =>
                 { roomPresets = true; presetStatus = presetName = ""; dirty = true; }, enabled: editable);
-            DrawOnlineUnitSlots(panel, rules.Common, 0, DuelRules.AllowedExtras, rules, editable, 386, R.SetRoomRules);
+            DrawOnlineUnitSlots(panel, rules.Common, 0, rules, editable, 386, R.SetRoomRules);
         }
 
         static void AddOnlineEvent(RectTransform target, EventTriggerType type, Action<BaseEventData> callback)

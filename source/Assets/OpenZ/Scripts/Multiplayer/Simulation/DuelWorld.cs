@@ -129,7 +129,10 @@ namespace OpenZ.Sim
         internal bool HasDuelRules => duelRules != null;
         public DuelRules DuelConfiguration => duelRules?.Copy();
         internal bool DuelNerfedHowitzers => duelRules?.NerfedHowitzers == true || skirmishRules?.NerfedHowitzers == true;
-        internal int HowitzerScatter(int blastRadius) => DuelNerfedHowitzers ? Math.Max(32, (blastRadius * 5 + 3) / 4) : 16;
+        // Zod Engine rolls (rand() % 32) - 16 per axis. The lobby rule widens
+        // that spread to 125% of the Zod howitzer's 40 px blast radius.
+        internal const int StandardShellScatter = 16;
+        internal int ShellScatter(string type) => type == "howitzer" && DuelNerfedHowitzers ? 50 : StandardShellScatter;
 
         public RadarLossRule DuelRadarLoss => duelRules?.RadarLoss ?? skirmishRules?.RadarLoss ?? RadarLossRule.Off;
         public bool DuelAiIdleHelp => duelRules?.HandicapEnabled == true && duelRules.AiIdleSeconds > 0 ||

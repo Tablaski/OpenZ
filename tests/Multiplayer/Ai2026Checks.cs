@@ -79,7 +79,9 @@ static class Ai2026Checks
             entrants = Math.Max(entrants, Entries());
         }
         check(entrants == 1 && (reinforce || heavy.Waypoints.Any(wp => wp.mode == WpMode.EnterFort)),
-            level + " commits one nearby entrant immediately when the last turret falls");
+            level + " commits one nearby entrant immediately when the last turret falls" +
+            $" (entrants {entrants}, heavy HP {heavy.Health}, position {heavy.CenterX},{heavy.CenterY}, gate {x},{y}," +
+            $" turret HP {turret.Health}, fort HP {fort.Health}, orders {string.Join(",", heavy.Waypoints.Select(wp => wp.mode))})");
         for (int i = 0; i < 5000 && !fort.Destroyed; i++) world.Tick(ZConst.TICK);
         check(fort.Destroyed && world.Events.Any(e => e.type == ZEventType.FortEntered && e.otherId == fort.Id),
             level + " follows the entry order through to defeating the fort");

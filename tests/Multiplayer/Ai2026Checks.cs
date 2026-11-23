@@ -129,9 +129,9 @@ static class Ai2026Checks
     static void CheckEliminateArmy(string settings, Action<bool, string> check)
     {
         var world = FortFixture(settings, out var fort);
-        var jeep = world.CreateObject("vehicle", "jeep", 132, 660, Team.Red);
+        var jeep = world.CreateObject("vehicle", "jeep", 78, 778, Team.Red);
         jeep.Health = 1;
-        var tank = world.CreateObject("vehicle", "light", 410, 658, Team.Blue);
+        var tank = world.CreateObject("vehicle", "light", 348, 778, Team.Blue);
         world.Bots.Add(new ZBot(world, Team.Blue, 146, ZBotDifficulty.Skilled));
         bool hunted = false;
         for (int i = 0; i < 3000 && !world.GameOver; i++)
@@ -140,7 +140,8 @@ static class Ai2026Checks
             hunted |= tank.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == jeep.Id);
         }
         check(hunted && world.GameOver && world.Winner == Team.Blue && !fort.Destroyed,
-            "Skilled pursues the last opponent and wins while its fort is still standing");
+            $"Skilled pursues the last opponent and wins while its fort is still standing" +
+            $" (hunted {hunted}, winner {world.Winner}, fort HP {fort.Health}, jeep HP {jeep.Health})");
     }
 
     static void CheckCommands(string settings, string grid, Action<bool, string> check)

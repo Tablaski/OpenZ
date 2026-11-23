@@ -60,11 +60,30 @@ namespace OpenZ.Sim
             return best;
         }
 
-        internal bool CanRelease(ZObject unit, ZObject home, ZObject alliedFort, List<ZObject> visibleEnemies)
+        internal Threat SupportFront(List<ZObject> allies, List<ZObject> visibleEnemies, ZBotDifficulty level, ZAiTuning tuning,
+            Func<int, int, int, double> occasion)
+        {
+            if (!W.HasActiveAlly(Team) || level < ZBotDifficulty.Alright) return default;
+            Threat best = default;
+            foreach (var ally in allies)
+            {
+                if (ally.Owner == Team || ally.IsMinion || !ally.IsMobile) continue;
+                var enemy = ally.AttackObject;
+                if (enemy == null || !visibleEnemies.Contains(enemy) || enemy.IsFort) continue;
+                if (occasion(ally.Id, enemy.Id, 11) >= tuning.Help) continue;
+                double exchange = ZAiCombat.Exchange(ally, enemy, level >= ZBotDifficulty.Skilled);
+                double urgency = ZAiCombat.Power(enemy) / Math.Max(1, ZAiCombat.Power(ally)) / Math.Max(.5, exchange);
+                if (urgency <= best.Urgency) continue;
+                best = new Threat(ally, enemy, urgency);
+            }
+            return best;
+        }
+
+        internal bool CanRelease(ZObject unit, ZObject home, ZObject position, bool homeThreatened)
         {
             double homeDistance = ZAiGeometry.Distance(unit, home);
-            if (homeDistance > 160 || ZAiGeometry.Distance(unit, alliedFort) < homeDistance) return true;
-            return W.SkirmishAllForOne && FortThreat(home, visibleEnemies).Enemy == null;
+            if (homeDistance > 160 || ZAiGeometry.Distance(unit, position) < homeDistance) return true;
+            return W.SkirmishAllForOne && !homeThreatened && unit.Type != "heavy";
         }
 
         internal void CoordinateLegacy(ZBot bot, List<ZObject> idle)

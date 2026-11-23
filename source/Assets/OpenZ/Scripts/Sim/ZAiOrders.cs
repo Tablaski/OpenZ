@@ -41,6 +41,16 @@ namespace OpenZ.Sim
             credit -= 1;
         }
 
+        internal bool CanSpendTwice => Available && actions.Count + 1 < tuning.Apm && credit + 1e-6 >= 2;
+
+        internal bool Stop(ZObject unit, ZObject previousTarget)
+        {
+            if (!Available || !world.SendStop(team, unit)) return false;
+            if (unit.AttackObject == previousTarget) unit.Disengage();
+            Record();
+            return true;
+        }
+
         internal bool Send(ZObject unit, ZWaypoint wp, HashSet<int> planned)
         {
             if (!Available || !Apply(unit, wp, planned)) return false;

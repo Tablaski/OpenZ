@@ -37,6 +37,7 @@ static class Ai2026Checks
         }
         CheckCommands(settings, grid, check);
         CheckProfiles(settings, grid, check);
+        CheckRadar(settings, grid, check);
         CheckRoom(root, settings, check);
     }
 
@@ -100,5 +101,26 @@ static class Ai2026Checks
         check(world.Bots.Single(b => b.Difficulty == ZBotDifficulty.Zod).ModernController?.Actions > 0 &&
             world.Bots.Single(b => b.Difficulty == ZBotDifficulty.Easy).ModernController == null,
             "A normal room launches modern and legacy opponents together");
+    }
+
+    static void CheckRadar(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        foreach (var radar in world.Objects.Where(o => o.ProvidesRadarTo(Team.Blue))) radar.Health = 0;
+        var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);
+        var sight = new ZAiSight(world, Team.Blue);
+        world.ModernBotSoloRadar = RadarLossRule.Zoom;
+        sight.Observe();
+        check(sight.ZoomLimited && sight.CanSee(fort.CenterX, fort.CenterY),
+            "Zoom-only radar loss restricts attention and leaves information available");
+        world.ModernBotSoloRadar = RadarLossRule.FogAndZoom;
+        sight.Observe();
+        check(sight.ZoomLimited && !sight.CanSee(fort.CenterX, fort.CenterY) &&
+            sight.CanSee(world.Objects.First(o => o.IsUnit && o.Owner == Team.Blue).CenterX,
+                world.Objects.First(o => o.IsUnit && o.Owner == Team.Blue).CenterY),
+            "Fog and zoom apply both effects without hiding the bot's own sector");
+        world.CreateObject("building", "radar", 160, 160, Team.Blue);
+        sight.Observe();
+        check(!sight.ZoomLimited && sight.CanSee(fort.CenterX, fort.CenterY), "A working radar restores the picture");
     }
 }

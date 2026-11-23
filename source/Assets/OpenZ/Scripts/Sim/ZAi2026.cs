@@ -16,13 +16,15 @@ namespace OpenZ.Sim
         readonly int seed;
         readonly List<ZObject> units = new List<ZObject>(), producers = new List<ZObject>(),
             forts = new List<ZObject>(), objectives = new List<ZObject>(), allies = new List<ZObject>(),
-            enemies = new List<ZObject>();
+            enemies = new List<ZObject>(), infrastructure = new List<ZObject>();
         readonly Dictionary<int, Contact> contacts = new Dictionary<int, Contact>();
         readonly List<int> forgotten = new List<int>();
         readonly HashSet<int> planned = new HashSet<int>();
         readonly Dictionary<int, int> assigned = new Dictionary<int, int>();
         readonly List<ZObject> group = new List<ZObject>(4);
         ZObject home, defenseFort, defenseThreat;
+        ZAiTeamPlay.Threat supportFront;
+        bool homeThreatened;
         double nextTactics, nextStrategy, nextFocus, nextProduction;
         int cursor, focusX, focusY;
 
@@ -47,6 +49,7 @@ namespace OpenZ.Sim
 
         internal void Tick()
         {
+            MaintainBridgeTrap();
             if (world.Time + 1e-6 < nextTactics) return;
             nextTactics = world.Time + tuning.Tactics;
             Observe();
@@ -68,7 +71,7 @@ namespace OpenZ.Sim
         void Observe()
         {
             sight.Observe();
-            units.Clear(); producers.Clear(); forts.Clear(); objectives.Clear(); allies.Clear(); enemies.Clear();
+            units.Clear(); producers.Clear(); forts.Clear(); objectives.Clear(); allies.Clear(); enemies.Clear(); infrastructure.Clear();
             assigned.Clear(); planned.Clear();
             home = null;
             foreach (var o in world.Objects)
@@ -87,6 +90,7 @@ namespace OpenZ.Sim
                         if (own) home = o;
                     }
                     if (o.IsUnit) allies.Add(o);
+                    if (o.Type == "radar" || o.Type == "repair") infrastructure.Add(o);
                     if (own && o.IsProducer) producers.Add(o);
                     if (own && Commandable(o))
                     {
@@ -106,7 +110,8 @@ namespace OpenZ.Sim
                     objectives.Add(o);
                 if (o.Owner == Team.Neutral || (!o.IsUnit && o.Kind != ZKind.Building)) continue;
                 if (o.IsUnit || o.IsFort) enemies.Add(o);
-                contacts[o.Id] = new Contact(o, world.Time, o.IsUnit ? ZAiCombat.Power(o) : 0);
+                contacts.TryGetValue(o.Id, out var previous);
+                contacts[o.Id] = new Contact(o, world.Time, o.IsUnit ? ZAiCombat.Power(o) : 0, previous);
             }
             forgotten.Clear();
             foreach (var pair in contacts)
@@ -123,6 +128,8 @@ namespace OpenZ.Sim
         {
             var own = ZAiTeamPlay.FortThreat(home, enemies);
             var help = teamPlay.Relief(forts, enemies, tuning, Occasion);
+            homeThreatened = own.Enemy != null;
+            supportFront = teamPlay.SupportFront(allies, enemies, level, tuning, Occasion);
             defenseFort = home;
             defenseThreat = own.Enemy;
             if (help.Enemy != null && (own.Enemy == null || world.SkirmishAllForOne && help.Urgency > own.Urgency * 1.2))
@@ -130,11 +137,13 @@ namespace OpenZ.Sim
                 defenseFort = help.Fort;
                 defenseThreat = help.Enemy;
             }
+            if (defenseThreat == null && level >= ZBotDifficulty.Alright)
+                ChooseInfrastructureDefense();
 
             if (!sight.ZoomLimited || world.Time >= nextFocus)
             {
                 nextFocus = world.Time + tuning.Attention;
-                var focus = defenseThreat ?? assaultFort ?? home;
+                var focus = defenseThreat ?? supportFront.Enemy ?? assaultFort ?? home;
                 focusX = focus.CenterX;
                 focusY = focus.CenterY;
             }
@@ -154,6 +163,7 @@ namespace OpenZ.Sim
                 if (HandleTactics(unit) || unit.Waypoints.Count != 0 || OpeningIdle(unit)) continue;
                 var objective = PickObjective(unit, out var mode);
                 if (objective != null) Issue(unit, objective, mode, mode == WpMode.Move || mode == WpMode.EnterFort);
+                else if (level >= ZBotDifficulty.Skilled) TryScout(unit);
             }
         }
 
@@ -243,14 +253,17 @@ namespace OpenZ.Sim
         readonly struct Contact
         {
             internal readonly string Type;
-            internal readonly int X, Y, Speed, Range;
-            internal readonly double SeenAt, Power;
+            internal readonly int X, Y, Speed;
+            internal readonly double SeenAt, Power, Vx, Vy;
             internal readonly bool Mobile, Producer;
-            internal Contact(ZObject o, double now, double power)
+            internal Contact(ZObject o, double now, double power, Contact previous)
             {
-                Type = o.Type; X = o.CenterX; Y = o.CenterY; Range = o.AttackRadius;
+                Type = o.Type; X = o.CenterX; Y = o.CenterY;
                 Speed = o.MoveSpeed; Mobile = o.IsMobile; Producer = o.IsProducer;
                 SeenAt = now; Power = power;
+                double dt = now - previous.SeenAt;
+                Vx = Mobile && previous.Type != null && dt > 0 && dt <= 2 ? (X - previous.X) / dt : 0;
+                Vy = Mobile && previous.Type != null && dt > 0 && dt <= 2 ? (Y - previous.Y) / dt : 0;
             }
         }
     }

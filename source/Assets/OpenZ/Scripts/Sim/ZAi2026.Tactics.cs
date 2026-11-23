@@ -15,14 +15,16 @@ namespace OpenZ.Sim
 
             if (defenseThreat != null && unit.CanAttackObject(defenseThreat) && Attending(unit) &&
                 ZAiGeometry.DistanceSquared(unit, defenseFort.CenterX, defenseFort.CenterY) <= 600L * 600 &&
-                (defenseFort == home || teamPlay.CanRelease(unit, home, defenseFort, enemies)) &&
+                (defenseFort == home || teamPlay.CanRelease(unit, home, defenseFort, homeThreatened)) &&
                 SafeShot(unit, defenseThreat) && Reachable(unit, defenseThreat.CenterX, defenseThreat.CenterY, 6))
             {
                 if (Issue(unit, defenseThreat, WpMode.Attack)) return true;
             }
 
             if (skilled && TryBridge(unit)) return true;
+            if (skilled && Attending(unit) && !homeThreatened && TryAssault(unit)) return true;
             if (!unit.CanAttack() || !Attending(unit)) return false;
+            if (TrySupportFront(unit)) return true;
 
             ZObject closest = null;
             double distance = Math.Max(180, unit.AttackRadius + 96);
@@ -49,11 +51,9 @@ namespace OpenZ.Sim
                 unit.MoveSpeed >= closest.MoveSpeed * .85 && unit.CanMove;
             if (skilled && standoff && distance < closest.AttackRadius + 12 && unit.AiWeaponReloading)
                 return TryRetreat(unit, closest, false);
-            if (skilled && assaultFort != null && unit.MoveSpeed > 20 && distance > closest.AttackRadius &&
-                (unit.Waypoints.Count == 0 || unit.Waypoints[0].mode == WpMode.Move) &&
-                TryAssault(unit)) return true;
             if (unit.Waypoints.Count > 0 && !skilled) return false;
             if (distance > unit.AttackRadius && !Reachable(unit, closest.CenterX, closest.CenterY, 6)) return false;
+            if (skilled && distance > unit.AttackRadius * .75 && exchange > 1.1 && TryCrossfire(unit, closest)) return true;
             return Issue(unit, closest, WpMode.Attack);
         }
 
@@ -134,17 +134,18 @@ namespace OpenZ.Sim
                 }
                 else if (unit.IsRobot && !unit.NoAutoEnter && (target.CanBeEntered() || target.Owner == team && NeedsPassengers(target, unit)))
                 {
-                    if (Occasion(unit.Id, target.Id, 4) < tuning.MissVehicle) continue;
+                    if (Occasion(target.Id, 0, 4) < tuning.MissVehicle) continue;
                     option = WpMode.Enter;
                     value = target.Type == "apc" && target.Owner == team ? 52 : 79;
                 }
                 else if (target.Type == "grenades" && unit.CanPickupGrenades() && distance <= 340)
                 {
-                    if (Occasion(unit.Id, target.Id, 5) < tuning.MissGrenades) continue;
+                    if (Occasion(target.Id, 0, 5) < tuning.MissGrenades) continue;
                     option = WpMode.PickupGrenades;
                     value = 67;
                 }
                 else if (target.Type == "repair" && unit.CanBeRepaired() && !target.RepairingUnit && target.CanRepairUnit(team) &&
+                    (level < ZBotDifficulty.Skilled || DangerousFor(target) == null) &&
                     unit.Health < unit.MaxHealth * (level >= ZBotDifficulty.Skilled ? .72 : .42) && level > ZBotDifficulty.Noob)
                 {
                     option = WpMode.UnitRepair;
@@ -167,13 +168,6 @@ namespace OpenZ.Sim
                 value /= 1 + distance / Math.Max(90, unit.MoveSpeed * 7);
                 if (value <= bestScore || !Reachable(unit, target.CenterX, target.CenterY, option == WpMode.Move ? 2 : 6)) continue;
                 best = target; mode = option; bestScore = value;
-            }
-            if (best == null && level >= ZBotDifficulty.Skilled &&
-                assaultFort != null && unit.CanMove && EligibleAssault(unit) &&
-                assaultFort.GetCreationMovePoint(out int x, out int y) && Reachable(unit, x, y, 3))
-            {
-                best = assaultFort;
-                mode = WpMode.EnterFort;
             }
             return best;
         }
@@ -199,12 +193,13 @@ namespace OpenZ.Sim
                     !unit.CanAttackObject(bridge) || !SafeShot(unit, bridge)) continue;
                 int enemyOn = 0;
                 foreach (var e in enemies) if (e.IsMobile && e.IntersectsObject(bridge)) enemyOn++;
-                if (enemyOn == 0) continue;
                 bool friendlyOn = false;
                 foreach (var ally in allies)
                     if (ally.IsMobile && ally.IntersectsObject(bridge)) { friendlyOn = true; break; }
-                if (!friendlyOn && bridge.Health <= unit.Damage)
+                if (friendlyOn) continue;
+                if (enemyOn > 0 && bridge.Health <= unit.Damage)
                     return Issue(unit, bridge, WpMode.Attack);
+                if (enemyOn == 0 && TryPrepareBridge(unit, bridge)) return true;
             }
             return false;
         }
@@ -213,6 +208,6 @@ namespace OpenZ.Sim
     public sealed partial class ZObject
     {
         internal bool AiWeaponReloading => World.Time < nextDamageTime;
-        internal bool AiRocketWeapon => BehaviorRocketWeapon;
+        internal double AiReloadUntil => nextDamageTime;
     }
 }

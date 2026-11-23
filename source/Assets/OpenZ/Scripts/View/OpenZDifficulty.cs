@@ -83,7 +83,7 @@ namespace OpenZ
         static void ApplyLive(GameDifficulty d)
         {
             var g = ZGame.I;
-            if (g == null || g.World == null) return;
+            if (g == null || g.World == null || g.World.Map.skirmish || Multiplayer.DuelRuntime.Active) return;
             d = Rules(d); g.gameDifficulty = d; g.difficulty = Bot(d);   // 1.4 MAYHEM: a running match gets the rules' difficulty (HARD); its MAYHEM (the fog) is fixed at its start
             foreach (var b in g.World.Bots) b.Difficulty = g.BotDifficulty(b.Team);
             g.ApplyTechBonus();

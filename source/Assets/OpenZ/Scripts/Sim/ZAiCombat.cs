@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             var behavior = unit.Behavior;
             if (!attacker.DamageIsMissile || behavior == null || !unit.CanMove || unit.Stunned ||
                 !behavior.On(ZBehaviorKey.Enabled) || !behavior.On(ZBehaviorKey.Engaged)) return 0;
-            var threat = attacker.AiRocketWeapon ? ZBehaviorKey.ThreatRocket : ZBehaviorKey.ThreatShell;
+            var threat = attacker.BehaviorRocketWeapon ? ZBehaviorKey.ThreatRocket : ZBehaviorKey.ThreatShell;
             if (!behavior.On(threat)) return 0;
             if (attacker.Damage < behavior[ZBehaviorKey.MinDamage] ||
                 behavior.On(ZBehaviorKey.VisibleOnly) && !unit.CanSee(attacker)) return 0;

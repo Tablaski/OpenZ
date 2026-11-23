@@ -56,9 +56,12 @@ namespace OpenZ.Sim
         readonly ZWorld world;
         readonly Team team;
         readonly bool mapHasRadar;
+        readonly Dictionary<int, (int X, int Y, int Radius)> exploredStamps =
+            new Dictionary<int, (int X, int Y, int Radius)>();
         OzFowMask explored, current, radarLoss;
         bool limitedSight, jammedFog;
         internal bool ZoomLimited { get; private set; }
+        internal bool HasLimitedInformation => jammedFog || world.ModernBotFog;
 
         internal ZAiSight(ZWorld world, Team team)
         {
@@ -98,7 +101,12 @@ namespace OpenZ.Sim
                 int radius = ZBattleSight.Radius(o, world.S.agro_distance);
                 if (o.ProvidesRadarTo(team)) radius = Math.Max(radius, ZBattleSight.RadarSightPx);
                 if (radius == 0) continue;
-                explored.Stamp(o.CenterX, o.CenterY, radius);
+                var stamp = (explored.CellX(o.CenterX), explored.CellY(o.CenterY), radius);
+                if (!exploredStamps.TryGetValue(o.Id, out var previous) || previous != stamp)
+                {
+                    explored.Stamp(o.CenterX, o.CenterY, radius);
+                    exploredStamps[o.Id] = stamp;
+                }
                 if (limitedSight) current.Stamp(o.CenterX, o.CenterY, radius);
             }
         }

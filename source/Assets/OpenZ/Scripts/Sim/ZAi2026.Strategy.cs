@@ -7,7 +7,7 @@ namespace OpenZ.Sim
         readonly double[] military = new double[2], territory = new double[2], production = new double[2], security = new double[2];
         readonly double[] forecasts = new double[3];
         ZObject assaultFort;
-        double assaultUntil, nextAssault, behindSince = -1, strategicRatio = 1, lastTerritory, lastTerritoryAt;
+        double assaultUntil, assaultArrival, nextAssault, behindSince = -1, strategicRatio = 1, lastTerritory, lastTerritoryAt;
         bool earlyAssaultUsed;
 
         void EvaluateStrategy()
@@ -98,8 +98,9 @@ namespace OpenZ.Sim
             }
             if (assaultFort == null) return;
             earlyAssaultUsed |= early;
-            assaultUntil = world.Time + 22;
-            nextAssault = world.Time + 32;
+            assaultArrival = world.Time + (level == ZBotDifficulty.Zod ? 16 : 11);
+            assaultUntil = assaultArrival + 9;
+            nextAssault = assaultUntil + 10;
         }
 
         static double Ratio(double[] value) => Math.Min(3, (value[0] + 1) / (value[1] + 1));
@@ -122,11 +123,36 @@ namespace OpenZ.Sim
             return unit.MoveSpeed >= 19 && unit.Health > unit.MaxHealth / 3;
         }
 
+        bool AssaultReady => assaultFort != null && Alive(assaultFort) &&
+            sight.CanSee(assaultFort.CenterX, assaultFort.CenterY, false);
+
         bool TryAssault(ZObject unit)
         {
-            if (assaultFort == null || !EligibleAssault(unit) || !assaultFort.GetCreationMovePoint(out int x, out int y) ||
-                ZAiGeometry.DistanceSquared(unit, x, y) > 820L * 820 || !Reachable(unit, x, y, 2)) return false;
+            if (!AssaultReady || !EligibleAssault(unit) || !assaultFort.GetCreationMovePoint(out int x, out int y)) return false;
+            double distance = Math.Sqrt(ZAiGeometry.DistanceSquared(unit, x, y));
+            double speed = AssaultSpeed(unit, distance);
+            if (distance > 820 || world.Time + distance / speed + 2 < assaultArrival ||
+                HasMissionOtherThanCombat(unit) || !Reachable(unit, x, y, 2)) return false;
             return Issue(unit, assaultFort, WpMode.EnterFort, true);
+        }
+
+        double AssaultSpeed(ZObject unit, double distance)
+        {
+            double speed = Math.Max(1, unit.MoveSpeed);
+            var behavior = unit.Behavior;
+            if (behavior == null || !behavior.On(ZBehaviorKey.Boost)) return speed;
+            if (unit.IsRunning && unit.RealMoveSpeed > speed)
+                return speed + (unit.RealMoveSpeed - speed) * Math.Min(1, 160 / Math.Max(1, distance));
+            if (unit.Health < unit.MaxHealth * .65 || distance > 250) return speed;
+            double bonus = (behavior[ZBehaviorKey.BoostSpeed] - 1) * behavior[ZBehaviorKey.BoostChance] / 100;
+            return speed * (1 + .20 * Math.Max(0, bonus));
+        }
+
+        static bool HasMissionOtherThanCombat(ZObject unit)
+        {
+            if (unit.Waypoints.Count == 0) return false;
+            var order = unit.Waypoints[0];
+            return order.mode != WpMode.Move && order.mode != WpMode.Attack;
         }
 
         double FlagImportance(ZObject flag)
@@ -152,7 +178,19 @@ namespace OpenZ.Sim
 
         double Output(ZObject factory, int horizon)
         {
-            if (factory.CurUnit == null) return 0;
+            if (world.UnitLimitReached(factory.Owner)) return 0;
+            if (factory.CurUnit == null)
+            {
+                double potential = 0;
+                foreach (string type in world.ProductionUnits(factory))
+                {
+                    var stats = world.S.Unit(type);
+                    if (stats == null || stats.Damage <= 0) continue;
+                    double cycle = Math.Max(1, factory.BuildTimeModified(stats.build_time));
+                    potential = Math.Max(potential, Math.Floor(horizon / cycle) * Value(stats));
+                }
+                return potential * .55;
+            }
             var running = world.S.Unit(factory.CurUnit);
             if (running == null) return 0;
             double arrival = Math.Max(0, factory.BFinal - world.Time), output = 0;
@@ -183,12 +221,12 @@ namespace OpenZ.Sim
                         if (o.IsMobile && ZAiGeometry.DistanceSquared(o, factory.CenterX, factory.CenterY) < 240L * 240 &&
                             world.GetZoneIndex(o.CenterX, o.CenterY) == factory.ZoneIndex)
                         { enemy = o; break; }
-                if (enemy != null && !factory.IsFort && enemy.AttackObject != factory &&
+                if (enemy != null && !factory.IsFort && CaptureImminent(factory, enemy) &&
                     Occasion(factory.Id, enemy.Id, 9) < tuning.CancelChance &&
                     (!factory.Building || factory.BFinal - world.Time > 4))
                 {
                     if (factory.Queue.Count > 0 && advanced) orders.CancelLast(factory);
-                    if (factory.Building) orders.Production(factory, null);
+                    if (factory.Building && (!advanced || factory.Queue.Count == 0)) orders.Production(factory, null);
                     continue;
                 }
                 if (factory.Building && factory.CurUnit != "grunt" && factory.CurUnit != "jeep") continue;
@@ -214,6 +252,19 @@ namespace OpenZ.Sim
                 }
                 if (best != null) orders.Production(factory, best);
             }
+        }
+
+        bool CaptureImminent(ZObject factory, ZObject enemy)
+        {
+            if (!enemy.CanMove || factory.ZoneIndex < 0 || factory.ZoneIndex >= world.Zones.Count) return false;
+            var flag = world.Zones[factory.ZoneIndex].Flag;
+            if (flag == null || !world.CanCaptureFlag(enemy.Owner, flag)) return false;
+            double time = ZAiGeometry.Distance(flag, enemy) / Math.Max(1, enemy.MoveSpeed);
+            if (time > 7) return false;
+            foreach (var ally in allies)
+                if (ally.CanAttackObject(enemy) && ally.WithinAttackRadius(enemy) &&
+                    ZAiCombat.Exchange(ally, enemy, level >= ZBotDifficulty.Skilled) > 1.2) return false;
+            return true;
         }
     }
 }

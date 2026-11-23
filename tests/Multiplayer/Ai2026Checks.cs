@@ -39,6 +39,7 @@ static class Ai2026Checks
         CheckProfiles(settings, grid, check);
         CheckRadar(settings, grid, check);
         CheckRoom(root, settings, check);
+        CheckTeamRelief(root, settings, check);
     }
 
     static ZWorld Match(string settings, string grid, ZBotDifficulty level)
@@ -115,12 +116,33 @@ static class Ai2026Checks
             "Zoom-only radar loss restricts attention and leaves information available");
         world.ModernBotSoloRadar = RadarLossRule.FogAndZoom;
         sight.Observe();
+        var friendlyUnit = world.Objects.First(o => o.IsUnit && o.Owner == Team.Blue);
         check(sight.ZoomLimited && !sight.CanSee(fort.CenterX, fort.CenterY) &&
-            sight.CanSee(world.Objects.First(o => o.IsUnit && o.Owner == Team.Blue).CenterX,
-                world.Objects.First(o => o.IsUnit && o.Owner == Team.Blue).CenterY),
+            sight.CanSee(friendlyUnit.CenterX, friendlyUnit.CenterY),
             "Fog and zoom apply both effects without hiding the bot's own sector");
         world.CreateObject("building", "radar", 160, 160, Team.Blue);
         sight.Observe();
         check(!sight.ZoomLimited && sight.CanSee(fort.CenterX, fort.CenterY), "A working radar restores the picture");
+    }
+
+    static void CheckTeamRelief(string root, string settings, Action<bool, string> check)
+    {
+        string id = OzAiMapCatalog.ThreePlayerSkirmish.Id;
+        string grid = File.ReadAllText(Path.Combine(root, "aimaps/Resources/OpenZ/Maps", id + "_grid.json"));
+        var world = ZWorld.Create(settings, grid, 12);
+        world.SetSkirmishAlliances(new[] { 0, 0, 1 });
+        world.ConfigureSkirmishRules(new SkirmishRules { AllForOne = true }, Array.Empty<int>());
+        var forts = world.Objects.Where(o => o.IsFort && world.AreAllied(Team.Red, o.Owner)).ToList();
+        var home = forts.Single(o => o.Owner == Team.Red);
+        var ally = forts.Single(o => o.Owner == Team.Blue);
+        var enemy = world.CreateObject("vehicle", "heavy", ally.LocX + 50, ally.LocY, Team.Green);
+        var observed = new List<ZObject> { enemy };
+        var module = new ZAiTeamPlay(world, Team.Red);
+        var support = module.Relief(forts, observed, ZAiTuning.For(ZBotDifficulty.Zod), (_, _, _) => 0);
+        check(support.Fort == ally && support.Enemy == enemy, "TeamPlay finds a visible threat to an allied fort");
+        check(module.Relief(forts, new List<ZObject>(), ZAiTuning.For(ZBotDifficulty.Zod), (_, _, _) => 0).Enemy == null,
+            "TeamPlay cannot act on an unobserved threat");
+        var reserve = world.CreateObject("vehicle", "heavy", home.LocX + 20, home.LocY, Team.Red);
+        check(!module.CanRelease(reserve, home, ally, true), "TeamPlay keeps a heavy reserve at a threatened home fort");
     }
 }

@@ -168,13 +168,13 @@ namespace OpenZ
             cpuMayhem = SmallButton(p, "CpuMayhem", "MAYHEM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 3), ry, OzDeployBar.CpuCellW(bw, 3), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Mayhem), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMayhem.Rt);
             cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(cx, OzDeployBar.HintY, OzH.L, false, bw); SlidePart(cpuHint.rectTransform);
             SlidePart(Hud.Label(p, "CpuModernLabel", "2026 AI", 10, OzForkOptions.Accent, 0.24f, OzStyle.Plain)
-                .At(cx, 917, OzH.L, false, bw).rectTransform);
+                .At(cx, 896, OzH.L, false, bw).rectTransform);
             float modernW = (bw - 6) / cpuModern.Length;
             for (int i = 0; i < cpuModern.Length; i++)
             {
                 var level = ZAiDifficulty.Modern[i];
                 var button = SmallButton(p, "Cpu" + level, level.ToString().ToUpperInvariant(),
-                    new OzRect(cx + i * (modernW + 2), 931, modernW, 32), View.Select, Side.Any,
+                    new OzRect(cx + i * (modernW + 2), 910, modernW, 32), View.Select, Side.Any,
                     () => OzAiSoloChoice.Level = level, 10, .02f);
                 button.LabelColor = OzForkOptions.Accent;
                 button.Refresh();

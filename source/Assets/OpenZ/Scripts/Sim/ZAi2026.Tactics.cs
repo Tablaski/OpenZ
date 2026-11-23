@@ -51,7 +51,21 @@ namespace OpenZ.Sim
                 unit.MoveSpeed >= closest.MoveSpeed * .85 && unit.CanMove;
             if (skilled && standoff && distance < closest.AttackRadius + 12 && unit.AiWeaponReloading)
                 return TryRetreat(unit, closest, false);
+            if (skilled && standoff && distance > closest.AttackRadius + 38 && TryRoadPosition(unit, closest)) return true;
             if (unit.Waypoints.Count > 0 && !skilled) return false;
+            if (unit.Waypoints.Count > 0)
+            {
+                var current = unit.Waypoints[0];
+                if (current.mode == WpMode.Attack)
+                {
+                    if (current.refId == closest.Id) return true;
+                    var previous = world.Get(current.refId);
+                    if (previous != null && enemies.Contains(previous) && unit.CanAttackObject(previous) &&
+                        distance + 70 > ZAiGeometry.Distance(unit, previous)) return true;
+                }
+                else if (current.mode == WpMode.Move && distance > Math.Max(unit.AttackRadius, closest.AttackRadius) + 14)
+                    return false;
+            }
             if (distance > unit.AttackRadius && !Reachable(unit, closest.CenterX, closest.CenterY, 6)) return false;
             if (skilled && distance > unit.AttackRadius * .75 && exchange > 1.1 && TryCrossfire(unit, closest)) return true;
             return Issue(unit, closest, WpMode.Attack);

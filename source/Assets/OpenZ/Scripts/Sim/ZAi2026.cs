@@ -38,9 +38,14 @@ namespace OpenZ.Sim
             sight = new ZAiSight(world, team);
             orders = new ZAiOrders(world, team, tuning);
             teamPlay = new ZAiTeamPlay(world, team);
-            double stagger = (int)team * ZConst.TICK;
             double openingSpread = level == ZBotDifficulty.Noob ? 4.9 : level == ZBotDifficulty.Alright ? 1.9 : .35;
-            nextTactics = tuning.Opening + Occasion(0, 0, 0) * openingSpread + stagger;
+            double opening = tuning.Opening + Occasion(0, 0, 0) * openingSpread;
+            int interval = (int)Math.Round(tuning.Tactics / ZConst.TICK);
+            int phase = (int)team * 3 % interval;
+            int firstTick = (int)Math.Ceiling(opening / ZConst.TICK);
+            nextTactics = (firstTick + (phase - firstTick % interval + interval) % interval) * ZConst.TICK;
+            if (level <= ZBotDifficulty.Alright && nextTactics > tuning.Opening + openingSpread)
+                nextTactics -= tuning.Tactics;
         }
 
         internal int Actions => orders.Actions;
@@ -162,7 +167,9 @@ namespace OpenZ.Sim
                 if (planned.Contains(unit.Id) || unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP()) continue;
                 if (HandleTactics(unit) || unit.Waypoints.Count != 0 || OpeningIdle(unit)) continue;
                 var objective = PickObjective(unit, out var mode);
-                if (objective != null) Issue(unit, objective, mode, mode == WpMode.Move || mode == WpMode.EnterFort);
+                if (objective != null)
+                    Issue(unit, objective, mode, mode == WpMode.EnterFort ||
+                        mode == WpMode.Move && level >= ZBotDifficulty.Alright && DangerousFor(objective) != null);
                 else if (level >= ZBotDifficulty.Skilled) TryScout(unit);
             }
         }

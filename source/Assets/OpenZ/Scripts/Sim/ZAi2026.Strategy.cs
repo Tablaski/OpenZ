@@ -237,7 +237,13 @@ namespace OpenZ.Sim
                 foreach (string type in world.ProductionUnits(factory))
                 {
                     var stats = world.S.Unit(type);
-                    if (stats == null || stats.Damage <= 0) continue;
+                    if (stats == null) continue;
+                    if (advanced && enemy == null && SupportProduction(factory, type))
+                    {
+                        best = type;
+                        break;
+                    }
+                    if (stats.Damage <= 0) continue;
                     double seconds = Math.Max(1, factory.BuildTimeModified(stats.build_time));
                     double value = Value(stats) / Math.Pow(seconds, enemy != null ? .92 : advanced ? .55 : .72);
                     if (type == "grunt" || type == "psycho") value *= advanced ? .65 : .9;
@@ -252,6 +258,27 @@ namespace OpenZ.Sim
                 }
                 if (best != null) orders.Production(factory, best);
             }
+        }
+
+        bool SupportProduction(ZObject factory, string type)
+        {
+            if (world.Time < 75 || type != "apc" && type != "crane" || DangerousFor(factory) != null) return false;
+            foreach (var unit in units) if (unit.Type == type) return false;
+            foreach (var producer in producers)
+                if (producer.CurUnit == type || producer.Queue.Contains(type)) return false;
+            if (type == "crane")
+            {
+                foreach (var target in objectives)
+                    if (target.IsBridge && target.Destroyed && target.CanBeRepairedByCrane(team) &&
+                        ZAiGeometry.DistanceSquared(factory, target.CenterX, target.CenterY) < 540L * 540) return true;
+                return level == ZBotDifficulty.Zod && world.Time >= 240 && strategicRatio > 1.4 &&
+                    Occasion(factory.Id, (int)(world.Time / 60), 14) < .16;
+            }
+            if (Occasion(factory.Id, (int)(world.Time / 45), 13) > .30) return false;
+            foreach (var other in producers)
+                if (other.Type == "robot_factory" && other.BuildLevel >= 2 &&
+                    ZAiGeometry.DistanceSquared(factory, other.CenterX, other.CenterY) < 240L * 240) return true;
+            return false;
         }
 
         bool CaptureImminent(ZObject factory, ZObject enemy)

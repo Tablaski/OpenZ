@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             foreach (var site in infrastructure)
             {
                 bool radarWorthDefending = site.Type == "radar" && activeRadars == 1 &&
-                    (radarRule != RadarLossRule.Off || world.ModernBotLineOfSight);
+                    (radarRule != RadarLossRule.Off || world.ModernBotFog && world.ModernBotLineOfSight);
                 bool repairWorthDefending = site.Type == "repair" && level >= ZBotDifficulty.Skilled &&
                     site.CanRepairUnit(team) && site.RepairingUnit;
                 if (!radarWorthDefending && !repairWorthDefending) continue;
@@ -66,6 +66,25 @@ namespace OpenZ.Sim
                 !Reachable(unit, x, y) || !IssueMove(unit, x, y)) return false;
             flanks[unit.Id] = (enemy.Id, world.Time);
             return true;
+        }
+
+        bool TryRoadPosition(ZObject unit, ZObject enemy)
+        {
+            if (!ZBehaviorSchema.IsTank(unit.Type) || unit.Waypoints.Count != 0 ||
+                world.Map.TileWalkSpeed(unit.CenterX, unit.CenterY) > 1) return false;
+            double range = Math.Max(1, Math.Sqrt(ZAiGeometry.DistanceSquared(enemy, unit.CenterX, unit.CenterY)));
+            if (range > unit.AttackRadius + 45) return false;
+            int x = unit.CenterX, y = unit.CenterY;
+            for (int i = 0; i < 8; i++)
+            {
+                int px = x + ScoutX[i] * 24, py = y + ScoutY[i] * 24;
+                long distance = ZAiGeometry.DistanceSquared(enemy, px, py);
+                if (distance <= (long)(enemy.AttackRadius + 20) * (enemy.AttackRadius + 20) ||
+                    distance > (long)(unit.AttackRadius + 20) * (unit.AttackRadius + 20) ||
+                    world.Map.TileWalkSpeed(px, py) <= 1 || !Reachable(unit, px, py)) continue;
+                return IssueMove(unit, px, py);
+            }
+            return false;
         }
 
         bool TryScout(ZObject unit)

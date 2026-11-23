@@ -31,6 +31,8 @@ namespace OpenZ.EditorTools
                 Field = field;
                 Frames = frames;
             }
+
+            public Shot AsStill(string subject) => new Shot(subject, Focus, Vector3.zero, Heading, 0, Pitch, 0, Distance, 0, Field, 1);
         }
 
         static Shot[] Plan(OzAiMap entry, ZGame game)
@@ -134,8 +136,26 @@ namespace OpenZ.EditorTools
         {
             float heading = entry.World == "desert" ? -22 : entry.World == "city" ? 20 : 8;
             float x = map.width * (entry.World == "arctic" ? .52f : .82f);
-            return new Shot("outer cliffs and battlefield below", new Vector3(x, 3, -13), Vector3.zero,
-                heading, 0, 51, 0, 69, 0, 48, 24);
+            return new Shot("borders", new Vector3(x, 3, -13), Vector3.zero,
+                heading, 0, 66, 0, 68, 0, 47, 24);
+        }
+
+        static bool TryBridgeShot(OzAiMap entry, ZGame battle, out Shot shot)
+        {
+            var map = battle.World.Map;
+            var center = new Vector3(map.width, 0, -map.height);
+            var bridge = battle.World.Objects.Where(obj => obj.IsBridge && !obj.Destroyed)
+                .OrderBy(obj => (battle.CenterWorld(obj, false) - center).sqrMagnitude).FirstOrDefault();
+            if (bridge == null)
+            {
+                shot = default;
+                return false;
+            }
+            bool vertical = bridge.Source?.kind == "building:bridge_vert";
+            float heading = vertical ? 37 : 128;
+            shot = new Shot("bridges", battle.CenterWorld(bridge, false) + Vector3.up, Vector3.zero,
+                heading, 0, 45, 0, entry.World == "jungle" ? 49 : 43, 0, 34, 1);
+            return true;
         }
 
         static bool FullMapVisible(ZMapData map)

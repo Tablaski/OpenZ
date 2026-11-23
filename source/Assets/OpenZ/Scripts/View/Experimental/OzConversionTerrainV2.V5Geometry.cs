@@ -151,17 +151,18 @@ namespace OpenZ.Experimental
                 for (int side = 0; side < 16; side++)
                 {
                     float angle = side * Circle / 16 + q, next = angle + Circle / 16;
-                    var a = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-                    var b = new Vector3(Mathf.Cos(next), 0, Mathf.Sin(next));
-                    var high = Vector3.up * height;
-                    var mid = high * .49f;
-                    var dark = new Color(.14f, .089f, .085f);
-                    var rim = new Color(.25f, .16f, .13f);
-                    Quad(p + a * width, p + b * width, p + a * width * .67f + mid, p + b * width * .67f + mid, dark);
-                    Quad(p + a * width * .67f + mid, p + b * width * .67f + mid,
-                        p + a * width * .30f + high, p + b * width * .30f + high, rim);
-                    Quad(p + a * width * .30f + high, p + b * width * .30f + high,
-                        p + a * width * .13f + mid, p + b * width * .13f + mid, dark * .62f);
+                    Vector3 Ring(float bearing, float radius, float rise) => p + new Vector3(
+                        Mathf.Cos(bearing) * width * radius * (1 + .18f * Mathf.Sin(bearing * 3)),
+                        height * rise * (1 + .11f * Mathf.Cos(bearing * 5)),
+                        Mathf.Sin(bearing) * width * radius * (1 + .15f * Mathf.Cos(bearing * 2)));
+                    float seams = .8f + .2f * Mathf.Sin(angle * 5 + q * 3);
+                    var dark = new Color(.046f, .035f, .037f) * seams;
+                    var rim = new Color(.105f, .062f, .050f) * seams;
+                    Quad(Ring(angle, 1, 0), Ring(next, 1, 0), Ring(angle, .65f, .45f), Ring(next, .65f, .45f), dark);
+                    Quad(Ring(angle, .65f, .45f), Ring(next, .65f, .45f),
+                        Ring(angle, .29f, 1), Ring(next, .29f, 1), rim);
+                    Quad(Ring(angle, .29f, 1), Ring(next, .29f, 1),
+                        Ring(angle, .12f, .52f), Ring(next, .12f, .52f), dark * .52f);
                 }
             }
 

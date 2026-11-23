@@ -7,16 +7,11 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        Mesh RenderV5Rim(ZMapData map, List<Vector3> original, List<Vector2> uv, List<int>[] channels)
+        Mesh RenderV5Rim(ZMapData map, List<Vector3> original, List<Vector2> uv, List<int>[] channels,
+            OzAiTerrainV4.Bridge[] bridges)
         {
             var visual = new List<Vector3>(original.Count);
-            foreach (var vertex in original)
-            {
-                float x = vertex.x, z = -vertex.z;
-                float d = OzAiTerrainV5.RimDistance(x, z, map.width, map.height);
-                float weight = OzAiTerrainV5.RimWeight(d);
-                visual.Add(weight > 0 ? vertex + Vector3.up * (RimRelief(map.planet, x, z, d) * weight) : vertex);
-            }
+            foreach (var vertex in original) visual.Add(VisualRimVertex(map, vertex, bridges));
             var mesh = NewMesh("AI Maps V5 render surface", visual);
             mesh.SetUVs(0, uv);
             mesh.subMeshCount = 4;
@@ -29,7 +24,10 @@ namespace OpenZ.Experimental
                 {
                     int a = channel[j], b = channel[j + 1], c = channel[j + 2];
                     var centroid = (original[a] + original[b] + original[c]) / 3;
-                    var group = OzAiTerrainV5.RimDistance(centroid.x, -centroid.z, map.width, map.height) > 2 ? outside : inside;
+                    float edge = OzAiTerrainV5.RimDistance(centroid.x, -centroid.z, map.width, map.height);
+                    bool outerRock = edge > -4 && i == 1 &&
+                        map.ClassAt(Mathf.FloorToInt(centroid.x / 2), Mathf.FloorToInt(-centroid.z / 2)) == ZClass.Impassable;
+                    var group = (edge > 0 || outerRock) && !InV5BridgeClearance(centroid, bridges) ? outside : inside;
                     group.Add(a);
                     group.Add(b);
                     group.Add(c);
@@ -42,12 +40,28 @@ namespace OpenZ.Experimental
             return mesh;
         }
 
+        static Vector3 VisualRimVertex(ZMapData map, Vector3 vertex, OzAiTerrainV4.Bridge[] bridges)
+        {
+            float x = vertex.x, z = -vertex.z;
+            float distance = OzAiTerrainV5.RimDistance(x, z, map.width, map.height);
+            float weight = OzAiTerrainV5.RimWeight(distance);
+            return weight > 0 && !InV5BridgeClearance(vertex, bridges)
+                ? vertex + Vector3.up * (RimRelief(map.planet, x, z, distance) * weight) : vertex;
+        }
+
+        static bool InV5BridgeClearance(Vector3 point, OzAiTerrainV4.Bridge[] bridges)
+        {
+            foreach (var bridge in bridges)
+                if (bridge.Clearance(point.x, -point.z) > 0) return true;
+            return false;
+        }
+
         static float RimRelief(string world, float x, float z, float distance)
         {
             float broad = Mathf.PerlinNoise(x * .045f + 13, z * .045f + 27);
             float detail = Mathf.PerlinNoise(x * .28f - 9, z * .26f);
             float warp = Mathf.PerlinNoise(x * .14f + 9, z * .12f) * 6;
-            float bench = Mathf.SmoothStep(0, 1, Mathf.Repeat((distance + warp) / 8.5f, 1));
+            float bench = Mathf.SmoothStep(0, 1, .5f + .5f * Mathf.Sin((distance + warp) * .53f));
             return world switch
             {
                 "desert" => 1.6f + broad * 8.2f + bench * 2.6f + detail * .95f,

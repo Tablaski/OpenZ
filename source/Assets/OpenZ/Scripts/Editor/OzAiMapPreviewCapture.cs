@@ -22,7 +22,7 @@ namespace OpenZ.EditorTools
         static OzAiMap[] entries;
         static string output, ffmpeg, clip;
         static int index, frame, loadedAt, lastFrame, width, height;
-        static bool comparison, stills, force, rim;
+        static bool comparison, stills, force, rim, bridgeStills, review;
         static Camera camera;
         static RenderTexture target;
         static Texture2D image;
@@ -66,6 +66,8 @@ namespace OpenZ.EditorTools
         {
             Configure();
             Directory.CreateDirectory(output);
+            if (review)
+                foreach (string view in new[] { "borders", "terrain", "bridges" }) Directory.CreateDirectory(Path.Combine(output, view));
             index = Next(0);
             if (index == entries.Length) { EditorApplication.Exit(0); return; }
             OzShaderWarmup.PlayStartCapSeconds = 2;
@@ -88,6 +90,8 @@ namespace OpenZ.EditorTools
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
             comparison = args.Contains("-oz-preview-comparisons");
             rim = comparison && args.Contains("-oz-preview-rim");
+            bridgeStills = comparison && args.Contains("-oz-preview-bridges");
+            review = comparison && args.Contains("-oz-preview-v5-review");
             stills = args.Contains("-oz-preview-skirmish-posters");
             force = args.Contains("-oz-preview-force");
             width = comparison ? 3840 : 960;
@@ -108,7 +112,7 @@ namespace OpenZ.EditorTools
         static string Comparison(int i) => Path.Combine(output, entries[i].Id + ".png");
         static int Next(int i)
         {
-            if (force) return i;
+            if (force || review) return i;
             while (i < entries.Length && (comparison ? File.Exists(Comparison(i))
                 : File.Exists(Poster(i)) && (stills || File.Exists(Video(i))))) i++;
             return i;
@@ -124,7 +128,8 @@ namespace OpenZ.EditorTools
                 if (!camera) Open();
                 if (game.World.Time != worldTime) throw new InvalidOperationException("The simulation advanced during " + game.level);
                 int active = 0, offset = frame;
-                while (offset >= shots[active].Frames) offset -= shots[active++].Frames;
+                if (review) active = frame;
+                else while (offset >= shots[active].Frames) offset -= shots[active++].Frames;
                 var shot = shots[active];
                 Pose(shot, comparison || stills ? .5f : offset / (shot.Frames - 1f));
                 if (lighting) lighting.Apply(.08f);
@@ -144,8 +149,10 @@ namespace OpenZ.EditorTools
 
                 if (comparison)
                 {
-                    File.WriteAllBytes(Comparison(index) + ".partial", image.EncodeToPNG());
-                    Publish(Comparison(index) + ".partial", Comparison(index));
+                    string file = review ? Path.Combine(output, shot.Subject, entries[index].Id + ".png") : Comparison(index);
+                    File.WriteAllBytes(file + ".partial", image.EncodeToPNG());
+                    Publish(file + ".partial", file);
+                    if (review && ++frame < shots.Length) return;
                 }
                 else if (stills)
                 {
@@ -198,7 +205,17 @@ namespace OpenZ.EditorTools
                 terrain.IsPaletteV5 != (entry.Variant == "V5"))
                 throw new InvalidOperationException("Wrong terrain profile for " + entry.Id);
             lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
-            shots = rim ? new[] { RimShot(entry, game.World.Map) } : Plan(entry, game);
+            var planned = Plan(entry, game);
+            var border = RimShot(entry, game.World.Map);
+            if (review)
+            {
+                var selected = new System.Collections.Generic.List<Shot> { border, planned[0].AsStill("terrain") };
+                if (TryBridgeShot(entry, game, out var crossing)) selected.Add(crossing);
+                shots = selected.ToArray();
+            }
+            else if (bridgeStills)
+                shots = TryBridgeShot(entry, game, out var bridge) ? new[] { bridge } : new[] { planned[0] };
+            else shots = rim ? new[] { border } : planned;
             camera = Camera.main;
             camera.GetComponent<RtsCamera>().enabled = false;
             camera.enabled = false;

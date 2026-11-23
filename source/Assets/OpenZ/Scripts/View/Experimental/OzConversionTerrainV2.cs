@@ -92,13 +92,26 @@ namespace OpenZ.Experimental
             var floor = map.planet == "jungle" ? surfaceGround
                 : map.planet == "volcanic" ? pit : TiledRock(pit, useV4);
             var materials = new[] { surfaceGround, rockFace, floor };
-            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? RenderV5Rim(map, vertices, uv, channels) : mesh;
+            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? RenderV5Rim(map, vertices, uv, channels, bridgeClearance) : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = IsPaletteV5
                 ? new[] { surfaceGround, rockFace, floor, V5Scenery(map.planet, "V5 landscape", true) } : materials;
             if (IsPaletteV5) surfaceGround.SetFloat("_OzAiTerrainV5", 1);
             BuildWater(map, useV4);
             if (terraces?.HasTerraces == true) SeatTerraceViews();
-            if (IsPaletteV5) DressV5(map, terrain.GetComponent<MeshCollider>(), bridgeClearance);
+            if (IsPaletteV5) DressV5(map, terrain.GetComponent<MeshCollider>(), bridgeClearance, RimHeightAt);
+
+            float RimHeightAt(float x, float z)
+            {
+                float column = (x + Apron) / step, row = (z + Apron) / step;
+                int left = Mathf.Clamp(Mathf.FloorToInt(column), 0, width - 1);
+                int top = Mathf.Clamp(Mathf.FloorToInt(row), 0, height - 1);
+                float rightWeight = Mathf.Clamp01(column - left), bottomWeight = Mathf.Clamp01(row - top);
+                int a = top * stride + left, b = a + 1, c = a + stride, d = c + 1;
+                float Y(int index) => VisualRimVertex(map, vertices[index], bridgeClearance).y;
+                return rightWeight + bottomWeight <= 1
+                    ? Y(a) * (1 - rightWeight - bottomWeight) + Y(b) * rightWeight + Y(c) * bottomWeight
+                    : Y(d) * (rightWeight + bottomWeight - 1) + Y(b) * (1 - bottomWeight) + Y(c) * (1 - rightWeight);
+            }
 
             float Height(float x, float z)
             {

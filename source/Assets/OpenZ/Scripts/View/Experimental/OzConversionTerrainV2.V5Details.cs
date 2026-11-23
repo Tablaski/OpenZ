@@ -8,7 +8,8 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        void DressV5(ZMapData map, MeshCollider groundCollider, OzAiTerrainV4.Bridge[] bridges)
+        void DressV5(ZMapData map, MeshCollider groundCollider, OzAiTerrainV4.Bridge[] bridges,
+            System.Func<float, float, float> rimHeight)
         {
             Physics.SyncTransforms();
             var scenery = V5Scenery(map.planet, "V5 biome details", false);
@@ -102,7 +103,7 @@ namespace OpenZ.Experimental
                         break;
                 }
             }
-            DressV5Rim(map, mesh);
+            DressV5Rim(map, mesh, rimHeight);
             AddScenery(mesh, scenery, "V5 decorative geometry");
             foreach (var origin in lamps)
             {
@@ -141,7 +142,7 @@ namespace OpenZ.Experimental
             return visual;
         }
 
-        void DressV5Rim(ZMapData map, SceneryMesh mesh)
+        void DressV5Rim(ZMapData map, SceneryMesh mesh, System.Func<float, float, float> rimHeight)
         {
             for (int side = 0; side < 4; side++)
             {
@@ -150,8 +151,9 @@ namespace OpenZ.Experimental
                 {
                     float q = ArtValue(at, side, 6);
                     float depth = 9 + q * 9;
-                    var p = RimPoint(side, at, depth, map);
-                    p.y = RimRelief(map.planet, p.x, -p.z, depth) + (map.planet == "arctic" ? 8 : 4);
+                    float along = at + (ArtValue(at, side, 7) - .5f) * 9;
+                    var p = RimPoint(side, along, depth, map);
+                    p.y = rimHeight(p.x, -p.z) - .6f;
                     switch (map.planet)
                     {
                         case "desert":
@@ -172,9 +174,9 @@ namespace OpenZ.Experimental
                         case "arctic":
                             if (at % 3 == 0)
                             {
-                                var cave = RimPoint(side, at, 5.2f, map);
-                                cave.y = 1.8f;
-                                var inward = cave - RimPoint(side, at, 1, map);
+                                var cave = RimPoint(side, along, 1.7f, map);
+                                cave.y = rimHeight(cave.x, -cave.z) - .15f;
+                                var inward = cave - RimPoint(side, along, 1, map);
                                 inward.y = 0;
                                 mesh.Cave(cave, inward.normalized, q);
                             }

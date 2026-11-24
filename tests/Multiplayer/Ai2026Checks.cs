@@ -128,6 +128,7 @@ static class Ai2026Checks
                 var (trial, empty, _) = SalvageFixture(settings, "heavy", 78);
                 empty.Health = 1;
                 var shooter = trial.CreateObject("vehicle", "heavy", 398, 502, Team.Blue);
+                trial.CreateRobotGroup("grunt", 285, 498, Team.Blue, 1);
                 trial.Bots.Add(new ZBot(trial, Team.Blue, seed, level));
                 if (Watch(trial, () => Ordered(shooter, empty, WpMode.Attack), 12)) attempts++;
             }
@@ -143,6 +144,9 @@ static class Ai2026Checks
     {
         var world = FortFixture(settings, out var enemyFort);
         world.StopBuilding(Team.Red, enemyFort);
+        // Keep the earlier, higher-priority fort rush out of these salvage scenarios.
+        enemyFort.GetCreationMovePoint(out int gateX, out int gateY);
+        world.CreateObject("cannon", "gatling", gateX + 40, gateY, Team.Red);
         var target = world.CreateObject(type == "howitzer" ? "cannon" : "vehicle", type, 480, 500, Team.Neutral);
         // The leading robot is alive and can board. Its weapon is irrelevant to this fixture's race.
         var enemy = world.CreateRobotGroup("grunt", target.CenterX + enemyDistance, target.CenterY - 8, Team.Red, 1);

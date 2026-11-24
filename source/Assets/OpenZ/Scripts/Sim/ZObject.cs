@@ -819,7 +819,7 @@ namespace OpenZ.Sim
                 }
                 if (idle && !startHold && !IsMinion && agro == null && IsRobot && !NoAutoEnter && (!grabHold || CloseGrab(o)) && o.CanBeEntered() && Within(CenterX, CenterY, o.CenterX, o.CenterY, World.S.auto_grab_vehicle_distance) && !(grabOne && GrabClaimed(o))
                     && !(o.Kind == ZKind.Vehicle && o.Type == "apc") && !(JustLeftCannon && o.Kind == ZKind.Cannon) && !o.AutoEnterLocked && !CrocSwampWay(o) && !PathUnreachable(o) && !TeammateEntering(o) && CanSee(o)
-                    && !(grabOne && CloserGrabber(o, true)))                                   // DV55: held units take VERY close vehicles; the closest unit goes
+                    && !(grabOne && CloserGrabber(o, true)) && World.AllowsPassiveBotBoarding(Owner, o))                                   // DV55: held units take VERY close vehicles; the closest unit goes
                     (enter ??= new List<ZObject>()).Add(o);
             }
             if (inRange != null) { Engage(inRange); return; }                          // combat_nb_v1 DV27: no exposed driver in range: Zod's first pick

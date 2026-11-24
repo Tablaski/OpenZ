@@ -17,6 +17,11 @@ namespace OpenZ.Sim
         static bool SalvageTarget(ZObject target) => target != null && Alive(target) && target.CanBeEntered() &&
             !target.IsTowerGun && target.Type != "crane" && target.U != null && target.U.Damage > 0;
 
+        bool PlansSalvage(ZObject target) =>
+            SalvageTarget(target) && Occasion(target.Id, 0, 19) < tuning.SalvageChance;
+
+        internal bool AllowsPassiveBoarding(ZObject target) => target.Type != "crane" && !PlansSalvage(target);
+
         static bool SalvageOrder(ZObject unit, ZObject target, WpMode mode) =>
             unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == mode && unit.Waypoints[0].refId == target.Id;
 
@@ -36,8 +41,7 @@ namespace OpenZ.Sim
 
             foreach (var target in objectives)
             {
-                if (target == sortieCannon || !SalvageTarget(target) ||
-                    Occasion(target.Id, 0, 19) >= tuning.SalvageChance) continue;
+                if (target == sortieCannon || !PlansSalvage(target)) continue;
 
                 double quality = Math.Clamp(Value(target.U) / 500, .35, 3) *
                     Math.Sqrt((double)target.Health / Math.Max(1, target.MaxHealth));
@@ -263,5 +267,16 @@ namespace OpenZ.Sim
     {
         internal bool AiSalvageLine(int x, int y, ZObject target) => !LosActive ||
             World.Sight.Clear(x, y, World.Sight.ExemptOf(this), target.CenterX, target.CenterY, World.Sight.ExemptOf(target));
+    }
+
+    public sealed partial class ZWorld
+    {
+        internal bool AllowsPassiveBotBoarding(Team owner, ZObject target)
+        {
+            foreach (var bot in Bots)
+                if (bot.Team == owner && bot.ModernController != null)
+                    return bot.ModernController.AllowsPassiveBoarding(target);
+            return true;
+        }
     }
 }

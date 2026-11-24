@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.70 V5 catalog and Arctic snow
+
+- Unity 6000.3.27f2 captured all 88 enabled AI Map scenes with the V5 terrain profile. Each clip kept the simulation paused, used map-specific shots and rejected camera frames showing all four map corners. FFmpeg decoded every paired clip and poster, and all 88 video hashes were distinct. The solo selector, gallery and lobby use these packaged preview resources.
+- The SM11 close-up rendered in native 3840 × 2160 with the supplied snow maps. The three textures imported at 1024 pixels with 11 mip levels in BC7, BC5 and BC7. The revised detail is restricted to snow by the existing masks. Interactive compiled-game checks remain pending.
+
 ## Skirmish passage rebuild performance
 
 - Source checkpoint `4044d8ab` passed 9,150 core and real-map simulation checks. The focused passage comparison checks both footprint sizes, narrow openings and bypasses, bridge destruction and repair, and 24 batches of passability changes. Unity 6000.3.27f2 compiled the runtime scripts against the existing Unity references.

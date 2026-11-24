@@ -9,6 +9,7 @@ OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and
 ## OpenZ-VK 1.5.70 (24 Nov 2026)
 
 - AI Maps — V5 terrain is now used throughout the converted map catalog, including the new snow material on Arctic maps.
+- AI Maps — Each converted map has its own 3D preview, with views of its terrain, forts, factories and starting troops.
 
 ## OpenZ-VK 1.5.69 (24 Nov 2026)
 

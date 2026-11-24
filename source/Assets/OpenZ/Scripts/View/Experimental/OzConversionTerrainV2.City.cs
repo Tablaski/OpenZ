@@ -14,6 +14,119 @@ namespace OpenZ.Experimental
                 if (part.name == "OUT3_Ruins" || part.name == "OUT3_Quays") part.gameObject.SetActive(false);
         }
 
+        Mesh CityBorderSurface(ZMapData map, List<Vector3> vertices, List<Vector2> uv, List<int>[] channels)
+        {
+            var border = new List<int>();
+            var mesh = NewMesh("City terrain with concrete perimeter",vertices);
+            mesh.SetUVs(0,uv);
+            mesh.subMeshCount = channels.Length + 1;
+            bool Outside(Vector3 p) => p.x <= 0 || p.x >= map.width * 2 || p.z >= 0 || p.z <= -map.height * 2;
+            for (int channel = 0; channel < channels.Length; channel++)
+            {
+                var inside = new List<int>();
+                var triangles = channels[channel];
+                for (int i = 0; i < triangles.Count; i += 3)
+                {
+                    int a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
+                    var group = Outside(vertices[a]) && Outside(vertices[b]) && Outside(vertices[c]) ? border : inside;
+                    group.Add(a); group.Add(b); group.Add(c);
+                }
+                mesh.SetTriangles(inside,channel,false);
+            }
+            mesh.SetTriangles(border,channels.Length,false);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        void BuildCityBorderRuins(ZMapData map, System.Func<float,float,float> height)
+        {
+            var vertices = new List<Vector3>();
+            var indices = new List<int>();
+            var colors = new List<Color>();
+            float width = 2 * map.width, depth = 2 * map.height;
+            for (int side = 0; side < 4; side++)
+            {
+                float length = side < 2 ? width : depth;
+                for (float along = 13; along < length - 15;)
+                {
+                    float variation = Mathf.PerlinNoise(along * .174f + 5, side * 4.7f + 11);
+                    int bays = variation > .49f ? 4 : 3;
+                    float span = bays * 2.7f;
+                    float setback = 7.9f + variation * 4.4f;
+                    float back = setback + 6.1f;
+                    float end = along + span;
+                    float baseY = TerrainY(along + span * .45f,setback + 3);
+                    var masonry = Color.Lerp(new Color(.20f,.185f,.17f),new Color(.37f,.345f,.305f),variation);
+                    var concrete = masonry * .82f;
+                    var interior = masonry * .53f;
+                    Block(along,end,setback - 1.7f,back + 1,baseY - 2.6f,baseY + .3f,concrete);
+
+                    int floors = variation > .60f ? 3 : 2;
+                    for (int level = 0; level < floors; level++)
+                    {
+                        float y = baseY + level * 2.6f;
+                        float brokenEnd = end - level * (variation > .51f ? .7f : 1.6f);
+                        Block(along,brokenEnd,setback,back,y,y + .22f,interior);
+                        Block(along,brokenEnd,setback,setback + .45f,y + .22f,y + .76f,masonry);
+                        for (int bay = 0; bay <= bays; bay++)
+                        {
+                            float start = along + bay * 2.7f;
+                            if (start + .47f > brokenEnd) break;
+                            float top = y + 2.59f;
+                            if (level == floors - 1)
+                                top -= Mathf.PerlinNoise(start * .84f,side + 7.1f) * 1.4f;
+                            Block(start,start + .47f,setback,setback + .48f,y + .6f,top,masonry);
+                            if (level < floors - 1 && bay < bays && start + 2.7f <= brokenEnd)
+                                Block(start,start + 2.7f,setback,setback + .4f,y + 2.23f,y + 2.58f,masonry);
+                        }
+                        Block(along,along + .42f,setback,back - level * .65f,y + .22f,y + 2.45f,concrete);
+                        Block(along,brokenEnd - 1.1f,back - .51f,back,y + .22f,y + (level == floors - 1 ? 1.15f : 2.48f),interior);
+                    }
+                    along += span + 2.6f + variation * 4.3f;
+                }
+
+                (float x,float z) At(float along, float offset) => side switch
+                {
+                    0 => (along,-offset), 1 => (along,depth + offset), 2 => (-offset,along), _ => (width + offset,along)
+                };
+                float TerrainY(float along,float offset)
+                {
+                    var p = At(along,offset);
+                    return height(p.x,p.z);
+                }
+                void Block(float start,float end,float near,float far,float bottom,float top,Color color)
+                {
+                    var a = At(start,near);
+                    var b = At(end,far);
+                    float x0 = Mathf.Min(a.x,b.x), x1 = Mathf.Max(a.x,b.x);
+                    float z0 = -Mathf.Max(a.z,b.z), z1 = -Mathf.Min(a.z,b.z);
+                    var p = new Vector3(x0,bottom,z0); var q = new Vector3(x1,bottom,z0);
+                    var r = new Vector3(x1,bottom,z1); var s = new Vector3(x0,bottom,z1);
+                    var up = Vector3.up * (top - bottom);
+                    Face(p,q,r,s,color * .62f);
+                    Face(p + up,s + up,r + up,q + up,color * 1.04f);
+                    Face(p,p + up,q + up,q,color);
+                    Face(q,q + up,r + up,r,color * .94f);
+                    Face(r,r + up,s + up,s,color * .83f);
+                    Face(s,s + up,p + up,p,color * .91f);
+                }
+                void Face(Vector3 a,Vector3 b,Vector3 c,Vector3 d,Color color)
+                {
+                    int first = vertices.Count;
+                    vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
+                    colors.Add(color); colors.Add(color); colors.Add(color); colors.Add(color);
+                    indices.AddRange(new[] { first,first + 1,first + 2,first,first + 2,first + 3 });
+                }
+            }
+            var facade = new Material(pit) { name = "City perimeter concrete ruins" };
+            facade.SetFloat("_UseVertexColor",1);
+            facade.SetFloat("_Triplanar",1);
+            facade.SetFloat("_TriScale",.28f);
+            facade.SetFloat("_OzAiRockV5",3);
+            AddV5SceneryMesh("City perimeter ruins",vertices,indices,facade,null,colors);
+        }
+
         void BuildCityOutfalls(ZMapData map)
         {
             var pipeVertices = new List<Vector3>();

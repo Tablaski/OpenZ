@@ -52,6 +52,39 @@ namespace OpenZ.Experimental
                 }
                 placed.Add(p);
             }
+            float width = map.width * 2, depth = map.height * 2;
+            var landmarks = new List<Vector2>();
+            foreach (Transform part in transform)
+                if (part.name.StartsWith("L07_Volcano_",StringComparison.Ordinal)) landmarks.Add(new Vector2(part.position.x,-part.position.z));
+            for (int side = 0; side < 4; side++)
+            {
+                float length = side < 2 ? width : depth;
+                for (float along = 7; along < length - 7;)
+                {
+                    float q = Mathf.PerlinNoise(along * .173f + 8, side * 2.77f + 12);
+                    float across = 8.2f + 7.4f * q;
+                    var p = side switch
+                    {
+                        0 => new Vector2(along,-across),
+                        1 => new Vector2(along,depth + across),
+                        2 => new Vector2(-across,along),
+                        _ => new Vector2(width + across,along)
+                    };
+                    if (!landmarks.Exists(point => (point - p).sqrMagnitude < 33))
+                    {
+                        float prominence = Mathf.PerlinNoise(along * .081f, side * 3 + 9);
+                        float height = .9f + 2.95f * prominence * prominence;
+                        float radius = .95f + height * .46f;
+                        AddVent(p,radius,height,q);
+                        var axis = side < 2 ? Vector2.right : Vector2.up;
+                        var normal = new Vector2(-axis.y,axis.x);
+                        AddVent(p - axis * (radius + 1) + normal * (q - .5f) * 2,.64f + q * .55f,.49f + q * .83f,q + .31f);
+                        if (q > .42f)
+                            AddVent(p + axis * (radius + 1.1f) - normal * (q - .38f) * 2,.52f + q * .53f,.49f + q * .62f,q + .66f);
+                    }
+                    along += 7.2f + q * 5.4f;
+                }
+            }
             if (vertices.Count == 0) return;
             var basalt = new Material(Shader.Find("OpenZ/TeamLit")) { name = "Scoria vent rock" };
             basalt.SetFloat("_UseVertexColor", 1);
@@ -60,6 +93,7 @@ namespace OpenZ.Experimental
             basalt.SetFloat("_Triplanar", 1);
             basalt.SetFloat("_OzAiRockV5", 2);
             AddV5SceneryMesh("Volcanic rim vents", vertices, indices, basalt, null, colors);
+            Debug.Log($"[AI map terrain] {mapId}: {vertices.Count / 80} small and medium rim cones");
 
             void AddVent(Vector2 center, float radius, float height, float phase)
             {
@@ -114,7 +148,7 @@ namespace OpenZ.Experimental
                 if (outside == west) location.x = -crest;
                 else if (outside == east) location.x = width + crest;
                 else location.y = outside == north ? -crest : depth + crest;
-                landmark.localScale *= .48f;
+                landmark.localScale *= .62f;
                 landmark.position = new Vector3(location.x, 0, -location.y);
                 float bottom = float.PositiveInfinity;
                 foreach (var renderer in renderers) bottom = Mathf.Min(bottom, renderer.bounds.min.y);

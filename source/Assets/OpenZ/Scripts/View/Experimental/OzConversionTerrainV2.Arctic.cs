@@ -28,13 +28,19 @@ namespace OpenZ.Experimental
                 var snow = Color.Lerp(new Color(.75f, .83f, .89f), new Color(.96f, .98f, 1f), drifts);
                 var gravel = Color.Lerp(new Color(.26f, .30f, .34f), new Color(.51f, .56f, .58f), grain);
                 var ice = Color.Lerp(new Color(.60f, .74f, .80f), new Color(.75f, .87f, .90f), grain);
+                float lakeIce = IsPaletteV5 ? Mask(map, x + offset, z, ArcticIceTile) : 1;
                 float frost = useV4 ? Mathf.SmoothStep(0, 1, crust * 1.35f) : crust;
+                if (IsPaletteV5)
+                {
+                    float edgeGrit = (Mathf.PerlinNoise(x * 5.1f, z * 5.1f) - .5f) * .05f;
+                    float wetSnow = Mathf.SmoothStep(0, 1, (wet - .25f + edgeGrit) / .34f);
+                    frost = Mathf.Lerp(wetSnow * .53f, frost, Mathf.Clamp01(lakeIce * 3));
+                }
                 if (IsPaletteV5) gravel = Color.Lerp(new Color(.27f, .28f, .29f), new Color(.41f, .43f, .45f), grain);
                 var color = Color.Lerp(Color.Lerp(snow, ice, frost * .85f), gravel,
                     roadWeight * (IsPaletteV5 ? .98f : .83f + stones * .17f));
                 albedo[row * w + col] = color;
-                if (useV4) roadField[row * w + col] = new Color(road, 0, 0,
-                    IsPaletteV5 ? Mask(map, x + offset, z, ArcticIceTile) : 1);
+                if (useV4) roadField[row * w + col] = new Color(road, 0, 0, lakeIce);
             }
             var material = new Material(ground) { name = "Wind-packed Arctic snow" };
             material.SetTexture("_BaseMap", NewTexture(w, h, albedo, false, "Snow drifts, gravel and frozen banks"));
@@ -58,6 +64,26 @@ namespace OpenZ.Experimental
             water.SetFloat("_RippleStrengthB", .10f);
             water.SetFloat("_RippleSpeed", .085f);
             water.SetFloat("_CausticsStrength", .21f);
+        }
+
+        static void ArcticOpenWaterV5(Material water)
+        {
+            water.SetColor("_ShallowColor",new Color(.36f,.62f,.68f));
+            water.SetColor("_MidColor",new Color(.075f,.32f,.40f));
+            water.SetColor("_DeepColor",new Color(.029f,.14f,.22f));
+            water.SetColor("_FoamColor",new Color(.71f,.82f,.84f,.34f));
+            water.SetFloat("_FoamWidth",.038f);
+            water.SetFloat("_EdgeFade",.076f);
+            water.SetFloat("_RippleProc",1);
+            water.SetFloat("_ProcSize",.34f);
+            water.SetVector("_ProcSlope",new Vector4(.15f,.105f,.038f,0));
+            water.SetFloat("_ProcSpeed",.54f);
+            water.SetFloat("_ProcCalmSize",13);
+            water.SetFloat("_ProcMorph",.12f);
+            water.SetFloat("_RippleContrast",.29f);
+            water.SetFloat("_GlintIntensity",.55f);
+            water.SetFloat("_GlintPower",620);
+            water.SetFloat("_Refraction",.055f);
         }
 
     }

@@ -101,15 +101,22 @@ namespace OpenZ.Experimental
                     rockFace.SetVector("_OzAiV5GroundRect", new Vector4(0, -2 * map.height, .5f / map.width, .5f / map.height));
                 }
             }
-            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 && mapId == "SM16"
+            bool cityV5 = IsPaletteV5 && map.planet == "city";
+            terrain.AddComponent<MeshFilter>().sharedMesh = cityV5 ? CityBorderSurface(map, vertices, uv, channels) : IsPaletteV5 && mapId == "SM16"
                 ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
-            terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
+            terrain.AddComponent<MeshRenderer>().sharedMaterials = cityV5
+                ? new[] { surfaceGround, rockFace, floor, TiledRock(pit, useV4) }
+                : new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
-            if (IsPaletteV5 && map.planet == "city") HideCityV5ExteriorProps();
+            if (cityV5)
+            {
+                HideCityV5ExteriorProps();
+                BuildCityBorderRuins(map,Height);
+            }
             if (IsPaletteV5 && map.planet == "volcanic")
             {
-                BuildVolcanicVents(map, Height, bridgeClearance);
                 SeatVolcanicLandmarks(map, Height);
+                BuildVolcanicVents(map, Height, bridgeClearance);
             }
             string profile = IsPaletteV5 ? "V5" : IsPaletteV4 ? "V4" : IsPaletteV3 ? "V3" : "V2";
             float shaderProfile = surfaceGround.HasProperty("_OzAiTerrainProfile") ? surfaceGround.GetFloat("_OzAiTerrainProfile") : 0;
@@ -346,12 +353,31 @@ namespace OpenZ.Experimental
             var indices = new List<int>();
             var underDeck = BridgeWater(map);
             bool WetSurface(ZMapData data, int index) => Water(data, index) || underDeck[index];
+            bool UnderDeck(ZMapData data, int index) => underDeck[index];
+            bool arcticV5 = IsPaletteV5 && map.planet == "arctic";
+            var triangle = new Vector2[3];
+            var clipped = new Vector2[4];
+            const float threshold = .12f;
+            const float waterY = -.33f;
             for (int y = 0; y < map.height * 2; y++)
             for (int x = 0; x < map.width * 2; x++)
             {
-                if (Mask(map, x + .5f, y + .5f, WetSurface) < .12f) continue;
+                float center = Mask(map, x + .5f, y + .5f, WetSurface);
+                if (arcticV5 && center > 0 && center < .88f &&
+                    Mask(map,x + .5f,y + .5f,ArcticIceTile) < .01f && Mask(map,x + .5f,y + .5f,UnderDeck) == 0)
+                {
+                    for (int k = 0; k < 4; k++)
+                    {
+                        var first = new Vector2(x + (k & 1) * .5f, y + (k >> 1) * .5f);
+                        var east = first + Vector2.right * .5f;
+                        var south = first + Vector2.up * .5f;
+                        AddShoreTriangle(first,east,south);
+                        AddShoreTriangle(south,east,east + Vector2.up * .5f);
+                    }
+                    continue;
+                }
+                if (center < threshold) continue;
                 int a = vertices.Count;
-                const float waterY = -.33f;
                 vertices.Add(new Vector3(x, waterY, -y));
                 vertices.Add(new Vector3(x + 1, waterY, -y));
                 vertices.Add(new Vector3(x, waterY, -y - 1));
@@ -371,9 +397,36 @@ namespace OpenZ.Experimental
             look.DisableKeyword("_WATER_FLOWMAP");
             if (look.HasProperty("_UseFlowMap")) look.SetFloat("_UseFlowMap", 0);
             if (useV4 && map.planet == "arctic") ArcticWaterLook(look);
+            if (arcticV5) ArcticOpenWaterV5(look);
             generated.Add(look);
             surface.GetComponent<MeshRenderer>().sharedMaterial = look;
             if (IsPaletteV5 && map.planet == "city") BuildCityOutfalls(map);
+
+            void AddShoreTriangle(Vector2 a, Vector2 b, Vector2 c)
+            {
+                triangle[0] = a; triangle[1] = b; triangle[2] = c;
+                int count = 0;
+                Vector2 previous = c;
+                float previousWet = Mask(map, c.x, c.y, WetSurface);
+                foreach (var p in triangle)
+                {
+                    float wet = Mask(map,p.x,p.y,WetSurface);
+                    if ((wet >= threshold) != (previousWet >= threshold))
+                        clipped[count++] = Vector2.Lerp(previous,p,(threshold - previousWet) / (wet - previousWet));
+                    if (wet >= threshold) clipped[count++] = p;
+                    previous = p;
+                    previousWet = wet;
+                }
+                if (count < 3) return;
+                int first = vertices.Count;
+                for (int i = 0; i < count; i++) vertices.Add(new Vector3(clipped[i].x,waterY,-clipped[i].y));
+                for (int i = 1; i < count - 1; i++)
+                {
+                    indices.Add(first);
+                    indices.Add(first + i);
+                    indices.Add(first + i + 1);
+                }
+            }
         }
 
         static bool Water(ZMapData map, int index) =>

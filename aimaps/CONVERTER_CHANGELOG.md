@@ -2,6 +2,10 @@
 
 ## V5 — five material studies on V4 geometry
 
+The 1.5.66 V5 revision uses local, irregular snow grains in place of uniform Arctic ripples. It narrows the wet-snow stain and clips the open-water mesh to the native wet field on a half-metre grid. Cells touching the native lake-ice artwork or under bridge decks keep the earlier water mesh. The lake-ice mask, material detail and reflectance are unchanged. Procedural travelling waves, less shore foam and darker depth colours apply only to the V5 open water.
+
+SM08 adds small and medium cones in uneven groups on all four sides of the existing barrier, supplementing the groups derived from native tile art. The reused volcano landmarks keep their place on the crest and are larger than in 1.5.64. SM17 gives the exterior face of the existing barrier a concrete material and adds low roofless buildings, damaged bays and exposed floors on top of it. Their footprints stay between the playable rectangle and the end of the original terrain apron. The original collision meshes and bridge rules stay in effect.
+
 The 1.5.64 V5 revision preserves the V4 Arctic open-water shader, material and shoreline geometry. It bakes the native snow and road paint at up to 14 samples per tile axis. World-space gravel and snow relief keep detail at tactical and close distances, with intermittent patches of snow on roads. The separate native ice mask drives broad fractures, fine scratches and trapped air under the smoother reflective surface. The other V5 ground profiles add aggregate at three scales, with the finer layers tapered by screen pixel footprint.
 
 SM17 hides the imported ruins and quays beyond the barrier in V5. The temporary exterior set in `73a2d6b8` was removed at review. On SM08 the original L07 volcano props are reduced in scale and seated on the converted barrier. Native rim art drives denser small-cone groups. The terrain loader logs the selected palette and shader profile.

@@ -131,10 +131,9 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
             var complete = done[engine].ToHashSet();
             return tasks.Where(task => !complete.Contains(task.Index)).Chunk(24).Select(batch => (engine, batch));
         }).ToArray();
-        using var all = CancellationTokenSource.CreateLinkedTokenSource(token);
         await Parallel.ForEachAsync(batches.SelectMany(batch => batch), new ParallelOptions
         {
-            CancellationToken = all.Token, MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount - 1, 1, 8)
+            CancellationToken = token, MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount - 1, 1, 8)
         }, async (job, cancellation) =>
         {
             Sample[] results;

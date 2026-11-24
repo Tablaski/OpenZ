@@ -61,13 +61,13 @@ static class Ai2026Checks
             var (world, target, _) = SalvageFixture(settings, "heavy", 130);
             var crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
-            check(Watch(world, () => target.Owner == Team.Blue, 240),
+            check(Watch(world, () => target.Owner == Team.Blue, 7),
                 level + " rushes to board a Heavy before the opposing crew");
 
             (world, target, _) = SalvageFixture(settings, "crane", 130);
             crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
-            check(!Watch(world, () => Ordered(crew, target, WpMode.Enter), 40),
+            check(!Watch(world, () => Ordered(crew, target, WpMode.Enter), 3),
                 level + " does not issue a capture rush for an abandoned crane");
         }
 
@@ -79,15 +79,15 @@ static class Ai2026Checks
         battle.SendWaypoints(Team.Blue, tank, new[] { ZWaypoint.Move(rival.CenterX, rival.CenterY) });
         tank.Engage(rival);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 30),
+        check(Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 3),
             "Zod can interrupt combat to deny a Heavy before the opposing crew boards" +
             $" (time {battle.Time:F2}, reload {tank.AiWeaponWait:F2}, HP {tank.Health}, target HP {hull.Health}, orders {string.Join(",", tank.Waypoints.Select(wp => wp.mode))})");
-        check(Watch(battle, () => hull.Destroyed, 100), "A denial attack destroys an unoccupied Heavy");
+        check(Watch(battle, () => hull.Destroyed, 3), "A denial attack destroys an unoccupied Heavy");
 
         (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
         tank = battle.CreateObject("vehicle", "heavy", 372, 502, Team.Blue);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Skilled));
-        check(Watch(battle, () => Ordered(tank, hull, WpMode.Move), 40),
+        check(Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
             "Skilled stations a Heavy near an abandoned howitzer when it can intercept the opposing crew");
 
         (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
@@ -95,7 +95,7 @@ static class Ai2026Checks
         tank.Health = 1;
         battle.CreateObject("cannon", "missile_cannon", 566, 544, Team.Red);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Move), 50),
+        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
             "Zod passes on a guard position that would immediately lose its own tank");
 
         (battle, hull, _) = SalvageFixture(settings, "heavy", 100);
@@ -109,7 +109,7 @@ static class Ai2026Checks
             mode = WpMode.Enter, refId = hull.Id, x = hull.CenterX, y = hull.CenterY
         } });
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 140) && hull.Owner == Team.Green,
+        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 6) && hull.Owner == Team.Green,
             "Zod leaves an abandoned Heavy for an allied crew that can win the race");
 
         int Opportunities(ZBotDifficulty level, int count)
@@ -121,7 +121,7 @@ static class Ai2026Checks
                 empty.Health = 1;
                 var shooter = trial.CreateObject("vehicle", "heavy", 398, 502, Team.Blue);
                 trial.Bots.Add(new ZBot(trial, Team.Blue, seed, level));
-                if (Watch(trial, () => Ordered(shooter, empty, WpMode.Attack), 230)) attempts++;
+                if (Watch(trial, () => Ordered(shooter, empty, WpMode.Attack), 12)) attempts++;
             }
             return attempts;
         }
@@ -143,9 +143,9 @@ static class Ai2026Checks
     static bool Ordered(ZObject unit, ZObject target, WpMode mode) =>
         unit.Waypoints.Any(wp => wp.refId == target.Id && wp.mode == mode);
 
-    static bool Watch(ZWorld world, Func<bool> condition, int ticks)
+    static bool Watch(ZWorld world, Func<bool> condition, int seconds)
     {
-        for (int tick = 0; tick < ticks && !condition(); tick++) world.Tick(ZConst.TICK);
+        for (int tick = 0; tick < seconds / ZConst.TICK && !condition(); tick++) world.Tick(ZConst.TICK);
         return condition();
     }
 

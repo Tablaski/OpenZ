@@ -8,6 +8,8 @@
 
 ## OpenZ-VK 1.5.68 gameplay and Skirmish fixes
 
+- Source checkpoint `645ba714` passed 9,118 core and real-map simulation checks, including 25 focused gameplay checks. The focused checks cover the full 4.86-second howitzer reload through three crew cycles, allowed Head Start replacements, crane driver exit, APC attacks on vacant equipment, and tank attacks across the bridge in both directions. A queued attack also survives the bridge timeout and fires after the crossing clears. Room checks cover launch rules for uneven teams.
+- The Unity 6000.3.27f2 runtime scripts compiled against the existing Unity references.
 - Pending in a compiled game. Check howitzer muzzle flashes and shell launches through repeated exits and re-entry, including a change of target. Confirm a crane driver exits through the cab and the crane becomes neutral. Right-click vacant tanks and guns with Tough and Pyro crews aboard APCs.
 - Pending in a compiled game. Change Allowed Units on the campaign selection screen with Head Start enabled, then compare the displayed and deployed units. Check Z 1996 and a restricted custom roster.
 - Pending in a compiled game. Launch uneven Teams matches in local Skirmish and online. Verify all participant rows after a match with three or more occupied positions, including eliminated sides, on local, host and guest screens. Check yellow infantry and vehicles in daylight and at night.

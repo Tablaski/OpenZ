@@ -6,7 +6,7 @@
 
 # OpenZ-VK
 
-**OpenZ-VK 1.5.70** is an experimental fork of [OpenZ](https://github.com/playopenz/OpenZ) 1.5, the fan remake of **Z** by **The Bitmap Brothers**.
+**OpenZ-VK 1.5.72** is an experimental fork of [OpenZ](https://github.com/playopenz/OpenZ) 1.5, the fan remake of **Z** by **The Bitmap Brothers**.
 
 ## Why this fork?
 

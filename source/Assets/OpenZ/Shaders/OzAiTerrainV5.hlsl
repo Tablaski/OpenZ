@@ -68,14 +68,18 @@ float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, floa
     float roadWeight = smoothstep(.31,.67,road);
     float2 wind = float2(dot(p,float2(.82,.57)),dot(p,float2(-.57,.82)));
     float drift = V5Noise(wind * float2(.31,.95));
-    float packed = V5Noise(wind * float2(1.5,4.4)) * V5Resolved(pixel,4.4);
+    float bend = V5Noise(wind * float2(.28,.36));
+    float waves = sin(6.283185 * (wind.y * 1.34 + bend * .65 + wind.x * .065));
+    float windward = smoothstep(.04,.92,waves) - .54 * smoothstep(.0,.78,-waves);
+    float ripples = windward * smoothstep(.23,.68,drift) * V5Resolved(pixel,1.34);
+    float packed = sin(6.283185 * (wind.y * 3.33 - wind.x * .18 + bend * 1.12)) * V5Resolved(pixel,3.33);
     float snowbank = smoothstep(.57,.83,drift * .77 + V5Noise(p * .68) * .23);
     float gravel = V5SurfaceGrain(p + 61,pixel);
-    half3 snow = color * (1 + gravel * .47 + (drift-.5)*.15);
-    half3 exposedRoad = color * (.96 + gravel*.91);
-    float dust = snowbank * lerp(.75,.43,road) * roadWeight;
+    half3 snow = color * (.96 + gravel * .47 + (drift-.5)*.095 + ripples*.17 + packed*.024);
+    half3 exposedRoad = color * (.96 + gravel*1.27);
+    float dust = snowbank * lerp(.73,.39,road) * roadWeight;
     color = lerp(snow,exposedRoad,roadWeight);
-    color = lerp(color,half3(.50,.59,.66) * (1 + gravel*.39),dust);
+    color = lerp(color,half3(.50,.56,.61) * (1 + gravel*.53 + ripples*.08),dust);
 
     float2 crystal = V5Cells(p * float2(.32,.49) + V5Noise(p * .83) * .17);
     float width = .014 + pixel * .23;
@@ -87,8 +91,8 @@ float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, floa
     ice += half3(.24,.32,.36) * (.66*fracture + .15*trappedAir + .17*scratches);
     color = lerp(color,ice,iceMask);
 
-    float snowRelief = .023*drift + .006*packed + .024*gravel;
-    float roadRelief = .044*gravel + dust*.013;
+    float snowRelief = .018*drift + .019*ripples + .0035*packed + .020*gravel;
+    float roadRelief = .049*gravel + dust*(.012 + .003*ripples);
     return lerp(lerp(snowRelief,roadRelief,roadWeight),.0015*deep - .002*fracture,iceMask);
 }
 

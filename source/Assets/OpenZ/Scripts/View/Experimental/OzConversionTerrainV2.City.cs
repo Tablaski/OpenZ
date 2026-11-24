@@ -8,15 +8,10 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        void ShowCityV5Outskirts()
+        void HideCityV5ExteriorProps()
         {
-            // The alternate exterior is authored with the original Car Park meshes and shares no gameplay components.
-            if (!transform.Find("V5_OUT3_Ruins")) return;
             foreach (Transform part in transform)
-            {
-                if (part.name.StartsWith("V5_OUT3_", System.StringComparison.Ordinal)) part.gameObject.SetActive(true);
-                else if (part.name == "OUT3_Ruins" || part.name == "OUT3_Quays") part.gameObject.SetActive(false);
-            }
+                if (part.name == "OUT3_Ruins" || part.name == "OUT3_Quays") part.gameObject.SetActive(false);
         }
 
         void BuildCityOutfalls(ZMapData map)

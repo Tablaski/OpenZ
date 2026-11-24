@@ -8,7 +8,7 @@ OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and
 
 ## OpenZ-VK 1.5.64 (24 Nov 2026)
 
-- AI Maps — The five experimental V5 examples have clearer terrain detail at tactical zoom. Arctic has finer snow, gravel and lake ice with patchy snow on roads. The Car Park has a fuller ruined-city backdrop, and Molten Kombat's cones now sit on the volcanic barrier.
+- AI Maps — The five experimental V5 examples have clearer terrain detail at tactical zoom. Arctic has wind ripples in the snow, patchy snow on gravel roads and finer lake ice. The Car Park clears the ruins beyond the map boundary, and Molten Kombat's cones now sit on the volcanic barrier.
 
 ## OpenZ-VK 1.5.63 (24 Nov 2026)
 

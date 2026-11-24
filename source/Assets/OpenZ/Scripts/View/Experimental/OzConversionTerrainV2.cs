@@ -105,7 +105,7 @@ namespace OpenZ.Experimental
                 ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
-            if (IsPaletteV5 && map.planet == "city") ShowCityV5Outskirts();
+            if (IsPaletteV5 && map.planet == "city") HideCityV5ExteriorProps();
             if (IsPaletteV5 && map.planet == "volcanic")
             {
                 BuildVolcanicVents(map, Height, bridgeClearance);

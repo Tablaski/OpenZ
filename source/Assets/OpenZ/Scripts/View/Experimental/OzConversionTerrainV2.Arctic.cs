@@ -29,7 +29,9 @@ namespace OpenZ.Experimental
                 var gravel = Color.Lerp(new Color(.26f, .30f, .34f), new Color(.51f, .56f, .58f), grain);
                 var ice = Color.Lerp(new Color(.60f, .74f, .80f), new Color(.75f, .87f, .90f), grain);
                 float frost = useV4 ? Mathf.SmoothStep(0, 1, crust * 1.35f) : crust;
-                var color = Color.Lerp(Color.Lerp(snow, ice, frost * .85f), gravel, roadWeight * (.83f + stones * .17f));
+                if (IsPaletteV5) gravel = Color.Lerp(new Color(.27f, .28f, .29f), new Color(.41f, .43f, .45f), grain);
+                var color = Color.Lerp(Color.Lerp(snow, ice, frost * .85f), gravel,
+                    roadWeight * (IsPaletteV5 ? .98f : .83f + stones * .17f));
                 albedo[row * w + col] = color;
                 if (useV4) roadField[row * w + col] = new Color(road, 0, 0,
                     IsPaletteV5 ? Mask(map, x + offset, z, ArcticIceTile) : 1);
@@ -37,11 +39,7 @@ namespace OpenZ.Experimental
             var material = new Material(ground) { name = "Wind-packed Arctic snow" };
             material.SetTexture("_BaseMap", NewTexture(w, h, albedo, false, "Snow drifts, gravel and frozen banks"));
             if (useV4) material.SetTexture("_GroundSdf", NewTexture(w, h, roadField, true, "Arctic road field"));
-            if (IsPaletteV5)
-            {
-                material.SetFloat("_Blur", 0);
-                material.SetFloat("_DetailOn", 0);
-            }
+            if (IsPaletteV5) material.SetFloat("_Blur", 0);
             generated.Add(material);
             return material;
         }

@@ -101,10 +101,19 @@ static class GameplayRegressionChecks
             target.Damage = 0;
             Order(world, tank, target, WpMode.Attack);
             var start = tank.OrderSnapshot();
-            bool fired = Until(world, () => Fired(world, tank, target), 15);
+            bool wasTracing = ZPathing.Trace;
+            bool fired;
+            try
+            {
+                ZPathing.Trace = true;
+                fired = Until(world, () => Fired(world, tank, target), 15);
+            }
+            finally { ZPathing.Trace = wasTracing; }
             check(fired && (northbound ? tank.CenterY < 520 : tank.CenterY > 520),
                 $"A player tank crosses the bridge and fires, northbound={northbound}, position={tank.CenterX},{tank.CenterY}, " +
-                $"plans={tank.ApproachPlans}, {tank.OrderStandWhy(start, out _, out _)}, {world.Pathing.BridgeQueueStats()}");
+                $"point={tank.PathTargetX},{tank.PathTargetY}, destination={tank.PathFinalPoint}, plans={tank.ApproachPlans}, " +
+                $"{tank.OrderStandWhy(start, out _, out _)}, {world.Pathing.BridgeQueueStats()}\n" +
+                (tank.PS.Log == null ? "" : string.Join("\n", tank.PS.Log)));
         }
     }
 

@@ -16,6 +16,7 @@ static class GameplayRegressionChecks
         CheckCrane(settings, check);
         CheckApc(settings, check);
         CheckBridgeAttack(settings, check);
+        CheckQueuedBridgeAttack(settings, check);
     }
 
     static void CheckHeadStart(string settings, Action<bool, string> check)
@@ -115,6 +116,28 @@ static class GameplayRegressionChecks
                 $"{tank.OrderStandWhy(start, out _, out _)}, {world.Pathing.BridgeQueueStats()}\n" +
                 (tank.PS.Log == null ? "" : string.Join("\n", tank.PS.Log)));
         }
+    }
+
+    static void CheckQueuedBridgeAttack(string settings, Action<bool, string> check)
+    {
+        var world = Battlefield(settings, true);
+        var target = world.CreateObject("vehicle", "heavy", 496, 720, Team.Blue);
+        target.Damage = 0;
+        var crossing = world.CreateObject("vehicle", "heavy", 496, 608, Team.Red);
+        crossing.Damage = 0;
+        world.SendWaypoints(Team.Red, crossing, new[] { ZWaypoint.Move(512, 224) });
+        check(Until(world, () => world.Pathing.BridgeLanes.Any(lane => lane.holders.Contains(crossing)), 40),
+            "The northbound tank reserves the bridge");
+
+        var tank = world.CreateObject("vehicle", "heavy", 464, 376, Team.Red);
+        Order(world, tank, target, WpMode.Attack);
+        check(Until(world, () => tank.PS.bridge.queued != null, 40), "The southbound attack queues behind opposing bridge traffic");
+        var queue = tank.PS.bridge;
+        queue.since = world.Time - ZPathing.BridgeGiveUpAfter - 1;
+        world.Tick(ZConst.TICK);
+        check(queue.queued != null && tank.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
+            "A wait beyond the bridge timeout preserves the given attack when this is the only route");
+        check(Until(world, () => Fired(world, tank, target), 110), "The queued tank crosses and fires after the bridge clears");
     }
 
     static void Order(ZWorld world, ZObject unit, ZObject target, WpMode mode) =>

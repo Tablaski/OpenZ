@@ -319,7 +319,7 @@ namespace OpenZ.Sim
                     b.holders.RemoveAt(i); b.Revokes++;
                     int e = CrossDir(b, h);
                     var q = st; q.o = h; q.queued = b; q.end = e; q.deck = DeckAhead(b, h, e); q.hasBay = false; q.replanTried = false; q.noCrossSince = -1; q.nextBayTry = now;
-                    if (h.Waypoints.Count > 0 && !OnHelper(h)) q.order = h.Waypoints[0];
+                    if (!OnHelper(h)) { q.order = h.Waypoints[0]; q.attackGoal = h.PathFinalPoint; }
                     b.queue[e].Insert(Math.Min(1, b.queue[e].Count), q);                        // behind the next one (it may be blocked where it stands)
                     Log(h, $"{b}: granted {now - st.grantedAt:F0} s ago and not on the deck: back in the queue");
                 }

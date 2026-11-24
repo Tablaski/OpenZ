@@ -63,7 +63,7 @@ float V5SurfaceGrain(float2 p, float pixel)
         + (V5Noise(p * 14.5 - 7) - .5) * .38 * V5Resolved(pixel,14.5);
 }
 
-float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, float iceMask)
+float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, float iceMask, float snowDetail)
 {
     float roadWeight = smoothstep(.31,.67,road);
     float2 wind = float2(dot(p,float2(.82,.57)),dot(p,float2(-.57,.82)));
@@ -74,7 +74,8 @@ float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, floa
     float grains = (V5Noise(wind * 24.0 + warp) - .5) * V5Resolved(pixel,24);
     float snowbank = smoothstep(.57,.83,V5Noise(wind * float2(.31,.95)) * .77 + V5Noise(p * .68) * .23);
     float gravel = V5SurfaceGrain(p + 61,pixel);
-    half3 snow = color * (.96 + (drift-.5)*.095 + (.45-crust)*.095 + grains*.12);
+    float grainWeight = 1 - .72 * snowDetail;
+    half3 snow = color * (.96 + (drift-.5)*.095 + ((.45-crust)*.095 + grains*.12) * grainWeight);
     half3 exposedRoad = color * (.96 + gravel*1.27);
     float dust = snowbank * lerp(.73,.39,road) * roadWeight;
     color = lerp(snow,exposedRoad,roadWeight);
@@ -90,7 +91,7 @@ float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, floa
     ice += half3(.24,.32,.36) * (.66*fracture + .15*trappedAir + .17*scratches);
     color = lerp(color,ice,iceMask);
 
-    float snowRelief = .018*drift - .012*crust + .0027*grains;
+    float snowRelief = .018*drift + (-.012*crust + .0027*grains) * grainWeight;
     float roadRelief = .049*gravel + dust*(.012 - .003*crust);
     return lerp(lerp(snowRelief,roadRelief,roadWeight),.0015*deep - .002*fracture,iceMask);
 }

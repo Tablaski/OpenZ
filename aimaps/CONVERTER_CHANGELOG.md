@@ -2,6 +2,8 @@
 
 ## V5 — five material studies on V4 geometry
 
+Arctic V5 snow ground uses the supplied Snow Unity PBR base color, normal and packed occlusion/smoothness. It is mapped in world space at an eight-metre repeat and fades as the screen footprint grows. The native paint still controls roads, ice and shore transitions. Windows uses 1024-pixel BC7 color and packed masks, and a BC5 normal map, with mipmaps. Use `-oz-ai-arctic-legacy-snow` to restore the procedural snow. The supplied height map is unused.
+
 In 1.5.69, Arctic V5 uses shared, cubic-interpolated fields for native water and lake ice. Small world-space offsets break the straight tile boundaries. The visual terrain subdivides the shore neighbourhood on a quarter-metre grid. The water plane extends beneath the banks, so the land surface determines the waterline. The Arctic shader adds a thin granular edge where the ice meets open water. Ice interiors retain their fractures and reflections. The native grids, bridge clearance, original collision mesh and V4 path retain their prior behavior.
 
 The 1.5.67 V5 City study reuses the authored ruin mesh and original facade materials from the official 3D Car Park scene. The converter selects complete geometry from the west, north and east street rows and fits those rows inside the existing perimeter apron. It leaves the southern quay side open. The generated render mesh has no collider and uses the same native City terrain and bridge data.

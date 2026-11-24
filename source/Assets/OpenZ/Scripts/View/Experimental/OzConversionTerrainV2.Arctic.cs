@@ -227,12 +227,34 @@ namespace OpenZ.Experimental
             var material = new Material(ground) { name = "Wind-packed Arctic snow" };
             material.SetTexture("_BaseMap", NewTexture(w, h, albedo, false, "Snow drifts, gravel and frozen banks"));
             if (useV4) material.SetTexture("_GroundSdf", NewTexture(w, h, roadField, true, "Arctic road field"));
-            if (IsPaletteV5) material.SetFloat("_Blur", 0);
+            if (IsPaletteV5)
+            {
+                material.SetFloat("_Blur", 0);
+                ApplyArcticSnowPack(material);
+            }
             generated.Add(material);
             return material;
         }
 
         static bool ArcticIceTile(ZMapData map, int index) => OzAiTerrainV5.ArcticIceAt(map, index);
+
+        static void ApplyArcticSnowPack(Material material)
+        {
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-oz-ai-arctic-legacy-snow") >= 0) return;
+
+            const string directory = "OpenZ/AiMaps/ArcticSnow/";
+            var color = Resources.Load<Texture2D>(directory + "Snow_BaseColor");
+            var normal = Resources.Load<Texture2D>(directory + "Snow_Normal");
+            var mask = Resources.Load<Texture2D>(directory + "Snow_TerrainMask");
+            if (!color || !normal || !mask) return;
+
+            material.SetTexture("_ArcticSnowColor", color);
+            material.SetTexture("_ArcticSnowNormal", normal);
+            material.SetTexture("_ArcticSnowMask", mask);
+            material.SetVector("_ArcticSnowParams", new Vector4(1, 1f / 8, .55f, 0));
+            Debug.Log($"[AI map terrain] Arctic snow detail: {color.format}, {normal.format}, {mask.format}; " +
+                $"{color.width}px, mip levels {color.mipmapCount}/{normal.mipmapCount}/{mask.mipmapCount}");
+        }
 
         static void ArcticWaterLook(Material water)
         {

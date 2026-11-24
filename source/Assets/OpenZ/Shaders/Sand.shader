@@ -42,6 +42,10 @@ Shader "OpenZ/Sand"
         _DetailFade ("v2 detail full to (m), min at (m), min amount", Vector) = (110, 260, 0.35, 0)
         [HideInInspector] _OzAiTerrainProfile ("AI map terrain V4 profile", Float) = 0
         [HideInInspector] _OzAiTerrainV5 ("AI map terrain V5 detail", Float) = 0
+        [NoScaleOffset] _ArcticSnowColor ("Arctic snow base color", 2D) = "white" {}
+        [NoScaleOffset][Normal] _ArcticSnowNormal ("Arctic snow normal", 2D) = "bump" {}
+        [NoScaleOffset] _ArcticSnowMask ("Arctic snow mask (G occlusion, A smoothness)", 2D) = "white" {}
+        [HideInInspector] _ArcticSnowParams ("Arctic snow enabled, tiles per metre, normal strength", Vector) = (0,.125,.55,0)
         [HideInInspector] _OzCraterRole ("Deformable terrain: 0 none, 1 ground cut under craters (MPB on TER_Ground), 2 crater patch", Float) = 0
         [HideInInspector][NoScaleOffset] _OzCraterDecal ("Deformable terrain: crater decal (UV1)", 2D) = "gray" {}
         [HideInInspector] _OzCraterDecalMul ("Deformable terrain: decal is 2x multiply (linear) instead of straight alpha", Float) = 1
@@ -61,6 +65,7 @@ Shader "OpenZ/Sand"
             half _OzCraterRole; half _OzCraterDecalMul;
             float _OzAiTerrainProfile;
             float _OzAiTerrainV5;
+            float4 _ArcticSnowParams;
         CBUFFER_END
         float4 _OzCraters[12]; float _OzCraterCount;
         void OZCraterClip(float3 positionWS)
@@ -106,6 +111,9 @@ Shader "OpenZ/Sand"
             TEXTURE2D(_GroundSdf); SAMPLER(sampler_GroundSdf);
             TEXTURE2D(_DetailTex); SAMPLER(sampler_DetailTex);
             TEXTURE2D(_DetailNrm); SAMPLER(sampler_DetailNrm);
+            TEXTURE2D(_ArcticSnowColor); SAMPLER(sampler_ArcticSnowColor);
+            TEXTURE2D(_ArcticSnowNormal);
+            TEXTURE2D(_ArcticSnowMask);
             TEXTURE2D(_OzCraterDecal); SAMPLER(sampler_OzCraterDecal);
 
             // raw SDF texel (0.5 = edge): x = road, y = dash (mode 1) or plate weight 0..1 (mode 2), z = road markings (mode 3)
@@ -327,6 +335,8 @@ Shader "OpenZ/Sand"
                     OZAiV4Surface(albedo, w, ozPxm, _OzAiTerrainProfile, OZSdf(i.uv).r);
                 float materialHeight = 0;
                 float iceGlaze = 0;
+                half snowSmoothness = _Smoothness;
+                half snowOcclusion = 1;
                 if (_OzAiTerrainV5 > .5)
                 {
                     float4 field = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, i.uv, 0);
@@ -335,7 +345,24 @@ Shader "OpenZ/Sand"
                         iceGlaze = V5LakeIceMask(field.a) * (1-smoothstep(.18,.47,field.r));
                         // Snow gets its own granular normal. The road and lake ice keep their existing detail.
                         ozNrm *= saturate(smoothstep(.31,.67,field.r) + iceGlaze);
-                        materialHeight = V5ArcticSurface(albedo,w,ozPxm,field.r,iceGlaze);
+                        half snow = _ArcticSnowParams.x * (1 - smoothstep(.16,.36,field.r)) *
+                            (1 - iceGlaze) * (1 - smoothstep(.26,.79,field.g));
+                        materialHeight = V5ArcticSurface(albedo,w,ozPxm,field.r,iceGlaze,snow);
+                        half blend = snow * (1 - smoothstep(.08,.24,ozPxm));
+                        [branch] if (blend > .002)
+                        {
+                            // Explicit gradients keep the mip selection stable across the snow-mask boundary.
+                            float scale = _ArcticSnowParams.y;
+                            float2 uvSnow = w * scale, dxSnow = ozDpx.xz * scale, dySnow = ozDpy.xz * scale;
+                            half3 snowColor = SAMPLE_TEXTURE2D_GRAD(_ArcticSnowColor, sampler_ArcticSnowColor, uvSnow, dxSnow, dySnow).rgb;
+                            half4 packed = SAMPLE_TEXTURE2D_GRAD(_ArcticSnowMask, sampler_ArcticSnowColor, uvSnow, dxSnow, dySnow);
+                            half2 normal = UnpackNormalScale(SAMPLE_TEXTURE2D_GRAD(_ArcticSnowNormal, sampler_ArcticSnowColor,
+                                uvSnow, dxSnow, dySnow), _ArcticSnowParams.z).xy;
+                            albedo *= lerp(1, snowColor / .80, blend * .67);
+                            ozNrm += normal * blend;
+                            snowSmoothness = lerp(_Smoothness, min(packed.a, .24), blend);
+                            snowOcclusion = lerp(1, packed.g, blend * .45);
+                        }
                         float brokenIce = 4 * iceGlaze * (1 - iceGlaze) * smoothstep(.11,.60,field.g);
                         float rimGrain = V5Noise(w * 6.2) * V5Resolved(ozPxm,6.2);
                         albedo = lerp(albedo,half3(.27,.43,.51),brokenIce * (.18 + .25 * rimGrain));
@@ -351,7 +378,7 @@ Shader "OpenZ/Sand"
                 if (_OzWetness > 0.001) albedo = OZWetAlbedo(i.positionWS.xz, albedo, (half)normalize(i.normalWS).y, ozWetP);
 
                 SurfaceData s = (SurfaceData)0;
-                s.albedo = albedo; s.alpha = 1; s.metallic = 0; s.smoothness = _Smoothness; s.occlusion = 1; s.normalTS = half3(0, 0, 1);
+                s.albedo = albedo; s.alpha = 1; s.metallic = 0; s.smoothness = snowSmoothness; s.occlusion = snowOcclusion; s.normalTS = half3(0, 0, 1);
                 s.smoothness = lerp(s.smoothness,.91,iceGlaze * .94);
                 InputData inputData = (InputData)0;
                 inputData.positionWS = i.positionWS; inputData.positionCS = i.positionCS;

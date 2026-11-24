@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.64 V5 surface and exterior review
+
+- Unity rendered all five wide V5 scenes from checkpoint `e3ee031c` at native 3840 × 2160. The capture log confirmed the five material profiles. The wide view and a 1:1 crop show wind ripples, road snow and the separate lake-ice detail in SM11. The Arctic open-water shader and material match 1.5.56.
+- The new SM08 view shows the reduced volcano props seated on the barrier and additional small cone groups. The SM17 view shows that the exterior ruins and quays are hidden. Native terrain grids, bridge clearances and movement rules were preserved.
+- The workspace passed 9,083 headless simulation checks. Interactive testing in a compiled game remains pending.
+
 ## AI generation selectors
 
 - Pending in a compiled game. Switch between 1996 and 2026 on the OpenZ Maps and AI Maps solo deployment screens and in Options > Main. Check that the same choice appears on both screens, that each generation restores its last difficulty after switching back and restarting, and that the C key cycles the visible row. Check the deployment bar at 16:9, 4:3 and 5:4.

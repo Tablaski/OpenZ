@@ -39,6 +39,15 @@ namespace OpenZ.Experimental
             return mesh;
         }
 
+        Material CityBorderConcrete()
+        {
+            var concrete = TiledRock(pit, true);
+            concrete.name = "Weathered perimeter concrete";
+            concrete.SetColor("_BaseColor", new Color(.55f, .51f, .46f));
+            concrete.SetFloat("_Smoothness", .23f);
+            return concrete;
+        }
+
         void BuildCityBorderRuins(ZMapData map, System.Func<float,float,float> height)
         {
             var vertices = new List<Vector3>();
@@ -51,39 +60,52 @@ namespace OpenZ.Experimental
                 for (float along = 13; along < length - 15;)
                 {
                     float variation = Mathf.PerlinNoise(along * .174f + 5, side * 4.7f + 11);
-                    int bays = variation > .49f ? 4 : 3;
-                    float span = bays * 2.7f;
-                    float setback = 7.9f + variation * 4.4f;
-                    float back = setback + 6.1f;
+                    float damage = Mathf.PerlinNoise(along * .296f + 17, side * 2.1f + 4);
+                    int bays = Mathf.Clamp(Mathf.FloorToInt(2 + variation * 4), 3, 5);
+                    float bayWidth = Mathf.Lerp(2.3f, 3.15f, damage);
+                    float span = bays * bayWidth;
+                    if (along + span > length - 3) break;
+                    float setback = 5.8f + variation * 5.6f;
+                    float back = setback + Mathf.Lerp(4.3f, 7.4f, damage);
                     float end = along + span;
-                    float baseY = TerrainY(along + span * .45f,setback + 3);
-                    var masonry = Color.Lerp(new Color(.20f,.185f,.17f),new Color(.37f,.345f,.305f),variation);
-                    var concrete = masonry * .82f;
-                    var interior = masonry * .53f;
-                    Block(along,end,setback - 1.7f,back + 1,baseY - 2.6f,baseY + .3f,concrete);
+                    float baseY = TerrainY(along + span * .45f,setback + 1.8f);
+                    var masonry = Color.Lerp(new Color(.48f,.45f,.41f),new Color(.78f,.69f,.58f),variation);
+                    var concrete = masonry * .86f;
+                    var interior = masonry * .65f;
+                    Block(along,end,setback - 1.7f,back + 1,baseY - 3.2f,baseY + .3f,concrete);
 
-                    int floors = variation > .60f ? 3 : 2;
+                    int floors = damage < .29f ? 1 : variation > .60f ? 3 : 2;
                     for (int level = 0; level < floors; level++)
                     {
                         float y = baseY + level * 2.6f;
-                        float brokenEnd = end - level * (variation > .51f ? .7f : 1.6f);
+                        float brokenEnd = end - level * Mathf.Lerp(.45f, 2.6f, damage);
                         Block(along,brokenEnd,setback,back,y,y + .22f,interior);
                         Block(along,brokenEnd,setback,setback + .45f,y + .22f,y + .76f,masonry);
                         for (int bay = 0; bay <= bays; bay++)
                         {
-                            float start = along + bay * 2.7f;
+                            float start = along + bay * bayWidth;
                             if (start + .47f > brokenEnd) break;
+                            float wear = Mathf.PerlinNoise(start * .84f, side + 7.1f);
                             float top = y + 2.59f;
                             if (level == floors - 1)
-                                top -= Mathf.PerlinNoise(start * .84f,side + 7.1f) * 1.4f;
+                                top -= wear * 1.6f;
                             Block(start,start + .47f,setback,setback + .48f,y + .6f,top,masonry);
-                            if (level < floors - 1 && bay < bays && start + 2.7f <= brokenEnd)
-                                Block(start,start + 2.7f,setback,setback + .4f,y + 2.23f,y + 2.58f,masonry);
+                            if (bay < bays && start + bayWidth <= brokenEnd)
+                            {
+                                if (level < floors - 1)
+                                    Block(start,start + bayWidth,setback,setback + .4f,y + 2.23f,y + 2.58f,masonry);
+                                if (wear < .38f)
+                                    Block(start + .44f,start + bayWidth * .78f,setback,setback + .46f,y + .75f,top - .12f,masonry * .92f);
+                            }
                         }
                         Block(along,along + .42f,setback,back - level * .65f,y + .22f,y + 2.45f,concrete);
                         Block(along,brokenEnd - 1.1f,back - .51f,back,y + .22f,y + (level == floors - 1 ? 1.15f : 2.48f),interior);
                     }
-                    along += span + 2.6f + variation * 4.3f;
+                    float gap = 1.6f + damage * 3.1f;
+                    float rubbleY = TerrainY(end + gap * .4f, setback - .8f);
+                    Block(end - .4f,end + gap * .72f,setback - 1.8f,setback + .9f,rubbleY - .7f,rubbleY + .55f,concrete);
+                    Block(end + gap * .12f,end + gap * .57f,setback - .5f,setback + 1.3f,rubbleY,rubbleY + 1.15f,masonry);
+                    along += span + gap;
                 }
 
                 (float x,float z) At(float along, float offset) => side switch

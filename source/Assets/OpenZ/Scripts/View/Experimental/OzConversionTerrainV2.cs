@@ -105,7 +105,7 @@ namespace OpenZ.Experimental
             terrain.AddComponent<MeshFilter>().sharedMesh = cityV5 ? CityBorderSurface(map, vertices, uv, channels) : IsPaletteV5 && mapId == "SM16"
                 ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = cityV5
-                ? new[] { surfaceGround, rockFace, floor, TiledRock(pit, useV4) }
+                ? new[] { surfaceGround, rockFace, floor, CityBorderConcrete() }
                 : new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
             if (cityV5)

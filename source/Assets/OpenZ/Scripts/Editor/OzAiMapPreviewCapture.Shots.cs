@@ -149,7 +149,10 @@ namespace OpenZ.EditorTools
 
         static Shot RimShot(OzAiMap entry, ZMapData map)
         {
-            float heading = entry.World == "desert" ? -22 : entry.World == "city" ? 20 : 8;
+            if (entry.Id == "SM17")
+                return new Shot("borders", new Vector3(map.width, 2, -17), Vector3.zero,
+                    -14, 0, 49, 0, 88, 0, 53, 1);
+            float heading = entry.World == "desert" ? -22 : 8;
             float x = map.width * (entry.World == "arctic" ? .52f : .82f);
             return new Shot("borders", new Vector3(x, 3, entry.World == "volcanic" ? -19 : -13), Vector3.zero,
                 heading, 0, 66, 0, 68, 0, 47, 24);

@@ -92,8 +92,9 @@ namespace OpenZ.Experimental
                 return;
             }
 
-            // The imported mesh contains whole city blocks outside L17. Retain the first rows
-            // aligned with the authored west, north and east streets. L17's south edge is the harbour.
+            // The imported mesh contains a street grid outside L17. Select one complete
+            // street strip per side to keep the spacing and orientation of its buildings.
+            // The south side is the harbour.
             var art = source.sharedMesh;
             var sourceVertices = art.vertices;
             var sourceNormals = art.normals;
@@ -140,25 +141,25 @@ namespace OpenZ.Experimental
             {
                 Vector3 lo = extent.min, hi = extent.max;
                 Vector3 scale, offset;
-                if (lo.x >= -53 && hi.x <= -27 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
-                {
-                    scale = new Vector3(15f / 26, facadeHeight, depth / referenceDepth);
-                    offset = new Vector3(-19 + 53 * scale.x, 0, 0);
-                }
-                else if (lo.x >= 225 && hi.x <= 265 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
+                if (lo.x >= -100 && hi.x <= -60 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
                 {
                     scale = new Vector3(15f / 40, facadeHeight, depth / referenceDepth);
-                    offset = new Vector3(width + 4 - 225 * scale.x, 0, 0);
+                    offset = new Vector3(-19 + 100 * scale.x, 0, 0);
                 }
-                else if (lo.x >= 3 && hi.x <= referenceWidth - 3 && lo.z >= 38 && hi.z <= 80)
+                else if (lo.x >= 271 && hi.x <= 308 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
                 {
-                    scale = new Vector3(width / referenceWidth, facadeHeight, 15f / 42);
-                    offset = new Vector3(0, 0, 4 - 38 * scale.z);
+                    scale = new Vector3(15f / 37, facadeHeight, depth / referenceDepth);
+                    offset = new Vector3(width + 4 - 271 * scale.x, 0, 0);
+                }
+                else if (lo.x >= 2 && hi.x <= referenceWidth - 2 && lo.z >= 84 && hi.z <= 125)
+                {
+                    scale = new Vector3(width / referenceWidth, facadeHeight, 15f / 41);
+                    offset = new Vector3(0, 0, 4 - 84 * scale.z);
                 }
                 else continue;
 
                 Vector3 seat = Vector3.Scale(extent.center, scale) + offset;
-                offset.y = height(seat.x, -seat.z) - 5.4f * facadeHeight - .42f;
+                offset.y = height(seat.x, -seat.z) - 5.4f * facadeHeight - .58f;
                 offsets.Add(root, (scale, offset));
             }
 

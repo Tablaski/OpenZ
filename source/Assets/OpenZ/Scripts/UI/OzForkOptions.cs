@@ -10,6 +10,7 @@ namespace OpenZ
         public static readonly Color Brand = new Color32(200, 90, 32, 255);
         public const string ChatLabel = "CHAT SHORTCUT";
         internal const string AudioDevicesLabel = "MICROPHONE / SPEAKERS";
+        internal const string AiGenerationLabel = "AI GENERATION";
         internal const string ProjectileAvoidanceLabel = "Measure projectile avoidance";
         internal const string InfiniteCombatTestingLabel = "VK Infinite Combat Testing Mode";
         public const string RestartProductionLabel = "Stop + produce hovered unit";
@@ -48,7 +49,8 @@ namespace OpenZ
         public static bool IsFork(string label) => IsDynamics(label) || label == OzMapReadabilityOptions.FlagLabel || label == OzMapReadabilityOptions.BorderLabel ||
             label == OzMapReadabilityOptions.RadarSweepLabel ||
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
-            label == ChatLabel || label == AudioDevicesLabel || label == OzSoloAllowedUnits.Label || label == OzSoloMapTech.Label || label == RestartProductionLabel || label == OzBuildKeys.Label ||
+            label == ChatLabel || label == AudioDevicesLabel || label == AiGenerationLabel ||
+            label == OzSoloAllowedUnits.Label || label == OzSoloMapTech.Label || label == RestartProductionLabel || label == OzBuildKeys.Label ||
             label == OzBattleOptions.DamageLabel || label == OzBattleOptions.SoloLabel ||
             label == OzBattleOptions.RadarLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||

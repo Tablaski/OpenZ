@@ -1359,7 +1359,7 @@ namespace OpenZ.Multiplayer
         bool LobbyStyle => page is Page.Lobby or Page.Skirmish || page == Page.Microphone && microphoneReturn == Page.Lobby ||
             R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0;
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
-        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46, bool centered = false, bool alignLeft = false)
+        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46, bool centered = false, bool alignLeft = false, float rightPadding = 114)
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
             if (!primary) b.LabelColor = LobbyStyle ? (Color)OzUi.Ink : OzForkOptions.Accent;
@@ -1371,7 +1371,7 @@ namespace OpenZ.Multiplayer
                 OzAiMapBadge.Head(b.Content, new OzRect(w * 0.5f - 57, (height - 24) * 0.5f, 24, 24));
             }
             if (height > 70 && b.Label != null && !centered) b.Label.rectTransform.TL(3, height - 28, w - 6, 26);
-            if (alignLeft) b.Label.FillParent(OzH.L, 16, 0, 114, 0);
+            if (alignLeft) b.Label.FillParent(OzH.L, 16, 0, rightPadding, 0);
             b.Bg.raycastTarget = true;
             var ui = b.Rt.gameObject.AddComponent<Button>(); ui.targetGraphic = b.Bg; ui.interactable = enabled;
             ui.onClick.AddListener(() => { try { action(); } catch (Exception error) { Debug.LogException(error); R.ReportError(error.Message); } });

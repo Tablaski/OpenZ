@@ -23,6 +23,7 @@ namespace OpenZ.Multiplayer
         int onlineTeamsRevision, onlineDragSeat = -1, onlineTeamCount;
         int onlineRoleRevision;
         string onlinePlayerMenu;
+        bool? onlineBotModern;
         RectTransform onlinePlayerAnchor;
         OnlinePerson onlineMenuPerson;
         bool onlineEditingName, onlineModerationNoteOpen;
@@ -290,6 +291,40 @@ namespace OpenZ.Multiplayer
         static string BotDifficultyName(ZBotDifficulty difficulty) => difficulty == ZBotDifficulty.Normal ? "Medium" : difficulty.ToString();
         static readonly ZBotDifficulty[] LobbyBotDifficulties = { ZBotDifficulty.Easy, ZBotDifficulty.Normal, ZBotDifficulty.Hard };
 
+        void BuildLobbyAiGeneration(Transform parent, OzRect rect, bool modern, Action<bool> select, bool enabled = true)
+        {
+            var toggle = new OzAiGenerationToggle(parent, rect, 13, OzUi.Amber);
+            toggle.Refresh(modern);
+            Bind(toggle.Classic, false);
+            Bind(toggle.Modern, true);
+
+            void Bind(Image image, bool value)
+            {
+                image.raycastTarget = true;
+                var button = image.gameObject.AddComponent<Button>();
+                button.targetGraphic = image;
+                button.interactable = enabled;
+                button.onClick.AddListener(() => { if (modern != value) select(value); });
+            }
+        }
+
+        void BuildLobbyAiDifficultyRow(Transform parent, OzRect rect, bool modern, ZBotDifficulty? selected,
+            Action<ZBotDifficulty> select, OzText tip, bool enabled = true, string namePrefix = "")
+        {
+            var levels = modern ? ZAiDifficulty.Modern : LobbyBotDifficulties;
+            const float gap = 4;
+            float cell = (rect.w - gap * (levels.Length - 1)) / levels.Length;
+            for (int i = 0; i < levels.Length; i++)
+            {
+                var level = levels[i];
+                string label = BotDifficultyName(level).ToUpperInvariant();
+                var button = Button(parent, label, rect.x + i * (cell + gap), rect.y, cell, () => select(level),
+                    level == selected, enabled, height: rect.h);
+                button.name = namePrefix + label;
+                AddLobbyTip(button, tip, ZAiDifficulty.Hint(level));
+            }
+        }
+
         void AddPlayerMenu(Transform parent, float y, string key, OnlinePerson person = null)
         {
             var anchor = Button(parent, "...", 594, y, 47, () =>
@@ -306,6 +341,7 @@ namespace OpenZ.Multiplayer
         void CloseOnlinePlayerMenu()
         {
             onlinePlayerMenu = null;
+            onlineBotModern = null;
             onlineEditingName = onlineModerationNoteOpen = false;
             roomModerationNote = "";
             dirty = true;
@@ -366,28 +402,19 @@ namespace OpenZ.Multiplayer
                 int.TryParse(onlinePlayerMenu.Substring(5), out int seat))
             {
                 var room = R.HostedRoom;
-                bool bot = room.Bots.Any(entry => entry.Position == seat);
+                ZBotDifficulty? difficulty = room.Bots.Where(entry => entry.Position == seat)
+                    .Select(entry => (ZBotDifficulty?)entry.Difficulty).FirstOrDefault();
+                bool bot = difficulty.HasValue;
                 bool closed = room.ClosedPositions.Contains(seat);
-                var tip = Label(list, "", 8, y, width - 16, 12, OzUi.Muted);
-                y += 21;
-                DifficultyGroup("1996 AI", LobbyBotDifficulties);
-                DifficultyGroup("2026 AI", ZAiDifficulty.Modern);
-
-                void DifficultyGroup(string title, ZBotDifficulty[] levels)
-                {
-                    Label(list, title, 8, y, width - 16, 14, OzUi.Muted);
-                    y += 24;
-                    float cell = (width - 16 - (levels.Length - 1) * 4) / (float)levels.Length;
-                    for (int i = 0; i < levels.Length; i++)
-                    {
-                        var level = levels[i];
-                        var choice = Button(list, BotDifficultyName(level).ToUpperInvariant(), 8 + i * (cell + 4), y, cell,
-                            () => { CloseOnlinePlayerMenu(); R.SetRoomBot(seat, level); },
-                            bot && room.Bots.Any(entry => entry.Position == seat && entry.Difficulty == level), height: 36);
-                        AddLobbyTip(choice, tip, ZAiDifficulty.Hint(level));
-                    }
-                    y += 40;
-                }
+                bool modern = onlineBotModern ?? (bot && ZAiDifficulty.IsModern(difficulty.Value));
+                Label(list, "BOT DIFFICULTY", 8, y + 6, width - 160, 16, OzUi.Muted);
+                BuildLobbyAiGeneration(list, new OzRect(width - 144, y, 136, 28), modern,
+                    value => { onlineBotModern = value; dirty = true; });
+                y += 36;
+                var tip = Label(list, "", 8, y + 39, width - 16, 12, OzUi.Muted);
+                BuildLobbyAiDifficultyRow(list, new OzRect(8, y, width - 16, 36), modern, difficulty,
+                    level => { CloseOnlinePlayerMenu(); R.SetRoomBot(seat, level); }, tip);
+                y += 58;
                 ActionButton(bot ? "REMOVE BOT" : "OPEN POSITION", () => { if (bot) R.SetRoomBot(seat, null); else R.SetRoomClosed(seat, false); }, bot || closed);
                 ActionButton("CLOSE POSITION", () => R.SetRoomClosed(seat, true), !closed);
                 foreach (var member in room.Members.Where(member => member.Seat.Position < 0))

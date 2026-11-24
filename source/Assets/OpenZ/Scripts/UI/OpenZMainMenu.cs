@@ -313,12 +313,14 @@ namespace OpenZ
             Hud.Label(p, "Title", "OPTIONS", 16, OzUi.Ink, 0.16f).At(x, 15);
             Hud.Label(p, "Saved", "SAVED FOR EVERY MATCH", 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OptW - x, 18, OzH.R, false, 240);
             var mp = OptMainPage(p);                                                                         // options tabs: MAIN's fixed controls sit on their own page under the tab strip
-            Hud.Label(mp, "CpuLabel", "DIFFICULTY", 10, OzUi.Muted, 0.22f, OzStyle.Plain).At(x, OzMenuLayout.CpuRowLabelY);
+            Hud.Label(mp, "CpuLabel", "CAMPAIGN DIFFICULTY", 10, OzUi.Muted, 0.22f, OzStyle.Plain).At(x, OzMenuLayout.CpuRowLabelY);
+            optCpuGeneration = BuildSoloAiGeneration(mp, new OzRect(x + w - 152, OzMenuLayout.CpuRowY - 37, 152, 33), View.Main, Side.Options, 16);
             float bw = (w - 12) / 4f;
             optEasy = SmallButton(mp, "OptEasy", "EASY", new OzRect(x, OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Easy), OzLayout.OptRowText);
             optMedium = SmallButton(mp, "OptMedium", "MEDIUM", new OzRect(x + bw + 4, OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Medium), OzLayout.OptRowText);
             optNormal = SmallButton(mp, "OptHard", "HARD", new OzRect(x + 2 * (bw + 4), OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Hard), OzLayout.OptRowText);
             optMayhem = SmallButton(mp, "OptMayhem", "MAYHEM", new OzRect(x + 3 * (bw + 4), OzMenuLayout.CpuRowY, bw, OzMenuLayout.CpuRowH), View.Main, Side.Options, () => SetDifficulty(GameDifficulty.Mayhem), OzLayout.OptRowText);   // 1.4 MAYHEM: HARD + the fog of war
+            BuildModernCpuRow(mp, new OzRect(x, OzMenuLayout.CpuRowY, w, OzMenuLayout.CpuRowH), View.Main, Side.Options, optCpuModern, compact: false);
             optCpuHint = Hud.Label(mp, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(x, OzMenuLayout.CpuRowHintY, OzH.L, false, w);
             AddSlider(mp, 0, 0, "MUSIC", "oz_vol_music", "Music");
             AddSlider(mp, 0, 1, "EFFECTS · BATTLE", "oz_vol_effects", "SFX");
@@ -479,9 +481,7 @@ namespace OpenZ
 
         void RefreshOptions()
         {
-            var d = OpenZDifficulty.Choice;                                                                // 1.4 MAYHEM: the player's choice (MAYHEM is its own button)
-            SetSelected(optNormal, d == GameDifficulty.Hard); SetSelected(optEasy, d == GameDifficulty.Easy); SetSelected(optMedium, d == GameDifficulty.Medium); SetSelected(optMayhem, d == GameDifficulty.Mayhem);
-            optCpuHint.Set(OpenZDifficulty.Hint(d));
+            RefreshAiDifficulty(optCpuGeneration, optCpuHint, optCpuModern, optEasy, optMedium, optNormal, optMayhem, compact: false);
             foreach (var t in toggles)
             {
                 if (t.label == OzQuality.Label) continue;
@@ -864,11 +864,8 @@ namespace OpenZ
 
         void RefreshDeployBar()
         {
-            var d = OpenZDifficulty.Level; var pick = OpenZDifficulty.Choice;                              // 1.4 MAYHEM: the buttons and the hint show the choice; HEAD START and the SHUTTLE slot read the rules' difficulty (MAYHEM = HARD)
-            bool classic = !ZAiDifficulty.IsModern(OzAiSoloChoice.Level);
-            SetSelected(cpuNormal, classic && pick == GameDifficulty.Hard); SetSelected(cpuEasy, classic && pick == GameDifficulty.Easy); SetSelected(cpuMedium, classic && pick == GameDifficulty.Medium); SetSelected(cpuMayhem, classic && pick == GameDifficulty.Mayhem);
-            for (int i = 0; i < cpuModern.Length; i++) SetSelected(cpuModern[i], ZAiDifficulty.Modern[i] == OzAiSoloChoice.Level);
-            cpuHint.Set(classic ? OzDeployBar.CpuHint(pick) : OpenZDifficulty.Label(pick) + " CAMPAIGN RULES");
+            var d = OpenZDifficulty.Level;
+            RefreshAiDifficulty(cpuGeneration, cpuHint, cpuModern, cpuEasy, cpuMedium, cpuNormal, cpuMayhem, compact: true);
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
             RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips
             if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set("DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
@@ -1172,7 +1169,7 @@ namespace OpenZ
                 if (right) { if (focusCard >= levels.Length - 1) Sfx("ui_disabled"); FocusCard(focusCard + 1, false); }
                 if (enter) DeployByPlayer();                                                       // 1.2 item 11: the player's own DEPLOY (only it can arm PLAY AS BLUE; UI/OpenZMainMenu.PlayBlue.cs)
                 if (esc) BackFromSelect();                                                         // k75a: back to the faction screen (UI/OpenZMainMenu.Faction.cs)
-                if (kb.cKey.wasPressedThisFrame) DifficultyKey();                                         // 1.4 MAYHEM: EASY, MEDIUM, HARD, MAYHEM, EASY (UI/OpenZMainMenu.Mayhem.cs)
+                if (kb.cKey.wasPressedThisFrame) DifficultyKey();
                 if (kb.hKey.wasPressedThisFrame) ToggleHeadStart();
                 if (kb[ShuttleKey].wasPressedThisFrame && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) ToggleShuttleStart(true);   // K347: the SHUTTLE box's key (ui_disabled where it is not offered)
                 if (kb[UnitStatsKey].wasPressedThisFrame && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) SetUnitStats(!OzLevelStats.Box, true);   // 1.2 item 60: the UNIT STATS selector's key (ui_disabled where it is not shown; UI/OpenZMainMenu.UnitStats.cs)

@@ -1,5 +1,6 @@
 // OpenZ (GPL-3.0) - version 1.4 MAYHEM difficulty: the battlefield screen's C key and the checks' hooks.
 using System.Text;
+using OpenZ.Sim;
 using UnityEngine;
 
 namespace OpenZ
@@ -12,8 +13,15 @@ namespace OpenZ
     /// </summary>
     public partial class OpenZMainMenu
     {
-        /// <summary>The C key on the battlefield screen: the next difficulty (EASY, MEDIUM, HARD, MAYHEM, EASY), with the tab sound.</summary>
-        void DifficultyKey() { SetDifficulty(OpenZDifficulty.Next(OpenZDifficulty.Choice)); Sfx("ui_tab_switch"); }
+        /// <summary>The C key cycles the difficulties of the selected AI generation.</summary>
+        void DifficultyKey()
+        {
+            var level = OzAiSoloChoice.Level;
+            int index = System.Array.IndexOf(ZAiDifficulty.Modern, level);
+            if (index >= 0) OzAiSoloChoice.Level = ZAiDifficulty.Modern[(index + 1) % ZAiDifficulty.Modern.Length];
+            else SetDifficulty(OpenZDifficulty.Next(OpenZDifficulty.Choice));
+            Sfx("ui_tab_switch");
+        }
 
         // ---------------------------------------------------------------- proof hooks (Editor/OzV14MayhemCheck.cs, Play only)
         /// <summary>The C key's own step, as the key does it.</summary>

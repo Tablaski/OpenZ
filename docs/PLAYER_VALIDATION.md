@@ -1,5 +1,11 @@
 # Player validation record
 
+## AI generation selectors
+
+- Pending in a compiled game. Switch between 1996 and 2026 on the OpenZ Maps and AI Maps solo deployment screens and in Options > Main. Check that the same choice appears on both screens, that each generation restores its last difficulty after switching back and restarting, and that the C key cycles the visible row. Check the deployment bar at 16:9, 4:3 and 5:4.
+- In local Skirmish, inspect the Teams and Free for All layouts and drag a bot to another team. Switch the ALL BOTS and individual selectors, mix generations, and verify that a mixed roster has no highlighted global difficulty. Select a global difficulty and confirm every bot reflects it.
+- As the online host, open a vacant seat and a bot seat, switch generations, and choose a difficulty. Verify that the menu opens on the current generation when editing a bot and that seat actions still work. Confirm a guest cannot change the host's bot settings.
+
 ## OpenZ-VK 1.5.63 fog of war
 
 - Checkpoint `8bd0e169` passed 9,083 headless checks and Unity runtime source compilation. The radar-loss scenario covers an unchanged movement destination, a remembered rock blocking a direct route until the removal is visible, and an attack on the last known position of a target that moves and is removed under fog. Restoring radar vision clears the attack on the missing target.

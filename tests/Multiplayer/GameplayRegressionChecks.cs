@@ -17,6 +17,74 @@ static class GameplayRegressionChecks
         CheckApc(settings, check);
         CheckBridgeAttack(settings, check);
         CheckQueuedBridgeAttack(settings, check);
+        CheckPassageDetourCache(settings, check);
+    }
+
+    static void CheckPassageDetourCache(string settings, Action<bool, string> check)
+    {
+        var cached = Battlefield(settings, true);
+        var reference = Battlefield(settings, true);
+        reference.Pathing.CachePassageDetours = false;
+        var worlds = new[] { cached, reference };
+
+        void CompareZones(string stage)
+        {
+            foreach (var world in worlds) world.Pathing.EnsureLanes();
+            var a = cached.Pathing;
+            var b = reference.Pathing;
+            for (int y = 0; y < cached.Path.H; y++)
+                for (int x = 0; x < cached.Path.W; x++)
+                    if (a.ZoneBits(x, y) != b.ZoneBits(x, y) || a.ZoneBitsV(x, y) != b.ZoneBitsV(x, y) ||
+                        a.PassageAt(x, y) != b.PassageAt(x, y) || a.SqueezeAt(x, y) != b.SqueezeAt(x, y))
+                    {
+                        check(false, $"Passage cache diverged at ({x}, {y}) after {stage}");
+                        return;
+                    }
+            check(true, $"Passage geometry matches after {stage}");
+        }
+
+        foreach (var world in worlds)
+            for (int y = 14; y < 29; y++)
+                if (y != 20 && y != 21) world.Path.SetImpassable(24, y);
+        CompareZones("loading a map with narrow runs");
+        int coldSearches = cached.Pathing.PassageDetourSearches;
+        check(coldSearches > 0 && coldSearches == reference.Pathing.PassageDetourSearches, "The first rebuild computes every detour");
+
+        foreach (var world in worlds) world.Path.SetImpassable(24, 14);
+        CompareZones("a passability write with the same value");
+        check(cached.Pathing.PassageDetourSearches == coldSearches &&
+            reference.Pathing.PassageDetourSearches > coldSearches, "Unchanged footprints reuse all previously tested detours");
+
+        foreach (var world in worlds) world.Path.SetImpassable(24, 20);
+        CompareZones("narrowing a two-tile opening to one tile");
+        foreach (var world in worlds)
+        {
+            world.Path.SetImpassable(24, 20, false);
+            world.Path.SetImpassable(24, 15, false);
+        }
+        CompareZones("reopening an opening and adding a nearby bypass");
+
+        foreach (var world in worlds)
+        {
+            var bridge = world.Objects.Single(o => o.IsBridge);
+            bridge.SetHealth(0);
+            world.UpdateObjectHealth(bridge);
+        }
+        CompareZones("destroying the bridge");
+        foreach (var world in worlds) world.AutoRepair(world.Objects.Single(o => o.IsBridge));
+        CompareZones("repairing the bridge");
+
+        var random = new Random(42);
+        for (int revision = 0; revision < 24; revision++)
+        {
+            for (int change = 0; change < 12; change++)
+            {
+                int x = random.Next(4, 45), y = random.Next(15, 29);
+                bool blocked = random.Next(2) == 0;
+                foreach (var world in worlds) world.Path.SetImpassable(x, y, blocked);
+            }
+            CompareZones($"terrain revision {revision}");
+        }
     }
 
     static void CheckHeadStart(string settings, Action<bool, string> check)

@@ -1248,6 +1248,72 @@ namespace OpenZ.Sim
         }
 
         int[] pSeen; int pStamp; readonly List<int> pQueue = new List<int>(); readonly List<int> pNext = new List<int>();
+        bool[] passageFootprint;
+        PassageDetours robotDetours, vehicleDetours;
+        internal bool CachePassageDetours { get; set; } = true;
+        internal int PassageDetourSearches => pStamp;
+
+        sealed class PassageDetours
+        {
+            public readonly int Width, Height;
+            readonly bool[] previousFootprint;
+            readonly int[] changes;
+            sbyte[] previous, current;
+
+            public PassageDetours(int width, int height)
+            {
+                Width = width;
+                Height = height;
+                previousFootprint = new bool[width * height];
+                changes = new int[(width + 1) * (height + 1)];
+                previous = new sbyte[2 * width * height];
+                current = new sbyte[previous.Length];
+            }
+
+            public void Begin(bool[] footprint)
+            {
+                int stride = Width + 1;
+                for (int y = 0; y < Height; y++)
+                {
+                    int changedOnRow = 0;
+                    for (int x = 0; x < Width; x++)
+                    {
+                        int tile = y * Width + x;
+                        if (footprint[tile] != previousFootprint[tile]) changedOnRow++;
+                        int cell = (y + 1) * stride + x + 1;
+                        changes[cell] = changes[cell - stride] + changedOnRow;
+                    }
+                }
+                Array.Clear(current, 0, current.Length);
+            }
+
+            public void Complete(bool[] footprint)
+            {
+                Array.Copy(footprint, previousFootprint, footprint.Length);
+                (previous, current) = (current, previous);
+            }
+
+            public int Index(bool rows, int line, int start) =>
+                rows ? line * Width + start : Width * Height + start * Width + line;
+
+            // DetourWithin starts one tile before the run and cannot read a footprint
+            // beyond its step limit, including the orthogonal checks for diagonals.
+            public bool TryGet(int index, bool rows, int line, int start, int end, out bool result)
+            {
+                int old = previous[index], length = end - start + 1;
+                result = old > 0;
+                if (Math.Abs(old) != length) return false;
+                int left = Math.Max(0, (rows ? start : line - 1) - DetourMax);
+                int top = Math.Max(0, (rows ? line - 1 : start) - DetourMax);
+                int right = Math.Min(Width, (rows ? end : line - 1) + DetourMax + 1);
+                int bottom = Math.Min(Height, (rows ? line - 1 : end) + DetourMax + 1);
+                int stride = Width + 1;
+                return changes[bottom * stride + right] - changes[bottom * stride + left] ==
+                       changes[top * stride + right] - changes[top * stride + left];
+            }
+
+            public void Set(int index, int length, bool result) => current[index] = (sbyte)(result ? length : -length);
+        }
 
         /// <summary>Bottleneck positions of one grid (robots: free tiles, rocks solid; vehicles: positions where the 2x2 footprint fits): a
         /// maximal free run across (in a row or a column) of at most NarrowRun positions, open on both ends of the passage (a position right
@@ -1257,11 +1323,20 @@ namespace OpenZ.Sim
         bool[] Passages(bool robot, bool[] run1)
         {
             var pf = W.Path; int n = zw * zh;
-            var f = new bool[n];
+            if (passageFootprint == null || passageFootprint.Length != n) passageFootprint = new bool[n];
+            var f = passageFootprint;
             for (int y = 0; y < zh; y++)
                 for (int x = 0; x < zw; x++)
                     f[y * zw + x] = robot ? pf.TilePassableGrid(x, y, true, false)
                                           : x + 1 < zw && y + 1 < zh && pf.TilePassableGrid(x, y, false, false) && pf.TilePassableGrid(x + 1, y, false, false) && pf.TilePassableGrid(x, y + 1, false, false) && pf.TilePassableGrid(x + 1, y + 1, false, false);
+            PassageDetours detours = null;
+            if (CachePassageDetours)
+            {
+                ref var cache = ref (robot ? ref robotDetours : ref vehicleDetours);
+                if (cache == null || cache.Width != zw || cache.Height != zh) cache = new PassageDetours(zw, zh);
+                detours = cache;
+                detours.Begin(f);
+            }
             bool F(int x, int y) => x >= 0 && y >= 0 && x < zw && y < zh && f[y * zw + x];
             var res = new bool[n];
             if (pSeen == null || pSeen.Length != n) pSeen = new int[n];
@@ -1282,10 +1357,21 @@ namespace OpenZ.Sim
                             if (rows ? F(i, line - 1) : F(line - 1, i)) before = true;
                             if (rows ? F(i, line + 1) : F(line + 1, i)) after = true;
                         }
-                        if (!before || !after || DetourWithin(f, rows, line, s, e)) continue;
+                        if (!before || !after) continue;
+                        bool hasDetour;
+                        if (detours == null) hasDetour = DetourWithin(f, rows, line, s, e);
+                        else
+                        {
+                            int index = detours.Index(rows, line, s);
+                            if (!detours.TryGet(index, rows, line, s, e, out hasDetour))
+                                hasDetour = DetourWithin(f, rows, line, s, e);
+                            detours.Set(index, e - s + 1, hasDetour);
+                        }
+                        if (hasDetour) continue;
                         for (int i = s; i <= e; i++) { res[rows ? line * zw + i : i * zw + line] = true; if (run1 != null && e == s) run1[rows ? line * zw + i : i * zw + line] = true; }
                     }
             }
+            detours?.Complete(f);
             return res;
         }
 

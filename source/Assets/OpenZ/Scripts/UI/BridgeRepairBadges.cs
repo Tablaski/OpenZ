@@ -44,6 +44,11 @@ namespace OpenZ
                 // ZF23: the repair station's countdown (Zod's flat 5 s, ZObject.RepairTime) uses the same badge while it repairs
                 bool station = o.Type == "repair" && o.Kind == ZKind.Building;
                 if (!o.IsBridge && !station) continue;
+                if (OzFogOfWar.Covers(o))
+                {
+                    if (badges.TryGetValue(o.Id, out var hidden)) hidden.rt.gameObject.SetActive(false);
+                    continue;
+                }
                 bool down = station ? o.RepairingUnit && !o.Destroyed : o.Destroyed && o.DoAutoRepair;
                 badges.TryGetValue(o.Id, out var b);
                 if (!down && b == null) continue;

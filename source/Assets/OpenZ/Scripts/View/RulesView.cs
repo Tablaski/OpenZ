@@ -338,7 +338,7 @@ namespace OpenZ
             var W = game.World;
             foreach (var o in W.Objects)
             {
-                if (!o.IsBridge) continue;
+                if (!o.IsBridge || OzFogOfWar.Covers(o)) continue;
                 bool down = o.Destroyed && o.DoAutoRepair;
                 if (!down) continue;
                 double left = o.NextAutoRepairTime - W.Time;

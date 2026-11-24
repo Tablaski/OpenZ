@@ -1,5 +1,7 @@
 #include <iostream>
 
+bool combat_lab_synchronous_paths = false;
+
 namespace {
 struct LabUnit { int category, type; };
 const LabUnit lab_units[] = {
@@ -27,6 +29,7 @@ bool lab_dodging(ZObject *unit)
 
 int ZServer::RunCombatLab(const char *settings)
 {
+    combat_lab_synchronous_paths = true;
     if (!zsettings.LoadSettings(settings)) return 2;
     ZMap::ServerInit();
     int seed, shooter_type, target_type, distance, terrain, health;
@@ -37,7 +40,7 @@ int ZServer::RunCombatLab(const char *settings)
             terrain < 0 || terrain > 2 || health < 1 || health > 100 || distance < 0 || distance > 256)
             return 3;
         if (mode != "blast" && mode != "duel" && mode != "shot-idle" && mode != "shot-move" &&
-            mode != "shot-attack" && mode != "move-normal") return 3;
+            mode != "shot-attack" && mode != "move-normal" && mode != "move-boost") return 3;
 
         ResetGame();
         new_damage_missile_list.clear();
@@ -64,7 +67,7 @@ int ZServer::RunCombatLab(const char *settings)
         target->GetCenterCords(start_x, start_y);
         const int maximum = target->GetMaxHealth();
         int before = target->GetHealth(), shooter_lost = 0, radius = 0, shots = 0, hits = 0, dodged = 0, outcome = 0, travel = 0;
-        if (mode == "move-normal")
+        if (mode == "move-normal" || mode == "move-boost")
         {
             waypoint order;
             order.mode = MOVE_WP; order.x = start_x + 320; order.y = start_y; order.player_given = true;
@@ -73,6 +76,7 @@ int ZServer::RunCombatLab(const char *settings)
             {
                 ztime.ztime = tick * .01;
                 ProcessObjects();
+                if (tick == 1 && mode == "move-boost") target->AttemptStartRun();
             }
             int x, y;
             target->GetCenterCords(x, y);

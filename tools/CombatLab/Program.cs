@@ -14,11 +14,12 @@ string profile = candidatePath == null ? null : File.ReadAllText(candidatePath);
 if (profile != null && ZBehaviorProfile.Decode(profile)?.family != ZBehaviorFamily.Tanks)
     throw new ArgumentException("The candidate must be an exported OpenZ tank behavior profile.");
 string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
-string signature = Hash(File.ReadAllBytes(typeof(ZWorld).Assembly.Location)) + "/" + Hash(Encoding.UTF8.GetBytes(settings + "\n" + profile));
+string signature = Hash(File.ReadAllBytes(typeof(ZWorld).Assembly.Location)) + "/" + Hash(Encoding.UTF8.GetBytes(settings));
 Directory.CreateDirectory(data);
 using var owner = new FileStream(Path.Combine(data, "owner.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 using var db = new LabDatabase(Path.Combine(data, "results.sqlite3"));
-using var lab = new Campaigns(db, new OpenZProbe(settings), profile == null ? null : new OpenZProbe(settings, profile), zod, signature);
+using var lab = new Campaigns(db, new OpenZProbe(settings), profile == null ? null : new OpenZProbe(settings, profile), zod,
+    signature, profile == null ? null : Hash(Encoding.UTF8.GetBytes(profile)), settings);
 
 var builder = WebApplication.CreateBuilder(args);
 int port = int.TryParse(Environment.GetEnvironmentVariable("OPENZ_COMBAT_PORT"), out int value) ? value : 8911;
@@ -45,9 +46,12 @@ app.MapGet("/api/status", () => lab.Status());
 app.MapPost("/api/campaign", (Plan plan) => new { id = lab.Create(plan) });
 app.MapPost("/api/campaign/{id:long}/resume", (long id, int? repeats) => { lab.Start(id, repeats); return Results.Ok(); });
 app.MapPost("/api/pause", () => { lab.Pause(); return Results.Ok(); });
+app.MapGet("/api/campaign/{id:long}/ranking", (long id) => Calibration.Rank(db, id));
+app.MapGet("/api/profile/{name}", (string name) => Calibration.Profiles.TryGetValue(name, out string json)
+    ? Results.File(Encoding.UTF8.GetBytes(json), "application/json", $"Combat Lab {name}.json") : Results.NotFound());
 app.MapGet("/api/campaign/{id:long}/results", (long id, string mode, int? terrain, int? health, int? distance) =>
 {
-    if (mode is not ("blast" or "duel" or "shot-idle" or "shot-move" or "shot-attack" or "move-normal"))
+    if (mode is not ("blast" or "duel" or "shot-idle" or "shot-move" or "shot-attack" or "move-normal" or "move-boost"))
         return Results.BadRequest();
     string filters = $"campaign={id} AND mode={LabDatabase.Quote(mode)}";
     if (terrain.HasValue) filters += $" AND terrain={terrain.Value}";

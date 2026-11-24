@@ -4,7 +4,8 @@ using System.Text.Json;
 internal record Plan(string Suite, int Repeats, bool CompareZod, bool Candidate);
 internal record Work(int Index, int Seed, Scenario Scenario);
 
-internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe candidate, ZodProbe zod, string sourceSignature) : IDisposable
+internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe candidate, ZodProbe zod,
+    string sourceSignature, string candidateSignature, string openSettings) : IDisposable
 {
     readonly object gate = new();
     CancellationTokenSource stop;
@@ -79,13 +80,16 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
 
     void Validate(Plan plan)
     {
-        if (plan == null || plan.Suite is not ("blast" or "tanks" or "terrain") || plan.Repeats < 1 || plan.Repeats > 5000)
+        if (plan == null || plan.Suite is not ("blast" or "tanks" or "terrain" or "tune") || plan.Repeats < 1 || plan.Repeats > 5000)
             throw new InvalidOperationException("Choose a suite and between 1 and 5000 repetitions.");
+        if (plan.Suite == "tune" && (!plan.CompareZod || plan.Repeats < 2))
+            throw new InvalidOperationException("Automatic calibration needs Zod and at least two repetitions. Choose 20 or more for a useful ranking.");
         if (plan.CompareZod && !zod.Available) throw new InvalidOperationException("The Zod worker is missing. Run Setup-Zod.ps1 first.");
         if (plan.Candidate && candidate == null) throw new InvalidOperationException("Load a tank profile with Start-CombatLab.ps1 -CandidateProfile first.");
     }
 
-    string Signature(Plan plan) => sourceSignature + (plan.CompareZod ? "/" + zod.Identity : "");
+    string Signature(Plan plan) => sourceSignature + (plan.Candidate ? "/" + candidateSignature : "") +
+        (plan.CompareZod ? "/" + zod.Identity : "");
 
     static IEnumerable<Scenario> Scenarios(string suite)
     {
@@ -104,16 +108,19 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
         foreach (string shooter in OpenZProbe.Tanks)
         foreach (string target in OpenZProbe.Tanks)
         foreach (int distance in new[] { 56, 96 })
-        foreach (string mode in new[] { "shot-idle", "shot-move", "shot-attack", "duel" })
+        foreach (string mode in suite == "tune" ? new[] { "shot-idle", "shot-move", "shot-attack" } : new[] { "shot-idle", "shot-move", "shot-attack", "duel" })
             yield return new(mode, shooter, target, distance, terrain, health);
         foreach (string unit in OpenZProbe.Weapons.Take(4))
         foreach (int terrain in suite == "terrain" ? new[] { 0, 1, 2 } : terrains)
         foreach (int health in healths)
+        {
             yield return new("move-normal", unit, unit, 0, terrain, health);
+            if (suite == "terrain") yield return new("move-boost", unit, unit, 0, terrain, health);
+        }
     }
 
     static int Count(Plan plan) => Scenarios(plan.Suite).Sum(s => Repeats(s, plan)) *
-        (1 + (plan.CompareZod ? 1 : 0) + (plan.Candidate ? 1 : 0));
+        (1 + (plan.CompareZod ? 1 : 0) + (plan.Candidate ? 1 : 0) + (plan.Suite == "tune" ? Calibration.Profiles.Count : 0));
 
     static int Repeats(Scenario scenario, Plan plan) => scenario.Mode is "blast" or "move-normal" ? 1 : plan.Repeats;
 
@@ -124,6 +131,8 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
         var engines = new List<string> { "OpenZ" };
         if (plan.CompareZod) engines.Add("Zod");
         if (plan.Candidate) engines.Add("Candidate");
+        var profiles = plan.Suite == "tune" ? Calibration.Profiles.ToDictionary(p => p.Key, p => new OpenZProbe(openSettings, p.Value)) : [];
+        engines.AddRange(profiles.Keys);
         var done = db.Query($"SELECT engine,task FROM trial WHERE campaign={id}")
             .ToLookup(row => row["engine"], row => int.Parse(row["task"]));
         var batches = engines.Select(engine =>
@@ -144,7 +153,7 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
             }
             else
             {
-                var probe = job.engine == "Candidate" ? candidate : open;
+                var probe = job.engine == "Candidate" ? candidate : profiles.GetValueOrDefault(job.engine, open);
                 results = new Sample[job.batch.Length];
                 for (int i = 0; i < results.Length; i++)
                 {

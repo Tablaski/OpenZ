@@ -43,7 +43,12 @@ internal sealed class OpenZProbe(string settings, string candidate = null)
         {
             int start = target.CenterX;
             target.Waypoints.Add(new ZWaypoint { mode = WpMode.Move, x = start + 320, y = target.CenterY, playerGiven = true });
-            for (int i = 0; i < 200; i++) { world.Tick(ZConst.TICK); world.Events.Clear(); }
+            for (int i = 0; i < 200; i++)
+            {
+                world.Tick(ZConst.TICK);
+                if (i == 0 && scenario.Mode == "move-boost") target.AttemptStartRun();
+                world.Events.Clear();
+            }
             return new Sample(0, target.MaxHealth, 0, 0, 0, 0, 0, 0, world.Time, target.CenterX - start);
         }
 

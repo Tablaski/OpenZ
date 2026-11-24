@@ -19,13 +19,14 @@
   th { color: #facda8; } td small { display: block; color: #c1c4cd; }
   svg { width: 100%; max-height: 350px; margin-top: 12px; overflow: visible; }
   .subtle { color: #c3c6cd; } #detail { margin: 8px 0; }
+  [hidden] { display: none !important; }
 </style>
 <main>
   <h1>OpenZ combat lab</h1>
   <section aria-labelledby="run-title">
     <h2 id="run-title">Run a test</h2>
     <div class="controls">
-      <label>Test suite <select id="suite"><option value="blast">Shell damage and radius</option><option value="tanks">Tank shots and duels</option><option value="terrain">Road, water and damaged units</option></select></label>
+      <label>Test suite <select id="suite"><option value="blast">Shell damage and radius</option><option value="tanks">Tank shots and duels</option><option value="terrain">Road, water and damaged units</option><option value="tune">Find a tank dodge profile</option></select></label>
       <label>Repeats per fight <input id="repeats" type="number" value="20" min="1" max="5000"></label>
       <label class="toggle"><input type="checkbox" id="zod"> Compare with Zod</label>
       <label class="toggle"><input type="checkbox" id="candidate"> Include loaded tank profile</label>
@@ -43,7 +44,7 @@
   <section aria-labelledby="results-title">
     <h2 id="results-title">Results</h2>
     <div class="controls">
-      <label>View <select id="mode"><option value="blast">Damage by distance</option><option value="shot-idle">One shot · idle target</option><option value="shot-move">One shot · target ordered to move</option><option value="shot-attack">One shot · target ordered to attack</option><option value="duel">Two-way duels</option><option value="move-normal">Movement speed</option></select></label>
+      <label>View <select id="mode"><option value="blast">Damage by distance</option><option value="shot-idle">One shot · idle target</option><option value="shot-move">One shot · target ordered to move</option><option value="shot-attack">One shot · target ordered to attack</option><option value="duel">Two-way duels</option><option value="move-normal">Movement speed</option><option value="move-boost">Movement with boost requested</option></select></label>
       <label class="blast">Weapon <select id="weapon"></select></label>
       <label class="blast">Target <select id="target"></select></label>
       <label class="fight">Starting distance <select id="distance"><option value="56">56 px</option><option value="96">96 px</option></select></label>
@@ -54,6 +55,7 @@
     </div>
     <p class="subtle" id="detail"></p>
     <div class="table-scroll" id="results"></div>
+    <div class="table-scroll" id="ranking" hidden></div>
   </section>
 </main>
 <script>
@@ -61,7 +63,7 @@
   const tanks = ['light', 'medium', 'heavy'];
   const weapons = [...tanks, 'tough', 'gun', 'howitzer', 'missile_cannon', 'missile_launcher'];
   const colors = { OpenZ: '#ffab69', Zod: '#70d5e0', Candidate: '#d570ff' };
-  const names = { blast: 'Shell damage', tanks: 'Tank fights', terrain: 'Terrain and damage' };
+  const names = { blast: 'Shell damage', tanks: 'Tank fights', terrain: 'Terrain and damage', tune: 'Tank dodge calibration' };
   const display = value => value.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase());
   const node = (tag, value) => { const el = document.createElement(tag); el.textContent = value; return el; };
   function select(id, entries) {
@@ -87,7 +89,7 @@
       await refresh(reply?.id);
     } catch (error) { $('error').textContent = error.message; }
   }
-  $('start').onclick = () => act('/api/campaign', { suite: $('suite').value, repeats: +$('repeats').value, compareZod: $('zod').checked, candidate: $('candidate').checked });
+  $('start').onclick = () => act('/api/campaign', { suite: $('suite').value, repeats: +$('repeats').value, compareZod: $('zod').checked || $('suite').value === 'tune', candidate: $('candidate').checked });
   $('pause').onclick = () => act('/api/pause', {});
   $('resume').onclick = () => act(`/api/campaign/${$('campaign').value}/resume`, {});
   $('extend').onclick = () => act(`/api/campaign/${$('campaign').value}/resume?repeats=${+$('repeats').value}`, {});
@@ -109,7 +111,7 @@
     const id = +$('campaign').value;
     const c = known.find(campaign => campaign.id === id);
     const active = currentStatus?.active;
-    $('start').disabled = !!active;
+    $('start').disabled = !!active || ($('suite').value === 'tune' && !currentStatus?.zod);
     $('pause').disabled = !active;
     $('resume').disabled = !c || !!active || c.done === c.total;
     $('extend').disabled = !c || !!active || c.plan.suite === 'blast';
@@ -118,9 +120,9 @@
     $('progress-label').textContent = c ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} trials saved · ${active === id ? 'Running' : c.done === c.total ? 'Complete' : 'Ready to resume'}` : 'Choose a test suite to begin.';
     $('export').hidden = !c?.done;
     $('export').href = `/api/campaign/${id}/export.csv`;
-    $('mode').querySelectorAll('option').forEach(o => o.disabled = c && ((c.plan.suite === 'blast') !== (o.value === 'blast')));
+    $('mode').querySelectorAll('option').forEach(o => o.disabled = c && (((c.plan.suite === 'blast') !== (o.value === 'blast')) || (c.plan.suite === 'tune' && o.value === 'duel') || (c.plan.suite !== 'terrain' && o.value === 'move-boost')));
     if ($('mode').selectedOptions[0]?.disabled) $('mode').value = c.plan.suite === 'blast' ? 'blast' : 'shot-idle';
-    const mode = $('mode').value, blast = mode === 'blast', move = mode === 'move-normal';
+    const mode = $('mode').value, blast = mode === 'blast', move = mode.startsWith('move-');
     document.querySelectorAll('.blast').forEach(el => el.hidden = !blast);
     document.querySelectorAll('.fight').forEach(el => el.hidden = blast || move);
     document.querySelectorAll('.terrain').forEach(el => el.hidden = blast);
@@ -130,13 +132,20 @@
       : move ? 'Average speed during a two-second move order, in simulation pixels per second.'
       : mode === 'duel' ? 'Both units attack. The row unit is the shooter for the selected measure.'
       : 'The row unit fires at the column unit. Misses count as zero HP lost. A dodge can start even if the shell still hits.';
+    $('ranking').hidden = c?.plan.suite !== 'tune';
+    $('ranking').replaceChildren();
+    if (c?.plan.suite === 'tune') {
+      const ranking = c.done === c.total ? await request(`/api/campaign/${id}/ranking`) : [];
+      if (seq !== generation) return;
+      showRanking(ranking);
+    }
     if (!c) { $('results').textContent = 'Results appear as soon as the first batch is saved.'; return; }
     const query = new URLSearchParams({ mode });
     if (!blast) { query.set('terrain', $('terrain').value); query.set('health', $('health').value); }
     if (!blast && !move) query.set('distance', $('distance').value);
     const rows = await request(`/api/campaign/${id}/results?${query}`);
     if (seq !== generation) return;
-    const filtered = blast ? rows.filter(r => r.shooter === $('weapon').value && r.target === $('target').value && +r.shots > 0) : rows;
+    const filtered = blast ? rows.filter(r => r.shooter === $('weapon').value && r.target === $('target').value && +r.shots > 0) : rows.filter(r => !r.engine.startsWith('Tune '));
     $('results').replaceChildren();
     if (!filtered.length) { $('results').textContent = 'No saved trials for this view yet.'; return; }
     if (blast) { draw(filtered); return; }
@@ -160,6 +169,27 @@
       table.append(tr);
     }
     $('results').append(table);
+  }
+  function showRanking(rows) {
+    $('ranking').append(node('h2', 'Tank profile ranking'));
+    $('ranking').append(node('p', rows.length ? 'Lower is closer to Zod. Odd seeds rank the profiles. Even seeds show how the ranking holds up on fresh trials.' : 'Profile downloads and validation scores appear after the full campaign.'));
+    if (!rows.length) return;
+    const table = node('table', '');
+    const header = node('tr', '');
+    header.append(...['Profile', 'Ranking error', 'Validation error', 'Download'].map(label => node('th', label)));
+    table.append(header);
+    for (const row of rows) {
+      const tr = node('tr', '');
+      tr.append(node('th', row.engine), node('td', row.score ?? '—'), node('td', row.validation ?? '—'));
+      const cell = node('td', '');
+      if (row.engine.startsWith('Tune ')) {
+        const link = node('a', 'Profile JSON');
+        link.href = `/api/profile/${encodeURIComponent(row.engine)}`;
+        cell.append(link);
+      }
+      tr.append(cell); table.append(tr);
+    }
+    $('ranking').append(table);
   }
   function draw(rows) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -196,7 +226,7 @@
       label.style.color = colors[engine]; $('results').append(label);
     }
   }
-  document.querySelectorAll('#campaign, #mode, #weapon, #target, #distance, #terrain, #health, #measure').forEach(el => el.onchange = () => results().catch(error => $('error').textContent = error.message));
+  document.querySelectorAll('#suite, #campaign, #mode, #weapon, #target, #distance, #terrain, #health, #measure').forEach(el => el.onchange = () => results().catch(error => $('error').textContent = error.message));
   refresh().catch(error => $('error').textContent = error.message);
   setInterval(() => refresh().catch(error => $('error').textContent = error.message), 2500);
 </script>

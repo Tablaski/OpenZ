@@ -40,6 +40,17 @@ $mainInsert = @'
 
 '@
 Insert-Source 'src/main.cpp' $mainAnchor ($mainInsert + "`n" + $mainAnchor)
+$pathAnchor = "`t//start thread"
+$pathInsert = @'
+    extern bool combat_lab_synchronous_paths;
+    if (combat_lab_synchronous_paths)
+    {
+        Find_Path_Thread(response);
+        return next_thread_id;
+    }
+
+'@
+Insert-Source 'src/zpath_finding.cpp' $pathAnchor ($pathInsert + "`n" + $pathAnchor)
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CombatLabZod.inc') -Destination (Join-Path $buildRoot 'src/CombatLabZod.inc')
 [IO.File]::AppendAllText((Join-Path $buildRoot 'src/zserver.cpp'), "`n#include `"CombatLabZod.inc`"`n")
 $env:MSYSTEM = 'MINGW64'

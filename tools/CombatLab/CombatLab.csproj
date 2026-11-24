@@ -10,6 +10,10 @@
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/*.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/Multiplayer/Simulation/*.cs" />
     <Compile Include="../../source/Assets/OpenZ/Scripts/View/OzRadarLineRule.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/OzFowMask.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzAiTerrainV4.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzAiTerrainV5.cs" />
+    <Compile Include="../../source/Assets/OpenZ/Scripts/View/Experimental/OzJungleTerracesV4.cs" />
     <Compile Include="../../tests/Multiplayer/UnityShim.cs" />
     <None Update="dashboard.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

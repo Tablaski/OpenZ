@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.69 (24 Nov 2026)
+
+- AI Maps — The experimental Arctic V5 has rounded snowbanks and irregular ice edges where they meet open water.
+
 ## OpenZ-VK 1.5.68 (24 Nov 2026)
 
 - Local Skirmish and online multiplayer — Teams can have different numbers of players. Local end-of-match statistics now use the same participant table as online matches with three or more sides.

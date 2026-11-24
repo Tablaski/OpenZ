@@ -19,6 +19,7 @@ namespace OpenZ.Experimental
         public bool IsPaletteV5 { get; private set; }
 
         const int Apron = 24;
+        const float WaterLevel = -.33f;
         readonly List<Object> generated = new List<Object>();
 
         protected void Awake()
@@ -73,13 +74,14 @@ namespace OpenZ.Experimental
             terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
             if (!render) return;
 
+            var arcticEdges = IsPaletteV5 && map.planet == "arctic" ? new ArcticEdges(map) : null;
             var palette = bakeWithPaletteV3 && PaletteV3.Supports(map.planet) &&
                 map.tiles?.Length == map.width * map.height ? new PaletteV3(map) : null;
             IsPaletteV3 = palette != null || (bakeWithPaletteV3 && map.planet == "arctic");
             var surfaceGround = map.planet switch
             {
                 "volcanic" => VolcanicGround(map, palette, useV4),
-                "arctic" => ArcticGround(map, useV4),
+                "arctic" => ArcticGround(map, useV4, arcticEdges),
                 _ => LandGround(map, palette, useV4)
             };
             if (useV4)
@@ -105,14 +107,14 @@ namespace OpenZ.Experimental
             terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? map.planet switch
             {
                 "city" => CityBorderSurface(map, vertices, uv, channels),
-                "arctic" => ArcticSnowBanks(mesh, vertices, channels),
+                "arctic" => ArcticSnowBanks(map, vertices, channels, stride, step, arcticEdges, HeightWithWetness),
                 "jungle" when mapId == "SM16" => JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance),
                 _ => mesh
             } : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = cityV5
                 ? new[] { surfaceGround, rockFace, floor, CityBorderConcrete() }
                 : new[] { surfaceGround, rockFace, floor };
-            BuildWater(map, useV4);
+            BuildWater(map, useV4, arcticEdges);
             if (cityV5) BuildCityBorderRuins(map, Height);
             if (IsPaletteV5 && map.planet == "volcanic")
             {
@@ -124,13 +126,15 @@ namespace OpenZ.Experimental
             Debug.Log($"[AI map terrain] {mapId} {profile}, {surfaceGround.shader.name}, shader profile {shaderProfile}");
             if (terraces?.HasTerraces == true) SeatTerraceViews();
 
-            float Height(float x, float z)
+            float Height(float x, float z) => HeightWithWetness(x, z, -1);
+
+            float HeightWithWetness(float x, float z, float wetOverride)
             {
                 float clearance = 0;
                 foreach (var bridge in bridgeClearance)
                     clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
                 float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
-                float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge);
+                float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge, wetOverride);
                 if (terraces?.HasTerraces == true && clearance == 0)
                     height += TerraceAdjustment(map, terraces, x, z, height);
                 return height;
@@ -224,12 +228,12 @@ namespace OpenZ.Experimental
 
         // World-space noise breaks straight grid edges. The centres of ordinary tiles stay near the
         // road grade, while solid tiles rise or sink according to their corresponding palette role.
-        static float Elevation(ZMapData map, float x, float z, float span, float clearance, float ridge)
+        static float Elevation(ZMapData map, float x, float z, float span, float clearance, float ridge, float wetOverride = -1)
         {
             float warpX = (Mathf.PerlinNoise(x * .27f, z * .27f) - .5f) * .7f;
             float warpZ = (Mathf.PerlinNoise(z * .29f + 7, x * .29f) - .5f) * .7f;
             bool city = map.planet == "city", jungle = map.planet == "jungle", arctic = map.planet == "arctic";
-            float wet = Mask(map, x + warpX, z + warpZ, Wet);
+            float wet = wetOverride >= 0 ? wetOverride : Mask(map, x + warpX, z + warpZ, Wet);
             float solid = Mask(map, x + warpX, z + warpZ, Solid);
             float road = Mask(map, x, z, Road);
             float outside = Mathf.Max(Mathf.Max(-x, x - map.width * 2), Mathf.Max(-z, z - map.height * 2));
@@ -348,41 +352,25 @@ namespace OpenZ.Experimental
             return material;
         }
 
-        void BuildWater(ZMapData map, bool useV4)
+        void BuildWater(ZMapData map, bool useV4, ArcticEdges arcticEdges)
         {
             var vertices = new List<Vector3>();
             var indices = new List<int>();
             var underDeck = BridgeWater(map);
             bool WetSurface(ZMapData data, int index) => Water(data, index) || underDeck[index];
-            bool UnderDeck(ZMapData data, int index) => underDeck[index];
-            bool arcticV5 = IsPaletteV5 && map.planet == "arctic";
-            var triangle = new Vector2[3];
-            var clipped = new Vector2[4];
-            const float threshold = .12f;
-            const float waterY = -.33f;
             for (int y = 0; y < map.height * 2; y++)
             for (int x = 0; x < map.width * 2; x++)
             {
                 float center = Mask(map, x + .5f, y + .5f, WetSurface);
-                if (arcticV5 && center > 0 && center < .88f &&
-                    Mask(map,x + .5f,y + .5f,ArcticIceTile) < .01f && Mask(map,x + .5f,y + .5f,UnderDeck) == 0)
-                {
-                    for (int k = 0; k < 4; k++)
-                    {
-                        var first = new Vector2(x + (k & 1) * .5f, y + (k >> 1) * .5f);
-                        var east = first + Vector2.right * .5f;
-                        var south = first + Vector2.up * .5f;
-                        AddShoreTriangle(first,east,south);
-                        AddShoreTriangle(south,east,east + Vector2.up * .5f);
-                    }
-                    continue;
-                }
-                if (center < threshold) continue;
+                // On Arctic V5 the bank, rather than the quads of this submerged sheet,
+                // determines the visible shoreline. Extend the sheet under the dry edge.
+                bool shoreline = arcticEdges != null && arcticEdges.Sample(x + .5f, y + .5f).x > .005f;
+                if (center < .12f && !shoreline) continue;
                 int a = vertices.Count;
-                vertices.Add(new Vector3(x, waterY, -y));
-                vertices.Add(new Vector3(x + 1, waterY, -y));
-                vertices.Add(new Vector3(x, waterY, -y - 1));
-                vertices.Add(new Vector3(x + 1, waterY, -y - 1));
+                vertices.Add(new Vector3(x, WaterLevel, -y));
+                vertices.Add(new Vector3(x + 1, WaterLevel, -y));
+                vertices.Add(new Vector3(x, WaterLevel, -y - 1));
+                vertices.Add(new Vector3(x + 1, WaterLevel, -y - 1));
                 indices.AddRange(new[] { a, a + 1, a + 2, a + 2, a + 1, a + 3 });
             }
             if (vertices.Count == 0) return;
@@ -398,36 +386,10 @@ namespace OpenZ.Experimental
             look.DisableKeyword("_WATER_FLOWMAP");
             if (look.HasProperty("_UseFlowMap")) look.SetFloat("_UseFlowMap", 0);
             if (useV4 && map.planet == "arctic") ArcticWaterLook(look);
-            if (arcticV5) ArcticOpenWaterV5(look);
+            if (arcticEdges != null) ArcticOpenWaterV5(look);
             generated.Add(look);
             surface.GetComponent<MeshRenderer>().sharedMaterial = look;
             if (IsPaletteV5 && map.planet == "city") BuildCityOutfalls(map);
-
-            void AddShoreTriangle(Vector2 a, Vector2 b, Vector2 c)
-            {
-                triangle[0] = a; triangle[1] = b; triangle[2] = c;
-                int count = 0;
-                Vector2 previous = c;
-                float previousWet = Mask(map, c.x, c.y, WetSurface);
-                foreach (var p in triangle)
-                {
-                    float wet = Mask(map,p.x,p.y,WetSurface);
-                    if ((wet >= threshold) != (previousWet >= threshold))
-                        clipped[count++] = Vector2.Lerp(previous,p,(threshold - previousWet) / (wet - previousWet));
-                    if (wet >= threshold) clipped[count++] = p;
-                    previous = p;
-                    previousWet = wet;
-                }
-                if (count < 3) return;
-                int first = vertices.Count;
-                for (int i = 0; i < count; i++) vertices.Add(new Vector3(clipped[i].x,waterY,-clipped[i].y));
-                for (int i = 1; i < count - 1; i++)
-                {
-                    indices.Add(first);
-                    indices.Add(first + i);
-                    indices.Add(first + i + 1);
-                }
-            }
         }
 
         static bool Water(ZMapData map, int index) =>

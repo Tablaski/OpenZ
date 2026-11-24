@@ -2,6 +2,8 @@
 
 ## V5 — five material studies on V4 geometry
 
+In 1.5.69, Arctic V5 uses shared, cubic-interpolated fields for native water and lake ice. Small world-space offsets break the straight tile boundaries. The visual terrain subdivides the shore neighbourhood on a quarter-metre grid. The water plane extends beneath the banks, so the land surface determines the waterline. The Arctic shader adds a thin granular edge where the ice meets open water. Ice interiors retain their fractures and reflections. The native grids, bridge clearance, original collision mesh and V4 path retain their prior behavior.
+
 The 1.5.67 V5 City study reuses the authored ruin mesh and original facade materials from the official 3D Car Park scene. The converter selects complete geometry from the west, north and east street rows and fits those rows inside the existing perimeter apron. It leaves the southern quay side open. The generated render mesh has no collider and uses the same native City terrain and bridge data.
 
 The 1.5.67 Arctic study bypasses the legacy directional ripples on V5 snow and uses rounded noise and fine granular relief for compacted snow. It increases small surface variations in the darker open water. The lake-ice palette, fractures and reflections remain in use. Low banks and bridge shoulders use the continuous snow and ice paint in a separate render mesh. The cliff material previously covered occasional individual triangles there, producing pale patches. The collision mesh retains its original triangle assignments. Capture the shore and lake ice at native 4K using `-oz-preview-arctic-detail -oz-ai-maps-v5`.

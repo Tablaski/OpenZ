@@ -52,7 +52,7 @@ float3 V5Normal(float3 normalWS, float3 positionWS, float height)
 
 float V5LakeIceMask(float palette)
 {
-    return smoothstep(.20,.75,palette);
+    return smoothstep(.30,.67,palette);
 }
 
 // Keep a metre-scale signal when individual grains become smaller than a pixel.

@@ -336,6 +336,9 @@ Shader "OpenZ/Sand"
                         // Snow gets its own granular normal. The road and lake ice keep their existing detail.
                         ozNrm *= saturate(smoothstep(.31,.67,field.r) + iceGlaze);
                         materialHeight = V5ArcticSurface(albedo,w,ozPxm,field.r,iceGlaze);
+                        float brokenIce = 4 * iceGlaze * (1 - iceGlaze) * smoothstep(.11,.60,field.g);
+                        float rimGrain = V5Noise(w * 6.2) * V5Resolved(ozPxm,6.2);
+                        albedo = lerp(albedo,half3(.27,.43,.51),brokenIce * (.18 + .25 * rimGrain));
                     }
                     else materialHeight = OZAiV5Surface(albedo,w,ozPxm,_OzAiTerrainProfile,field.r,field.a);
                 }

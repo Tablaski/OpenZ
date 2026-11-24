@@ -4,8 +4,8 @@ namespace UnityEngine
 {
     public static class JsonUtility
     {
-        public static string ToJson(object value) => System.Text.Json.JsonSerializer.Serialize(value,
-            new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+        public static string ToJson(object value, bool prettyPrint = false) => System.Text.Json.JsonSerializer.Serialize(value,
+            new System.Text.Json.JsonSerializerOptions { IncludeFields = true, WriteIndented = prettyPrint });
         public static T FromJson<T>(string json)
         {
             try { return System.Text.Json.JsonSerializer.Deserialize<T>(json, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }); }

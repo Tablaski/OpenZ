@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using OpenZ.Sim;
 
 string root = Path.GetFullPath(Environment.GetEnvironmentVariable("OPENZ_COMBAT_ROOT") ?? Directory.GetCurrentDirectory());
@@ -10,9 +11,21 @@ string zodSource = Environment.GetEnvironmentVariable("OPENZ_COMBAT_ZOD_SOURCE")
 string zodSettings = Environment.GetEnvironmentVariable("OPENZ_COMBAT_ZOD_SETTINGS") ?? Path.Combine(zodSource, "default_settings.txt");
 var zod = new ZodProbe(Path.Combine(data, "zod-bin"), zodSource, zodSettings);
 string candidatePath = Environment.GetEnvironmentVariable("OPENZ_COMBAT_PROFILE");
-string profile = candidatePath == null ? null : File.ReadAllText(candidatePath);
-if (profile != null && ZBehaviorProfile.Decode(profile)?.family != ZBehaviorFamily.Tanks)
-    throw new ArgumentException("The candidate must be an exported OpenZ tank behavior profile.");
+string profile = candidatePath == null ? null : ReadTanks(candidatePath).Encode();
+ZBehaviorProfile ReadTanks(string path)
+{
+    if (new FileInfo(path).Length > 2_000_000) throw new FormatException("The candidate profile is too large.");
+    string content = File.ReadAllText(path);
+    ZBehaviorProfile selected;
+    if (content.TrimStart().StartsWith("{", StringComparison.Ordinal))
+    {
+        using var document = JsonDocument.Parse(content);
+        string tanks = document.RootElement.TryGetProperty("tanks", out var section) ? section.GetRawText() : content;
+        selected = ZBehaviorJson.DecodeJson(tanks);
+    }
+    else selected = ZBehaviorProfile.Decode(content);
+    return selected.family == ZBehaviorFamily.Tanks ? selected : throw new FormatException("Use an OpenZ tank or combined behavior profile.");
+}
 string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 string signature = Hash(File.ReadAllBytes(typeof(ZWorld).Assembly.Location)) + "/" + Hash(Encoding.UTF8.GetBytes(settings));
 Directory.CreateDirectory(data);
@@ -48,7 +61,7 @@ app.MapPost("/api/campaign/{id:long}/resume", (long id, int? repeats) => { lab.S
 app.MapPost("/api/pause", () => { lab.Pause(); return Results.Ok(); });
 app.MapGet("/api/campaign/{id:long}/ranking", (long id) => Calibration.Rank(db, id));
 app.MapGet("/api/profile/{name}", (string name) => Calibration.Profiles.TryGetValue(name, out string json)
-    ? Results.File(Encoding.UTF8.GetBytes(json), "application/json", $"Combat Lab {name}.json") : Results.NotFound());
+    ? Results.File(Encoding.UTF8.GetBytes(ZBehaviorJson.EncodeJson(ZBehaviorProfile.Decode(json))), "application/json", $"Combat Lab {name}.json") : Results.NotFound());
 app.MapGet("/api/campaign/{id:long}/results", (long id, string mode, int? terrain, int? health, int? distance) =>
 {
     if (mode is not ("blast" or "duel" or "shot-idle" or "shot-move" or "shot-attack" or "move-normal" or "move-boost"))

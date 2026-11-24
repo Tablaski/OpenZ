@@ -121,6 +121,11 @@ namespace OpenZ.Sim
 
         internal ZAi2026 ModernController => modern;
 
+        internal bool AllowsPassiveBoarding(ZObject target) => Ignored || !ZAiDifficulty.IsModern(Difficulty) ||
+            GetModernController().AllowsPassiveBoarding(target);
+
+        ZAi2026 GetModernController() => modern ??= new ZAi2026(W, Team, seed, Difficulty);
+
         // ------------------------------------------------------------------ demo switch
         /// <summary>Zod seeds per team as used by ZGame / OpenZBotMatch (red = seed, blue = seed + 101).</summary>
         public static int SeedFor(Team team, int seed) => team == Team.Neutral ? seed : unchecked(seed + ((int)team - 1) * 101);
@@ -157,8 +162,7 @@ namespace OpenZ.Sim
             {
                 if (!Ignored && !W.SkirmishEliminated(Team) && !W.DuelDefersOrders && !W.GameOver)
                 {
-                    modern ??= new ZAi2026(W, Team, seed, Difficulty);
-                    modern.Tick();
+                    GetModernController().Tick();
                 }
                 return;
             }

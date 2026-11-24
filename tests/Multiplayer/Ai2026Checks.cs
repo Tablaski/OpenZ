@@ -72,8 +72,9 @@ static class Ai2026Checks
         }
 
         var (battle, hull, boarder) = SalvageFixture(settings, "heavy", 48);
-        hull.Health = 1;
         var tank = battle.CreateObject("vehicle", "heavy", 398, 762, Team.Blue);
+        tank.AttackSpeed = .75;
+        hull.Health = tank.Damage / 2;
         var rival = battle.CreateObject("vehicle", "heavy", 302, 762, Team.Red);
         battle.SendWaypoints(Team.Blue, tank, new[] { ZWaypoint.Move(rival.CenterX, rival.CenterY) });
         tank.Engage(rival);

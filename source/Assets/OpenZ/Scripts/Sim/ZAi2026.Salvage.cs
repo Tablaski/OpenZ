@@ -274,8 +274,7 @@ namespace OpenZ.Sim
         internal bool AllowsPassiveBotBoarding(Team owner, ZObject target)
         {
             foreach (var bot in Bots)
-                if (bot.Team == owner && bot.ModernController != null)
-                    return bot.ModernController.AllowsPassiveBoarding(target);
+                if (bot.Team == owner) return bot.AllowsPassiveBoarding(target);
             return true;
         }
     }

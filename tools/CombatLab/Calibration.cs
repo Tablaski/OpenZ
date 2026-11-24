@@ -31,7 +31,7 @@ internal static class Calibration
 
     internal static object Rank(LabDatabase db, long campaign) => db.Query($"""
         WITH means AS (
-            SELECT engine, seed % 2 AS train, mode, shooter, target, distance,
+            SELECT engine, task % 2 AS train, mode, shooter, target, distance,
                    AVG(CASE WHEN shots>0 THEN 1.0*lost/max_hp END) AS hp_loss,
                    1.0*SUM(hits)/NULLIF(SUM(shots),0) AS hits, AVG(shots) AS fire_rate
             FROM trial WHERE campaign={campaign} AND mode LIKE 'shot-%'

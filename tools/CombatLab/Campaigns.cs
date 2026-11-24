@@ -107,7 +107,7 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
         foreach (int health in healths)
         foreach (string shooter in OpenZProbe.Tanks)
         foreach (string target in OpenZProbe.Tanks)
-        foreach (int distance in new[] { 56, 96 })
+        foreach (int distance in new[] { 56, 96, 144 })
         foreach (string mode in suite == "tune" ? new[] { "shot-idle", "shot-move", "shot-attack" } : new[] { "shot-idle", "shot-move", "shot-attack", "duel" })
             yield return new(mode, shooter, target, distance, terrain, health);
         foreach (string unit in OpenZProbe.Weapons.Take(4))
@@ -124,10 +124,23 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
 
     static int Repeats(Scenario scenario, Plan plan) => scenario.Mode is "blast" or "move-normal" ? 1 : plan.Repeats;
 
+    static int TrialSeed(int repetition)
+    {
+        // Mix adjacent repetition numbers before handing them to the engines'
+        // different RNGs. Keep the same seed schedule for every profile.
+        unchecked
+        {
+            uint mixed = (uint)repetition + 0x9e3779b9;
+            mixed = (mixed ^ (mixed >> 16)) * 0x21f0aaad;
+            mixed = (mixed ^ (mixed >> 15)) * 0x735a2d97;
+            return (int)((mixed ^ (mixed >> 15)) & 0x7fffffff);
+        }
+    }
+
     async Task Run(long id, Plan plan, CancellationToken token)
     {
         var tasks = Scenarios(plan.Suite).SelectMany((scenario, index) => Enumerable.Range(1, Repeats(scenario, plan))
-            .Select(seed => new Work(index * 5000 + seed, seed, scenario)));
+            .Select(repetition => new Work(index * 5000 + repetition, TrialSeed(repetition), scenario)));
         var engines = new List<string> { "OpenZ" };
         if (plan.CompareZod) engines.Add("Zod");
         if (plan.Candidate) engines.Add("Candidate");
@@ -140,7 +153,7 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
             var complete = done[engine].ToHashSet();
             return tasks.Where(task => !complete.Contains(task.Index)).Chunk(24).Select(batch => (engine, batch));
         }).ToArray();
-        await Parallel.ForEachAsync(batches.SelectMany(batch => batch), new ParallelOptions
+        await Parallel.ForEachAsync(Alternate(batches), new ParallelOptions
         {
             CancellationToken = token, MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount - 1, 1, 8)
         }, async (job, cancellation) =>
@@ -149,7 +162,11 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
             if (job.engine == "Zod")
             {
                 try { results = await zod.Run(job.batch, cancellation); }
-                catch (IOException) when (!cancellation.IsCancellationRequested) { results = await zod.Run(job.batch, cancellation); }
+                catch (IOException)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    results = await zod.Run(job.batch, cancellation);
+                }
             }
             else
             {
@@ -170,6 +187,22 @@ internal sealed class Campaigns(LabDatabase db, OpenZProbe open, OpenZProbe cand
             }
             db.Transaction(sql.ToString());
         });
+    }
+
+    static IEnumerable<T> Alternate<T>(IEnumerable<T>[] queues)
+    {
+        var readers = queues.Select(queue => queue.GetEnumerator()).ToArray();
+        try
+        {
+            bool found;
+            do
+            {
+                found = false;
+                foreach (var reader in readers)
+                    if (reader.MoveNext()) { found = true; yield return reader.Current; }
+            } while (found);
+        }
+        finally { foreach (var reader in readers) reader.Dispose(); }
     }
 
     public void Dispose()

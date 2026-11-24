@@ -47,7 +47,7 @@
       <label>View <select id="mode"><option value="blast">Damage by distance</option><option value="shot-idle">One shot · idle target</option><option value="shot-move">One shot · target ordered to move</option><option value="shot-attack">One shot · target ordered to attack</option><option value="duel">Two-way duels</option><option value="move-normal">Movement speed</option><option value="move-boost">Movement with boost requested</option></select></label>
       <label class="blast">Weapon <select id="weapon"></select></label>
       <label class="blast">Target <select id="target"></select></label>
-      <label class="fight">Starting distance <select id="distance"><option value="56">56 px</option><option value="96">96 px</option></select></label>
+      <label class="fight">Starting distance <select id="distance"><option value="56">56 px</option><option value="96">96 px</option><option value="144">144 px</option></select></label>
       <label class="terrain">Terrain <select id="terrain"><option value="0">Ground</option><option value="1">Road</option><option value="2">Water</option></select></label>
       <label class="terrain">Target health <select id="health"><option>100</option><option>45</option><option>20</option></select></label>
       <label class="fight">Measure <select id="measure"></select></label>
@@ -172,7 +172,7 @@
   }
   function showRanking(rows) {
     $('ranking').append(node('h2', 'Tank profile ranking'));
-    $('ranking').append(node('p', rows.length ? 'Lower is closer to Zod. Odd seeds rank the profiles. Even seeds show how the ranking holds up on fresh trials.' : 'Profile downloads and validation scores appear after the full campaign.'));
+    $('ranking').append(node('p', rows.length ? 'Lower is closer to Zod. Odd-numbered trials rank the profiles. Even-numbered trials provide a separate validation score.' : 'Profile downloads and validation scores appear after the full campaign.'));
     if (!rows.length) return;
     const table = node('table', '');
     const header = node('tr', '');

@@ -55,9 +55,16 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CombatLabZod.inc') -Destination
 [IO.File]::AppendAllText((Join-Path $buildRoot 'src/zserver.cpp'), "`n#include `"CombatLabZod.inc`"`n")
 $env:MSYSTEM = 'MINGW64'
 $env:CHERE_INVOKING = '1'
-$env:OZ_COMBAT_BUILD = (Resolve-Path $buildRoot).Path
 $env:OZ_COMBAT_JOBS = "$Jobs"
-& $bash -lc 'set -e; cd "$(cygpath -u "$OZ_COMBAT_BUILD")"; cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DZOD_VERSION=5ccb43a-combat-lab; cmake --build build --target zod --parallel "$OZ_COMBAT_JOBS"'
+$buildScript = @'
+set -e
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DZOD_VERSION=5ccb43a-combat-lab
+cmake --build build --target zod --parallel "$OZ_COMBAT_JOBS"
+'@
+[IO.File]::WriteAllText((Join-Path $buildRoot 'build-combat-lab.sh'), ($buildScript -replace "`r`n", "`n") + "`n")
+Push-Location -LiteralPath $buildRoot
+try { & $bash -lc 'bash ./build-combat-lab.sh' }
+finally { Pop-Location }
 if ($LASTEXITCODE) { throw "Zod compilation failed. Build files are in $buildRoot." }
 $output = Join-Path $DataDirectory 'zod-bin'
 $null = New-Item -ItemType Directory -Force -Path $output

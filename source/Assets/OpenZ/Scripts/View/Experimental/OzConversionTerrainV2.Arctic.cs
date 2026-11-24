@@ -103,8 +103,8 @@ namespace OpenZ.Experimental
                 for (int x = 0; x < divisions; x++)
                 {
                     int i = z * patchStride + x;
-                    Triangle(patch[i], patch[i + 1], patch[i + patchStride]);
-                    Triangle(patch[i + patchStride], patch[i + 1], patch[i + patchStride + 1]);
+                    Triangle(patch[i], patch[i + 1], patch[i + patchStride], nearShore: true);
+                    Triangle(patch[i + patchStride], patch[i + 1], patch[i + patchStride + 1], nearShore: true);
                 }
             }
 
@@ -172,12 +172,13 @@ namespace OpenZ.Experimental
                 return result;
             }
 
-            void Triangle(int a, int b, int c)
+            void Triangle(int a, int b, int c, bool nearShore = false)
             {
                 float lo = Mathf.Min(points[a].y, Mathf.Min(points[b].y, points[c].y));
                 float hi = Mathf.Max(points[a].y, Mathf.Max(points[b].y, points[c].y));
-                // Use snow on low wedges at the shoulders and cliff shading on the taller banks.
-                bool cliff = (hi > .9f || hi - lo > .8f) && (lo >= .55f || hi >= 1.8f);
+                // A fine triangle on a low bank may sample only its upper part. Keep the
+                // snow across that whole bank, including the small faces next to the bridge.
+                bool cliff = (hi > .9f || hi - lo > .8f) && (hi >= 1.8f || !nearShore && lo >= .55f);
                 int material = hi < -.35f ? 2 : cliff ? 1 : 0;
                 surfaces[material].Add(a);
                 surfaces[material].Add(b);

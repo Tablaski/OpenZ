@@ -59,7 +59,7 @@ namespace OpenZ
         /// <summary>The header parts that never move (names under the select root).</summary>
         static readonly string[] Header = { "Eyebrow", "Title", "Back", "HighScores" };
         /// <summary>The bar's parts that stand in DIFFICULTY's and HEAD START's columns (they slide between levels).</summary>
-        static readonly string[] Slides = { "Line0", "CpuLabel", "CpuKey", "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem", "CpuHint", "HeadLabel", "HeadKey", "HeadRow", "HeadHint" };
+        static readonly string[] Slides = { "Line0", "CpuLabel", "AI Generation", "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem", "CpuHint", "HeadLabel", "HeadKey", "HeadRow", "HeadHint" };
 
         [MenuItem("OpenZ/V1.1/Shuttle: K347 Start Box Proof (MainMenu or a level, Play)")]
         public static void Run()
@@ -355,7 +355,7 @@ namespace OpenZ
                 for (int i = 0; i < parts.Count; i++) for (int j = i + 1; j < parts.Count; j++) if (Meet(parts[i].r, parts[j].r)) meets.Append(' ').Append(parts[i].n).Append('/').Append(parts[j].n);
             }
             // each block's parts inside its column and apart, at full size
-            var cols = new List<(string label, string key, string[] rows, string hint)> { ("CpuLabel", "CpuKey", new[] { "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem" }, "CpuHint"), ("HeadLabel", "HeadKey", new[] { "HeadRow" }, "HeadHint") };
+            var cols = new List<(string label, string key, string[] rows, string hint)> { ("CpuLabel", "AI Generation", new[] { "CpuEasy", "CpuMedium", "CpuHard", "CpuMayhem" }, "CpuHint"), ("HeadLabel", "HeadKey", new[] { "HeadRow" }, "HeadHint") };
             if (slots == 3) cols.Add(("ShuttleBlock/Label", "ShuttleBlock/Key", new[] { "ShuttleBlock/ShuttleRow" }, c.d == GameDifficulty.Hard ? "ShuttleBlock/HintLocked" : "ShuttleBlock/Hint"));
             var labelY = new List<float>(); var keyY = new List<float>(); var rowY = new List<(float a, float b)>(); var hintY = new List<float>();
             for (int i = 0; i < cols.Count; i++)
@@ -370,7 +370,7 @@ namespace OpenZ
                 foreach (var p in ps) if (!Inside(p.r, col)) outs.Append(' ').Append(p.n).Append(" (").Append(R(p.r)).Append(" not in ").Append(R(col)).Append(')');
                 for (int a = 0; a < ps.Count; a++) for (int b = a + 1; b < ps.Count; b++) if (Meet(ps[a].r, ps[b].r)) meets.Append(' ').Append(ps[a].n).Append('/').Append(ps[b].n);
                 var lt = Find(cols[i].label); var kt = Find(cols[i].key); var rt0 = Find(cols[i].rows[0]); var ht = Find(cols[i].hint);
-                if (lt) labelY.Add(Px(lt).yMax); if (kt) keyY.Add(Px(kt).yMax); if (rt0) { var q = Px(rt0); rowY.Add((q.yMin, q.yMax)); } if (ht) hintY.Add(Px(ht).yMax);
+                if (lt) labelY.Add(Px(lt).yMax); if (kt && i > 0) keyY.Add(Px(kt).yMax); if (rt0) { var q = Px(rt0); rowY.Add((q.yMin, q.yMax)); } if (ht) hintY.Add(Px(ht).yMax);
             }
             // the switch rows' parts (words, ON / OFF, track, knob) inside the row and apart, at full size
             foreach (var row in slots == 3 ? new[] { "HeadRow", "ShuttleBlock/ShuttleRow" } : new[] { "HeadRow" })

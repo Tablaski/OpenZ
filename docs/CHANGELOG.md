@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.72 (24 Nov 2026)
+
+- Solo — The battlefield selector describes what to expect from each 2026 AI difficulty.
+
 ## OpenZ-VK 1.5.71 (24 Nov 2026)
 
 - Solo + 1 vs 1 — With the Z Classic profile, Light, Medium and Heavy tanks turn their hulls toward the direction of travel before accelerating. Light tanks change direction quickest, and Heavy tanks take the longest to build speed and brake.

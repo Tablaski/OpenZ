@@ -12,7 +12,7 @@ namespace OpenZ
         readonly OzText classicText, modernText;
         readonly Color modernAccent;
 
-        internal OzAiGenerationToggle(Transform parent, OzRect rect, float fontSize, Color modernAccent)
+        internal OzAiGenerationToggle(Transform parent, OzRect rect, float fontSize, Color modernAccent, bool showAiSuffix = false)
         {
             this.modernAccent = modernAccent;
             var border = Hud.Img(parent, "AI Generation", OzUi.Muted);
@@ -21,8 +21,8 @@ namespace OpenZ
             float cellWidth = (rect.w - 2) * .5f;
             Classic = Segment("1996", 1);
             Modern = Segment("2026", 1 + cellWidth);
-            classicText = Hud.Label(Classic.transform, "Year", "1996", fontSize, OzUi.Muted, 0, OzStyle.Plain).FillParent(OzH.C);
-            modernText = Hud.Label(Modern.transform, "Year", "2026", fontSize, OzUi.Muted, 0, OzStyle.Plain).FillParent(OzH.C);
+            classicText = Hud.Label(Classic.transform, "Year", showAiSuffix ? "1996 AI" : "1996", fontSize, OzUi.Muted, 0, OzStyle.Plain).FillParent(OzH.C);
+            modernText = Hud.Label(Modern.transform, "Year", showAiSuffix ? "2026 AI" : "2026", fontSize, OzUi.Muted, 0, OzStyle.Plain).FillParent(OzH.C);
             classicText.graphic.raycastTarget = modernText.graphic.raycastTarget = false;
 
             Image Segment(string year, float x)
@@ -45,7 +45,8 @@ namespace OpenZ
     public partial class OpenZMainMenu
     {
         static readonly string[] ModernCpuHints = {
-            "SLOW OPENINGS", "QUICK CAPTURES", "COORDINATED ATTACKS", "MULTIPLE FRONTS"
+            "Beginner level - Blunders", "Average player - Knows the game",
+            "Very good player - Challenging", "Big mistake, soldier !"
         };
         static readonly float[] ModernCpuWidths = { .22f, .30f, .30f, .18f };
         readonly HudButton[] cpuModern = new HudButton[ZAiDifficulty.Modern.Length];
@@ -54,7 +55,7 @@ namespace OpenZ
 
         OzAiGenerationToggle BuildSoloAiGeneration(RectTransform parent, OzRect rect, View v, Side side, float fontSize)
         {
-            var toggle = new OzAiGenerationToggle(parent, rect, fontSize, OzForkOptions.Accent);
+            var toggle = new OzAiGenerationToggle(parent, rect, fontSize, OzForkOptions.Accent, showAiSuffix: v == View.Select);
             AddHot(toggle.Classic.rectTransform, v, () => OzAiSoloChoice.SelectGeneration(false), null, null, "ui_click", side);
             AddHot(toggle.Modern.rectTransform, v, () => OzAiSoloChoice.SelectGeneration(true), null, null, "ui_click", side);
             optTips[toggle.Modern.rectTransform] = "OpenZ-VK AI generation. Campaign rules use your 1996 difficulty setting.";
@@ -100,7 +101,7 @@ namespace OpenZ
             if (modern)
             {
                 string rules = OpenZDifficulty.Label(difficulty);
-                hint.Set(compact ? ModernCpuHints[modernIndex] + " · " + rules
+                hint.Set(compact ? ModernCpuHints[modernIndex]
                     : ZAiDifficulty.Hint(level).ToUpperInvariant() + "  ·  " + rules + " RULES");
             }
             else hint.Set(compact ? OzDeployBar.CpuHint(difficulty) : OpenZDifficulty.Hint(difficulty));

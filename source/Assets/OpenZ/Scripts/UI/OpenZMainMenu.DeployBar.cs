@@ -120,7 +120,7 @@ namespace OpenZ
     // ============================================================================================================================
     // K347: the battlefield screen's deploy bar, built and refreshed (OzDeployBar has the numbers and the words). The project's
     // BuildDeployBar calls BuildDeployConsole; RefreshDeployBar calls RefreshDeployConsole after RefreshHeadStart. The parts keep the
-    // names (and fields) they had (DeployBar, CpuLabel, CpuKey, CpuEasy, CpuMedium, CpuHard, CpuMayhem (1.4), CpuHint, HeadLabel, HeadKey, HeadRow,
+    // names (and fields) they had (DeployBar, CpuLabel, CpuEasy, CpuMedium, CpuHard, CpuMayhem (1.4), CpuHint, HeadLabel, HeadKey, HeadRow,
     // HeadHint, Deploy, DeployFocus, Error), so the rest of the menu and its proofs find them as before; new: ObjectiveCard, Line0,
     // ShuttleBlock (UI/OpenZMainMenu.ShuttleStart.cs), ShuttleStartTip.
     // ============================================================================================================================
@@ -158,15 +158,15 @@ namespace OpenZ
 
             // DIFFICULTY [EASY | MEDIUM | HARD | MAYHEM] (1.4 MAYHEM: four cells fitted to their words, OzDeployBar.CpuCellX / CpuCellW)
             float cx = L.X(0, 3);
-            SlidePart(Hud.Label(p, "CpuLabel", "DIFFICULTY", 10, OzUi.Ink2, 0.24f, OzStyle.Plain).At(cx, OzDeployBar.LabelY, OzH.L, false, bw - 110f).rectTransform);
-            cpuGeneration = BuildSoloAiGeneration(p, new OzRect(cx + bw - 104f, ry - 24f, 82f, 21f), View.Select, Side.Any, 11);
+            const float generationWidth = 112f, generationHeight = 21f;
+            SlidePart(Hud.Label(p, "CpuLabel", "DIFFICULTY", 10, OzUi.Ink2, 0.24f, OzStyle.Plain).At(cx, OzDeployBar.LabelY, OzH.L, false, bw - generationWidth - 6f).rectTransform);
+            cpuGeneration = BuildSoloAiGeneration(p, new OzRect(cx + bw - generationWidth, ry - generationHeight, generationWidth, generationHeight), View.Select, Side.Any, 11);
             SlidePart(cpuGeneration.Root);
-            SlidePart(Hud.Keycap(p, "CpuKey", "C", cx + bw, OzDeployBar.LabelY - 2f));
             cpuEasy = SmallButton(p, "CpuEasy", "EASY", new OzRect(cx + OzDeployBar.CpuCellX(bw, 0), ry, OzDeployBar.CpuCellW(bw, 0), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Easy), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuEasy.Rt);
             cpuMedium = SmallButton(p, "CpuMedium", "MEDIUM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 1), ry, OzDeployBar.CpuCellW(bw, 1), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Medium), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMedium.Rt);
             cpuNormal = SmallButton(p, "CpuHard", "HARD", new OzRect(cx + OzDeployBar.CpuCellX(bw, 2), ry, OzDeployBar.CpuCellW(bw, 2), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Hard), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuNormal.Rt);
             cpuMayhem = SmallButton(p, "CpuMayhem", "MAYHEM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 3), ry, OzDeployBar.CpuCellW(bw, 3), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Mayhem), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMayhem.Rt);
-            cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(cx, OzDeployBar.HintY, OzH.L, false, bw); SlidePart(cpuHint.rectTransform);
+            cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0, OzStyle.Plain).At(cx, OzDeployBar.HintY, OzH.L, false, bw); SlidePart(cpuHint.rectTransform);
             BuildModernCpuRow(p, new OzRect(cx, ry, bw, rh), View.Select, Side.Any, cpuModern, compact: true);
 
             // HEAD START: the switch row (menu_exe_v1's, in the shared row)

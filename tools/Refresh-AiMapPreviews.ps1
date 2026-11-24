@@ -83,7 +83,8 @@ if (!$ComparisonsOnly) {
             $path = $asset.Path + '.meta'
             if (!(Test-Path -LiteralPath $path)) {
                 $guid = [guid]::NewGuid().ToString('N')
-                $meta = $asset.Template -replace '(?m)^guid: [a-f0-9]+', "guid: $guid" -replace '(?m)[ \t]+(?=\r?$)', ''
+                $meta = $asset.Template -replace '(?m)^guid: [a-f0-9]+', "guid: $guid"
+                if ($asset.Path.EndsWith('.jpg')) { $meta = $meta -replace '(?m)[ \t]+(?=\r?$)', '' }
                 [IO.File]::WriteAllText($path, $meta)
             }
         }

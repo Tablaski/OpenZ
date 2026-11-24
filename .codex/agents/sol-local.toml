@@ -1,5 +1,0 @@
-name = "sol_local"
-description = "Small code changes and localized fixes with a known entry point."
-model = "gpt-6.1-sol"
-model_reasoning_effort = "low"
-developer_instructions = "Trace the assigned entry point, make the smallest complete change, and report targeted checks and blockers briefly."

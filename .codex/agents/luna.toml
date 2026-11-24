@@ -1,5 +1,0 @@
-name = "luna"
-description = "Trivial, well-scoped tasks and straightforward documentation edits."
-model = "gpt-6-luna"
-model_reasoning_effort = "low"
-developer_instructions = "Work only on the assigned scope. Reuse existing conventions, verify the touched files, and report the result or blocker briefly."

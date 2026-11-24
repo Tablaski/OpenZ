@@ -69,4 +69,4 @@ No personal settings, profile libraries or history are shipped in the release.
 
 The changed replicated presentation schema requires both multiplayer players
 to update together. Source checks do not certify the appearance or balance;
-the persistent pending checklist is in PLAYER_VALIDATION.md.
+the pending gameplay checks are tracked in the private validation record.

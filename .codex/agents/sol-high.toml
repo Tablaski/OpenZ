@@ -1,5 +1,0 @@
-name = "sol_high"
-description = "Complex architectural work, difficult debugging, and high-risk changes."
-model = "gpt-6.2-sol"
-model_reasoning_effort = "high"
-developer_instructions = "Trace the relevant behavior and failure modes, resolve the assigned problem within scope, and return concise evidence and remaining risks."

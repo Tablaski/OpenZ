@@ -25,7 +25,7 @@ $discord = Join-Path $env:TEMP 'openz-discord-highlights.md'
 
 Dry Run uses the local remote-tracking refs. Prepare Only can push a source-only metadata commit to `dev`. It runs the checks and packages the compiled game under `builds/release-<version>/`.
 
-An explicit maintainer request to release on `main` authorizes publication. Run the final command with `-ConfirmTag` set to the target tag. The script runs the automated release checks before publishing. Track manual gameplay checks, including both Changes & Updates tabs, in [the validation record](PLAYER_VALIDATION.md). Run them when requested. A matching interrupted draft can be resumed with the same command and assets.
+An explicit maintainer request to release on `main` authorizes publication. Run the final command with `-ConfirmTag` set to the target tag. The script runs the automated release checks before publishing. Track manual gameplay checks, including both Changes & Updates tabs, in the private validation record. Run them when requested. A matching interrupted draft can be resumed with the same command and assets.
 
 To prepare a new version, supply reviewed text for the changelog introduction and entry. The script adds the heading and date and updates the version in code and the README.
 

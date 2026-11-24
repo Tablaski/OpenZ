@@ -843,7 +843,7 @@ namespace OpenZ.EditorTools
                     bool longKit = OzBridgeKit.Long(SpawnLv, len) && Pf(OzBridgeKit.Key(SpawnLv, len, "intact")) && Pf(OzBridgeKit.Key(SpawnLv, len, "destroyed"));
                     if (OzBridgeKit.Long(SpawnLv, len) && !longKit) Debug.LogError($"[OpenZ] {SpawnLv}: bridge at ({o.x},{o.y}) is {len} tiles long and the long city bridge family (Z_bridge_city_long_*, kit level18_assets) is not in: the 12 m model is stretched. Not a picture for the owner.");
                     key = longKit ? OzBridgeKit.Key(SpawnLv, len, bst) : $"bridge_{(arctic ? "arctic" : city ? "city" : plank ? "jungle" : "desert")}_{bst}";
-                    float mw = arctic ? OzArcticArt.BridgeWidth : city || plank ? 8f : 7.8f, ml = arctic ? OzArcticArt.BridgeLength : longKit ? OzBridgeKit.LongModelLength : city ? 12f : plank ? 22f : 20.6f;
+                    float mw = arctic ? 7.6f : city || plank ? 8f : 7.8f, ml = arctic ? 18f : longKit ? OzBridgeKit.LongModelLength : city ? 12f : plank ? 22f : 20.6f;
                     yaw = vert ? 0 : 90; scale = new Vector3((vert ? w : h) * 2 / mw, 1, (vert ? h : w) * 2 / ml);
                     team = Team.Neutral; break;
                 }
@@ -868,7 +868,8 @@ namespace OpenZ.EditorTools
                     if (key == "stop_sign") yaw = 0;                                   // 1.3 item 10: the sign's face (-z) looks at the RTS camera (south); the draw above stays, so every later prop keeps its old random yaw
                 }
             }
-            var prefab = arctic && key != null && key.StartsWith("bridge_arctic_") ? OzArcticArt.Bridge(key)
+            var prefab = arctic && key != null && key.StartsWith("bridge_arctic_")
+                ? AssetDatabase.LoadAssetAtPath<GameObject>("Packages/org.openz.aimaps/Art/Arctic/Z_" + key + ".prefab")
                 : key != null ? Pf(key) : null;
             if (!prefab) { if (key != null) Debug.LogWarning("no prefab " + key); return 0; }
             // Zod anchor = top-left tile; rocks block only their bottom tile (1x3 sprite)

@@ -8,6 +8,7 @@ OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and
 
 ## OpenZ-VK 1.5.65 (24 Nov 2026)
 
+- Solo, local Skirmish and online multiplayer — Switch between the 1996 and 2026 AI using a compact selector with one row of difficulties. The solo choice is shared with Options > Main. In local Skirmish, set all bots together or mix generations by choosing each bot's difficulty.
 - Solo, local Skirmish and online multiplayer — The 2026 AI now weighs who can reach an abandoned tank or gun first. Higher difficulties send a crew to claim it, cover it while waiting for friendly robots, or destroy it before the opponent can board. In team games, bots take allied crews into account.
 
 ## OpenZ-VK 1.5.64 (24 Nov 2026)

@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.69 Arctic V5 shore transitions
+
+- Unity 6000.3.27f2 rendered the SM11 terrain at `76f75e8c` in native 3840 × 2160. The repeated close-up confirms curved snow-to-water banks, a narrow irregular ice edge and continuous snow shading around both bridge approaches. Flurries are paused for the terrain close-up.
+- Managed source compilation passed, and the core suite passed 9,118 checks. The native map data and terrain collision surface are preserved. Interactive validation in a compiled game remains pending.
+
 ## V5 Arctic close-up and Car Park perimeter
 
 - Unity 6000.3.27f2 rendered the City perimeter at `97798403` and the Arctic close-up at `57e2f5ee`, both at 3840 × 2160. The City view shows the authored Car Park façades fitted to the crest. The Arctic material-ID capture traced the bright rectangles to the cliff submesh. The follow-up capture shows continuous snow at the bridge shoulders and shore, dark open water and the existing lake-ice detail. All five sampled patches from the original close-up cleared in the follow-up.

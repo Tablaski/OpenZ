@@ -247,6 +247,8 @@ static class Ai2026Checks
         world.ModernBotSoloRadar = RadarLossRule.Fog;
         var radar = world.Objects.Single(o => o.ProvidesRadarTo(Team.Blue));
         var attacker = world.CreateObject("vehicle", "jeep", 680, 630, Team.Blue);
+        var mover = world.CreateObject("vehicle", "jeep", 750, 640, Team.Blue);
+        var destination = ZWaypoint.Move(240, 420);
         var target = world.CreateObject("vehicle", "heavy", 250, 250, Team.Red);
         var lastKnown = (target.CenterX, target.CenterY);
         var waypoint = new ZWaypoint { mode = WpMode.Attack, refId = target.Id,
@@ -255,6 +257,8 @@ static class Ai2026Checks
         check(world.PlayerCanSeeOrderPoint(Team.Blue, lastKnown.CenterX, lastKnown.CenterY),
             "Working radar initially reveals the attack target");
         check(world.SendWaypoints(Team.Blue, attacker, new[] { waypoint }), "The attack is accepted while the radar works");
+        check(world.SendWaypoints(Team.Blue, mover, new[] { destination }), "The move is accepted while the radar works");
+        world.Tick(ZConst.TICK);
         foreach (var building in world.Objects.Where(o => o.ProvidesRadarTo(Team.Blue))) building.Health = 0;
         target.SetCords(target.LocX + 48, target.LocY);
         for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
@@ -275,9 +279,14 @@ static class Ai2026Checks
             "An unseen deletion preserves the attack order and its remembered position");
         check(world.Get(rock.Id) == null && world.Path.TilePassableGrid(rockX, rockY, true, false),
             "A removed rock opens the actual terrain");
+        check(mover.Waypoints.Count > 0 && mover.Waypoints[0].mode == WpMode.Move &&
+            mover.Waypoints[0].x == destination.x && mover.Waypoints[0].y == destination.y,
+            "A move keeps its original destination across radar loss and unseen rock removal");
+        int row = rockY * 16 + 8, left = (rockX - 4) * 16 + 8, right = (rockX + 4) * 16 + 8;
         using (world.Path.UseKnownRocks(world.FogRockTiles(Team.Blue)))
             check(!world.Path.TilePassableGrid(rockX, rockY, true, false) &&
-                world.Path.TilePassableGrid(rockX, rockY, true, true),
+                world.Path.TilePassableGrid(rockX, rockY, true, true) &&
+                !world.Path.DirectPathPossible(left, row, right, row, true, false),
                 "Replanning retains a known rock while its removal is hidden");
         radar.Health = radar.MaxHealth;
         for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
@@ -285,7 +294,8 @@ static class Ai2026Checks
             !attacker.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
             "The attack ends after radar vision confirms that the target has gone");
         using (world.Path.UseKnownRocks(world.FogRockTiles(Team.Blue)))
-            check(world.Path.TilePassableGrid(rockX, rockY, true, false),
+            check(world.Path.TilePassableGrid(rockX, rockY, true, false) &&
+                world.Path.DirectPathPossible(left, row, right, row, true, false),
                 "Replanning uses the opened terrain once the removal is visible");
     }
 

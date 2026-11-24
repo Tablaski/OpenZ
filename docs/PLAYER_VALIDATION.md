@@ -2,6 +2,7 @@
 
 ## OpenZ-VK 1.5.63 fog of war
 
+- Checkpoint `54da2ce6` passed 9,081 headless checks. The dedicated radar-loss scenario covers the last visible point of a moving target, its unseen removal, the end of the attack when vision returns, and routing around a remembered rock until its removal becomes visible. Unity runtime source compilation passed.
 - Pending in a compiled game. Inspect MAYHEM and radar-loss fog in solo and online on both seats. Check factory, fort, radar, flag, boundary and bridge visibility, last known unit positions and building ownership, and a bridge or rock destroyed out of sight. Scout the position again to verify that memory clears or updates. Check the battlefield and minimap together.
 - Issue move and queued attack orders before losing a radar. Compare the route when a concealed obstacle changes, then select the attacker and check its aim and route marker while the target moves, dies or reappears. Repeat with the radar-loss rule off.
 

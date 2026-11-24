@@ -186,7 +186,8 @@ namespace OpenZ
             if (Time.unscaledTime >= nextRebind) { nextRebind = Time.unscaledTime + 0.5f; matLook = -1; mat.SetTexture(IdMask, tex); matTex = tex; MaterialBind(); FieldUniforms(); }
 #endif
             if (matLook != ver || matY0 != blanketY) { ApplyLook(mat, look, planet, blanketY); matLook = ver; matY0 = blanketY; }
-            mat.SetFloat(IdSee, 1f - CoverNow);
+            // Keep terrain, landmarks and remembered contacts legible even in the densest clouds.
+            mat.SetFloat(IdSee, Mathf.Max(.4f, 1f - CoverNow));
             float wm = mask.W * OzFowMask.CellPx / 8f, hm = mask.H * OzFowMask.CellPx / 8f;                 // 8 Zod px = 1 m (ZGame.PxToWorld: x = px / 8, z = -py / 8)
             mat.SetVector(IdMap, new Vector4(0f, 0f, 1f / wm, -1f / hm));                                   // u = x / width, v = -z / height (v grows to the south, the mask's rows)
             mat.SetFloat(IdOn, strength);

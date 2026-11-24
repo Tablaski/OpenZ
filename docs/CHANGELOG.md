@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.65 (24 Nov 2026)
+
+- Solo, local Skirmish and online multiplayer — The 2026 AI now weighs who can reach an abandoned tank or gun first. Higher difficulties send a crew to claim it, cover it while waiting for friendly robots, or destroy it before the opponent can board. In team games, bots take allied crews into account.
+
 ## OpenZ-VK 1.5.64 (24 Nov 2026)
 
 - AI Maps — The five experimental V5 examples have clearer terrain detail at tactical zoom. Arctic has wind ripples in the snow, patchy snow on gravel roads and finer lake ice. The Car Park clears the ruins beyond the map boundary, and Molten Kombat's cones now sit on the volcanic barrier.

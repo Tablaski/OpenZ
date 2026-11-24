@@ -72,6 +72,7 @@ namespace OpenZ.Sim
                 ManageCrewSortie();
                 TryDiversion();
             }
+            if (tuning.SalvageChance > 0) PlanSalvage();
             Act();
             if (world.Time >= nextProduction && orders.Available)
             {
@@ -178,6 +179,7 @@ namespace OpenZ.Sim
                 cursor = (cursor + 1) % count;
                 if (planned.Contains(unit.Id) || unit == sortieCrew || unit == diversionUnit && AssaultReady ||
                     unit.Stunned || unit.BehaviorDodging || !unit.CanOverwriteWP()) continue;
+                if (tuning.SalvageChance > 0 && HoldingSalvageOrder(unit)) continue;
                 if (HandleTactics(unit) || unit.Waypoints.Count != 0 || OpeningIdle(unit)) continue;
                 var objective = PickObjective(unit, out var mode);
                 if (objective != null)

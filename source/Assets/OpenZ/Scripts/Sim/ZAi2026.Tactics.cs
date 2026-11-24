@@ -152,7 +152,8 @@ namespace OpenZ.Sim
                 }
                 else if (unit.IsRobot && !unit.NoAutoEnter && (target.CanBeEntered() || target.Owner == team && NeedsPassengers(target, unit)))
                 {
-                    if (Occasion(target.Id, 0, 4) < tuning.MissVehicle) continue;
+                    if (target.Type == "crane" || contestedSalvage.Contains(target.Id) ||
+                        Occasion(target.Id, 0, 4) < tuning.MissVehicle) continue;
                     option = WpMode.Enter;
                     value = target.Type == "apc" && target.Owner == team ? 52 : 79;
                 }
@@ -226,6 +227,7 @@ namespace OpenZ.Sim
     public sealed partial class ZObject
     {
         internal bool AiWeaponReloading => World.Time < nextDamageTime;
+        internal double AiWeaponWait => Math.Max(0, nextDamageTime - World.Time);
         internal double AiReloadUntil => nextDamageTime;
     }
 }

@@ -16,6 +16,27 @@ namespace OpenZ.Experimental
 
         Mesh CityBorderSurface(ZMapData map, List<Vector3> vertices, List<Vector2> uv, List<int>[] channels)
         {
+            var rim = new bool[map.width * map.height];
+            var pending = new Queue<int>();
+            for (int x = 0; x < map.width; x++)
+            {
+                Visit(x, 0);
+                Visit(x, map.height - 1);
+            }
+            for (int z = 0; z < map.height; z++)
+            {
+                Visit(0, z);
+                Visit(map.width - 1, z);
+            }
+            while (pending.TryDequeue(out int index))
+            {
+                int x = index % map.width, z = index / map.width;
+                Visit(x - 1, z);
+                Visit(x + 1, z);
+                Visit(x, z - 1);
+                Visit(x, z + 1);
+            }
+
             var border = new List<int>();
             var mesh = NewMesh("City terrain with concrete perimeter",vertices);
             mesh.SetUVs(0,uv);
@@ -28,7 +49,10 @@ namespace OpenZ.Experimental
                 for (int i = 0; i < triangles.Count; i += 3)
                 {
                     int a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
-                    var group = Outside(vertices[a]) && Outside(vertices[b]) && Outside(vertices[c]) ? border : inside;
+                    var center = (vertices[a] + vertices[b] + vertices[c]) / 3;
+                    bool exterior = Outside(vertices[a]) && Outside(vertices[b]) && Outside(vertices[c]);
+                    bool retainingFace = channel == 1 && Mask(map, center.x, -center.z, PerimeterRock) > .25f;
+                    var group = exterior || retainingFace ? border : inside;
                     group.Add(a); group.Add(b); group.Add(c);
                 }
                 mesh.SetTriangles(inside,channel,false);
@@ -37,6 +61,17 @@ namespace OpenZ.Experimental
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
+
+            bool PerimeterRock(ZMapData data, int index) => rim[index];
+            void Visit(int x, int z)
+            {
+                if (x < 0 || z < 0 || x >= map.width || z >= map.height) return;
+                if (Mathf.Min(Mathf.Min(x, z), Mathf.Min(map.width - 1 - x, map.height - 1 - z)) >= 6) return;
+                int index = z * map.width + x;
+                if (rim[index] || !Solid(map, index)) return;
+                rim[index] = true;
+                pending.Enqueue(index);
+            }
         }
 
         Material CityBorderConcrete()

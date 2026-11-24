@@ -137,7 +137,7 @@ static class Ai2026Checks
         var target = world.CreateObject(type == "howitzer" ? "cannon" : "vehicle", type, 480, 500, Team.Neutral);
         // The leading robot is alive and can board. Its weapon is irrelevant to this fixture's race.
         var enemy = world.CreateRobotGroup("grunt", target.CenterX + enemyDistance, target.CenterY - 8, Team.Red, 1);
-        return (world, target, _);
+        return (world, target, enemy);
     }
 
     static bool Ordered(ZObject unit, ZObject target, WpMode mode) =>

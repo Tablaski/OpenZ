@@ -1,3 +1,7 @@
 # Unity serializes empty importer values with a trailing space.
 aimaps/Resources/OpenZ/AiMaps/Videos/*.mp4.meta whitespace=-blank-at-eol
 aimaps/CONVERTER_CHANGELOG.md.meta whitespace=-blank-at-eol
+
+# Unity rewrites these settings with LF on Windows during a build.
+source/ProjectSettings/GraphicsSettings.asset text eol=lf
+source/ProjectSettings/ProjectSettings.asset text eol=lf

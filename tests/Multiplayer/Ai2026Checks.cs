@@ -58,51 +58,52 @@ static class Ai2026Checks
     {
         foreach (var level in new[] { ZBotDifficulty.Skilled, ZBotDifficulty.Zod })
         {
-            var (world, target, enemy) = SalvageFixture(settings, "heavy", 130);
-            var crew = world.CreateRobotGroup("grunt", 456, 758, Team.Blue, 1);
+            var (world, target, _) = SalvageFixture(settings, "heavy", 130);
+            var crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
             check(Watch(world, () => target.Owner == Team.Blue, 240),
                 level + " rushes to board a Heavy before the opposing crew");
 
-            (world, target, enemy) = SalvageFixture(settings, "crane", 130);
-            crew = world.CreateRobotGroup("grunt", 456, 758, Team.Blue, 1);
+            (world, target, _) = SalvageFixture(settings, "crane", 130);
+            crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
             check(!Watch(world, () => Ordered(crew, target, WpMode.Enter), 40),
                 level + " does not issue a capture rush for an abandoned crane");
         }
 
-        var (battle, hull, boarder) = SalvageFixture(settings, "heavy", 48);
-        var tank = battle.CreateObject("vehicle", "heavy", 398, 762, Team.Blue);
-        tank.AttackSpeed = .75;
+        var (battle, hull, _) = SalvageFixture(settings, "heavy", 48);
+        var tank = battle.CreateObject("vehicle", "heavy", 398, 502, Team.Blue);
+        tank.AttackSpeed = 1.25;
         hull.Health = tank.Damage / 2;
-        var rival = battle.CreateObject("vehicle", "heavy", 302, 762, Team.Red);
+        var rival = battle.CreateObject("vehicle", "heavy", 302, 502, Team.Red);
         battle.SendWaypoints(Team.Blue, tank, new[] { ZWaypoint.Move(rival.CenterX, rival.CenterY) });
         tank.Engage(rival);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
         check(Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 30),
-            "Zod can interrupt combat to deny a Heavy before the opposing crew boards");
+            "Zod can interrupt combat to deny a Heavy before the opposing crew boards" +
+            $" (time {battle.Time:F2}, reload {tank.AiWeaponWait:F2}, HP {tank.Health}, target HP {hull.Health}, orders {string.Join(",", tank.Waypoints.Select(wp => wp.mode))})");
         check(Watch(battle, () => hull.Destroyed, 100), "A denial attack destroys an unoccupied Heavy");
 
-        (battle, hull, boarder) = SalvageFixture(settings, "howitzer", 160);
-        tank = battle.CreateObject("vehicle", "heavy", 372, 762, Team.Blue);
+        (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
+        tank = battle.CreateObject("vehicle", "heavy", 372, 502, Team.Blue);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Skilled));
         check(Watch(battle, () => Ordered(tank, hull, WpMode.Move), 40),
             "Skilled stations a Heavy near an abandoned howitzer when it can intercept the opposing crew");
 
-        (battle, hull, boarder) = SalvageFixture(settings, "howitzer", 160);
-        tank = battle.CreateObject("vehicle", "heavy", 372, 762, Team.Blue);
+        (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
+        tank = battle.CreateObject("vehicle", "heavy", 372, 502, Team.Blue);
         tank.Health = 1;
-        battle.CreateObject("cannon", "missile_cannon", 566, 804, Team.Red);
+        battle.CreateObject("cannon", "missile_cannon", 566, 544, Team.Red);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
         check(!Watch(battle, () => Ordered(tank, hull, WpMode.Move), 50),
             "Zod passes on a guard position that would immediately lose its own tank");
 
-        (battle, hull, boarder) = SalvageFixture(settings, "heavy", 100);
+        (battle, hull, _) = SalvageFixture(settings, "heavy", 100);
         hull.Health = 1;
         battle.SetSkirmishAlliances(new[] { 1, 0, 0 });
         battle.ConfigureSkirmishRules(new SkirmishRules { FriendlyFire = true }, Array.Empty<int>());
-        tank = battle.CreateObject("vehicle", "heavy", 398, 762, Team.Blue);
-        var allyCrew = battle.CreateRobotGroup("grunt", 450, 758, Team.Green, 1);
+        tank = battle.CreateObject("vehicle", "heavy", 398, 502, Team.Blue);
+        var allyCrew = battle.CreateRobotGroup("grunt", 450, 498, Team.Green, 1);
         battle.SendWaypoints(Team.Green, allyCrew, new[] { new ZWaypoint
         {
             mode = WpMode.Enter, refId = hull.Id, x = hull.CenterX, y = hull.CenterY
@@ -116,9 +117,9 @@ static class Ai2026Checks
             int attempts = 0;
             for (int seed = 1; seed <= count; seed++)
             {
-                var (trial, empty, hostile) = SalvageFixture(settings, "heavy", 78);
+                var (trial, empty, _) = SalvageFixture(settings, "heavy", 78);
                 empty.Health = 1;
-                var shooter = trial.CreateObject("vehicle", "heavy", 398, 762, Team.Blue);
+                var shooter = trial.CreateObject("vehicle", "heavy", 398, 502, Team.Blue);
                 trial.Bots.Add(new ZBot(trial, Team.Blue, seed, level));
                 if (Watch(trial, () => Ordered(shooter, empty, WpMode.Attack), 230)) attempts++;
             }
@@ -133,10 +134,10 @@ static class Ai2026Checks
     {
         var world = FortFixture(settings, out var enemyFort);
         world.StopBuilding(Team.Red, enemyFort);
-        var target = world.CreateObject(type == "howitzer" ? "cannon" : "vehicle", type, 480, 760, Team.Neutral);
+        var target = world.CreateObject(type == "howitzer" ? "cannon" : "vehicle", type, 480, 500, Team.Neutral);
         // The leading robot is alive and can board. Its weapon is irrelevant to this fixture's race.
         var enemy = world.CreateRobotGroup("grunt", target.CenterX + enemyDistance, target.CenterY - 8, Team.Red, 1);
-        return (world, target, enemy);
+        return (world, target, _);
     }
 
     static bool Ordered(ZObject unit, ZObject target, WpMode mode) =>

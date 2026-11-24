@@ -43,18 +43,27 @@ namespace OpenZ.Sim
             {
                 if (target == sortieCannon || !PlansSalvage(target)) continue;
 
-                double quality = Math.Clamp(Value(target.U) / 500, .35, 3) *
+                double quality = Math.Clamp(Value(target.U) / 1500, .35, 5) *
                     Math.Sqrt((double)target.Health / Math.Max(1, target.MaxHealth));
-                var hostileCrew = FastestBoarder(enemies, target, true, out double hostileEta);
-                var friendlyCrew = FastestBoarder(allies, target, false, out double friendlyEta);
-                var capturer = FastestBoarder(units, target, false, out double ownEta, available: true);
-                double raceMargin = SalvageMargin / (1 + quality);
-                bool friendlyWins = friendlyEta + raceMargin < hostileEta;
-                bool friendlyClaim = false, guarded = false, denying = false;
+                var hostileCrew = FastestHostileBoarder(target, out double hostileEta);
+                ZObject capturer = null;
+                double friendlyEta = double.PositiveInfinity, ownEta = double.PositiveInfinity, claimEta = double.PositiveInfinity;
                 foreach (var ally in allies)
                 {
-                    if (SalvageOrder(ally, target, WpMode.Enter) && BoardEta(ally, target, false) <= ownEta + SalvageMargin)
-                        friendlyClaim = true;
+                    double eta = BoardEta(ally, target, hostile: false);
+                    if (eta > SalvageHorizon) continue;
+                    friendlyEta = Math.Min(friendlyEta, eta);
+                    if (SalvageOrder(ally, target, WpMode.Enter)) claimEta = Math.Min(claimEta, eta);
+                    if (ally.Owner != team || eta >= ownEta || !SalvageAvailable(ally)) continue;
+                    capturer = ally;
+                    ownEta = eta;
+                }
+                double raceMargin = SalvageMargin / (1 + quality);
+                bool friendlyWins = friendlyEta + raceMargin < hostileEta;
+                bool friendlyClaim = claimEta < double.PositiveInfinity && claimEta <= ownEta + SalvageMargin;
+                bool guarded = false, denying = false;
+                foreach (var ally in allies)
+                {
                     if (SalvageOrder(ally, target, WpMode.Move) ||
                         salvageGuards.TryGetValue(ally.Id, out var guard) && guard.Target == target)
                         guarded = true;
@@ -79,7 +88,7 @@ namespace OpenZ.Sim
                     if (unit.Kind != ZKind.Vehicle || !unit.CanAttack() ||
                         ZAiGeometry.DistanceSquared(unit, target.CenterX, target.CenterY) > SalvageRadius * SalvageRadius ||
                         !SalvageAvailable(unit)) continue;
-                    if (friendlyCrew == null && TrySalvageGuard(unit, target, hostileCrew, hostileEta,
+                    if (double.IsPositiveInfinity(friendlyEta) && TrySalvageGuard(unit, target, hostileCrew, hostileEta,
                         out int x, out int y, out double arrive))
                     {
                         Consider(unit, target, WpMode.Move, (2.5 + quality * 2) / (1 + arrive / 5), x, y, arrive);
@@ -141,14 +150,14 @@ namespace OpenZ.Sim
             (unit.Waypoints.Count == 0 || unit.Waypoints[0].mode == WpMode.Move ||
                 unit.Waypoints[0].mode == WpMode.Attack && !HoldingSalvageOrder(unit));
 
-        ZObject FastestBoarder(List<ZObject> candidates, ZObject target, bool hostile, out double quickest, bool available = false)
+        ZObject FastestHostileBoarder(ZObject target, out double quickest)
         {
             ZObject best = null;
             quickest = double.PositiveInfinity;
-            foreach (var unit in candidates)
+            foreach (var unit in enemies)
             {
-                double eta = BoardEta(unit, target, hostile);
-                if (eta >= quickest || eta > SalvageHorizon || available && !SalvageAvailable(unit)) continue;
+                double eta = BoardEta(unit, target, hostile: true);
+                if (eta >= quickest || eta > SalvageHorizon) continue;
                 best = unit; quickest = eta;
             }
             return best;
@@ -180,7 +189,8 @@ namespace OpenZ.Sim
             double distance = Math.Sqrt(ZAiGeometry.DistanceSquared(unit, x, y));
             if (boarding) distance = Math.Max(0, distance - 8);
             double startTerrain = world.Map.TileWalkSpeed(unit.CenterX, unit.CenterY);
-            double terrain = (startTerrain + world.Map.TileWalkSpeed(x, y)) * .5;
+            double terrain = (startTerrain + world.Map.TileWalkSpeed((unit.CenterX + x) / 2, (unit.CenterY + y) / 2) * 2 +
+                world.Map.TileWalkSpeed(x, y)) * .25;
             double speed = Math.Max(1, (unit.RealMoveSpeed > 0 && !unit.IsRunning
                 ? unit.RealMoveSpeed / Math.Max(.25, startTerrain) : unit.MoveSpeed) * terrain);
             if (boarding && distance <= unit.MoveSpeed * unit.Stamina) distance *= .8;

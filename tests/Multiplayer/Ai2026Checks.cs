@@ -56,18 +56,26 @@ static class Ai2026Checks
 
     static void CheckSalvage(string settings, Action<bool, string> check)
     {
+        var failures = new List<string>();
+        void CheckCase(bool condition, string detail)
+        {
+            if (condition) check(true, detail);
+            else failures.Add(detail);
+        }
+
         foreach (var level in new[] { ZBotDifficulty.Skilled, ZBotDifficulty.Zod })
         {
             var (world, target, _) = SalvageFixture(settings, "heavy", 130);
             var crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
-            check(Watch(world, () => target.Owner == Team.Blue, 7),
-                level + " rushes to board a Heavy before the opposing crew");
+            CheckCase(Watch(world, () => target.Owner == Team.Blue, 7),
+                level + " rushes to board a Heavy before the opposing crew" +
+                $" (owner {target.Owner}, crew at {crew.CenterX},{crew.CenterY}, HP {crew.Health}, orders {string.Join(",", crew.Waypoints.Select(wp => wp.mode))})");
 
             (world, target, _) = SalvageFixture(settings, "crane", 130);
             crew = world.CreateRobotGroup("grunt", 456, 498, Team.Blue, 1);
             world.Bots.Add(new ZBot(world, Team.Blue, 146, level));
-            check(!Watch(world, () => Ordered(crew, target, WpMode.Enter), 3),
+            CheckCase(!Watch(world, () => Ordered(crew, target, WpMode.Enter), 3),
                 level + " does not issue a capture rush for an abandoned crane");
         }
 
@@ -79,15 +87,15 @@ static class Ai2026Checks
         battle.SendWaypoints(Team.Blue, tank, new[] { ZWaypoint.Move(rival.CenterX, rival.CenterY) });
         tank.Engage(rival);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 3),
+        CheckCase(Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 3),
             "Zod can interrupt combat to deny a Heavy before the opposing crew boards" +
             $" (time {battle.Time:F2}, reload {tank.AiWeaponWait:F2}, HP {tank.Health}, target HP {hull.Health}, orders {string.Join(",", tank.Waypoints.Select(wp => wp.mode))})");
-        check(Watch(battle, () => hull.Destroyed, 3), "A denial attack destroys an unoccupied Heavy");
+        CheckCase(Watch(battle, () => hull.Destroyed, 3), "A denial attack destroys an unoccupied Heavy");
 
         (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
         tank = battle.CreateObject("vehicle", "heavy", 372, 502, Team.Blue);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Skilled));
-        check(Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
+        CheckCase(Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
             "Skilled stations a Heavy near an abandoned howitzer when it can intercept the opposing crew");
 
         (battle, hull, _) = SalvageFixture(settings, "howitzer", 160);
@@ -95,7 +103,7 @@ static class Ai2026Checks
         tank.Health = 1;
         battle.CreateObject("cannon", "missile_cannon", 566, 544, Team.Red);
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
+        CheckCase(!Watch(battle, () => Ordered(tank, hull, WpMode.Move), 3),
             "Zod passes on a guard position that would immediately lose its own tank");
 
         (battle, hull, _) = SalvageFixture(settings, "heavy", 100);
@@ -109,7 +117,7 @@ static class Ai2026Checks
             mode = WpMode.Enter, refId = hull.Id, x = hull.CenterX, y = hull.CenterY
         } });
         battle.Bots.Add(new ZBot(battle, Team.Blue, 146, ZBotDifficulty.Zod));
-        check(!Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 6) && hull.Owner == Team.Green,
+        CheckCase(!Watch(battle, () => Ordered(tank, hull, WpMode.Attack), 6) && hull.Owner == Team.Green,
             "Zod leaves an abandoned Heavy for an allied crew that can win the race");
 
         int Opportunities(ZBotDifficulty level, int count)
@@ -125,9 +133,10 @@ static class Ai2026Checks
             }
             return attempts;
         }
-        check(Opportunities(ZBotDifficulty.Noob, 4) == 0, "Noob never plans a denial order");
+        CheckCase(Opportunities(ZBotDifficulty.Noob, 4) == 0, "Noob never plans a denial order");
         int alright = Opportunities(ZBotDifficulty.Alright, 24);
-        check(alright > 0 && alright < 12, $"Alright only occasionally plans denial ({alright}/24 seeds)");
+        CheckCase(alright > 0 && alright < 12, $"Alright only occasionally plans denial ({alright}/24 seeds)");
+        if (failures.Count != 0) check(false, string.Join(Environment.NewLine, failures));
     }
 
     static (ZWorld World, ZObject Target, ZObject Enemy) SalvageFixture(string settings, string type, int enemyDistance)

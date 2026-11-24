@@ -148,6 +148,7 @@ namespace OpenZ.Sim
             !unit.BehaviorDodging && unit.CanOverwriteWP() && Attending(unit) && !OpeningIdle(unit) &&
             (!homeThreatened || ZAiGeometry.DistanceSquared(unit, home.CenterX, home.CenterY) > 300L * 300) &&
             (unit.Waypoints.Count == 0 || unit.Waypoints[0].mode == WpMode.Move ||
+                unit.Waypoints[0].mode == WpMode.Agro ||
                 unit.Waypoints[0].mode == WpMode.Attack && !HoldingSalvageOrder(unit));
 
         ZObject FastestHostileBoarder(ZObject target, out double quickest)

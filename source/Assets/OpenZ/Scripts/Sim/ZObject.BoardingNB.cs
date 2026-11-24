@@ -100,6 +100,7 @@ namespace OpenZ.Sim
             foreach (var u in units)
             {
                 if (u == o || !Separable(u) || (u.Id == skipId && !u.IsShuttle)) continue;   // DV118: a squad ordered into the shuttle plans round its hull to the back
+                if (W.HiddenFromOrders(o.Owner, u)) continue;
                 if ((Static(u) && !u.Stunned) || (standingToo && (u.Waypoints.Count == 0 || BridgeParked(u))) ||
                     (RobotParkedPaths(o) && !u.Stunned && IdleHull(u))) parked.Add(u);   // electrobot_v1 DV45: a stunned unit moves on; DV66: robots also go round idle vehicles
             }

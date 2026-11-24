@@ -244,7 +244,7 @@ namespace OpenZ
             // texture layer: bridges, rocks, grenade crates (buildings, flags and units are crisp markers on top)
             foreach (var o in W.Objects)
             {
-                if (OzRadarLoss.Covers(o)) continue;
+                if (OzFogOfWar.Covers(o)) continue;
                 if (o.Kind == ZKind.Building)
                 {
                     if (o.IsBridge && !o.Destroyed) Rect(o.LocX, o.LocY, o.WidthPix, o.HeightPix, new Color32(132, 118, 96, 255), 1f, 0);
@@ -255,14 +255,18 @@ namespace OpenZ
                 else if (o.IsDestroyableImpass) Rect(o.LocX, o.LocY, o.WidthPix, o.HeightPix, Mul(Palette().ground, 0.72f), 0.9f, 0);   // rock cell = ground x 0.72
             }
             var loss = OzRadarLoss.I;
-            if (loss && loss.Fog)
-                foreach (var contact in loss.Contacts.Values)
+            if (loss && loss.ShowsMemory)
+                foreach (var pair in loss.Contacts)
                 {
-                    if (!contact.Fixed || contact.Destroyed || loss.Visible(contact.X, contact.Y)) continue;
+                    var contact = pair.Value;
+                    if (!contact.Fixed || !loss.ShowContact(pair.Key, contact)) continue;
                     if (contact.Type == "bridge_vert" || contact.Type == "bridge_horz")
-                        Rect(contact.Left, contact.Top, contact.Width, contact.Height, new Color32(132, 118, 96, 255), 1f, 0);
-                    else if (contact.Type == "grenades")
+                        Rect(contact.Left, contact.Top, contact.Width, contact.Height,
+                            contact.Destroyed ? new Color32(76, 68, 56, 255) : new Color32(132, 118, 96, 255), 1f, 0);
+                    else if (!contact.Destroyed && contact.Type == "grenades")
                         Rect(contact.Left, contact.Top, contact.Width, contact.Height, OzUi.AmberHi, .7f, 1, OzUi.GM950);
+                    else if (!contact.Destroyed && contact.Kind == ZKind.MapItem)
+                        Rect(contact.Left, contact.Top, contact.Width, contact.Height, Mul(Palette().ground, .72f), .9f, 0);
                 }
             tex.SetPixels32(buf); tex.Apply(false);
 
@@ -271,7 +275,7 @@ namespace OpenZ
             bool highlightRadars = OzMapReadabilityOptions.Radars;
             foreach (var o in W.Objects)
             {
-                if (o.Kind == ZKind.Building && !o.IsBridge && !OzRadarLoss.Covers(o))
+                if (o.Kind == ZKind.Building && !o.IsBridge && !OzFogOfWar.Covers(o))
                 {
                     var im = NextPooled(bldPool, ref bldUsed, "Building", "Minimap/mm_building", Image.Type.Sliced);
                     var c = o.Destroyed ? new Color32(58, 56, 52, 255) : (Color32)(o.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(o.Owner));
@@ -314,10 +318,11 @@ namespace OpenZ
                 var c = OzUi.Mark(o.Owner); if (im.color != c) im.color = c;
                 im.rectTransform.anchoredPosition = p; im.rectTransform.sizeDelta = new Vector2(sz, sz);
             }
-            if (loss && loss.Fog)
-                foreach (var contact in loss.Contacts.Values)
+            if (loss && loss.ShowsMemory)
+                foreach (var pair in loss.Contacts)
                 {
-                    if (loss.Visible(contact.X, contact.Y) || contact.Team == seat) continue;
+                    var contact = pair.Value;
+                    if (!loss.ShowContact(pair.Key, contact)) continue;
                     if (contact.Fixed && contact.Kind == ZKind.Building && contact.Type != "bridge_vert" && contact.Type != "bridge_horz")
                     {
                         var im = NextPooled(bldPool, ref bldUsed, "Last known building", "Minimap/mm_building", Image.Type.Sliced);

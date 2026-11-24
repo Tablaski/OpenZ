@@ -187,7 +187,19 @@ namespace OpenZ
 
         void Hitscan(ZEvent e, ZObject a, ZObject t, FxManager fx, CombatAudio au)
         {
-            if (a == null || t == null) return;
+            if (a == null) return;
+            if (t == null)
+            {
+                if (e.otherId >= 0) return;
+                var av = ViewOf(e.objId);
+                if (av) av.OnFire();
+                var from = av ? av.MuzzlePos() : PosOf(a);
+                var to = PxGround(e.x, e.y);
+                if (a.Type == "pyro") { if (fx) fx.Flame(from, to); }
+                else if (a.Type == "laser") { if (fx) fx.Laser(from, to); }
+                else LegacyMatch.Shot(e, null, a.Type, from, to, fx, au);
+                return;
+            }
             // parity P5: a roll only arms the attacker's Zod client fire clock; StepFireClocks draws the shots that fall due through
             // DrawShot (UnitAim hold / replay + LegacyMatch.Shot as before). A shot UnitAim held and now replays is drawn as is.
             if (!UnitAim.Replaying && ArmFireClock(e, a, t, fx, au)) return;
@@ -544,14 +556,18 @@ namespace OpenZ
                         int cleared = ScorchDecals.ClearDeck(ZGame.PxToWorld(o.LocX, o.LocY), ZGame.PxToWorld(o.LocX + o.WidthPix, o.LocY + o.HeightPix));
                         if (cleared > 0) Debug.Log($"[OpenZ] bridge #{o.Id} died: {cleared} scorch mark(s) on its deck faded");
                     }
-                    ScorchDecals.Add(p, 4.5f, ScorchKind.Wreck);
-                    LegacyMatch.BuildingDeath(o, p, fx);
+                    if (!OzFogOfWar.Covers(o))
+                    {
+                        ScorchDecals.Add(p, 4.5f, ScorchKind.Wreck);
+                        LegacyMatch.BuildingDeath(o, p, fx);
+                    }
                     if (rules) rules.BuildingDeath(o, p); else game.RuinStatic(o.Id);
                     break;
                 default:
                     if (o.Type == "flag") break;
                     if (o.Type == "rock" && game.StaticViews.TryGetValue(o.Id, out var rgo) && rgo && rgo.GetComponent<RockPillar>() is RockPillar pil)
                     {
+                        if (OzFogOfWar.Covers(o)) { game.HideStatic(o.Id); break; }
                         var blast = ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p;
                         pil.Break(blast);                                                            // plays dst_rock_crash_large itself
                         break;

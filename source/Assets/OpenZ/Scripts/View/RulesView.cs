@@ -155,6 +155,16 @@ namespace OpenZ
         /// others = rubble with Zod's 8-10 (factory) / 6-8 (repair) / 4-6 (radar) explosions over ~2-3 s.</summary>
         public void BuildingDeath(ZObject o, Vector3 p)
         {
+            if (!o.IsFort && OzFogOfWar.Covers(o))
+            {
+                if (o.IsBridge) SetBridge(o, 2, false);
+                else
+                {
+                    OzBuildingRestore.Died(game, o, Static(o.Id));
+                    game.RuinStatic(o.Id);
+                }
+                return;
+            }
             var fx = FxManager.I; var au = CombatAudio.I;
             if (o.IsFort)
             {
@@ -257,6 +267,14 @@ namespace OpenZ
         }
 
         /// <summary>The bridge's models (intact, damaged, destroyed; made on first use).</summary>
+        internal GameObject ActiveBridgeModel(int id)
+        {
+            if (bridgeVariants.TryGetValue(id, out var models))
+                foreach (var model in models)
+                    if (model && model.activeSelf) return model;
+            return Static(id);
+        }
+
         public GameObject[] BridgeModels(ZObject o) => o != null && o.IsBridge ? Variants(o) : null;   // 1.5 kit factory_restore_crane_r3: OzCraneDeck (R3.6)
 
         void SetBridge(ZObject o, int st, bool effects)
@@ -270,7 +288,7 @@ namespace OpenZ
             var cur = Static(o.Id);
             var under = cur && cur.transform.parent ? cur.transform.parent.Find("underlay_" + cur.name) : null;
             if (under) under.gameObject.SetActive(st == 0);
-            if (!effects || st == was) return;
+            if (!effects || st == was || OzFogOfWar.Covers(o)) return;
             var p = game.CenterWorld(o);
             if (st == 1) { StartCoroutine(Booms(o, 3, 0.8f)); BridgeChunks(o, 3, true); CombatAudio.I?.Play("collapse", p, 0.7f, 0, -1, "v3-collapse-small-a", "v3-collapse-small-b"); }
             if (st == 2) { BridgeChunks(o, 14, false); OzRuinFires.Bridge(o); }                 // its broken ends and banks burn for a while
@@ -307,7 +325,7 @@ namespace OpenZ
         void SwapBridge(ZObject o, bool destroyed)
         {
             SetBridge(o, destroyed ? 2 : 0, destroyed);
-            if (OzBridgeRestore.Swapped(game, o, destroyed, Variants(o))) return;   // 1.5 kit bridge_restore_r3: its restore instead of the haze puffs
+            if (OzFogOfWar.Covers(o) || OzBridgeRestore.Swapped(game, o, destroyed, Variants(o))) return;   // 1.5 kit bridge_restore_r3: its restore instead of the haze puffs
             if (!destroyed && !rebuilding.Contains(o.Id)) { var p = game.CenterWorld(o); FxManager.I?.DemolitionDust(p, 4f, 4f, 0.35f, 0.28f, 2.2f); /* critic: faint wide haze, not orange balls */ CombatAudio.I?.Play("repair", p, 0.8f, 0, -1, "atom-repair-wrench"); }
         }
 

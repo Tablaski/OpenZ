@@ -106,11 +106,31 @@ namespace OpenZ.Sim
             vehicle[x, y].passable = vehicleNoRocks[x, y].passable = vehicles;
         }
         public bool TilePassable(int tx, int ty, bool isRobot) =>
-            TileOnMap(tx, ty) && (isRobot ? robot[tx, ty].passable : VG[tx, ty].passable);   // 1.5 DV192 / DV193 (kit sim_notes11): VG = the vehicle grid of the grid kind now
+            TileOnMap(tx, ty) && Passable(isRobot ? robot : VG, tx, ty);   // 1.5 DV192 / DV193 (kit sim_notes11): VG = the vehicle grid of the grid kind now
         /// <summary>OpenZ pathing layer: passability on one of the four grids (with / without destroyable rocks).</summary>
-        public bool TilePassableGrid(int tx, int ty, bool isRobot, bool noRocks) => TileOnMap(tx, ty) && Grid(isRobot, noRocks)[tx, ty].passable;
+        public bool TilePassableGrid(int tx, int ty, bool isRobot, bool noRocks) => TileOnMap(tx, ty) && Passable(Grid(isRobot, noRocks), tx, ty);
         /// <summary>OpenZ pathing layer: the exact A* move rule (TileOk below); ex, ey == sx, sy tests the footprint alone.</summary>
         public bool StepOk(int sx, int sy, int ex, int ey, bool isRobot, bool noRocks) => TileOk(sx, sy, ex, ey, isRobot, Grid(isRobot, noRocks));
+        HashSet<(int X, int Y)> knownRockTiles;
+
+        internal readonly struct KnownRockScope : IDisposable
+        {
+            readonly ZPathFinder path;
+            readonly HashSet<(int X, int Y)> previous;
+            internal KnownRockScope(ZPathFinder path, HashSet<(int X, int Y)> tiles)
+            {
+                this.path = path;
+                previous = path.knownRockTiles;
+                path.knownRockTiles = tiles;
+            }
+            public void Dispose() => path.knownRockTiles = previous;
+        }
+
+        internal KnownRockScope UseKnownRocks(HashSet<(int X, int Y)> tiles) => new KnownRockScope(this, tiles);
+
+        bool Passable(Info[,] grid, int x, int y) => grid[x, y].passable &&
+            (knownRockTiles == null || grid == robotNoRocks || grid == VGN || !knownRockTiles.Contains((x, y)));
+
         Info[,] Grid(bool isRobot, bool noRocks) => isRobot ? (noRocks ? robotNoRocks : robot) : (noRocks ? VGN : VG);   // 1.5 DV192 / DV193 (kit sim_notes11)
 
         // ------------------------------------------------------------------ regions (zpath_finding.cpp:159-285)
@@ -253,7 +273,7 @@ namespace OpenZ.Sim
                         for (int ty = cty - bc; ty <= cty + bc; ty++)
                         {
                             if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
-                            if (tc[tx, ty].passable && !LavaLine(tx, ty)) continue;   // 1.5 DV192 amended N12b (kit sim_notes11): for the Bizon a lava tile is no straight line: the A* weighs it
+                            if (Passable(tc, tx, ty) && !LavaLine(tx, ty)) continue;   // 1.5 DV192 amended N12b (kit sim_notes11): for the Bizon a lava tile is no straight line: the A* weighs it
                             int cx = tx * 16 + 8, cy = ty * 16 + 8;
                             if (distCheck >= Math.Abs(A * cx + B * cy + C)) return false;
                         }
@@ -411,21 +431,21 @@ namespace OpenZ.Sim
             open.Add(np);
         }
 
-        bool Pass(Info[,] t, int x, int y) => x >= 0 && y >= 0 && x < W && y < H && t[x, y].passable;
+        bool Pass(Info[,] t, int x, int y) => x >= 0 && y >= 0 && x < W && y < H && Passable(t, x, y);
 
         bool TileOk(int sx, int sy, int ex, int ey, bool isRobot, Info[,] t)
         {
             if (isRobot)
             {
                 if (ex < 0 || ey < 0 || ex >= W || ey >= H) return false;
-                if (!t[ex, ey].passable) return false;
+                if (!Passable(t, ex, ey)) return false;
                 if (ex == sx || ey == sy) return true;
                 if (!Pass(t, sx + (ex - sx), sy)) return false;
                 if (!Pass(t, sx, sy + (ey - sy))) return false;
                 return true;
             }
             if (ex < 0 || ey < 0 || ex + 1 >= W || ey + 1 >= H) return false;
-            if (!t[ex, ey].passable || !t[ex + 1, ey].passable || !t[ex, ey + 1].passable || !t[ex + 1, ey + 1].passable) return false;
+            if (!Passable(t, ex, ey) || !Passable(t, ex + 1, ey) || !Passable(t, ex, ey + 1) || !Passable(t, ex + 1, ey + 1)) return false;
             if (ex == sx || ey == sy) return true;
             if (ex > sx && ey < sy) return Pass(t, sx, sy - 1) && Pass(t, sx + 2, sy + 1);        // upper right
             if (ex < sx && ey < sy) return Pass(t, sx + 1, sy - 1) && Pass(t, sx - 1, sy + 1);    // upper left

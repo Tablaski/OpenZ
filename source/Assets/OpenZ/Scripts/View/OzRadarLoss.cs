@@ -13,6 +13,10 @@ namespace OpenZ
     {
         internal static OzRadarLoss I { get; private set; }
         internal bool Fog { get; private set; }
+        internal bool ShowsMemory => Fog || OzFogOfWar.Hiding;
+        bool CampaignMemory => OzFogOfWar.Wanted;
+        bool recordedLayout;
+        double nextContacts = -1;
         internal bool Zoom { get; private set; }
         internal bool Jammed { get; private set; }
         internal OzFowMask Sight { get; private set; }
@@ -26,6 +30,8 @@ namespace OpenZ
             public ZKind Kind;
             public bool Destroyed;
             public bool Fixed;
+            public bool HasObservation;
+            public int Health;
             public readonly List<Part> Parts = new();
         }
         internal readonly struct Part
@@ -33,19 +39,43 @@ namespace OpenZ
             public readonly Mesh Mesh;
             public readonly Matrix4x4 Transform;
             public readonly Material[] Materials;
-            public Part(Mesh mesh, Matrix4x4 transform, Material[] materials)
-            { Mesh = mesh; Transform = transform; Materials = materials; }
+            public readonly MaterialPropertyBlock[] Properties;
+            public readonly bool OwnsMesh;
+            public Part(Mesh mesh, Matrix4x4 transform, Renderer renderer, bool ownsMesh, bool mapLayout)
+            {
+                Mesh = mesh;
+                Transform = transform;
+                Materials = renderer.sharedMaterials;
+                Properties = new MaterialPropertyBlock[Materials.Length];
+                for (int i = 0; i < Properties.Length; i++)
+                {
+                    var block = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(block, i);
+                    if (block.isEmpty) renderer.GetPropertyBlock(block);
+                    if (mapLayout)
+                    {
+                        var neutral = TeamColors.Paint(Team.Neutral).linear * 3f;
+                        neutral.a = 1f;
+                        block.SetColor("_TeamColor", neutral);
+                        block.SetVector("_OZTeamVivid", TeamColors.VividLinear(Team.Neutral));
+                        block.SetVector("_OZTeamGlow", Vector4.zero);
+                    }
+                    if (!block.isEmpty) Properties[i] = block;
+                }
+                OwnsMesh = ownsMesh;
+            }
         }
 
         ZGame game;
         OpenZHud hud;
+        RulesView rules;
         ZWorld world;
         Team seat;
         bool mapHasRadar;
         double nextSight = -1;
         readonly Dictionary<int, bool> knownRadars = new();
         readonly List<int> forgotten = new();
-        readonly Dictionary<int, MeshFilter[]> meshCache = new();
+        readonly Dictionary<int, (GameObject View, Renderer[] Parts)> meshCache = new();
         readonly HashSet<int> liveViews = new();
         readonly List<int> destroyedRadars = new();
         float staticEnds, staticLength;
@@ -67,6 +97,7 @@ namespace OpenZ
         void OnDestroy()
         {
             if (I == this) I = null;
+            ClearContacts();
             if (staticImage) Destroy(staticImage.gameObject);
             if (staticPixels) Destroy(staticPixels);
             if (staticAudio) Destroy(staticAudio);
@@ -93,8 +124,11 @@ namespace OpenZ
                     mapHasRadar = ZBattleSight.MapHasRadar(game.World.Map);
                 }
                 world = game.World; seat = vision;
+                rules = game.GetComponent<RulesView>();
                 Sight = null;
-                Contacts.Clear(); knownRadars.Clear(); meshCache.Clear();
+                ClearContacts(); knownRadars.Clear();
+                nextContacts = -1;
+                recordedLayout = false;
                 nextSight = -1;
             }
             var rule = RuleFor(world);
@@ -103,7 +137,7 @@ namespace OpenZ
             if (!enabled)
             {
                 Fog = Zoom = Jammed = false;
-                if (rule == RadarLossRule.Off) { knownRadars.Clear(); Contacts.Clear(); }
+                if (rule == RadarLossRule.Off) knownRadars.Clear();
                 UpdateStatic();
                 return;
             }
@@ -137,10 +171,9 @@ namespace OpenZ
             }
             if (wasFog != Fog || world.Time >= nextSight)
             {
-                nextSight = world.Time + .15;
+                nextSight = world.Time + .05;
                 if (Fog) UpdateSight();
-                if (rule == RadarLossRule.Fog || rule == RadarLossRule.FogAndZoom) RecordContacts();
-                else Contacts.Clear();
+                if (wasFog != Fog) nextContacts = -1;
             }
             UpdateStatic();
         }
@@ -152,67 +185,126 @@ namespace OpenZ
             SightRevision++;
         }
 
+        internal bool ContactVisible(int x, int y) =>
+            Fog ? Visible(x, y) : OzFogOfWar.ContactVisible(x, y);
+
+        internal bool ShowContact(int id, Contact contact) =>
+            ShowsMemory && (world.Get(id) is not ZObject current || !world.AreAllied(current.Owner, seat)) &&
+            (!ContactVisible(contact.X, contact.Y) || contact.Kind == ZKind.Building && world.Get(id) == null);
+
+        internal bool TryAttackContact(ZWaypoint waypoint, out int x, out int y)
+        {
+            x = y = 0;
+            if (waypoint.mode != WpMode.Attack || !Contacts.TryGetValue(waypoint.refId, out var contact) ||
+                !ShowContact(waypoint.refId, contact)) return false;
+            x = contact.X;
+            y = contact.Y;
+            return true;
+        }
+
+        void ReleaseParts(Contact contact)
+        {
+            foreach (var part in contact.Parts)
+                if (part.OwnsMesh && part.Mesh) Destroy(part.Mesh);
+            contact.Parts.Clear();
+        }
+
+        void ForgetContact(int id)
+        {
+            if (Contacts.TryGetValue(id, out var contact)) ReleaseParts(contact);
+            Contacts.Remove(id);
+            meshCache.Remove(id);
+        }
+
+        void ClearContacts()
+        {
+            foreach (var contact in Contacts.Values) ReleaseParts(contact);
+            Contacts.Clear();
+            meshCache.Clear();
+        }
+
         void RecordContacts()
         {
             liveViews.Clear();
             foreach (var view in game.LiveViewValues)
             {
-                if (!view || view.Obj == null || game.World.AreAllied(view.Obj.Owner, seat) || view.Obj.Owner == Team.Neutral || !view.Obj.IsUnit) continue;
-                RecordContact(view.Obj, view.gameObject, false);
+                if (!view || view.Obj == null || !view.Obj.IsUnit) continue;
+                RecordContact(view.Obj, view.gameObject, false, false);
             }
             foreach (var entry in game.StaticViews)
             {
                 if (!entry.Value) continue;
                 var obj = world.Get(entry.Key);
-                if (obj != null && (obj.Kind == ZKind.Building || obj.Kind == ZKind.MapItem && obj.Type != "flag"))
-                    RecordContact(obj, entry.Value, true);
+                if (obj != null && (obj.Kind == ZKind.Building || obj.IsDestroyableImpass || obj.Type == "grenades"))
+                    RecordContact(obj, obj.IsBridge && rules ? rules.ActiveBridgeModel(obj.Id) : entry.Value,
+                        true, !recordedLayout && obj.Kind == ZKind.Building);
             }
             forgotten.Clear();
             foreach (var pair in Contacts)
             {
                 bool present = liveViews.Contains(pair.Key);
-                if (!present && Visible(pair.Value.X, pair.Value.Y)) forgotten.Add(pair.Key);
-                else if (!pair.Value.Fixed && Visible(pair.Value.X, pair.Value.Y))
-                {
-                    var obj = world.Get(pair.Key);
-                    if (obj == null || !Visible(obj.CenterX, obj.CenterY)) forgotten.Add(pair.Key);
-                }
+                if (pair.Value.Kind == ZKind.Building || !ContactVisible(pair.Value.X, pair.Value.Y)) continue;
+                var obj = world.Get(pair.Key);
+                if (!present || obj == null || !ContactVisible(obj.CenterX, obj.CenterY)) forgotten.Add(pair.Key);
             }
-            foreach (int id in forgotten) { Contacts.Remove(id); meshCache.Remove(id); }
+            foreach (int id in forgotten) ForgetContact(id);
+            recordedLayout = true;
         }
 
-        void RecordContact(ZObject obj, GameObject view, bool fixedObject)
+        void RecordContact(ZObject obj, GameObject view, bool fixedObject, bool mapLayout)
         {
             liveViews.Add(obj.Id);
-            if (!Visible(obj.CenterX, obj.CenterY)) return;
-            if (!fixedObject && obj.Destroyed) { Contacts.Remove(obj.Id); return; }
+            bool visible = world.AreAllied(obj.Owner, seat) || ContactVisible(obj.CenterX, obj.CenterY);
+            if (!visible && !mapLayout) return;
+            if (obj.Kind != ZKind.Building && (obj.Destroyed || obj.KillAt >= 0))
+            {
+                ForgetContact(obj.Id);
+                return;
+            }
             if (!Contacts.TryGetValue(obj.Id, out var contact)) Contacts[obj.Id] = contact = new Contact();
-            if (fixedObject && contact.Parts.Count > 0 && contact.Destroyed == obj.Destroyed && contact.Team == obj.Owner) return;
+            if (fixedObject && meshCache.TryGetValue(obj.Id, out var previous) && previous.View == view &&
+                contact.Parts.Count > 0 && contact.Destroyed == obj.Destroyed &&
+                contact.Team == obj.Owner && contact.HasObservation == visible && contact.Health == obj.Health) return;
             contact.X = obj.CenterX; contact.Y = obj.CenterY;
             contact.Left = obj.LocX; contact.Top = obj.LocY; contact.Width = obj.WidthPix; contact.Height = obj.HeightPix;
             contact.Type = obj.Type;
-            contact.Team = obj.Owner; contact.Kind = obj.Kind; contact.Destroyed = obj.Destroyed; contact.Fixed = fixedObject;
-            contact.Parts.Clear();
-            if (!meshCache.TryGetValue(obj.Id, out var filters) || fixedObject) meshCache[obj.Id] = filters = view.GetComponentsInChildren<MeshFilter>(true);
-            foreach (var filter in filters)
-                if (filter && filter.sharedMesh && filter.gameObject.activeInHierarchy && filter.TryGetComponent<MeshRenderer>(out var renderer) && renderer.enabled)
-                    contact.Parts.Add(new Part(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer.sharedMaterials));
+            contact.Team = visible ? obj.Owner : Team.Neutral;
+            contact.Kind = obj.Kind; contact.Destroyed = obj.Destroyed; contact.Fixed = fixedObject;
+            contact.HasObservation = visible;
+            contact.Health = obj.Health;
+            ReleaseParts(contact);
+            if (!meshCache.TryGetValue(obj.Id, out var cached) || fixedObject || cached.View != view)
+                meshCache[obj.Id] = cached = (view, view.GetComponentsInChildren<Renderer>(true));
+            foreach (var renderer in cached.Parts)
+            {
+                if (!renderer || !renderer.enabled || !renderer.gameObject.activeInHierarchy || renderer.forceRenderingOff) continue;
+                if (renderer is MeshRenderer && renderer.TryGetComponent<MeshFilter>(out var filter) && filter.sharedMesh)
+                    contact.Parts.Add(new Part(filter.sharedMesh, filter.transform.localToWorldMatrix, renderer, false, !visible));
+                else if (renderer is SkinnedMeshRenderer skin && skin.sharedMesh)
+                {
+                    var mesh = new Mesh { hideFlags = HideFlags.DontSave };
+                    skin.BakeMesh(mesh);
+                    contact.Parts.Add(new Part(mesh, skin.transform.localToWorldMatrix, skin, true, !visible));
+                }
+            }
         }
 
         internal void DrawMemory(Camera cam)
         {
-            foreach (var item in Contacts.Values)
+            foreach (var pair in Contacts)
             {
-                if (Visible(item.X, item.Y)) continue;
+                var item = pair.Value;
+                if (!ShowContact(pair.Key, item)) continue;
                 foreach (var part in item.Parts)
                 {
                     if (!part.Mesh) continue;
                     int count = Math.Min(part.Mesh.subMeshCount, part.Materials.Length);
                     for (int i = 0; i < count; i++)
                         if (part.Materials[i]) Graphics.DrawMesh(part.Mesh, part.Transform, part.Materials[i], 0, cam,
-                            i, null, ShadowCastingMode.Off, false);
+                            i, part.Properties[i], ShadowCastingMode.Off, false);
                 }
-                if (!item.Fixed) DrawContactMarker(item, cam);
+                if (!item.Fixed || item.Kind == ZKind.Building && item.Parts.Count == 0)
+                    DrawContactMarker(item, cam);
             }
         }
 
@@ -251,7 +343,14 @@ namespace OpenZ
         void LateUpdate()
         {
             var cam = Camera.main;
-            if (Fog && cam && cam.TryGetComponent<RtsCamera>(out var rts) && rts.isActiveAndEnabled) DrawMemory(cam);
+            if (world == null) return;
+            if ((CampaignMemory || mapHasRadar && ZBattleSight.RadarFog(RuleFor(world))) &&
+                (world.Time >= nextContacts || !recordedLayout))
+            {
+                nextContacts = world.Time + .1;
+                RecordContacts();
+            }
+            if (ShowsMemory && cam && cam.TryGetComponent<RtsCamera>(out var rts) && rts.isActiveAndEnabled) DrawMemory(cam);
         }
 
         void StartStatic(bool last)

@@ -203,6 +203,7 @@ namespace OpenZ.Sim
             if (EvilGuarding) EvilGuardStep();                                                                 // DV165: blue's last defense holds his spot, steps a little, walks home (Sim/ZEvilZod.Appear.cs)
             if (RamDoomHold()) return;                                                                         // 1.5 DV182 (kit mammoth_ram): a vehicle the Mammoth rammed is held (no step, shot or order) until it is destroyed (Sim/ZObject.MammothRam.cs)
             if (StunHold(time)) return;                                                                        // electrobot_v1 DV45: stunned: no move, still fires (ZObject.Electro.cs)
+            if (AttackObject != null && World.HiddenFromOrders(Owner, AttackObject)) Disengage();
             BehaviorTick();
             ProcessServerLid(time);
             int rpPath = ZRuleProf.Enter(ZRuleProf.Path); World.Pathing?.PreProcess(this); ZRuleProf.Exit(rpPath);                                                                   // OpenZ pathing: deferred re-path / give-up / arrival
@@ -227,6 +228,7 @@ namespace OpenZ.Sim
                 }
                 else isNew = false;
 
+                if (wp.mode != WpMode.Attack) attackingFogContact = false;
                 switch (wp.mode)
                 {
                     case WpMode.Move: ProcessMoveWP(dt, isNew, true); break;
@@ -279,6 +281,7 @@ namespace OpenZ.Sim
 
         void StartPath()
         {
+            using var fogPath = World.Path.UseKnownRocks(World.FogRockTiles(Owner));
             if (World.Pathing != null && World.Pathing.DeferPath(this)) return;                                 // DV44: minions follow their leader, requests budgeted per tick (ZCommit.cs)
             if (World.Pathing != null && !World.Pathing.PrepareStartPath(this)) return;                       // OpenZ pathing: unreachable goal -> nearest reachable
             cur.pathFindingId = World.Path.FindPath(LocX + 8, LocY + 8, cur.x, cur.y, IsRobot, RockPath(), out var pts);   // DV103: round a rock when the way round is not much longer (ZPathing.RockRound.cs)
@@ -500,12 +503,67 @@ namespace OpenZ.Sim
             }
         }
 
+        bool attackingFogContact;
+        int fogAttackX, fogAttackY;
+
+        void ProcessFogAttack(double dt, int x, int y, bool isNew)
+        {
+            Disengage();
+            if (!attackingFogContact || isNew || x != fogAttackX || y != fogAttackY)
+            {
+                StopMove();
+                ClearCur();
+                attackingFogContact = true;
+                fogAttackX = x;
+                fogAttackY = y;
+            }
+            if (Within(CenterX, CenterY, x, y, AttackRadius) && (!LosActive || World.Sight.Clear(CenterX, CenterY, World.Sight.ExemptOf(this), x, y, 0)))
+            {
+                StopMove();
+                FireAtFogContact(x, y);
+                return;
+            }
+            if (!CanMove || cur.pathFindingId != 0) return;
+            if (!cur.gotPfResponse)
+            {
+                SetTarget(x, y);
+                StartPath();
+                return;
+            }
+            SetVelocity();
+            if (!ProcessMoveOrKillWP(dt)) return;
+            if (ReachedTarget() && !NextPathPoint()) StopMove();
+        }
+
+        void FireAtFogContact(int x, int y)
+        {
+            double time = World.Time;
+            if (!CanAttack() || BehaviorHoldFire() || time < nextDamageTime) return;
+            nextDamageTime = time + AttackSpeed;
+            if (!DamageIsMissile)
+            {
+                World.Emit(ZEventType.Hitscan, this, null, x, y);
+                return;
+            }
+            var shell = new ZMissile { team = Owner, attackerId = Id, x = x, y = y, damage = Damage,
+                radius = DamageRadius, playerGiven = true };
+            shell.CalcExplodeTime(CenterX, CenterY, MissileSpeed, time);
+            World.AddMissile(shell);
+            World.Emit(ZEventType.MissileFired, this, null, x, y, (float)(shell.explodeTime - time), shell.radius);
+        }
+
         /// <summary>zobject.cpp:2330-2479</summary>
         void ProcessAttackWP(double dt, bool isNew)
         {
             var wp = Waypoints[0];
             var t = World.Get(wp.refId);
-            if (!CanAttackObject(t)) { KillWP(); return; }
+            if (World.TryFogAttack(Owner, wp, t, out var point))
+            {
+                ProcessFogAttack(dt, point.X, point.Y, isNew);
+                return;
+            }
+            if (attackingFogContact) { attackingFogContact = false; StopMove(); ClearCur(); }
+            if (World.HiddenFromOrders(Owner, t) || !CanAttackObject(t)) { Disengage(); KillWP(); return; }
             if (!FortGunAnswering(t) && CalmNoChase(t)) { KillWP(); return; }                                   // b49: an attack on the way of the player's order ends when its target is out of range (ZObject.Calm.cs)
             if (IsEvilZod && EvilDashOrder(wp, t, isNew)) return;                       // DV161: on a given attack order the power dash before any walking step (Sim/ZEvilZod.cs)
             if (RamFirstStep(t, dt, true)) return;   // 1.5 DV189 (kit ram_first): Sim/ZObject.RamFirst.cs: a RAM-FIRST target in gun range: drive in, the gun on it
@@ -693,15 +751,15 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ engagement
         public bool WithinAttackRadius(ZObject o) =>
-            o != null && InReach(o, CenterX, CenterY, RangeTo(o)) &&                // combat_nb_v1 DV26: a building's walls (else Zod's centre)
+            o != null && !World.HiddenFromOrders(Owner, o) && InReach(o, CenterX, CenterY, RangeTo(o)) &&                // combat_nb_v1 DV26: a building's walls (else Zod's centre)
             (o.IsDestroyableImpass || o.ShuttleAirborne || !World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) && HasLineOfSight(o);   // DV23: direct fire needs a line; DV118: no ground tile stops a shot at the flying shuttle
         public bool WithinAgroRadius(ZObject o) =>
-            o != null && Within(CenterX, CenterY, o.CenterX, o.CenterY, AgroReachTo(o)) &&
+            o != null && !World.HiddenFromOrders(Owner, o) && Within(CenterX, CenterY, o.CenterX, o.CenterY, AgroReachTo(o)) &&
             (o.IsDestroyableImpass || o.ShuttleAirborne || !World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) && CanSee(o);
 
         public void Engage(ZObject t)
         {
-            if (t == null) { Disengage(); return; }
+            if (t == null || World.HiddenFromOrders(Owner, t)) { Disengage(); return; }
             if (AttackObject != t) { AttackObject = t; if (t.CanSnipe) SignalLidShouldOpen(); }
         }
 

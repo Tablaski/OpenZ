@@ -43,7 +43,7 @@ namespace OpenZ.Sim
                 for (int i = o.Waypoints.Count - 1; i >= 1; i--)
                 {
                     var q = o.Waypoints[i];
-                    if ((q.mode == WpMode.Attack || q.mode == WpMode.Agro) && q.refId == v.Id) { o.Waypoints.RemoveAt(i); StaleEmptyOrdersDropped++; }
+                    if ((q.mode == WpMode.Attack || q.mode == WpMode.Agro) && q.refId == v.Id && !TryFogAttack(o.Owner, q, v, out _)) { o.Waypoints.RemoveAt(i); StaleEmptyOrdersDropped++; }
                 }
             }
         }

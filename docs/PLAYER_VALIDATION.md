@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.63 fog of war
+
+- Pending in a compiled game. Inspect MAYHEM and radar-loss fog in solo and online on both seats. Check factory, fort, radar, flag, boundary and bridge visibility, last known unit positions and building ownership, and a bridge or rock destroyed out of sight. Scout the position again to verify that memory clears or updates. Check the battlefield and minimap together.
+- Issue move and queued attack orders before losing a radar. Compare the route when a concealed obstacle changes, then select the attacker and check its aim and route marker while the target moves, dies or reappears. Repeat with the radar-loss rule off.
+
 ## OpenZ-VK 1.5.62 V5 wide views
 
 - Checkpoint `8cff09e2` passed 9,073 headless simulation checks. The Unity Editor rendered five native 3840 × 2160 oblique screenshots with `-oz-preview-wide -oz-ai-maps-v5`. The Arctic open-water shader, base water material and native map grids match 1.5.56.

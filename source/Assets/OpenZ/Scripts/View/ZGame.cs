@@ -256,6 +256,7 @@ namespace OpenZ
             {
                 SoloAi2026 = OzAiSoloChoice.Level;
                 World.ModernBotFog = IsMayhem;
+                World.CampaignFogTeam = IsMayhem ? player : Team.Neutral;
                 World.ModernBotLineOfSight = OzFogOfWar.LosOn;
                 World.ModernBotSoloRadar = OzBattleOptions.SoloRadar;
             }

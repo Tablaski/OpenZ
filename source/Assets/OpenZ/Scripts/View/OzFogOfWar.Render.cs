@@ -586,44 +586,35 @@ namespace OpenZ
             float now = Time.unscaledTime; int nv = 0, outside = 0, refreshed = 0;
             bool boxed = ViewBox(cam, out var box);
             if (earlyNow.Count > 0) RestoreEarly();                                                         // 1.4 mayhem_headstart: a camera that never reached its end gives its shadows back first
-            int band = EarlyDrawCells(), ne = 0;
             for (int i = 0; i < views.Count; i++)
             {
                 var v = views[i]; if (!v) continue;
-                var o = v.Obj; if (o == null || !radarFog && (o.Owner == player || !o.IsUnit)) continue;
-                bool los = radarFog ? OzRadarLoss.Covers(o) : LosCovers(o);                                                                        // 1.5 los_fog (View/OzFogOfWar.Los.cs): an enemy on explored ground nothing of ours sees now is held off too, never in the early band
-                if (radarFog && !los) continue;
-                if (!los) { if (mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) continue; }
-                bool early = !radarFog && !los && band > 0 && NearRevealed(mask, o.CenterX, o.CenterY, band);                          // 1.4 mayhem_headstart: under the fog's soft edge: drawn, shadows held off
+                var o = v.Obj; if (o == null || !radarFog && !o.IsUnit) continue;
+                if (!Covers(o)) continue;
+                bool los = radarFog || mask.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed;
                 float wx = o.CenterX / 8f, wz = -o.CenterY / 8f;                                                // 8 Zod px = 1 m (ZGame.PxToWorld)
-                if (boxed && (wx < box.x || wx > box.z || wz < box.y || wz > box.w)) { if (!early && !los) outside++; continue; }   // 1.4 mayhem_headstart: early units are not held units
+                if (boxed && (wx < box.x || wx > box.z || wz < box.y || wz > box.w)) { if (!los) outside++; continue; }
                 int id = v.GetInstanceID();
                 if (!rcache.TryGetValue(id, out var c)) { c = new RCache(); rcache[id] = c; }
                 // parts added later (a gun, a crew) join within a second; at most 3 lists made again a frame (the rest wait a frame or two)
                 if (c.at < 0f || (now - c.at > 1f && refreshed < 3)) { v.GetComponentsInChildren(true, c.list); c.at = now; refreshed++; BoardingView.AddCrewRenderers(v, c.list); }   // final pass 14h: its crew figure (jeep driver, hatch commander, boarding robot: View/BoardingView.FogHide.cs) held off with it
-                if (early)
-                {
-                    for (int k = 0; k < c.list.Count; k++)
-                    {
-                        var r = c.list[k];
-                        if (r && !r.forceRenderingOff && r.shadowCastingMode != ShadowCastingMode.Off) { earlyNow.Add((r, r.shadowCastingMode)); r.shadowCastingMode = ShadowCastingMode.Off; }
-                    }
-                    ne++; continue;
-                }
                 for (int k = 0; k < c.list.Count; k++)
                 {
                     var r = c.list[k];
                     if (r && !r.forceRenderingOff) { r.forceRenderingOff = true; hiddenNow.Add(r); }
                 }
-                if (los) { LosHeldView(v); continue; }                                                           // 1.5 los_fog: counted apart (HiddenViews stays the units in covered ground), its real lamps held off too
-                nv++;
+                LosHeldView(v);
+                if (!los) nv++;
             }
-            if (radarFog)
+            if (radarFog || wanted)
+            {
+                var rules = game.GetComponent<RulesView>();
                 foreach (var entry in game.StaticViews)
                 {
-                    var sceneObject = entry.Value;
                     var obj = W.GetAny(entry.Key);
-                    if (!sceneObject || !OzRadarLoss.Covers(obj)) continue;
+                    if (!Covers(obj)) continue;
+                    var sceneObject = obj?.IsBridge == true && rules ? rules.ActiveBridgeModel(entry.Key) : entry.Value;
+                    if (!sceneObject) continue;
                     int id = sceneObject.GetInstanceID();
                     if (!rcache.TryGetValue(id, out var cache)) rcache[id] = cache = new RCache();
                     if (cache.at < 0 || now - cache.at > 1f && refreshed < 3)
@@ -635,8 +626,9 @@ namespace OpenZ
                     foreach (var renderer in cache.list)
                         if (renderer && !renderer.forceRenderingOff) { renderer.forceRenderingOff = true; hiddenNow.Add(renderer); }
                 }
+            }
             HiddenViews = nv; HiddenRenderers = hiddenNow.Count; HiddenSkippedOutside = outside;
-            EarlyViews = ne; EarlyShadowsHeld = earlyNow.Count;
+            EarlyViews = EarlyShadowsHeld = 0;
         }
 
         void RestoreHidden()

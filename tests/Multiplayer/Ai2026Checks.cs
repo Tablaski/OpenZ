@@ -38,6 +38,7 @@ static class Ai2026Checks
         CheckCommands(settings, grid, check);
         CheckProfiles(settings, grid, check);
         CheckRadar(settings, grid, check);
+        CheckFogAttackOrders(settings, grid, check);
         CheckRoom(root, settings, check);
         CheckTeamRelief(root, settings, check);
         bool roofDefense = ZWorld.FortDefenderDeviation;
@@ -230,6 +231,38 @@ static class Ai2026Checks
         world.CreateObject("building", "radar", 160, 160, Team.Blue);
         sight.Observe();
         check(!sight.ZoomLimited && sight.CanSee(fort.CenterX, fort.CenterY), "A working radar restores the picture");
+    }
+
+    static void CheckFogAttackOrders(string settings, string grid, Action<bool, string> check)
+    {
+        var world = ZWorld.Create(settings, grid, 12);
+        world.ModernBotSoloRadar = RadarLossRule.Fog;
+        var radar = world.CreateObject("building", "radar", 160, 160, Team.Blue);
+        var attacker = world.UnitObjects.First(o => o.Owner == Team.Blue && o.CanMove && o.CanAttack());
+        var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);
+        var target = world.CreateObject("vehicle", "heavy", fort.LocX, fort.LocY, Team.Red);
+        var waypoint = new ZWaypoint { mode = WpMode.Attack, refId = target.Id,
+            x = target.CenterX, y = target.CenterY, playerGiven = true };
+        world.Tick(ZConst.TICK);
+        check(world.SendWaypoints(Team.Blue, attacker, new[] { waypoint }), "The attack is accepted while the radar works");
+        var lastKnown = (target.CenterX, target.CenterY);
+        foreach (var building in world.Objects.Where(o => o.ProvidesRadarTo(Team.Blue))) building.Health = 0;
+        target.SetCords(target.LocX + 48, target.LocY);
+        for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
+        check(world.HiddenFromOrders(Team.Blue, target) &&
+            world.TryFogAttack(Team.Blue, waypoint, target, out var moved) && moved == lastKnown,
+            "An attack in radar fog remembers the last visible position of a target that moves");
+        target.Health = 0;
+        target.KillAt = world.Time;
+        for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
+        check(world.Get(target.Id) == null && world.TryFogAttack(Team.Blue, waypoint, null, out var deleted) &&
+            deleted == lastKnown && attacker.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
+            "An unseen deletion preserves the attack order and its remembered position");
+        radar.Health = radar.MaxHealth;
+        for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
+        check(!world.TryFogAttack(Team.Blue, waypoint, null, out _) &&
+            !attacker.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
+            "The attack ends after radar vision confirms that the target has gone");
     }
 
     static void CheckTeamRelief(string root, string settings, Action<bool, string> check)

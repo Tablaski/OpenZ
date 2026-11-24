@@ -191,7 +191,22 @@ namespace OpenZ
                     pts.Add(Px(g, o.Waypoints[0].x, o.Waypoints[0].y, out d));
                     legDeck.Add(d);
                 }
-                for (int i = 1; i < o.Waypoints.Count; i++) { pts.Add(Px(g, o.Waypoints[i].x, o.Waypoints[i].y, out d)); legDeck.Add(d); }
+                var memory = OzRadarLoss.I;
+                if (memory && o.Waypoints.Count > 0 && memory.TryAttackContact(o.Waypoints[0], out int attackX, out int attackY))
+                {
+                    var contact = Px(g, attackX, attackY, out d);
+                    pts.Add(contact);
+                    legDeck.Add(d);
+                    Draw(ring, contact + Vector3.up * .08f, .65f, routeMaterial);
+                }
+                for (int i = 1; i < o.Waypoints.Count; i++)
+                {
+                    var waypoint = o.Waypoints[i];
+                    int x = waypoint.x, y = waypoint.y;
+                    if (memory && memory.TryAttackContact(waypoint, out int knownX, out int knownY)) { x = knownX; y = knownY; }
+                    pts.Add(Px(g, x, y, out d));
+                    legDeck.Add(d);
+                }
                 for (int i = 0; i < pts.Count; i++)
                 {
                     Leg(g, prev, prevDeck, pts[i], legDeck[i], 0.8f, 1.2f, 0.1f, 0.12f, routeMaterial);

@@ -46,7 +46,7 @@ namespace OpenZ.Sim
                 for (int i = o.Waypoints.Count - 1; i >= from; i--)
                 {
                     var q = o.Waypoints[i];
-                    if ((q.mode != WpMode.Attack && q.mode != WpMode.Agro) || q.refId != v.Id) continue;
+                    if ((q.mode != WpMode.Attack && q.mode != WpMode.Agro) || q.refId != v.Id || TryFogAttack(o.Owner, q, v, out _)) continue;
                     o.Waypoints.RemoveAt(i);
                     if (i == 0) firstGone = true;
                     if (exit) EmptiedOrdersDropped++; else EmptiedQueuedDropped++;

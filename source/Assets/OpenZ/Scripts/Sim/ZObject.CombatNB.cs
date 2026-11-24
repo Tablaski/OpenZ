@@ -280,7 +280,7 @@ namespace OpenZ.Sim
             // a unit sent onto one waits behind it forever (NB13 harness, L17: 72 s held behind a parked neutral light tank)
             apParked.Clear();
             foreach (var o in PerfFastRules ? UnitObjects : Objects)                        // 1.3 item 25: the units of Objects, same order (Sim/ZWorld.PerfRules.cs)
-                if (o != u && o != t && o.IsUnit && !o.Destroyed && o.KillAt < 0 && !o.IsMinion && o.Leader != u && (o.Kind == ZKind.Cannon || o.Owner == Team.Neutral || (o.Waypoints.Count == 0 && !o.IsMoving)))
+                if (o != u && o != t && o.IsUnit && !HiddenFromOrders(u.Owner, o) && !o.Destroyed && o.KillAt < 0 && !o.IsMinion && o.Leader != u && (o.Kind == ZKind.Cannon || o.Owner == Team.Neutral || (o.Waypoints.Count == 0 && !o.IsMoving)))
                     apParked.Add(o);
             apDecks.Clear();
             foreach (var o in Objects) if (o.IsBridge && !o.Destroyed) apDecks.Add(o);           // never a goal on a bridge deck (the unit would queue for it)

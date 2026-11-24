@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.63 (24 Nov 2026)
+
+- Solo + 1 vs 1 — The fog of war shows map landmarks, last known unit and rock positions, and the last known state of buildings and bridges.
+- Solo + 1 vs 1 — Movement orders keep their destination when the fog returns. Attack orders aim at the target's last known position until it is seen again or that position is searched.
+
 ## OpenZ-VK 1.5.62 (23 Nov 2026)
 
 - AI Maps — The experimental V5 examples restore the V4 open water on Arctic, refine the lake ice and soften the cliffs alongside the raised road on The Jungle.

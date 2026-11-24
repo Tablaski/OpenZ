@@ -396,6 +396,7 @@ namespace OpenZ.Sim
             DuelUpdateFortBonus();
             ZRuleProf.TickBegin(); TickIndex++;                                                            // electrobot_v1 DV45: the stun / tesla clock (ZObject.Electro.cs)
             Time += dt;
+            ObservePlayerOrders();
             UnitTesting?.Tick();
             L17CrewsTick();
             EvilLastDefenseTick();
@@ -763,7 +764,8 @@ namespace OpenZ.Sim
             foreach (var o in Objects)
             {
                 if (o.AttackObject == v) o.Disengage();
-                if (o.Waypoints.Count > 0 && (o.Waypoints[0].mode == WpMode.Attack || o.Waypoints[0].mode == WpMode.Agro) && o.Waypoints[0].refId == v.Id)
+                if (o.Waypoints.Count > 0 && (o.Waypoints[0].mode == WpMode.Attack || o.Waypoints[0].mode == WpMode.Agro) && o.Waypoints[0].refId == v.Id &&
+                    !TryFogAttack(o.Owner, o.Waypoints[0], v, out _))
                 { o.Waypoints.RemoveAt(0); o.StopMove(); }
             }
         }

@@ -2119,6 +2119,7 @@ namespace OpenZ.Sim
             if (Waypoints.Count == 0 || Waypoints[0].mode != WpMode.Move) return false;
             var wp = Waypoints[0];
             var P = World.Pathing;
+            using var fogPath = World.Path.UseKnownRocks(World.FogRockTiles(Owner));
             SetTarget(wp.x, wp.y);
             if (!P.PrepareStartPath(this)) return true;                                     // unreachable: the layer's give-up runs next tick (it stopped)
             var tp = ZPathing.R3(256) && !(ZPathing.R4(512) && P.HandoverZod(this)) ? P.TrailHandoverPath(this) : null;   // (review round 3: on a bridge / water / gate zone or its band, or at its order's start: Zod's path, the live hand-over)

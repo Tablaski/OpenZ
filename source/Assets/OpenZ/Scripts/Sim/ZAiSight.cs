@@ -49,6 +49,94 @@ namespace OpenZ.Sim
     {
         internal bool ModernBotFog, ModernBotLineOfSight;
         internal RadarLossRule ModernBotSoloRadar;
+        internal Team CampaignFogTeam;
+        readonly Dictionary<Team, OrderSight> orderSight = new Dictionary<Team, OrderSight>();
+        bool? fogMapHasRadar;
+        double nextOrderSight;
+
+        sealed class OrderSight
+        {
+            internal readonly ZAiSight Sight;
+            internal readonly Dictionary<int, (int X, int Y)> LastSeen = new();
+            internal readonly HashSet<int> ConfirmedLost = new();
+            internal readonly HashSet<(int X, int Y)> HiddenRockTiles = new();
+            internal readonly Dictionary<int, (int X, int Y)> KnownRocks = new();
+            internal OrderSight(ZWorld world, Team team) { Sight = new ZAiSight(world, team, true); }
+        }
+
+        void ObservePlayerOrders()
+        {
+            var rule = Map.skirmish || HasDuelRules ? DuelRadarLoss : ModernBotSoloRadar;
+            bool radarFog = ZBattleSight.RadarFog(rule) &&
+                (fogMapHasRadar ??= ZBattleSight.MapHasRadar(Map));
+            if (!radarFog && CampaignFogTeam == Team.Neutral) return;
+            if (orderSight.Count == 0)
+            {
+                foreach (Team team in Enum.GetValues(typeof(Team)))
+                {
+                    if (!IsHumanTeam(team) || (!radarFog && team != CampaignFogTeam)) continue;
+                    if (!Objects.Exists(o => o.Owner == team)) continue;
+                    orderSight.Add(team, new OrderSight(this, team));
+                }
+            }
+            bool refreshSight = Time >= nextOrderSight;
+            if (refreshSight) nextOrderSight = Time + .05;
+            foreach (var pair in orderSight)
+            {
+                var state = pair.Value;
+                if (refreshSight) state.Sight.Observe();
+                state.HiddenRockTiles.Clear();
+                foreach (var target in Objects)
+                {
+                    if (!target.IsUnit && target.Kind != ZKind.Building && !target.IsDestroyableImpass) continue;
+                    bool visible = AreAllied(pair.Key, target.Owner) ||
+                        state.Sight.CanSee(target.CenterX, target.CenterY);
+                    if (visible)
+                    {
+                        if (target.Destroyed || target.KillAt >= 0)
+                        {
+                            if (state.LastSeen.Remove(target.Id)) state.ConfirmedLost.Add(target.Id);
+                        }
+                        else
+                        {
+                            state.ConfirmedLost.Remove(target.Id);
+                            state.LastSeen[target.Id] = (target.CenterX, target.CenterY);
+                        }
+                    }
+                    if (!target.IsDestroyableImpass || target.Type != "rock") continue;
+                    if (visible && (target.Destroyed || target.KillAt >= 0))
+                        state.KnownRocks.Remove(target.Id);
+                    else if (!target.Destroyed && target.KillAt < 0 && (visible || TickIndex == 1))
+                        state.KnownRocks[target.Id] = (target.LocX >> 4, (target.LocY >> 4) + 2);
+                }
+                foreach (var rock in state.KnownRocks.Values)
+                {
+                    if (!state.Sight.CanSee(rock.X * 16 + 8, rock.Y * 16 + 8) &&
+                        !Path.HasDestroyableBarrier(rock.X, rock.Y))
+                        state.HiddenRockTiles.Add(rock);
+                }
+            }
+        }
+
+        internal bool HiddenFromOrders(Team team, ZObject obj) =>
+            obj != null && orderSight.TryGetValue(team, out var state) &&
+            !AreAllied(team, obj.Owner) && !state.Sight.CanSee(obj.CenterX, obj.CenterY);
+
+        internal bool TryFogAttack(Team team, ZWaypoint wp, ZObject target, out (int X, int Y) point)
+        {
+            point = (wp.x, wp.y);
+            if (!wp.playerGiven || wp.mode != WpMode.Attack || !orderSight.TryGetValue(team, out var state)) return false;
+            if (target != null && !HiddenFromOrders(team, target)) return false;
+            if (state.ConfirmedLost.Contains(wp.refId)) return false;
+            if (state.LastSeen.TryGetValue(wp.refId, out var remembered)) point = remembered;
+            return !state.Sight.CanSee(point.X, point.Y);
+        }
+
+        internal bool PlayerCanSeeOrderPoint(Team team, int x, int y) =>
+            !orderSight.TryGetValue(team, out var state) || state.Sight.CanSee(x, y);
+
+        internal HashSet<(int X, int Y)> FogRockTiles(Team team) =>
+            orderSight.TryGetValue(team, out var state) && state.HiddenRockTiles.Count != 0 ? state.HiddenRockTiles : null;
     }
 
     internal sealed class ZAiSight
@@ -63,10 +151,14 @@ namespace OpenZ.Sim
         internal bool ZoomLimited { get; private set; }
         internal bool HasLimitedInformation => jammedFog || world.ModernBotFog;
 
-        internal ZAiSight(ZWorld world, Team team)
+        readonly bool playerOrders;
+        bool CampaignFog => playerOrders ? world.CampaignFogTeam == team : world.ModernBotFog;
+
+        internal ZAiSight(ZWorld world, Team team, bool playerOrders = false)
         {
             this.world = world;
             this.team = team;
+            this.playerOrders = playerOrders;
             mapHasRadar = ZBattleSight.MapHasRadar(world.Map);
         }
 
@@ -74,7 +166,7 @@ namespace OpenZ.Sim
         {
             var rule = world.Map.skirmish || world.HasDuelRules ? world.DuelRadarLoss : world.ModernBotSoloRadar;
             bool radarOnline = false;
-            if (mapHasRadar && (world.ModernBotFog || rule != RadarLossRule.Off))
+            if (mapHasRadar && (CampaignFog || rule != RadarLossRule.Off))
                 foreach (var o in world.Objects)
                     if (o.ProvidesRadarTo(team)) { radarOnline = true; break; }
             bool jammed = mapHasRadar && !radarOnline;
@@ -87,7 +179,7 @@ namespace OpenZ.Sim
                 ZBattleSight.StampRadarLoss(world, team, radarLoss);
             }
 
-            if (!world.ModernBotFog) return;
+            if (!CampaignFog || playerOrders && jammedFog) return;
             explored ??= NewMask();
             limitedSight = world.ModernBotLineOfSight && !radarOnline;
             if (limitedSight)
@@ -113,7 +205,7 @@ namespace OpenZ.Sim
 
         internal bool CanSee(int x, int y, bool mobile = true) =>
             (!jammedFog || Open(radarLoss, x, y)) &&
-            (!world.ModernBotFog || Open(explored, x, y) && (!mobile || !limitedSight || Open(current, x, y)));
+            (!CampaignFog || playerOrders && jammedFog || Open(explored, x, y) && (!mobile || !limitedSight || Open(current, x, y)));
 
         OzFowMask NewMask() => new OzFowMask(world.Map.WidthPix, world.Map.HeightPix);
         static bool Open(OzFowMask mask, int x, int y) => mask == null || mask.TargetAtPx(x, y) >= OzFowMask.Revealed;

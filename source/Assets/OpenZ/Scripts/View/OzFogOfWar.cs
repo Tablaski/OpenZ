@@ -339,10 +339,27 @@ namespace OpenZ
         /// <summary>The fog covers this object now: it is not of the player's side and the ground under its centre is not explored yet (a
         /// building: none of its corners either). The hover, the health bars, the production badges and the crate markers skip it.
         /// Always false when the fog is not on screen (off, the briefing, a flyover, the ending).</summary>
+        internal static bool ContactVisible(int x, int y)
+        {
+            var fog = I;
+            if (!fog || !fog.wanted || fog.mask == null) return true;
+            return fog.W.CampaignFogTeam == fog.player && fog.W.TickIndex > 0
+                ? fog.W.PlayerCanSeeOrderPoint(fog.player, x, y)
+                : fog.mask.ShownAtPx(x, y) >= OzFowMask.Revealed &&
+                    (!LosOn || fog.seen == null || fog.LosLifted(fog.seen.ShownAtPx(x, y)) >= LosHideBelow);
+        }
+
         public static bool Covers(ZObject o)
         {
             if (I && I.radarFog) return OzRadarLoss.Covers(o);
             if (!hidingNow || o == null || o.Owner == playerNow) return false;
+            if (o.Type == "flag" || o.World?.AreAllied(o.Owner, playerNow) == true) return false;
+            if (o.IsUnit || o.Kind == ZKind.Building || o.IsDestroyableImpass)
+            {
+                if (ContactVisible(o.CenterX, o.CenterY)) return false;
+                CoversTrue++;
+                return true;
+            }
             var m = maskNow; if (m == null) return false;
             if (LosCovers(o)) return LosCountCovered();                                 // 1.5 los_fog (View/OzFogOfWar.Los.cs): an enemy robot or vehicle on explored ground nothing of ours sees now
             if (m.ShownAtPx(o.CenterX, o.CenterY) >= OzFowMask.Revealed) return false;

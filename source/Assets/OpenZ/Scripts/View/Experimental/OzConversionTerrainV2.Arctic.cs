@@ -19,6 +19,8 @@ namespace OpenZ.Experimental
                 float z = (h - row - .5f) * 2 / samplesPerTile;
                 float drifts = Mathf.PerlinNoise((x + z * .65f) * .165f, z * .036f);
                 float grain = Mathf.PerlinNoise(x * .74f, z * .74f);
+                if (IsPaletteV5)
+                    drifts = Mathf.PerlinNoise(x * .17f, z * .17f) * .7f + grain * .3f;
                 float offset = (grain - .5f) * .55f;
                 float road = Mask(map, x + offset, z - offset, Road);
                 float roadWeight = RoadBlend(road, useV4, IsPaletteV5 ? .35f : .27f, IsPaletteV5 ? .39f : .55f);
@@ -68,21 +70,24 @@ namespace OpenZ.Experimental
 
         static void ArcticOpenWaterV5(Material water)
         {
-            water.SetColor("_ShallowColor",new Color(.36f,.62f,.68f));
-            water.SetColor("_MidColor",new Color(.075f,.32f,.40f));
-            water.SetColor("_DeepColor",new Color(.029f,.14f,.22f));
+            water.SetColor("_ShallowColor",new Color(.39f,.64f,.69f));
+            water.SetColor("_MidColor",new Color(.056f,.25f,.34f));
+            water.SetColor("_DeepColor",new Color(.018f,.085f,.157f));
             water.SetColor("_FoamColor",new Color(.71f,.82f,.84f,.34f));
             water.SetFloat("_FoamWidth",.038f);
             water.SetFloat("_EdgeFade",.076f);
             water.SetFloat("_RippleProc",1);
-            water.SetFloat("_ProcSize",.34f);
-            water.SetVector("_ProcSlope",new Vector4(.15f,.105f,.038f,0));
-            water.SetFloat("_ProcSpeed",.54f);
-            water.SetFloat("_ProcCalmSize",13);
+            water.SetFloat("_ProcSize",.26f);
+            water.SetVector("_ProcSlope",new Vector4(.24f,.135f,.025f,0));
+            water.SetFloat("_ProcSpeed",.45f);
+            water.SetFloat("_ProcCalm",.74f);
+            water.SetFloat("_ProcCalmSize",8);
             water.SetFloat("_ProcMorph",.12f);
-            water.SetFloat("_RippleContrast",.29f);
-            water.SetFloat("_GlintIntensity",.55f);
-            water.SetFloat("_GlintPower",620);
+            water.SetFloat("_RippleContrast",.50f);
+            water.SetFloat("_GlintIntensity",.68f);
+            water.SetFloat("_GlintPower",385);
+            water.SetFloat("_GlintThreshold",.28f);
+            water.SetFloat("_GlintSparsity",.40f);
             water.SetFloat("_Refraction",.055f);
         }
 

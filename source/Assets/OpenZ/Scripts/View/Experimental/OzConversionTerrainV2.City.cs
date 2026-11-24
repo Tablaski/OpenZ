@@ -8,12 +8,6 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
-        void HideCityV5ExteriorProps()
-        {
-            foreach (Transform part in transform)
-                if (part.name == "OUT3_Ruins" || part.name == "OUT3_Quays") part.gameObject.SetActive(false);
-        }
-
         Mesh CityBorderSurface(ZMapData map, List<Vector3> vertices, List<Vector2> uv, List<int>[] channels)
         {
             var rim = new bool[map.width * map.height];
@@ -83,107 +77,146 @@ namespace OpenZ.Experimental
             return concrete;
         }
 
-        void BuildCityBorderRuins(ZMapData map, System.Func<float,float,float> height)
+        void BuildCityBorderRuins(ZMapData map, System.Func<float, float, float> height)
         {
-            var vertices = new List<Vector3>();
-            var indices = new List<int>();
-            var colors = new List<Color>();
-            float width = 2 * map.width, depth = 2 * map.height;
-            for (int side = 0; side < 4; side++)
+            MeshFilter source = null;
+            foreach (Transform part in transform)
             {
-                float length = side < 2 ? width : depth;
-                for (float along = 13; along < length - 15;)
-                {
-                    float variation = Mathf.PerlinNoise(along * .174f + 5, side * 4.7f + 11);
-                    float damage = Mathf.PerlinNoise(along * .296f + 17, side * 2.1f + 4);
-                    int bays = Mathf.Clamp(Mathf.FloorToInt(2 + variation * 4), 3, 5);
-                    float bayWidth = Mathf.Lerp(2.3f, 3.15f, damage);
-                    float span = bays * bayWidth;
-                    if (along + span > length - 3) break;
-                    float setback = 5.8f + variation * 5.6f;
-                    float back = setback + Mathf.Lerp(4.3f, 7.4f, damage);
-                    float end = along + span;
-                    float baseY = TerrainY(along + span * .45f,setback + 1.8f);
-                    var masonry = Color.Lerp(new Color(.48f,.45f,.41f),new Color(.78f,.69f,.58f),variation);
-                    var concrete = masonry * .86f;
-                    var interior = masonry * .65f;
-                    Block(along,end,setback - 1.7f,back + 1,baseY - 3.2f,baseY + .3f,concrete);
+                if (part.name == "OUT3_Ruins" && !source) source = part.GetComponent<MeshFilter>();
+                if (part.name == "OUT3_Ruins" || part.name == "OUT3_Quays") part.gameObject.SetActive(false);
+            }
 
-                    int floors = damage < .29f ? 1 : variation > .60f ? 3 : 2;
-                    for (int level = 0; level < floors; level++)
-                    {
-                        float y = baseY + level * 2.6f;
-                        float brokenEnd = end - level * Mathf.Lerp(.45f, 2.6f, damage);
-                        Block(along,brokenEnd,setback,back,y,y + .22f,interior);
-                        Block(along,brokenEnd,setback,setback + .45f,y + .22f,y + .76f,masonry);
-                        for (int bay = 0; bay <= bays; bay++)
-                        {
-                            float start = along + bay * bayWidth;
-                            if (start + .47f > brokenEnd) break;
-                            float wear = Mathf.PerlinNoise(start * .84f, side + 7.1f);
-                            float top = y + 2.59f;
-                            if (level == floors - 1)
-                                top -= wear * 1.6f;
-                            Block(start,start + .47f,setback,setback + .48f,y + .6f,top,masonry);
-                            if (bay < bays && start + bayWidth <= brokenEnd)
-                            {
-                                if (level < floors - 1)
-                                    Block(start,start + bayWidth,setback,setback + .4f,y + 2.23f,y + 2.58f,masonry);
-                                if (wear < .38f)
-                                    Block(start + .44f,start + bayWidth * .78f,setback,setback + .46f,y + .75f,top - .12f,masonry * .92f);
-                            }
-                        }
-                        Block(along,along + .42f,setback,back - level * .65f,y + .22f,y + 2.45f,concrete);
-                        Block(along,brokenEnd - 1.1f,back - .51f,back,y + .22f,y + (level == floors - 1 ? 1.15f : 2.48f),interior);
-                    }
-                    float gap = 1.6f + damage * 3.1f;
-                    float rubbleY = TerrainY(end + gap * .4f, setback - .8f);
-                    Block(end - .4f,end + gap * .72f,setback - 1.8f,setback + .9f,rubbleY - .7f,rubbleY + .55f,concrete);
-                    Block(end + gap * .12f,end + gap * .57f,setback - .5f,setback + 1.3f,rubbleY,rubbleY + 1.15f,masonry);
-                    along += span + gap;
-                }
+            if (!source || !source.sharedMesh || !source.sharedMesh.isReadable)
+            {
+                Debug.LogWarning($"[AI map terrain] {mapId}: Car Park perimeter art is unavailable");
+                return;
+            }
 
-                (float x,float z) At(float along, float offset) => side switch
+            // The imported mesh contains whole city blocks outside L17. Retain the first rows
+            // aligned with the authored west, north and east streets. L17's south edge is the harbour.
+            var art = source.sharedMesh;
+            var sourceVertices = art.vertices;
+            var sourceNormals = art.normals;
+            var sourceUv = art.uv;
+            var sourceColors = art.colors32;
+            var parent = new int[sourceVertices.Length];
+            var weld = new Dictionary<Vector3Int, int>();
+            var reference = new Vector3[sourceVertices.Length];
+            for (int i = 0; i < sourceVertices.Length; i++)
+            {
+                parent[i] = i;
+                var point = source.transform.rotation * sourceVertices[i];
+                reference[i] = point;
+                var key = Vector3Int.RoundToInt(point * 1000);
+                if (weld.TryGetValue(key, out int previous)) parent[i] = previous;
+                else weld.Add(key, i);
+            }
+
+            var sourceTriangles = new int[art.subMeshCount][];
+            for (int submesh = 0; submesh < sourceTriangles.Length; submesh++)
+            {
+                var triangles = sourceTriangles[submesh] = art.GetTriangles(submesh);
+                for (int i = 0; i < triangles.Length; i += 3)
                 {
-                    0 => (along,-offset), 1 => (along,depth + offset), 2 => (-offset,along), _ => (width + offset,along)
-                };
-                float TerrainY(float along,float offset)
-                {
-                    var p = At(along,offset);
-                    return height(p.x,p.z);
-                }
-                void Block(float start,float end,float near,float far,float bottom,float top,Color color)
-                {
-                    var a = At(start,near);
-                    var b = At(end,far);
-                    float x0 = Mathf.Min(a.x,b.x), x1 = Mathf.Max(a.x,b.x);
-                    float z0 = -Mathf.Max(a.z,b.z), z1 = -Mathf.Min(a.z,b.z);
-                    var p = new Vector3(x0,bottom,z0); var q = new Vector3(x1,bottom,z0);
-                    var r = new Vector3(x1,bottom,z1); var s = new Vector3(x0,bottom,z1);
-                    var up = Vector3.up * (top - bottom);
-                    Face(p,q,r,s,color * .62f);
-                    Face(p + up,s + up,r + up,q + up,color * 1.04f);
-                    Face(p,p + up,q + up,q,color);
-                    Face(q,q + up,r + up,r,color * .94f);
-                    Face(r,r + up,s + up,s,color * .83f);
-                    Face(s,s + up,p + up,p,color * .91f);
-                }
-                void Face(Vector3 a,Vector3 b,Vector3 c,Vector3 d,Color color)
-                {
-                    int first = vertices.Count;
-                    vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
-                    colors.Add(color); colors.Add(color); colors.Add(color); colors.Add(color);
-                    indices.AddRange(new[] { first,first + 1,first + 2,first,first + 2,first + 3 });
+                    Join(triangles[i], triangles[i + 1]);
+                    Join(triangles[i], triangles[i + 2]);
                 }
             }
-            var facade = new Material(pit) { name = "City perimeter concrete ruins" };
-            facade.SetFloat("_UseVertexColor",1);
-            facade.SetFloat("_Triplanar",1);
-            facade.SetFloat("_TriScale",.28f);
-            facade.SetFloat("_OzAiRockV5",3);
-            AddV5SceneryMesh("City perimeter ruins",vertices,indices,facade,null,colors);
-        }
 
+            var bounds = new Dictionary<int, Bounds>();
+            for (int i = 0; i < reference.Length; i++)
+            {
+                int root = Root(i);
+                if (!bounds.TryGetValue(root, out var extent)) extent = new Bounds(reference[i], Vector3.zero);
+                extent.Encapsulate(reference[i]);
+                bounds[root] = extent;
+            }
+
+            const float referenceWidth = 220, referenceDepth = 256;
+            const float facadeHeight = .40f;
+            float width = map.width * 2, depth = map.height * 2;
+            var offsets = new Dictionary<int, (Vector3 scale, Vector3 offset)>();
+            foreach (var (root, extent) in bounds)
+            {
+                Vector3 lo = extent.min, hi = extent.max;
+                Vector3 scale, offset;
+                if (lo.x >= -53 && hi.x <= -27 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
+                {
+                    scale = new Vector3(15f / 26, facadeHeight, depth / referenceDepth);
+                    offset = new Vector3(-19 + 53 * scale.x, 0, 0);
+                }
+                else if (lo.x >= 225 && hi.x <= 265 && lo.z >= -referenceDepth + 5 && hi.z <= 3)
+                {
+                    scale = new Vector3(15f / 40, facadeHeight, depth / referenceDepth);
+                    offset = new Vector3(width + 4 - 225 * scale.x, 0, 0);
+                }
+                else if (lo.x >= 3 && hi.x <= referenceWidth - 3 && lo.z >= 38 && hi.z <= 80)
+                {
+                    scale = new Vector3(width / referenceWidth, facadeHeight, 15f / 42);
+                    offset = new Vector3(0, 0, 4 - 38 * scale.z);
+                }
+                else continue;
+
+                Vector3 seat = Vector3.Scale(extent.center, scale) + offset;
+                offset.y = height(seat.x, -seat.z) - 5.4f * facadeHeight - .42f;
+                offsets.Add(root, (scale, offset));
+            }
+
+            var vertices = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var colors = new List<Color32>();
+            var lookup = new int[reference.Length];
+            System.Array.Fill(lookup, -1);
+            for (int i = 0; i < reference.Length; i++)
+            {
+                if (!offsets.TryGetValue(Root(i), out var placement)) continue;
+                lookup[i] = vertices.Count;
+                vertices.Add(Vector3.Scale(reference[i], placement.scale) + placement.offset);
+                var normal = source.transform.rotation * sourceNormals[i];
+                normals.Add(new Vector3(normal.x / placement.scale.x, normal.y / placement.scale.y, normal.z / placement.scale.z).normalized);
+                uv.Add(sourceUv[i]);
+                if (sourceColors.Length == reference.Length) colors.Add(sourceColors[i]);
+            }
+
+            if (vertices.Count == 0)
+            {
+                Debug.LogWarning($"[AI map terrain] {mapId}: Car Park perimeter rows are empty, source bounds {art.bounds}");
+                return;
+            }
+            var mesh = NewMesh("The Car Park perimeter ruins", vertices);
+            mesh.SetNormals(normals);
+            mesh.SetUVs(0, uv);
+            if (colors.Count != 0) mesh.SetColors(colors);
+            mesh.subMeshCount = sourceTriangles.Length;
+            for (int submesh = 0; submesh < sourceTriangles.Length; submesh++)
+            {
+                var selected = new List<int>();
+                foreach (int i in sourceTriangles[submesh])
+                    if (lookup[i] >= 0) selected.Add(lookup[i]);
+                mesh.SetTriangles(selected, submesh, false);
+            }
+
+            mesh.RecalculateTangents();
+            mesh.RecalculateBounds();
+            var ruins = new GameObject("The Car Park perimeter ruins", typeof(MeshFilter), typeof(MeshRenderer));
+            ruins.transform.SetParent(transform, false);
+            ruins.GetComponent<MeshFilter>().sharedMesh = mesh;
+            ruins.GetComponent<MeshRenderer>().sharedMaterials = source.GetComponent<MeshRenderer>().sharedMaterials;
+            Debug.Log($"[AI map terrain] {mapId}: {offsets.Count} Car Park ruin pieces in perimeter rows");
+
+            int Root(int i)
+            {
+                while (parent[i] != i)
+                {
+                    parent[i] = parent[parent[i]];
+                    i = parent[i];
+                }
+                return i;
+            }
+
+            void Join(int a, int b) => parent[Root(b)] = Root(a);
+        }
         void BuildCityOutfalls(ZMapData map)
         {
             var pipeVertices = new List<Vector3>();

@@ -2,6 +2,10 @@
 
 ## V5 — five material studies on V4 geometry
 
+The 1.5.67 V5 City study reuses the authored ruin mesh and original facade materials from the official 3D Car Park scene. The converter selects complete geometry from the west, north and east street rows and fits those rows inside the existing perimeter apron. It leaves the southern quay side open. The generated render mesh has no collider and uses the same native City terrain and bridge data.
+
+The 1.5.67 Arctic study bypasses the legacy directional ripples on V5 snow and uses rounded noise and fine granular relief for compacted snow. It increases small surface variations in the darker open water. The lake-ice palette, fractures and reflections remain in use. Capture the shore and lake ice at native 4K using `-oz-preview-arctic-detail -oz-ai-maps-v5`.
+
 The 1.5.66 V5 revision uses local, irregular snow grains in place of uniform Arctic ripples. It narrows the wet-snow stain and clips the open-water mesh to the native wet field on a half-metre grid. Cells touching the native lake-ice artwork or under bridge decks keep the earlier water mesh. The lake-ice mask, material detail and reflectance are unchanged. Procedural travelling waves, less shore foam and darker depth colours apply only to the V5 open water.
 
 SM08 adds small and medium cones in uneven groups on all four sides of the existing barrier, supplementing the groups derived from native tile art. The reused volcano landmarks keep their place on the crest and are larger than in 1.5.64. SM17 uses weathered concrete on the apron and the solid rock faces connected to the map edge. The buildings on the crest have varied setbacks, broken bays, exposed floors and rubble bases. Their footprints stay between the playable rectangle and the end of the original terrain apron. The original collision meshes and bridge rules stay in effect.

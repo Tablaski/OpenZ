@@ -108,11 +108,7 @@ namespace OpenZ.Experimental
                 ? new[] { surfaceGround, rockFace, floor, CityBorderConcrete() }
                 : new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
-            if (cityV5)
-            {
-                HideCityV5ExteriorProps();
-                BuildCityBorderRuins(map,Height);
-            }
+            if (cityV5) BuildCityBorderRuins(map, Height);
             if (IsPaletteV5 && map.planet == "volcanic")
             {
                 SeatVolcanicLandmarks(map, Height);

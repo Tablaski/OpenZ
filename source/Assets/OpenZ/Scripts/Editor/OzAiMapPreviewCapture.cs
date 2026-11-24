@@ -22,7 +22,7 @@ namespace OpenZ.EditorTools
         static OzAiMap[] entries;
         static string output, ffmpeg, clip;
         static int index, frame, loadedAt, lastFrame, width, height;
-        static bool comparison, stills, force, rim, bridgeStills, review, wide;
+        static bool comparison, stills, force, rim, bridgeStills, review, wide, arcticDetail;
         static Camera camera;
         static RenderTexture target;
         static Texture2D image;
@@ -89,7 +89,8 @@ namespace OpenZ.EditorTools
             output = Path.GetFullPath(Arg("-oz-preview-output") ?? "../.local/ai-map-previews");
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
             wide = args.Contains("-oz-preview-wide");
-            comparison = wide || args.Contains("-oz-preview-comparisons");
+            arcticDetail = args.Contains("-oz-preview-arctic-detail");
+            comparison = wide || arcticDetail || args.Contains("-oz-preview-comparisons");
             rim = comparison && args.Contains("-oz-preview-rim");
             bridgeStills = comparison && args.Contains("-oz-preview-bridges");
             review = comparison && args.Contains("-oz-preview-v5-review");
@@ -98,7 +99,7 @@ namespace OpenZ.EditorTools
             width = comparison ? 3840 : 960;
             height = width * 9 / 16;
             var enabledScenes = EditorBuildSettings.scenes.Where(scene => scene.enabled).Select(scene => scene.path).ToHashSet();
-            var filter = Arg("-oz-preview-map");
+            var filter = arcticDetail ? "SM11" : Arg("-oz-preview-map");
             entries = OzAiMapCatalog.SkirmishMaps
                 .Where(entry => enabledScenes.Contains(entry.ScenePath))
                 .Where(entry => !comparison || ComparisonMaps.Contains(entry.Id))
@@ -208,7 +209,10 @@ namespace OpenZ.EditorTools
             lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
             var planned = Plan(entry, game);
             var border = RimShot(entry, game.World.Map);
-            if (wide)
+            if (arcticDetail)
+                shots = new[] { new Shot("Arctic snow, water and lake ice", new Vector3(138, 0, -100), Vector3.zero,
+                    -31, 0, 52, 0, 43, 0, 35, 1) };
+            else if (wide)
                 shots = new[] { WideShot(entry, game.World.Map) };
             else if (review)
             {

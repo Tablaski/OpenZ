@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.65 abandoned tanks and guns
+
+- Source checkpoint `abedb9e8` passed 53 focused AI 2026 checks and 9,094 core and real-map simulation checks. The focused scenarios cover a Heavy captured by Skilled and Zod, the crane exclusion, denial while engaged and destruction of the empty hull, a guard order at a howitzer, a fatal guard position rejected, an allied crew boarding with Friendly Fire on, and the Noob and Alright frequency gates.
+- Unity 6000.3.27f2 compiled the committed runtime source against the existing Unity references. The working-tree check separately reported unresolved City terrain references in unrelated local edits.
+- Pending in a compiled game. Compare the four 2026 levels on solo and in local or online team matches. Race human and allied crews around roads, rocks and bridges, and compare a Heavy with weaker abandoned equipment. Check a vehicle that has to drive into range to deny a capture, a defender holding its position until friendly crew arrive, and the decision to stop attacking when a friendly crew can take over. Include Friendly Fire and radar loss.
+
 ## OpenZ-VK 1.5.64 V5 surface and exterior review
 
 - Unity rendered all five wide V5 scenes from checkpoint `e3ee031c` at native 3840 × 2160. The capture log confirmed the five material profiles. The wide view and a 1:1 crop show wind ripples, road snow and the separate lake-ice detail in SM11. The Arctic open-water shader and material match 1.5.56.

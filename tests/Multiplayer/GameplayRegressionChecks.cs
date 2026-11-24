@@ -96,11 +96,15 @@ static class GameplayRegressionChecks
         foreach (bool northbound in new[] { false, true })
         {
             var world = Battlefield(settings, true);
-            var tank = world.CreateObject("vehicle", "heavy", 368, northbound ? 648 : 328, Team.Red);
-            var target = world.CreateObject("vehicle", "heavy", 368, northbound ? 328 : 648, Team.Blue);
+            var tank = world.CreateObject("vehicle", "heavy", 368, northbound ? 672 : 312, Team.Red);
+            var target = world.CreateObject("vehicle", "heavy", 368, northbound ? 312 : 672, Team.Blue);
             target.Damage = 0;
             Order(world, tank, target, WpMode.Attack);
-            check(Until(world, () => Fired(world, tank, target), 15), $"A player tank follows the attack order via the bridge, northbound={northbound}");
+            var start = tank.OrderSnapshot();
+            bool fired = Until(world, () => Fired(world, tank, target), 15);
+            check(fired && (northbound ? tank.CenterY < 520 : tank.CenterY > 520),
+                $"A player tank crosses the bridge and fires, northbound={northbound}, position={tank.CenterX},{tank.CenterY}, " +
+                $"plans={tank.ApproachPlans}, {tank.OrderStandWhy(start, out _, out _)}, {world.Pathing.BridgeQueueStats()}");
         }
     }
 
@@ -121,7 +125,11 @@ static class GameplayRegressionChecks
         const int size = 64;
         var tiles = new int[size * size];
         var classes = new int[tiles.Length];
-        if (withBridge) Array.Fill(classes, (int)ZClass.Water, 30 * size, 5 * size);
+        if (withBridge)
+        {
+            Array.Fill(classes, (int)ZClass.Water, 30 * size, 5 * size);
+            foreach (int row in Enumerable.Range(30, 5)) Array.Fill(classes, (int)ZClass.Road, row * size + 31, 2);
+        }
         string grid = $@"{{""file"":""combat-regressions"",""width"":{size},""height"":{size},""planet"":""desert"",
             ""classes"":[{string.Join(",", classes)}],""tiles"":[{string.Join(",", tiles)}],""zones"":[],""objects"":[
                 {{""kind"":""building:fort_front"",""x"":16,""y"":8,""owner"":""red"",""health_percent"":100}},

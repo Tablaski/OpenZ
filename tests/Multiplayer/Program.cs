@@ -32,6 +32,7 @@ static class Program
         if (Environment.GetEnvironmentVariable("OZ_DUEL_BENCH") == "1") { ReplicationPerformance.Run(); return 0; }
         try {
             if (Environment.GetEnvironmentVariable("OZ_AI_2026_CHECKS") == "1") { Ai2026Checks.Run(Check); Console.WriteLine("PASS: " + checks + " AI 2026 checks."); return 0; }
+            if (Environment.GetEnvironmentVariable("OZ_GAMEPLAY_CHECKS") == "1") { GameplayRegressionChecks.Run(Check); Console.WriteLine("PASS: " + checks + " gameplay regression checks."); return 0; }
             if (Environment.GetEnvironmentVariable("OZ_BEHAVIOR_CHECKS") == "1") { BehaviorChecks.Run(Check, Reject); Console.WriteLine("PASS: " + checks + " behavior and movement checks (no player)."); return 0; }
             if (Environment.GetEnvironmentVariable("OZ_TEAMPLAY_CHECKS") == "1")
             {

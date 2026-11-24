@@ -80,6 +80,15 @@ namespace OpenZ.Experimental
                     * Smooth(Math.Min(along, length - along) * .5f);
             }
 
+            public float DistanceOutsideApproaches(float worldX, float worldZ)
+            {
+                float dx = worldX - x, dz = worldZ - z;
+                float across = vertical ? dx : dz;
+                float along = vertical ? dz : dx;
+                return Math.Max(0, Math.Max(Math.Max(-2.5f - across, across - 10.5f),
+                    Math.Max(-2.5f - along, along - length - 2.5f)));
+            }
+
             static float Smooth(float value)
             {
                 float t = Math.Min(1, value);

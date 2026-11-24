@@ -64,7 +64,7 @@ namespace OpenZ.Experimental
         }
 
         Mesh ArcticSnowBanks(ZMapData map, List<Vector3> original, List<int>[] channels, int stride, int step,
-            ArcticEdges edges, System.Func<float, float, float, float> height)
+            ArcticEdges edges, OzAiTerrainV4.Bridge[] bridges, System.Func<float, float, float, float> height)
         {
             int columns = stride - 1, rows = original.Count / stride - 1;
             var detail = new bool[rows * columns];
@@ -148,6 +148,20 @@ namespace OpenZ.Experimental
                     var field = edges.Sample(px, pz);
                     float rounded = Mathf.Lerp(field.x, Mask(map, px, pz, Water), Mathf.SmoothStep(0, 1, road));
                     y = height(px, pz, rounded);
+                    // The original bridge profile is already seated against the visible abutments.
+                    // Finer sampling can expose peaks between its original terrain vertices.
+                    float distance = 1;
+                    foreach (var bridge in bridges)
+                        distance = Mathf.Min(distance, bridge.DistanceOutsideApproaches(px, pz));
+                    if (distance < 1)
+                    {
+                        float u = x % divisions / (float)divisions, v = z % divisions / (float)divisions;
+                        float baseY = u + v <= 1
+                            ? original[index].y * (1 - u - v) + original[index + 1].y * u + original[index + stride].y * v
+                            : original[index + stride + 1].y * (u + v - 1) + original[index + 1].y * (1 - v) +
+                                original[index + stride].y * (1 - u);
+                        y = Mathf.Lerp(baseY, y, Mathf.SmoothStep(0, 1, distance));
+                    }
                 }
 
                 int result = cornerPoint ? index : points.Count;

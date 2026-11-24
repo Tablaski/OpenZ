@@ -107,7 +107,7 @@ namespace OpenZ.Experimental
             terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? map.planet switch
             {
                 "city" => CityBorderSurface(map, vertices, uv, channels),
-                "arctic" => ArcticSnowBanks(map, vertices, channels, stride, step, arcticEdges, HeightWithWetness),
+                "arctic" => ArcticSnowBanks(map, vertices, channels, stride, step, arcticEdges, bridgeClearance, HeightWithWetness),
                 "jungle" when mapId == "SM16" => JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance),
                 _ => mesh
             } : mesh;

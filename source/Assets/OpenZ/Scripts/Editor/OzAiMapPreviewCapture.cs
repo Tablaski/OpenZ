@@ -210,8 +210,12 @@ namespace OpenZ.EditorTools
             var planned = Plan(entry, game);
             var border = RimShot(entry, game.World.Map);
             if (arcticDetail)
+            {
+                var flurries = GameObject.Find("Windblown flurries");
+                if (flurries) flurries.SetActive(false);
                 shots = new[] { new Shot("Arctic snow, water and lake ice", new Vector3(138, 0, -100), Vector3.zero,
                     -31, 0, 52, 0, 43, 0, 35, 1) };
+            }
             else if (wide)
                 shots = new[] { WideShot(entry, game.World.Map) };
             else if (review)

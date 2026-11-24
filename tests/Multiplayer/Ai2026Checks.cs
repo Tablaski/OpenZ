@@ -38,7 +38,7 @@ static class Ai2026Checks
         CheckCommands(settings, grid, check);
         CheckProfiles(settings, grid, check);
         CheckRadar(settings, grid, check);
-        CheckFogAttackOrders(settings, grid, check);
+        CheckFogAttackOrders(settings, check);
         CheckRoom(root, settings, check);
         CheckTeamRelief(root, settings, check);
         bool roofDefense = ZWorld.FortDefenderDeviation;
@@ -233,25 +233,35 @@ static class Ai2026Checks
         check(!sight.ZoomLimited && sight.CanSee(fort.CenterX, fort.CenterY), "A working radar restores the picture");
     }
 
-    static void CheckFogAttackOrders(string settings, string grid, Action<bool, string> check)
+    static void CheckFogAttackOrders(string settings, Action<bool, string> check)
     {
+        const int side = 64;
+        string tiles = string.Join(",", new int[side * side]);
+        string grid = $@"{{""file"":""fog-orders"",""width"":{side},""height"":{side},""planet"":""desert"",
+            ""classes"":[{tiles}],""tiles"":[{tiles}],""zones"":[],""objects"":[
+                {{""kind"":""building:fort_front"",""x"":24,""y"":8,""owner"":""red"",""health_percent"":100}},
+                {{""kind"":""building:fort_back"",""x"":44,""y"":50,""owner"":""blue"",""health_percent"":100}},
+                {{""kind"":""building:radar"",""x"":40,""y"":45,""owner"":""blue"",""health_percent"":100}},
+                {{""kind"":""map_item:rock"",""x"":12,""y"":24,""owner"":""neutral"",""health_percent"":100}}]}}";
         var world = ZWorld.Create(settings, grid, 12);
         world.ModernBotSoloRadar = RadarLossRule.Fog;
-        var radar = world.CreateObject("building", "radar", 160, 160, Team.Blue);
-        var attacker = world.UnitObjects.First(o => o.Owner == Team.Blue && o.CanMove && o.CanAttack());
-        var fort = world.Objects.First(o => o.IsFort && o.Owner == Team.Red);
-        var target = world.CreateObject("vehicle", "heavy", fort.LocX, fort.LocY, Team.Red);
-        var waypoint = new ZWaypoint { mode = WpMode.Attack, refId = target.Id,
-            x = target.CenterX, y = target.CenterY, playerGiven = true };
-        world.Tick(ZConst.TICK);
-        check(world.SendWaypoints(Team.Blue, attacker, new[] { waypoint }), "The attack is accepted while the radar works");
+        var radar = world.Objects.Single(o => o.ProvidesRadarTo(Team.Blue));
+        var attacker = world.CreateObject("vehicle", "jeep", 680, 630, Team.Blue);
+        var target = world.CreateObject("vehicle", "heavy", 250, 250, Team.Red);
         var lastKnown = (target.CenterX, target.CenterY);
+        var waypoint = new ZWaypoint { mode = WpMode.Attack, refId = target.Id,
+            x = lastKnown.CenterX, y = lastKnown.CenterY, playerGiven = true };
+        world.Tick(ZConst.TICK);
+        check(world.PlayerCanSeeOrderPoint(Team.Blue, lastKnown.CenterX, lastKnown.CenterY),
+            "Working radar initially reveals the attack target");
+        check(world.SendWaypoints(Team.Blue, attacker, new[] { waypoint }), "The attack is accepted while the radar works");
         foreach (var building in world.Objects.Where(o => o.ProvidesRadarTo(Team.Blue))) building.Health = 0;
         target.SetCords(target.LocX + 48, target.LocY);
         for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
-        check(world.HiddenFromOrders(Team.Blue, target) &&
-            world.TryFogAttack(Team.Blue, waypoint, target, out var moved) && moved == lastKnown,
-            "An attack in radar fog remembers the last visible position of a target that moves");
+        bool hidden = world.HiddenFromOrders(Team.Blue, target);
+        bool ghostOrder = world.TryFogAttack(Team.Blue, waypoint, target, out var moved);
+        check(hidden && ghostOrder && moved == lastKnown,
+            $"An attack in radar fog remembers the last visible position of a target that moves (hidden: {hidden}, ghost: {ghostOrder}, expected: {lastKnown}, actual: {moved})");
         var rock = world.Objects.First(o => o.Type == "rock" && !o.Destroyed &&
             !world.PlayerCanSeeOrderPoint(Team.Blue, o.LocX + 8, o.LocY + 40) &&
             world.Path.HasDestroyableBarrier(o.LocX >> 4, (o.LocY >> 4) + 2));

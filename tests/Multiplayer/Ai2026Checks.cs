@@ -252,17 +252,31 @@ static class Ai2026Checks
         check(world.HiddenFromOrders(Team.Blue, target) &&
             world.TryFogAttack(Team.Blue, waypoint, target, out var moved) && moved == lastKnown,
             "An attack in radar fog remembers the last visible position of a target that moves");
+        var rock = world.Objects.First(o => o.Type == "rock" && !o.Destroyed &&
+            !world.PlayerCanSeeOrderPoint(Team.Blue, o.LocX + 8, o.LocY + 40) &&
+            world.Path.HasDestroyableBarrier(o.LocX >> 4, (o.LocY >> 4) + 2));
+        int rockX = rock.LocX >> 4, rockY = (rock.LocY >> 4) + 2;
+        rock.KillAt = world.Time;
         target.Health = 0;
         target.KillAt = world.Time;
         for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
         check(world.Get(target.Id) == null && world.TryFogAttack(Team.Blue, waypoint, null, out var deleted) &&
             deleted == lastKnown && attacker.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
             "An unseen deletion preserves the attack order and its remembered position");
+        check(world.Get(rock.Id) == null && world.Path.TilePassableGrid(rockX, rockY, true, false),
+            "A removed rock opens the actual terrain");
+        using (world.Path.UseKnownRocks(world.FogRockTiles(Team.Blue)))
+            check(!world.Path.TilePassableGrid(rockX, rockY, true, false) &&
+                world.Path.TilePassableGrid(rockX, rockY, true, true),
+                "Replanning retains a known rock while its removal is hidden");
         radar.Health = radar.MaxHealth;
         for (int i = 0; i < 7; i++) world.Tick(ZConst.TICK);
         check(!world.TryFogAttack(Team.Blue, waypoint, null, out _) &&
             !attacker.Waypoints.Any(wp => wp.mode == WpMode.Attack && wp.refId == target.Id),
             "The attack ends after radar vision confirms that the target has gone");
+        using (world.Path.UseKnownRocks(world.FogRockTiles(Team.Blue)))
+            check(world.Path.TilePassableGrid(rockX, rockY, true, false),
+                "Replanning uses the opened terrain once the removal is visible");
     }
 
     static void CheckTeamRelief(string root, string settings, Action<bool, string> check)

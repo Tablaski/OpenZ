@@ -57,6 +57,7 @@ namespace OpenZ.Sim
         sealed class OrderSight
         {
             internal readonly ZAiSight Sight;
+            internal bool RadarOnline;
             internal readonly Dictionary<int, (int X, int Y)> LastSeen = new();
             internal readonly HashSet<int> ConfirmedLost = new();
             internal readonly HashSet<(int X, int Y)> HiddenRockTiles = new();
@@ -84,7 +85,14 @@ namespace OpenZ.Sim
             foreach (var pair in orderSight)
             {
                 var state = pair.Value;
-                if (refreshSight) state.Sight.Observe();
+                bool radarOnline = false;
+                foreach (var obj in Objects)
+                    if (obj.ProvidesRadarTo(pair.Key)) { radarOnline = true; break; }
+                if (refreshSight || state.RadarOnline != radarOnline)
+                {
+                    state.RadarOnline = radarOnline;
+                    state.Sight.Observe(radarOnline);
+                }
                 state.HiddenRockTiles.Clear();
                 foreach (var target in Objects)
                 {
@@ -162,11 +170,11 @@ namespace OpenZ.Sim
             mapHasRadar = ZBattleSight.MapHasRadar(world.Map);
         }
 
-        internal void Observe()
+        internal void Observe(bool? knownRadarOnline = null)
         {
             var rule = world.Map.skirmish || world.HasDuelRules ? world.DuelRadarLoss : world.ModernBotSoloRadar;
-            bool radarOnline = false;
-            if (mapHasRadar && (CampaignFog || rule != RadarLossRule.Off))
+            bool radarOnline = knownRadarOnline ?? false;
+            if (!knownRadarOnline.HasValue && mapHasRadar && (CampaignFog || rule != RadarLossRule.Off))
                 foreach (var o in world.Objects)
                     if (o.ProvidesRadarTo(team)) { radarOnline = true; break; }
             bool jammed = mapHasRadar && !radarOnline;

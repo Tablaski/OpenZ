@@ -694,7 +694,7 @@ namespace OpenZ
             if (u.U == null) return false;
             double r = u.U.attack_radius + W.S.agro_distance;
             foreach (var o in W.Objects)
-                if ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner != Team.Neutral && !W.AreAllied(u.Owner, o.Owner) && !o.Destroyed
+                if ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && o.Owner != Team.Neutral && !W.AreAllied(u.Owner, o.Owner) && !o.Destroyed && !OzFogOfWar.Covers(o)
                     && (o.CenterX - u.CenterX) * (double)(o.CenterX - u.CenterX) + (o.CenterY - u.CenterY) * (double)(o.CenterY - u.CenterY) <= r * r)
                     return true;
             return false;

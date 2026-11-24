@@ -6,10 +6,7 @@ namespace OpenZ.Experimental
 {
     internal static class OzAiTerrainV5
     {
-        static readonly bool Requested = Array.IndexOf(Environment.GetCommandLineArgs(), "-oz-ai-maps-v5") >= 0;
-
-        public static bool HasExample(string id) => id is "SM02" or "SM08" or "SM11" or "SM16" or "SM17";
-        public static bool Active(string id) => Requested && HasExample(id);
+        public static readonly bool Active = Array.IndexOf(Environment.GetCommandLineArgs(), "-oz-ai-maps-v4") < 0;
 
         // Fractured-ice artwork in the Arctic atlas. These identifiers carry no movement rule.
         public static bool ArcticIceArt(int tile) => tile is >= 246 and <= 248 or >= 264 and <= 268 or 284 or 285 or 288 or 289

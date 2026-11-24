@@ -90,19 +90,20 @@ namespace OpenZ.EditorTools
                     (motion == Motion.Follow ? axis : lateral) * sign * Range(10, motion == Motion.Orbit ? 15 : 38),
                     heading, sign * Range(motion == Motion.Orbit ? 35 : 5, motion == Motion.Orbit ? 65 : 24),
                     pitch, sign * Range(motion == Motion.Crane ? 15 : 2, motion == Motion.Crane ? 25 : 11),
-                    Mathf.Clamp(distance, 43, 106), sign * Range(4, 19), Range(38, 48),
-                    minFrames + random.Next(18));
+                    Mathf.Clamp(distance, 49, 126), sign * Range(4, 22), Range(34, 48),
+                    minFrames + random.Next(26));
             }
 
-            var fortShot = Build("fort and approaches", fortPoint, Motion.Crane, reach * Range(.57f, .78f), 31);
-            var unitShot = Build("stationary unit group", unitPoint, Motion.Sweep, reach * Range(.49f, .66f), 28);
+            var fortShot = Build("fort and approaches", fortPoint, Motion.Crane, reach * Range(.71f, .94f), 31);
+            var unitShot = Build("stationary unit group", unitPoint, Motion.Sweep, reach * Range(.60f, .83f), 28);
             var buildingShot = Build(building.Type, At(building), Motion.Orbit, reach * Range(.61f, .84f), 27);
-            var terrainShot = Build(terrainSubject, terrainPoint, Motion.Follow, reach * Range(.72f, .93f), 29);
-            if (entry.Id == "SM16")
+            var terrainShot = Build(terrainSubject, terrainPoint, Motion.Follow, reach * Range(.82f, 1.08f), 29);
+            if (entry.Number == 16 && entry.World == "jungle")
             {
                 // The two ravines, the high road, and the road approaches fit in a single moving frame.
                 var road = new Vector3(map.width, 1, -map.height * .91f);
-                return new[] { Build("raised straight road and both ravines", road, Motion.Follow, 91, 49, 5), unitShot, terrainShot, fortShot };
+                return new[] { Build("raised straight road and both ravines", road, Motion.Follow, 98, 49, Range(-8, 8)),
+                    unitShot, buildingShot, terrainShot, fortShot };
             }
 
             var shots = rocks.Length >= 20 && showBridge && random.Next(3) == 0
@@ -128,7 +129,7 @@ namespace OpenZ.EditorTools
             float distance = Mathf.Max(43, shot.Distance + shot.Dolly * t);
             camera.fieldOfView = shot.Field;
             camera.transform.SetPositionAndRotation(focus - rotation * Vector3.forward * distance, rotation);
-            while (FullMapVisible(map) && camera.fieldOfView > 30) camera.fieldOfView -= 2;
+            while (FullMapVisible(map) && camera.fieldOfView > 24) camera.fieldOfView -= 2;
             if (FullMapVisible(map)) throw new InvalidOperationException("A shot frames the complete map on " + game.level);
         }
 

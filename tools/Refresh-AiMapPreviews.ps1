@@ -3,10 +3,12 @@ param(
     [string]$Unity,
     [string]$Ffmpeg,
     [string]$OutputDirectory,
-    [switch]$ComparisonsOnly
+    [switch]$ComparisonsOnly,
+    [switch]$VideosOnly
 )
 
 $ErrorActionPreference = 'Stop'
+if ($ComparisonsOnly -and $VideosOnly) { throw 'Choose one capture mode.' }
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $root 'source'
 if (!$Unity) {
@@ -32,7 +34,7 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 function Capture([string]$Name, [string[]]$Options) {
     $destination = Join-Path $OutputDirectory $Name
     $log = Join-Path $OutputDirectory "$Name.log"
-    $args = @('-batchmode', '-projectPath', ('"' + $project + '"'),
+    $args = @('-batchmode', '-force-d3d11', '-projectPath', ('"' + $project + '"'),
         '-executeMethod', 'OpenZ.EditorTools.OzAiMapPreviewCapture.Run',
         '-oz-preview-output', ('"' + $destination + '"'),
         '-oz-preview-ffmpeg', ('"' + $Ffmpeg + '"'), '-logFile', ('"' + $log + '"')) + $Options
@@ -70,21 +72,28 @@ if (!$ComparisonsOnly) {
         if ($LASTEXITCODE -ne 0) { throw "Could not decode preview assets for $id." }
     }
     $resources = Join-Path $root 'aimaps/Resources/OpenZ/AiMaps'
-    $template = Get-Content "$resources/Videos/SM02_preview.mp4.meta" -Raw
+    $videoTemplate = Get-Content "$resources/Videos/SM02_preview.mp4.meta" -Raw
+    $posterTemplate = Get-Content "$resources/Posters/SM02_poster.jpg.meta" -Raw
     foreach ($id in $ids) {
         $video = "$resources/Videos/${id}_preview.mp4"
+        $poster = "$resources/Posters/${id}_poster.jpg"
         Copy-Item -LiteralPath "$stage/${id}_preview.mp4" -Destination $video
-        Copy-Item -LiteralPath "$stage/${id}_poster.jpg" -Destination "$resources/Posters/${id}_poster.jpg"
-        if (!(Test-Path -LiteralPath "$video.meta")) {
-            $guid = [guid]::NewGuid().ToString('N')
-            [IO.File]::WriteAllText("$video.meta", ($template -replace '(?m)^guid: [a-f0-9]+', "guid: $guid"))
+        Copy-Item -LiteralPath "$stage/${id}_poster.jpg" -Destination $poster
+        foreach ($asset in @(@{Path=$video; Template=$videoTemplate}, @{Path=$poster; Template=$posterTemplate})) {
+            $path = $asset.Path + '.meta'
+            if (!(Test-Path -LiteralPath $path)) {
+                $guid = [guid]::NewGuid().ToString('N')
+                $meta = $asset.Template -replace '(?m)^guid: [a-f0-9]+', "guid: $guid" -replace '(?m)[ \t]+(?=\r?$)', ''
+                [IO.File]::WriteAllText($path, $meta)
+            }
         }
     }
     Write-Host "Integrated $($ids.Count) verified videos and posters in the AI Maps package."
 }
 
+if ($VideosOnly) { return }
 $v3 = Capture 'V3' @('-oz-preview-comparisons', '-oz-ai-maps-v3')
-$v4 = Capture 'V4' @('-oz-preview-comparisons')
+$v4 = Capture 'V4' @('-oz-preview-comparisons', '-oz-ai-maps-v4')
 foreach ($id in 'SM02', 'SM08', 'SM11', 'SM16', 'SM17') {
     $pair = Join-Path $OutputDirectory "$id-V3-left-V4-right.png"
     & $Ffmpeg -hide_banner -loglevel error -y -i "$v3/$id.png" -i "$v4/$id.png" -filter_complex 'hstack' -frames:v 1 -update 1 $pair

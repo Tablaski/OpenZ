@@ -2,6 +2,8 @@
 
 ## V5 — five material studies on V4 geometry
 
+In 1.5.70 the converted catalog uses V5 by default. The converter builds the render surfaces from each scene's native grid during loading. `-oz-ai-maps-v4` selects V4 and `-oz-ai-maps-v3` selects V3. Official maps retain their own materials.
+
 Arctic V5 snow ground uses the supplied Snow Unity PBR base color, normal and packed occlusion/smoothness. It is mapped in world space at an eight-metre repeat and fades as the screen footprint grows. The native paint still controls roads, ice and shore transitions. Windows uses 1024-pixel BC7 color and packed masks, and a BC5 normal map, with mipmaps. Use `-oz-ai-arctic-legacy-snow` to restore the procedural snow. The supplied height map is unused.
 
 In 1.5.69, Arctic V5 uses shared, cubic-interpolated fields for native water and lake ice. Small world-space offsets break the straight tile boundaries. The visual terrain subdivides the shore neighbourhood on a quarter-metre grid. The water plane extends beneath the banks, so the land surface determines the waterline. The Arctic shader adds a thin granular edge where the ice meets open water. Ice interiors retain their fractures and reflections. The native grids, bridge clearance, original collision mesh and V4 path retain their prior behavior.

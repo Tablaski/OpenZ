@@ -172,7 +172,7 @@ namespace OpenZ
             convertedMaterial = new Material(baseMaterial);
             convertedMaterial.SetTexture("_FieldMap", convertedField);
             convertedMaterial.SetVector("_FieldRect", new Vector4(0, -map.height * 2, .5f / map.width, .5f / map.height));
-            if (Experimental.OzAiTerrainV5.Active(game.level) && Experimental.OzAiTerrainV4.Active(map.planet))
+            if (map.aiMap && Experimental.OzAiTerrainV5.Active && Experimental.OzAiTerrainV4.Active(map.planet))
             {
                 convertedMaterial.SetFloat("_OBase", convertedMaterial.GetFloat("_OBase") * .66f);
                 convertedMaterial.SetFloat("_OHot", convertedMaterial.GetFloat("_OHot") + .10f);

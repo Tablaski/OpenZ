@@ -40,7 +40,7 @@ namespace OpenZ.Experimental
             var bridgeSpans = BridgeSpans(map);
             bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
             IsPaletteV4 = useV4;
-            IsPaletteV5 = useV4 && OzAiTerrainV5.Active(mapId);
+            IsPaletteV5 = useV4 && OzAiTerrainV5.Active;
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;

@@ -47,7 +47,7 @@ GitHub's automatic source-code ZIP is not a ready-to-play compiled game. A start
 
 Both multiplayer participants need the same version. An interrupted match pauses for up to 30 seconds while the connection is restored.
 
-See the [changelog](docs/CHANGELOG.md), [combat profiles](docs/BEHAVIOR_PROFILES.md), [Unit Editor guide](docs/UNIT_EDITOR.md) and [build instructions](CONTRIBUTING.md). Development is on `dev`.
+See the [changelog](docs/CHANGELOG.md), [combat profiles](docs/BEHAVIOR_PROFILES.md), [Unit Editor guide](docs/UNIT_EDITOR.md). Development is on `dev`.
 
 ## Credits and licenses
 

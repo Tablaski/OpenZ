@@ -63,7 +63,7 @@ Pure Zod Classic retains its original full-step planning, including its historic
 running-speed calculation. This distinction is intentional and configurable.
 
 The **TESTING** tab opens playground-only HP, immortality,
-damage and score controls. See [UNIT_TESTING.md](UNIT_TESTING.md).
+damage and score controls.
 
 SAVE updates the current custom preset; SAVE AS creates another named preset.
 Draft autosave is separate from the saved library and next-match choices.
@@ -91,7 +91,7 @@ repository root. It finds the configured Unity editor and builds a Windows
 release into `builds/OpenZ-Release`. Wait for SUCCESS. Start `OpenZ-Duel.exe`
 there and keep the complete folder together when moving or sharing the game.
 `SOURCE_VERSION.txt` identifies the source commit and any uncommitted files.
-Errors are in `tests/Multiplayer/.cli/Unity-build-OpenZ-Release.log`.
+Errors are in `.local/build-tools/Unity-build-OpenZ-Release.log`.
 Launch the batch file once and keep its window open. A second launch is refused
 while another build or Unity editor holds the project, with an explicit message;
 it does not stop that process or overwrite its log. Wait for the original

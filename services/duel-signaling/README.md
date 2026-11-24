@@ -147,7 +147,6 @@ node test/integration.mjs
 npx wrangler deploy --dry-run
 cd ../..
 ./tools/Build-DuelNative.ps1
-dotnet run --project tests/WebRTC/WebRTC.Checks.csproj -c Release
 ./tools/Build-And-Test-Duel.ps1
 ```
 

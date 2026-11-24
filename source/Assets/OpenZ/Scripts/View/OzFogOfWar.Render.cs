@@ -466,8 +466,7 @@ namespace OpenZ
 
         /// <summary>A camera the player plays through: a game camera with an enabled RtsCamera, drawing to the screen or the main camera.</summary>
         static bool PlayerView(Camera c) =>
-            c && (c == Multiplayer.DuelProofCapture.WorldCapture ||
-                c.cameraType == CameraType.Game && (c.targetTexture == null || c.CompareTag("MainCamera")) && c.TryGetComponent<RtsCamera>(out var r) && r.enabled);
+            c && c.cameraType == CameraType.Game && (c.targetTexture == null || c.CompareTag("MainCamera")) && c.TryGetComponent<RtsCamera>(out var r) && r.enabled;
 
         void BeginCamera(ScriptableRenderContext ctx, Camera cam)
         {

@@ -63,7 +63,6 @@ namespace OpenZVK.Update
         {
             try
             {
-                if (args.Length == 1 && args[0] == "--test") { Checks.Run(); return 0; }
                 if (args.Length >= 5 && args[0] == "--source-local-check")
                 {
                     string archive = args[1], workspace = args[2], commit = args[3], seed = args[4];
@@ -105,7 +104,7 @@ namespace OpenZVK.Update
                     var result = Packager.Build(args[1], args[2], args[3], args[4], File.ReadAllText(args[5]));
                     Console.WriteLine("PASS: " + result.files.Count + " player files; " + result.packs.Count + " payload packs; source " + result.commit); return 0;
                 }
-                Console.Error.WriteLine("Usage: UpdateTools --test | --pack PLAYER OUTPUT stable|dev TAG NOTES_FILE"); return 2;
+                Console.Error.WriteLine("Usage: UpdateTools --pack PLAYER OUTPUT stable|dev TAG NOTES_FILE"); return 2;
             }
             catch (Exception error) { Console.Error.WriteLine(error); return 1; }
         }

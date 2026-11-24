@@ -20,7 +20,7 @@ if (-not $Unity) {
 if (-not $Unity -or -not (Test-Path -LiteralPath $Unity)) {
     throw "Unity $duelVersion was not found. Pass -Unity 'C:\path\to\Unity.exe' or set UNITY_EDITOR_PATH."
 }
-$duelLogs = Join-Path $duelRoot 'tests\Multiplayer\.cli'
+$duelLogs = Join-Path $duelRoot '.local/build-tools'
 New-Item -ItemType Directory -Path $duelLogs -Force | Out-Null
 $duelLogName = if ($OutputDirectory) { 'Unity-build-' + [IO.Path]::GetFileName([IO.Path]::GetFullPath($OutputDirectory)) + '.log' } else { 'Unity-build.log' }
 $duelLog = Join-Path $duelLogs $duelLogName

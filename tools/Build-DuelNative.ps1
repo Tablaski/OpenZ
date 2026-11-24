@@ -1,7 +1,7 @@
 param([string]$CMake = '')
 $ErrorActionPreference = 'Stop'
 $duelRoot = Split-Path $PSScriptRoot -Parent
-$nativeWork = Join-Path $duelRoot 'tests/Multiplayer/.cli'
+$nativeWork = Join-Path $duelRoot '.local/build-tools'
 New-Item -ItemType Directory -Path $nativeWork -Force | Out-Null
 if (-not $CMake) {
     $cmakeCommand = Get-Command cmake -ErrorAction SilentlyContinue

@@ -913,7 +913,13 @@ namespace OpenZ.Sim
             double[] oldAct = null;
             if (R3(16384) && nComp != null && nActive != null && nComp.Length == pf.W * pf.H)
             {                                                                            // review round 2: the passages' activity per tile, carried over the rebuild
-                oldAct = new double[nComp.Length];
+                if (OptimizePassageRebuilds)
+                {
+                    if (previousPassageActivity == null || previousPassageActivity.Length != nComp.Length)
+                        previousPassageActivity = new double[nComp.Length];
+                    oldAct = previousPassageActivity;
+                }
+                else oldAct = new double[nComp.Length];
                 for (int k = 0; k < nComp.Length; k++) oldAct[k] = nComp[k] >= 0 ? nActive[nComp[k]] : -100;
             }
             zw = pf.W; zh = pf.H; int n = zw * zh;
@@ -1079,6 +1085,9 @@ namespace OpenZ.Sim
         int[] nComp, nDist, nNear; int nComps; double[] nActive; bool[] nSqueeze;
         /// <summary>Review round 2: each tile's NearK nearest passages and their walking distances (sorted, -1 = none).</summary>
         int[] nNearK, nDistK; const int NearK = 3;
+        double[] previousPassageActivity;
+        int[] passageWalkDistances, passageWalkSeen;
+        readonly List<int> passageFlood = new List<int>(), passageWalk = new List<int>();
         readonly List<int> ghostTiles = new List<int>(); double ghostUntil = -100;
         /// <summary>Review round 2: Chebyshev distance (tiles) from tile t to the nearest ghost passage tile while the ghost is active.</summary>
         int GhostDist(int t, double now)
@@ -1127,10 +1136,14 @@ namespace OpenZ.Sim
         void BuildPassages(bool[] pass)
         {
             int n = zw * zh; var pf = W.Path;
-            nComp = new int[n]; nDist = new int[n]; nNear = new int[n];
+            if (!OptimizePassageRebuilds || nComp == null || nComp.Length != n)
+            {
+                nComp = new int[n]; nDist = new int[n]; nNear = new int[n];
+                nNearK = new int[n * NearK]; nDistK = new int[n * NearK];
+            }
             for (int k = 0; k < n; k++) { nComp[k] = -1; nDist[k] = int.MaxValue; nNear[k] = -1; }
             nComps = 0;
-            var q = new List<int>();
+            var q = OptimizePassageRebuilds ? passageFlood : new List<int>();
             for (int k = 0; k < n; k++)
             {
                 if (!pass[k] || nComp[k] >= 0) continue;
@@ -1163,9 +1176,22 @@ namespace OpenZ.Sim
             }
             nActive = new double[nComps]; for (int i = 0; i < nComps; i++) nActive[i] = -100;
             // review round 2: every tile's NearK nearest passages (walking distance, robot grid, up to maxD) - one BFS per passage
-            nNearK = new int[n * NearK]; nDistK = new int[n * NearK];
             for (int k = 0; k < n * NearK; k++) { nNearK[k] = -1; nDistK[k] = int.MaxValue; }
-            var dist = new int[n]; var seenAt = new int[n]; int stamp = 0; var bq = new List<int>();
+            int[] dist, seenAt;
+            if (OptimizePassageRebuilds)
+            {
+                if (passageWalkDistances == null || passageWalkDistances.Length != n)
+                {
+                    passageWalkDistances = new int[n];
+                    passageWalkSeen = new int[n];
+                }
+                else Array.Clear(passageWalkSeen, 0, n);
+                dist = passageWalkDistances;
+                seenAt = passageWalkSeen;
+            }
+            else { dist = new int[n]; seenAt = new int[n]; }
+            int stamp = 0;
+            var bq = OptimizePassageRebuilds ? passageWalk : new List<int>();
             var compTiles = new List<int>[nComps]; for (int i = 0; i < nComps; i++) compTiles[i] = new List<int>();
             for (int k = 0; k < n; k++) if (nComp[k] >= 0) compTiles[nComp[k]].Add(k);
             for (int cc = 0; cc < nComps; cc++)
@@ -1250,7 +1276,8 @@ namespace OpenZ.Sim
         int[] pSeen; int pStamp; readonly List<int> pQueue = new List<int>(); readonly List<int> pNext = new List<int>();
         bool[] passageFootprint;
         PassageDetours robotDetours, vehicleDetours;
-        internal bool CachePassageDetours { get; set; } = true;
+        // Deterministic reference path for the headless comparison.
+        internal bool OptimizePassageRebuilds { get; set; } = true;
         internal int PassageDetourSearches => pStamp;
 
         sealed class PassageDetours
@@ -1323,14 +1350,19 @@ namespace OpenZ.Sim
         bool[] Passages(bool robot, bool[] run1)
         {
             var pf = W.Path; int n = zw * zh;
-            if (passageFootprint == null || passageFootprint.Length != n) passageFootprint = new bool[n];
-            var f = passageFootprint;
+            bool[] f;
+            if (OptimizePassageRebuilds)
+            {
+                if (passageFootprint == null || passageFootprint.Length != n) passageFootprint = new bool[n];
+                f = passageFootprint;
+            }
+            else f = new bool[n];
             for (int y = 0; y < zh; y++)
                 for (int x = 0; x < zw; x++)
                     f[y * zw + x] = robot ? pf.TilePassableGrid(x, y, true, false)
                                           : x + 1 < zw && y + 1 < zh && pf.TilePassableGrid(x, y, false, false) && pf.TilePassableGrid(x + 1, y, false, false) && pf.TilePassableGrid(x, y + 1, false, false) && pf.TilePassableGrid(x + 1, y + 1, false, false);
             PassageDetours detours = null;
-            if (CachePassageDetours)
+            if (OptimizePassageRebuilds)
             {
                 ref var cache = ref (robot ? ref robotDetours : ref vehicleDetours);
                 if (cache == null || cache.Width != zw || cache.Height != zh) cache = new PassageDetours(zw, zh);

@@ -24,7 +24,7 @@ static class GameplayRegressionChecks
     {
         var cached = Battlefield(settings, true);
         var reference = Battlefield(settings, true);
-        reference.Pathing.CachePassageDetours = false;
+        reference.Pathing.OptimizePassageRebuilds = false;
         var worlds = new[] { cached, reference };
 
         void CompareZones(string stage)

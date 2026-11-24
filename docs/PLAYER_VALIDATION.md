@@ -1,5 +1,12 @@
 # Player validation record
 
+## Skirmish passage rebuild performance
+
+- Source checkpoint `4044d8ab` passed 9,150 core and real-map simulation checks. The focused passage comparison checks both footprint sizes, narrow openings and bypasses, bridge destruction and repair, and 24 batches of passability changes. Unity 6000.3.27f2 compiled the runtime scripts against the existing Unity references.
+- A paired .NET 8 benchmark compares the previous full detour searches against reuse on the same maps, seeds and rosters. It alternates measurement order every 100 ticks and excludes the first 1,000 ticks from timings. On Desert P08M01 with seven Medium bots, the median tick containing a rebuild fell from 39.3 to 26.3 ms for seed 12 and from 37.3 to 24.0 ms for seed 13. With seven Skilled bots it fell from 43.0 to 29.1 ms. Managed allocations on those ticks fell from about 5.25 to 1.87 MiB. The cache and scratch buffers live for the match.
+- All 45,000 paired ticks across Desert and Hunters matched the cumulative gameplay fingerprint, A* search and work counters, and rebuild counts. The two Hunters runs had no rebuilds after warmup. The timings measure simulation only.
+- Pending in a compiled game. Compare Desert and Hunters at matched cameras and graphics settings, including 4K. Measure frame-time percentiles and simulation cadence during rock destruction, bridge damage and repair, and mass orders across a choke point. Repeat online at eight seats and check the host as well as the guests.
+
 ## OpenZ-VK 1.5.69 Arctic V5 shore transitions
 
 - Unity 6000.3.27f2 rendered the SM11 terrain at `76f75e8c` in native 3840 × 2160. The repeated close-up confirms curved snow-to-water banks, a narrow irregular ice edge and continuous snow shading around both bridge approaches. Flurries are paused for the terrain close-up.

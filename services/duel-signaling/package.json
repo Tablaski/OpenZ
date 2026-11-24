@@ -10,6 +10,6 @@
   },
   "devDependencies": {
     "wrangler": "4.50.0",
-    "ws": "8.18.3"
+    "ws": "8.21.0"
   }
 }

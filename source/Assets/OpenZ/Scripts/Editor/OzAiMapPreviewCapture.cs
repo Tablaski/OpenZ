@@ -22,7 +22,7 @@ namespace OpenZ.EditorTools
         static OzAiMap[] entries;
         static string output, ffmpeg, clip;
         static int index, frame, loadedAt, lastFrame, width, height;
-        static bool comparison, stills, force, rim, bridgeStills, review, wide, arcticDetail;
+        static bool comparison, stills, force, rim, bridgeStills, review, wide, arcticDetail, arcticSurfaceIds;
         static Camera camera;
         static RenderTexture target;
         static Texture2D image;
@@ -90,6 +90,7 @@ namespace OpenZ.EditorTools
             ffmpeg = Arg("-oz-preview-ffmpeg") ?? "ffmpeg";
             wide = args.Contains("-oz-preview-wide");
             arcticDetail = args.Contains("-oz-preview-arctic-detail");
+            arcticSurfaceIds = arcticDetail && args.Contains("-oz-preview-arctic-surface-ids");
             comparison = wide || arcticDetail || args.Contains("-oz-preview-comparisons");
             rim = comparison && args.Contains("-oz-preview-rim");
             bridgeStills = comparison && args.Contains("-oz-preview-bridges");
@@ -206,6 +207,13 @@ namespace OpenZ.EditorTools
             if (!terrain || !terrain.IsPaletteV3 || terrain.IsPaletteV4 != (entry.Variant != "V3") ||
                 terrain.IsPaletteV5 != (entry.Variant == "V5"))
                 throw new InvalidOperationException("Wrong terrain profile for " + entry.Id);
+            if (arcticSurfaceIds)
+            {
+                terrain.transform.Find("WAT_Converted").gameObject.SetActive(false);
+                var renderer = terrain.transform.Find("COL_Terrain").GetComponent<MeshRenderer>();
+                renderer.sharedMaterials = new[] { Color.green, Color.red, Color.blue }
+                    .Select(color => new Material(Shader.Find("Universal Render Pipeline/Unlit")) { color = color }).ToArray();
+            }
             lighting = UnityEngine.Object.FindFirstObjectByType<DayNight>();
             var planned = Plan(entry, game);
             var border = RimShot(entry, game.World.Map);

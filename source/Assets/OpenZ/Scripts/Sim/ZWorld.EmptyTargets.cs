@@ -52,16 +52,20 @@ namespace OpenZ.Sim
         public static bool IsEmptyUnit(ZObject h) =>
             h != null && !h.Destroyed && h.Owner == Team.Neutral && (h.Kind == ZKind.Vehicle || h.Kind == ZKind.Cannon);
 
+        public static bool ApcAttacksEmptyUnit(ZObject apc, ZObject target) =>
+            apc != null && apc.IsApc && IsEmptyUnit(target) &&
+            (apc.CrewWeaponType == "tough" || apc.CrewWeaponType == "pyro") && apc.CanAttackObject(target);
+
         /// <summary>DV81, the order of a right-click on <paramref name="h"/> for the selected unit <paramref name="u"/>.
         /// <paramref name="wp"/> comes in as the click's base waypoint (a move to the clicked point that refers to h).
-        /// True = h is an empty vehicle or gun and wp is final: with Ctrl the ATTACK order on h; without Ctrl, for a vehicle or a
+        /// True = h is an empty vehicle or gun and wp is final: Ctrl or a Tough/Pyro APC gives an ATTACK order on h. Otherwise, for a vehicle or a
         /// gun, a plain move to the clicked point (a gun cannot move: the rules refuse it, ZWorld.CheckWaypoint).
         /// False = not an empty vehicle or gun, the rule is off, or a robot without Ctrl: the caller's own table goes on
         /// (a robot gets ENTER there, as before).</summary>
         public static bool EmptyClickWaypoint(ZObject u, ZObject h, bool ctrl, ref ZWaypoint wp)
         {
             if (!CtrlAttackEmptyDeviation || u == null || !IsEmptyUnit(h)) return false;
-            if (ctrl) { wp.mode = WpMode.Attack; wp.refId = h.Id; return true; }
+            if (ctrl || ApcAttacksEmptyUnit(u, h)) { wp.mode = WpMode.Attack; wp.refId = h.Id; return true; }
             if (u.Kind == ZKind.Robot) return false;
             wp.mode = WpMode.Move; wp.refId = -1;
             return true;

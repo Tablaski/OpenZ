@@ -592,7 +592,11 @@ namespace OpenZ
                 float hc = game.GroundY(p.x, p.z);                                                  // off a deck edge / bank step: ignore that sample
                 if (!OzBizonWade.Samples(this, p, fwd, right, ref hc, ref hf, ref hb, ref hr, ref hl, dt)) OzVehicleWaterDip.Sides(this, p, fwd, right, hc, ref hf, ref hb, ref hr, ref hl);   /* 1.5 DV192 (kit sim_notes11): a Bizon wades (View/OzBizonWade.cs) */   // 1.5 review R8 (kit review_r8_r12): a sample over open water dips a little under the water line (View/OzVehicleWaterDip.cs)
                 OzCraneDeck.Samples(this, p, fwd, right, ref hc, ref hf, ref hb, ref hr, ref hl);   // 1.5 kit factory_restore_crane_r3 R3.6: over a destroyed bridge's standing deck a crane reads the deck
-                if (Mathf.Abs(hf - hc) > 0.7f) hf = hc; if (Mathf.Abs(hb - hc) > 0.7f) hb = hc; if (Mathf.Abs(hr - hc) > 0.7f) hr = hc; if (Mathf.Abs(hl - hc) > 0.7f) hl = hc;
+                bool tracked = TrackGround.Types.Contains(Obj.Type);
+                if (Mathf.Abs(hf - hc) > 0.7f && !(tracked && GearBridgeApproach(p, p + fwd * 1.5f))) hf = hc;
+                if (Mathf.Abs(hb - hc) > 0.7f && !(tracked && GearBridgeApproach(p, p - fwd * 1.5f))) hb = hc;
+                if (Mathf.Abs(hr - hc) > 0.7f) hr = hc;
+                if (Mathf.Abs(hl - hc) > 0.7f) hl = hc;
                 var n = Vector3.Cross(fwd * 3f + Vector3.up * (hf - hb), -(right * 2.2f + Vector3.up * (hr - hl))).normalized;
                 if (n.y < 0) n = -n;
                 tilt = Quaternion.Slerp(tilt, Quaternion.FromToRotation(Vector3.up, n), 1f - Mathf.Exp(-8f * dt));

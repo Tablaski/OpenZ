@@ -248,6 +248,7 @@ static class Program
         Array.Resize(ref encoded, 13); await RejectFrame(encoded, "Truncated payload accepted");
         AiMapChecks.Run(Check, Reject);
         BalanceChecks.Run(Check);
+        GameplayRegressionChecks.Run(Check);
         SimulationChecks.Run(Check, Reject);
         ReplicationChecks.Run(Check);
         CaptureCacheChecks.Run(Check);

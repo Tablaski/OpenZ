@@ -24,7 +24,7 @@ namespace OpenZ
         float optionsScale = OptionsMaxScale, controlsScale = 1f, changesScale = 1f; RectTransform exeMusicRow, exeFullRow;
         Image modalScrim; Side scrimFor = Side.None;
         OzControlsTable controlsTable;
-        bool headTipOn; RectTransform headTip; CanvasGroup headTipCg; float headTipK;
+        bool headTipOn; RectTransform headTip; CanvasGroup headTipCg; float headTipK; OzText headTipBody;
 
         float SideScale(Side s) => s == Side.Options ? optionsScale : s == Side.Controls ? controlsScale : s == Side.Changes ? changesScale : 1f;
 
@@ -157,7 +157,7 @@ namespace OpenZ
             Hud.Plate(headTip, "md", 0f, OzUi.Amber);
             headTipCg = headTip.gameObject.AddComponent<CanvasGroup>(); headTipCg.alpha = 0f; headTipCg.blocksRaycasts = false;
             Hud.Label(headTip, "Title", "HEAD START · KEY H", 12, OzUi.Amber, 0.2f).At(16, 14, OzH.L, false, 300);
-            Hud.Label(headTip, "Body", "Extra vehicles wait at your fort when the match starts.\nL02 DESERT: 2 light tanks, 2 jeeps, 1 mech, crewed.\nL07 VOLCANO: 2 jeeps, 1 light tank, crewed.\nL16 JUNGLE: 2 jeeps, 1 light tank, crewed.\nL17 CAR PARK: 1 MLRS, 1 heavy tank, parked empty.\nMAYHEM or OFF: none, the standard map start.",
+            headTipBody = Hud.Label(headTip, "Body", "",
                       11, OzUi.Ink2, 0f, OzStyle.Plain).Body(16, 36, 304);
             headTip.gameObject.SetActive(false);
         }
@@ -166,6 +166,8 @@ namespace OpenZ
         void RefreshHeadStart(GameDifficulty d)
         {
             string id = levels[focusCard].Id; bool on = OpenZDifficulty.HeadStartToggle; int n = OpenZDifficulty.HeadStartCount(id);
+            string roster = OzDeployBar.HeadHint(id);
+            if (headTipOn) headTipBody.Set($"{roster}\n\nReinforcements start near your fort.\n{(ZGame.ParkedStartOn(id) ? "Extra vehicles start parked and empty.\n" : "")}Mayhem uses the standard map start.");
             if (OpenZDifficulty.Choice == GameDifficulty.Mayhem)                                               // 1.4 mayhem_headstart: MAYHEM locks HEAD START OFF as the SHUTTLE slot is locked (its words); the saved choice stays
             {
                 if (headRow.Interactable) { headRow.Interactable = false; headRow.Refresh(); }
@@ -177,11 +179,11 @@ namespace OpenZ
                 return;
             }
             if (!headRow.Interactable) { headRow.Interactable = true; headRow.Refresh(); }
-            headText.Set(n > 0 ? $"+{n} VEHICLES" : "NOT ON THIS MAP"); headText.color = n > 0 ? (Color)OzUi.Ink : (Color)OzUi.Dim;
+            headText.Set(n > 0 ? $"+{n} UNITS" : OpenZDifficulty.HeadStartDefaults(id).Length > 0 ? "NO ELIGIBLE UNITS" : "NOT ON THIS MAP"); headText.color = n > 0 ? (Color)OzUi.Ink : (Color)OzUi.Dim;
             headState.Set(on ? "ON" : "OFF"); headState.color = on ? (Color)OzUi.Amber : (Color)OzUi.Muted;
             headKnob.color = on ? (Color)OzUi.Amber : (Color)OzUi.GM500;
             headKnob.rectTransform.anchoredPosition = new Vector2(DeployBlockW - 12 - 48 + (on ? 24 : 2), headKnob.rectTransform.anchoredPosition.y);   // K347: the deploy bar's block width (UI/OpenZMainMenu.DeployBar.cs)
-            headHint.Set(on ? OzDeployBar.HeadHint(id) : OzDeployBar.HeadOff);                                  // K347: the block's own short hint (the tooltip keeps the full list)
+            headHint.Set(on ? roster : OzDeployBar.HeadOff);
             headHint.color = on ? (Color)OzUi.Ink2 : (Color)OzUi.Muted;
         }
 

@@ -1,5 +1,12 @@
 # Player validation record
 
+## OpenZ-VK 1.5.68 gameplay and Skirmish fixes
+
+- Pending in a compiled game. Check howitzer muzzle flashes and shell launches through repeated exits and re-entry, including a change of target. Confirm a crane driver exits through the cab and the crane becomes neutral. Right-click vacant tanks and guns with Tough and Pyro crews aboard APCs.
+- Pending in a compiled game. Change Allowed Units on the campaign selection screen with Head Start enabled, then compare the displayed and deployed units. Check Z 1996 and a restricted custom roster.
+- Pending in a compiled game. Launch uneven Teams matches in local Skirmish and online. Verify all participant rows after a match with three or more occupied positions, including eliminated sides, on local, host and guest screens. Check yellow infantry and vehicles in daylight and at night.
+- Pending in a compiled game. Watch tracked vehicles enter and leave both ends of intact and repaired bridges. Order tanks to attack across a bridge, including while another vehicle queues in the opposite direction.
+
 ## OpenZ-VK 1.5.66 V5 terrain and perimeter review
 
 - Unity 6000.3.27f2 rendered 3840 × 2160 views of SM08, SM11 and SM17. SM08 was captured on its own after the multi-scene run omitted some of its scenery. Its dedicated capture shows the volcano landmarks, new rim cones, rock pillars and bridge approaches. The SM17 capture at `ad49621f` shows the weathered concrete perimeter and the ruined buildings set into the crest.

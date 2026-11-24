@@ -95,8 +95,7 @@ namespace OpenZ.Multiplayer
 
             Button(root, "BACK TO MULTIPLAYER", 60, 988, 320, ShowConnect, height: 52);
             bool canLaunch = localSkirmish.CanLaunchWithHostReady;
-            if (!canLaunch) Label(root, localSkirmish.StartBlocker == MatchStartBlocker.UnequalTeams
-                ? MultiplayerRoom.EqualTeamSizeWarning : "Assign at least two opposing teams.", 400, 1003, 1040, 20, OzUi.Amber);
+            if (!canLaunch) Label(root, "Assign at least two opposing teams.", 400, 1003, 1040, 20, OzUi.Amber);
             Button(root, "START GAME", 1580, 988, 280, LaunchLocalSkirmish, true, canLaunch, height: 52);
             if (roomCustomUnits) BuildRoomCustomUnits(rules, SaveLocalRules);
             if (roomPresets) BuildRoomArmyPresets(rules, SaveLocalRules);
@@ -268,7 +267,7 @@ namespace OpenZ.Multiplayer
             BuildLobbyAiDifficultyRow(panel, new OzRect(levelsX, 98, SkirmishDifficultyWidth, 37), modern, commonDifficulty,
                 SetSkirmishBotDifficulty, difficultyTip, hasBots, "ALL BOTS ");
             Label(panel, rules.FreeForAll ? localSkirmish.SupportsTeams ? $"{active} players · each plays for their own side" :
-                "This player count cannot form equal teams." :
+                "Teams requires at least three positions." :
                 "Drag a card onto a team, or select a card and team.", 24, 160, width - 48, 16, OzUi.Muted);
             int listTop = 187;
             if (!rules.FreeForAll)

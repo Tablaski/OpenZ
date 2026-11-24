@@ -260,10 +260,13 @@ namespace OpenZ
             subtitle.rectTransform.anchorMin = subtitle.rectTransform.anchorMax = new Vector2(0.5f, 1); subtitle.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             subtitle.rectTransform.anchoredPosition = new Vector2(0, -OzLayout.EndSubtitleMid);
 
-            // Keep the original solo and duel statistics layout.
             var runtime = OpenZ.Multiplayer.DuelRuntime.I;
             var participants = OpenZ.Multiplayer.DuelRuntime.Active && runtime.SkirmishRoom
-                ? runtime.EndMatchParticipants() : System.Array.Empty<(Team team, string name)>();
+                ? runtime.EndMatchParticipants()
+                : W.LocalSkirmishPlayer != Team.Neutral
+                    ? W.Bots.Select(bot => (team: bot.Team, name: "AI"))
+                        .Append((team: W.LocalSkirmishPlayer, name: "Player")).OrderBy(person => person.team).ToArray()
+                    : System.Array.Empty<(Team team, string name)>();
             bool showMatchTable = participants.Length >= 3;
             bool largeMatchTable = participants.Length > 4;
             if (showMatchTable)
@@ -293,9 +296,7 @@ namespace OpenZ
             var cp = Hud.Kit(chartRt, "Plate", "EndScreen/chart_plate", new OzRect(0, 0, chartHome.w, chartHome.h), null);
             if (!OzKit.Available) cp.color = HudStyle.Slate;
             Hud.Label(chartRt, "Title", "FORCES OVER TIME", 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(16, 14);
-            var chartTeams = participants.Length >= 2 ? participants.Select(person => person.team).ToArray()
-                : W.LocalSkirmishPlayer != Team.Neutral ? W.Bots.Select(bot => bot.Team).Append(me).Distinct().OrderBy(team => team).ToArray()
-                : new[] { Team.Blue, Team.Red };
+            var chartTeams = participants.Length >= 2 ? participants.Select(person => person.team).ToArray() : new[] { Team.Blue, Team.Red };
             for (int i = 0; i < chartTeams.Length; i++)
             {
                 var team = chartTeams[i];

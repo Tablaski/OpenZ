@@ -43,6 +43,8 @@ namespace OpenZ.Sim
         /// <summary>DV171: a light, medium or heavy tank or the mech: the vehicles a driver enters through a roof hatch with a lid.</summary>
         public bool IsHatchVehicle => Kind == ZKind.Vehicle && HasLid && !IsShuttle && (Type == "light" || Type == ZMTank.Type || Type == "heavy" || Type == ZMTank.Mech || ZBigTanks.Is(Type));   // 1.5 DV180 / DV181: the big tanks' turret hatch
 
+        public bool SupportsDriverExit => IsHatchVehicle || (Kind == ZKind.Vehicle && Type == "crane");
+
         /// <summary>DV171: sim tick until which nobody climbs into this vehicle by himself (-1 = none).</summary>
         public long DriverOutLockUntilTick = -1;
         /// <summary>DV171: 30 s at Zod's 100 Hz server tick.</summary>
@@ -61,7 +63,7 @@ namespace OpenZ.Sim
         {
             sx = sy = -1; why = null;
             if (!ZWorld.VehicleExitDeviation) { why = "off in 'Zod exact'"; return false; }
-            if (!IsHatchVehicle) { why = "only a tank or the mech"; return false; }
+            if (!SupportsDriverExit) { why = "only a tank, mech or crane"; return false; }
             if (World == null || Destroyed || KillAt >= 0) { why = "destroyed"; return false; }
             if (RamDoomed) { why = "destroyed"; return false; }                                           // 1.5 DV182: rammed by a Mammoth: no way out (Sim/ZObject.MammothRam.cs)
             if (Owner == Team.Neutral || Drivers.Count == 0) { why = "nobody inside"; return false; }
@@ -322,7 +324,7 @@ namespace OpenZ.Sim
             // ZSeparation.cs:614); RunOverTick needs a driver (ZWorld.RunOver.cs:58); ShuttleStep is the shuttle's only (ZObject.cs:175).
             v.DriverOutLockUntilTick = TickIndex + ZObject.DriverOutLockTicks;      // nobody climbs in by himself for 30 s
             DriverOutCrewsWalk(v);                                                  // fix round 5: an L17 start crew already on its way to v walks to the spot next to it instead (DV59's walk)
-            if (ExitWalkHoldOn)
+            if (ExitWalkHoldOn && v.IsHatchVehicle)
             {   // fix round 2, DV132's hold: his figure is still on the hull or in the air (no step, no shot; fix round 4: a target all the same, DriverOutTarget) until it lands (vehicle_exit_jump)
                 double outAt = Time + ZObject.DriverOutHoldTicks(v.Type) * ZConst.TICK;
                 foreach (var m in squad) { m.ExitOutAt = outAt; m.DriverOutFromId = v.Id; m.DriverOutAt = outAt; ExitWalksSet++; }

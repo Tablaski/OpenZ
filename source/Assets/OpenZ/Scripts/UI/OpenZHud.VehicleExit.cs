@@ -72,7 +72,7 @@ namespace OpenZ
         }
 
         /// <summary>One of the player's own crewed tanks or mechs, alive (the tab is offered for it; CanExitDriver says whether now).</summary>
-        public bool DriverTabOf(ZObject o) => o != null && ZWorld.VehicleExitDeviation && W != null && !W.GameOver && !o.Destroyed && o.KillAt < 0 && o.IsHatchVehicle && o.Drivers.Count > 0
+        public bool DriverTabOf(ZObject o) => o != null && ZWorld.VehicleExitDeviation && W != null && !W.GameOver && !o.Destroyed && o.KillAt < 0 && o.SupportsDriverExit && o.Drivers.Count > 0
                                               && (o.Owner == Player || OzUeHooks.BothTeams(o.Owner));
 
         /// <summary>The driver of every selected tank / mech that may let him out now climbs out. True: at least one did.</summary>
@@ -118,12 +118,12 @@ namespace OpenZ
             if (live)
             {
                 string key = KeyExitsDrivers ? OzBindings.Cap(OzAction.ExitCrew) : null;
-                return (key != null ? key + " · " : "") + "EXIT DRIVER|The driver jumps out of the hatch. For 30 seconds no robot climbs in by itself: right-click a robot onto it to put in a new driver."
+                return (key != null ? key + " · " : "") + "EXIT DRIVER|The driver gets out. For 30 seconds no robot climbs in by itself: right-click a robot onto it to put in a new driver."
                        + (someStay ? " A selected tank that cannot let its driver out now keeps him." : "") + "|" + (key ?? "");
             }
             switch (why)
             {
-                case ZWorld.DriverWhyRoom: return "EXIT DRIVER|No free ground beside the hatch: drive it to open ground first.|";
+                case ZWorld.DriverWhyRoom: return "EXIT DRIVER|No free ground beside the vehicle: drive it to open ground first.|";
                 case ZWorld.DriverWhyBridge: return "EXIT DRIVER|Not on a bridge: drive it off the bridge first.|";
                 case ZWorld.DriverWhyFactory: return "EXIT DRIVER|Not while it drives out of a factory or a repair bay.|";
                 default: return "EXIT DRIVER|The driver cannot get out now.|";

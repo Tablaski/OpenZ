@@ -28,6 +28,30 @@ namespace OpenZ
 
     public partial class UnitView
     {
+        // Height samples along the road can straddle a short bridge ramp. Side samples still use the step guard.
+        bool GearBridgeApproach(Vector3 centre, Vector3 sample)
+        {
+            if (game.World == null) return false;
+            float x = centre.x * 8f, y = -centre.z * 8f;
+            float sx = sample.x * 8f, sy = -sample.z * 8f;
+            foreach (var bridge in game.World.Objects)
+            {
+                if (!bridge.IsBridge || bridge.Destroyed) continue;
+                bool vertical = bridge.Type == "bridge_vert";
+                float across = vertical ? x : y, sampleAcross = vertical ? sx : sy;
+                float middle = vertical ? bridge.CenterX : bridge.CenterY;
+                if (Mathf.Abs(across - middle) > 16f || Mathf.Abs(sampleAcross - middle) > 16f) continue;
+                float along = vertical ? y : x, sampleAlong = vertical ? sy : sx;
+                if (Mathf.Abs(sampleAlong - along) <= Mathf.Abs(sampleAcross - across)) continue;
+                float begin = vertical ? bridge.LocY : bridge.LocX;
+                float end = begin + (vertical ? bridge.HeightPix : bridge.WidthPix);
+                const float ramp = 16f;
+                float lo = Mathf.Min(along, sampleAlong), hi = Mathf.Max(along, sampleAlong);
+                if ((lo < begin + ramp && hi > begin - ramp) || (lo < end + ramp && hi > end - ramp)) return true;
+            }
+            return false;
+        }
+
         /// <summary>The ground from the tank's centre (p0, its ground gc) to the station w (x, z) runs as one continuous slope: no step between two
         /// probes SlopeProbeM apart rises or falls more than SlopeStepM (a bank, not a deck edge or a wall).</summary>
         bool GearSlopeRun(Vector3 p0, Vector3 w, float gc)
@@ -40,7 +64,7 @@ namespace OpenZ
             {
                 float t = (float)k / n;
                 float h = game.GroundY(p0.x + dx * t, p0.z + dz * t);
-                if (Mathf.Abs(h - prev) > TrackGroundSlope.SlopeStepM) return false;                     // a jump: a deck edge, a wall, a cliff
+                if (Mathf.Abs(h - prev) > TrackGroundSlope.SlopeStepM) return GearBridgeApproach(p0, w);
                 prev = h;
             }
             TrackGroundSlope.Kept++;

@@ -65,7 +65,7 @@ namespace OpenZ
         /// <summary>Difficulty button i (0 EASY .. 3 MAYHEM) in a DIFFICULTY block bw wide: its left edge from the block's, and its width.</summary>
         public static float CpuCellX(float bw, int i) { float x = 0f; for (int k = 0; k < i; k++) x += CpuCellW(bw, k) + CpuGap; return x; }
         public static float CpuCellW(float bw, int i) { float sum = 0f; foreach (var w in CpuWordW) sum += w; return CpuWordW[i] + (bw - 3f * CpuGap - sum) / CpuWordW.Length; }
-        public const string HeadL02 = "2 TANKS · 2 JEEPS · 1 MECH", HeadL07 = "2 JEEPS · 1 LIGHT TANK", HeadL16 = "2 JEEPS · 1 LIGHT TANK", HeadL17 = "1 MLRS · 1 HEAVY TANK", HeadL18 = "2 JEEPS · 1 LIGHT TANK", HeadOff = "STANDARD MAP START";
+        public const string HeadOff = "STANDARD MAP START";
 
         public static string Headline(string level) => CardHeadline;
         /// <summary>The card's small line: "13 FLAGS · CAPTURE FOR TERRITORY" (no count known, or no room: "CAPTURE FLAGS FOR TERRITORY").</summary>
@@ -73,7 +73,7 @@ namespace OpenZ
         /// <summary>The DIFFICULTY block's hint (the bar's own short words; OpenZDifficulty.Hint stays the OPTIONS row's).</summary>
         public static string CpuHint(GameDifficulty d) => d == GameDifficulty.Easy ? CpuEasy : d == GameDifficulty.Medium ? CpuMedium : d == GameDifficulty.Mayhem ? CpuMayhem : CpuHard;
         /// <summary>The HEAD START block's hint while it is on (OpenZDifficulty.HeadStartHint stays the long one, for the log).</summary>
-        public static string HeadHint(string level) => level == "L02" ? HeadL02 : OzVolcanic.Is(level) ? HeadL07 : level == "L16" ? HeadL16 : level == "L17" ? HeadL17 : OzCity.IsBridgeGame(level) ? HeadL18 : "";
+        public static string HeadHint(string level) => OpenZDifficulty.HeadStartHint(level);
 
         static readonly Regex TeamWord = new Regex(@"\b(BLUE|RED)\b");
         /// <summary>The team words of a headline in their team text colour (guide 2.1: team text from 14 u up). Give it the line as

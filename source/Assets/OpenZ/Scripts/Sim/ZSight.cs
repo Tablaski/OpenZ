@@ -219,13 +219,11 @@ namespace OpenZ.Sim
                         seen[y * w + x] = seenStamp; queue[tail++] = y * w + x;
                     }
             int exT = ExemptOf(t);
-            long r2 = (long)range * range;
             while (head < tail)
             {
                 int cur = queue[head++], cx = cur % w, cy = cur / w;
                 var (px, py) = ZReach.FootCentre(cx, cy, robot);
-                long dx = px - t.CenterX, dy = py - t.CenterY;
-                if (dx * dx + dy * dy <= r2 && (t.IsDestroyableImpass || t.ShuttleAirborne || !W.EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&   // DV118: the flying shuttle over any ground tile
+                if (u.InReach(t, px, py, range) && (t.IsDestroyableImpass || t.ShuttleAirborne || !W.EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&   // DV118: the flying shuttle over any ground tile
                     Clear(px, py, 0, t.CenterX, t.CenterY, exT))
                 { sx = px; sy = py; return true; }
                 for (int k = 0; k < 8; k++)

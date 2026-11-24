@@ -13,7 +13,7 @@ namespace OpenZ
         public static readonly Color Red = new Color32(176, 40, 30, 255);
         public static readonly Color Blue = new Color32(47, 79, 168, 255);
         public static readonly Color Green = new Color32(55, 128, 63, 255);
-        static readonly Color Yellow = new Color32(202, 150, 39, 255), Purple = new Color32(130, 75, 164, 255),
+        static readonly Color Yellow = new Color32(235, 191, 41, 255), Purple = new Color32(130, 75, 164, 255),
             Teal = new Color32(47, 157, 155, 255), White = new Color32(224, 224, 215, 255), Black = new Color32(64, 68, 78, 255);
         public static readonly Color Neutral = new Color32(122, 116, 106, 255);
 
@@ -95,11 +95,13 @@ namespace OpenZ
         // royal blue), lighter so they read at 60-70 m. w of VividLinear: 1 = neutral, 2 = owned (0 = not set = v1 look).
         public static Vector4 VividLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.45f, 0.038f, 0.024f, 2f)
                                                     : t == Team.Blue ? new Vector4(0.035f, 0.14f, 0.60f, 2f)
-                                                    : t == Team.Green ? new Vector4(0.08f, 0.48f, 0.12f, 2f) : new Vector4(0f, 0f, 0f, 1f);
+                                                    : t == Team.Green ? new Vector4(0.08f, 0.48f, 0.12f, 2f)
+                                                    : t == Team.Yellow ? new Vector4(0.80f, 0.55f, 0.025f, 2f) : new Vector4(0f, 0f, 0f, 1f);
         /// <summary>Team rim by day / night and the faint night glow of the panels (linear; red lifted: dark red vanishes at night).</summary>
         public static Vector4 GlowLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.80f, 0.075f, 0.045f, 1f)
                                                    : t == Team.Blue ? new Vector4(0.06f, 0.22f, 0.85f, 1f)
-                                                   : t == Team.Green ? new Vector4(0.12f, 0.68f, 0.18f, 1f) : Vector4.zero;
+                                                   : t == Team.Green ? new Vector4(0.12f, 0.68f, 0.18f, 1f)
+                                                   : t == Team.Yellow ? new Vector4(1.00f, 0.74f, 0.065f, 1f) : Vector4.zero;
         /// <summary>Ground team discs (TeamReadability, sRGB): brighter than the paint so the ring reads on sand and concrete.</summary>
         static readonly Color discRed = new Color32(228, 62, 44, 255), discBlue = new Color32(60, 128, 245, 255);
         /// <summary>Disc colour of sim team Red / Blue as displayed (Swap trades them).</summary>

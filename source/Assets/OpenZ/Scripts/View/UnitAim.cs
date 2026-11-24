@@ -440,6 +440,14 @@ namespace OpenZ
                 Count(eu, 0f, false, "kill shot, no hold"); Mark(p, ballistic, T, g); return false;
             }
             float err0 = ErrorTo(p, ballistic, T, g, grenade);
+            // Keep a field howitzer's displayed shot on the same clock as its reload across crew changes.
+            if (ballistic && obj.Kind == ZKind.Cannon && obj.Type == "howitzer" && obj.Ejectable)
+            {
+                if (err0 > slew.tol && Snap(p, ballistic, T, g)) err0 = ErrorTo(p, ballistic, T, g, grenade);
+                Count(err0, 0f, false, "howitzer shot, no hold");
+                Mark(p, ballistic, T, g);
+                return false;
+            }
             if (robot && missile && !grenade && view.StanceHoldsFire) err0 = 180f;                    // robot_models_v2: the Tough still lowers the tube (tough_prepare)
             if (held.Count == 0 && err0 <= slew.tol) { Count(err0, 0f, false, "on target, no hold"); Mark(p, ballistic, T, g); return false; }
             held.Add(new Held { e = e, point = p, at = Time.time, maxWait = maxWait, ballistic = ballistic, grenade = grenade, T = T, g = g });

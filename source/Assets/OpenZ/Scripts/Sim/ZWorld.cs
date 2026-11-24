@@ -150,6 +150,35 @@ namespace OpenZ.Sim
         /// </summary>
         public List<ZObject> AddHeadStart(Team team, params string[] types) => AddHeadStart(team, false, types);
 
+        static readonly string[] HeadStartScouts = { "jeep", "light", "apc", ZMTank.Type, "medium", "heavy", "missile_launcher" };
+        static readonly string[] HeadStartLightTanks = { "light", ZMTank.Type, "medium", "heavy", "jeep", "apc", "missile_launcher" };
+        static readonly string[] HeadStartMediumTanks = { "medium", ZMTank.Type, "heavy", "light", "missile_launcher", "jeep", "apc" };
+        static readonly string[] HeadStartHeavyTanks = { "heavy", ZMTank.Type, "medium", "light", "missile_launcher", "jeep", "apc" };
+        static readonly string[] HeadStartArtillery = { "missile_launcher", "heavy", ZMTank.Type, "medium", "light", "jeep", "apc" };
+        static readonly string[] HeadStartOtherUnits = { ZBigTanks.Mammoth, ZBigTanks.Bizon, "tough", "pyro", "laser", "psycho", "sniper", "grunt",
+            "electrobot", "crane", "gun", "missile_cannon", "howitzer", "gatling" };
+
+        internal static string[] SelectHeadStart(IEnumerable<string> preferred, Func<string, bool> allows)
+        {
+            var selected = new List<string>();
+            foreach (string type in preferred)
+            {
+                var alternatives = type switch
+                {
+                    "jeep" => HeadStartScouts,
+                    "light" => HeadStartLightTanks,
+                    "medium" => HeadStartMediumTanks,
+                    "heavy" => HeadStartHeavyTanks,
+                    "missile_launcher" => HeadStartArtillery,
+                    _ => Array.Empty<string>()
+                };
+                string unit = allows(type) ? type : Array.Find(alternatives, candidate => allows(candidate)) ??
+                    Array.Find(HeadStartOtherUnits, candidate => allows(candidate));
+                if (unit != null) selected.Add(unit);
+            }
+            return selected.ToArray();
+        }
+
         /// <summary><paramref name="empty"/>: parked empty and neutral (DV32 on L17) instead of crewed.</summary>
         public List<ZObject> AddHeadStart(Team team, bool empty, params string[] types)
         {
@@ -196,7 +225,10 @@ namespace OpenZ.Sim
             {
                 if (k >= types.Length) break;
                 if (!Free(c.tx, c.ty, types[k])) continue;
-                made.Add(CreateObject("vehicle", types[k++], c.tx * 16, c.ty * 16, empty ? Team.Neutral : team));
+                string type = types[k++];
+                if (ZBuildLists.IsRobot(type)) made.Add(CreateRobotGroup(type, c.tx * 16, c.ty * 16, team, 1));
+                else if (ZBuildLists.IsCannon(type)) made.Add(CreateObject("cannon", type, c.tx * 16, c.ty * 16, team));
+                else made.Add(CreateObject("vehicle", type, c.tx * 16, c.ty * 16, empty ? Team.Neutral : team));
             }
             return made;
         }
@@ -925,7 +957,7 @@ namespace OpenZ.Sim
             if (v != null && !DuelAllowsUnit(v.IsApc || v.IsShuttle ? v.PassengerType : v.DriverType)) return false;
             if (v != null && v.IsShuttle) return EjectPassengers(team, v);                       // DV118: the shuttle's passengers leave by the APC's rules, only on the ground (Sim/ZWorld.Shuttle.cs)
             if (ApcCrewDeviation && v != null && v.IsApc) return EjectPassengers(team, v);   // apc_v1 DV15: only the passengers leave, the driver stays
-            if (v != null && v.IsHatchVehicle) return ExitDriver(team, v);                   // 1.4 DV171 EXIT DRIVER: a tank's or the mech's driver climbs out beside the hull, nobody climbs in by himself for 30 s (Sim/ZObject.VehicleExit.cs); switch off or a computer team: refused, as before
+            if (v != null && v.SupportsDriverExit) return ExitDriver(team, v);
             if (v == null || v.Owner != team || team == Team.Neutral || !v.CanEjectDrivers() || v.Drivers.Count == 0) return false;
             var hp = v.Drivers.ToList();
             var leader = CreateRobotGroup(v.DriverType, v.LocX, v.LocY, team, hp.Count);

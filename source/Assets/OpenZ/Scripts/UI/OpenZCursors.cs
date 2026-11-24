@@ -108,7 +108,13 @@ namespace OpenZ
                 {
                     bool door = h.CanEnterFort(me) && (OnDoor(h, mp) || (canMove && input.FortEnterAt(h)));   // 1.4: the gate zone and the fort's body too (View/PlayerInput.FortGate.cs)
                     if (h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrlHeld && !door) return canMove ? "move" : "cannon";
-                    { string emptyCursor = ZWorld.EmptyClickCursor(h, ctrlHeld, takers, canMove, canAttack, explosives); if (emptyCursor != null) return emptyCursor; }   // DV81: over an empty vehicle or gun never ATTACK without Ctrl (ENTER with a robot selected, else MOVE); Ctrl = ATTACK, as for neutral buildings
+                    string emptyCursor = ZWorld.EmptyClickCursor(h, ctrlHeld, takers, canMove, canAttack, explosives);
+                    if (emptyCursor != null)
+                    {
+                        foreach (var unit in sel)
+                            if (ZWorld.ApcAttacksEmptyUnit(unit, h)) return "attack";
+                        return emptyCursor;
+                    }
                     if (!door && ZWorld.PyroBurnCursor(h, sel, me, ctrlHeld)) return "attack";   // DV113: Ctrl over a building or bridge with a Pyro selected = ATTACK (it burns it), where explosives-only showed NO (Sim/ZObject.PyroForceBurn.cs)
                     if (canMove)
                     {

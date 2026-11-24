@@ -45,7 +45,7 @@ namespace OpenZ.EditorTools
     ///  K6 final fix (review r3: a vehicle ran over the held driver): K6a the light tank and the mech, a held tough, DV121 on, an enemy jeep 48 px
     ///     off: no charge, no knock, no squash while he is held, knocked once his hold ends, the control (DV132 off) knocked; K6b a held grunt,
     ///     an enemy jeep ordered onto his spot: on it while he is held, no knock, no squash, the control knocked;
-    ///  U  the jeep, an empty APC and an APC with passengers, the crane, the missile launcher, the shuttle and every gun: EXIT with the rule's
+    ///  U  the jeep, an empty APC and an APC with passengers, the missile launcher, the shuttle and every gun: EXIT with the rule's
     ///     switch on and off gives the same answer and the same state 5 s later (the guns keep DV58's 1500-tick lock and JustLeftCannon);
     ///  R  refused, nothing changed: a CPU team's tank, an empty tank, the switch off ('Zod exact': and the same state as with no EXIT at all),
     ///     a tank boxed in by hulls, by rocks, a tank on its factory exit move; fix round 1: a tank in a corridor two tiles wide between
@@ -887,7 +887,7 @@ namespace OpenZ.EditorTools
         // ------------------------------------------------------------------------------------------------ U
         static void U(string set)
         {
-            var types = new List<string> { "jeep", "apc", "apc+", "crane", "missile_launcher", ZWorld.ShuttleType };
+            var types = new List<string> { "jeep", "apc", "apc+", "missile_launcher", ZWorld.ShuttleType };
             types.AddRange(ZBuildLists.Cannons);
             int same = 0; var diff = new List<string>(); var lines = new List<string>();
             foreach (var t in types)

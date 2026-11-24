@@ -11,17 +11,14 @@ static class MultiplayerRoomChecks
     {
         const string host = "host-link-id", guest = "guest-link-id", extra = "extra-link-id";
         var room = new MultiplayerRoom(host, "Host", "SMP03M01");
-        var unsupported = room.Rules;
-        unsupported.FreeForAll = false;
-        room.SetRules(host, unsupported);
-        check(!room.SupportsTeams && room.Rules.FreeForAll && room.Rules.AllForOne, "Three-start online rooms disable Teams and keep the online option default");
+        var teams = room.Rules;
+        teams.FreeForAll = false;
+        room.SetRules(host, teams);
+        check(room.SupportsTeams && !room.Rules.FreeForAll && room.Rules.AllForOne, "Three-start online rooms allow Teams and keep the online option default");
         check(!new MultiplayerRoom(host, "Host", "SMP03M01", allowSoloConversions: true).Rules.AllForOne,
             "Local Skirmish defaults All for one off");
-        check(MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 1, 1, 1 }) &&
-            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 1, 1, 2, 2 }) &&
-            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 0, 1, 1, 1, 1 }) &&
-            MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 1, 1, 2, 2, 3, 3 }) &&
-            !MultiplayerRoom.HasEqualTeams(new[] { 0, 0, 0, 1, 1, 2 }), "Equal team sizes support several valid six- and eight-player layouts");
+        check(!MultiplayerRoom.CanFormTeams(2) && Enumerable.Range(3, 6).All(MultiplayerRoom.CanFormTeams),
+            "Every roster size from three through eight can form teams");
         room.Join(guest, "Guest");
         check(room.Starts == 3 && room.StartBlocker == MatchStartBlocker.EmptyStartingPositions, "A missing third participant blocks the three-start room");
         reject(() => room.SetBot(guest, 2, 1, ZBotDifficulty.Easy), "Guests cannot assign bots");
@@ -106,8 +103,7 @@ static class MultiplayerRoomChecks
         room.SetBot(host, 2, 1, ZBotDifficulty.Easy);
         room.SetReady(host, room.Revision, true);
         room.SetReady(guest, room.Revision, true);
-        check(room.StartBlocker == MatchStartBlocker.UnequalTeams && !room.CanLaunch, "Unequal teams block launch even when every human is ready");
-        reject(() => room.Launch(host), "The authoritative launch gate rejects uneven teams");
+        check(room.StartBlocker == MatchStartBlocker.None && room.CanLaunch, "Three versus one can launch when all humans are ready");
         room.SetBot(host, 3, 1, ZBotDifficulty.Easy);
         room.SetReady(host, room.Revision, true);
         room.SetReady(guest, room.Revision, true);

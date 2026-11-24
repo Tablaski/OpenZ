@@ -190,7 +190,7 @@ namespace OpenZ.Sim
         bool ApproachPlan(ZObject t, ref int ex, ref int ey)
         {
             if (!ZWorld.ApproachDeviation || World.Pathing == null || !World.Pathing.Enabled || !CanMove) return false;
-            if (InReach(t, CenterX, CenterY, RangeTo(t)) && HasLineOfSight(t)) return false;
+            if (WithinAttackRadius(t)) return false;
             if (PS.level > 0) return false;                                                 // stuck on the way there once: Zod's goal and the layer's detours take over
             // (d > R - EntryBand) for good, so a vehicle that had to approach never manoeuvred; duel pairs stop inside the band
             int reach = DuelPair(t) ? AttackRadius - ZDuel.EntryBand - 4 : HeroPlanRadius() - LosSpotSlack;   // KH2: a hero member plans no farther out than his leader (Sim/ZHeroSquad.Kh2.cs)
@@ -209,6 +209,8 @@ namespace OpenZ.Sim
         bool ApproachWalk()
         {
             var pts = approachPts; approachPts = null;
+            if (pts == null || pts.Count == 0) return false;
+            pts = World.Pathing.CheckPath(this, pts);
             if (pts == null || pts.Count == 0) return false;
             StopMove();
             cur.pathFindingId = 0; cur.gotPfResponse = true; cur.pfPoints = pts;

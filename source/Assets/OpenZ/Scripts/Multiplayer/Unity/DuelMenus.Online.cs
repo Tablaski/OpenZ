@@ -78,10 +78,10 @@ namespace OpenZ.Multiplayer
                 Button(root, "INVITE PLAYERS", 1560, 41, 300, () => OpenOnlinePopup(OnlinePopup.Invite), true);
             else Label(root, "Joined as " + local.Name, 1460, 52, 400, 18, OzUi.Muted);
             Button(root, "FREE FOR ALL", 1530, 125, 179, () => SetMode(true), rules.FreeForAll, editable);
-            bool teamsSupported = MultiplayerRoom.CanFormEqualTeams(map.Starts - closed.Length);
+            bool teamsSupported = MultiplayerRoom.CanFormTeams(map.Starts - closed.Length);
             Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable && teamsSupported);
             if (!teamsSupported)
-                Label(root, "This player count cannot form equal teams.", 1136, 137, 380, 15, OzUi.Muted);
+                Label(root, "Teams requires at least three positions.", 1136, 137, 380, 15, OzUi.Muted);
 
             void SetMode(bool freeForAll)
             {
@@ -107,7 +107,7 @@ namespace OpenZ.Multiplayer
             int ready = people.Count(person => person.Ready && person.Seat >= 0);
             int open = map.Starts - active - bots.Length - closed.Length;
             string status = R.EndLobbyOpen ? "Waiting for players to return from the match" : local.Observer ? "Ghost · watching this match" :
-                (hosted?.StartBlocker ?? joined.StartBlocker) == MatchStartBlocker.UnequalTeams ? MultiplayerRoom.EqualTeamSizeWarning :
+                (hosted?.StartBlocker ?? joined.StartBlocker) == MatchStartBlocker.NoOpposingTeam ? "Assign at least two opposing teams." :
                 people.Any(person => person.Seat < 0 && !person.Observer) ? "Players waiting for a starting position" :
                 open > 0 ? $"Fill or close {open} open {(open == 1 ? "position" : "positions")}" :
                 ready < active ? $"Waiting for {people.First(person => person.Seat >= 0 && !person.Ready).Name} · {ready} / {active} ready" :
@@ -467,9 +467,7 @@ namespace OpenZ.Multiplayer
             Button(panel, AllForOneLabel(onlineAllForOne), 24, 51, 280,
                 () => { onlineAllForOne = !onlineAllForOne; dirty = true; }, onlineAllForOne, height: 35);
             Label(panel, AllForOneDescription, 24, 94, 640, 16, OzUi.Ink);
-            bool balanced = MultiplayerRoom.HasEqualTeams(roster.Select(person => onlineTeams[person.Seat]));
-            Label(panel, balanced ? "Drag a participant onto a team, or select a row and then a team." :
-                MultiplayerRoom.EqualTeamSizeWarning, 24, 124, 640, 16, balanced ? OzUi.Muted : OzUi.Amber);
+            Label(panel, "Drag a participant onto a team, or select a row and then a team.", 24, 124, 640, 16, OzUi.Muted);
             var teams = Scroll(panel, 24, 152, 640, 343, false, Mathf.Max(343, onlineTeamCount * 48 + roster.Length * 37));
             float y = 0;
             for (int team = 0; team < onlineTeamCount; team++)

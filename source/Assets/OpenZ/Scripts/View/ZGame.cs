@@ -202,7 +202,7 @@ namespace OpenZ
             ZWorld.RiflePairDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                     // DV78: a grunt's rifle on a grunt (ZObject.RiflePair.cs)
             ZWorld.FireOnMoveDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_fire_on_move", 1) == 1;
             ZWorld.EjectLockDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_eject_lock", 1) == 1;
-            ZWorld.VehicleExitDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] EXIT DRIVER for tanks and the mech (DV171): {(ZWorld.VehicleExitDeviation ? "ON" : "off")}");   // 1.4 DV171: the driver of a tank / the mech climbs out, 30 s without auto entry (Sim/ZObject.VehicleExit.cs); the computer never uses it
+            ZWorld.VehicleExitDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] EXIT DRIVER for tanks, the mech and cranes (DV171): {(ZWorld.VehicleExitDeviation ? "ON" : "off")}");   // 1.4 DV171: the driver of a tank / the mech climbs out, 30 s without auto entry (Sim/ZObject.VehicleExit.cs); the computer never uses it
             ZWorld.DriverThrownDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] a driver getting out is thrown by his vehicle's blast (DV179): {(ZWorld.DriverThrownDeviation ? "ON" : "off")}");   // 1.5 DV179 (kit exit_leap_death): a tank / the mech destroyed before its driver's take-off throws him (Sim/ZObject.DriverThrown.cs, View/BoardingView.HatchThrow.cs); off in 'Zod exact'
             ZWorld.PremiumDodgeDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] PREMIUM DRIVER DODGE for tanks and the mech (DV173): {(ZWorld.PremiumDodgeDeviation ? "ON" : "off")}");   // 1.4 DV173: a tank / the mech with a non-grunt driver steps aside x 1.08 faster, its hull turns quicker (Sim/ZObject.PremiumDodge.cs)
             ZWorld.EmptiedTargetsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] nobody keeps shooting an emptied vehicle (DV176): {(ZWorld.EmptiedTargetsDeviation ? "ON" : "off")}");   // 1.4 DV176: EXIT DRIVER, a crew shot out, a hero pilot's shuttle EXIT, a gun's EJECT: every team drops the emptied vehicle (Sim/ZWorld.DropEmptied.cs); off in 'Zod exact'
@@ -321,36 +321,21 @@ namespace OpenZ
             bool headStartNow = !skirmish && !OpenZ.Multiplayer.DuelRuntime.Active && OpenZDifficulty.HeadStartFor(ShownDifficulty); HeadStartMade = 0;
             HeadStartRefusedMayhem = IsMayhem && OpenZDifficulty.HeadStartToggle && !(blueBot && redBot);
             if (HeadStartRefusedMayhem) Debug.Log($"[ZGame] head start: none on MAYHEM ({level}; the saved HEAD START ON is kept for the other difficulties)");
-            if (!(blueBot && redBot) && level == "L02" && headStartNow /* menu_exe_v1: the menu switch, every difficulty; 1.4 mayhem_headstart: none on MAYHEM */)   // L02 only: its map gives neither side a vehicle; L17 red already starts with 5
+            if (!(blueBot && redBot) && headStartNow)
             {
-                var extra = World.AddHeadStart(player, HeadStartTypes.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
-                foreach (var v in extra) SpawnUnitView(v);
-                Debug.Log($"[ZGame] head start for {player}: {extra.Count} crewed vehicles at the fort");
-            }
-            // (Easy is an OpenZ deviation anyway; Medium / Hard keep Z's L17 start units)
-            if (!(blueBot && redBot) && level == "L17" && headStartNow /* menu_exe_v1: the L17 head start (was Easy only); 1.4 mayhem_headstart: none on MAYHEM */)
-            {
-                var extra = World.AddHeadStart(player, ParkedStartOn(level), EasyL17Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
-                foreach (var v in extra) { var hv = SpawnUnitView(v); if (hv && v.Owner == Team.Neutral) hv.FaceSide(); }   // 1.2 item 169: the parked empty ones face the screen's right, their barrels across the picture (View/UnitView.SideFacing.cs)
-                Debug.Log($"[ZGame] L17 head start for {player}: {extra.Count} {(ParkedStartOn(level) ? "parked empty (DV32)" : "crewed")} vehicles at the fort");
-            }
-            if (!(blueBot && redBot) && level == "L16" && headStartNow)
-            {
-                var extra = World.AddHeadStart(player, HeadStartL16Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
-                foreach (var v in extra) SpawnUnitView(v);
-                Debug.Log($"[ZGame] L16 head start for {player}: {extra.Count} crewed vehicles at the fort");
-            }
-            if (!(blueBot && redBot) && OzVolcanic.Is(level) && headStartNow)
-            {
-                var extra = World.AddHeadStart(player, HeadStartL07Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
-                foreach (var v in extra) SpawnUnitView(v);
-                Debug.Log($"[ZGame] L07 head start for {player}: {extra.Count} crewed vehicles at the fort");
-            }
-            if (!(blueBot && redBot) && OzCity.IsBridgeGame(level) && headStartNow)   // 1.5 level 18 (kit level18_map; kit level18_rules/blue_start_v3, owner addition 49: no crane at the start): two jeeps and a light tank; the optional shuttle is the SHUTTLE box's (kit level18_rules DV200), placed before this and kept clear by DV144
-            {
-                var extra = World.AddHeadStart(player, HeadStartL18Types.Where(World.DuelAllowsUnit).ToArray()); HeadStartMade += extra.Count;
-                foreach (var v in extra) SpawnUnitView(v);
-                Debug.Log($"[ZGame] L18 head start for {player}: {extra.Count} crewed vehicles at the fort");
+                var types = ZWorld.SelectHeadStart(OpenZDifficulty.HeadStartDefaults(level), World.DuelAllowsUnit);
+                if (types.Length > 0)
+                {
+                    bool parked = ParkedStartOn(level);
+                    var extra = World.AddHeadStart(player, parked, types);
+                    HeadStartMade = extra.Count;
+                    foreach (var unit in extra)
+                    {
+                        var view = SpawnUnitView(unit);
+                        if (view && unit.Owner == Team.Neutral) view.FaceSide();
+                    }
+                    Debug.Log($"[ZGame] {level} head start for {player}: {string.Join(", ", extra.Select(unit => unit.Type))}");
+                }
             }
             // 1.3 rows 58-59 DV165 (Sim/ZEvilZod.Appear.cs): EvilZod in the four campaign levels, a human against the computer, with DV161 (off in 'Zod exact').
             // Row 58: a blue player's start right after a DEFEAT (the lose screen's REPLAY / RETRY, UI/OzUi.cs OzScenes) has him at the blue fort, the player's own unit.

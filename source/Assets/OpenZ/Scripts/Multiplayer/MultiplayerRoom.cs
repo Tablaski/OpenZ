@@ -119,15 +119,8 @@ namespace OpenZ.Multiplayer
         public RoomBot[] Bots => bots.Values.OrderBy(bot => bot.Position).ToArray();
         public int[] ClosedPositions => closed.OrderBy(position => position).ToArray();
         public SkirmishRules Rules => rules.Copy();
-        public bool SupportsTeams => CanFormEqualTeams(Starts - closed.Count);
-        internal const string EqualTeamSizeWarning = "Teams must have the same number of players (at least two per team).";
-        internal static bool CanFormEqualTeams(int positions) => positions >= 4 &&
-            Enumerable.Range(2, positions / 2 - 1).Any(teamCount => positions % teamCount == 0);
-        internal static bool HasEqualTeams(IEnumerable<int> alliances)
-        {
-            var sizes = alliances.GroupBy(alliance => alliance).Select(team => team.Count()).ToArray();
-            return sizes.Length >= 2 && sizes[0] >= 2 && sizes.All(size => size == sizes[0]);
-        }
+        public bool SupportsTeams => CanFormTeams(Starts - closed.Count);
+        internal static bool CanFormTeams(int positions) => positions >= 3;
 
         public MatchStartBlocker StartBlocker
         {
@@ -135,13 +128,12 @@ namespace OpenZ.Multiplayer
             {
                 var seats = MultiplayerMatchSeats.Check(Starts, members.Values.Select(member => member.Seat)
                     .Concat(bots.Keys.Concat(closed).Select(position => new MatchSeatAssignment(MatchSeatRole.Bot, position))));
-                return seats == MatchStartBlocker.None && !rules.FreeForAll && !HasEqualTeams(ActiveAlliances())
-                    ? MatchStartBlocker.UnequalTeams : seats;
+                return seats == MatchStartBlocker.None && !ActiveAlliances().Distinct().Skip(1).Any()
+                    ? MatchStartBlocker.NoOpposingTeam : seats;
             }
         }
         public bool CanLaunch => CanLaunchWithHostReady && Member(HostId).Ready;
         public bool CanLaunchWithHostReady => !Launched && StartBlocker == MatchStartBlocker.None &&
-            ActiveAlliances().Distinct().Skip(1).Any() &&
             members.Values.All(member => member.Id == HostId || !member.Seat.MayUsePlayerCommands || member.Ready);
         public bool MatchLoaded => Launched && members.Values.All(member => !member.Seat.MayUsePlayerCommands || loaded.Contains(member.Id));
 

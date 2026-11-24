@@ -34,13 +34,13 @@ namespace OpenZ.Experimental
                 if (map.tiles[index] is not (260 or 263 or 267 or 334 or 354 or 389 or 406 or 425 or 448) || !Solid(map, index)) continue;
                 if (!RimRock(x - 1, z) || !RimRock(x + 1, z) || !RimRock(x, z - 1) || !RimRock(x, z + 1)) continue;
                 float q = Mathf.Repeat(Mathf.Sin(x * 12.9898f + z * 78.233f) * 43758.5453f, 1);
-                if (q < .24f) continue;
+                if (q < .13f) continue;
                 var p = new Vector2(x * 2 + 1, z * 2 + 1);
                 p += new Vector2(Mathf.Sin(q * 61), Mathf.Cos(q * 42)) * 1.3f;
                 float radius = 1.40f + .83f * q;
-                if (placed.Exists(previous => (previous - p).sqrMagnitude < 248) || !SafeVent(p, radius)) continue;
+                if (placed.Exists(previous => (previous - p).sqrMagnitude < 135) || !SafeVent(p, radius)) continue;
                 AddVent(p, radius, 1.1f + 1.24f * q, q);
-                int neighbours = q > .62f ? 4 : 3;
+                int neighbours = q > .50f ? 4 : 3;
                 for (int n = 0; n < neighbours; n++)
                 {
                     float angle = q * 6.28f + n * 2.37f;
@@ -92,6 +92,33 @@ namespace OpenZ.Experimental
                     int a = first + ring * sides + i, b = first + ring * sides + (i + 1) % sides;
                     indices.AddRange(new[] { a, b, a + sides, b, b + sides, a + sides });
                 }
+            }
+        }
+
+        void SeatVolcanicLandmarks(ZMapData map, Func<float, float, float> terrainHeight)
+        {
+            float width = 2 * map.width, depth = 2 * map.height;
+            foreach (Transform landmark in transform)
+            {
+                if (!landmark.name.StartsWith("L07_Volcano_", StringComparison.Ordinal)) continue;
+                var renderers = landmark.GetComponentsInChildren<MeshRenderer>();
+                if (renderers.Length == 0 || landmark.GetComponentInChildren<Collider>()) continue;
+                var old = landmark.position;
+                var location = new Vector2(old.x, -old.z);
+                float west = -location.x, east = location.x - width, north = -location.y, south = location.y - depth;
+                float outside = Mathf.Max(Mathf.Max(west,east),Mathf.Max(north,south));
+                if (outside <= 0) continue;
+                const float crest = 12f;
+                location.x = Mathf.Clamp(location.x,12,width-12);
+                location.y = Mathf.Clamp(location.y,12,depth-12);
+                if (outside == west) location.x = -crest;
+                else if (outside == east) location.x = width + crest;
+                else location.y = outside == north ? -crest : depth + crest;
+                landmark.localScale *= .48f;
+                landmark.position = new Vector3(location.x, 0, -location.y);
+                float bottom = float.PositiveInfinity;
+                foreach (var renderer in renderers) bottom = Mathf.Min(bottom, renderer.bounds.min.y);
+                landmark.position += Vector3.up * (terrainHeight(location.x, location.y) - bottom - .5f);
             }
         }
     }

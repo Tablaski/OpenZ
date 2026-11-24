@@ -55,6 +55,43 @@ float V5LakeIceMask(float palette)
     return smoothstep(.20,.75,palette);
 }
 
+// Keep a metre-scale signal when individual grains become smaller than a pixel.
+float V5SurfaceGrain(float2 p, float pixel)
+{
+    return (V5Noise(p * 1.7) - .5) * .25 * V5Resolved(pixel,1.7)
+        + (V5Noise(p * 5.2 + 19) - .5) * .29 * V5Resolved(pixel,5.2)
+        + (V5Noise(p * 14.5 - 7) - .5) * .38 * V5Resolved(pixel,14.5);
+}
+
+float V5ArcticSurface(inout half3 color, float2 p, float pixel, float road, float iceMask)
+{
+    float roadWeight = smoothstep(.31,.67,road);
+    float2 wind = float2(dot(p,float2(.82,.57)),dot(p,float2(-.57,.82)));
+    float drift = V5Noise(wind * float2(.31,.95));
+    float packed = V5Noise(wind * float2(1.5,4.4)) * V5Resolved(pixel,4.4);
+    float snowbank = smoothstep(.57,.83,drift * .77 + V5Noise(p * .68) * .23);
+    float gravel = V5SurfaceGrain(p + 61,pixel);
+    half3 snow = color * (1 + gravel * .47 + (drift-.5)*.15);
+    half3 exposedRoad = color * (.96 + gravel*.91);
+    float dust = snowbank * lerp(.75,.43,road) * roadWeight;
+    color = lerp(snow,exposedRoad,roadWeight);
+    color = lerp(color,half3(.50,.59,.66) * (1 + gravel*.39),dust);
+
+    float2 crystal = V5Cells(p * float2(.32,.49) + V5Noise(p * .83) * .17);
+    float width = .014 + pixel * .23;
+    float fracture = (1-smoothstep(.003,width,crystal.y)) * smoothstep(.43,.74,V5Noise(p * .53));
+    float scratches = smoothstep(.65,.90,V5Noise(wind * float2(.65,12))) * V5Resolved(pixel,12);
+    float trappedAir = smoothstep(.62,.86,V5Noise(p * 4.7)) * (.34 + .66*V5Resolved(pixel,4.7));
+    float deep = V5Noise(p * .22) * .77 + V5Noise(p * 1.36) * .23;
+    half3 ice = lerp(half3(.027,.12,.174),half3(.088,.247,.309),deep);
+    ice += half3(.24,.32,.36) * (.66*fracture + .15*trappedAir + .17*scratches);
+    color = lerp(color,ice,iceMask);
+
+    float snowRelief = .023*drift + .006*packed + .024*gravel;
+    float roadRelief = .044*gravel + dust*.013;
+    return lerp(lerp(snowRelief,roadRelief,roadWeight),.0015*deep - .002*fracture,iceMask);
+}
+
 float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float road, float palette)
 {
     float coarse = V5Noise(p * .21 + 11);
@@ -105,29 +142,10 @@ float OZAiV5Surface(inout half3 color, float2 p, float pixel, float biome, float
         terrain *= lerp(half3(1.02,1.02,.99),half3(.81,.73,.62),mud) * (1 + baked + grit*.26);
         elevation *= 1 + mud * .42;
     }
-    else
-    {
-        float dune = V5Noise(p * float2(.21,.73) + coarse * .9);
-        float drift = smoothstep(.55,.82,dune);
-        float glaze = V5LakeIceMask(palette);
-        float2 crystal = V5Cells(p * float2(.38,.54) + V5Noise(p * .86) * .12);
-        float fractureWidth = max(.011,pixel * .31);
-        float cracks = (1 - smoothstep(.003,fractureWidth,crystal.y)) * smoothstep(.49,.73,V5Noise(p * .63));
-        float2 scratches = float2(dot(p,float2(.82,.57)),dot(p,float2(-.57,.82)));
-        float scoring = smoothstep(.68,.85,V5Noise(scratches * float2(.55,12.4))) * V5Resolved(pixel,12.4);
-        float bubbles = smoothstep(.74,.91,V5Noise(p * 8.6)) * V5Resolved(pixel,8.6);
-        float blue = V5Noise(p * .19) * .76 + V5Noise(p * .92) * .24;
-        half3 ice = lerp(half3(.026,.106,.146),half3(.10,.246,.301),blue);
-        ice += half3(.14,.21,.25) * (cracks * .49 + scoring * .14 + bubbles * .17);
-        terrain = lerp(terrain * (1 + drift * .071 + grit * .15), ice, glaze * .94);
-        elevation = lerp(elevation + drift * .017, -cracks * .0025,glaze);
-        float driftOnRoad = smoothstep(.63,.82,dune + medium * .12) * (.30 + .53 * (1 - road));
-        float gravel = (V5Noise(p * 8.6) - .5) * V5Resolved(pixel, 8.6);
-        color = lerp(color * (1 + gravel * .30),half3(.65,.73,.78),driftOnRoad);
-    }
     float asphalt = (V5Noise(p * 5.8) - .5) * V5Resolved(pixel, 5.8);
-    color = lerp(terrain,color * (1 + grit*.28 + asphalt*.16),roadWeight);
-    return lerp(elevation, asphalt * (biome > 4.5 ? .024 : .012) + grit * .006,roadWeight);
+    float detail = V5SurfaceGrain(p,pixel);
+    color = lerp(terrain * (1 + detail*.35),color * (1 + detail*.73 + asphalt*.16),roadWeight);
+    return lerp(elevation + detail*.026, asphalt*.014 + detail*.039,roadWeight);
 }
 
 float V5Rock(inout half3 albedo, float3 p, float3 normalWS, float biome, float pixel)
@@ -153,7 +171,7 @@ float V5Rock(inout half3 albedo, float3 p, float3 normalWS, float biome, float p
         float coat = smoothstep(.42,.90,normalWS.y + (packed-.39)*.34);
         half3 snow = lerp(half3(.54,.65,.72),half3(.75,.83,.87),packed);
         albedo = lerp(albedo,snow * (1 + (pebbles-.5)*.10),coat*.83);
-        return lerp(layers*.031 - cracks*.021,(pebbles-.5)*.010,coat);
+        return lerp(layers*.031 - cracks*.021,V5SurfaceGrain(p.xz,pixel)*.032,coat);
     }
     return layers * .031 - cracks * .021;
 }

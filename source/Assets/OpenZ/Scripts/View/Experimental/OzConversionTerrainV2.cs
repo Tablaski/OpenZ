@@ -105,7 +105,15 @@ namespace OpenZ.Experimental
                 ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = new[] { surfaceGround, rockFace, floor };
             BuildWater(map, useV4);
-            if (IsPaletteV5 && map.planet == "volcanic") BuildVolcanicVents(map, Height, bridgeClearance);
+            if (IsPaletteV5 && map.planet == "city") ShowCityV5Outskirts();
+            if (IsPaletteV5 && map.planet == "volcanic")
+            {
+                BuildVolcanicVents(map, Height, bridgeClearance);
+                SeatVolcanicLandmarks(map, Height);
+            }
+            string profile = IsPaletteV5 ? "V5" : IsPaletteV4 ? "V4" : IsPaletteV3 ? "V3" : "V2";
+            float shaderProfile = surfaceGround.HasProperty("_OzAiTerrainProfile") ? surfaceGround.GetFloat("_OzAiTerrainProfile") : 0;
+            Debug.Log($"[AI map terrain] {mapId} {profile}, {surfaceGround.shader.name}, shader profile {shaderProfile}");
             if (terraces?.HasTerraces == true) SeatTerraceViews();
 
             float Height(float x, float z)

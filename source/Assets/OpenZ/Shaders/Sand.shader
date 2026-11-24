@@ -329,8 +329,12 @@ Shader "OpenZ/Sand"
                 if (_OzAiTerrainV5 > .5)
                 {
                     float4 field = SAMPLE_TEXTURE2D_LOD(_GroundSdf, sampler_GroundSdf, i.uv, 0);
-                    materialHeight = OZAiV5Surface(albedo, w, ozPxm, _OzAiTerrainProfile, field.r, field.a);
-                    if (_OzAiTerrainProfile > 4.5) iceGlaze = V5LakeIceMask(field.a) * (1-smoothstep(.18,.47,field.r));
+                    if (_OzAiTerrainProfile > 4.5)
+                    {
+                        iceGlaze = V5LakeIceMask(field.a) * (1-smoothstep(.18,.47,field.r));
+                        materialHeight = V5ArcticSurface(albedo,w,ozPxm,field.r,iceGlaze);
+                    }
+                    else materialHeight = OZAiV5Surface(albedo,w,ozPxm,_OzAiTerrainProfile,field.r,field.a);
                 }
                 if (_OzCraterRole > 1.5)
                 {

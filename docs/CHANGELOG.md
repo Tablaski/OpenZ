@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.64 (24 Nov 2026)
+
+- AI Maps — The five experimental V5 examples have clearer terrain detail at tactical zoom. Arctic has finer snow, gravel and lake ice with patchy snow on roads. The Car Park has a fuller ruined-city backdrop, and Molten Kombat's cones now sit on the volcanic barrier.
+
 ## OpenZ-VK 1.5.63 (24 Nov 2026)
 
 - Solo + 1 vs 1 — The fog of war shows map landmarks, last known unit and rock positions, and the last known state of buildings and bridges.

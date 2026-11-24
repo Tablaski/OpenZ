@@ -2,6 +2,10 @@
 
 ## V5 — five material studies on V4 geometry
 
+The 1.5.64 V5 revision preserves the V4 Arctic open-water shader, material and shoreline geometry. It bakes the native snow and road paint at up to 14 samples per tile axis. World-space gravel and snow relief keep detail at tactical and close distances, with intermittent patches of snow on roads. The separate native ice mask drives broad fractures, fine scratches and trapped air under the smoother reflective surface. The other V5 ground profiles add aggregate at three scales, with the finer layers tapered by screen pixel footprint.
+
+SM17 adds an alternate exterior from the existing L17 Car Park ground, debris, ruins and quay meshes. In V5 the grounded set replaces the duplicate ruin and quay instances. Its scene objects only render meshes. On SM08 the original L07 volcano props are reduced in scale and seated on the converted barrier. Native rim art drives denser small-cone groups. The terrain loader logs the selected palette and shader profile.
+
 The Jungle target circulated with V4.1.5.54 was an edited preview. The implemented V4 relief shipped in the source for 1.5.56 and had distinct stepped sections in the ravines. V5 in 1.5.62 smooths the walls and bottoms of the two cuts in a render-only mesh, preserving the original raised road, bridge clearance, picking mesh and native tile classes. Open Arctic water reuses the 1.5.56 shader and material settings. The ice shader adds fine cracks, scoring and trapped bubbles under a view-dependent reflection. The snow on roads is retained. Use `-oz-ai-maps-v5 -oz-preview-wide` with the Unity capture entry point for the five wide 4K views.
 
 Launch with `-oz-ai-maps-v5` to enable V5 on Desert (SM02), Molten Kombat (SM08), Chilly Willy (SM11), The Jungle (SM16) and The Car Park (SM17). Other maps continue to use V4. The V3 switch takes precedence.

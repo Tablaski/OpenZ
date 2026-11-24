@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenZ combat lab</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #161719; color: #eee; }
+  body { max-width: 1040px; margin: 32px auto; padding: 0 20px; }
+  h1, h2 { line-height: 1.15; margin-bottom: 12px; } h1 { color: #ec9a56; }
+  section { padding: 20px; margin: 20px 0; background: #202226; border: 1px solid #3d4148; border-radius: 10px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; }
+  label { display: grid; gap: 3px; } label.toggle { display: inline-flex; align-items: center; }
+  button, select, input[type=number] { padding: 7px 10px; border-radius: 5px; border: 1px solid #666b75; font: inherit; }
+  button { cursor: pointer; } button.primary { background: #ec9a56; color: #231407; font-weight: 700; border-color: #ec9a56; }
+  button:disabled { cursor: default; opacity: .5; } input[type=number] { width: 7ch; }
+  a { color: #ffc085; } progress { width: 100%; accent-color: #ec9a56; } #error { color: #ff9e91; white-space: pre-wrap; }
+  .table-scroll { overflow-x: auto; } table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border-bottom: 1px solid #41444c; text-align: left; padding: 7px 12px; white-space: nowrap; }
+  th { color: #facda8; } td small { display: block; color: #c1c4cd; }
+  svg { width: 100%; max-height: 350px; margin-top: 12px; overflow: visible; }
+  .subtle { color: #c3c6cd; } #detail { margin: 8px 0; }
+</style>
+<main>
+  <h1>OpenZ combat lab</h1>
+  <section aria-labelledby="run-title">
+    <h2 id="run-title">Run a test</h2>
+    <div class="controls">
+      <label>Test suite <select id="suite"><option value="blast">Shell damage and radius</option><option value="tanks">Tank shots and duels</option><option value="terrain">Road, water and damaged units</option></select></label>
+      <label>Repeats per fight <input id="repeats" type="number" value="20" min="1" max="5000"></label>
+      <label class="toggle"><input type="checkbox" id="zod"> Compare with Zod</label>
+      <label class="toggle"><input type="checkbox" id="candidate"> Include loaded tank profile</label>
+      <button class="primary" id="start">Start new test</button>
+    </div>
+    <p class="subtle" id="engines"></p>
+    <div class="controls">
+      <label>Saved campaign <select id="campaign" aria-label="Saved campaign"></select></label>
+      <button id="resume">Resume</button><button id="pause">Pause</button>
+      <button id="extend" title="Use the repeat count above as the new total">Add repeats</button>
+    </div>
+    <p id="progress-label" role="status"></p><progress id="progress" value="0" max="1" aria-label="Saved trials"></progress>
+    <p id="error" role="alert"></p>
+  </section>
+  <section aria-labelledby="results-title">
+    <h2 id="results-title">Results</h2>
+    <div class="controls">
+      <label>View <select id="mode"><option value="blast">Damage by distance</option><option value="shot-idle">One shot · idle target</option><option value="shot-move">One shot · target ordered to move</option><option value="shot-attack">One shot · target ordered to attack</option><option value="duel">Two-way duels</option><option value="move-normal">Movement speed</option></select></label>
+      <label class="blast">Weapon <select id="weapon"></select></label>
+      <label class="blast">Target <select id="target"></select></label>
+      <label class="fight">Starting distance <select id="distance"><option value="56">56 px</option><option value="96">96 px</option></select></label>
+      <label class="terrain">Terrain <select id="terrain"><option value="0">Ground</option><option value="1">Road</option><option value="2">Water</option></select></label>
+      <label class="terrain">Target health <select id="health"><option>100</option><option>45</option><option>20</option></select></label>
+      <label class="fight">Measure <select id="measure"></select></label>
+      <a id="export" hidden>Download CSV</a>
+    </div>
+    <p class="subtle" id="detail"></p>
+    <div class="table-scroll" id="results"></div>
+  </section>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const tanks = ['light', 'medium', 'heavy'];
+  const weapons = [...tanks, 'tough', 'gun', 'howitzer', 'missile_cannon', 'missile_launcher'];
+  const colors = { OpenZ: '#ffab69', Zod: '#70d5e0', Candidate: '#d570ff' };
+  const names = { blast: 'Shell damage', tanks: 'Tank fights', terrain: 'Terrain and damage' };
+  const display = value => value.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase());
+  const node = (tag, value) => { const el = document.createElement(tag); el.textContent = value; return el; };
+  function select(id, entries) {
+    const before = $(id).value;
+    $(id).replaceChildren(...entries.map(([value, label]) => new Option(label, value)));
+    if (entries.some(([value]) => String(value) === before)) $(id).value = before;
+  }
+  select('weapon', weapons.map(w => [w, display(w)]));
+  select('target', tanks.map(w => [w, display(w)]));
+  let known = [], currentStatus, generation = 0;
+  async function request(path, body) {
+    const options = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    const response = await fetch(path, options);
+    const raw = await response.text();
+    const payload = raw && response.headers.get('Content-Type')?.includes('json') ? JSON.parse(raw) : null;
+    if (!response.ok) throw new Error(payload?.error || `Request failed (${response.status})`);
+    return payload;
+  }
+  async function act(path, body) {
+    $('error').textContent = '';
+    try {
+      const reply = await request(path, body);
+      await refresh(reply?.id);
+    } catch (error) { $('error').textContent = error.message; }
+  }
+  $('start').onclick = () => act('/api/campaign', { suite: $('suite').value, repeats: +$('repeats').value, compareZod: $('zod').checked, candidate: $('candidate').checked });
+  $('pause').onclick = () => act('/api/pause', {});
+  $('resume').onclick = () => act(`/api/campaign/${$('campaign').value}/resume`, {});
+  $('extend').onclick = () => act(`/api/campaign/${$('campaign').value}/resume?repeats=${+$('repeats').value}`, {});
+  async function refresh(pick) {
+    const first = !currentStatus;
+    const status = currentStatus = await request('/api/status');
+    known = status.campaigns;
+    select('campaign', known.map(c => [c.id, `#${c.id} · ${names[c.plan.suite]} · ${c.done}/${c.total}`]));
+    if (pick) { $('campaign').value = pick; $('mode').value = known.find(c => c.id === pick)?.plan.suite === 'blast' ? 'blast' : 'shot-idle'; }
+    if (first && status.zod) $('zod').checked = true;
+    $('zod').disabled = !status.zod;
+    $('candidate').disabled = !status.candidate;
+    $('engines').textContent = status.zod ? 'Zod comparison ready.' : 'OpenZ is ready. Run Setup-Zod.ps1 once to add the Zod comparison.';
+    if (status.error) $('error').textContent = status.error;
+    await results();
+  }
+  async function results() {
+    const seq = ++generation;
+    const id = +$('campaign').value;
+    const c = known.find(campaign => campaign.id === id);
+    const active = currentStatus?.active;
+    $('start').disabled = !!active;
+    $('pause').disabled = !active;
+    $('resume').disabled = !c || !!active || c.done === c.total;
+    $('extend').disabled = !c || !!active || c.plan.suite === 'blast';
+    $('progress').max = c?.total || 1;
+    $('progress').value = c?.done || 0;
+    $('progress-label').textContent = c ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} trials saved · ${active === id ? 'Running' : c.done === c.total ? 'Complete' : 'Ready to resume'}` : 'Choose a test suite to begin.';
+    $('export').hidden = !c?.done;
+    $('export').href = `/api/campaign/${id}/export.csv`;
+    $('mode').querySelectorAll('option').forEach(o => o.disabled = c && ((c.plan.suite === 'blast') !== (o.value === 'blast')));
+    if ($('mode').selectedOptions[0]?.disabled) $('mode').value = c.plan.suite === 'blast' ? 'blast' : 'shot-idle';
+    const mode = $('mode').value, blast = mode === 'blast', move = mode === 'move-normal';
+    document.querySelectorAll('.blast').forEach(el => el.hidden = !blast);
+    document.querySelectorAll('.fight').forEach(el => el.hidden = blast || move);
+    document.querySelectorAll('.terrain').forEach(el => el.hidden = blast);
+    select('measure', mode === 'duel' ? [['win_rate','Shooter win %'], ['draw_rate','Draw or timeout %'], ['lost','Target HP lost'], ['shooter_lost','Shooter HP lost'], ['seconds','Fight duration (s)']]
+      : [['lost','HP lost per fired shell'], ['lost_percent','Target max HP lost (%)'], ['on_hit','HP lost on a hit'], ['hit_rate','Damage hit %'], ['dodge_rate','Dodge started %']]);
+    $('detail').textContent = blast ? 'Distance from the target center. Each point is the actual HP lost to one shell.'
+      : move ? 'Average speed during a two-second move order, in simulation pixels per second.'
+      : mode === 'duel' ? 'Both units attack. The row unit is the shooter for the selected measure.'
+      : 'The row unit fires at the column unit. Misses count as zero HP lost. A dodge can start even if the shell still hits.';
+    if (!c) { $('results').textContent = 'Results appear as soon as the first batch is saved.'; return; }
+    const query = new URLSearchParams({ mode });
+    if (!blast) { query.set('terrain', $('terrain').value); query.set('health', $('health').value); }
+    if (!blast && !move) query.set('distance', $('distance').value);
+    const rows = await request(`/api/campaign/${id}/results?${query}`);
+    if (seq !== generation) return;
+    const filtered = blast ? rows.filter(r => r.shooter === $('weapon').value && r.target === $('target').value && +r.shots > 0) : rows;
+    $('results').replaceChildren();
+    if (!filtered.length) { $('results').textContent = 'No saved trials for this view yet.'; return; }
+    if (blast) { draw(filtered); return; }
+    const metric = move ? 'speed' : $('measure').value;
+    const table = node('table', '');
+    const columns = move ? ['Speed'] : tanks;
+    const tableRow = (tag, values) => { const tr = node('tr', ''); tr.append(...values.map(v => node(tag, v))); return tr; };
+    table.append(tableRow('th', [move ? 'Unit' : 'Shooter ↓ / Target →', ...columns.map(display)]));
+    for (const shooter of move ? weapons.slice(0, 4) : tanks) {
+      const tr = tableRow('th', [display(shooter)]);
+      for (const target of columns) {
+        const td = node('td', '');
+        for (const r of filtered.filter(r => r.shooter === shooter && r.target === (move ? shooter : target))) {
+          const value = !move && mode !== 'duel' && !+r.shots ? 'No shot' : r[metric] ?? '—';
+          const line = node('small', `${r.engine} ${value} · ${r.n} ${r.n === '1' ? 'trial' : 'trials'}`);
+          line.style.color = colors[r.engine]; td.append(line);
+        }
+        if (!td.childElementCount) td.textContent = '—';
+        tr.append(td);
+      }
+      table.append(tr);
+    }
+    $('results').append(table);
+  }
+  function draw(rows) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 700 260'); svg.setAttribute('aria-label', 'HP lost versus blast distance'); svg.setAttribute('role', 'img');
+    const max = Math.max(1, ...rows.map(r => +r.lost));
+    const x = d => 48 + d / 128 * 625, y = hp => 222 - hp / max * 190;
+    function add(tag, attrs, label) {
+      const element = document.createElementNS(svg.namespaceURI, tag);
+      Object.entries(attrs).forEach(([k,v]) => element.setAttribute(k,v));
+      if (label) element.textContent = label;
+      svg.append(element); return element;
+    }
+    for (let d = 0; d <= 128; d += 16) {
+      add('line', { x1:x(d), x2:x(d), y1:30, y2:222, stroke:'#444' });
+      add('text', { x:x(d), y:245, fill:'#ddd', 'text-anchor':'middle', 'font-size':12 }, `${d}`);
+    }
+    for (let i = 0; i <= 4; i++) {
+      const hp = max * i / 4;
+      add('line', { x1:48, x2:673, y1:y(hp), y2:y(hp), stroke:'#444' });
+      add('text', { x:42, y:y(hp)+4, fill:'#ddd', 'text-anchor':'end', 'font-size':12 }, String(Math.round(hp)));
+    }
+    $('results').append(svg);
+    for (const engine of Object.keys(colors)) {
+      const points = rows.filter(r => r.engine === engine);
+      if (!points.length) continue;
+      let run = [];
+      function plot() {
+        if (run.length === 1) add('circle', { cx:x(+run[0].distance), cy:y(+run[0].lost), r:3, fill:colors[engine] });
+        if (run.length > 1) add('polyline', { points:run.map(r => `${x(+r.distance)},${y(+r.lost)}`).join(' '), stroke:colors[engine], fill:'none', 'stroke-width':3 });
+      }
+      for (const point of points) { if (run.length && +point.distance !== +run.at(-1).distance + 1) { plot(); run = []; } run.push(point); } plot();
+      const last = points.filter(r => +r.lost > 0).at(-1);
+      const label = node('p', `${engine} · projectile radius ${Math.max(...points.map(r => +r.radius))} px · last measured damage at ${last ? last.distance + ' px' : '—'} · ${points.length}/129 distances`);
+      label.style.color = colors[engine]; $('results').append(label);
+    }
+  }
+  document.querySelectorAll('#campaign, #mode, #weapon, #target, #distance, #terrain, #health, #measure').forEach(el => el.onchange = () => results().catch(error => $('error').textContent = error.message));
+  refresh().catch(error => $('error').textContent = error.message);
+  setInterval(() => refresh().catch(error => $('error').textContent = error.message), 2500);
+</script>

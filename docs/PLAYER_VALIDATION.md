@@ -1,5 +1,11 @@
 # Player validation record
 
+## OpenZ-VK 1.5.66 V5 terrain and perimeter review
+
+- Unity 6000.3.27f2 rendered 3840 × 2160 views of SM08, SM11 and SM17. SM08 was captured on its own after the multi-scene run omitted some of its scenery. Its dedicated capture shows the volcano landmarks, new rim cones, rock pillars and bridge approaches. The SM17 capture at `ad49621f` shows the weathered concrete perimeter and the ruined buildings set into the crest.
+- SM11 uses the revised snow detail and open-water material. The lake-ice material and native ice mask are retained. Some shoreline corners are still angular when viewed at full size.
+- The core suite passed 9,094 simulation checks. The native files, decoded grids and scene assets did not change. Player-driven boundary, combat and bridge verification in the compiled game remains pending.
+
 ## OpenZ-VK 1.5.65 abandoned tanks and guns
 
 - Source checkpoint `abedb9e8` passed 53 focused AI 2026 checks and 9,094 core and real-map simulation checks. The focused scenarios cover a Heavy captured by Skilled and Zod, the crane exclusion, denial while engaged and destruction of the empty hull, a guard order at a howitzer, a fatal guard position rejected, an allied crew boarding with Friendly Fire on, and the Noob and Alright frequency gates.

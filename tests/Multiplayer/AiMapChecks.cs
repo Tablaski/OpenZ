@@ -79,7 +79,12 @@ static class AiMapChecks
 
     static void CheckTerrainV5(string root, Action<bool, string> check)
     {
-        var examples = OzAiMapCatalog.SkirmishMaps.Where(map => OzAiTerrainV5.HasExample(map.Id)).ToArray();
+        string expected = OzAiTerrainV4.Active("arctic") ? (OzAiTerrainV5.Active ? "V5" : "V4") : "V3";
+        check(OzAiMapCatalog.SkirmishMaps.All(map => map.Variant == expected),
+            "The selected terrain version applies to the complete converted catalog");
+        check(OzAiMapCatalog.OfficialSkirmishMaps.All(map => map.Variant == "OPENZ"),
+            "Official maps keep their own terrain");
+        var examples = OzAiMapCatalog.SkirmishMaps.Where(map => map.Id is "SM02" or "SM08" or "SM11" or "SM16" or "SM17").ToArray();
         check(examples.Length == 5 && examples.Select(map => map.World).Distinct().Count() == 5,
             "V5 contains one example per biome");
         foreach (var example in examples)

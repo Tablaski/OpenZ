@@ -246,13 +246,42 @@ namespace OpenZ.Sim
             Set(type, ZBehaviorKey.Agility, percent);
             Set(type, ZBehaviorKey.Distance, factor);
             Set(type, ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres * factor);
-            Set(type, ZBehaviorKey.DodgeSpeed, factor);
-            Set(type, ZBehaviorKey.BoostSpeed, 1 + 4 * factor);
             Set(type, ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres * factor);
             Set(type, ZBehaviorKey.DodgePhysical, 1);
+            if (type == "light" || type == "medium" || type == "heavy")
+            {
+                ApplyTrackedAgility(type, percent / ClassicTankAgility(type));
+                return;
+            }
+            Set(type, ZBehaviorKey.DodgeSpeed, factor);
+            Set(type, ZBehaviorKey.BoostSpeed, 1 + 4 * factor);
             Set(type, ZBehaviorKey.TurnRate, 360 * factor);
             Set(type, ZBehaviorKey.TurnAcceleration, 3000 * factor);
             Set(type, ZBehaviorKey.Acceleration, .12 / factor);
+        }
+        void ApplyTrackedAgility(string type, double relativeAgility)
+        {
+            // Keep the Zod running burst and size-dependent dodge limits while
+            // letting the chassis finish most of its turn before it travels.
+            var (turn, turnAcceleration, acceleration, braking) = type switch
+            {
+                "light" => (330.0, 2500.0, .16, .12),
+                "medium" => (225.0, 1750.0, .22, .16),
+                _ => (175.0, 1350.0, .30, .22),
+            };
+            Set(type, ZBehaviorKey.Physical, 1);
+            Set(type, ZBehaviorKey.TurnFirst, 1);
+            Set(type, ZBehaviorKey.Lateral, 0);
+            Set(type, ZBehaviorKey.Reverse, 0);
+            Set(type, ZBehaviorKey.PivotSpeed, 0);
+            Set(type, ZBehaviorKey.AlignmentTolerance, 18);
+            Set(type, ZBehaviorKey.Distance, relativeAgility);
+            Set(type, ZBehaviorKey.DodgeSpeed, relativeAgility);
+            Set(type, ZBehaviorKey.BoostSpeed, 1 + .8 * relativeAgility);
+            Set(type, ZBehaviorKey.TurnRate, turn * relativeAgility);
+            Set(type, ZBehaviorKey.TurnAcceleration, turnAcceleration * relativeAgility);
+            Set(type, ZBehaviorKey.Acceleration, acceleration / relativeAgility);
+            Set(type, ZBehaviorKey.Braking, braking / relativeAgility);
         }
         public string id = "", name = "Custom";
         public ZBehaviorFamily family;

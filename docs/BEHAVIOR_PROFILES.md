@@ -21,6 +21,8 @@ flanks/arcs/reverses: in-range units stop and fire, as in Zod. This reference do
 mode or replace weapon statistics, collision/pathing, or other game systems.
 The **Zod Local (idle only)** reference also prevents dodges during active orders.
 
+The built-in **Z Classic** tank preset also gives Light, Medium and Heavy a physical chassis. They brake, pivot toward the next movement direction and build speed again. Light responds first, while Heavy takes the longest to turn, accelerate and brake. The profile keeps the randomized dodge and its stamina-limited sprint.
+
 Numeric parameters interpolate; discrete fields change at 50%. Parameters not
 implemented in Zod are explicitly disabled, instantaneous or use the corresponding
 native equivalent. A higher master is not a guaranteed higher survival rate.

@@ -1,5 +1,10 @@
 # Player validation record
 
+## OpenZ-VK 1.5.71 Z Classic tank handling
+
+- The planned compiled-game capture runs each of the six Light, Medium and Heavy pairings three times on the Unit Editor field with the built-in Z Classic profile. The capture alternates sides and creation order within each pairing. Compare each tank's approach, pivot, acceleration and return to fire under pressure.
+- Pending interactive checks. Try the profile with human orders on roads, tight passages and slopes, and check how the three hulls read at normal zoom during larger fights. Check host-owned Z Classic in an online match.
+
 ## OpenZ-VK 1.5.70 V5 catalog and Arctic snow
 
 - Unity 6000.3.27f2 captured all 88 enabled AI Map scenes with the V5 terrain profile. Each clip kept the simulation paused, used map-specific shots and rejected camera frames showing all four map corners. FFmpeg decoded every paired clip and poster, and all 88 video hashes were distinct. The solo selector, gallery and lobby use these packaged preview resources.

@@ -10,8 +10,9 @@ static class DodgeCircleChecks
         {
             var classic = ZBehaviorProfile.Classic(family);
             string type = family == ZBehaviorFamily.Tanks ? "light" : "grunt";
-            check(classic.Get(type, ZBehaviorKey.BoostSpeed) == 5 && classic.Get(type, ZBehaviorKey.MaxDistance) == 6.25 &&
-                classic.Get(type, ZBehaviorKey.BoostMaxDistance) == 6.25, "Published Z Classic has a x5 burst bounded to 1.25 common blast radii: " + family);
+            double burst = family == ZBehaviorFamily.Tanks ? 1.8 : 5;
+            check(classic.Get(type, ZBehaviorKey.BoostSpeed) == burst && classic.Get(type, ZBehaviorKey.MaxDistance) == 6.25 &&
+                classic.Get(type, ZBehaviorKey.BoostMaxDistance) == 6.25, "Published Z Classic bounds the burst to 1.25 common blast radii: " + family);
             var world = ZWorld.Create(settings, map, 173); world.Pathing.Enabled = false;
             classic.Set("", ZBehaviorKey.BoostChance, 100); classic.Set("", ZBehaviorKey.Endurance, 0);
             classic.Set("", ZBehaviorKey.MinDistance, 6.25); world.SetBehavior(classic);
@@ -26,6 +27,7 @@ static class DodgeCircleChecks
             check(unit.BehaviorBoostDistance > 0 && unit.BehaviorBoostDistance <= 6.250001 && unit.BehaviorDodgeDistance <= 6.250001 && !unit.BehaviorDodging,
                 "Z Classic stops its burst and resumes the interrupted order without replenishing distance on replans: " + family);
         }
+        CheckTrackedClassic(settings, map, x, y, check);
         var p = new ZBehaviorProfile { family = ZBehaviorFamily.Tanks, master = 100 };
         var bins = new int[16];
         for (int k = 0; k < 1000; k++)
@@ -92,5 +94,34 @@ static class DodgeCircleChecks
             if (limit == ZBehaviorKey.BoostMaxDistance) check(tank.BehaviorBoostDistance <= .150001 && tank.BehaviorDodgeDistance > tank.BehaviorBoostDistance, "Boost distance caps sprint while dodge continues at normal pace");
             if (limit == ZBehaviorKey.BoostDuration) check(tank.BehaviorBoostDistance > 0 && tank.BehaviorBoostDistance == boostedAfterLimit && tank.BehaviorDodgeDistance > tank.BehaviorBoostDistance, "Boost duration cannot restart on replan and normal movement continues");
         }
+    }
+
+    static void CheckTrackedClassic(string settings, string map, int x, int y, Action<bool, string> check)
+    {
+        var profile = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks);
+        double lastRate = double.PositiveInfinity, lastAcceleration = 0, lastBraking = 0;
+        foreach (string type in new[] { "light", "medium", "heavy" })
+        {
+            var motion = profile.Resolve(type);
+            double rate = motion[ZBehaviorKey.TurnRate], acceleration = motion[ZBehaviorKey.Acceleration], braking = motion[ZBehaviorKey.Braking];
+            check(motion.On(ZBehaviorKey.Physical) && motion.On(ZBehaviorKey.TurnFirst) && motion.On(ZBehaviorKey.DodgePhysical) &&
+                !motion.On(ZBehaviorKey.Lateral) && !motion.On(ZBehaviorKey.Reverse) && motion[ZBehaviorKey.BoostSpeed] == 1.8,
+                "Z Classic tracked motion faces the move and uses the Zod boost: " + type);
+            check(rate > 0 && rate < lastRate && acceleration > lastAcceleration && braking > lastBraking,
+                "Z Classic pivot is finite and the heavier tracked hull responds more slowly: " + type);
+            lastRate = rate; lastAcceleration = acceleration; lastBraking = braking;
+            var world = ZWorld.Create(settings, map, 409); world.Pathing.Enabled = false; world.SetBehavior(profile);
+            var tank = world.CreateObject("vehicle", type, x + 32, y + 32, Team.Red);
+            int startX = tank.CenterX, startY = tank.CenterY;
+            tank.BehaviorHeadingSet = true; tank.BehaviorHeading = 0;
+            tank.Waypoints.Add(new ZWaypoint { mode = WpMode.Move, x = startX, y = startY + 24 });
+            world.Time = .01; tank.ProcessServer(world.Time);
+            check(tank.CenterX == startX && tank.CenterY == startY && tank.BehaviorHeading > 0 && tank.BehaviorHeading < Math.PI / 2,
+                "A perpendicular move starts by rotating the tracked hull in place: " + type);
+            for (int tick = 2; tick <= 400; tick++)
+            { world.Time = tick * .01; tank.ProcessServer(world.Time); }
+            check(tank.CenterY > startY + 10, "The tracked hull advances after facing the destination: " + type);
+        }
+        check(!profile.Resolve("jeep").On(ZBehaviorKey.Physical), "Z Classic keeps prior movement outside the three tracked tank types");
     }
 }

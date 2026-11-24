@@ -1,5 +1,4 @@
-// OpenZ (GPL-3.0) - version 1.4, FOG OF WAR checks (editor only): records the game view to an MP4 at a fixed step, for the owner's reveal clips.
-#if UNITY_EDITOR
+// OpenZ (GPL-3.0) - records the game view to an MP4 at a fixed step.
 using System;
 using System.Collections;
 using System.Diagnostics;
@@ -11,7 +10,7 @@ using Debug = UnityEngine.Debug;
 namespace OpenZ
 {
     /// <summary>
-    /// Version 1.4 FOG OF WAR (round 4, 5 Nov), editor only: the game view as the player sees it (the HUD included, nothing added) recorded
+    /// The game view as the player sees it (including the HUD) recorded
     /// frame by frame at a fixed step (Time.captureFramerate, so the game, the units and the fog advance exactly 1 / fps a frame however long a
     /// frame takes: no hitch, no repeated frame, the real speed), each frame piped raw to ffmpeg (H.264, yuv420p, CRF 20, +faststart, 4
     /// threads, below-normal priority): no frame files on disk. A callback runs before every frame (the clip's cues: the camera held, the
@@ -27,17 +26,17 @@ namespace OpenZ
         public int Written { get; private set; }
         public string Result { get; private set; } = "";
 
-        string path; int frames, fps, crf; Action<int> onFrame;
+        string path; int frames, fps, crf; Action<int> onFrame; Func<bool> finished;
         Process ff; Stream stdin; byte[] buf; readonly StringBuilder err = new StringBuilder();
 
         /// <summary>Starts a recording of `frames` frames at `fps` into `path` (an .mp4); `onFrame(i)` runs before frame i is drawn.</summary>
-        public static OzFowClipRecorder Begin(string path, int frames, int fps, int crf, Action<int> onFrame)
+        public static OzFowClipRecorder Begin(string path, int frames, int fps, int crf, Action<int> onFrame, Func<bool> finished = null)
         {
             if (Live && Live.Running) { Debug.LogWarning("[OpenZ FogOfWar clip] a recording is already running"); return null; }
             var go = new GameObject("OZ_FowClipRecorder") { hideFlags = HideFlags.DontSave };
             DontDestroyOnLoad(go);
             var r = go.AddComponent<OzFowClipRecorder>();
-            r.path = path; r.frames = frames; r.fps = fps; r.crf = crf; r.onFrame = onFrame; r.Running = true;
+            r.path = path; r.frames = frames; r.fps = fps; r.crf = crf; r.onFrame = onFrame; r.finished = finished; r.Running = true;
             Live = r;
             r.StartCoroutine(r.Run());
             return r;
@@ -51,7 +50,13 @@ namespace OpenZ
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < frames; i++)
             {
-                try { onFrame?.Invoke(i); } catch (Exception e) { Debug.LogError("[OpenZ FogOfWar clip] cue at frame " + i + ": " + e); }
+                try { onFrame?.Invoke(i); }
+                catch (Exception e)
+                {
+                    if (finished != null) { Fail("cue at frame " + i + ": " + e); break; }
+                    Debug.LogError("[OpenZ FogOfWar clip] cue at frame " + i + ": " + e);
+                }
+                if (finished?.Invoke() == true) break;
                 yield return new WaitForEndOfFrame();
                 var tex = ScreenCapture.CaptureScreenshotAsTexture();
                 try
@@ -76,7 +81,7 @@ namespace OpenZ
             if (string.IsNullOrEmpty(Result))
             {
                 long bytes = File.Exists(path) ? new FileInfo(path).Length : 0;
-                Result = (ff != null && ff.ExitCode == 0 && bytes > 0 ? "OK " : "FAILED ") + $"{Written} of {frames} frames at {fps} fps in {sw.Elapsed.TotalSeconds:0} s, {bytes / 1048576.0:0.0} MB, {path}" + (err.Length > 0 ? " | " + err : "");
+                Result = (ff != null && ff.ExitCode == 0 && bytes > 0 ? "OK " : "FAILED ") + $"{Written} frames at {fps} fps in {sw.Elapsed.TotalSeconds:0} s, {bytes / 1048576.0:0.0} MB, {path}" + (err.Length > 0 ? " | " + err : "");
             }
             Debug.Log("[OpenZ FogOfWar clip] " + Result);
             ff?.Dispose();
@@ -115,4 +120,3 @@ namespace OpenZ
         }
     }
 }
-#endif

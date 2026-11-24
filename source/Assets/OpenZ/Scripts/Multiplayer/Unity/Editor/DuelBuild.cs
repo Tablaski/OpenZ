@@ -49,7 +49,7 @@ namespace OpenZ.Multiplayer.Editor
                 {
                     scenes = scenes,
                     target = BuildTarget.StandaloneWindows64, locationPathName = output,
-                    options = BuildOptions.CompressWithLz4,
+                    options = BuildOptions.None,
                     extraScriptingDefines = new[] { OpenZ.EditorTools.OpenZReleaseBuild.Define }
                 });
             }

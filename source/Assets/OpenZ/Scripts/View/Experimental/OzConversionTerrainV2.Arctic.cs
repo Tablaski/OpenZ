@@ -1,4 +1,5 @@
 // OpenZ-VK (GPL-3.0).
+using System.Collections.Generic;
 using OpenZ.Sim;
 using UnityEngine;
 
@@ -6,6 +7,31 @@ namespace OpenZ.Experimental
 {
     public partial class OzConversionTerrainV2
     {
+        Mesh ArcticSnowBanks(Mesh original, List<Vector3> vertices, List<int>[] channels)
+        {
+            var snow = new List<int>(channels[0]);
+            var cliffs = new List<int>();
+            var slopes = channels[1];
+            for (int i = 0; i < slopes.Count; i += 3)
+            {
+                int a = slopes[i], b = slopes[i + 1], c = slopes[i + 2];
+                float low = Mathf.Min(vertices[a].y, Mathf.Min(vertices[b].y, vertices[c].y));
+                float high = Mathf.Max(vertices[a].y, Mathf.Max(vertices[b].y, vertices[c].y));
+                // Low banks and bridge shoulders use the continuous snow and ice paint.
+                // Their steep one-metre triangles otherwise get isolated pieces of cliff material.
+                var surface = low < .55f && high < 1.8f ? snow : cliffs;
+                surface.Add(a);
+                surface.Add(b);
+                surface.Add(c);
+            }
+            var mesh = Instantiate(original);
+            mesh.name = "Arctic terrain with continuous snow banks";
+            mesh.SetTriangles(snow, 0, false);
+            mesh.SetTriangles(cliffs, 1, false);
+            generated.Add(mesh);
+            return mesh;
+        }
+
         Material ArcticGround(ZMapData map, bool useV4)
         {
             int samplesPerTile = IsPaletteV5 ? Mathf.Clamp(2048 / Mathf.Max(map.width, map.height), 7, 14) : 7;

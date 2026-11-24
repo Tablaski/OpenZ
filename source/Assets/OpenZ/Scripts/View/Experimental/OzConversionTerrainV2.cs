@@ -102,8 +102,13 @@ namespace OpenZ.Experimental
                 }
             }
             bool cityV5 = IsPaletteV5 && map.planet == "city";
-            terrain.AddComponent<MeshFilter>().sharedMesh = cityV5 ? CityBorderSurface(map, vertices, uv, channels) : IsPaletteV5 && mapId == "SM16"
-                ? JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance) : mesh;
+            terrain.AddComponent<MeshFilter>().sharedMesh = IsPaletteV5 ? map.planet switch
+            {
+                "city" => CityBorderSurface(map, vertices, uv, channels),
+                "arctic" => ArcticSnowBanks(mesh, vertices, channels),
+                "jungle" when mapId == "SM16" => JungleRavineSurface(map, vertices, uv, channels, stride, step, bridgeClearance),
+                _ => mesh
+            } : mesh;
             terrain.AddComponent<MeshRenderer>().sharedMaterials = cityV5
                 ? new[] { surfaceGround, rockFace, floor, CityBorderConcrete() }
                 : new[] { surfaceGround, rockFace, floor };

@@ -1,5 +1,11 @@
 # Player validation record
 
+## V5 Arctic close-up and Car Park perimeter
+
+- Unity 6000.3.27f2 rendered the City perimeter at `97798403` and the Arctic close-up at `57e2f5ee`, both at 3840 × 2160. The City view shows the authored Car Park façades fitted to the crest. The Arctic material-ID capture traced the bright rectangles to the cliff submesh. The follow-up capture shows continuous snow at the bridge shoulders and shore, dark open water and the existing lake-ice detail. All five sampled patches from the original close-up cleared in the follow-up.
+- The native grids and scene files for SM11 and SM17 are unchanged. The terrain collision mesh keeps its original triangle data. Movement, combat and bridge checks in a compiled game remain pending.
+- The core suite passed 9,094 checks before the parallel gameplay update. At `6d6739a6` the full suite stops in the new southbound bridge-attack scenario, which checks whether the tank crosses the bridge and fires. The simulation project does not compile the changed Unity renderer or capture code.
+
 ## OpenZ-VK 1.5.68 gameplay and Skirmish fixes
 
 - Pending in a compiled game. Check howitzer muzzle flashes and shell launches through repeated exits and re-entry, including a change of target. Confirm a crane driver exits through the cab and the crane becomes neutral. Right-click vacant tanks and guns with Tough and Pyro crews aboard APCs.

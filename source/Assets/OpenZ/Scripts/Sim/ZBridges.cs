@@ -42,6 +42,7 @@ namespace OpenZ.Sim
         internal ZObject o;
         internal ZBridgeLane queued;            // waiting for this crossing (not admitted yet)
         internal int end; internal ZLane deck; internal double since; internal ZWaypoint order;   // direction, first deck on its way, order
+        internal (int x, int y) attackGoal;
         internal double nextBayTry; internal int bayX, bayY; internal bool hasBay;
         internal bool replanTried;
         internal double grantedAt = -100;
@@ -407,7 +408,8 @@ namespace OpenZ.Sim
                     else if (inTheWay && !ownMouth && now >= q.nextBayTry) StepOutOfKeep(b, q);     // never wait in a mouth or on an approach
                     double waited = now - q.since;
                     if (!q.replanTried && waited > VehicleReplanAfter) { q.replanTried = true; if (TryReplanAround(b, q, false)) { i--; continue; } }
-                    if (waited > BridgeGiveUpAfter) { if (TryReplanAround(b, q, true)) i--; }
+                    // A point on this bank cannot replace the firing position of an explicit attack order.
+                    if (waited > BridgeGiveUpAfter && !PlayerVehicleAttack(o, q.order)) { if (TryReplanAround(b, q, true)) i--; }
                 }
         }
 
@@ -594,6 +596,7 @@ namespace OpenZ.Sim
             if (q.queued == b) return;
             if (q.queued != null) q.queued.queue[q.end].Remove(q);
             q.queued = b; q.end = d; q.deck = DeckAhead(b, a, d); q.since = W.Time; q.order = a.Waypoints[0]; q.noCrossSince = -1;
+            q.attackGoal = a.PathFinalPoint;
             q.hasBay = false; q.replanTried = false; q.nextBayTry = W.Time;
             b.queue[d].Add(q); b.Queued++;
             if (b.Waiting > b.MaxQueue) b.MaxQueue = b.Waiting;
@@ -1047,13 +1050,16 @@ namespace OpenZ.Sim
         }
 
         // ------------------------------------------------------------------ re-plan round a crossing
+        static bool PlayerVehicleAttack(ZObject unit, ZWaypoint order) =>
+            unit.Kind == ZKind.Vehicle && order.mode == WpMode.Attack && order.playerGiven;
+
         /// <summary>A unit queued too long: another way round (another bridge) when it is not slower than the time already
         /// waited; with giveUp the order resolves to the nearest reachable spot on this side (the blocked search's closest point).</summary>
         bool TryReplanAround(ZBridgeLane b, ZBridgeUnit q, bool giveUp)
         {
             var o = q.o;
             if (!o.CanOverwriteWP()) return false;
-            var (gx, gy) = (q.order.x, q.order.y);
+            var (gx, gy) = PlayerVehicleAttack(o, q.order) ? q.attackGoal : (q.order.x, q.order.y);
             var alt = SearchW(o, gx, gy, b, out bool found, out int altCost);
             if (alt == null) return false;
             if (!giveUp)
@@ -1184,7 +1190,7 @@ namespace OpenZ.Sim
             {
                 bool found;
                 var alt = o.IsRobot ? SearchWade(o, gx, gy, st.avoid, out found, out _) : SearchW(o, gx, gy, st.avoid, out found, out _);
-                if (alt != null) { Log(o, $"routes round {st.avoid}: {alt.Count} points{(found ? "" : " (nearest reachable)")}"); return alt; }
+                if (alt != null && (found || !PlayerVehicleAttack(o, wp))) { Log(o, $"routes round {st.avoid}: {alt.Count} points{(found ? "" : " (nearest reachable)")}"); return alt; }
                 return pts;
             }
             if (!o.IsRobot) return pts;

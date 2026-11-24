@@ -106,7 +106,7 @@ static class GameplayRegressionChecks
             try
             {
                 ZPathing.Trace = true;
-                fired = Until(world, () => Fired(world, tank, target), 15);
+                fired = Until(world, () => Fired(world, tank, target), 75);
             }
             finally { ZPathing.Trace = wasTracing; }
             check(fired && (northbound ? tank.CenterY < 520 : tank.CenterY > 520),

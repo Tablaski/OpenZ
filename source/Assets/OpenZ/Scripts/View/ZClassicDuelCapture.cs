@@ -10,7 +10,7 @@ namespace OpenZ
     public sealed class ZClassicDuelCapture : MonoBehaviour
     {
         const int Fps = 30, Repeats = 3, TimeoutSeconds = 20;
-        static readonly string[] Tanks = { "light", "medium", "heavy" };
+        static readonly string[] Tanks = { "light", ZMTank.Type, "heavy" };
         static readonly (int first, int second)[] Pairs = { (0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (2, 2) };
         string folder, encoder;
         OzUnitEditor editor;
@@ -42,6 +42,7 @@ namespace OpenZ
             while (!OzUnitEditor.UiBuilt && Time.realtimeSinceStartupAsDouble < deadline) yield return null;
             if (!OzUnitEditor.UiBuilt || !File.Exists(encoder)) { Finish("FAIL: Unit Editor or FFmpeg unavailable"); yield break; }
             editor = OzUnitEditor.I;
+            OzUnitEditor.SetPanelsHidden(true);
             var world = editor.World;
             world.SetBehavior(ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks));
             editor.Game.paused = true;
@@ -132,14 +133,14 @@ namespace OpenZ
             unit.Waypoints.Add(new ZWaypoint { mode = WpMode.Attack, refId = target.Id, x = target.CenterX, y = target.CenterY, playerGiven = true });
         }
 
-        static string Name(string type) => char.ToUpperInvariant(type[0]) + type.Substring(1);
+        static string Name(string type) => type == ZMTank.Type ? "Medium" : char.ToUpperInvariant(type[0]) + type.Substring(1);
 
         void OnGUI()
         {
             if (title == null) return;
-            heading ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 24 };
+            heading ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 22, wordWrap = false };
             stats ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            var box = new Rect((Screen.width - 510f) / 2f, 15f, 510f, 91f);
+            var box = new Rect((Screen.width - 510f) / 2f, 53f, 510f, 91f);
             GUI.Box(box, GUIContent.none);
             GUI.Label(new Rect(box.x, box.y + 3f, box.width, 34f), title, heading);
             GUI.Label(new Rect(box.x, box.y + 34f, box.width, 24f), "OpenZ-VK  |  Z Classic  |  1× speed", stats);

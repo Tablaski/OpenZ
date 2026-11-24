@@ -248,7 +248,7 @@ namespace OpenZ.Sim
             Set(type, ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres * factor);
             Set(type, ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres * factor);
             Set(type, ZBehaviorKey.DodgePhysical, 1);
-            if (type == "light" || type == "medium" || type == "heavy")
+            if (type == "light" || type == ZMTank.Type || type == "heavy")
             {
                 ApplyTrackedAgility(type, percent / ClassicTankAgility(type));
                 return;
@@ -266,7 +266,7 @@ namespace OpenZ.Sim
             var (turn, turnAcceleration, acceleration, braking) = type switch
             {
                 "light" => (330.0, 2500.0, .16, .12),
-                "medium" => (225.0, 1750.0, .22, .16),
+                ZMTank.Type => (225.0, 1750.0, .22, .16),
                 _ => (175.0, 1350.0, .30, .22),
             };
             Set(type, ZBehaviorKey.Physical, 1);

@@ -100,7 +100,7 @@ static class DodgeCircleChecks
     {
         var profile = ZBehaviorProfile.Classic(ZBehaviorFamily.Tanks);
         double lastRate = double.PositiveInfinity, lastAcceleration = 0, lastBraking = 0;
-        foreach (string type in new[] { "light", "medium", "heavy" })
+        foreach (string type in new[] { "light", ZMTank.Type, "heavy" })
         {
             var motion = profile.Resolve(type);
             double rate = motion[ZBehaviorKey.TurnRate], acceleration = motion[ZBehaviorKey.Acceleration], braking = motion[ZBehaviorKey.Braking];
@@ -122,6 +122,7 @@ static class DodgeCircleChecks
             { world.Time = tick * .01; tank.ProcessServer(world.Time); }
             check(tank.CenterY > startY + 10, "The tracked hull advances after facing the destination: " + type);
         }
-        check(!profile.Resolve("jeep").On(ZBehaviorKey.Physical), "Z Classic keeps prior movement outside the three tracked tank types");
+        check(!profile.Resolve("jeep").On(ZBehaviorKey.Physical) && !profile.Resolve(ZMTank.Mech).On(ZBehaviorKey.Physical),
+            "Z Classic keeps prior movement on the jeep and the historic medium ID used by the mech");
     }
 }

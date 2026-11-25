@@ -161,18 +161,19 @@ namespace OpenZ
                     yield return null; yield return null;
                     try { InputSystem.QueueStateEvent(kb, new KeyboardState()); } catch (Exception) { }
                     yield return null;
-                    evOk = OzBindings.KeyOf(OzAction.NextRobot) == Key.Q;
+                    evOk = OzConfirm.IsOpen;
                 }
                 if (!evOk) { Mark("the keyboard event did not reach the Game view (no focus?): the captured key goes in directly"); table.ProofPress(Key.Q); }
+                OzConfirm.ProofAnswer(true);
                 yield return Wait(0.3f);
                 Check("rebind NEXT ROBOT -> Q", OzBindings.KeyOf(OzAction.NextRobot) == Key.Q && Heard(tr, "ui_confirm", "PLAY", out var cr1), $"{(evOk ? "real key event" : "direct")}, key now {OzBindings.Cap(OzAction.NextRobot)}, sound {(Heard(tr, "ui_confirm", "PLAY", out cr1) ? cr1 : "no ui_confirm")}");
                 float tc = Time.unscaledTime;
-                table.ProofCapture(OzAction.NextRobot); yield return null; table.ProofPress(Key.A); yield return Wait(0.5f);
+                table.ProofCapture(OzAction.NextRobot); yield return null; table.ProofPress(Key.A); OzConfirm.ProofAnswer(true); yield return Wait(0.5f);
                 var other = OzBindings.ConflictOf(OzAction.NextRobot);
-                Check("conflict shown", other != null && other.action == OzAction.ScrollLeft && Heard(tc, "ui_error", "PLAY", out var er), $"NEXT ROBOT = A also {(other != null ? other.label : "nothing")}; status \"{table.StatusText}\"; sound {(Heard(tc, "ui_error", "PLAY", out er) ? er : "no ui_error")}");
+                Check("conflict shown", other != null && other.action == OzAction.ScrollLeft && Heard(tc, "ui_confirm", "PLAY", out var er), $"NEXT ROBOT = A also {(other != null ? other.label : "nothing")}; status \"{table.StatusText}\"; sound {(Heard(tc, "ui_confirm", "PLAY", out er) ? er : "no ui_confirm")}");
                 Snap("03_controls_conflict.png");
                 float tb = Time.unscaledTime;                                                                   // review fix: Ctrl-blind handlers, debug keys
-                table.ProofCapture(OzAction.AllCannons); yield return null; table.ProofPress(Key.Space); yield return Wait(0.3f);
+                table.ProofCapture(OzAction.AllCannons); yield return null; table.ProofPress(Key.Space); OzConfirm.ProofAnswer(true); yield return Wait(0.3f);
                 var blind = OzBindings.ConflictOf(OzAction.AllCannons); var blind2 = OzBindings.ConflictOf(OzAction.LastMessage);
                 string blindStatus = table.StatusText;
                 table.ProofCapture(OzAction.LastMessage); yield return null; table.ProofPress(Key.F9); yield return null;
@@ -180,14 +181,14 @@ namespace OpenZ
                 table.ProofPress(Key.Escape); yield return Wait(0.2f);
                 bool fKeys = OzBindings.Reserved(Key.F6) != null && OzBindings.Reserved(Key.F7) != null && OzBindings.Reserved(Key.F8) != null && OzBindings.Reserved(Key.F11) != null && OzBindings.Reserved(Key.F12) != null && OzBindings.Reserved(Key.F10) == null;
                 Check("Ctrl-blind conflict + debug keys refused",
-                      blind != null && blind.action == OzAction.LastMessage && blind2 != null && blind2.action == OzAction.AllCannons && f9Refused && fKeys && Heard(tb, "ui_error", "PLAY", out _) && Heard(tb, "ui_disabled", "PLAY", out _),
+                      blind != null && blind.action == OzAction.LastMessage && blind2 != null && blind2.action == OzAction.AllCannons && f9Refused && fKeys && Heard(tb, "ui_confirm", "PLAY", out _) && Heard(tb, "ui_disabled", "PLAY", out _),
                       $"ALL CANNONS = CTRL+SPACE also {(blind != null ? blind.label : "nothing")} (both red); status \"{blindStatus}\"; F9 for LAST MESSAGE {(f9Refused ? "refused" : "ACCEPTED")} (\"{OzBindings.Reserved(Key.F9)}\"); F6-F8, F11, F12 reserved {fKeys}, F10 free");
                 float tx = Time.unscaledTime;
                 table.ProofCapture(OzAction.ExitCrew); yield return null; table.ProofPress(Key.Digit3); yield return null; table.ProofPress(Key.Escape); yield return Wait(0.3f);
                 Check("reserved key refused + Esc cancels", OzBindings.KeyOf(OzAction.ExitCrew) == Key.E && !table.IsCapturing && Heard(tx, "ui_disabled", "PLAY", out _) && Heard(tx, "ui_cancel", "PLAY", out _), "3 = a group key (ui_disabled), Esc = cancel (ui_cancel), EXIT CREW stays E");
                 // ---- review fix: the HUD toggle cue follows the bound HIDE THE HUD key (AudioDirector.PollInput -> HudKeyTick)
                 float tk = Time.unscaledTime;
-                table.ProofCapture(OzAction.HideHud); yield return null; table.ProofPress(Key.H); yield return Wait(0.1f);
+                table.ProofCapture(OzAction.HideHud); yield return null; table.ProofPress(Key.H); OzConfirm.ProofAnswer(true); yield return Wait(0.1f);
                 bool boundH = OzBindings.KeyOf(OzAction.HideHud) == Key.H;
                 bool evH = false, cueH = false, f10Quiet = true;
                 if (kb != null)

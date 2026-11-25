@@ -14,7 +14,7 @@ namespace OpenZ.Sim
         internal double AiHelpNextOrder;
     }
 
-    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild, BuildShortcut }
+    public enum DuelOrderKind { Waypoints, Stop, Hold, Patrol, Build, Queue, CancelQueue, Repeat, Rally, Eject, PlaceCannon, StopBuild, RepeatQueue, ShuttleKick, RestartBuild, BuildShortcut, StopBuildKeepQueue }
 
     [Serializable]
     public sealed class DuelOrder
@@ -89,6 +89,7 @@ namespace OpenZ.Sim
                 case DuelOrderKind.RestartBuild: return world.RestartBuilding(team, o, order.Unit);
                 case DuelOrderKind.BuildShortcut: return world.BuildShortcut(team, o, order.Unit);
                 case DuelOrderKind.StopBuild: return world.StopBuilding(team, o);
+                case DuelOrderKind.StopBuildKeepQueue: return world.StopBuilding(team, o, false);
                 case DuelOrderKind.Queue: return world.AddBuildingQueue(team, o, order.Unit);
                 case DuelOrderKind.CancelQueue: return world.CancelBuildingQueue(team, o, order.Index, order.Unit);
                 case DuelOrderKind.Repeat: return world.SetBuildingRepeat(team, o, order.Enabled);

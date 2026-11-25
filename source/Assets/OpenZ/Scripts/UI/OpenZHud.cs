@@ -304,7 +304,7 @@ namespace OpenZ
                 for (int i = buttons.Count - 1; i >= 0; i--)
                     if (buttons[i].Priority >= minPriority && !(IsGhostViewer && buttons[i].Priority == 10) && (hudVisible || buttons[i].Priority >= 100) && (over == null || buttons[i].Priority > over.Priority) && buttons[i].Alive && Contains(buttons[i].Rt, Pointer)) over = buttons[i];
             if (over != HotButton) { if (HotButton != null) { HotButton.Hovered = false; HotButton.Refresh(); } HotButton = over; if (over != null) { over.Hovered = true; over.Refresh(); } }
-            if (!modal && over != null && over.Interactable && Production && OzBindings.Pressed(OzAction.RestartProduction))
+            if (!modal && over != null && over.Interactable && Production && Production.CanRestartHovered(over) && OzBindings.Pressed(OzAction.RestartProduction))
                 Production.RestartHovered(over);
 
             bool lp = m.leftButton.wasPressedThisFrame, lr = m.leftButton.wasReleasedThisFrame;

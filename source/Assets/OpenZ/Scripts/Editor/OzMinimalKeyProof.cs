@@ -320,6 +320,7 @@ namespace OpenZ.EditorTools
             bool waiting = table.IsCapturing;
             Shot("9_menu_controls_press_a_key"); yield return 2;
             table.ProofPress(Key.Y);
+            OzConfirm.ProofAnswer(true);
             yield return 3;
             Check(cap && waiting && !table.IsCapturing && OzBindings.KeyOf(OzAction.MinimalUi) == Key.Y && table.StatusText.StartsWith("SAVED") && Heard(t0, "ui_confirm"),
                   $"M3 click the cap, press Y: saved (key {OzBindings.Cap(OzAction.MinimalUi)}, status \"{table.StatusText}\", ui_confirm {Heard(t0, "ui_confirm")})");
@@ -328,9 +329,11 @@ namespace OpenZ.EditorTools
             table.ProofCapture(OzAction.MinimalUi);
             yield return 3;
             table.ProofPress(Key.H);
+            bool awaitingConfirmation = OzConfirm.IsOpen && OzBindings.KeyOf(OzAction.MinimalUi) == Key.Y;
+            OzConfirm.ProofAnswer(true);
             yield return 3;
             var pair = OzBindings.ConflictOf(OzAction.MinimalUi);
-            Check(OzBindings.KeyOf(OzAction.MinimalUi) == Key.H && pair != null && pair.action == OzAction.HoldPosition && table.StatusText.StartsWith("CONFLICT") && Heard(t0, "ui_error"),
+            Check(awaitingConfirmation && OzBindings.KeyOf(OzAction.MinimalUi) == Key.H && pair != null && pair.action == OzAction.HoldPosition && Heard(t0, "ui_confirm"),
                   $"M4 press H (HOLD POSITION): taken and flagged as a pair (status \"{table.StatusText}\", ui_error {Heard(t0, "ui_error")})");
             Shot("10_menu_controls_pair_in_red"); yield return 2;
 

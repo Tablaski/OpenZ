@@ -1142,7 +1142,7 @@ namespace OpenZ
 
         void Keys()
         {
-            if (OzForkOptions.CaptureChatBinding() || (side == Side.Options && buildKeyOptions?.Capture() == true)) return;
+            if (OzForkOptions.CaptureChatBinding() || (side == Side.Controls && buildKeyOptions?.Capture() == true)) return;
             var kb = Keyboard.current; if (kb == null || OzControlsTable.Capturing) return;   // menu_exe_v1: a key being bound is no menu key
             bool up = kb.upArrowKey.wasPressedThisFrame || kb.wKey.wasPressedThisFrame, down = kb.downArrowKey.wasPressedThisFrame || kb.sKey.wasPressedThisFrame;
             bool left = kb.leftArrowKey.wasPressedThisFrame || kb.aKey.wasPressedThisFrame, right = kb.rightArrowKey.wasPressedThisFrame || kb.dKey.wasPressedThisFrame;

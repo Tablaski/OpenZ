@@ -6,6 +6,12 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.83 (25 Nov 2026)
+
+- Controls has a Build keys tab. Factory shortcuts use single keys and take priority while a factory menu is open. You can bind separate shortcuts to stop production or stop and clear the queue. The game asks before assigning a key that is already in use.
+- Online results show a 30-second countdown before returning to the lobby. You can return early and see who is still viewing the results.
+- The invitation prompt opens automatically when the host first enters a new online lobby.
+
 ## OpenZ-VK 1.5.82 (25 Nov 2026)
 
 - Tap J to toggle dotted territory borders, or hold it to show them until you release it. The shortcut keeps your dot size and can be reassigned in the controls menu.

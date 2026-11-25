@@ -78,8 +78,25 @@ namespace OpenZ
             controlsRt = SidePanel("Controls", "Panels/options_panel", out controlsCg);
             Modal(controlsRt, OzControlsTable.FullW, OzControlsTable.FullH, Side.Controls, true);
             var p = controlsRt;
-            controlsTable = OzControlsTable.BuildFull(p, (rt, click, hover) => AddHot(rt, View.Main, click, hover, null, "ui_click", Side.Controls), Sfx);
-            SmallButton(p, "ResetKeys", "RESET TO DEFAULTS", new OzRect(32, OzControlsTable.FullH - 60, 220, 36), View.Main, Side.Controls, () => controlsTable.ResetAll());
+            var openZ = Hud.Node("OpenZ Controls", p);
+            openZ.Fill();
+            controlsTable = OzControlsTable.BuildFull(openZ, (rt, click, hover) => AddHot(rt, View.Main, click, hover, null, "ui_click", Side.Controls), Sfx);
+            SmallButton(openZ, "ResetKeys", "RESET TO DEFAULTS", new OzRect(32, OzControlsTable.FullH - 60, 220, 36), View.Main, Side.Controls, () => controlsTable.ResetAll());
+            buildKeyOptions = new OzBuildKeyOptions(p, OzControlsTable.FullW, (page, name, rect, action) =>
+                SmallButton(page, name, "", rect, View.Main, Side.Controls, action, 13, .02f));
+            HudButton openZTab = null, buildTab = null;
+            void ShowTab(bool build)
+            {
+                controlsTable.Cancel(false);
+                openZ.gameObject.SetActiveFast(!build);
+                buildKeyOptions.Show(build);
+                SetSelected(openZTab, !build);
+                SetSelected(buildTab, build);
+            }
+            openZTab = SmallButton(p, "OpenZTab", "OpenZ", new OzRect(32, 36, 140, 26), View.Main, Side.Controls, () => ShowTab(false));
+            buildTab = SmallButton(p, "BuildKeyTab", "Build keys", new OzRect(180, 36, 140, 26), View.Main, Side.Controls, () => ShowTab(true));
+            OzForkOptions.Highlight(buildTab, OzBuildKeys.Label);
+            ShowTab(false);
         }
 
         /// <summary>Centre a side panel on the canvas at w x h, or (beside) put it next to the menu list like ROADMAP (its plate follows), and put the scrim's hot UNDER the panel's hots

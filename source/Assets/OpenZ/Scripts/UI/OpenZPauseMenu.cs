@@ -39,7 +39,7 @@ namespace OpenZ
         sealed class Toggle { public Func<string> cycleName; public HudButton row; public Image knob, track; public OzText state, value; public Func<bool> get; public Action<bool> set; public bool scale, chatter, robots; public string label; public int tab; }
         readonly List<Toggle> toggles = new List<Toggle>();
         int optTab; readonly List<HudButton> optTabBtns = new List<HudButton>();                             // options tabs (OzSettingTips.TabNames)
-        int buildKeysTab;
+        bool showBuildKeys;
         OzBuildKeyOptions buildKeyOptions;
 
         /// <summary></summary>
@@ -386,17 +386,16 @@ namespace OpenZ
         {
             bool duel = OpenZ.Multiplayer.DuelRuntime.Active;
             float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * OzLayout.OptX;
-            buildKeysTab = OzSettingTips.TabNames.Length + (duel ? 1 : 0);
-            int n = buildKeysTab + 1;
+            int n = OzSettingTips.TabNames.Length + (duel ? 1 : 0);
             float unitWidth = (w - OzLayout.OptTabGap * (n - 1)) / n;
-            float[] weights = duel ? new[] { .65f, .65f, .9f, .95f, 1.75f, 1.1f } : new[] { .8f, .8f, 1f, 1.1f, 1.3f };
+            float[] weights = duel ? new[] { .68f, .68f, .95f, 1f, 1.69f } : new[] { .86f, .86f, 1.09f, 1.19f };
             optTabBtns.Clear();
             float tabX = x;
             for (int i = 0; i < n; i++)
             {
                 int id = i;
                 float bw = unitWidth * weights[i];
-                string label = i == buildKeysTab ? OzBuildKeys.Label : i == MicrophoneTab ? OzForkOptions.AudioDevicesLabel : OzSettingTips.TabNames[i];
+                string label = i == MicrophoneTab ? OzForkOptions.AudioDevicesLabel : OzSettingTips.TabNames[i];
                 var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, i == MicrophoneTab && duel ? 9 : 11, 0.06f);
                 b.Label.At(bw * .5f, OzLayout.OptTabH * .5f, OzH.C, true, bw - 8f);
                 OzForkOptions.Highlight(b, label);
@@ -416,14 +415,6 @@ namespace OpenZ
                 for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + step * k, w, rowH));
             }
             if (duel) BuildMicrophoneTab();
-            buildKeyOptions = new OzBuildKeyOptions(p, OzLayout.PauseW, (page, name, rect, action) =>
-            {
-                var b = HudButton.Make(page, name, "", rect.Size, HudButtonKind.Small, 11, .02f);
-                b.Rt.Place(rect);
-                b.Priority = 100;
-                b.OnClick = _ => action();
-                return b;
-            });
             ShowOptTab(Mathf.Clamp(optTab, 0, n - 1));
         }
 
@@ -432,7 +423,6 @@ namespace OpenZ
         {
             optTab = tab; dragging = null;
             SetMicrophoneTabVisible(tab == MicrophoneTab);
-            buildKeyOptions?.Show(tab == buildKeysTab);
             foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab && OzSettingTips.Visible(t.label));
             if (tab == OzSettingTips.TabGraphics) graphicsQuality.Refresh();
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
@@ -471,7 +461,39 @@ namespace OpenZ
         void BuildControls()
         {
             var p = controlsRoot;
-            OzControlsTable.BuildCompact(p, OzLayout.PauseW, OzLayout.PauseH);                              // menu_exe_v1: measured key caps, the live bindings (read-only here)
+            var openZ = Hud.Node("OpenZ Controls", p);
+            openZ.Fill();
+            OzControlsTable.BuildCompact(openZ, OzLayout.PauseW, OzLayout.PauseH);
+            buildKeyOptions = new OzBuildKeyOptions(p, OzLayout.PauseW, (page, name, rect, action) =>
+            {
+                var b = HudButton.Make(page, name, "", rect.Size, HudButtonKind.Small, 11, .02f);
+                b.Rt.Place(rect);
+                b.Priority = 100;
+                b.OnClick = _ => action();
+                return b;
+            });
+            HudButton openZTab = null, buildTab = null;
+            void ShowTab(bool build)
+            {
+                showBuildKeys = build;
+                openZ.gameObject.SetActiveFast(!build);
+                buildKeyOptions.Show(build);
+                openZTab.Selected = !build; openZTab.Refresh();
+                buildTab.Selected = build; buildTab.Refresh();
+            }
+            HudButton Tab(string label, float x, bool build)
+            {
+                var rect = new OzRect(x, 32, 110, 24);
+                var tab = HudButton.Make(p, label, label, rect.Size, HudButtonKind.Small, 11, .02f);
+                tab.Rt.Place(rect);
+                tab.Priority = 100;
+                tab.OnClick = _ => ShowTab(build);
+                OzForkOptions.Highlight(tab, build ? OzBuildKeys.Label : label);
+                return tab;
+            }
+            openZTab = Tab("OpenZ", OzLayout.OptX, false);
+            buildTab = Tab("Build keys", OzLayout.OptX + 118, true);
+            ShowTab(false);
         }
 
         // ------------------------------------------------------------------ open / close
@@ -502,7 +524,7 @@ namespace OpenZ
             canvas.gameObject.SetActive(true);
             optionsRoot.gameObject.SetActiveFast(!showControls); controlsRoot.gameObject.SetActiveFast(showControls);
             if (optTab == OzSettingTips.TabGraphics) ShowOptTab(optTab);
-            if (!showControls && optTab == buildKeysTab) buildKeyOptions?.Refresh();
+            if (showControls && showBuildKeys) buildKeyOptions?.Refresh();
             string lvl = game.level == "L17" ? "L17 · CAR PARK" : OzCity.IsBridgeGame(game.level) ? OzCity.BridgeGameLabel : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : OzVolcanic.Is(game.level) ? OzVolcanic.OperationLabel : game.level;
             sub.Set(OzText.Tab($"OPERATION {lvl} · {UnitInfo.Clock(game.World.Time)}"));
             RefreshValues();                                                                             // ui_pause / ui_resume: the audio track follows game.paused
@@ -576,7 +598,7 @@ namespace OpenZ
             bool esc = kb != null && !OzConfirm.Blocks && !OzUeHooks.EscTaken;
             if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
             if (OzForkOptions.CaptureChatBinding()) esc = false;
-            if (IsOpen && !showControls && optTab == buildKeysTab && !OzConfirm.Blocks && buildKeyOptions?.Capture() == true) esc = false;
+            if (IsOpen && showControls && showBuildKeys && !OzConfirm.Blocks && buildKeyOptions?.Capture() == true) esc = false;
             if (microphoneBinding) { TickMicrophoneBinding(); esc = false; }
             if (Multiplayer.DuelRuntime.Active && Multiplayer.DuelRuntime.I.Playing) esc = DuelEscape(kb, esc);
             else

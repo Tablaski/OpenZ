@@ -128,10 +128,15 @@ namespace OpenZ
         static string BindingError(OzAction action, Key key) =>
             action == OzAction.RestartProduction && (key == Key.None || key == LongLeftClick) ? null : Reserved(key);
 
-        public static void ResetAll()
+        public static void ResetAll(bool includeBuildKeys = true)
         {
             Load();
-            for (int i = 0; i < Defs.Length; i++) { cur[i] = Defs[i].key; PlayerPrefs.DeleteKey(Defs[i].pref); }
+            for (int i = 0; i < Defs.Length; i++)
+            {
+                if (!includeBuildKeys && Defs[i].action == OzAction.RestartProduction) continue;
+                cur[i] = Defs[i].key;
+                PlayerPrefs.DeleteKey(Defs[i].pref);
+            }
             PlayerPrefs.Save();
             Version++;
             Debug.Log("[OzBindings] every key back to the default (Zod key map + OpenZ camera), saved");
@@ -150,7 +155,12 @@ namespace OpenZ
             if (OzFpsView.On) return null;                                                   // 1.4 fps_view: no bound action while the first-person view is on (it reads its own W A S D; View/OzFpsView.cs)
             var key = KeyOf(a);
             if (key == Key.None || key == LongLeftClick) return null;
-            if (OzBuildKeys.Modifier(kb) && OpenZHud.I && OpenZHud.I.Production && OpenZHud.I.Production.UsesBuildKey(key)) return null;
+            bool plain = OzBuildKeys.Modifier(kb);
+            if (a == OzAction.RestartProduction)
+            {
+                if (!plain) return null;
+            }
+            else if (plain && OpenZHud.I && OpenZHud.I.Production && OpenZHud.I.Production.UsesBuildKey(key)) return null;
             try { return kb[key]; } catch (ArgumentOutOfRangeException) { return null; }
         }
 
@@ -197,9 +207,9 @@ namespace OpenZ
         {
             Load();
             var d = Defs[(int)a]; Key k = cur[(int)a];
-            if (k == Key.None || k == LongLeftClick) return null;
+            if (a == OzAction.RestartProduction || k == Key.None || k == LongLeftClick) return null;
             for (int i = 0; i < Defs.Length; i++)
-                if (i != (int)a && cur[i] == k && (Defs[i].ctrl == d.ctrl || ModifierBlind(a) || ModifierBlind(Defs[i].action)) && !SharedKey(a, Defs[i].action)) return Defs[i];
+                if (Defs[i].action != OzAction.RestartProduction && i != (int)a && cur[i] == k && (Defs[i].ctrl == d.ctrl || ModifierBlind(a) || ModifierBlind(Defs[i].action)) && !SharedKey(a, Defs[i].action)) return Defs[i];
             return null;
         }
 

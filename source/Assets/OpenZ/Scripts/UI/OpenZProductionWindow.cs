@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -168,7 +169,7 @@ namespace OpenZ
             bPlace = Btn("Place", "PLACE", "PLACE|Place the stored cannon: then click a free 2x2 spot inside this zone.|" + OzBindings.Cap(OzAction.PlaceCannon), HudButtonStyle.Normal);
             bRally = Btn("Rally", "SET RALLY", "SET RALLY|Click the map or minimap (Shift+clicks = a route, Esc cancels). Zod way: nothing selected, right-click the map.|" + OzBindings.Cap(OzAction.RepairVehicles), HudButtonStyle.Normal);   // K327: its key, the repair key while a build menu is open (View/OzRallyKey.cs)
             bClear = Btn("ClearRally", "CLEAR", "CLEAR RALLY|Remove the rally points: new units stop at the door.|", HudButtonStyle.Normal);
-            bStop.OnClick = c => { if (Building != null && W.StopBuilding(hud.Player, Building)) { OzFactoryReminder.ProductionSet(Building); OzSfx.Ui("ui_production_cancel"); AudioDirector.Announce("ann_manufacturing_cancelled"); hud.Toast("PRODUCTION STOPPED", HudStyle.Muted); } };
+            bStop.OnClick = _ => StopProduction(true);
             bPlace.OnClick = c => { var b = Building; if (b != null && b.StoredCannons.Count > 0) { hud.input.BeginPlaceCannon(b); hud.Toast($"PLACE THE {UnitInfo.Name(b.StoredCannons[0])}: CLICK A SPOT IN THE ZONE", HudStyle.Amber, 3f); Close(); } };
             // keeps its building, OpenZRallyPoints.armedFor)
             bRally.OnClick = c => { if (hud.Rally.Armed) hud.Rally.Disarm(); else { hud.Rally.Arm(); if (hud.Rally.Armed) Close(true); } };
@@ -261,24 +262,26 @@ namespace OpenZ
                 return;
             }
             Refresh();
-            if (kb != null && OzBuildKeys.Modifier(kb))
-                foreach (var tile in tiles)
-                {
-                    Key key = OzBuildKeys.Get(tile.unit);
-                    if (!UsesBuildKey(key) || !kb[key].wasPressedThisFrame) continue;
-                    if (!W.DuelDefersOrders)
-                    {
-                        if (Building.Building && Building.CurUnit == tile.unit) Queue(tile.unit);
-                        else Produce(tile.unit);
-                    }
-                    else if (W.BuildShortcut(hud.Player, Building, tile.unit))
-                    {
-                        OzFactoryReminder.ProductionSet(Building);
-                        OzSfx.Ui("ui_production_pick");
-                    }
-                    break;
-                }
             Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
+            if (kb == null || !OzBuildKeys.Modifier(kb) || !BuildKeysAvailable) return;
+            if (BuildKeyPressed(kb, OzBuildKeys.Stop)) { StopProduction(false); return; }
+            if (BuildKeyPressed(kb, OzBuildKeys.Clear)) { StopProduction(true); return; }
+            foreach (var tile in tiles)
+            {
+                Key key = OzBuildKeys.Get(tile.unit);
+                if (key == Key.None || !kb[key].wasPressedThisFrame) continue;
+                if (!W.DuelDefersOrders)
+                {
+                    if (Building.Building && Building.CurUnit == tile.unit) Queue(tile.unit);
+                    else Produce(tile.unit);
+                }
+                else if (W.BuildShortcut(hud.Player, Building, tile.unit))
+                {
+                    OzFactoryReminder.ProductionSet(Building);
+                    OzSfx.Ui("ui_production_pick");
+                }
+                break;
+            }
         }
 
         void RefreshGhostView()
@@ -315,8 +318,7 @@ namespace OpenZ
                 hot.Pressed = view.TilePressed;
                 hot.Refresh();
             }
-            Position(OzEase.OutCubic(OzMotion.T(openAt, OzMotion.Dur(OzMotion.Short))));
-        }
+            }
 
         void ClearGhostHighlight()
         {
@@ -326,10 +328,32 @@ namespace OpenZ
             ghostHotTile = null;
         }
 
-        internal bool UsesBuildKey(Key key) => Building != null && Building.Owner == hud.Player && OzBuildKeys.IsLetter(key) &&
-            !Building.Destroyed && !W.GameOver && !hud.Modal && !CaptureKit.DemoRun && !OzUnitEditor.I &&
-            !OzFpsView.On && !OzBehaviorOptions.CapturesInput && !OpenZ.Multiplayer.DuelRuntime.CapturesInput &&
-            tiles.Exists(tile => OzBuildKeys.Get(tile.unit) == key);
+        bool BuildKeysAvailable => Building != null && Building.Owner == hud.Player && !Building.Destroyed &&
+            !W.GameOver && !hud.Modal && !OzConfirm.Blocks && !CaptureKit.DemoRun && !OzUnitEditor.I &&
+            !OzFpsView.On && !OzBehaviorOptions.CapturesInput && !OpenZ.Multiplayer.DuelRuntime.CapturesInput;
+
+        internal bool UsesBuildKey(Key key) => BuildKeysAvailable && key != Key.None &&
+            (OzBuildKeys.Actions.Any(action => OzBuildKeys.Get(action) == key) ||
+             tiles.Exists(tile => OzBuildKeys.Get(tile.unit) == key));
+
+        static bool BuildKeyPressed(Keyboard keyboard, string action)
+        {
+            var key = OzBuildKeys.Get(action);
+            return key != Key.None && keyboard[key].wasPressedThisFrame;
+        }
+
+        internal bool CanRestartHovered(HudButton button) => BuildKeysAvailable && tiles.Exists(tile => tile.btn == button);
+
+        void StopProduction(bool clearQueue)
+        {
+            var building = Building;
+            if (building == null || (!building.Building && (!clearQueue || building.Queue.Count == 0)) ||
+                !W.StopBuilding(hud.Player, building, clearQueue)) return;
+            OzFactoryReminder.ProductionSet(building);
+            OzSfx.Ui("ui_production_cancel");
+            AudioDirector.Announce("ann_manufacturing_cancelled");
+            hud.Toast("PRODUCTION STOPPED", HudStyle.Muted);
+        }
 
         // ------------------------------------------------------------------ content
         static readonly string[] ClassNames = { "ROBOTS", "VEHICLES", "CANNONS" };
@@ -409,7 +433,7 @@ namespace OpenZ
 
         public void RestartHovered(HudButton button)
         {
-            if (!IsOpen) return;
+            if (!CanRestartHovered(button)) return;
             foreach (var tile in tiles)
                 if (tile.btn == button) { Produce(tile.unit, true); return; }
         }

@@ -136,7 +136,7 @@ namespace OpenZ
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
             if (!IsShown) return;
             Animate();
-            if (lobbyCountdown != null && Revealed && lastCountdownSecond != 0)
+            if (lobbyCountdown != null && lastCountdownSecond != 0)
             {
                 var duel = OpenZ.Multiplayer.DuelRuntime.I;
                 if (lastCountdownSecond < 0) duel.StartEndLobbyCountdown();
@@ -344,18 +344,13 @@ namespace OpenZ
             if (duelMatch)
             {
                 const string leave = "LEAVE GAME";
-                bool autoReturn = runtime.TimedEndLobby;
-                if (autoReturn)
-                {
-                    var timer = Hud.Kit(root, "Auto return timer", "EndScreen/chart_plate",
-                        new OzRect(OzAnchor.TC, cx - 48, OzLayout.EndButtonsY, 185, OzLayout.EndButtonH), null);
-                    timer.raycastTarget = false;
-                    timer.gameObject.AddComponent<CanvasGroup>();
-                    lobbyCountdown = Hud.Label(timer.transform, "Countdown", "AUTO RETURN IN  00:30", 14, OzUi.Amber, 0.06f, OzStyle.Plain).FillParent(OzH.C);
-                }
-                Button(0, primary, cx - (autoReturn ? 370 : 270), 310, HudButtonStyle.Primary, runtime.ReadyForLobby,
-                    autoReturn ? "RETURN TO LOBBY|Return to the lobby now.|ENTER" : "RETURN TO LOBBY|Return when everyone has finished viewing the match statistics.|ENTER");
-                Button(1, leave, cx + (autoReturn ? 151 : 50), 220, HudButtonStyle.Normal, () => OpenZ.Multiplayer.DuelRuntime.I.Menus.LeaveMatch(), leave + "|Disconnect and return to the main menu.|ESC");
+                var timer = Hud.Kit(root, "Auto return timer", "EndScreen/chart_plate",
+                    new OzRect(OzAnchor.TC, cx - 48, OzLayout.EndButtonsY, 185, OzLayout.EndButtonH), null);
+                timer.raycastTarget = false;
+                timer.gameObject.AddComponent<CanvasGroup>();
+                lobbyCountdown = Hud.Label(timer.transform, "Countdown", "AUTO RETURN IN  00:30", 14, OzUi.Amber, 0.06f, OzStyle.Plain).FillParent(OzH.C);
+                Button(0, primary, cx - 370, 310, HudButtonStyle.Primary, runtime.ReadyForLobby, "RETURN TO LOBBY|Return to the lobby now.|ENTER");
+                Button(1, leave, cx + 151, 220, HudButtonStyle.Normal, () => runtime.Menus.LeaveMatch(), leave + "|Disconnect and return to the main menu.|ESC");
             }
             else if (localSkirmish)
             {

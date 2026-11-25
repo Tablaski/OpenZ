@@ -452,12 +452,12 @@ namespace OpenZ.Sim
             if (ok) { b.AiHelpFactoryFor = Team.Neutral; Emit(ZEventType.ProductionChanged, b); }
             return ok;
         }
-        public bool StopBuilding(Team team, ZObject b)
+        public bool StopBuilding(Team team, ZObject b, bool clearQueue = true)
         {
             // OpenZ duel command: StopBuild
-            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = DuelOrderKind.StopBuild });
+            if (DuelDefersOrders) return DuelSend(team, b, new DuelOrder { Kind = clearQueue ? DuelOrderKind.StopBuild : DuelOrderKind.StopBuildKeepQueue });
             if (!Owns(team, b)) return false;
-            b.StopBuildingProduction(); b.AiHelpFactoryFor = Team.Neutral; Emit(ZEventType.ProductionChanged, b); return true;
+            b.StopBuildingProduction(clearQueue); b.AiHelpFactoryFor = Team.Neutral; Emit(ZEventType.ProductionChanged, b); return true;
         }
         public bool RestartBuilding(Team team, ZObject b, string unit)
         {

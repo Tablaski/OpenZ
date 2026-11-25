@@ -58,7 +58,7 @@ namespace OpenZ
             Hud.Plate(panel, "md", 0f, OzUi.Alert);
             Hud.Label(panel, "Stencil", "CONFIRM", 9, OzUi.Muted, 0.3f, OzStyle.Plain).At(28, 22);
             title = Hud.Label(panel, "Title", "ARE YOU SURE?", 26, OzUi.Ink, 0.06f).At(28, 40, OzH.L, false, W - 56);
-            body = Hud.Label(panel, "Body", "", 13, OzUi.Ink2, 0.04f, OzStyle.Plain).At(28, 84, OzH.L, false, W - 56);
+            body = Hud.Label(panel, "Body", "", 13, OzUi.Ink2, 0.04f, OzStyle.Plain).Body(28, 80, W - 56);
             float by = H - BtnH - 26;
             no = HudButton.Make(panel, "No", "NO", new Vector2(BtnW, BtnH), HudButtonKind.Large, 16, 0.16f, HudButtonStyle.Normal, true);
             no.Rt.Place(new OzRect(28, by, BtnW, BtnH)); no.Priority = int.MaxValue - 1;

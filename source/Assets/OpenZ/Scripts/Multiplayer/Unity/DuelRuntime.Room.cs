@@ -314,7 +314,7 @@ namespace OpenZ.Multiplayer
             if (IsHost && (!session || Playing)) PublishRoomLatency();
             if (IsHost && roomFinalStatsPending && !roomFullState && sentGameOver)
                 roomFinalStatsPending = !transport.Send(roomFinalStats);
-            if (IsHost && room.Launched && TimedEndLobby && Game && Game.World.GameOver)
+            if (IsHost && room.Launched && Game && Game.World.GameOver)
                 PublishRoomEndLobbyStatus(transport);
             UpdateRoomVote();
             if (Game && session && !IsHost)
@@ -471,7 +471,7 @@ namespace OpenZ.Multiplayer
                     return;
                 case DuelMessage.EndReady:
                     if (IsHost && Playing && Game && Game.World.GameOver && packet.Payload.Length == 0 &&
-                        room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
+                        room.Members.Any(member => member.Id == RoomGuest(sender.Id)))
                     {
                         roomEndReady.Add(sender.Id);
                         TryReturnToLobby();

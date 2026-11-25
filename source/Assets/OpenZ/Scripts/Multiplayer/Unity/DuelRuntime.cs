@@ -141,8 +141,6 @@ namespace OpenZ.Multiplayer
         double endLobbyAt = -1;
         int roomReturnedSeats, roomPublishedReturnedSeats = -1;
         internal bool EndLobbyOpen { get; private set; }
-        internal bool TimedEndLobby => !SkirmishRoom ||
-            (room != null ? room.Bots.Length == 0 : JoinedRoom?.Bots.Length == 0);
         internal int EndLobbySeconds => (int)Math.Ceiling(Math.Max(0, endLobbyAt - Now));
         public bool FinalStatsReady { get; private set; }
         double restartDeadline;
@@ -947,7 +945,7 @@ namespace OpenZ.Multiplayer
 
         internal void StartEndLobbyCountdown()
         {
-            if (endLobbyAt < 0 && !localEndReady && TimedEndLobby) endLobbyAt = Now + 30;
+            if (endLobbyAt < 0 && !localEndReady) endLobbyAt = Now + 30;
         }
 
         internal bool WaitingForEndLobby(bool local, int position)
@@ -961,15 +959,12 @@ namespace OpenZ.Multiplayer
             if (!Connected || !Playing || !Game || !Game.World.GameOver || localEndReady) return;
             localEndReady = true;
             endLobbyAt = -1;
-            if (TimedEndLobby)
-            {
-                EndLobbyOpen = true;
-                // Keep the final battlefield alive until the remaining clients have their results.
-                Menus.ShowEndLobby();
-            }
+            EndLobbyOpen = true;
+            // Keep the final battlefield alive until the remaining clients have their results.
+            Menus.ShowEndLobby();
             if (IsHost)
             {
-                if (!SkirmishRoom && TimedEndLobby) peer.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>()));
+                if (!SkirmishRoom) peer.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>()));
                 TryReturnToLobby();
             }
             else if (RoomTransport == null) peer.Send(new DuelPacket(DuelMessage.EndReady, Array.Empty<byte>()));
@@ -979,7 +974,7 @@ namespace OpenZ.Multiplayer
             if (!localEndReady) return;
             if (SkirmishRoom)
             {
-                if (room == null || room.Members.Any(member => member.Id != RoomHostId && member.Seat.MayUsePlayerCommands &&
+                if (room == null || room.Members.Any(member => member.Id != RoomHostId &&
                     int.TryParse(member.Id, out int id) && !roomDeparted.Contains(id) && !roomEndReady.Contains(id))) return;
                 ReturnRoomToLobby();
                 PublishRoom();
@@ -1092,7 +1087,7 @@ namespace OpenZ.Multiplayer
             Array.Clear(mapRequestAvailableAt, 0, mapRequestAvailableAt.Length);
             if (savedSoloRules)
             { ZWorld.L17CrewsDeviation = soloCrews; ZWorld.FortDoorGunDeviation = soloFortGun; savedSoloRules = false; }
-            Disconnect(); OnlineMode = false; guestRelease = null;
+            Disconnect(); if (Menus) Menus.ResetInvitation(); OnlineMode = false; guestRelease = null;
             lastProposalAt = -10;
             ResetEndLobby();
             finalStatsSent = FinalStatsReady = localEndReady = remoteEndReady = false;

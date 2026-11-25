@@ -35,11 +35,12 @@ namespace OpenZ.Multiplayer
         bool OnlineRoomPage => page == Page.Lobby && R.SkirmishRoom;
         static readonly int[] onlineMapSizes = { 2, 3, 4, 6, 8 };
 
+        internal void ResetInvitation() => onlineInviteShown = false;
+
         void ResetOnlineLobby()
         {
             onlinePopup = OnlinePopup.None;
             onlineUnitChoice = null;
-            onlineInviteShown = false;
             onlineChatPosition = 0;
             onlineTeams = null;
             CloseOnlinePlayerMenu();

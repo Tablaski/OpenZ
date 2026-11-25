@@ -94,7 +94,7 @@ namespace OpenZ.Multiplayer
             get
             {
                 var humans = IsHost
-                    ? room?.Members.Select(member => RoomSnapshot.Human.FromMember(member, RoomHostId, RoomHostId))
+                    ? room?.Members.Select(member => RoomSnapshot.Human.FromMember(member, RoomHostId, RoomHostId, room.RosterId(member.Id)))
                     : JoinedRoom?.Humans;
                 return humans?.Where(member => !member.Observer && ActiveGhostSeat(member.Position))
                     .OrderBy(member => member.Position).ToArray() ?? Array.Empty<RoomSnapshot.Human>();

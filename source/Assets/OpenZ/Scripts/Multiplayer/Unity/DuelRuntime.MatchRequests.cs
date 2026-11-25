@@ -341,7 +341,7 @@ namespace OpenZ.Multiplayer
                     {
                         listener = new TcpListener(IPAddress.Any, TcpPort);
                         listener.Start(1);
-                        recoveryTask = AcceptTcp();
+                        recoveryTask = AcceptTcp(listener, secret, Fingerprint(), cancellation.Token);
                     }
                     else recoveryTask = ConnectTcp(reconnectTcpAddress, TcpPort, localName);
                 }

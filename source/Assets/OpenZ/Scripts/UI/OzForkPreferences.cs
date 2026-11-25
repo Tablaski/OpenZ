@@ -8,7 +8,7 @@ namespace OpenZ
     /// <summary>Versioned local history of presentation/game preferences. Never changes upstream storage identity or resets existing keys.</summary>
     public sealed class OzForkPreferences : MonoBehaviour
     {
-        public const int Schema = 26;
+        public const int Schema = 27;
         [Serializable] public sealed class Entry { public string key, kind, value; }
         [Serializable] public sealed class Snapshot { public int schema = Schema; public string fork = OzForkVersion.Number; public List<Entry> preferences = new List<Entry>(); }
         string lastJson;
@@ -173,6 +173,8 @@ namespace OpenZ
                 Add("oz_tank_duel_jeep", "Int");
                 Add("oz_team_blue", "Int");
                 Add("oz_territory_borders", "Int");
+                Add(OzMapReadabilityOptions.LastBorderSizePref, "Int");
+                Add(OzBindings.DefOf(OzAction.TerritoryBorders).pref, "Int");
                 Add("oz_testmode", "Int");
                 Add("oz_tough_prepare", "Int");
                 Add("oz_tower_diag", "Int");

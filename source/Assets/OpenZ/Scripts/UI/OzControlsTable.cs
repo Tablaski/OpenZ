@@ -79,6 +79,7 @@ namespace OpenZ
             R(OzBindings.DefOf(OzAction.LastMessage).label, A(OzAction.LastMessage)),
             R("Game speed: slower / faster", A(OzAction.TacticalPause), S("·"), K("-"), S("/"), K("+")),             // fixed keys, the numpad pair too (OzSpeedKeys); 1.5: the TACTICAL PAUSE key in front, shown while it is on (View/OzTacticalPause.cs)
             R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),                                    // the MINIMAL UI key (OpenZHud.MinimalKey.cs)
+            R("Territory borders · tap to toggle, hold to peek", A(OzAction.TerritoryBorders)),
             R("Hide the HUD · arrange its panels", A(OzAction.HideHud), S("·"), A(OzAction.ArrangeHud)),
             R("Controls help · pause menu", A(OzAction.HelpOverlay), S("·"), K("ESC")),
             R(OzBindings.DefOf(OzAction.RestartProduction).label, A(OzAction.RestartProduction),

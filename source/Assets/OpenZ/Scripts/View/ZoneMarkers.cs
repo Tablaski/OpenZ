@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using OpenZ.Sim;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace OpenZ
 {
@@ -20,6 +21,9 @@ namespace OpenZ
         static readonly Color[] DotColors = { Color.white, Color.red, Color.black, Color.clear };
         const int DotSides = 16;
         int shownSize;
+        const float HoldSeconds = .25f;
+        float pressedAt = -1f;
+        int bindingVersion;
         public static bool ShowBorders { get => OzMapReadabilityOptions.Borders; set => OzMapReadabilityOptions.Borders = value; }
 
         void Start()
@@ -44,16 +48,18 @@ namespace OpenZ
                 m.SetFloat("_OutlinedDots", 1f);
                 zones.Add((m, z.Id, (Team)(-1)));
             }
-            shownSize = OzMapReadabilityOptions.BorderSize;
+            shownSize = OzMapReadabilityOptions.VisibleBorderSize;
             LateUpdate();
         }
 
         void LateUpdate()
         {
             if (game == null || game.World == null) return;
-            if (shownSize != OzMapReadabilityOptions.BorderSize && ShowBorders)
+            UpdateShortcut();
+            bool visible = ShowBorders || pressedAt >= 0f;
+            if (shownSize != OzMapReadabilityOptions.VisibleBorderSize && visible)
             {
-                shownSize = OzMapReadabilityOptions.BorderSize;
+                shownSize = OzMapReadabilityOptions.VisibleBorderSize;
                 for (int i = 0; i < borders.Count; i++)
                 {
                     var mesh = BuildZoneMesh(game.World.Zones[zones[i].zone]);
@@ -61,7 +67,7 @@ namespace OpenZ
                     Destroy(meshes[i]); meshes[i] = mesh;
                 }
             }
-            foreach (var border in borders) if (border && border.enabled != ShowBorders) border.enabled = ShowBorders;
+            foreach (var border in borders) if (border && border.enabled != visible) border.enabled = visible;
             for (int i = 0; i < zones.Count; i++)
             {
                 var (m, id, shown) = zones[i];
@@ -72,6 +78,29 @@ namespace OpenZ
                 m.SetColor("_Color", BorderColor(owner));
                 zones[i] = (m, id, painted);
             }
+        }
+
+        void UpdateShortcut()
+        {
+            const OzAction action = OzAction.TerritoryBorders;
+            var hud = OpenZHud.I;
+            var keys = Keyboard.current;
+            if (!Application.isFocused || keys == null || keys.ctrlKey.isPressed || keys.altKey.isPressed ||
+                Multiplayer.DuelRuntime.CapturesInput || OzConfirm.Blocks || (hud && hud.Pause && hud.Pause.IsOpen))
+            {
+                pressedAt = -1f;
+                return;
+            }
+            if (OzBindings.Pressed(action))
+            {
+                pressedAt = Time.unscaledTime;
+                bindingVersion = OzBindings.Version;
+            }
+            if (pressedAt < 0f) return;
+            if (bindingVersion == OzBindings.Version && OzBindings.Released(action))
+                ShowBorders = Time.unscaledTime - pressedAt < HoldSeconds && !ShowBorders;
+            else if (bindingVersion == OzBindings.Version && OzBindings.Held(action)) return;
+            pressedAt = -1f;
         }
 
         Color BorderColor(Team owner) => TeamColors.Shown(owner) switch
@@ -133,7 +162,7 @@ namespace OpenZ
         // A solid coloured core with a light rim and a dark outer edge, readable on both bright and dark terrain.
         void Edge(List<Vector3> v, List<Color> col, List<int> t, Vector3 a, Vector3 b, ZMapData map)
         {
-            float len = Vector3.Distance(a, b), radius = .06f * Mathf.Max(1, OzMapReadabilityOptions.BorderSize);
+            float len = Vector3.Distance(a, b), radius = .06f * OzMapReadabilityOptions.VisibleBorderSize;
             int count = Mathf.Max(1, Mathf.FloorToInt(len / 2.8f));
             for (int dot = 0; dot < count; dot++)
             {

@@ -12,6 +12,7 @@ namespace OpenZ
         public const string RadarSweepLabel = "MINIMAP RADARS SWEEP", RadarSweepPref = "oz_vk_minimap_radar_interval", LegacyRadarSweepPref = "oz_vk_radar_sweep_seconds";
         public const string RadarSweepTip = RadarSweepLabel + "|Choose OFF, 1.5 s, 3 s or 5 s between sweeps from your active radars. OFF hides radar highlights and sweeps. Reduced motion keeps the radar outlines.|";
         public const string FlagPref = "oz_vk_flag_scale", LegacyFlagPref = "oz_flag_size", BorderPref = "oz_territory_borders";
+        public const string LastBorderSizePref = "oz_vk_last_territory_border_size";
         public const string FlagTip = "FLAG SIZE|Choose 1x (original), 1.5x, 2x, 2.5x or 3x for flags and poles. Applies immediately to territory and fort flags, including flags added in the Unit Editor. Capture distance, territory ownership and gameplay are unchanged.|";
         public const string BorderTip = "DOTTED TERRITORY BORDERS|Show outlined dots in each territory owner's colour, with dark grey on Arctic and white on City for neutral territory. The marks follow the ground and water, skip walls and buildings, and recolour after a capture. Choose OFF, x1, x2 or x4.|";
         internal static readonly float[] RadarSweepIntervals = { 0f, 1.5f, 3f, 5f };
@@ -80,7 +81,25 @@ namespace OpenZ
         public static int BorderSize
         {
             get { if (borders < 0) { int v = PlayerPrefs.GetInt(BorderPref, 1); borders = v == 1 || v == 2 || v == 4 ? v : 0; } return borders; }
-            set { borders = value == 1 || value == 2 || value == 4 ? value : 0; PlayerPrefs.SetInt(BorderPref, borders); PlayerPrefs.Save(); }
+            set
+            {
+                borders = ValidBorderSize(value) ? value : 0;
+                if (borders > 0) PlayerPrefs.SetInt(LastBorderSizePref, borders);
+                else if (ValidBorderSize(PlayerPrefs.GetInt(BorderPref, 1)))
+                    PlayerPrefs.SetInt(LastBorderSizePref, PlayerPrefs.GetInt(BorderPref, 1));
+                PlayerPrefs.SetInt(BorderPref, borders);
+                PlayerPrefs.Save();
+            }
+        }
+        static bool ValidBorderSize(int size) => size == 1 || size == 2 || size == 4;
+        public static int VisibleBorderSize
+        {
+            get
+            {
+                if (BorderSize > 0) return BorderSize;
+                int saved = PlayerPrefs.GetInt(LastBorderSizePref, 1);
+                return ValidBorderSize(saved) ? saved : 1;
+            }
         }
         public static string BorderName => BorderSize == 0 ? "OFF" : "x" + BorderSize;
         public static void StepBorder(int direction)
@@ -88,7 +107,7 @@ namespace OpenZ
             int index = BorderSize == 0 ? 0 : BorderSize == 1 ? 1 : BorderSize == 2 ? 2 : 3;
             int[] sizes = { 0, 1, 2, 4 }; BorderSize = sizes[(index + (direction < 0 ? 3 : 1)) % 4];
         }
-        public static bool Borders { get => BorderSize > 0; set => BorderSize = value ? 1 : 0; }
+        public static bool Borders { get => BorderSize > 0; set => BorderSize = value ? VisibleBorderSize : 0; }
         public static void Reload() { flagSize = 0f; radarSweepSeconds = -1f; borders = -1; }
     }
 }

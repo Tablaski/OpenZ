@@ -16,6 +16,7 @@ namespace OpenZ
         RepairVehicles,
         Patrol, StopUnits, HoldPosition, HelpOverlay, ArrangeHud, RestartProduction,
         TacticalPause,                                                                                 // 1.5 tactical_pause_megashake: the OPTIONS switch TACTICAL PAUSE's key (View/OzTacticalPause.cs)
+        TerritoryBorders,
     }
 
     /// <summary>
@@ -67,6 +68,7 @@ namespace OpenZ
             D(OzAction.ArrangeHud, "Arrange the interface (drag the panels)", UiSection, Key.F2),   // OpenZHud.Arrange.cs
             D(OzAction.RestartProduction, OzForkOptions.RestartProductionLabel, OrderSection, Key.None),
             D(OzAction.TacticalPause, "Tactical pause: freeze / unfreeze time", UiSection, Key.Space),   // 1.5 tactical_pause_megashake: read only while TACTICAL PAUSE is on (View/OzTacticalPause.cs)
+            D(OzAction.TerritoryBorders, "Dotted territory borders", UiSection, Key.J),
         };
 
         static Def D(OzAction a, string label, string section, Key k, bool ctrl = false, bool hold = false)
@@ -140,6 +142,7 @@ namespace OpenZ
         public static bool Pressed(OzAction a) { var c = Control(a); return c != null && c.wasPressedThisFrame; }
         /// <summary>The bound key is held.</summary>
         public static bool Held(OzAction a) { var c = Control(a); return c != null && c.isPressed; }
+        public static bool Released(OzAction a) { var c = Control(a); return c != null && c.wasReleasedThisFrame; }
 
         static UnityEngine.InputSystem.Controls.KeyControl Control(OzAction a)
         {

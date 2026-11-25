@@ -353,7 +353,7 @@ namespace OpenZ
                 (skirmish || skirmishMap?.Solo == true || ZAiDifficulty.IsModern(SoloAi2026)))
             {
                 World.LimitModernBotStartingUnits();
-                World.BalanceNeutralStartingUnits();
+                World.BalanceNeutralStartingUnits(preserveMatchedMultiplayerPlacements: skirmish);
                 BindStartingArmyViews(false);
             }
             SetupWalkable();

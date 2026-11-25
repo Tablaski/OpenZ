@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.84 (25 Nov 2026)
+
+- Solo + 1 vs 1 — Neutral starting units stay in place when the difference in travel cost is small. A relocated gun keeps the road junctions it could cover.
+- Multiplayer and Skirmish — Matched neutral units keep their original positions if the map offers no suitable relocation.
+
 ## OpenZ-VK 1.5.83 (25 Nov 2026)
 
 - Controls has a Build keys tab. Factory shortcuts use single keys and take priority while a factory menu is open. You can bind separate shortcuts to stop production or stop and clear the queue. The game asks before assigning a key that is already in use.

@@ -7,6 +7,7 @@ namespace OpenZ.Sim
 {
     public sealed partial class ZWorld
     {
+        internal const int NeutralStartCostTolerance = 300;
         internal readonly HashSet<ZMapData.Obj> RemovedStartingSources = new HashSet<ZMapData.Obj>();
 
         void RemoveStartingUnit(ZObject unit)
@@ -39,7 +40,7 @@ namespace OpenZ.Sim
             FortDoorGuns.RemoveAll(gun => Get(gun.Id) == null);
         }
 
-        internal void BalanceNeutralStartingUnits()
+        internal void BalanceNeutralStartingUnits(bool preserveMatchedMultiplayerPlacements = false)
         {
             var forts = Objects.Where(o => o.IsFort && !o.Destroyed && o.Owner != Team.Neutral)
                 .GroupBy(o => o.Owner).OrderBy(group => group.Key)
@@ -58,7 +59,7 @@ namespace OpenZ.Sim
             var occupied = Objects.Where(o => !o.Destroyed).ToList();
             var travelCosts = gates.Select(gate => Path.RobotTravelCosts(gate.x, gate.y)).ToArray();
             var slots = forts.Select((fort, seat) => NeutralStartSlots(seat, travelCosts)).ToArray();
-            var commonCosts = slots[0].Keys.Where(cost => slots.All(seat => seat.ContainsKey(cost))).ToArray();
+            var availableCosts = slots.Select(seat => seat.Keys.OrderBy(cost => cost).ToArray()).ToArray();
 
             foreach (var kind in pickups.GroupBy(o => (o.Type, o.Health)).OrderByDescending(group => group.First().IsShuttle))
             {
@@ -89,7 +90,7 @@ namespace OpenZ.Sim
                     while (queues.All(queue => queue.Count > 0))
                     {
                         var row = queues.Select(queue => queue.Dequeue().unit).ToArray();
-                        if (!PlaceNeutralStartRow(forts, gates, terrain, new[] { role.Key }, occupied, slots, travelCosts, commonCosts, row))
+                        if (!PlaceNeutralStartRow(forts, gates, terrain, new[] { role.Key }, occupied, slots, travelCosts, availableCosts, row, preserveMatchedMultiplayerPlacements))
                             foreach (var unit in row) RemoveStartingUnit(unit);
                     }
                     for (int seat = 0; seat < forts.Length; seat++) unmatched[seat].AddRange(queues[seat]);
@@ -111,7 +112,7 @@ namespace OpenZ.Sim
                     int priority = candidates.Max(p => StrategicPriority(p.role));
                     var preferred = candidates.Where(p => StrategicPriority(p.role) == priority)
                         .GroupBy(p => p.role).OrderByDescending(group => group.Count()).Select(group => group.Key).ToArray();
-                    if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, travelCosts, commonCosts, row))
+                    if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, travelCosts, availableCosts, row, preserveMatchedMultiplayerPlacements))
                         foreach (var unit in row) RemoveStartingUnit(unit);
                 }
             }
@@ -162,17 +163,17 @@ namespace OpenZ.Sim
         }
 
         bool PlaceNeutralStartRow(ZObject[] forts, (int x, int y)[] gates, NeutralStartTerrain terrain, NeutralStartRole[] roles,
-            List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[][,] travelCosts, int[] commonCosts, ZObject[] row)
+            List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[][,] travelCosts,
+            int[][] availableCosts, ZObject[] row, bool preserveMatchedMultiplayerPlacements)
         {
             var costs = row.Select((unit, seat) => TravelCost(travelCosts[seat], unit)).ToArray();
-            if (roles.Length == 1 && costs.All(cost => cost == costs[0]) &&
-                row.Select((unit, seat) => terrain.Role(unit, unit.CenterX, unit.CenterY, forts[seat], gates[seat]))
-                    .All(role => role == roles[0])) return true;
+            if (costs.Max() - costs.Min() <= NeutralStartCostTolerance) return true;
 
             foreach (var unit in row) occupied.Remove(unit);
             var planned = new (int x, int y, double heading)[row.Length];
             int targetCost = (int)costs.Average();
-            var nearbyCosts = commonCosts.OrderBy(cost => Math.Abs((long)cost - targetCost)).ThenBy(cost => cost).ToArray();
+            var nearbyCosts = availableCosts.SelectMany(costsForSeat => costsForSeat).Distinct()
+                .OrderBy(cost => Math.Abs((long)cost + NeutralStartCostTolerance / 2 - targetCost)).ThenBy(cost => cost).ToArray();
             foreach (var role in roles)
             foreach (int cost in nearbyCosts)
             {
@@ -197,14 +198,21 @@ namespace OpenZ.Sim
                 }
                 return true;
             }
-            return false;
+            if (preserveMatchedMultiplayerPlacements) occupied.AddRange(row);
+            return preserveMatchedMultiplayerPlacements;
 
             IEnumerable<(int x, int y, double heading)> Positions(int seat, int cost, NeutralStartRole role)
             {
                 var unit = row[seat];
-                foreach (var (x, y) in slots[seat][cost].OrderBy(p => FortDistance(p.x, p.y, unit)))
+                int first = Array.BinarySearch(availableCosts[seat], cost);
+                if (first < 0) first = ~first;
+                var nearby = new List<(int x, int y)>();
+                for (int i = first; i < availableCosts[seat].Length && availableCosts[seat][i] <= cost + NeutralStartCostTolerance; i++)
+                    nearby.AddRange(slots[seat][availableCosts[seat][i]]);
+                foreach (var (x, y) in nearby.OrderBy(p => FortDistance(p.x, p.y, unit)))
                 {
                     if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
+                        !terrain.KeepsGunCoverage(unit, x, y) ||
                         !NeutralStartClear(unit, x, y, occupied)) continue;
                     double heading = unit.ShuttleHeadingDeg;
                     if (unit.IsShuttle && !ShuttleLandSpot(x, y, unit, heading, out heading, out _)) continue;
@@ -279,6 +287,21 @@ namespace OpenZ.Sim
 
             bool Road(int x, int y) => x >= 0 && y >= 0 && x < world.Map.width && y < world.Map.height &&
                 world.Map.ClassAt(x, y) == ZClass.Road;
+
+            internal bool KeepsGunCoverage(ZObject unit, int x, int y)
+            {
+                if (unit.Kind != ZKind.Cannon) return true;
+                int rangeSquared = unit.AttackRadius * unit.AttackRadius;
+                return junctions.All(p => StillCovers(p.x, p.y)) &&
+                    flags.Concat(bridges).Concat(factories).All(target => StillCovers(target.CenterX, target.CenterY));
+
+                bool StillCovers(int toX, int toY) =>
+                    !Covers(unit.CenterX, unit.CenterY, toX, toY) || Covers(x, y, toX, toY);
+
+                bool Covers(int fromX, int fromY, int toX, int toY) =>
+                    StartDistance(toX - fromX, toY - fromY) <= rangeSquared &&
+                    (!unit.LosActive || world.Sight.Clear(fromX, fromY, 0, toX, toY, 0));
+            }
 
             // Count distinct arms of the same road on the perimeter, including diagonal approaches.
             int RoadBranches(int x, int y)

@@ -49,7 +49,7 @@ namespace OpenZ.Sim
                     else SetOwnerZod(unit, Team.Neutral, false);
                 }
             }
-            BalanceNeutralStartingUnits();
+            BalanceNeutralStartingUnits(preserveMatchedMultiplayerPlacements: true);
             for (int seat = 0; seat < skirmishAlliances.Length; seat++)
             {
                 if (closed.Contains(seat)) continue;

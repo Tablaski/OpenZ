@@ -72,21 +72,39 @@ namespace OpenZ.Sim
                         terrain.Role(unit, unit.CenterX, unit.CenterY, forts[seat], gates[seat])));
                 }
 
+                var unmatched = forts.Select(fort => new List<(ZObject unit, int distance, NeutralStartRole role)>()).ToArray();
                 foreach (var role in placements.GroupBy(p => p.role))
                 {
-                    var queues = forts.Select((fort, seat) => new Queue<ZObject>(role.Where(p => p.seat == seat)
-                        .OrderBy(p => p.distance).Select(p => p.unit))).ToArray();
+                    var queues = forts.Select((fort, seat) => new Queue<(ZObject unit, int distance, NeutralStartRole role)>(
+                        role.Where(p => p.seat == seat).OrderBy(p => p.distance)
+                            .Select(p => (p.unit, p.distance, p.role)))).ToArray();
                     while (queues.All(queue => queue.Count > 0))
                     {
-                        var row = queues.Select(queue => queue.Dequeue()).ToArray();
-                        if (!PlaceNeutralStartRow(forts, gates, terrain, role.Key, occupied, slots, commonRadii, row))
+                        var row = queues.Select(queue => queue.Dequeue().unit).ToArray();
+                        if (!PlaceNeutralStartRow(forts, gates, terrain, new[] { role.Key }, occupied, slots, commonRadii, row))
                             foreach (var unit in row) RemoveStartingUnit(unit);
                     }
-                    foreach (var unit in queues.SelectMany(queue => queue))
+                    for (int seat = 0; seat < forts.Length; seat++) unmatched[seat].AddRange(queues[seat]);
+                }
+
+                var remaining = unmatched.Select(units => new Queue<(ZObject unit, int distance, NeutralStartRole role)>(
+                    units.OrderBy(p => p.distance))).ToArray();
+                int completeRows = remaining.Min(queue => queue.Count);
+                foreach (var queue in remaining)
+                    foreach (var leftover in queue.Skip(completeRows))
                     {
-                        occupied.Remove(unit);
-                        RemoveStartingUnit(unit);
+                        occupied.Remove(leftover.unit);
+                        RemoveStartingUnit(leftover.unit);
                     }
+                for (int i = 0; i < completeRows; i++)
+                {
+                    var candidates = remaining.Select(queue => queue.Dequeue()).ToArray();
+                    var row = candidates.Select(p => p.unit).ToArray();
+                    var preferred = candidates.GroupBy(p => p.role).OrderByDescending(group => group.Count())
+                        .ThenByDescending(group => (group.Key & NeutralStartRole.Junction) != 0)
+                        .Select(group => group.Key).ToArray();
+                    if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, commonRadii, row))
+                        foreach (var unit in row) RemoveStartingUnit(unit);
                 }
             }
         }
@@ -120,16 +138,18 @@ namespace OpenZ.Sim
             return true;
         }
 
-        bool PlaceNeutralStartRow(ZObject[] forts, (int x, int y)[] gates, NeutralStartTerrain terrain, NeutralStartRole role,
+        bool PlaceNeutralStartRow(ZObject[] forts, (int x, int y)[] gates, NeutralStartTerrain terrain, NeutralStartRole[] roles,
             List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[] commonRadii, ZObject[] row)
         {
             var distances = row.Select((unit, seat) => FortDistance(unit.CenterX, unit.CenterY, forts[seat])).ToArray();
-            if (distances.All(distance => distance == distances[0])) return true;
+            if (roles.Length == 1 && distances.All(distance => distance == distances[0])) return true;
 
             foreach (var unit in row) occupied.Remove(unit);
             var planned = new (int x, int y, double heading)[row.Length];
             int radius = (int)distances.Average();
-            foreach (int distance in commonRadii.OrderBy(d => Math.Abs((long)d - radius)).ThenBy(d => d))
+            var radii = commonRadii.OrderBy(d => Math.Abs((long)d - radius)).ThenBy(d => d).ToArray();
+            foreach (var role in roles)
+            foreach (int distance in radii)
             {
                 int seat = 0;
                 for (; seat < row.Length; seat++)
@@ -140,8 +160,9 @@ namespace OpenZ.Sim
                     foreach (var (x, y) in candidates)
                     {
                         int gap = unit.IsShuttle ? 4 * ZConst.TILE : 2 * ZConst.TILE;
-                        if (planned.Take(seat).Any(p => Math.Abs(p.x - x) < gap && Math.Abs(p.y - y) < gap) ||
-                            !NeutralStartClear(unit, x, y, occupied) || terrain.Role(unit, x, y, forts[seat], gates[seat]) != role) continue;
+                        if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
+                            planned.Take(seat).Any(p => Math.Abs(p.x - x) < gap && Math.Abs(p.y - y) < gap) ||
+                            !NeutralStartClear(unit, x, y, occupied)) continue;
                         double heading = unit.ShuttleHeadingDeg;
                         if (unit.IsShuttle && !ShuttleLandSpot(x, y, unit, heading, out heading, out _)) continue;
                         planned[seat] = (x, y, heading);

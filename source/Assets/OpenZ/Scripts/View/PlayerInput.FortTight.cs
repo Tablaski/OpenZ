@@ -41,7 +41,7 @@ namespace OpenZ
         /// <summary>The pointer's ray hits one of enemy fort f's own solid drawn parts (no picture known: true, as before).</summary>
         bool FortUnder(ZObject f, Ray ray)
         {
-            if (!FortTightOn) return true;
+            if (!FortTightOn || W.Get(f.Id) != f) return true;
             if (game == null || !game.StaticViews.TryGetValue(f.Id, out var go) || !go) return true;
             var fp = FortPartsOf(f.Id, go);
             if (fp.rs.Count == 0) return true;

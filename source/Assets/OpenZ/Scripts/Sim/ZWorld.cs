@@ -872,14 +872,15 @@ namespace OpenZ.Sim
                 case WpMode.Attack:
                 {
                     var target = Get(wp.refId);
+                    if (TryFogAttack(o.Owner, wp, target, out _, knownOnly: true)) return o.CanAttack();
                     if (target != null && target.Owner != o.Owner && AreAllied(o.Owner, target.Owner)) return false;
                     return o.CanAttackObject(target) || o.PyroBurnOrderOk(target, wp) || AttackOrderFallback(o, ref wp);
                 }
-                case WpMode.Enter: { var t = Get(wp.refId); return o.CanMove && o.IsRobot && t != null && (t.CanBeEntered() || t.CanTakePassengers(o)) && o.EvilMayEnter(t); }   // apc_v1 DV15: + passengers
+                case WpMode.Enter: { var t = Get(wp.refId); return o.CanMove && o.IsRobot && (TryFogApproach(o.Owner, wp, t) || t != null && (t.CanBeEntered() || t.CanTakePassengers(o)) && o.EvilMayEnter(t)); }   // apc_v1 DV15: + passengers
                 case WpMode.PickupGrenades: { var t = Get(wp.refId); return o.CanPickupGrenades() && t != null && t.Type == "grenades"; }
-                case WpMode.CraneRepair: { var t = Get(wp.refId); return o.CanMove && o.Kind == ZKind.Vehicle && o.Type == "crane" && t != null && t.CanBeRepairedByCrane(o.Owner); }
+                case WpMode.CraneRepair: { var t = Get(wp.refId); return o.CanMove && o.Kind == ZKind.Vehicle && o.Type == "crane" && (TryFogApproach(o.Owner, wp, t) || t != null && t.CanBeRepairedByCrane(o.Owner)); }
                 case WpMode.UnitRepair: { var t = Get(wp.refId); return o.CanMove && o.CanBeRepaired() && t != null && t.CanRepairUnit(o.Owner); }
-                case WpMode.EnterFort: { var t = Get(wp.refId); return o.CanMove && t != null && t.CanEnterFort(o.Owner); }
+                case WpMode.EnterFort: { var t = Get(wp.refId); return o.CanMove && (TryFogApproach(o.Owner, wp, t) || t != null && t.CanEnterFort(o.Owner)); }
             }
             return false;
         }

@@ -1492,7 +1492,7 @@ namespace OpenZ
 
         void BuildingDeath(ZObject o, ZObject killer)
         {
-            if (!o.IsFort && OzFogOfWar.Covers(o)) return;
+            if (OzFogOfWar.Covers(o) && (!o.IsFort || !game.World.GameOver && game.World.HasIndividualDefeatSequence)) return;
             var c = game.CenterWorld(o) + Vector3.up;
             if (o.IsFort)
             {

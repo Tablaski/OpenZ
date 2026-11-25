@@ -201,7 +201,7 @@ namespace OpenZ
         // ------------------------------------------------------------------ zones (when an owner changes; cross-fade 300 ms, guide 7.3)
         void RebuildZones()
         {
-            for (int i = 0; i < W.Zones.Count; i++) shownOwners[i] = W.Zones[i].Owner;
+            for (int i = 0; i < W.Zones.Count; i++) shownOwners[i] = OzRadarLoss.ZoneOwner(W.Zones[i]);
             System.Array.Copy(terrain, baseBuf, terrain.Length);
             for (int ty = 0; ty < mh; ty++)
                 for (int tx = 0; tx < mw; tx++)
@@ -228,7 +228,7 @@ namespace OpenZ
         void RefreshObjects()
         {
             bool zonesChanged = false;
-            for (int i = 0; i < W.Zones.Count; i++) if (W.Zones[i].Owner != shownOwners[i]) { zonesChanged = true; break; }
+            for (int i = 0; i < W.Zones.Count; i++) if (OzRadarLoss.ZoneOwner(W.Zones[i]) != shownOwners[i]) { zonesChanged = true; break; }
             if (zonesChanged)
             {
                 float kb = Mathf.Clamp01((OzMotion.Now - zoneBlendAt) / 0.3f);                              // freeze the current blend as the start
@@ -273,8 +273,9 @@ namespace OpenZ
             // marker layer (guide 9.5): buildings in the owner colour, flags, then every unit (Zod draws every object)
             bldUsed = unitUsed = radarUsed = 0;
             bool highlightRadars = OzMapReadabilityOptions.Radars;
-            foreach (var o in W.Objects)
+            foreach (var live in W.Objects)
             {
+                var o = live.Type == "flag" ? OzRadarLoss.Presented(live) : live;
                 if (o.Kind == ZKind.Building && !o.IsBridge && !OzFogOfWar.Covers(o))
                 {
                     var im = NextPooled(bldPool, ref bldUsed, "Building", "Minimap/mm_building", Image.Type.Sliced);
@@ -336,9 +337,9 @@ namespace OpenZ
                     {
                         string marker = contact.Kind == ZKind.Robot ? "Minimap/mm_unit" : contact.Kind == ZKind.Vehicle ? "Minimap/mm_vehicle" : "Minimap/mm_cannon";
                         var im = NextPooled(unitPool, ref unitUsed, "Last known contact", marker, Image.Type.Simple);
-                        im.color = OzUi.A(OzUi.Mark(contact.Team), .66f);
+                        im.color = contact.MapFeature ? OzUi.Mark(contact.Team) : OzUi.A(OzUi.Mark(contact.Team), .66f);
                         im.rectTransform.anchoredPosition = PxToLocal(contact.X, contact.Y);
-                        im.rectTransform.sizeDelta = new Vector2(5, 5);
+                        im.rectTransform.sizeDelta = contact.MapFeature ? new Vector2(6, 6) : new Vector2(5, 5);
                     }
                 }
             for (int i = bldUsed; i < bldPool.Count; i++) bldPool[i].gameObject.SetActiveFast(false);

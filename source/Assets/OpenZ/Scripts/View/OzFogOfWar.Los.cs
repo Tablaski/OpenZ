@@ -136,7 +136,7 @@ namespace OpenZ
         /// <summary>One object's sight now, when it is of the player's side: its sight circle, and a standing radar's circle at its radius now.</summary>
         void LosStampOne(ZObject o, int agro)
         {
-            if (o == null || o.Owner != player || o.Destroyed || o.KillAt >= 0) return;
+            if (o == null || !W.AreAllied(o.Owner, player) || o.Destroyed || o.KillAt >= 0) return;
             int r = SightPx(o, agro);
             if (r > 0) seen.Stamp(o.CenterX, o.CenterY, r);
             if (o.Kind == ZKind.Building && o.Type == "radar")
@@ -165,7 +165,7 @@ namespace OpenZ
             for (int i = 0; i < list.Count; i++)
             {
                 var o = list[i];
-                if (o == null || o.Owner == player || o.Owner == Team.Neutral || o.Destroyed) continue;
+                if (o == null || W.AreAllied(o.Owner, player) || o.Owner == Team.Neutral || o.Destroyed) continue;
                 if (o.Kind != ZKind.Robot && o.Kind != ZKind.Vehicle) continue;              // ground guns are structures: they stay
                 if (mask.ShownAtPx(o.CenterX, o.CenterY) < OzFowMask.Revealed) continue;     // not explored yet: the cloud's own rule (Covers, the early band)
                 byte v = LosLifted(seen.ShownAtPx(o.CenterX, o.CenterY));                   // 1.5 r14_r16: with the radar lift (max of the two)

@@ -707,7 +707,7 @@ namespace OpenZ
         // ================================================================== zone flag capture
         void UpdateZoneFlag(Flag f, float now)
         {
-            var owner = f.obj.Owner;
+            var owner = OzRadarLoss.Presented(f.obj).Owner;
             if (owner != f.shown) BeginCapture(f, owner, now);
             if (f.capT0 < 0) return;
             float t = now - f.capT0;
@@ -881,8 +881,9 @@ namespace OpenZ
         // ================================================================== fort flag
         void UpdateFort(Flag f, float now, float dt)
         {
-            var o = f.obj;
-            bool gone = o.Destroyed || !f.fortView || !f.fortView.activeInHierarchy;
+            var o = OzRadarLoss.Presented(f.obj);
+            bool remembered = o != f.obj;
+            bool gone = o.Destroyed || !remembered && (!f.fortView || !f.fortView.activeInHierarchy);
             if (gone)
             {   // the fort dies (nuke / collapse): the cloth drops and the flag is gone with the building
                 if (f.deadT < 0) f.deadT = now;
@@ -896,7 +897,8 @@ namespace OpenZ
 
             if (o.Health < f.lastHealth) { f.hitUntil = now + 4f; f.energy = Mathf.Max(f.energy, FlutterOnly); }   // hit: flinch (no glow)
             f.lastHealth = o.Health;
-            if (now >= f.nextCheck) { f.nextCheck = now + FortCheck; f.nearEnemy = EnemyNearFort(f); }
+            if (remembered) f.nearEnemy = false;
+            else if (now >= f.nextCheck) { f.nextCheck = now + FortCheck; f.nearEnemy = EnemyNearFort(f); }
             bool danger = f.nearEnemy || now < f.hitUntil;
             if (danger) f.calmSince = -1; else if (f.calmSince < 0) f.calmSince = now;
             bool dipping = danger || (f.calmSince >= 0 && now - f.calmSince < FortLevelDelay);

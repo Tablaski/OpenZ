@@ -229,7 +229,17 @@ namespace OpenZ.Sim
                 else isNew = false;
 
                 if (wp.mode != WpMode.Attack) attackingFogContact = false;
-                switch (wp.mode)
+                bool canApproach = wp.mode == WpMode.Enter || wp.mode == WpMode.EnterFort || wp.mode == WpMode.CraneRepair;
+                bool approach = canApproach && World.TryFogApproach(Owner, wp, World.Get(wp.refId));
+                if (approach != approachingFogContact)
+                {
+                    StopMove();
+                    ClearCur();
+                    approachingFogContact = approach;
+                    isNew = true;
+                }
+                if (approach) ProcessMoveWP(dt, isNew, true);
+                else switch (wp.mode)
                 {
                     case WpMode.Move: ProcessMoveWP(dt, isNew, true); break;
                     case WpMode.ForceMove: ProcessMoveWP(dt, isNew, false); break;
@@ -503,7 +513,7 @@ namespace OpenZ.Sim
             }
         }
 
-        bool attackingFogContact;
+        bool attackingFogContact, approachingFogContact;
         int fogAttackX, fogAttackY;
 
         void ProcessFogAttack(double dt, int x, int y, bool isNew)

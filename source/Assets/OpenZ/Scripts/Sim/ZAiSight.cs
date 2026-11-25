@@ -10,6 +10,10 @@ namespace OpenZ.Sim
         public const int UnitSightPadPx = 24, UnitSightMinPx = 184, BuildingSightPadPx = 128, FlagSightPx = 128;
         public const int RadarSightPx = 384;
 
+        internal static bool KnownAtStart(ZObject obj) =>
+            obj.Kind == ZKind.Building || obj.Type == "flag" || obj.Type == "rock" ||
+            obj.Source != null && obj.Owner == Team.Neutral && (obj.Kind == ZKind.Vehicle || obj.Kind == ZKind.Cannon);
+
         internal static int Radius(ZObject o, int agro)
         {
             if (o.IsUnit) return Math.Max(UnitSightMinPx, (o.U?.attack_radius ?? 0) + agro + UnitSightPadPx);
@@ -40,7 +44,7 @@ namespace OpenZ.Sim
                     for (int x = left; x <= right; x++) sight.Target[y * sight.W + x] = 255;
             }
             foreach (var unit in world.Objects)
-                if (world.AreAllied(unit.Owner, team) && unit.IsUnit && !unit.Destroyed)
+                if (world.AreAllied(unit.Owner, team) && unit.IsUnit && !unit.Destroyed && unit.KillAt < 0)
                     sight.Stamp(unit.CenterX, unit.CenterY, Radius(unit, world.S.agro_distance));
         }
     }
@@ -77,7 +81,11 @@ namespace OpenZ.Sim
                 {
                     if (!IsHumanTeam(team) || (!radarFog && team != CampaignFogTeam)) continue;
                     if (!Objects.Exists(o => o.Owner == team)) continue;
-                    orderSight.Add(team, new OrderSight(this, team));
+                    var state = new OrderSight(this, team);
+                    foreach (var obj in Objects)
+                        if (ZBattleSight.KnownAtStart(obj))
+                            state.LastSeen[obj.Id] = (obj.CenterX, obj.CenterY);
+                    orderSight.Add(team, state);
                 }
             }
             bool refreshSight = Time >= nextOrderSight;
@@ -130,14 +138,22 @@ namespace OpenZ.Sim
             obj != null && orderSight.TryGetValue(team, out var state) &&
             !AreAllied(team, obj.Owner) && !state.Sight.CanSee(obj.CenterX, obj.CenterY);
 
-        internal bool TryFogAttack(Team team, ZWaypoint wp, ZObject target, out (int X, int Y) point)
+        internal bool TryFogAttack(Team team, ZWaypoint wp, ZObject target, out (int X, int Y) point, bool knownOnly = false)
         {
             point = (wp.x, wp.y);
             if (!wp.playerGiven || wp.mode != WpMode.Attack || !orderSight.TryGetValue(team, out var state)) return false;
             if (target != null && !HiddenFromOrders(team, target)) return false;
             if (state.ConfirmedLost.Contains(wp.refId)) return false;
             if (state.LastSeen.TryGetValue(wp.refId, out var remembered)) point = remembered;
+            else if (knownOnly) return false;
             return !state.Sight.CanSee(point.X, point.Y);
+        }
+
+        internal bool TryFogApproach(Team team, ZWaypoint wp, ZObject target)
+        {
+            if (!wp.playerGiven || !orderSight.TryGetValue(team, out var state) ||
+                !state.LastSeen.TryGetValue(wp.refId, out var point)) return false;
+            return !state.Sight.CanSee(point.X, point.Y) && (target == null || HiddenFromOrders(team, target));
         }
 
         internal bool PlayerCanSeeOrderPoint(Team team, int x, int y) =>

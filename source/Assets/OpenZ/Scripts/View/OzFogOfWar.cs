@@ -238,7 +238,7 @@ namespace OpenZ
             for (int i = 0; i < list.Count; i++)
             {
                 var o = list[i];
-                if (o == null || o.Owner != player || o.Destroyed || o.KillAt >= 0) continue;
+                if (o == null || !W.AreAllied(o.Owner, player) || o.Destroyed || o.KillAt >= 0) continue;
                 int r = SightPx(o, agro); if (r <= 0) continue;
                 int key = (((mask.CellY(o.CenterY) << 10) | mask.CellX(o.CenterX)) << 6) | Mathf.Min(63, r / OzFowMask.CellPx);
                 if (!all && lastStamp.TryGetValue(o.Id, out var k0) && k0 == key) continue;

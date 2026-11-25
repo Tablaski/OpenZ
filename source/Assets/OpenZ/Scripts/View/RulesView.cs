@@ -50,7 +50,7 @@ namespace OpenZ
                     var team = (Team)(int)e.value; var old = (Team)e.radius;
                     var g = Static(e.objId); if (g) { var tp = g.GetComponent<TeamPaint>(); if (tp) tp.Team = team; }
                     var p = Ground(e.x, e.y);
-                    if (!FlagView.Active)
+                    if (!FlagView.Active && a != null && OzRadarLoss.Presented(a) == a)
                     {   // FlagView (flags package) owns the capture ring and sounds when present
                         StartCoroutine(Pulse(p, TeamColors.Paint(team)));
                         au?.Play("flag", p, 0.9f, 0.2f, e.objId, "flag-capture-1", "v3-capture-raise");
@@ -155,7 +155,7 @@ namespace OpenZ
         /// others = rubble with Zod's 8-10 (factory) / 6-8 (repair) / 4-6 (radar) explosions over ~2-3 s.</summary>
         public void BuildingDeath(ZObject o, Vector3 p)
         {
-            if (!o.IsFort && OzFogOfWar.Covers(o))
+            if (OzFogOfWar.Covers(o) && (!o.IsFort || !game.World.GameOver && game.World.HasIndividualDefeatSequence))
             {
                 if (o.IsBridge) SetBridge(o, 2, false);
                 else

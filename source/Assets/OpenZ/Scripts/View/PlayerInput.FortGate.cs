@@ -79,9 +79,10 @@ namespace OpenZ
             }
             if (!(h == null || Scenery(h)) || !GateMovers()) return h;
             if (gateFortsOf != W) { gateForts.Clear(); foreach (var o in W.Objects) if (o.IsFort) gateForts.Add(o); gateFortsOf = W; }
-            foreach (var f in gateForts)
+            foreach (var live in gateForts)
             {
-                if (!f.CanEnterFort(game.player) || OzFogOfWar.Covers(f)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no ENTER cursor or order on a fort the fog hides
+                var f = OzRadarLoss.Presented(live);
+                if (!f.CanEnterFort(game.player) || f == live && OzFogOfWar.Covers(f)) continue;   // 1.4 fog_hover_leak (View/OzFogOfWar.cs Covers): no ENTER cursor or order on a fort the fog hides
                 if ((!FortTightOn && ground && GroundGate(f, px.x, px.y)) || DoorBox(f, ray)) { fortPartOf = f; fortPart = FortPart.Gate; GateHoverFrames++; return f; }   // 1.5 N21: the bare ground round the gate is no longer the fort (only its door's own picture)
             }
             return h;

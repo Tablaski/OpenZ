@@ -281,19 +281,20 @@ namespace OpenZ
             // but the model is drawn up to ~2 m off it (UnitView spacing offset + eased display, bridge decks, knock pushes), so a click on
             // the drawn robot / vehicle missed (squad members spread out, a lone robot and some vehicles unselectable, an enemy tank with the
             // GO cursor): units are picked where they are DRAWN; (3 + 22) vehicles / guns / buildings get a tight box from their real mesh
-            if (o.IsUnit && game.Views.TryGetValue(o.Id, out var uv) && uv && uv.gameObject.activeInHierarchy)
+            bool remembered = W.Get(o.Id) != o;
+            if (!remembered && o.IsUnit && game.Views.TryGetValue(o.Id, out var uv) && uv && uv.gameObject.activeInHierarchy)
             {
                 if (o.Kind != ZKind.Robot && MeshRect(o, out var mr)) return MinSize(Grow(mr, 3f * UiK), 22f * UiK);
                 float rad = o.Kind == ZKind.Robot ? 0.6f * OzHeroSquadView.Tall(o) : o.Kind == ZKind.Cannon ? 1.3f : 1.6f, hh = o.Kind == ZKind.Robot ? 1.85f * OzHeroSquadView.Tall(o) : 2.2f;   // KC4b: a hero's size
                 return MinSize(BoxRect(c, uv.transform.position, rad, hh), (o.Kind == ZKind.Robot ? 16f : 22f) * UiK);
             }
-            if (o.Kind == ZKind.Building && MeshRect(o, out var br)) return br;
+            if (!remembered && o.Kind == ZKind.Building && MeshRect(o, out var br)) return br;
             if (o.Type == ZWorld.DetailPropType && DetailPropHub.OfSim(o.Id) is DetailProp dp && dp && !dp.Broken)   // DV67: picked where the prop is drawn, its own height
                 return MinSize(BoxRect(c, dp.Foot, Mathf.Max(0.5f, dp.hitRadius), Mathf.Max(1f, dp.hitHeight)), 18f * UiK);
             float h = o.Kind == ZKind.Robot ? 1.8f : o.Kind == ZKind.Building ? 6f : o.Kind == ZKind.MapItem ? (o.Type == "hut" || o.Type.StartsWith("map_object", System.StringComparison.Ordinal) ? 2.2f : 1.2f) : 2.2f;   // ZF4: base-prop huts / cacti / blocks stand ~2 m; 1.5 issue 8: ordinal prefix
             var a = ZGame.PxToWorld(o.PosX, o.PosY); var b = ZGame.PxToWorld(o.PosX + o.WidthPix, o.PosY + o.HeightPix);
             float gy = game.GroundY((a.x + b.x) * 0.5f, (a.z + b.z) * 0.5f);
-            if (o.Kind == ZKind.Cannon && game.Views.TryGetValue(o.Id, out var tv) && tv && tv.OnTower)
+            if (!remembered && o.Kind == ZKind.Cannon && game.Views.TryGetValue(o.Id, out var tv) && tv && tv.OnTower)
             {   // crews_v2: a fort tower gun is drawn on its tower top (TowerMounts), ~9 m up and up to 3.7 m from its sim footprint:
                 // select / target / EXIT-test it where it is drawn
                 var d = tv.transform.position - (a + b) * 0.5f; d.y = 0f; a += d; b += d; gy = tv.transform.position.y;
@@ -671,9 +672,11 @@ namespace OpenZ
                         continue;
                     }
                 }
-                var o = objects[i];
+                var live = objects[i];
+                var o = OzRadarLoss.Presented(live);
+                bool remembered = o != live;
                 if ((o.Destroyed && o.Kind != ZKind.Building) || (o.IsMinion && o.Owner == game.player && !BothSides)) continue;   // DV16: an ENEMY squad member is a target (Zod hovers minions too); only our own minions are skipped; 1.2 item 6: in the playground every member (both teams pick)
-                if (OzFogOfWar.Covers(o)) continue;                                                        // 1.4 FOG OF WAR: nothing of another side in ground not explored yet is hovered or clicked (View/OzFogOfWar.cs); always false with the fog off
+                if (!remembered && OzFogOfWar.Covers(o)) continue;
                 if (o.BlockTiles != null && W.IsTreeTile(o) && (Mathf.Abs((o.LocX >> 4) - treeX) > 8 || Mathf.Abs((o.LocY >> 4) - treeY) > 8)) continue;   // DV88: a tree more than 8 tiles from the pointer cannot be under it (its pick box is at most 4.5 m high): no pick box is worked out for it
                 // target only when explicitly ordered (Ctrl held = attack)
                 if (o.IsBridge && !forceBridge && !(craneSel && o.Destroyed)) continue;
@@ -682,8 +685,17 @@ namespace OpenZ
                                    o.Type == "hut" || o.Type.StartsWith("map_object", System.StringComparison.Ordinal) /* 1.5 issue 8: ordinal, the same answer for the ASCII type names without the culture lookup a frame per object */ || /* ZF4 / BP3: huts (base props), cacti, boulders, blocks: Zod hovers every object (zplayer_events.cpp:129-141) */
                                    ((o.Kind == ZKind.Robot || o.Kind == ZKind.Vehicle || o.Kind == ZKind.Cannon) && (BothSides || o.Owner != game.player)) ||   /* 1.2 item 6: every unit in the playground */
                                    (robotSel && o.Owner == game.player && o.CanTakePassengers(game.player));   // (11): an own APC with room
-                if (interesting && !(far && HoverFar(o, mp)) && ScreenRect(o).Contains(mp)) { if (o.IsUnit && !o.Destroyed) hu = o; else h = o; }   // 1.3 item 39: an object whose pick box cannot reach the pointer is not asked for it
+                if (interesting && !(far && !remembered && HoverFar(o, mp)) && ScreenRect(o).Contains(mp)) { if (o.IsUnit && !o.Destroyed) hu = o; else h = o; }   // 1.3 item 39: an object whose pick box cannot reach the pointer is not asked for it
             }
+            var memory = OzRadarLoss.I;
+            if (memory && memory.ShowsMemory)
+                foreach (var entry in memory.Contacts)
+                {
+                    if (world.Get(entry.Key) != null || !memory.TryKnownObject(entry.Key, out var item) ||
+                        item.Destroyed || !ScreenRect(item).Contains(mp)) continue;
+                    if (item.IsUnit) hu = item;
+                    else h = item;
+                }
             h = OzUeBoxes.Pick(Cam, mp, h);                                                              // 1.5 ue_boxes: the Unit editor's box on its level (View/OzUeObstacleView.Box.cs); h unchanged in every level
             return hu ?? h ?? OzUeHooks.PlatformUnder(mp);                                               // 1.3 the Unit editor: with Ctrl held the ramp platform under the pointer is the target (View/OzUeHooks.cs); null in every level
         }
@@ -725,10 +737,23 @@ namespace OpenZ
             // zplayer.cpp:2746-2881 special rows
             // orders never divert to fight on the way (Zod's attackTo diversion hijacked them, zobject.cpp:2561/2645)
             if (u.CanBeRepaired() && h.CanRepairUnit(u.Owner)) { wp.mode = WpMode.UnitRepair; wp.attackTo = false; wp.x = h.CenterX - 8; wp.y = h.CenterY; return wp; }
-            if (u.Type == "crane" && h.CanBeRepairedByCrane(u.Owner) && h.GetCraneCenter(out int kx, out int ky)) { wp.mode = WpMode.CraneRepair; wp.attackTo = false; wp.x = kx; wp.y = ky; return wp; }
+            if (u.Type == "crane" && h.CanBeRepairedByCrane(u.Owner) && h.GetCraneCenter(out int kx, out int ky)) {
+                wp.mode = WpMode.CraneRepair; wp.attackTo = false; wp.x = kx; wp.y = ky;
+                if (W.Get(h.Id) != h && h.GetCraneEntrance(out int ax, out int ay, out int bx, out int by))
+                {
+                    bool first = (new Vector2(ax - u.CenterX, ay - u.CenterY)).sqrMagnitude <=
+                        (new Vector2(bx - u.CenterX, by - u.CenterY)).sqrMagnitude;
+                    wp.x = first ? ax : bx; wp.y = first ? ay : by;
+                }
+                return wp;
+            }
             if (ctrl && !notOurs && h.Owner != u.Owner && !h.Destroyed && (h.IsUnit || h.Kind == ZKind.Building))
                 return new ZWaypoint { mode = WpMode.None };
-            if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && FortEnterClick(h, x, y, ctrl)) { wp.mode = WpMode.EnterFort; wp.attackTo = false; return wp; }   // 1.4: Zod's door, the gate zone, the fort's body without Ctrl (View/PlayerInput.FortGate.cs)
+            if ((u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) && h.CanEnterFort(u.Owner) && FortEnterClick(h, x, y, ctrl)) {
+                wp.mode = WpMode.EnterFort; wp.attackTo = false;
+                if (W.Get(h.Id) != h && h.GetCreationMovePoint(out int ex, out int ey)) { wp.x = ex; wp.y = ey; }
+                return wp;
+            }   // 1.4: Zod's door, the gate zone, the fort's body without Ctrl (View/PlayerInput.FortGate.cs)
             if (h.Destroyed) { wp.refId = -1; return wp; }                                     // rubble: just move there
             // captures it, as in Zod); only Ctrl (force attack) attacks it
             if ((h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrl) || OzUeHooks.PlainObstacleClick(h, ctrl)) { wp.refId = -1; W.BoxClickPoint(h, ref wp.x, ref wp.y); return wp; }   // 1.2 item 6: the playground's holo obstacle too (Ctrl attacks it)

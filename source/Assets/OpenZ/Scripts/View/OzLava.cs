@@ -92,6 +92,10 @@ namespace OpenZ
         void BuildSheet()
         {
             int W = map.width, H = map.height; TilesDrawn = 0;                                             // (a static: a second level start counts afresh)
+            var bridgeLava = map.aiMap && map.planet == "volcanic" && Experimental.OzAiTerrainV5.Active &&
+                Experimental.OzAiTerrainV4.Active(map.planet) ? Experimental.OzAiTerrainV5.VolcanicBridgeLava(map) : null;
+            int SurfaceKind(int x, int y) => bridgeLava != null && x >= 0 && x < W && y >= 0 && y < H
+                ? Mathf.Max(map.LavaKind(x, y), bridgeLava[y * W + x]) : map.LavaKind(x, y);
             // Generated slopes reach further into their basins than the authored L07 banks.
             float shoreOverlap = OzVolcanic.Is(game.level) ? edgeGrow : .85f;
             var index = new Dictionary<int, int>(); var verts = new List<Vector3>(); var cols = new List<Color>(); var tris = new List<int>();
@@ -104,7 +108,7 @@ namespace OpenZ
                 for (int dy = -1; dy <= 0; dy++)
                     for (int dx = -1; dx <= 0; dx++)
                     {
-                        int k = map.LavaKind(cx + dx, cy + dy);
+                        int k = SurfaceKind(cx + dx, cy + dy);
                         var toCorner = new Vector2(-(dx * 2 + 1), -(dy * 2 + 1));                        // tile centre -> corner, tile units
                         if (k > 0) { lava++; away += toCorner; }
                         if (k == 2) hot++;
@@ -117,7 +121,7 @@ namespace OpenZ
             for (int ty = 0; ty < H; ty++)
                 for (int tx = 0; tx < W; tx++)
                 {
-                    if (!map.LavaAt(tx, ty)) continue;
+                    if (SurfaceKind(tx, ty) == 0) continue;
                     int v00 = Corner(tx, ty), v10 = Corner(tx + 1, ty), v01 = Corner(tx, ty + 1), v11 = Corner(tx + 1, ty + 1);
                     tris.Add(v00); tris.Add(v10); tris.Add(v11);                                         // clockwise seen from above (front face up)
                     tris.Add(v00); tris.Add(v11); tris.Add(v01);
@@ -138,11 +142,11 @@ namespace OpenZ
                 if (!sh) { Debug.LogWarning("[OpenZ] lava: shader OpenZ/Lava missing (run OpenZ/L07 Lava/Make lava material)"); sh = Shader.Find("Universal Render Pipeline/Unlit"); }
                 mat = new Material(sh) { name = "M_L07_Lava" };
             }
-            mr.sharedMaterial = OzVolcanic.Is(game.level) ? mat : MaterialForGrid(mat);
+            mr.sharedMaterial = OzVolcanic.Is(game.level) ? mat : MaterialForGrid(mat, SurfaceKind);
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = true;
         }
 
-        Material MaterialForGrid(Material baseMaterial)
+        Material MaterialForGrid(Material baseMaterial, System.Func<int, int, int> surfaceKind)
         {
             // Preserve the real lava textures and derive flow and bank distance from this map.
             const int pixelsPerTile = 4;
@@ -157,7 +161,7 @@ namespace OpenZ
                 for (int dy = -1; dy <= 1; dy++)
                 for (int dx = -1; dx <= 1; dx++)
                 {
-                    if (map.LavaAt(ix + dx, iy + dy)) continue;
+                    if (surfaceKind(ix + dx, iy + dy) > 0) continue;
                     float a = Mathf.Max(0, Mathf.Abs(tx - (ix + dx + .5f)) - .5f);
                     float b = Mathf.Max(0, Mathf.Abs(ty - (iy + dy + .5f)) - .5f);
                     bank = Mathf.Min(bank, Mathf.Sqrt(a * a + b * b) * 2);

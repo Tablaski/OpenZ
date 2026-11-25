@@ -265,6 +265,8 @@ namespace OpenZ.Experimental
             {
                 float drift = Mathf.PerlinNoise((x + z * .52f) * .16f, z * .049f);
                 baseHeight += drift * drift * .52f * (1 - road) * (1 - wet);
+                // The ramp toes and corner bases seat at road grade, below the snow drifts.
+                baseHeight *= 1 - shoulderClearance;
                 elevation = Mathf.Lerp(3.6f, 6.4f, hummock);
                 elevation += Mathf.SmoothStep(0, 1, (outside - 5) / 18)
                     * (2 + Mathf.PerlinNoise(x * .034f + 57, z * .046f) * 13);

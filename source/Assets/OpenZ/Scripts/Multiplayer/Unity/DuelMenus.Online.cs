@@ -5,6 +5,7 @@ using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using SetupPanel = OpenZ.Multiplayer.DuelRuntime.SetupPanel;
 
 namespace OpenZ.Multiplayer
 {
@@ -730,7 +731,7 @@ namespace OpenZ.Multiplayer
             var followed = FollowingHost && displayedSetup?.Panel == SetupPanel.ActivePlayers ? displayedSetup : null;
             var members = room != null
                 ? room.Members.Select(member => (member.Id, member.Name, member.Alliance, Host: member.Id == room.HostId,
-                    Playing: onlineActives.Contains(member.Id))).ToArray()
+                    Playing: editable ? onlineActives.Contains(member.Id) : member.Seat.Role != MatchSeatRole.Observer)).ToArray()
                 : R.JoinedRoom.Humans.Select((member, index) => (Id: "", member.Name, member.Alliance, member.Host,
                     Playing: followed != null && index < 32 ? (followed.ActivePlayers & (1 << index)) != 0 : !member.Observer)).ToArray();
             var panel = OnlineDialog("CHOOSE WHO PLAYS", 340, 222, 1240, 630, "BACK TO GALLERY",

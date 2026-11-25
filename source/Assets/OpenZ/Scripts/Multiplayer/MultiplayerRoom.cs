@@ -366,6 +366,7 @@ namespace OpenZ.Multiplayer
 
         public void SwapForts(string sender, int source, int destination)
         {
+            RequireHostSetup(sender);
             if (source == destination || source < 0 || destination < 0 || source >= Starts || destination >= Starts ||
                 closed.Contains(source) || closed.Contains(destination)) return;
             RemapStartingSides(sender, position => position == source ? destination : position == destination ? source : position);

@@ -51,7 +51,7 @@ namespace OpenZ.Multiplayer
         public int Id { get; }
         public int Epoch => Volatile.Read(ref epoch);
         public bool IsHost => Id == 1;
-        internal DuelTcpPeer TcpPeer { get; }
+        internal DuelTcpPeer TcpPeer { get; private set; }
         public string Route => TcpPeer != null ? "TCP" : Volatile.Read(ref useSfu) ? "SFU" :
             Remotes.Any(link => link.Ready && link.Rtc?.UsesRelay == true) ? "TURN" : "DIRECT";
         public Link[] Remotes => Volatile.Read(ref remotes);
@@ -81,8 +81,16 @@ namespace OpenZ.Multiplayer
             TcpPeer = tcp;
             Id = host ? 1 : 2;
             stop = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-            epoch = 1;
-            remotes = new[] { new Link(this, new SkirmishSignal.Member { id = host ? 2 : 1, name = tcp.RemoteName }) };
+            AttachTcp(tcp);
+        }
+
+        internal void AttachTcp(DuelTcpPeer tcp)
+        {
+            if (TcpPeer != tcp) TcpPeer?.Dispose();
+            TcpPeer = tcp;
+            Interlocked.Increment(ref epoch);
+            Volatile.Write(ref remotes, new[] { new Link(this, new SkirmishSignal.Member
+                { id = IsHost ? 2 : 1, name = tcp.RemoteName }) });
         }
 
         public async Task Start(Uri address)

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading.Tasks;
 using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -283,6 +286,8 @@ namespace OpenZ.Multiplayer
                     ListenForTcpGuest();
                     Menus.Refresh();
                 }
+                else if (transport.TcpPeer != null && Playing && Game && !Game.World.GameOver)
+                    RecoverRoomTcp(transport);
                 else Fail(transport.Failure ?? "The room connection closed.");
                 return;
             }
@@ -301,7 +306,7 @@ namespace OpenZ.Multiplayer
                 motionHistory.Reset();
                 roomRetuneAt = Now + 1;
                 Status = transport.Route == "TCP" ? "Connected / TCP" : transport.Route == "SFU" ? "Preparing the relay…" : "Preparing direct connections…";
-                if (roomEpoch > 1) Menus.NotifyChat(transport.Route == "SFU" ?
+                if (roomEpoch > 1) Menus.NotifyChat(transport.Route == "TCP" ? "TCP connection restored." : transport.Route == "SFU" ?
                     "Switching to the Cloudflare relay…" : "Switching to peer-to-peer connections…");
                 Menus.Refresh();
                 return;
@@ -367,6 +372,47 @@ namespace OpenZ.Multiplayer
                 RecordPerformanceFrame();
                 if (!IsHost) ReceiveBudgetMs = Time.unscaledDeltaTime > .025f ? 2 : QueuedReceiveBytes > 32 * 1024 ? 5 : DefaultReceiveBudgetMs;
             }
+        }
+
+        void RecoverRoomTcp(SkirmishOnline transport)
+        {
+            if (!ConnectionInterrupted)
+            {
+                connectionDeadline = Now + 30;
+                if (IsHost && activeRoomVote != 0) FinishRoomVote(MapChangeResult.Refuse);
+                Menus.ShowConnectionInterrupted();
+            }
+            if (Now >= connectionDeadline) { LeaveInterruptedMatch(); return; }
+            if (recoveryTask == null)
+            {
+                if (Now < retryRecoveryAt) return;
+                try
+                {
+                    if (IsHost)
+                    {
+                        listener = new TcpListener(IPAddress.Any, TcpPort);
+                        listener.Start(1);
+                        recoveryTask = AcceptTcp(listener, secret, Fingerprint(), cancellation.Token);
+                    }
+                    else recoveryTask = ConnectTcp(reconnectTcpAddress, TcpPort, localName);
+                }
+                catch (SocketException) { retryRecoveryAt = Now + .75; }
+                return;
+            }
+            if (!recoveryTask.IsCompleted) return;
+            var completed = recoveryTask;
+            recoveryTask = null;
+            listener?.Stop();
+            listener = null;
+            if (completed.Status != TaskStatus.RanToCompletion || completed.Result is not DuelTcpPeer tcp)
+            {
+                _ = completed.Exception;
+                retryRecoveryAt = Now + .75;
+                return;
+            }
+            transport.AttachTcp(tcp);
+            connectionDeadline = -1;
+            Menus.CloseOverlay();
         }
 
         void RecordRoomMotion(long arrival)
@@ -727,7 +773,7 @@ namespace OpenZ.Multiplayer
 
         void DriveRoom(ZGame game, bool advance = true)
         {
-            if (!IsHost || roomEpoch != RoomTransport.Epoch) return;
+            if (!IsHost || RoomTransport.Closed || roomEpoch != RoomTransport.Epoch) return;
             var links = RoomTransport.Remotes;
             if (room.Members.Count(member => member.Id != RoomHostId && !roomDeparted.Contains(int.Parse(member.Id))) != roomLinks.Count ||
                 links.Any(link => roomLinks.ContainsKey(link.Id) && !link.Ready)) return;

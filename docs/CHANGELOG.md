@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.86 (25 Nov 2026)
+
+- Solo — The original OpenZ-VK Arctic map now appears as Chilly Willy V2 so you can tell it apart from the campaign map.
+
 ## OpenZ-VK 1.5.85 (25 Nov 2026)
 
 - Online lobby — Follow the host as they set up the match. A cyan marker shows where the host points and clicks while you use the chat. Turn off Follow Host or open another setup panel to browse the official settings in read-only mode.

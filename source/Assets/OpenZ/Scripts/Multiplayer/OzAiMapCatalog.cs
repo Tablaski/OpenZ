@@ -36,7 +36,7 @@ namespace OpenZ
             new OzAiMap("SM02V2", "Desert", "desert", "p02_bb_orig02.map", 2, true, false, false, false)
         };
         public static readonly OzAiMap ChillyWillyV2 = new OzAiMap(
-            "SMChillyWillyV2", "Chilly Willy", "arctic", "vk_chilly_willy.map", 0, true, false, false, false, forkOriginal: true);
+            "SMChillyWillyV2", "Chilly Willy V2", "arctic", "vk_chilly_willy.map", 0, true, false, false, false, forkOriginal: true);
         public static OzAiMap ThreePlayerSkirmish => Find("SMP03M01");
         public static IEnumerable<OzAiMap> V2 => LandV2.Concat(VolcanicV2).Append(ChillyWillyV2);
         public static IEnumerable<OzAiMap> Playable => All.Append(ChillyWillyV2);

@@ -2,9 +2,14 @@
 
 OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring back the combat feel and advanced tactics of the original 1996 Z with help from experienced players.
 
-Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. Ghost spectators can watch an online match with a free camera or switch directly to a player's point of view.
+Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. When fog is active, teammates share battlefield vision and last-known information. Ghost spectators can watch an online match with a free camera or switch directly to a player's point of view.
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
+
+## OpenZ-VK 1.5.75 (25 Nov 2026)
+
+- Solo + 1 vs 1 — With fog active, forts, buildings, rocks, flags and the map's starting empty tanks and guns retain their normal appearance and can still be used to plan opening orders. Bridges show the condition set by the map.
+- Solo + 1 vs 1 — Buildings keep their last known appearance in the fog. Damage, destruction and repairs become visible when friendly units scout the area or radar coverage updates it. In team games, teammates' units and radars contribute to the same battlefield picture.
 
 ## OpenZ-VK 1.5.74 (25 Nov 2026)
 

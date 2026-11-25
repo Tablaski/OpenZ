@@ -120,10 +120,12 @@ namespace OpenZ
                     mapHasRadar = ZBattleSight.MapHasRadar(game.World.Map);
                 }
                 bool newWorld = world != game.World;
+                bool sameAlliance = !newWorld && seat != Team.Neutral && vision != Team.Neutral && world.AreAllied(seat, vision);
                 world = game.World; seat = vision;
                 rules = game.GetComponent<RulesView>();
                 Sight = null;
-                ClearContacts(); knownRadars.Clear();
+                if (!sameAlliance) ClearContacts();
+                knownRadars.Clear();
                 nextContacts = -1;
                 nextSight = -1;
                 if (newWorld && seat != Team.Neutral && (game.IsMayhem || mapHasRadar && ZBattleSight.RadarFog(RuleFor(world))))
@@ -254,6 +256,8 @@ namespace OpenZ
                 if (mapStart && !ZBattleSight.KnownAtStart(obj)) continue;
                 game.StaticViews.TryGetValue(obj.Id, out var view);
                 if (obj.IsBridge && rules) view = rules.ActiveBridgeModel(obj.Id);
+                else if (obj.Destroyed && view && view.TryGetComponent<BuildingBreaker>(out var breaker) && breaker.FogRuinModel)
+                    view = breaker.FogRuinModel;
                 RecordContact(obj, obj.Type == "flag" ? null : view, mapStart);
             }
             if (mapStart) return;

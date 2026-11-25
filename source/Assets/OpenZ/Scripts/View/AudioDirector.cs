@@ -1702,8 +1702,9 @@ namespace OpenZ
             {
                 burning.Remove(a.Id); StopLoop("fire:" + a.Id, 0.8f);                                       // the fire loop ran on for 30 s after a rebuild
                 var fc = game.CenterWorld(a);
-                OpenZVoiceV3.FireOut(fc, a.Owner == Player || OnScreen(fc, 0.3f));
+                if (!OzFogOfWar.Covers(a)) OpenZVoiceV3.FireOut(fc, a.Owner == Player || OnScreen(fc, 0.3f));
             }
+            if (OzFogOfWar.Covers(a)) return;
             if (!a.IsBridge) Play("bld_building_revived", game.CenterWorld(a), a.Id);
             var c = game.CenterWorld(a);
             if (a.IsBridge)

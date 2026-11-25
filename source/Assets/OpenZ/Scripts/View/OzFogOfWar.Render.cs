@@ -614,21 +614,32 @@ namespace OpenZ
                     var obj = W.GetAny(entry.Key);
                     if (!Covers(obj)) continue;
                     var sceneObject = obj?.IsBridge == true && rules ? rules.ActiveBridgeModel(entry.Key) : entry.Value;
-                    if (!sceneObject) continue;
-                    int id = sceneObject.GetInstanceID();
-                    if (!rcache.TryGetValue(id, out var cache)) rcache[id] = cache = new RCache();
-                    if (cache.at < 0 || now - cache.at > 1f && refreshed < 3)
-                    {
-                        sceneObject.GetComponentsInChildren(true, cache.list);
-                        cache.at = now;
-                        refreshed++;
-                    }
-                    foreach (var renderer in cache.list)
-                        if (renderer && !renderer.forceRenderingOff) { renderer.forceRenderingOff = true; hiddenNow.Add(renderer); }
+                    HideStaticView(sceneObject, now, ref refreshed);
+                    if (sceneObject && sceneObject.TryGetComponent<BuildingBreaker>(out var breaker))
+                        HideStaticView(breaker.FogDebrisModel, now, ref refreshed);
                 }
             }
             HiddenViews = nv; HiddenRenderers = hiddenNow.Count; HiddenSkippedOutside = outside;
             EarlyViews = EarlyShadowsHeld = 0;
+        }
+
+        void HideStaticView(GameObject view, float now, ref int refreshed)
+        {
+            if (!view) return;
+            int id = view.GetInstanceID();
+            if (!rcache.TryGetValue(id, out var cache)) rcache[id] = cache = new RCache();
+            if (cache.at < 0 || now - cache.at > 1f && refreshed < 3)
+            {
+                view.GetComponentsInChildren(true, cache.list);
+                cache.at = now;
+                refreshed++;
+            }
+            foreach (var renderer in cache.list)
+                if (renderer && !renderer.forceRenderingOff)
+                {
+                    renderer.forceRenderingOff = true;
+                    hiddenNow.Add(renderer);
+                }
         }
 
         void RestoreHidden()

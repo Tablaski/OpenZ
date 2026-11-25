@@ -113,6 +113,9 @@ namespace OpenZ
             prepared = true;
         }
 
+        internal GameObject FogRuinModel => ruinGo && ruinGo.activeInHierarchy ? ruinGo : null;
+        internal GameObject FogDebrisModel => collapsed ? (holder ? holder : fracture) : null;
+
         /// <summary>The ruin model and the big parts (inactive until the collapse), placed exactly on the main model renderer.</summary>
         void BuildRuinObjects()
         {

@@ -113,9 +113,10 @@ namespace OpenZ
                         {
                             var g = Static(a.Id); var br = g ? g.GetComponent<BuildingBreaker>() : null; bool was = br && br.Collapsed;
                             if (br) br.Restore();
-                            if (g && was && OzBuildingRestore.Begin(game, a, g)) { }
-                            else if (g && was && RiseOnRestore) StartCoroutine(RiseUp(a, g.transform));
+                            if (g && was && !OzFogOfWar.Covers(a) && !OzBuildingRestore.Begin(game, a, g) && RiseOnRestore)
+                                StartCoroutine(RiseUp(a, g.transform));
                         }
+                        if (OzFogOfWar.Covers(a)) break;
                         var p = game.CenterWorld(a); if (!(a.IsBridge && OzBridgeRestore.Active) && !OzBuildingRestore.Running(a.Id)) fx?.Pop(p + Vector3.up * 2, 1.2f);   // 1.5 kit bridge_restore_r3: no round puff over the bridge
                         if (!AudioDirector.Has("bld_building_revived")) au?.Play("revived", p, 0.8f, 0, a.Id, "v3-capture-raise");
                     }
@@ -231,19 +232,21 @@ namespace OpenZ
         readonly Dictionary<int, GameObject[]> bridgeVariants = new Dictionary<int, GameObject[]>();
         readonly Dictionary<int, int> bridgeState = new Dictionary<int, int>();
         static readonly string[] BridgeStates = { "intact", "damaged", "destroyed" };
-        string BridgeBiome => game.World.Map.planet switch
-        {
-            "city" => "city",
-            "jungle" => "jungle",
-            "arctic" when game.Prefab("Z_bridge_arctic_intact") => "arctic",
-            _ => "desert"
-        };
-
         GameObject BridgePrefab(ZObject bridge, string stage)
         {
             if (!game.World.Map.aiMap)
                 return OzBridgeKit.Prefab(game, bridge, stage);
-            string name = $"Z_bridge_{BridgeBiome}_{stage}";
+            var placed = Static(bridge.Id);
+            string kit = game.World.Map.planet switch
+            {
+                "city" => "city",
+                "jungle" => "jungle",
+                // Older Arctic scenes use the stone-ramp bridge. The newer kit has
+                // named ramp pieces at its root, including on its destroyed model.
+                "arctic" when placed && placed.transform.Find("Approach ramp") => "arctic",
+                _ => "desert"
+            };
+            string name = $"Z_bridge_{kit}_{stage}";
             var prefab = game.Prefab(name);
             return prefab ? prefab : Experimental.OzAiBridgeKit.Find(name);
         }

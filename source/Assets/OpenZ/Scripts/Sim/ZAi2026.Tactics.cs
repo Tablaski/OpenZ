@@ -25,8 +25,7 @@ namespace OpenZ.Sim
                         var threat = world.Get(withdrawal.Enemy);
                         if (threat == null || !enemies.Contains(threat)) return true;
                         if (skilled && unit.WithinAttackRadius(threat) && SafeShot(unit, threat) &&
-                            Engagement(unit, threat) >= tuning.ReengageRatio &&
-                            HasFireSupport(unit, threat))
+                            HasFireSupport(unit, threat) && Engagement(unit, threat) >= tuning.ReengageRatio)
                             return StandAndFight(unit, threat);
                         if (CanStandAndFight(unit, threat) && !CanOpenGap(unit, threat))
                             return StandAndFight(unit, threat);
@@ -75,7 +74,8 @@ namespace OpenZ.Sim
             foreach (var enemy in enemies)
             {
                 if (!enemy.IsUnit || !unit.CanAttackObject(enemy) || !SafeShot(unit, enemy) ||
-                    UnsupportedRobotChase(unit, enemy) && !enemy.WithinAttackRadius(unit)) continue;
+                    UnsupportedRobotChase(unit, enemy) &&
+                    (tuning.WithdrawalChance == 0 || !enemy.WithinAttackRadius(unit))) continue;
                 double d = ZAiGeometry.Distance(unit, enemy);
                 if (d >= distance) continue;
                 closest = enemy;
@@ -197,7 +197,7 @@ namespace OpenZ.Sim
         bool BackOut(ZObject unit, ZObject threat)
         {
             bool close = ZAiGeometry.Distance(unit, threat) <= threat.RangeTo(unit) + 36;
-            if (!(close && TryRetreat(unit, threat, true)))
+            if (!(close && tuning.WithdrawalChance > 0 && TryRetreat(unit, threat, true)))
             {
                 if (close && CanStandAndFight(unit, threat)) return StandAndFight(unit, threat);
                 if (unit.Waypoints.Count == 0 ||
@@ -258,7 +258,7 @@ namespace OpenZ.Sim
 
         bool ProvidesFireSupport(ZObject ally, ZObject unit, ZObject threat) =>
             ally != unit && !ally.Stunned && ally.CanAttackObject(threat) &&
-            (ally.AttackObject == null || ally.AttackObject == threat);
+            (ally.AttackObject == null || ally.AttackObject == threat) && SafeShot(ally, threat);
 
         bool HasFireSupport(ZObject unit, ZObject threat)
         {

@@ -171,8 +171,8 @@ namespace OpenZ.Multiplayer
                         frame[i] = Mathf.Clamp(frame[i] / channels * gain, -1, 1); peak = Mathf.Max(peak, Mathf.Abs(frame[i]));
                     }
                     double now = Time.realtimeSinceStartupAsDouble;
-                    if (skirmish != null && peak >= .015f) roomVoiceUntil = now + .20;
-                    if (talking && (skirmish == null || now < roomVoiceUntil) && Send(1, DuelVoiceCodec.Encode(frame)))
+                    if (r.SkirmishRoom && peak >= .015f) roomVoiceUntil = now + .20;
+                    if (talking && (!r.SkirmishRoom || now < roomVoiceUntil) && Send(1, DuelVoiceCodec.Encode(frame)))
                         transmitUntil = Time.realtimeSinceStartupAsDouble + .15;
                     readPosition = (readPosition + frame.Length) % microphone.samples; available -= frame.Length;
                 }

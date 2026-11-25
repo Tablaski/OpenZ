@@ -12,8 +12,6 @@ namespace OpenZ.Multiplayer
     {
         const string FollowHostPreference = "oz_duel_follow_host";
         bool followHost, followPaused;
-        bool browseOnlineTeams;
-        float onlineTeamsScroll = 1;
         float onlineProfileScroll = 1;
         float onlinePresetScroll = 1;
         float onlineRosterPosition = 1;
@@ -33,8 +31,8 @@ namespace OpenZ.Multiplayer
         void ResetSetupFollow()
         {
             followHost = PlayerPrefs.GetInt(FollowHostPreference, 1) != 0;
-            followPaused = browseOnlineTeams = false;
-            onlineTeamsScroll = onlineProfileScroll = onlinePresetScroll = onlineRosterPosition = 1;
+            followPaused = false;
+            onlineProfileScroll = onlinePresetScroll = onlineRosterPosition = 1;
             nextSetupSampleAt = 0;
             displayedSetup = null;
             observedSetupClick = setupClick = 0;
@@ -95,8 +93,6 @@ namespace OpenZ.Multiplayer
             roomCustomUnits = view.Panel == SetupPanel.AllowedUnits;
             roomPresets = view.Panel == SetupPanel.Presets;
             combatDropdown = view.Panel == SetupPanel.CombatProfiles;
-            browseOnlineTeams = view.Panel == SetupPanel.Teams;
-            if (browseOnlineTeams) onlineTeamsScroll = view.Scroll / SetupView.ScrollScale;
             if (combatDropdown) onlineProfileScroll = view.Scroll / SetupView.ScrollScale;
             if (roomPresets) onlinePresetScroll = view.Scroll / SetupView.ScrollScale;
             if (view.Panel == SetupPanel.Position)
@@ -173,13 +169,13 @@ namespace OpenZ.Multiplayer
                 OnlinePopup.Units => SetupPanel.Units,
                 OnlinePopup.AiHelp => SetupPanel.AiHelp,
                 _ => roomCustomUnits ? SetupPanel.AllowedUnits : roomPresets ? SetupPanel.Presets :
-                    combatDropdown ? SetupPanel.CombatProfiles : onlineTeams != null ? SetupPanel.Teams :
+                    combatDropdown ? SetupPanel.CombatProfiles :
                     positionMenu ? SetupPanel.Position : SetupPanel.Rules
             };
             var mouse = Mouse.current;
             Vector2 point = default;
             bool privatePanel = onlinePlayerMenu != null && !positionMenu || roomModeration != null || OzConfirm.Blocks ||
-                onlinePopup == OnlinePopup.Invite || onlinePopup == OnlinePopup.Connection;
+                onlinePopup == OnlinePopup.Invite || onlinePopup == OnlinePopup.Connection || onlinePopup == OnlinePopup.Versions;
             bool pointer = Application.isFocused && !privatePanel && mouse != null &&
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(root, mouse.position.ReadValue(), null, out point);
             point -= new Vector2(root.rect.xMin, root.rect.yMax);
@@ -224,13 +220,6 @@ namespace OpenZ.Multiplayer
             {
                 view.AiIdle = onlineAiIdle;
                 view.AiCapture = onlineAiCapture;
-            }
-            else if (panel == SetupPanel.Teams)
-            {
-                view.Teams = (int[])onlineTeams.Clone();
-                view.TeamCount = onlineTeamCount;
-                view.AllForOne = onlineAllForOne;
-                view.Scroll = QuantizeSetupScroll(onlineTeamsScroll);
             }
             else if (panel == SetupPanel.CombatProfiles)
                 ShareSetupChoices(view, setupProfileNames, null, onlineProfileScroll, 42, 222, 10);

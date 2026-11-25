@@ -104,6 +104,12 @@ namespace OpenZ.Multiplayer
             if (pauseOpen != pauseWasOpen) { pauseWasOpen = pauseOpen; dirty = true; }
             if (notices.RemoveAll(n => n.expires <= Time.realtimeSinceStartupAsDouble) > 0) dirty = true;
             if (!R.InMatch && notices.Count > 0) { notices.Clear(); dirty = true; }
+            if (Keyboard.current?.escapeKey.wasPressedThisFrame == true && (skirmishDragGhost || selectedFort >= 0 || onlineSelectedSeat >= 0))
+            {
+                onlineDragSeat = onlineSelectedSeat = draggedFort = selectedFort = skirmishSelectedSeat = -1;
+                ClearSkirmishDrag();
+                dirty = true;
+            }
             if (!OzAiMapGallery.IsOpen && (page == Page.Lobby || page == Page.Skirmish) && (pickerGroup >= 0 || lobbyDialog != LobbyDialog.None || combatDropdown) && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             { pickerGroup = -1; lobbyDialog = LobbyDialog.None; combatDropdown = false; dirty = true; }
             if (OnlineRoomPage && onlinePopup != OnlinePopup.None && Keyboard.current != null &&

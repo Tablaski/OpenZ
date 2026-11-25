@@ -32,9 +32,9 @@ namespace OpenZ.Multiplayer
             public int Position, Alliance;
             public bool Observer, Ready, Host, Local;
 
-            internal static Human FromMember(RoomMember member, string host, string local) => new Human
+            internal static Human FromMember(RoomMember member, string host, string local, string rosterId) => new Human
             {
-                Id = member.Id, Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
+                Id = rosterId, Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
                 Observer = member.Seat.Role == MatchSeatRole.Observer, Ready = member.Ready,
                 Host = member.Id == host, Local = member.Id == local,
             };
@@ -151,7 +151,7 @@ namespace OpenZ.Multiplayer
             {
                 Map = room.Map, Starts = room.Starts, Capacity = room.Capacity, Revision = room.Revision, Sequence = ++sequence,
                 StartBlocker = room.StartBlocker, CanLaunch = room.CanLaunch, Launched = room.Launched, MatchLoaded = room.MatchLoaded,
-                Humans = room.Members.Select(member => RoomSnapshot.Human.FromMember(member, room.HostId, guest)).ToArray(),
+                Humans = room.Members.Select(member => RoomSnapshot.Human.FromMember(member, room.HostId, guest, room.RosterId(member.Id))).ToArray(),
                 Bots = room.Bots.Select(bot => new RoomSnapshot.Bot
                 { Position = bot.Position, Alliance = bot.Alliance, Difficulty = bot.Difficulty }).ToArray(),
                 Rules = room.Rules, Closed = room.ClosedPositions,

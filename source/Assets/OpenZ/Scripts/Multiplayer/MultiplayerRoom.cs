@@ -101,6 +101,10 @@ namespace OpenZ.Multiplayer
     /// <summary>Authoritative room setup. Callers supply the authenticated sender's connection identity.</summary>
     internal sealed class MultiplayerRoom
     {
+        readonly Dictionary<string, string> rosterIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        int nextRosterId;
+        internal string RosterId(string id) => id != null && rosterIds.TryGetValue(id, out var token) ? token : null;
+
         readonly Dictionary<string, RoomMember> members = new Dictionary<string, RoomMember>(StringComparer.Ordinal);
         readonly Dictionary<int, RoomBot> bots = new Dictionary<int, RoomBot>();
         readonly HashSet<string> loaded = new HashSet<string>(StringComparer.Ordinal);
@@ -146,6 +150,7 @@ namespace OpenZ.Multiplayer
             Starts = MapStarts(map);
             Capacity = Starts;
             Map = map;
+            rosterIds.Add(hostId, "P" + ++nextRosterId);
             members.Add(hostId, new RoomMember(hostId, DuelLobby.NormalizeName(hostName), new MatchSeatAssignment(MatchSeatRole.Human, 0), 0));
         }
 
@@ -161,6 +166,7 @@ namespace OpenZ.Multiplayer
                 position = bots.Keys.Min();
                 bots.Remove(position);
             }
+            rosterIds.Add(id, "P" + ++nextRosterId);
             members.Add(id, new RoomMember(id, DuelLobby.NormalizeName(name), new MatchSeatAssignment(MatchSeatRole.Human, position), position));
             InvalidateReady();
         }
@@ -323,7 +329,11 @@ namespace OpenZ.Multiplayer
         {
             RequireHostSetup(sender);
             if (id == HostId) throw new InvalidOperationException("The host cannot be removed from their own room.");
-            if (members.Remove(id)) InvalidateReady();
+            if (members.Remove(id))
+            {
+                rosterIds.Remove(id);
+                InvalidateReady();
+            }
         }
 
         public void SelectMap(string sender, string map)

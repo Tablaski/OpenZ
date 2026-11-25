@@ -31,23 +31,28 @@ namespace OpenZ.Multiplayer
         readonly Dictionary<string, (LobbyPresence Value, double Seen)> lobbyPresence = new();
         double nextLobbyPresence;
 
+        internal string RoomPresenceId(string member) => IsHost ? room?.RosterId(member) : member;
+
+        string LocalPresenceId => IsHost ? room?.RosterId(RoomHostId) : JoinedRoom?.Humans.FirstOrDefault(member => member.Local)?.Id;
+
         internal LobbyPresence RoomPresence(string id)
         {
             if (id == null) return null;
-            if (id == (IsHost ? RoomHostId : RoomGuest(RoomTransport?.Id ?? 0)))
+            if (id == LocalPresenceId)
                 return new LobbyPresence { Id = id, Version = OzForkVersion.Number,
                     Voice = RoomVoiceMuted ? 3 : Voice.Transmitting ? 2 : Voice.Mode == DuelVoice.MicrophoneMode.Mute ? 0 : 1 };
             if (!lobbyPresence.TryGetValue(id, out var entry)) return null;
             return new LobbyPresence { Id = id, Version = entry.Value.Version,
-                Voice = IsHost && RoomParticipantMuted(id) ? 3 : Now - entry.Seen < 2 ? entry.Value.Voice : -1 };
+                Voice = IsHost && room.Members.Any(member => room.RosterId(member.Id) == id && RoomParticipantMuted(member.Id)) ? 3 :
+                    Now - entry.Seen < 2 ? entry.Value.Voice : -1 };
         }
 
         void PublishLobbyPresence()
         {
-            if (session || Now < nextLobbyPresence) return;
+            if (session || Now < nextLobbyPresence || LocalPresenceId == null) return;
             nextLobbyPresence = Now + .25;
-            var presence = IsHost ? room.Members.Select(member => RoomPresence(member.Id)).Where(item => item != null).ToArray() :
-                new[] { RoomPresence(RoomGuest(RoomTransport.Id)) };
+            var presence = IsHost ? room.Members.Select(member => RoomPresence(room.RosterId(member.Id))).Where(item => item != null).ToArray() :
+                new[] { RoomPresence(LocalPresenceId) };
             SendJson(DuelMessage.RoomLobbyStatus, new RoomLobbyStatus { Presence = presence });
         }
 
@@ -206,7 +211,7 @@ namespace OpenZ.Multiplayer
             if (!session && status.Presence?.Length <= 8)
             {
                 if (IsHost && status.Presence.Length == 1 && roomLinks.ContainsKey(sender))
-                    StorePresence(RoomGuest(sender), status.Presence[0]);
+                    StorePresence(room.RosterId(RoomGuest(sender)), status.Presence[0]);
                 else if (!IsHost && sender == 1)
                     foreach (var item in status.Presence) StorePresence(item?.Id, item);
             }

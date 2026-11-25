@@ -209,13 +209,15 @@ namespace OpenZ.Multiplayer
                 text.Append(Resources.Load<TextAsset>("OpenZ/Maps/" + map + "_grid").text);
             using (var hash = SHA256.Create()) return BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "");
         }
+        readonly HashSet<IPAddress> tcpRoomBans = new HashSet<IPAddress>();
+
         public void Host(string name, int port)
         {
             if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
             Close(); IsHost = true; TcpPort = port; localName = name; secret = DuelTcpPeer.NewInvitationSecret();
-            CreateSkirmishRoom(name);
+            CreateSkirmishRoom(name, 2);
             cancellation = new CancellationTokenSource();
-            try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = AcceptTcp(); Status = "Waiting for the other player…"; }
+            try { ListenForTcpGuest(); }
             catch (Exception error) { Fail(error.Message); return; }
             Menus.ShowLobby();
         }
@@ -236,7 +238,24 @@ namespace OpenZ.Multiplayer
             }
             catch (Exception error) { Fail(error.Message); }
         }
-        async Task<IDuelPeer> AcceptTcp() => await DuelTcpPeer.AcceptAsync(listener, secret, Fingerprint(), cancellation.Token);
+        void ListenForTcpGuest()
+        {
+            listener = new TcpListener(IPAddress.Any, TcpPort);
+            listener.Start(1);
+            connectTask = AcceptTcp(listener, secret, Fingerprint(), cancellation.Token);
+            Status = "Waiting for the other player…";
+        }
+
+        async Task<IDuelPeer> AcceptTcp(TcpListener server, string invitationSecret, string fingerprint, CancellationToken cancel)
+        {
+            while (true)
+            {
+                var guest = await DuelTcpPeer.AcceptAsync(server, invitationSecret, fingerprint, cancel);
+                lock (tcpRoomBans)
+                    if (!tcpRoomBans.Contains(guest.RemoteAddress)) return guest;
+                guest.Dispose();
+            }
+        }
         async Task<IDuelPeer> ConnectTcp(string address, int port, string name) => await DuelTcpPeer.ConnectAsync(address, port, secret, Fingerprint(), name, cancellation.Token);
         public void ConnectOnline(string name, bool host, string invitation, bool skirmish = false)
         {
@@ -1099,6 +1118,7 @@ namespace OpenZ.Multiplayer
             capture = new DuelReplica.CaptureBuffer();
             ClearOnlineRoom();
             room = null; roomGuest = null;
+            lock (tcpRoomBans) tcpRoomBans.Clear();
             ClearRoomVote();
         }
         void Disconnect()

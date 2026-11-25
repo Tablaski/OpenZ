@@ -92,7 +92,13 @@ namespace OpenZ.Multiplayer
         internal void ModerateRoomPlayer(string id, bool? ban, string note)
         {
             if (room == null || !int.TryParse(id, out int number) || !room.Members.Any(member => member.Id == id)) return;
-            if (ban.HasValue) { RoomTransport.RemoveParticipant(number, ban.Value, note); return; }
+            if (ban.HasValue)
+            {
+                if (RoomTransport.TcpPeer != null && ban.Value)
+                    lock (tcpRoomBans) tcpRoomBans.Add(RoomTransport.TcpPeer.RemoteAddress);
+                RoomTransport.RemoveParticipant(number, ban.Value, note);
+                return;
+            }
             bool muted = !RoomTransport.IsVoiceMuted(number);
             RoomTransport.SetVoiceMuted(number, muted);
             RoomTransport.Remotes.FirstOrDefault(link => link.Id == number)?.Send(new DuelPacket(DuelMessage.RoomVoiceMute, new[] { (byte)(muted ? 1 : 0) }));
@@ -106,9 +112,10 @@ namespace OpenZ.Multiplayer
             PublishRoom();
         }
 
-        void CreateSkirmishRoom(string name)
+        void CreateSkirmishRoom(string name, int preferredStarts = 3)
         {
-            room = new MultiplayerRoom(RoomHostId, name, OzAiMapCatalog.ThreePlayerSkirmish.Id);
+            var map = preferredStarts == 2 ? RoomMaps.FirstOrDefault(candidate => candidate.Starts == 2) : null;
+            room = new MultiplayerRoom(RoomHostId, name, (map ?? OzAiMapCatalog.ThreePlayerSkirmish).Id);
             FillRoomBots();
         }
 
@@ -264,7 +271,21 @@ namespace OpenZ.Multiplayer
         void UpdateOnlineRoom()
         {
             var transport = RoomTransport;
-            if (transport.Closed) { Fail(transport.Failure ?? "The room connection closed."); return; }
+            if (transport.Closed)
+            {
+                if (transport.TcpPeer != null && IsHost && !room.Launched)
+                {
+                    foreach (var member in room.Members.Where(member => member.Id != RoomHostId).ToArray())
+                        room.RemoveHuman(RoomHostId, member.Id);
+                    transport.Dispose();
+                    peer = null;
+                    ClearOnlineRoom();
+                    ListenForTcpGuest();
+                    Menus.Refresh();
+                }
+                else Fail(transport.Failure ?? "The room connection closed.");
+                return;
+            }
             var remotes = transport.Remotes;
             if (transport.Epoch != roomEpoch)
             {
@@ -279,7 +300,7 @@ namespace OpenZ.Multiplayer
                 roomStateArrival = 0;
                 motionHistory.Reset();
                 roomRetuneAt = Now + 1;
-                Status = transport.Route == "SFU" ? "Preparing the relay…" : "Preparing direct connections…";
+                Status = transport.Route == "TCP" ? "Connected / TCP" : transport.Route == "SFU" ? "Preparing the relay…" : "Preparing direct connections…";
                 if (roomEpoch > 1) Menus.NotifyChat(transport.Route == "SFU" ?
                     "Switching to the Cloudflare relay…" : "Switching to peer-to-peer connections…");
                 Menus.Refresh();
@@ -400,9 +421,9 @@ namespace OpenZ.Multiplayer
                         Game.World.SurrenderSkirmish(room.HumanTeam(member.Id));
                     }
                     else if (!Playing && room.Launched && member.Seat.MayUsePlayerCommands) { ReturnRoomToLobby(); ReturnToLobbyScene(); }
+                    lobbyPresence.Remove(room.RosterId(member.Id));
                     if (!room.Launched) room.RemoveHuman(RoomHostId, member.Id);
                     roomLinks.Remove(id);
-                    lobbyPresence.Remove(member.Id);
                     changed = true;
                 }
             }

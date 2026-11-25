@@ -232,7 +232,6 @@ namespace OpenZ.Multiplayer
             BuildRoomOpeningOrders(preview, 467, 535, 257, rules, true, SaveLocalRules);
         }
 
-        static string AllForOneLabel(bool enabled) => $"ALL FOR ONE · {(enabled ? "ON" : "OFF")}";
         const string AllForOneDescription = "When an ally loses their fort, all allies lose immediately.";
 
         void BuildSkirmishTeams(SkirmishRules rules, float x, float width)
@@ -269,7 +268,7 @@ namespace OpenZ.Multiplayer
                 }, hasBots, allowReselect: !modern && bots.Any(bot => ZAiDifficulty.IsModern(bot.Difficulty)));
             BuildLobbyAiDifficultyRow(panel, new OzRect(levelsX, 98, SkirmishDifficultyWidth, 37), modern, commonDifficulty,
                 SetSkirmishBotDifficulty, difficultyTip, hasBots, "ALL BOTS ");
-            Label(panel, rules.FreeForAll ? "Drag a fort number to swap starting positions." :
+            fortDragFeedback = Label(panel, rules.FreeForAll ? "Drag a fort number to swap starting positions." :
                 "Drag a row into a team. Drag a fort number to swap.", 24, 160, width - 48, 16, OzUi.Muted);
             int listTop = 187;
             const int memberHeight = 48;
@@ -380,6 +379,18 @@ namespace OpenZ.Multiplayer
             SaveLocalRules(rules);
         }
 
+        static void DrawGrip(Transform parent)
+        {
+            for (int row = 0; row < 3; row++)
+                for (int column = 0; column < 2; column++)
+                {
+                    var dot = Hud.Img(parent, "Drag grip", OzUi.Muted);
+                    dot.rectTransform.TL(10 + column * 6, 7 + row * 6, 3, 3);
+                    dot.raycastTarget = false;
+                }
+        }
+
+        OzText fortDragFeedback;
         int selectedFort = -1;
         int draggedFort = -1;
 
@@ -387,17 +398,26 @@ namespace OpenZ.Multiplayer
         {
             badge.raycastTarget = true;
             var original = badge.color;
+            if (selectedFort == seat) badge.color = OzUi.Amber;
             AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerClick, _ =>
             {
                 int previous = selectedFort;
                 selectedFort = occupied && previous < 0 ? seat : -1;
                 if (previous >= 0 && previous != seat) move(previous, seat);
+                else dirty = true;
             });
             AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerEnter, _ =>
             {
-                if (draggedFort >= 0 && draggedFort != seat) badge.color = OzUi.Amber;
+                if (draggedFort < 0 || draggedFort == seat) return;
+                badge.color = OzUi.Amber;
+                fortDragFeedback?.Set(occupied ? $"Swap Fort {draggedFort + 1} and Fort {seat + 1}" :
+                    $"Move from Fort {draggedFort + 1} to Fort {seat + 1}");
             });
-            AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerExit, _ => badge.color = original);
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerExit, _ =>
+            {
+                badge.color = original;
+                if (draggedFort >= 0) fortDragFeedback?.Set("Drop on the destination fort.");
+            });
             AddOnlineEvent(badge.rectTransform, EventTriggerType.Drop, _ =>
             {
                 if (draggedFort >= 0 && draggedFort != seat) move(draggedFort, seat);
@@ -409,9 +429,10 @@ namespace OpenZ.Multiplayer
                 draggedFort = seat;
                 selectedFort = -1;
                 BeginSkirmishDrag("Fort " + (seat + 1));
+                fortDragFeedback?.Set("Drop on the destination fort.");
             });
             AddOnlineEvent(badge.rectTransform, EventTriggerType.Drag, evt => UpdateSkirmishDrag((PointerEventData)evt));
-            AddOnlineEvent(badge.rectTransform, EventTriggerType.EndDrag, _ => { draggedFort = -1; ClearSkirmishDrag(); });
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.EndDrag, _ => { draggedFort = -1; ClearSkirmishDrag(); dirty = true; });
         }
 
         internal void MoveSkirmishMember(int seat, int team)

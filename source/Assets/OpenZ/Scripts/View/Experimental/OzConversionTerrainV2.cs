@@ -366,7 +366,7 @@ namespace OpenZ.Experimental
         {
             var vertices = new List<Vector3>();
             var indices = new List<int>();
-            var underDeck = BridgeWater(map);
+            var underDeck = BridgeWater(map, IsPaletteV5 && map.planet == "desert");
             bool WetSurface(ZMapData data, int index) => Water(data, index) || underDeck[index];
             for (int y = 0; y < map.height * 2; y++)
             for (int x = 0; x < map.width * 2; x++)
@@ -405,7 +405,7 @@ namespace OpenZ.Experimental
         static bool Water(ZMapData map, int index) =>
             map.classes[index] == (int)ZClass.Water || map.classes[index] == (int)ZClass.DeepWater;
 
-        static bool[] BridgeWater(ZMapData map)
+        static bool[] BridgeWater(ZMapData map, bool connectBanks)
         {
             var water = new bool[map.width * map.height];
             bool WetTile(int x, int y) => map.ClassAt(x, y) == ZClass.Water || map.ClassAt(x, y) == ZClass.DeepWater;
@@ -417,13 +417,20 @@ namespace OpenZ.Experimental
                 for (int along = 1; along < length - 1; along++)
                 {
                     int x = obj.x + (vertical ? 0 : along), y = obj.y + (vertical ? along : 0);
-                    bool crossesWater = vertical ? WetTile(x - 1, y) || WetTile(x + 4, y)
-                        : WetTile(x, y - 1) || WetTile(x, y + 4);
-                    if (!crossesWater) continue;
-                    for (int across = 0; across < 4; across++)
+                    int dx = vertical ? 1 : 0, dy = vertical ? 0 : 1;
+                    bool leftWet = WetTile(x - dx, y - dy), rightWet = WetTile(x + 4 * dx, y + 4 * dy);
+                    // Some native banks put a blocked tile between the channel and the outer rail.
+                    // Extend the visible water through that tile only when both sides lead to water.
+                    bool leftLip = connectBanks && !leftWet && map.ClassAt(x - dx, y - dy) == ZClass.Impassable &&
+                        WetTile(x - 2 * dx, y - 2 * dy);
+                    bool rightLip = connectBanks && !rightWet && map.ClassAt(x + 4 * dx, y + 4 * dy) == ZClass.Impassable &&
+                        WetTile(x + 5 * dx, y + 5 * dy);
+                    bool channel = (leftWet || leftLip) && (rightWet || rightLip);
+                    if (!leftWet && !rightWet && !channel) continue;
+                    for (int across = leftLip && channel ? -1 : 0; across <= (rightLip && channel ? 4 : 3); across++)
                     {
-                        int cx = x + (vertical ? across : 0), cy = y + (vertical ? 0 : across);
-                        if (cx < map.width && cy < map.height) water[cy * map.width + cx] = true;
+                        int cx = x + across * dx, cy = y + across * dy;
+                        if (cx >= 0 && cy >= 0 && cx < map.width && cy < map.height) water[cy * map.width + cx] = true;
                     }
                 }
             }

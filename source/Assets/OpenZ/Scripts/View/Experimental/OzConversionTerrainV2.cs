@@ -41,6 +41,7 @@ namespace OpenZ.Experimental
             bool useV4 = render && bakeWithPaletteV3 && map.aiMap && OzAiTerrainV4.Active(map.planet);
             IsPaletteV4 = useV4;
             IsPaletteV5 = useV4 && OzAiTerrainV5.Active;
+            bool arcticV5 = IsPaletteV5 && map.planet == "arctic";
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
@@ -74,7 +75,7 @@ namespace OpenZ.Experimental
             terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
             if (!render) return;
 
-            var arcticEdges = IsPaletteV5 && map.planet == "arctic" ? new ArcticEdges(map) : null;
+            var arcticEdges = arcticV5 ? new ArcticEdges(map) : null;
             var palette = bakeWithPaletteV3 && PaletteV3.Supports(map.planet) &&
                 map.tiles?.Length == map.width * map.height ? new PaletteV3(map) : null;
             IsPaletteV3 = palette != null || (bakeWithPaletteV3 && map.planet == "arctic");
@@ -130,11 +131,16 @@ namespace OpenZ.Experimental
 
             float HeightWithWetness(float x, float z, float wetOverride)
             {
-                float clearance = 0;
+                float clearance = 0, shoulderClearance = 0;
                 foreach (var bridge in bridgeClearance)
+                {
                     clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
+                    if (arcticV5)
+                        shoulderClearance = Mathf.Max(shoulderClearance, bridge.ArcticShoulderClearance(x, z));
+                }
                 float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
-                float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge, wetOverride);
+                float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge, wetOverride,
+                    shoulderClearance);
                 if (terraces?.HasTerraces == true && clearance == 0)
                     height += TerraceAdjustment(map, terraces, x, z, height);
                 return height;
@@ -228,7 +234,8 @@ namespace OpenZ.Experimental
 
         // World-space noise breaks straight grid edges. The centres of ordinary tiles stay near the
         // road grade, while solid tiles rise or sink according to their corresponding palette role.
-        static float Elevation(ZMapData map, float x, float z, float span, float clearance, float ridge, float wetOverride = -1)
+        static float Elevation(ZMapData map, float x, float z, float span, float clearance, float ridge,
+            float wetOverride = -1, float shoulderClearance = 0)
         {
             float warpX = (Mathf.PerlinNoise(x * .27f, z * .27f) - .5f) * .7f;
             float warpZ = (Mathf.PerlinNoise(z * .29f + 7, x * .29f) - .5f) * .7f;
@@ -245,7 +252,7 @@ namespace OpenZ.Experimental
             float bankHeight = Mathf.SmoothStep(0, 1, (solid - .28f) / .72f)
                 * Mathf.Lerp(.35f, 1, Mathf.Clamp01(support * 1.7f));
             float straight = Mathf.SmoothStep(0, 1, (ridge - .5f) / .36f);
-            bankHeight = Mathf.Lerp(bankHeight, .88f, straight) * (1 - clearance);
+            bankHeight = Mathf.Lerp(bankHeight, .88f, straight) * (1 - Mathf.Max(clearance, shoulderClearance));
             float relief = Mathf.Max(bankHeight, rim);
             float hummock = Mathf.PerlinNoise(x * .085f, z * .085f);
             float baseHeight = (hummock - .42f) * (city ? .11f : .32f) * (1 - road);

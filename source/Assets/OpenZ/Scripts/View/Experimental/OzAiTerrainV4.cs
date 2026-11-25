@@ -72,22 +72,31 @@ namespace OpenZ.Experimental
             // Keep a short transition at the outer edges and fade out on both approaches.
             public float Clearance(float worldX, float worldZ)
             {
-                float dx = worldX - x, dz = worldZ - z;
-                float across = vertical ? dx : dz;
-                float along = vertical ? dz : dx;
+                var (across, along) = LocalPosition(worldX, worldZ);
                 if (across <= -2.5f || across >= 10.5f || along <= 0 || along >= length) return 0;
                 return Smooth(Math.Min(across + 2.5f, 10.5f - across) / 1.5f)
                     * Smooth(Math.Min(along, length - along) * .5f);
             }
 
+            // The solid tiles at the Arctic abutments still block movement. Their relief must
+            // fade past the four corners, independently of the trench under the span.
+            public float ArcticShoulderClearance(float worldX, float worldZ)
+            {
+                var (across, along) = LocalPosition(worldX, worldZ);
+                if (across <= -3f || across >= 11f || along <= -2.5f || along >= length + 2.5f) return 0;
+                return Smooth(Math.Min(across + 3f, 11f - across) * .5f)
+                    * Smooth(Math.Min(along + 2.5f, length + 2.5f - along) * .5f);
+            }
+
             public float DistanceOutsideApproaches(float worldX, float worldZ)
             {
-                float dx = worldX - x, dz = worldZ - z;
-                float across = vertical ? dx : dz;
-                float along = vertical ? dz : dx;
+                var (across, along) = LocalPosition(worldX, worldZ);
                 return Math.Max(0, Math.Max(Math.Max(-2.5f - across, across - 10.5f),
                     Math.Max(-2.5f - along, along - length - 2.5f)));
             }
+
+            (float across, float along) LocalPosition(float worldX, float worldZ) =>
+                vertical ? (worldX - x, worldZ - z) : (worldZ - z, worldX - x);
 
             static float Smooth(float value)
             {

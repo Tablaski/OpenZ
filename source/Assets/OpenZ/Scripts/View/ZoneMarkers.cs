@@ -5,9 +5,8 @@ using UnityEngine;
 namespace OpenZ
 {
     /// <summary>
-    /// Bright round territory markers in each owner's colour, inset 1.1 m
-    /// inside the zone edge (two neighbouring zones show two lines side by side), draped over the terrain 6 cm above it (no
-    /// z-fighting), on passable and water tiles only, recoloured live when the zone changes hands.
+    /// Bright round territory markers draped over the terrain. On a shared edge the first zone in map order
+    /// supplies the markers and their colour, which updates when that zone changes hands.
     /// </summary>
     public class ZoneMarkers : MonoBehaviour
     {
@@ -16,13 +15,11 @@ namespace OpenZ
         readonly List<MeshRenderer> borders = new List<MeshRenderer>();
         readonly List<Mesh> meshes = new List<Mesh>();
         float waterY = float.NegativeInfinity;
-        const float Inset = 1.1f, Lift = 0.10f;
+        const float Lift = 0.10f;
         static readonly float[] DotRadii = { 1f, 1.32f, 1.65f, 1.9f };
         static readonly Color[] DotColors = { Color.white, Color.red, Color.black, Color.clear };
         const int DotSides = 16;
         int shownSize;
-        /// <summary>Z draws no zone borders in the world (territory reads from flags, building colours and the minimap);
-        /// </summary>
         public static bool ShowBorders { get => OzMapReadabilityOptions.Borders; set => OzMapReadabilityOptions.Borders = value; }
 
         void Start()
@@ -91,16 +88,46 @@ namespace OpenZ
         {
             var map = game.World.Map;
             var v = new List<Vector3>(); var col = new List<Color>(); var t = new List<int>();
-            // zone rectangle in world metres: x = px / 8, z = -py / 8
-            float x0 = z.X / 8f + Inset, x1 = (z.X + z.W) / 8f - Inset, z0 = -z.Y / 8f - Inset, z1 = -(z.Y + z.H) / 8f + Inset;
-            Edge(v, col, t, new Vector3(x0, 0, z0), new Vector3(x1, 0, z0), map);
-            Edge(v, col, t, new Vector3(x1, 0, z1), new Vector3(x0, 0, z1), map);
-            Edge(v, col, t, new Vector3(x0, 0, z1), new Vector3(x0, 0, z0), map);
-            Edge(v, col, t, new Vector3(x1, 0, z0), new Vector3(x1, 0, z1), map);
+            AddBorder(true, z.Y, z.X, z.X + z.W);
+            AddBorder(true, z.Y + z.H, z.X, z.X + z.W);
+            AddBorder(false, z.X, z.Y, z.Y + z.H);
+            AddBorder(false, z.X + z.W, z.Y, z.Y + z.H);
             if (v.Count == 0) return null;
             var m = new Mesh { name = "ZoneBorder", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             m.SetVertices(v); m.SetColors(col); m.SetTriangles(t, 0); m.RecalculateBounds();
             return m;
+
+            void AddBorder(bool horizontal, int fixedCoordinate, int start, int end)
+            {
+                var remaining = new List<(int start, int end)> { (start, end) };
+                foreach (var earlier in game.World.Zones)
+                {
+                    if (earlier == z || remaining.Count == 0) break;
+                    int across = horizontal ? earlier.Y : earlier.X;
+                    int acrossSize = horizontal ? earlier.H : earlier.W;
+                    if (fixedCoordinate != across && fixedCoordinate != across + acrossSize) continue;
+                    int otherStart = horizontal ? earlier.X : earlier.Y;
+                    int otherEnd = otherStart + (horizontal ? earlier.W : earlier.H);
+                    // Subtract only the shared portion, including where several zones meet this side.
+                    for (int i = remaining.Count - 1; i >= 0; i--)
+                    {
+                        var span = remaining[i];
+                        if (otherEnd <= span.start || otherStart >= span.end) continue;
+                        remaining.RemoveAt(i);
+                        if (span.start < otherStart) remaining.Add((span.start, otherStart));
+                        if (otherEnd < span.end) remaining.Add((otherEnd, span.end));
+                    }
+                }
+                foreach (var span in remaining)
+                {
+                    if (span.start >= span.end) continue;
+                    Edge(v, col, t, Position(span.start), Position(span.end), map);
+                }
+
+                Vector3 Position(int coordinate) => horizontal
+                    ? new Vector3(coordinate / 8f, 0, -fixedCoordinate / 8f)
+                    : new Vector3(fixedCoordinate / 8f, 0, -coordinate / 8f);
+            }
         }
 
         // A solid coloured core with a light rim and a dark outer edge, readable on both bright and dark terrain.

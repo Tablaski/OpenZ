@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.80 (25 Nov 2026)
+
+- Territory borders use one row of dots along shared edges, with the colour of the first territory in the map's order.
+
 ## OpenZ-VK 1.5.79 (25 Nov 2026)
 
 - Solo + 1 vs 1 — Neutral guns and vehicles are balanced by the shortest walkable route from each fort. Roads make a route faster when they help, and off-road placements can still be matched.

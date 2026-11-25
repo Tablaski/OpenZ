@@ -101,7 +101,13 @@ namespace OpenZ.Sim
             var partner = tank.AttackObject?.Leader ?? tank.AttackObject;
             if (!HoldsTankFire(partner, tank) || partner == unit) return false;
             if (unit.WithinAttackRadius(tank) && SeparateFiringAngle(partner, tank, unit.CenterX, unit.CenterY))
-                return Issue(unit, tank, WpMode.Attack);
+            {
+                if (FlankCoveredByEnemy(unit, tank, unit.CenterX, unit.CenterY) ||
+                    !Issue(unit, tank, WpMode.Attack)) return false;
+                flanks[unit.Id] = (tank.Id, world.Time);
+                driverFlanks[unit.Id] = (tank.Id, partner.Id, unit.CenterX, unit.CenterY, world.Time + 6);
+                return true;
+            }
 
             double dx = partner.CenterX - tank.CenterX, dy = partner.CenterY - tank.CenterY;
             double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
@@ -122,7 +128,8 @@ namespace OpenZ.Sim
             }
             if (best == long.MaxValue || !IssueMove(unit, bestX, bestY)) return false;
             flanks[unit.Id] = (tank.Id, world.Time);
-            driverFlanks[unit.Id] = (tank.Id, partner.Id, bestX, bestY, world.Time + 6);
+            var waypoint = unit.Waypoints[0];
+            driverFlanks[unit.Id] = (tank.Id, partner.Id, waypoint.x, waypoint.y, world.Time + 6);
             return true;
         }
 
@@ -146,14 +153,19 @@ namespace OpenZ.Sim
             var partner = world.Get(plan.Partner);
             var waypoint = unit.Waypoints.Count > 0 ? unit.Waypoints[0] : ZWaypoint.Cleared;
             bool moving = waypoint.mode == WpMode.Move && waypoint.refId < 0 && waypoint.x == plan.X && waypoint.y == plan.Y;
+            bool firing = waypoint.mode == WpMode.Attack && waypoint.refId == plan.Tank;
             if (tank != null && enemies.Contains(tank) && world.Time < plan.Until &&
                 CanFlankDriver(unit, tank) && HoldsTankFire(partner, tank))
             {
-                if ((moving || unit.Waypoints.Count == 0) && unit.WithinAttackRadius(tank) &&
-                    SeparateFiringAngle(partner, tank, unit.CenterX, unit.CenterY) && Issue(unit, tank, WpMode.Attack))
+                if (unit.WithinAttackRadius(tank) && SeparateFiringAngle(partner, tank, unit.CenterX, unit.CenterY) &&
+                    !FlankCoveredByEnemy(unit, tank, unit.CenterX, unit.CenterY))
                 {
-                    driverFlanks.Remove(unit.Id);
-                    return true;
+                    if (firing) return true;
+                    if ((moving || unit.Waypoints.Count == 0) && Issue(unit, tank, WpMode.Attack))
+                    {
+                        driverFlanks[unit.Id] = (plan.Tank, plan.Partner, unit.CenterX, unit.CenterY, world.Time + 6);
+                        return true;
+                    }
                 }
                 if (moving && !FlankCoveredByEnemy(unit, tank, plan.X, plan.Y) &&
                     ZAiGeometry.DistanceSquared(tank, plan.X, plan.Y) <=

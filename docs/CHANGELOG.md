@@ -6,7 +6,7 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
-## OpenZ-VK 1.5.88 (25 Nov 2026)
+## OpenZ-VK 1.5.88 (26 Nov 2026)
 
 - Solo and Skirmish — AI 2026 holds its ground in even fights and fights back when a damaged or slower unit cannot get away. Skilled and Zod look for covering fire when they withdraw and can counterattack with nearby reinforcements.
 - Solo and Skirmish — AI 2026 robots avoid chasing tanks on their own. Skilled and Zod can bring a second Sniper or Psycho squad in from another angle while the tank is firing at the first squad.

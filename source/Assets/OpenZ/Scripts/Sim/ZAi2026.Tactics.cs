@@ -10,6 +10,7 @@ namespace OpenZ.Sim
         bool HandleTactics(ZObject unit)
         {
             bool skilled = level >= ZBotDifficulty.Skilled;
+            if (skilled && HandleDriverCrossfire(unit)) return true;
             if (unit.Waypoints.Count > 0)
             {
                 var waypoint = unit.Waypoints[0];
@@ -46,8 +47,6 @@ namespace OpenZ.Sim
                     }
                 }
             }
-
-            if (skilled && HandleDriverCrossfire(unit)) return true;
 
             if (defenseThreat != null &&
                 (!assigned.TryGetValue(defenseThreat.Id, out int responding) || responding < defenseCommitment) &&

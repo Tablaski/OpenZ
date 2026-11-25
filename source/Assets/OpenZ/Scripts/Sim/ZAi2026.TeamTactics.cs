@@ -46,7 +46,8 @@ namespace OpenZ.Sim
             var enemy = supportFront.Enemy;
             if (ZAiGeometry.DistanceSquared(unit, enemy.CenterX, enemy.CenterY) > (long)limit * limit ||
                 !Reachable(unit, enemy.CenterX, enemy.CenterY, 5)) return false;
-            if (ZAiCombat.Exchange(unit, enemy, level >= ZBotDifficulty.Skilled) * LocalSupport(unit, enemy) < .9) return false;
+            double exchange = ZAiCombat.Exchange(unit, enemy, level >= ZBotDifficulty.Skilled) * LocalSupport(unit, enemy);
+            if (exchange < .9 || !CanCommitAttack(unit, enemy, exchange)) return false;
             return TryCrossfire(unit, enemy) || Issue(unit, enemy, WpMode.Attack);
         }
 
@@ -89,6 +90,35 @@ namespace OpenZ.Sim
             return false;
         }
 
+        bool TryExploreFlag(ZObject unit)
+        {
+            if (!sight.HasLimitedInformation) return false;
+            ZObject nearest = null;
+            long best = long.MaxValue;
+            foreach (var flag in world.Flags)
+            {
+                int x = flag.CenterX, y = flag.CenterY;
+                long distance = ZAiGeometry.DistanceSquared(unit, x, y);
+                if (distance >= best || sight.CanSee(x, y, false) || InWithdrawalArea(unit, x, y) ||
+                    !Reachable(unit, x, y, 2)) continue;
+                bool alreadyScouting = false;
+                foreach (var other in units)
+                {
+                    if (other == unit || other.Waypoints.Count == 0) continue;
+                    var waypoint = other.Waypoints[0];
+                    if (waypoint.mode == WpMode.Move && Math.Abs(waypoint.x - x) <= 16 && Math.Abs(waypoint.y - y) <= 16)
+                    {
+                        alreadyScouting = true;
+                        break;
+                    }
+                }
+                if (alreadyScouting) continue;
+                nearest = flag;
+                best = distance;
+            }
+            return nearest != null && IssueMove(unit, nearest.CenterX, nearest.CenterY);
+        }
+
         bool TryScout(ZObject unit)
         {
             if (!sight.HasLimitedInformation || !Attending(unit) || unit.MoveSpeed < 15 || unit.Health < unit.MaxHealth * .6)
@@ -101,7 +131,7 @@ namespace OpenZ.Sim
             {
                 int direction = (i + unit.Id) % 8;
                 int px = x + ScoutX[direction] * range, py = y + ScoutY[direction] * range;
-                if (sight.CanSee(px, py) || !Reachable(unit, px, py)) continue;
+                if (sight.CanSee(px, py) || InWithdrawalArea(unit, px, py) || !Reachable(unit, px, py)) continue;
                 double value = -Math.Sqrt(ZAiGeometry.DistanceSquared(home, px, py)) / 45 + 2 * world.Map.TileWalkSpeed(px, py);
                 foreach (var contact in contacts.Values)
                 {

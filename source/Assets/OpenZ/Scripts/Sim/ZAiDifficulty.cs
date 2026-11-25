@@ -6,6 +6,8 @@ namespace OpenZ.Sim
     {
         internal static bool IsValid(ZBotDifficulty level) => level >= ZBotDifficulty.Normal && level <= ZBotDifficulty.Zod;
         internal static bool IsModern(ZBotDifficulty level) => level >= ZBotDifficulty.Noob && level <= ZBotDifficulty.Zod;
+        internal static ZBotDifficulty InGeneration(ZBotDifficulty level, bool modern) =>
+            IsModern(level) == modern ? level : modern ? ZBotDifficulty.Skilled : ZBotDifficulty.Normal;
         internal static readonly ZBotDifficulty[] Modern = { ZBotDifficulty.Noob, ZBotDifficulty.Alright, ZBotDifficulty.Skilled, ZBotDifficulty.Zod };
 
         internal static string Hint(ZBotDifficulty level) => level switch

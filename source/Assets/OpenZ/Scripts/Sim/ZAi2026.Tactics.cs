@@ -1,16 +1,23 @@
 using System;
+using System.Collections.Generic;
 
 namespace OpenZ.Sim
 {
     internal sealed partial class ZAi2026
     {
+        readonly Dictionary<int, (int Enemy, int X, int Y, double Since, double Delay)> withdrawals = new();
+
         bool HandleTactics(ZObject unit)
         {
             bool skilled = level >= ZBotDifficulty.Skilled;
             if (unit.Waypoints.Count > 0)
             {
                 var mode = unit.Waypoints[0].mode;
-                if (mode != WpMode.Move && mode != WpMode.Attack) return false;
+                if (mode != WpMode.Move && mode != WpMode.Attack && mode != WpMode.Agro) return false;
+                var target = world.Get(unit.Waypoints[0].refId);
+                if (level > ZBotDifficulty.Noob && mode != WpMode.Move &&
+                    target != null && target.IsUnit && enemies.Contains(target) &&
+                    !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
             }
 
             if (defenseThreat != null &&
@@ -18,7 +25,8 @@ namespace OpenZ.Sim
                 unit.CanAttackObject(defenseThreat) && Attending(unit) &&
                 ZAiGeometry.DistanceSquared(unit, defenseFort.CenterX, defenseFort.CenterY) <= 600L * 600 &&
                 (defenseFort == home || teamPlay.CanRelease(unit, home, defenseFort, homeThreatened)) &&
-                SafeShot(unit, defenseThreat) && Reachable(unit, defenseThreat.CenterX, defenseThreat.CenterY, 6))
+                SafeShot(unit, defenseThreat) && (level == ZBotDifficulty.Noob || CanCommitAttack(unit, defenseThreat)) &&
+                Reachable(unit, defenseThreat.CenterX, defenseThreat.CenterY, 6))
             {
                 if (Issue(unit, defenseThreat, WpMode.Attack)) return true;
             }
@@ -41,19 +49,18 @@ namespace OpenZ.Sim
             }
             if (closest == null) return false;
 
-            double support = skilled ? LocalSupport(unit, closest) : 1;
-            double exchange = ZAiCombat.Exchange(unit, closest, skilled) * support;
-            bool takeBadFight = Occasion(unit.Id, closest.Id, 3) < tuning.BadFight;
-            if (exchange < (skilled ? .96 : .78) && !takeBadFight)
+            double exchange = Engagement(unit, closest);
+            if (!CanCommitAttack(unit, closest, exchange))
             {
-                if (level == ZBotDifficulty.Noob || distance > closest.AttackRadius + 36) return false;
-                return TryRetreat(unit, closest, unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == WpMode.Move);
+                if (level == ZBotDifficulty.Noob || distance > closest.AttackRadius + 36 ||
+                    exchange >= (skilled ? .96 : .78)) return false;
+                return BackOut(unit, closest);
             }
 
             bool standoff = unit.AttackRadius > closest.AttackRadius + 28 &&
                 unit.MoveSpeed >= closest.MoveSpeed * .85 && unit.CanMove;
             if (skilled && standoff && distance < closest.AttackRadius + 12 && unit.AiWeaponReloading)
-                return TryRetreat(unit, closest, false);
+                return TryRetreat(unit, closest);
             if (skilled && standoff && distance > closest.AttackRadius + 38 && TryRoadPosition(unit, closest)) return true;
             if (unit.Waypoints.Count > 0 && !skilled) return false;
             if (unit.Waypoints.Count > 0)
@@ -77,19 +84,73 @@ namespace OpenZ.Sim
         bool Attending(ZObject unit) => !sight.ZoomLimited ||
             ZAiGeometry.DistanceSquared(unit, focusX, focusY) <= 470L * 470 || unit.AttackObject != null;
 
+        double Engagement(ZObject unit, ZObject target)
+        {
+            bool skilled = level >= ZBotDifficulty.Skilled;
+            return ZAiCombat.Exchange(unit, target, skilled) * (skilled ? LocalSupport(unit, target) : 1);
+        }
+
+        bool CanCommitAttack(ZObject unit, ZObject target) => CanCommitAttack(unit, target, Engagement(unit, target));
+
+        bool CanCommitAttack(ZObject unit, ZObject target, double exchange)
+        {
+            bool skilled = level >= ZBotDifficulty.Skilled;
+            if (withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
+                (withdrawal.Enemy == target.Id || world.Time < withdrawal.Since + 60 &&
+                    NearWithdrawalPoint(withdrawal.X, withdrawal.Y, target.CenterX, target.CenterY)))
+                return world.Time >= withdrawal.Since + withdrawal.Delay && exchange >= (skilled ? 1.2 : 1);
+            return exchange >= (skilled ? .96 : .78) || Occasion(unit.Id, target.Id, 3) < tuning.BadFight;
+        }
+
+        static bool NearWithdrawalPoint(int x, int y, int px, int py) =>
+            (long)(x - px) * (x - px) + (long)(y - py) * (y - py) <= 180L * 180;
+
+        bool InWithdrawalArea(ZObject unit, int x, int y) =>
+            withdrawals.TryGetValue(unit.Id, out var withdrawal) && world.Time < withdrawal.Since + withdrawal.Delay &&
+            NearWithdrawalPoint(withdrawal.X, withdrawal.Y, x, y) &&
+            ZAiGeometry.DistanceSquared(unit, withdrawal.X, withdrawal.Y) >
+                (long)(withdrawal.X - x) * (withdrawal.X - x) + (long)(withdrawal.Y - y) * (withdrawal.Y - y);
+
+        bool BackOut(ZObject unit, ZObject threat)
+        {
+            if (AlreadyRetreating(unit, threat)) return true;
+            bool close = ZAiGeometry.Distance(unit, threat) <= threat.RangeTo(unit) + 36;
+            if (!(close && TryRetreat(unit, threat)) &&
+                !(unit.Waypoints.Count > 0 && (unit.Waypoints[0].mode == WpMode.Attack ||
+                unit.Waypoints[0].mode == WpMode.Agro) && orders.Stop(unit, unit.AttackObject))) return false;
+            planned.Add(unit.Id);
+            double delay = 8;
+            if (withdrawals.TryGetValue(unit.Id, out var previous) && world.Time < previous.Since + 60 &&
+                (previous.Enemy == threat.Id || NearWithdrawalPoint(previous.X, previous.Y, threat.CenterX, threat.CenterY)))
+                delay = Math.Min(48, previous.Delay * 2);
+            withdrawals[unit.Id] = (threat.Id, threat.CenterX, threat.CenterY, world.Time, delay);
+            return true;
+        }
+
         double LocalSupport(ZObject unit, ZObject target)
         {
-            double friendly = ZAiCombat.Power(unit), hostile = ZAiCombat.Power(target);
-            double own = friendly, enemy = hostile;
-            int near = Math.Max(180, target.AttackRadius + 72);
-            long radius = (long)near * near;
+            if (!target.IsUnit) return 1;
+            double own = Math.Max(1, ZAiCombat.Power(unit)), enemy = Math.Max(1, ZAiCombat.Power(target));
+            double friendly = own, hostile = enemy;
+            double dx = target.CenterX - unit.CenterX, dy = target.CenterY - unit.CenterY;
+            double distance = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
+            double approach = Math.Max(0, 1 - Math.Max(0, unit.RangeTo(target) - 16) / distance);
+            double endX = dx * approach, endY = dy * approach;
+            double lengthSquared = endX * endX + endY * endY;
             foreach (var o in allies)
-                if (o != unit && ZAiGeometry.DistanceSquared(o, target.CenterX, target.CenterY) <= radius)
+                if (o != unit && o.CanAttackObject(target) && o.WithinAttackRadius(target) &&
+                    (o.AttackObject == null || o.AttackObject == target))
                     friendly += ZAiCombat.Power(o);
             foreach (var o in enemies)
-                if (o != target && o.IsUnit && ZAiGeometry.DistanceSquared(o, unit.CenterX, unit.CenterY) <= radius)
-                    hostile += ZAiCombat.Power(o);
-            return Math.Sqrt(Math.Max(.15, friendly * Math.Max(1, enemy) / Math.Max(1, own * hostile)));
+            {
+                if (o == target || !o.IsUnit || !o.CanAttack() || !o.CanAttackObject(unit)) continue;
+                double offsetX = o.CenterX - unit.CenterX, offsetY = o.CenterY - unit.CenterY;
+                double step = lengthSquared > 0 ? Math.Clamp((offsetX * endX + offsetY * endY) / lengthSquared, 0, 1) : 0;
+                double x = offsetX - step * endX, y = offsetY - step * endY;
+                double range = o.RangeTo(unit) + Math.Min(96, o.MoveSpeed * 3);
+                if (x * x + y * y <= range * range) hostile += ZAiCombat.Power(o);
+            }
+            return Math.Sqrt(friendly * enemy / (own * hostile));
         }
 
         bool SafeShot(ZObject unit, ZObject enemy)
@@ -102,12 +163,16 @@ namespace OpenZ.Sim
             return true;
         }
 
-        bool TryRetreat(ZObject unit, ZObject threat, bool alreadyMoving)
+        bool AlreadyRetreating(ZObject unit, ZObject threat) =>
+            unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == WpMode.Move &&
+            !unit.Waypoints[0].attackTo && unit.Waypoints[0].refId < 0 &&
+            ZAiGeometry.DistanceSquared(threat, unit.Waypoints[0].x, unit.Waypoints[0].y) >
+            ZAiGeometry.DistanceSquared(threat, unit.CenterX, unit.CenterY) + 1600;
+
+        bool TryRetreat(ZObject unit, ZObject threat)
         {
             if (!unit.CanMove) return false;
-            if (alreadyMoving && unit.Waypoints.Count > 0 &&
-                ZAiGeometry.DistanceSquared(threat, unit.Waypoints[0].x, unit.Waypoints[0].y) >
-                ZAiGeometry.DistanceSquared(threat, unit.CenterX, unit.CenterY) + 1600) return true;
+            if (AlreadyRetreating(unit, threat)) return true;
 
             double dx = unit.CenterX - threat.CenterX, dy = unit.CenterY - threat.CenterY;
             double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
@@ -126,7 +191,10 @@ namespace OpenZ.Sim
                 if (value <= best) continue;
                 best = value; bestX = x; bestY = y;
             }
-            return best > double.NegativeInfinity && IssueMove(unit, bestX, bestY);
+            if (best == double.NegativeInfinity || !IssueMove(unit, bestX, bestY)) return false;
+            unit.Disengage();
+            foreach (var member in unit.Minions) member.Disengage();
+            return true;
         }
 
         ZObject PickObjective(ZObject unit, out WpMode mode)
@@ -136,7 +204,7 @@ namespace OpenZ.Sim
             double bestScore = 0;
             foreach (var target in objectives)
             {
-                if (target == sortieCannon) continue;
+                if (target == sortieCannon || InWithdrawalArea(unit, target.CenterX, target.CenterY)) continue;
                 assigned.TryGetValue(target.Id, out int commitments);
                 if (commitments > 0 && (target.Type == "flag" || target.Type == "grenades" || target.CanBeEntered() || target.Type == "repair")) continue;
                 double distance = ZAiGeometry.Distance(unit, target);
@@ -145,6 +213,8 @@ namespace OpenZ.Sim
                 WpMode option;
                 if (target.Type == "flag" && !world.AreAllied(team, target.Owner) && world.CanCaptureFlag(team, target))
                 {
+                    if (level >= ZBotDifficulty.Skilled && DangerousFor(target) is ZObject threat &&
+                        !CanCommitAttack(unit, threat)) continue;
                     option = WpMode.Move;
                     value = 64;
                     if (level >= ZBotDifficulty.Skilled) value += FlagImportance(target);

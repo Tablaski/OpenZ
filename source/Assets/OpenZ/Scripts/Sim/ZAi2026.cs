@@ -185,7 +185,7 @@ namespace OpenZ.Sim
                 if (objective != null)
                     Issue(unit, objective, mode, mode == WpMode.EnterFort ||
                         mode == WpMode.Move && level >= ZBotDifficulty.Alright && DangerousFor(objective) != null);
-                else if (level >= ZBotDifficulty.Skilled) TryScout(unit);
+                else if (!TryExploreFlag(unit) && level >= ZBotDifficulty.Skilled) TryScout(unit);
             }
         }
 
@@ -228,7 +228,7 @@ namespace OpenZ.Sim
             int x = target.CenterX, y = target.CenterY;
             if (mode == WpMode.EnterFort && !target.GetCreationMovePoint(out x, out y)) return false;
             var wp = new ZWaypoint { mode = mode, refId = target.Id, x = x, y = y,
-                attackTo = mode == WpMode.Attack || mode == WpMode.Move };
+                attackTo = mode == WpMode.Attack };
             group.Clear();
             group.Add(unit);
             if (mayGroup && level > ZBotDifficulty.Noob && (target.Type == "flag" || mode == WpMode.EnterFort))
@@ -242,7 +242,10 @@ namespace OpenZ.Sim
                         mode == WpMode.EnterFort && !EligibleAssault(other) || OpeningIdle(other) ||
                         other.Stunned || other.BehaviorDodging || other.Waypoints.Count != 0 || other.AttackObject != null ||
                         ZAiGeometry.DistanceSquared(other, unit.CenterX, unit.CenterY) > 100L * 100 ||
+                        InWithdrawalArea(other, x, y) ||
                         !Reachable(other, x, y, 4)) continue;
+                    if (target.Type == "flag" && level >= ZBotDifficulty.Skilled && DangerousFor(target) is ZObject threat &&
+                        !CanCommitAttack(other, threat)) continue;
                     group.Add(other);
                 }
             }

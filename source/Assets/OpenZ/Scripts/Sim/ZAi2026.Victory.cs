@@ -21,7 +21,8 @@ namespace OpenZ.Sim
                     bool inRange = unit.WithinAttackRadius(target);
                     double arrival = inRange ? 0 : Math.Max(0, distance - unit.AttackRadius) / Math.Max(1, unit.MoveSpeed);
                     double time = arrival + target.Health / firepower;
-                    if (time >= quickest || ZAiCombat.Exchange(unit, target, skilled) * LocalSupport(unit, target) < .85 ||
+                    double exchange = ZAiCombat.Exchange(unit, target, skilled) * LocalSupport(unit, target);
+                    if (time >= quickest || exchange < .85 || !CanCommitAttack(unit, target, exchange) ||
                         !inRange && !Reachable(unit, target.CenterX, target.CenterY, 6)) continue;
                     best = target;
                     quickest = time;
@@ -44,12 +45,14 @@ namespace OpenZ.Sim
                         if (returnsFire) incoming += ZAiCombat.Firepower(guard);
                         if (!unit.CanAttackObject(guard) || !SafeShot(unit, guard) || !unit.WithinAttackRadius(guard)) continue;
                         double suppression = Math.Max(unit.AttackSpeed, guard.Health / firepower);
-                        if (suppression >= quickest || returnsFire &&
-                            ZAiCombat.Exchange(unit, guard, true) * LocalSupport(unit, guard) < 1.05) continue;
+                        double exchange = Engagement(unit, guard);
+                        if (suppression >= quickest || !CanCommitAttack(unit, guard, exchange) ||
+                            returnsFire && exchange < 1.05) continue;
                         best = guard;
                         quickest = suppression;
                     }
-                    if (killTime >= quickest || !unit.WithinAttackRadius(fort) || !SafeShot(unit, fort) ||
+                    if (killTime >= quickest || InWithdrawalArea(unit, fort.CenterX, fort.CenterY) ||
+                        !unit.WithinAttackRadius(fort) || !SafeShot(unit, fort) ||
                         incoming * killTime >= unit.Health * .65) continue;
                     best = fort;
                     quickest = killTime;

@@ -187,7 +187,7 @@ namespace OpenZ.Sim
             double distance = Math.Sqrt(ZAiGeometry.DistanceSquared(unit, x, y));
             double speed = AssaultSpeed(unit, distance);
             if (distance > 820 || world.Time + distance / speed + 2 < assaultArrival ||
-                HasMissionOtherThanCombat(unit) || !Reachable(unit, x, y, 2)) return false;
+                HasMissionOtherThanCombat(unit) || InWithdrawalArea(unit, x, y) || !Reachable(unit, x, y, 2)) return false;
             return Issue(unit, assaultFort, WpMode.EnterFort, true);
         }
 

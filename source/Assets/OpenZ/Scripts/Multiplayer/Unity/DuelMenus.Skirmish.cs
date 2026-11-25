@@ -14,8 +14,6 @@ namespace OpenZ.Multiplayer
         const float SkirmishDifficultyWidth = 240, SkirmishGenerationWidth = 84, SkirmishDifficultyGap = 8;
         static readonly int[] SkirmishCapacities = { 2, 3, 4, 6, 8 };
         readonly Dictionary<string, Texture2D> skirmishGeneratedMinimaps = new Dictionary<string, Texture2D>();
-        readonly Dictionary<int, bool> skirmishBotModern = new Dictionary<int, bool>();
-        bool? skirmishAllBotsModern;
         OzAiMap[] skirmishOfficialMaps, skirmishAiMaps;
         string skirmishOfficialSelection, skirmishAiSelection;
         int skirmishAiSize, skirmishMapPage, skirmishSelectedSeat = -1, skirmishExtraTeam = -1;
@@ -45,8 +43,6 @@ namespace OpenZ.Multiplayer
         {
             roomTab = 0;
             skirmishSelectedSeat = -1;
-            skirmishAllBotsModern = null;
-            skirmishBotModern.Clear();
             pickerGroup = -1;
             roomFullMap = roomCustomUnits = combatDropdown = roomPresets = false;
             page = Page.Skirmish;
@@ -119,7 +115,6 @@ namespace OpenZ.Multiplayer
         void SelectSkirmishMap(OzAiMap map, int seats)
         {
             localSkirmish.SelectMap(LocalSkirmishHost, map.Id);
-            skirmishBotModern.Clear();
             if (map.IsOfficial) skirmishOfficialSelection = map.Id;
             else
             {
@@ -256,14 +251,22 @@ namespace OpenZ.Multiplayer
                 .Distinct().OrderBy(team => team).ToArray();
 
             bool hasBots = bots.Length > 0;
-            bool modern = skirmishAllBotsModern ?? (hasBots && bots.All(bot => ZAiDifficulty.IsModern(bot.Difficulty)));
+            bool modern = hasBots && bots.All(bot => ZAiDifficulty.IsModern(bot.Difficulty));
             ZBotDifficulty? commonDifficulty = hasBots && bots.All(bot => bot.Difficulty == bots[0].Difficulty)
                 ? bots[0].Difficulty : null;
             float levelsX = width - 24 - SkirmishDifficultyWidth;
             var difficultyTip = Label(panel, "", 24, 138, width - 48, 13, OzUi.Muted);
             Label(panel, "ALL BOTS", 24, 108, levelsX - SkirmishDifficultyGap - SkirmishGenerationWidth - 24, 15, OzUi.Muted);
             BuildLobbyAiGeneration(panel, new OzRect(levelsX - SkirmishDifficultyGap - SkirmishGenerationWidth, 103, SkirmishGenerationWidth, 27),
-                modern, value => { skirmishAllBotsModern = value; dirty = true; }, hasBots);
+                modern, value =>
+                {
+                    foreach (var bot in bots)
+                    {
+                        var level = ZAiDifficulty.InGeneration(bot.Difficulty, value);
+                        if (level != bot.Difficulty) localSkirmish.SetBot(LocalSkirmishHost, bot.Position, bot.Alliance, level);
+                    }
+                    dirty = true;
+                }, hasBots, allowReselect: !modern && bots.Any(bot => ZAiDifficulty.IsModern(bot.Difficulty)));
             BuildLobbyAiDifficultyRow(panel, new OzRect(levelsX, 98, SkirmishDifficultyWidth, 37), modern, commonDifficulty,
                 SetSkirmishBotDifficulty, difficultyTip, hasBots, "ALL BOTS ");
             Label(panel, rules.FreeForAll ? localSkirmish.SupportsTeams ? $"{active} players · each plays for their own side" :
@@ -350,24 +353,23 @@ namespace OpenZ.Multiplayer
                 card.gameObject.AddComponent<SkirmishCardDrag>().Configure(this, seat, name);
             }
             if (!difficulty.HasValue) return;
-            bool modern = skirmishBotModern.TryGetValue(seat, out bool choice) ? choice : ZAiDifficulty.IsModern(difficulty.Value);
+            bool modern = ZAiDifficulty.IsModern(difficulty.Value);
             BuildLobbyAiGeneration(parent, new OzRect(generationX, y + 6, SkirmishGenerationWidth, 26), modern,
-                value => { skirmishBotModern[seat] = value; dirty = true; });
-            BuildLobbyAiDifficultyRow(parent, new OzRect(levelsX, y + 2, SkirmishDifficultyWidth, 34), modern, difficulty, level =>
+                value => ApplyLevel(ZAiDifficulty.InGeneration(difficulty.Value, value)));
+            BuildLobbyAiDifficultyRow(parent, new OzRect(levelsX, y + 2, SkirmishDifficultyWidth, 34), modern, difficulty, ApplyLevel, tip);
+
+            void ApplyLevel(ZBotDifficulty level)
             {
                 var bot = localSkirmish.Bots.Single(entry => entry.Position == seat);
                 localSkirmish.SetBot(LocalSkirmishHost, seat, bot.Alliance, level);
-                skirmishBotModern.Remove(seat);
                 dirty = true;
-            }, tip);
+            }
         }
 
         void SetSkirmishBotDifficulty(ZBotDifficulty difficulty)
         {
             foreach (var bot in localSkirmish.Bots)
                 localSkirmish.SetBot(LocalSkirmishHost, bot.Position, bot.Alliance, difficulty);
-            skirmishBotModern.Clear();
-            skirmishAllBotsModern = null;
             dirty = true;
         }
 

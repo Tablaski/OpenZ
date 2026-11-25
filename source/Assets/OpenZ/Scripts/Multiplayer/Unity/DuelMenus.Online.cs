@@ -291,7 +291,8 @@ namespace OpenZ.Multiplayer
         static string BotDifficultyName(ZBotDifficulty difficulty) => difficulty == ZBotDifficulty.Normal ? "Medium" : difficulty.ToString();
         static readonly ZBotDifficulty[] LobbyBotDifficulties = { ZBotDifficulty.Easy, ZBotDifficulty.Normal, ZBotDifficulty.Hard };
 
-        void BuildLobbyAiGeneration(Transform parent, OzRect rect, bool modern, Action<bool> select, bool enabled = true)
+        void BuildLobbyAiGeneration(Transform parent, OzRect rect, bool modern, Action<bool> select, bool enabled = true,
+            bool allowReselect = false)
         {
             var toggle = new OzAiGenerationToggle(parent, rect, 13, OzUi.Amber);
             toggle.Refresh(modern);
@@ -304,7 +305,7 @@ namespace OpenZ.Multiplayer
                 var button = image.gameObject.AddComponent<Button>();
                 button.targetGraphic = image;
                 button.interactable = enabled;
-                button.onClick.AddListener(() => { if (modern != value) select(value); });
+                button.onClick.AddListener(() => { if (modern != value || allowReselect) select(value); });
             }
         }
 
@@ -409,7 +410,16 @@ namespace OpenZ.Multiplayer
                 bool modern = onlineBotModern ?? (bot && ZAiDifficulty.IsModern(difficulty.Value));
                 Label(list, "BOT DIFFICULTY", 8, y + 6, width - 160, 16, OzUi.Muted);
                 BuildLobbyAiGeneration(list, new OzRect(width - 144, y, 136, 28), modern,
-                    value => { onlineBotModern = value; dirty = true; });
+                    value =>
+                    {
+                        if (difficulty.HasValue)
+                        {
+                            onlineBotModern = null;
+                            R.SetRoomBot(seat, ZAiDifficulty.InGeneration(difficulty.Value, value));
+                        }
+                        else onlineBotModern = value;
+                        dirty = true;
+                    });
                 y += 36;
                 var tip = Label(list, "", 8, y + 39, width - 16, 12, OzUi.Muted);
                 BuildLobbyAiDifficultyRow(list, new OzRect(8, y, width - 16, 36), modern, difficulty,

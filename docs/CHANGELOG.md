@@ -2,7 +2,7 @@
 
 OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring back the combat feel and advanced tactics of the original 1996 Z with help from experienced players.
 
-Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. In the online lobby, follow the host's setup live or browse the official settings while chatting. When fog is active, teammates share battlefield vision and last-known information. Ghost spectators can watch an online match with a free camera or switch directly to a player's point of view.
+Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invite friends with a magic link, connect through TCP/IP or set up a local Skirmish. Choose a 1 vs 1, team or free-for-all match, explore AI Maps, and try optional production rules and player advantages. In the online lobby, follow the host's setup live or browse the official settings while chatting. Teammates share battlefield vision and last-known information under fog. Ghost spectators can use the free camera or follow a human player.
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
@@ -16,6 +16,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 - Online multiplayer and Skirmish — Drag participants into teams directly from the roster. Drag a numbered fort badge to change starting position. Find Team Defeat under Battle Rules.
 - Online multiplayer — TCP/IP uses the multiplayer lobby. The roster shows individual advantages, voice activity and connection quality. Open the version warning to compare releases before launching.
 - Online multiplayer — The chat shows your microphone level, gain and transmission state. Use the labeled controls to mute, choose a voice mode or open audio settings.
+- 1 vs 1 — A temporary TCP/IP disconnection can pause the match while the guest reconnects to the same seat.
 
 ## OpenZ-VK 1.5.86 (25 Nov 2026)
 

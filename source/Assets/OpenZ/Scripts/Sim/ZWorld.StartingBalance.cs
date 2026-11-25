@@ -171,6 +171,8 @@ namespace OpenZ.Sim
 
             foreach (var unit in row) occupied.Remove(unit);
             var planned = new (int x, int y, double heading)[row.Length];
+            var checkedPositions = row.Select(unit =>
+                new Dictionary<(int x, int y, NeutralStartRole role), (bool valid, double heading)>()).ToArray();
             int targetCost = (int)costs.Average();
             var nearbyCosts = availableCosts.SelectMany(costsForSeat => costsForSeat).Distinct()
                 .OrderBy(cost => Math.Abs((long)cost + NeutralStartCostTolerance / 2 - targetCost)).ThenBy(cost => cost).ToArray();
@@ -211,12 +213,16 @@ namespace OpenZ.Sim
                     nearby.AddRange(slots[seat][availableCosts[seat][i]]);
                 foreach (var (x, y) in nearby.OrderBy(p => FortDistance(p.x, p.y, unit)))
                 {
-                    if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
-                        !terrain.KeepsGunCoverage(unit, x, y) ||
-                        !NeutralStartClear(unit, x, y, occupied)) continue;
-                    double heading = unit.ShuttleHeadingDeg;
-                    if (unit.IsShuttle && !ShuttleLandSpot(x, y, unit, heading, out heading, out _)) continue;
-                    yield return (x, y, heading);
+                    var key = (x, y, role);
+                    if (!checkedPositions[seat].TryGetValue(key, out var placement))
+                    {
+                        double heading = unit.ShuttleHeadingDeg;
+                        bool valid = terrain.Role(unit, x, y, forts[seat], gates[seat]) == role &&
+                            terrain.KeepsGunCoverage(unit, x, y) && NeutralStartClear(unit, x, y, occupied) &&
+                            (!unit.IsShuttle || ShuttleLandSpot(x, y, unit, heading, out heading, out _));
+                        checkedPositions[seat].Add(key, placement = (valid, heading));
+                    }
+                    if (placement.valid) yield return (x, y, placement.heading);
                 }
             }
 

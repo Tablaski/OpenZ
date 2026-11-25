@@ -21,11 +21,11 @@ namespace OpenZ.Sim
                         world.Time < withdrawal.Since + withdrawal.Delay &&
                         waypoint.x == withdrawal.RetreatX && waypoint.y == withdrawal.RetreatY) return true;
                 }
-                else if (level > ZBotDifficulty.Noob)
+                else if (tuning.WithdrawalChance > 0)
                 {
                     var target = world.Get(waypoint.refId);
                     if (target != null && target.IsUnit && enemies.Contains(target) &&
-                        !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
+                        ShouldWithdraw(unit, target) && !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
                 }
             }
 
@@ -34,7 +34,8 @@ namespace OpenZ.Sim
                 unit.CanAttackObject(defenseThreat) && Attending(unit) &&
                 ZAiGeometry.DistanceSquared(unit, defenseFort.CenterX, defenseFort.CenterY) <= 600L * 600 &&
                 (defenseFort == home || teamPlay.CanRelease(unit, home, defenseFort, homeThreatened)) &&
-                SafeShot(unit, defenseThreat) && (level == ZBotDifficulty.Noob || CanCommitAttack(unit, defenseThreat)) &&
+                SafeShot(unit, defenseThreat) && (Occasion(unit.Id, defenseThreat.Id, 21) >= tuning.DefenseCheckChance ||
+                    CanCommitAttack(unit, defenseThreat)) &&
                 Reachable(unit, defenseThreat.CenterX, defenseThreat.CenterY, 6))
             {
                 if (Issue(unit, defenseThreat, WpMode.Attack)) return true;
@@ -61,8 +62,8 @@ namespace OpenZ.Sim
             double exchange = Engagement(unit, closest);
             if (!CanCommitAttack(unit, closest, exchange))
             {
-                if (level == ZBotDifficulty.Noob || distance > closest.AttackRadius + 36 ||
-                    exchange >= (skilled ? .96 : .78)) return false;
+                if (!ShouldWithdraw(unit, closest) || distance > closest.RangeTo(unit) + 36 ||
+                    exchange >= tuning.EngageRatio) return false;
                 return BackOut(unit, closest);
             }
 
@@ -95,21 +96,27 @@ namespace OpenZ.Sim
 
         double Engagement(ZObject unit, ZObject target)
         {
-            bool skilled = level >= ZBotDifficulty.Skilled;
-            return ZAiCombat.Exchange(unit, target, skilled) * (skilled ? LocalSupport(unit, target) : 1);
+            double weight = tuning.ApproachSupportWeight;
+            double exchange = ZAiCombat.Exchange(unit, target, level >= ZBotDifficulty.Skilled);
+            return weight == 0 ? exchange : exchange * (1 + weight * (LocalSupport(unit, target) - 1));
         }
 
         bool CanCommitAttack(ZObject unit, ZObject target) => CanCommitAttack(unit, target, Engagement(unit, target));
 
         bool CanCommitAttack(ZObject unit, ZObject target, double exchange)
         {
-            bool skilled = level >= ZBotDifficulty.Skilled;
             if (withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
                 (withdrawal.Enemy == target.Id || world.Time < withdrawal.Since + 60 &&
                     NearWithdrawalPoint(withdrawal.X, withdrawal.Y, target.CenterX, target.CenterY)))
-                return world.Time >= withdrawal.Since + withdrawal.Delay && exchange >= (skilled ? 1.2 : 1);
-            return exchange >= (skilled ? .96 : .78) || Occasion(unit.Id, target.Id, 3) < tuning.BadFight;
+                return world.Time >= withdrawal.Since + withdrawal.Delay && exchange >= tuning.ReengageRatio;
+            return exchange >= tuning.EngageRatio || Occasion(unit.Id, target.Id, 3) < tuning.BadFight;
         }
+
+        bool ShouldWithdraw(ZObject unit, ZObject target) => Occasion(unit.Id, target.Id, 20) < tuning.WithdrawalChance;
+
+        bool CanApproachFlag(ZObject unit, ZObject flag) =>
+            Occasion(unit.Id, flag.Id, 22) >= tuning.FlagCheckChance ||
+            DangerousFor(flag) is not ZObject threat || CanCommitAttack(unit, threat);
 
         static bool NearWithdrawalPoint(int x, int y, int px, int py) =>
             (long)(x - px) * (x - px) + (long)(y - py) * (y - py) <= 180L * 180;
@@ -223,8 +230,7 @@ namespace OpenZ.Sim
                 WpMode option;
                 if (target.Type == "flag" && !world.AreAllied(team, target.Owner) && world.CanCaptureFlag(team, target))
                 {
-                    if (level >= ZBotDifficulty.Skilled && DangerousFor(target) is ZObject threat &&
-                        !CanCommitAttack(unit, threat)) continue;
+                    if (!CanApproachFlag(unit, target)) continue;
                     option = WpMode.Move;
                     value = 64;
                     if (level >= ZBotDifficulty.Skilled) value += FlagImportance(target);

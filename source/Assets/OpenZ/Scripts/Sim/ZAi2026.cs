@@ -244,8 +244,7 @@ namespace OpenZ.Sim
                         ZAiGeometry.DistanceSquared(other, unit.CenterX, unit.CenterY) > 100L * 100 ||
                         InWithdrawalArea(other, x, y) ||
                         !Reachable(other, x, y, 4)) continue;
-                    if (target.Type == "flag" && level >= ZBotDifficulty.Skilled && DangerousFor(target) is ZObject threat &&
-                        !CanCommitAttack(other, threat)) continue;
+                    if (target.Type == "flag" && !CanApproachFlag(other, target)) continue;
                     group.Add(other);
                 }
             }

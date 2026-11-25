@@ -86,9 +86,20 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        internal RoomSnapshot.Human[] GhostTargets => JoinedRoom?.Humans.Where(member => member.Position >= 0 && !member.Observer &&
-            (!Game || !Game.World.SkirmishEliminated((Team)(member.Position + 1)))).OrderBy(member => member.Position).ToArray()
-            ?? Array.Empty<RoomSnapshot.Human>();
+        bool ActiveGhostSeat(int seat) => seat >= 0 && seat < 8 &&
+            (!Game || !Game.World.SkirmishEliminated((Team)(seat + 1)));
+
+        internal RoomSnapshot.Human[] GhostTargets
+        {
+            get
+            {
+                var humans = IsHost
+                    ? room?.Members.Select(member => RoomSnapshot.Human.FromMember(member, RoomHostId, RoomHostId))
+                    : JoinedRoom?.Humans;
+                return humans?.Where(member => !member.Observer && ActiveGhostSeat(member.Position))
+                    .OrderBy(member => member.Position).ToArray() ?? Array.Empty<RoomSnapshot.Human>();
+            }
+        }
 
         internal void FollowGhostTarget(int seat)
         {
@@ -105,7 +116,8 @@ namespace OpenZ.Multiplayer
             if (!MatchGhost) return;
             if (follow)
             {
-                var target = GhostTargets.FirstOrDefault(member => member.Position == GhostTarget) ?? GhostTargets.FirstOrDefault();
+                var targets = GhostTargets;
+                var target = targets.FirstOrDefault(member => member.Position == GhostTarget) ?? targets.FirstOrDefault();
                 if (target != null) FollowGhostTarget(target.Position);
                 return;
             }
@@ -119,8 +131,9 @@ namespace OpenZ.Multiplayer
         {
             var targets = GhostTargets;
             if (targets.Length == 0) return;
-            int index = Array.FindIndex(targets, human => human.Position == GhostTarget);
-            FollowGhostTarget(targets[index < 0 ? 0 : (index + direction + targets.Length) % targets.Length].Position);
+            int index = GhostFollowing ? Array.FindIndex(targets, human => human.Position == GhostTarget) : -1;
+            int next = index < 0 ? (direction < 0 ? targets.Length - 1 : 0) : (index + direction + targets.Length) % targets.Length;
+            FollowGhostTarget(targets[next].Position);
         }
 
         void LateUpdate()
@@ -256,11 +269,14 @@ namespace OpenZ.Multiplayer
         void UpdateGhostFollowing()
         {
             if (!ReadyGhostCamera()) return;
-            if (GhostFollowing && !GhostTargets.Any(member => member.Position == GhostTarget))
+            if (GhostFollowing)
             {
-                var next = GhostTargets.FirstOrDefault();
-                if (next == null) SetGhostCameraMode(false);
-                else FollowGhostTarget(next.Position);
+                var targets = GhostTargets;
+                if (!targets.Any(member => member.Position == GhostTarget))
+                {
+                    if (targets.Length == 0) SetGhostCameraMode(false);
+                    else FollowGhostTarget(targets[0].Position);
+                }
             }
             if (Now >= ghostNextSubscribe)
             {
@@ -304,7 +320,8 @@ namespace OpenZ.Multiplayer
                 var request = ReadJson<GhostRequest>(packet);
                 if (request == null || request.Revision != loadedRoomRevision) return;
                 if (request.Seat < 0) ghostFollowers.Remove(sender.Id);
-                else if (room.Members.Any(member => member.Seat.MayUsePlayerCommands && member.Seat.Position == request.Seat))
+                else if (ActiveGhostSeat(request.Seat) &&
+                    room.Members.Any(member => member.Seat.MayUsePlayerCommands && member.Seat.Position == request.Seat))
                     ghostFollowers[sender.Id] = request.Seat;
                 return;
             }

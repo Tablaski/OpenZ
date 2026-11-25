@@ -31,6 +31,13 @@ namespace OpenZ.Multiplayer
             public string Name;
             public int Position, Alliance;
             public bool Observer, Ready, Host, Local;
+
+            internal static Human FromMember(RoomMember member, string host, string local) => new Human
+            {
+                Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
+                Observer = member.Seat.Role == MatchSeatRole.Observer, Ready = member.Ready,
+                Host = member.Id == host, Local = member.Id == local,
+            };
         }
 
         [Serializable] internal sealed class Bot
@@ -144,12 +151,7 @@ namespace OpenZ.Multiplayer
             {
                 Map = room.Map, Starts = room.Starts, Capacity = room.Capacity, Revision = room.Revision, Sequence = ++sequence,
                 StartBlocker = room.StartBlocker, CanLaunch = room.CanLaunch, Launched = room.Launched, MatchLoaded = room.MatchLoaded,
-                Humans = room.Members.Select(member => new RoomSnapshot.Human
-                {
-                    Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
-                    Observer = member.Seat.Role == MatchSeatRole.Observer, Ready = member.Ready,
-                    Host = member.Id == room.HostId, Local = member.Id == guest,
-                }).ToArray(),
+                Humans = room.Members.Select(member => RoomSnapshot.Human.FromMember(member, room.HostId, guest)).ToArray(),
                 Bots = room.Bots.Select(bot => new RoomSnapshot.Bot
                 { Position = bot.Position, Alliance = bot.Alliance, Difficulty = bot.Difficulty }).ToArray(),
                 Rules = room.Rules, Closed = room.ClosedPositions,

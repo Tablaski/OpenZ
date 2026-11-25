@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.74 (25 Nov 2026)
+
+- 1 vs 1 — After surrendering or being eliminated in an online Skirmish, the host can follow the remaining human players in Ghost mode. Select a numbered seat or cycle with Q and E. Select FREE CAM or press F to return to the free camera.
+
 ## OpenZ-VK 1.5.73 (25 Nov 2026)
 
 - Solo + 1 vs 1 — Arctic AI Maps have smoother banks around bridge ramps and pillars, clearing the rocky ridges that could crowd crossings.

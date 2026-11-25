@@ -19,15 +19,35 @@ namespace OpenZ.Sim
                 {
                     if (waypoint.refId < 0 && withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
                         world.Time < withdrawal.Since + withdrawal.Delay &&
-                        waypoint.x == withdrawal.RetreatX && waypoint.y == withdrawal.RetreatY) return true;
+                        waypoint.x == withdrawal.RetreatX && waypoint.y == withdrawal.RetreatY)
+                    {
+                        var threat = world.Get(withdrawal.Enemy);
+                        if (threat == null || !enemies.Contains(threat)) return true;
+                        if (skilled && unit.WithinAttackRadius(threat) && SafeShot(unit, threat) &&
+                            Engagement(unit, threat) >= tuning.ReengageRatio &&
+                            HasFireSupport(unit, threat))
+                            return StandAndFight(unit, threat);
+                        if (CanStandAndFight(unit, threat) && !CanOpenGap(unit, threat))
+                            return StandAndFight(unit, threat);
+                        return true;
+                    }
                 }
-                else if (tuning.WithdrawalChance > 0)
+                else
                 {
                     var target = world.Get(waypoint.refId);
-                    if (target != null && target.IsUnit && enemies.Contains(target) &&
-                        ShouldWithdraw(unit, target) && !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
+                    if (target != null && target.IsUnit && enemies.Contains(target))
+                    {
+                        if (UnsupportedRobotChase(unit, target))
+                        {
+                            if (skilled && TryDriverCrossfire(unit, target)) return true;
+                            return BackOut(unit, target);
+                        }
+                        if (ShouldWithdraw(unit, target) && BackOut(unit, target)) return true;
+                    }
                 }
             }
+
+            if (skilled && HandleDriverCrossfire(unit)) return true;
 
             if (defenseThreat != null &&
                 (!assigned.TryGetValue(defenseThreat.Id, out int responding) || responding < defenseCommitment) &&
@@ -44,6 +64,10 @@ namespace OpenZ.Sim
             if (skilled && TryBridge(unit)) return true;
             if (skilled && Attending(unit) && !homeThreatened && TryAssault(unit)) return true;
             if (!unit.CanAttack() || !Attending(unit)) return false;
+            if (skilled && CanSnipeFromFlank(unit))
+                foreach (var enemy in enemies)
+                    if ((unit.Waypoints.Count == 0 || unit.Waypoints[0].mode == WpMode.Attack &&
+                        unit.Waypoints[0].refId == enemy.Id) && TryDriverCrossfire(unit, enemy)) return true;
             if (TrySupportFront(unit)) return true;
             if (TryFinishOpposition(unit)) return true;
 
@@ -51,26 +75,26 @@ namespace OpenZ.Sim
             double distance = Math.Max(180, unit.AttackRadius + 96);
             foreach (var enemy in enemies)
             {
-                if (!enemy.IsUnit || !unit.CanAttackObject(enemy) || !SafeShot(unit, enemy)) continue;
+                if (!enemy.IsUnit || !unit.CanAttackObject(enemy) || !SafeShot(unit, enemy) ||
+                    UnsupportedRobotChase(unit, enemy) && !enemy.WithinAttackRadius(unit)) continue;
                 double d = ZAiGeometry.Distance(unit, enemy);
                 if (d >= distance) continue;
                 closest = enemy;
                 distance = d;
             }
             if (closest == null) return false;
-
             double exchange = Engagement(unit, closest);
             if (!CanCommitAttack(unit, closest, exchange))
             {
-                if (!ShouldWithdraw(unit, closest) || distance > closest.RangeTo(unit) + 36 ||
-                    exchange >= tuning.EngageRatio) return false;
+                if (distance > closest.RangeTo(unit) + 36 ||
+                    !UnsupportedRobotChase(unit, closest) && !ShouldWithdraw(unit, closest, exchange)) return false;
                 return BackOut(unit, closest);
             }
 
             bool standoff = unit.AttackRadius > closest.AttackRadius + 28 &&
-                unit.MoveSpeed >= closest.MoveSpeed * .85 && unit.CanMove;
+                CanOpenGap(unit, closest);
             if (skilled && standoff && distance < closest.AttackRadius + 12 && unit.AiWeaponReloading)
-                return TryRetreat(unit, closest);
+                return TryRetreat(unit, closest, false);
             if (skilled && standoff && distance > closest.AttackRadius + 38 && TryRoadPosition(unit, closest)) return true;
             if (unit.Waypoints.Count > 0 && !skilled) return false;
             if (unit.Waypoints.Count > 0)
@@ -105,6 +129,7 @@ namespace OpenZ.Sim
 
         bool CanCommitAttack(ZObject unit, ZObject target, double exchange)
         {
+            if (UnsupportedRobotChase(unit, target)) return false;
             if (withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
                 (withdrawal.Enemy == target.Id || world.Time < withdrawal.Since + 60 &&
                     NearWithdrawalPoint(withdrawal.X, withdrawal.Y, target.CenterX, target.CenterY)))
@@ -112,7 +137,35 @@ namespace OpenZ.Sim
             return exchange >= tuning.EngageRatio || Occasion(unit.Id, target.Id, 3) < tuning.BadFight;
         }
 
-        bool ShouldWithdraw(ZObject unit, ZObject target) => Occasion(unit.Id, target.Id, 20) < tuning.WithdrawalChance;
+        bool ShouldWithdraw(ZObject unit, ZObject target) => tuning.WithdrawalChance > 0 &&
+            ShouldWithdraw(unit, target, Engagement(unit, target));
+
+        bool ShouldWithdraw(ZObject unit, ZObject target, double exchange) =>
+            Occasion(unit.Id, target.Id, 20) < tuning.WithdrawalChance &&
+            exchange < tuning.EngageRatio * .94 && Occasion(unit.Id, target.Id, 3) >= tuning.BadFight;
+
+        internal static bool IsRobotAgainstTank(ZObject unit, ZObject target) => unit.IsRobot &&
+            target.Kind == ZKind.Vehicle &&
+            (target.Type is "light" or "medium" or "heavy" or ZMTank.Type || ZBigTanks.Is(target.Type));
+
+        static bool UnsupportedRobotChase(ZObject unit, ZObject target) =>
+            IsRobotAgainstTank(unit, target) && !unit.WithinAttackRadius(target);
+
+        static bool CanOpenGap(ZObject unit, ZObject threat) => unit.CanMove &&
+            unit.AiTravelSpeed > 0 && unit.AiTravelSpeed > threat.AiTravelSpeed * 1.05;
+
+        bool CanStandAndFight(ZObject unit, ZObject threat) => unit.CanAttackObject(threat) && SafeShot(unit, threat) &&
+            (unit.WithinAttackRadius(threat) || !IsRobotAgainstTank(unit, threat) &&
+                threat.WithinAttackRadius(unit) && Reachable(unit, threat.CenterX, threat.CenterY, 6));
+
+        bool StandAndFight(ZObject unit, ZObject threat)
+        {
+            if (unit.Waypoints.Count > 0 && unit.Waypoints[0].mode == WpMode.Attack &&
+                unit.Waypoints[0].refId == threat.Id) return true;
+            if (!Issue(unit, threat, WpMode.Attack)) return false;
+            withdrawals.Remove(unit.Id);
+            return true;
+        }
 
         bool CanApproachFlag(ZObject unit, ZObject flag) =>
             Occasion(unit.Id, flag.Id, 22) >= tuning.FlagCheckChance ||
@@ -129,11 +182,14 @@ namespace OpenZ.Sim
 
         bool BackOut(ZObject unit, ZObject threat)
         {
-            if (AlreadyRetreating(unit, threat)) return true;
             bool close = ZAiGeometry.Distance(unit, threat) <= threat.RangeTo(unit) + 36;
-            if (!(close && TryRetreat(unit, threat)) &&
-                !(unit.Waypoints.Count > 0 && (unit.Waypoints[0].mode == WpMode.Attack ||
-                unit.Waypoints[0].mode == WpMode.Agro) && orders.Stop(unit, unit.AttackObject))) return false;
+            if (!(close && TryRetreat(unit, threat, true)))
+            {
+                if (close && CanStandAndFight(unit, threat)) return StandAndFight(unit, threat);
+                if (unit.Waypoints.Count == 0 ||
+                    unit.Waypoints[0].mode != WpMode.Attack && unit.Waypoints[0].mode != WpMode.Agro ||
+                    !orders.Stop(unit, unit.AttackObject)) return false;
+            }
             planned.Add(unit.Id);
             double delay = 8;
             if (withdrawals.TryGetValue(unit.Id, out var previous) && world.Time < previous.Since + 60 &&
@@ -186,9 +242,20 @@ namespace OpenZ.Sim
             ZAiGeometry.DistanceSquared(threat, unit.Waypoints[0].x, unit.Waypoints[0].y) >
             ZAiGeometry.DistanceSquared(threat, unit.CenterX, unit.CenterY) + 1600;
 
-        bool TryRetreat(ZObject unit, ZObject threat)
+        bool ProvidesFireSupport(ZObject ally, ZObject unit, ZObject threat) =>
+            ally != unit && !ally.Stunned && ally.CanAttackObject(threat) &&
+            (ally.AttackObject == null || ally.AttackObject == threat);
+
+        bool HasFireSupport(ZObject unit, ZObject threat)
         {
-            if (!unit.CanMove) return false;
+            foreach (var ally in allies)
+                if (ProvidesFireSupport(ally, unit, threat) && ally.WithinAttackRadius(threat)) return true;
+            return false;
+        }
+
+        bool TryRetreat(ZObject unit, ZObject threat, bool allowCover)
+        {
+            if (!CanOpenGap(unit, threat)) return false;
             if (AlreadyRetreating(unit, threat)) return true;
 
             double dx = unit.CenterX - threat.CenterX, dy = unit.CenterY - threat.CenterY;
@@ -201,9 +268,21 @@ namespace OpenZ.Sim
             {
                 int x = unit.CenterX + (int)(dx * 92 - dy * turn * 52);
                 int y = unit.CenterY + (int)(dy * 92 + dx * turn * 52);
+                bool cover = false;
+                if (allowCover && level >= ZBotDifficulty.Skilled)
+                {
+                    foreach (var ally in allies)
+                        if (ProvidesFireSupport(ally, unit, threat) && ZAiGeometry.DistanceSquared(ally, x, y) <= 72L * 72 &&
+                            ZAiGeometry.DistanceSquared(ally, unit.CenterX, unit.CenterY) > 100L * 100)
+                        {
+                            cover = true;
+                            break;
+                        }
+                }
                 if (!Reachable(unit, x, y)) continue;
                 double value = ZAiGeometry.DistanceSquared(threat, x, y) / 1000d
                     - Math.Sqrt(ZAiGeometry.DistanceSquared(home, x, y)) / 28;
+                if (cover) value += 25;
                 if (!unit.IsRobot) value += 8 * world.Map.TileWalkSpeed(x, y);
                 if (value <= best) continue;
                 best = value; bestX = x; bestY = y;
@@ -312,6 +391,18 @@ namespace OpenZ.Sim
 
     public sealed partial class ZObject
     {
+        internal double AiTravelSpeed
+        {
+            get
+            {
+                if (!CanMove) return 0;
+                double speed = BehaviorBaseMoveSpeed;
+                double x = speed, y = 0;
+                CripplingCommand(ref x, ref y);
+                return x;
+            }
+        }
+
         internal bool AiWeaponReloading => World.Time < nextDamageTime;
         internal double AiWeaponWait => Math.Max(0, nextDamageTime - World.Time);
         internal double AiReloadUntil => nextDamageTime;

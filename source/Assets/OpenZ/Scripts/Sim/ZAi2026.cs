@@ -225,6 +225,7 @@ namespace OpenZ.Sim
 
         bool Issue(ZObject unit, ZObject target, WpMode mode, bool mayGroup = false)
         {
+            if (mode == WpMode.Attack && UnsupportedRobotChase(unit, target)) return false;
             int x = target.CenterX, y = target.CenterY;
             if (mode == WpMode.EnterFort && !target.GetCreationMovePoint(out x, out y)) return false;
             var wp = new ZWaypoint { mode = mode, refId = target.Id, x = x, y = y,

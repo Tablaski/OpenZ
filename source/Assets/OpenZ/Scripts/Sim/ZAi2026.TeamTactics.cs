@@ -7,6 +7,7 @@ namespace OpenZ.Sim
     internal sealed partial class ZAi2026
     {
         readonly Dictionary<int, (int Target, double Time)> flanks = new Dictionary<int, (int, double)>();
+        readonly Dictionary<int, (int Tank, int Partner, int X, int Y, double Until)> driverFlanks = new();
 
         ZObject bridgeShooter, preparedBridge;
         double bridgeShotBefore, bridgePlanExpires;
@@ -53,6 +54,7 @@ namespace OpenZ.Sim
 
         bool TryCrossfire(ZObject unit, ZObject enemy)
         {
+            if (IsRobotAgainstTank(unit, enemy)) return TryDriverCrossfire(unit, enemy);
             if (level < ZBotDifficulty.Skilled || unit.Waypoints.Count != 0 || unit.MoveSpeed < 12 ||
                 flanks.TryGetValue(unit.Id, out var last) && last.Target == enemy.Id && world.Time - last.Time < 25) return false;
             bool engaged = false;
@@ -68,6 +70,98 @@ namespace OpenZ.Sim
             if (ZAiGeometry.DistanceSquared(enemy, x, y) < (long)enemy.AttackRadius * enemy.AttackRadius * .65 ||
                 !Reachable(unit, x, y) || !IssueMove(unit, x, y)) return false;
             flanks[unit.Id] = (enemy.Id, world.Time);
+            return true;
+        }
+
+        static bool CanSnipeFromFlank(ZObject unit) =>
+            unit.IsRobot && unit.Type is "sniper" or "psycho" && unit.CanSnipe && unit.SnipeChance > 0;
+
+        bool CanFlankDriver(ZObject unit, ZObject tank) => CanSnipeFromFlank(unit) &&
+            IsRobotAgainstTank(unit, tank) && tank.AttackObject != unit && tank.CanBeSniped() &&
+            !world.SnipeHeld(tank) && unit.CanAttackObject(tank) && Attending(unit) && SafeShot(unit, tank);
+
+        bool HoldsTankFire(ZObject partner, ZObject tank) => partner != null && Alive(partner) &&
+            world.AreAllied(team, partner.Owner) && CanSnipeFromFlank(partner) &&
+            !partner.Stunned && partner.CanAttackObject(tank) && partner.WithinAttackRadius(tank) &&
+            partner.AttackObject == tank && tank.AttackObject != null &&
+            (tank.AttackObject == partner || tank.AttackObject.Leader == partner);
+
+        static bool SeparateFiringAngle(ZObject partner, ZObject tank, int x, int y)
+        {
+            double ax = partner.CenterX - tank.CenterX, ay = partner.CenterY - tank.CenterY;
+            double bx = x - tank.CenterX, by = y - tank.CenterY;
+            return ax * bx + ay * by < .3 * Math.Sqrt((ax * ax + ay * ay) * (bx * bx + by * by));
+        }
+
+        bool TryDriverCrossfire(ZObject unit, ZObject tank)
+        {
+            if (!CanFlankDriver(unit, tank) ||
+                flanks.TryGetValue(unit.Id, out var last) && last.Target == tank.Id && world.Time - last.Time < 12)
+                return false;
+            var partner = tank.AttackObject?.Leader ?? tank.AttackObject;
+            if (!HoldsTankFire(partner, tank) || partner == unit) return false;
+            if (unit.WithinAttackRadius(tank) && SeparateFiringAngle(partner, tank, unit.CenterX, unit.CenterY))
+                return Issue(unit, tank, WpMode.Attack);
+
+            double dx = partner.CenterX - tank.CenterX, dy = partner.CenterY - tank.CenterY;
+            double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
+            double radius = unit.RangeTo(tank) * .85;
+            double travel = Math.Min(128, unit.AiTravelSpeed * 5);
+            int bestX = 0, bestY = 0;
+            long best = long.MaxValue;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                int x = tank.CenterX + (int)((-.5 * dx - side * .866 * dy) * radius / length);
+                int y = tank.CenterY + (int)((-.5 * dy + side * .866 * dx) * radius / length);
+                long distance = ZAiGeometry.DistanceSquared(unit, x, y);
+                if (distance >= best || distance > travel * travel || FlankCoveredByEnemy(unit, tank, x, y) ||
+                    !unit.AiSalvageLine(x, y, tank) || !Reachable(unit, x, y)) continue;
+                best = distance;
+                bestX = x;
+                bestY = y;
+            }
+            if (best == long.MaxValue || !IssueMove(unit, bestX, bestY)) return false;
+            flanks[unit.Id] = (tank.Id, world.Time);
+            driverFlanks[unit.Id] = (tank.Id, partner.Id, bestX, bestY, world.Time + 6);
+            return true;
+        }
+
+        bool FlankCoveredByEnemy(ZObject unit, ZObject tank, int x, int y)
+        {
+            foreach (var enemy in enemies)
+            {
+                if (enemy == tank || !enemy.IsUnit || !enemy.CanAttackObject(unit)) continue;
+                int range = enemy.RangeTo(unit) + 16;
+                if (ZAiGeometry.DistanceSquared(enemy, x, y) <= (long)range * range ||
+                    ZAiGeometry.DistanceSquared(enemy, (x + unit.CenterX) / 2, (y + unit.CenterY) / 2) <= (long)range * range)
+                    return true;
+            }
+            return false;
+        }
+
+        bool HandleDriverCrossfire(ZObject unit)
+        {
+            if (!driverFlanks.TryGetValue(unit.Id, out var plan)) return false;
+            var tank = world.Get(plan.Tank);
+            var partner = world.Get(plan.Partner);
+            var waypoint = unit.Waypoints.Count > 0 ? unit.Waypoints[0] : ZWaypoint.Cleared;
+            bool moving = waypoint.mode == WpMode.Move && waypoint.refId < 0 && waypoint.x == plan.X && waypoint.y == plan.Y;
+            if (tank != null && enemies.Contains(tank) && world.Time < plan.Until &&
+                CanFlankDriver(unit, tank) && HoldsTankFire(partner, tank))
+            {
+                if ((moving || unit.Waypoints.Count == 0) && unit.WithinAttackRadius(tank) &&
+                    SeparateFiringAngle(partner, tank, unit.CenterX, unit.CenterY) && Issue(unit, tank, WpMode.Attack))
+                {
+                    driverFlanks.Remove(unit.Id);
+                    return true;
+                }
+                if (moving && !FlankCoveredByEnemy(unit, tank, plan.X, plan.Y) &&
+                    ZAiGeometry.DistanceSquared(tank, plan.X, plan.Y) <=
+                    (long)unit.RangeTo(tank) * unit.RangeTo(tank)) return true;
+            }
+            driverFlanks.Remove(unit.Id);
+            if (!moving || !orders.Stop(unit, unit.AttackObject)) return false;
+            planned.Add(unit.Id);
             return true;
         }
 
@@ -264,6 +358,16 @@ namespace OpenZ.Sim
                     return;
                 }
             }
+        }
+    }
+
+    public sealed partial class ZWorld
+    {
+        internal bool HasModernBot(Team owner)
+        {
+            foreach (var bot in Bots)
+                if (bot.Team == owner && !bot.Ignored && ZAiDifficulty.IsModern(bot.Difficulty)) return true;
+            return false;
         }
     }
 }

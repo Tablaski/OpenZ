@@ -476,6 +476,7 @@ namespace OpenZ.Sim
             foreach (var o in World.NearUnits(CenterX, CenterY, NbAgroReach(), ZWorld.PerfFastRules ? World.UnitObjects : World.Objects))   // 1.3 item 25 (units, same order); 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in agro reach, same order: the same choices and the same draw
             {
                 if (!o.IsUnit || o.Owner == Team.Neutral || World.AreAllied(Owner, o.Owner) || o.Destroyed) continue;
+                if (ZAi2026.IsRobotAgainstTank(this, o) && !WithinAttackRadius(o) && World.HasModernBot(Owner)) continue;
                 if (WithinAgroRadius(o) && !SkipUnreachable(o) && CalmMayFight(o)) (choices ??= new List<ZObject>()).Add(o);   // DV153: a fort tower gun in reach is never dropped as 'unreachable' (Sim/ZObject.TowerAnswer.cs); b49: on the player's order only an enemy it can hit from its way (ZObject.Calm.cs)
             }
             if (choices == null) return false;
@@ -825,7 +826,9 @@ namespace OpenZ.Sim
                 if (o.Owner != Team.Neutral && o.Owner != Owner && CanAttackObject(o))
                 {
                     if (WithinAttackRadius(o)) { if (!PrefersExposed || o.CanBeSniped()) { Engage(o); return; } inRange ??= o; }   // combat_nb_v1 DV27
-                    if (idle && !startHold && WithinAgroRadius(o) && !PathUnreachable(o)) (agro ??= new List<ZObject>()).Add(o);   // DV69: no chase in the calm start
+                    if (idle && !startHold && WithinAgroRadius(o) && !PathUnreachable(o) &&
+                        (!ZAi2026.IsRobotAgainstTank(this, o) || !World.HasModernBot(Owner)))
+                        (agro ??= new List<ZObject>()).Add(o);   // DV69: no chase in the calm start
                 }
                 if (idle && !startHold && !IsMinion && agro == null && IsRobot && !NoAutoEnter && (!grabHold || CloseGrab(o)) && o.CanBeEntered() && Within(CenterX, CenterY, o.CenterX, o.CenterY, World.S.auto_grab_vehicle_distance) && !(grabOne && GrabClaimed(o))
                     && !(o.Kind == ZKind.Vehicle && o.Type == "apc") && !(JustLeftCannon && o.Kind == ZKind.Cannon) && !o.AutoEnterLocked && !CrocSwampWay(o) && !PathUnreachable(o) && !TeammateEntering(o) && CanSee(o)

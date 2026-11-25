@@ -36,11 +36,11 @@ namespace OpenZ
 
         static readonly Dictionary<string, string> Tips = new Dictionary<string, string>
         {
-            [OzBehaviorLibrary.TanksLabel] = "TANK BEHAVIOR|Choose OpenZ Native, Zod Classic or a named behavior preset saved in Unit Editor > BEHAVIOR. Applies to the next match, independently of robots. Multiplayer uses the host's profiles for both teams.|",
+            [OzBehaviorLibrary.TanksLabel] = "TANK BEHAVIOR|Choose OpenZ Native, Z Classic or a named behavior preset saved in Unit Editor > BEHAVIOR. Applies to the next match, independently of robots. Multiplayer uses the host's profiles for both teams. Z Classic: " + OzBehaviorLibrary.ClassicStatus + ".|",
             [OzMapReadabilityOptions.FlagLabel] = OzMapReadabilityOptions.FlagTip,
             [OzMapReadabilityOptions.BorderLabel] = OzMapReadabilityOptions.BorderTip,
             [OzMapReadabilityOptions.RadarSweepLabel] = OzMapReadabilityOptions.RadarSweepTip,
-            [OzBehaviorLibrary.RobotsLabel] = "ROBOT BEHAVIOR|Choose native behavior or a named robot preset. Tune live in Unit Editor > BEHAVIOR. Applies to the next match, independently of tanks. Zod Classic still prevents engaged robots from dodging; Custom can override it.|",
+            [OzBehaviorLibrary.RobotsLabel] = "ROBOT BEHAVIOR|Choose native behavior or a named robot preset. Tune live in Unit Editor > BEHAVIOR. Applies to the next match, independently of tanks. Z Classic still prevents engaged robots from dodging; Custom can override it. Z Classic: " + OzBehaviorLibrary.ClassicStatus + ".|",
             ["EDGE SCROLL"] = "EDGE SCROLL|The map scrolls when the mouse touches the edge of the screen. WASD, the arrow keys and the minimap always scroll.|",
             ["HEALTH BARS ON EVERY DAMAGED UNIT"] = "HEALTH BARS ON EVERY DAMAGED UNIT|On: every damaged unit shows its health bar. Off: only selected and hovered units show it. Enemy units show theirs only while you own a standing radar.|",   // 1.4 DV172
             ["CAMERA SHAKE ON EXPLOSIONS"] = "CAMERA SHAKE ON EXPLOSIONS|The camera shakes on big explosions and heavy hits.|",

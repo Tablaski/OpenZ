@@ -378,7 +378,9 @@ namespace OpenZ
                 foreach (var preset in new[] { OzBehaviorLibrary.Standard(false), OzBehaviorLibrary.Standard(true) }.Concat(presets))
                 {
                     var row = Row(preset.Name, y, 36);
-                    Button(row, "Load", preset.Name, new Rect(6, 2, layout.w - 52, 29), "Load this combat profile into the playground.", () => LoadCombat(preset));
+                    string tip = "Load this combat profile into the playground.";
+                    if (preset.Matches("zod-classic", "zod-classic")) tip = OzBehaviorLibrary.ClassicStatus + "\n" + tip;
+                    Button(row, "Load", preset.Name, new Rect(6, 2, layout.w - 52, 29), tip, () => LoadCombat(preset));
                     y += 36;
                 }
                 var current = presets.Find(p => p.Matches(drafts[0].id, drafts[1].id));

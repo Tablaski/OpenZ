@@ -11,6 +11,7 @@ namespace OpenZ
     public static class OzBehaviorLibrary
     {
         public const string TanksLabel = "TANK BEHAVIOR", RobotsLabel = "ROBOT BEHAVIOR";
+        internal const string ClassicStatus = "NOT READY YET";
         const string LibraryKey = "oz_behavior_library_v1";
         [Serializable] sealed class Saved { public string[] profiles = Array.Empty<string>(); }
         static List<ZBehaviorProfile> saved;

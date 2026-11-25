@@ -252,6 +252,8 @@ namespace OpenZ.Multiplayer
             int buttonWidth = (width - 16) / 3;
             int customX = x + 2 * (buttonWidth + 8);
             Label(panel, "DYNAMICS PROFILE", x, y, width, 19, OzUi.Amber);
+            Hud.Label(panel, "Z Classic status", "Z CLASSIC · " + OzBehaviorLibrary.ClassicStatus, 15, OzUi.Amber)
+                .At(x + width, y + 2, OzH.R, false, width / 2f);
             Button(panel, "OPENZ", x, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(false), 0), native, editable, 40);
             var classicButton = Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1), classic, editable, 40);
             OzBehaviorLibrary.ExperimentalIcon(classicButton, 12, 10, classic ? OzUi.GM950 : OzUi.Ink);

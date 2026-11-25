@@ -97,8 +97,14 @@ namespace OpenZ
                 bool selected = tanks == id && robots == id;
                 var button = MakeButton(panel, name, name, 28, y, width, 50,
                     () => { OzBehaviorLibrary.SelectCombat(OzBehaviorLibrary.Standard(classic)); ShowGaming(); }, selected: selected);
-                if (classic) OzBehaviorLibrary.ExperimentalIcon(button.Rt, 38, 15, selected ? OzUi.GM950 : OzUi.Ink);
-                Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
+                if (classic)
+                {
+                    OzBehaviorLibrary.ExperimentalIcon(button.Rt, 38, 15, selected ? OzUi.GM950 : OzUi.Ink);
+                    Hud.Label(panel, "Z Classic status", OzBehaviorLibrary.ClassicStatus, 17, OzForkOptions.Accent)
+                        .At(360, y + 1, OzH.L, false, 708);
+                    Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).Body(360, y + 19, 708);
+                }
+                else Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
             }
             Hud.Label(panel, "Radar", "WHEN YOU HAVE NO WORKING RADAR", 22, OzForkOptions.Accent).At(28, 427, OzH.L, false, 1044);
             for (int i = 0; i < 4; i++)

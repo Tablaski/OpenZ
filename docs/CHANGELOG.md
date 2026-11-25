@@ -6,6 +6,10 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.81 (25 Nov 2026)
+
+- AI Maps — Each map preview opens with a wide view, then flies continuously between landmarks and terrain details. The new previews run twice as long.
+
 ## OpenZ-VK 1.5.80 (25 Nov 2026)
 
 - Territory borders use one row of dots along shared edges, with the colour of the first territory in the map's order.

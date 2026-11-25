@@ -56,9 +56,9 @@ namespace OpenZ.Sim
                 return (x, y);
             }).ToArray();
             var occupied = Objects.Where(o => !o.Destroyed).ToList();
-            var walkRegions = NeutralStartWalkRegions();
-            var slots = forts.Select((fort, seat) => NeutralStartSlots(forts, seat, gates[seat], walkRegions)).ToArray();
-            var commonRadii = slots[0].Keys.Where(d => slots.All(seat => seat.ContainsKey(d))).ToArray();
+            var travelCosts = gates.Select(gate => Path.RobotTravelCosts(gate.x, gate.y)).ToArray();
+            var slots = forts.Select((fort, seat) => NeutralStartSlots(seat, travelCosts)).ToArray();
+            var commonCosts = slots[0].Keys.Where(cost => slots.All(seat => seat.ContainsKey(cost))).ToArray();
 
             foreach (var kind in pickups.GroupBy(o => (o.Type, o.Health)).OrderByDescending(group => group.First().IsShuttle))
             {
@@ -67,9 +67,16 @@ namespace OpenZ.Sim
                 foreach (var unit in kind)
                 {
                     int seat = Enumerable.Range(0, forts.Length)
-                        .OrderBy(i => FortDistance(unit.CenterX, unit.CenterY, forts[i])).ThenBy(i => assigned[i]).First();
+                        .OrderBy(i => TravelCost(travelCosts[i], unit)).ThenBy(i => assigned[i]).First();
+                    int cost = TravelCost(travelCosts[seat], unit);
+                    if (cost == int.MaxValue)
+                    {
+                        occupied.Remove(unit);
+                        RemoveStartingUnit(unit);
+                        continue;
+                    }
                     assigned[seat]++;
-                    placements.Add((unit, seat, FortDistance(unit.CenterX, unit.CenterY, forts[seat]),
+                    placements.Add((unit, seat, cost,
                         terrain.Role(unit, unit.CenterX, unit.CenterY, forts[seat], gates[seat])));
                 }
 
@@ -82,7 +89,7 @@ namespace OpenZ.Sim
                     while (queues.All(queue => queue.Count > 0))
                     {
                         var row = queues.Select(queue => queue.Dequeue().unit).ToArray();
-                        if (!PlaceNeutralStartRow(forts, gates, terrain, new[] { role.Key }, occupied, slots, commonRadii, row))
+                        if (!PlaceNeutralStartRow(forts, gates, terrain, new[] { role.Key }, occupied, slots, travelCosts, commonCosts, row))
                             foreach (var unit in row) RemoveStartingUnit(unit);
                     }
                     for (int seat = 0; seat < forts.Length; seat++) unmatched[seat].AddRange(queues[seat]);
@@ -104,7 +111,7 @@ namespace OpenZ.Sim
                     int priority = candidates.Max(p => StrategicPriority(p.role));
                     var preferred = candidates.Where(p => StrategicPriority(p.role) == priority)
                         .GroupBy(p => p.role).OrderByDescending(group => group.Count()).Select(group => group.Key).ToArray();
-                    if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, commonRadii, row))
+                    if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, travelCosts, commonCosts, row))
                         foreach (var unit in row) RemoveStartingUnit(unit);
                 }
             }
@@ -119,53 +126,25 @@ namespace OpenZ.Sim
             return (role & (NeutralStartRole.OnRoad | NeutralStartRole.Roadside)) != 0 ? 1 : 0;
         }
 
-        // The pathfinder's original regions ignore blockers installed after it loads the terrain.
-        int[,] NeutralStartWalkRegions()
+        static int TravelCost(int[,] costs, ZObject unit)
         {
-            var regions = new int[Path.W, Path.H];
-            var visits = new Queue<(int x, int y)>();
-            int region = 0;
-            for (int y = 0; y < Path.H; y++)
-                for (int x = 0; x < Path.W; x++)
-                {
-                    if (regions[x, y] != 0 || !Path.TilePassable(x, y, true)) continue;
-                    region++;
-                    Visit(x, y);
-                    while (visits.Count > 0)
-                    {
-                        var (tx, ty) = visits.Dequeue();
-                        Visit(tx - 1, ty); Visit(tx + 1, ty);
-                        Visit(tx, ty - 1); Visit(tx, ty + 1);
-                    }
-                }
-            return regions;
-
-            void Visit(int x, int y)
-            {
-                if (!Path.TilePassable(x, y, true) || regions[x, y] != 0) return;
-                regions[x, y] = region;
-                visits.Enqueue((x, y));
-            }
+            int x = unit.CenterX >> 4, y = unit.CenterY >> 4;
+            return (uint)x < (uint)costs.GetLength(0) && (uint)y < (uint)costs.GetLength(1)
+                ? costs[x, y] : int.MaxValue;
         }
 
-        // Work in pixels because the two fort orientations can have different centre offsets within a tile.
-        Dictionary<int, List<(int x, int y)>> NeutralStartSlots(ZObject[] forts, int seat, (int x, int y) gate, int[,] walkRegions)
+        Dictionary<int, List<(int x, int y)>> NeutralStartSlots(int seat, int[][,] travelCosts)
         {
-            var fort = forts[seat];
             var slots = new Dictionary<int, List<(int x, int y)>>();
-            int gateX = gate.x / ZConst.TILE, gateY = gate.y / ZConst.TILE;
-            if ((uint)gateX >= (uint)Path.W || (uint)gateY >= (uint)Path.H) return slots;
-            int region = walkRegions[gateX, gateY];
-            if (region == 0) return slots;
-            for (int y = fort.CenterY % ZConst.TILE; y < Path.HeightPix; y += ZConst.TILE)
-                for (int x = fort.CenterX % ZConst.TILE; x < Path.WidthPix; x += ZConst.TILE)
+            for (int ty = 1; ty < Path.H - 1; ty++)
+                for (int tx = 1; tx < Path.W - 1; tx++)
                 {
-                    if (walkRegions[x / ZConst.TILE, y / ZConst.TILE] != region) continue;
-                    int distance = FortDistance(x, y, fort);
-                    if (forts.Any(other => other != fort && FortDistance(x, y, other) <= distance)) continue;
+                    int cost = travelCosts[seat][tx, ty];
+                    if (cost == int.MaxValue || travelCosts.Any(other => other != travelCosts[seat] && other[tx, ty] <= cost)) continue;
+                    int x = tx * ZConst.TILE + ZConst.TILE / 2, y = ty * ZConst.TILE + ZConst.TILE / 2;
                     if (!NeutralStartGround(x, y)) continue;
-                    if (!slots.TryGetValue(distance, out var positions))
-                        slots.Add(distance, positions = new List<(int, int)>());
+                    if (!slots.TryGetValue(cost, out var positions))
+                        slots.Add(cost, positions = new List<(int, int)>());
                     positions.Add((x, y));
                 }
             return slots;
@@ -183,25 +162,25 @@ namespace OpenZ.Sim
         }
 
         bool PlaceNeutralStartRow(ZObject[] forts, (int x, int y)[] gates, NeutralStartTerrain terrain, NeutralStartRole[] roles,
-            List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[] commonRadii, ZObject[] row)
+            List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[][,] travelCosts, int[] commonCosts, ZObject[] row)
         {
-            var distances = row.Select((unit, seat) => FortDistance(unit.CenterX, unit.CenterY, forts[seat])).ToArray();
-            if (roles.Length == 1 && distances.All(distance => distance == distances[0]) &&
+            var costs = row.Select((unit, seat) => TravelCost(travelCosts[seat], unit)).ToArray();
+            if (roles.Length == 1 && costs.All(cost => cost == costs[0]) &&
                 row.Select((unit, seat) => terrain.Role(unit, unit.CenterX, unit.CenterY, forts[seat], gates[seat]))
                     .All(role => role == roles[0])) return true;
 
             foreach (var unit in row) occupied.Remove(unit);
             var planned = new (int x, int y, double heading)[row.Length];
-            int radius = (int)distances.Average();
-            var radii = commonRadii.OrderBy(d => Math.Abs((long)d - radius)).ThenBy(d => d).ToArray();
+            int targetCost = (int)costs.Average();
+            var nearbyCosts = commonCosts.OrderBy(cost => Math.Abs((long)cost - targetCost)).ThenBy(cost => cost).ToArray();
             foreach (var role in roles)
-            foreach (int distance in radii)
+            foreach (int cost in nearbyCosts)
             {
                 var candidates = new (int x, int y, double heading)[row.Length][];
                 int seat = 0;
                 for (; seat < row.Length; seat++)
                 {
-                    candidates[seat] = Positions(seat, distance, role).ToArray();
+                    candidates[seat] = Positions(seat, cost, role).ToArray();
                     if (candidates[seat].Length == 0) break;
                 }
                 if (seat != row.Length || !MatchSeat(0, candidates)) continue;
@@ -220,10 +199,10 @@ namespace OpenZ.Sim
             }
             return false;
 
-            IEnumerable<(int x, int y, double heading)> Positions(int seat, int distance, NeutralStartRole role)
+            IEnumerable<(int x, int y, double heading)> Positions(int seat, int cost, NeutralStartRole role)
             {
                 var unit = row[seat];
-                foreach (var (x, y) in slots[seat][distance].OrderBy(p => FortDistance(p.x, p.y, unit)))
+                foreach (var (x, y) in slots[seat][cost].OrderBy(p => FortDistance(p.x, p.y, unit)))
                 {
                     if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
                         !NeutralStartClear(unit, x, y, occupied)) continue;

@@ -312,6 +312,12 @@ namespace OpenZ.Sim
             }
             /// <summary>The place of the entry Zod's lowest_f_cost scan returns (Heaped only, size > 0).</summary>
             public int MinPos => heap[0];
+            public void LowerCost(int x, int y, int cost)
+            {
+                int i = index[x, y];
+                list[i].f = cost;
+                Up(hpos[i]);
+            }
             bool Less(int a, int b) => list[a].f < list[b].f || (list[a].f == list[b].f && a < b);
             void HeapInsert(int pos)
             {
@@ -356,6 +362,40 @@ namespace OpenZ.Sim
             }
         }
         PArray aOpen, aClosed;                                                          // the two lists of the search, kept between searches (cleared, not built anew)
+
+        // Minimum robot travel cost to every tile on the current grid, including the map's starting blockers.
+        internal int[,] RobotTravelCosts(int startPx, int startPy)
+        {
+            var costs = new int[W, H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                    costs[x, y] = int.MaxValue;
+
+            int sx = startPx >> 4, sy = startPy >> 4;
+            if (!TilePassable(sx, sy, true)) return costs;
+            var open = new PArray(W, H) { Heaped = true };
+            costs[sx, sy] = 0;
+            open.Add(new P { x = sx, y = sy });
+            while (open.size > 0)
+            {
+                var current = open.list[open.MinPos];
+                open.Remove(current.x, current.y);
+                open.index[current.x, current.y] = -1;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int x = current.x + dx, y = current.y + dy;
+                        if (!TileOk(current.x, current.y, x, y, true, robot)) continue;
+                        int cost = current.f + Gf(current, x, y, robot);
+                        if (cost >= costs[x, y]) continue;
+                        costs[x, y] = cost;
+                        if (open.index[x, y] < 0) open.Add(new P { x = x, y = y, f = cost });
+                        else open.LowerCost(x, y, cost);
+                    }
+            }
+            return costs;
+        }
 
         List<(int, int)> AStar(int startPx, int startPy, int endPx, int endPy, bool isRobot, Info[,] t)
         {

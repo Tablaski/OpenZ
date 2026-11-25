@@ -262,6 +262,7 @@ namespace OpenZ.Multiplayer
             if (transport.Epoch != roomEpoch)
             {
                 roomEpoch = transport.Epoch;
+                ResetRoomSetup();
                 roomRouteChangedAt = Now;
                 roomLinks.Clear();
                 roomFullState = true;

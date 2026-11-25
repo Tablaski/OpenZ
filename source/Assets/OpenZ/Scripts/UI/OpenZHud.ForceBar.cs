@@ -91,7 +91,7 @@ namespace OpenZ
             {
                 var team = (Team)(i + 1);
                 bool eliminated = W.SkirmishEliminated(team);
-                string botMark = skirmishNetwork && Multiplayer.DuelRuntime.I?.RoomBotAt(i) == true ? "🤖 " : "";
+                string botMark = skirmishNetwork && Multiplayer.DuelRuntime.I?.RoomBotAt(i) == true ? "AI " : "";
                 if (skirmishNetwork && skirmishSeatCount > 4)
                     skirmishSeats[i].Set($"{botMark}{i + 1}{(eliminated ? " OUT" : "")}");
                 else

@@ -2,9 +2,14 @@
 
 OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring back the combat feel and advanced tactics of the original 1996 Z with help from experienced players.
 
-Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. When fog is active, teammates share battlefield vision and last-known information. Ghost spectators can watch an online match with a free camera or switch directly to a player's point of view.
+Play solo, invite friends online with a magic link, or start a local Skirmish against bots. Play in teams or free for all, explore AI Maps, and try optional production rules and player advantages. In the online lobby, follow the host's setup live or browse the official settings while chatting. When fog is active, teammates share battlefield vision and last-known information. Ghost spectators can watch an online match with a free camera or switch directly to a player's point of view.
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
+
+## OpenZ-VK 1.5.85 (25 Nov 2026)
+
+- Online lobby — Follow the host as they set up the match. A cyan marker shows where the host points and clicks while you use the chat. Turn off Follow Host or open another setup panel to browse the official settings in read-only mode.
+- Multiplayer and Skirmish — Bot and All for One labels display without stray squares.
 
 ## OpenZ-VK 1.5.84 (25 Nov 2026)
 

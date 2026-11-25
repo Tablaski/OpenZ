@@ -110,7 +110,11 @@ namespace OpenZ.Multiplayer
                 Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping)
                 OpenOnlinePopup(OnlinePopup.None);
             if (OnlineRoomPage && onlinePlayerMenu != null && Keyboard.current != null &&
-                Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping) CloseOnlinePlayerMenu();
+                Keyboard.current.escapeKey.wasPressedThisFrame && !IsTyping)
+            {
+                PauseHostSetup();
+                CloseOnlinePlayerMenu();
+            }
             if (page == Page.Lobby && (lastConnectionStatus != R.ConnectionStatus || lastRoom != R.OnlineRoom))
             { lastConnectionStatus = R.ConnectionStatus; lastRoom = R.OnlineRoom; dirty = true; }
             if (R.InMatch && R.Game && R.Game.World.GameOver)
@@ -137,6 +141,7 @@ namespace OpenZ.Multiplayer
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
                 { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
             }
+            FollowSetupNavigation();
             if (dirty) { dirty = false; Build(); }
             R.Voice.ChatMonitoring = chatInputMeter && R.Connected;
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
@@ -163,6 +168,7 @@ namespace OpenZ.Multiplayer
                 planningProgress.rectTransform.anchorMax = new Vector2(Mathf.Clamp01((float)left / Math.Max(1, seconds)), 1);
             }
             if ((page == Page.Skirmish || OnlineRoomPage) && builtPage == page) FitSkirmishFrame();
+            UpdateHostSetup();
             if (OnlineRoomPage) TickOnlinePings();
             HandleGhostKeys();
             TickLobbyFlyby();
@@ -181,8 +187,16 @@ namespace OpenZ.Multiplayer
                 pickerGroup = -1;
                 lobbyDialog = LobbyDialog.None;
             }
-            if (lobbyChatScroll && builtPage == Page.Lobby && R.SkirmishRoom)
+            if (lobbyChatScroll && OnlineRoomPage)
+            {
                 onlineChatPosition = lobbyChatScroll.verticalNormalizedPosition;
+                if (chatField)
+                {
+                    retainedLobbyChatInput = chatField;
+                    retainedLobbyChatInput.transform.SetParent(canvas.transform, false);
+                }
+            }
+            setupMarker = null;
             if (overlayRoot) { overlayRoot.gameObject.SetActive(false); Destroy(overlayRoot.gameObject); }
             if (page != Page.Lobby && page != Page.Skirmish) ReleaseLobbyFlyby();
             lobbyFlybyImage = null;
@@ -353,7 +367,8 @@ namespace OpenZ.Multiplayer
                 Label(panel, "ALLOWED UNITS", 30, 81, 480, 20, OzUi.Amber);
                 Button(panel, "OPENZ", 30, 121, 155, () => SetRoster(false), !rules.ClassicUnits && !rules.CustomRoster, editable);
                 Button(panel, "Z CLASSIC", 196, 121, 155, () => SetRoster(true), rules.ClassicUnits, editable);
-                Button(panel, "CUSTOM", 362, 121, 155, () => { roomCustomUnits = true; dirty = true; }, rules.CustomRoster, editable);
+                Button(panel, editable ? "CUSTOM" : "VIEW UNIT LIST", 362, 121, 155,
+                    () => { PauseHostSetup(); roomCustomUnits = true; dirty = true; }, rules.CustomRoster);
                 string tanks = rules.ClassicDynamics ? "zod-classic" : ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks).id;
                 string robots = rules.ClassicDynamics ? "zod-classic" : ZWorld.DuelProfile(rules.RobotDynamics, ZBehaviorFamily.Robots).id;
                 var profileChoices = BuildCombatProfileChoices(panel, 554, 81, 505, tanks, robots, editable, (profile, kind) =>
@@ -486,15 +501,15 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        void BuildRoomArmyPresets(SkirmishRules rules, Action<SkirmishRules> save)
+        void BuildRoomArmyPresets(SkirmishRules rules, Action<SkirmishRules> save, bool editable = true)
         {
             var starting = new DuelRules();
             starting.Common.StartingUnits.AddRange(rules.Common);
-            BuildArmyPresets(starting, true, next =>
+            BuildArmyPresets(starting, editable, next =>
             {
                 rules.Common = next.Common.StartingUnits.Select(unit => rules.Allows(unit) ? unit : "").ToArray();
                 save(rules);
-            }, () => { roomPresets = false; dirty = true; });
+            }, () => { PauseHostSetup(); roomPresets = false; dirty = true; });
         }
 
         static void RemoveDisallowedExtras(SkirmishRules rules)
@@ -504,13 +519,14 @@ namespace OpenZ.Multiplayer
                     if (!string.IsNullOrEmpty(units[i]) && !rules.Allows(units[i])) units[i] = "";
         }
 
-        void BuildRoomCustomUnits(SkirmishRules rules, Action<SkirmishRules> save)
+        void BuildRoomCustomUnits(SkirmishRules rules, Action<SkirmishRules> save, bool editable = true)
         {
             var shade = Hud.Img(root, "Allowed units backdrop", new Color(0, 0, 0, .94f));
             shade.rectTransform.Fill();
             shade.raycastTarget = true;
             var panel = Panel("ALLOWED UNITS", 220, 155, 1480, 790);
-            Button(panel, "CLOSE", 1260, 12, 190, () => { roomCustomUnits = false; dirty = true; });
+            if (OnlineRoomPage) FitSetupDialog(shade.rectTransform, panel, 1480, 790);
+            Button(panel, "CLOSE", 1260, 12, 190, () => { PauseHostSetup(); roomCustomUnits = false; dirty = true; });
             var roster = new DuelRules();
             roster.SetUnitPreset(rules.CustomRoster ? DuelUnitPreset.Custom : rules.ClassicUnits ? DuelUnitPreset.Z1996 : DuelUnitPreset.OpenZ);
             if (rules.CustomRoster)
@@ -519,7 +535,7 @@ namespace OpenZ.Multiplayer
                 roster.ExcludeMammoth = rules.ExcludeMammoth;
                 roster.ExcludeBizon = rules.ExcludeBizon;
             }
-            OzAllowedUnitsPanel.Build(panel, roster, true, () =>
+            OzAllowedUnitsPanel.Build(panel, roster, editable, () =>
             {
                 rules.CustomRoster = true;
                 rules.ClassicUnits = false;
@@ -528,7 +544,11 @@ namespace OpenZ.Multiplayer
                 rules.ExcludeBizon = roster.ExcludeBizon;
                 RemoveDisallowedExtras(rules);
                 save(rules);
-            }, roomRosterScroll, value => roomRosterScroll = value, false);
+            }, roomRosterScroll, value =>
+            {
+                if (Mathf.Abs(value - roomRosterScroll) > .007f) PauseHostSetup();
+                roomRosterScroll = value;
+            }, false);
         }
 
         float roomRosterScroll = 1;
@@ -1096,13 +1116,15 @@ namespace OpenZ.Multiplayer
             }, CloseArmyPicker);
         }
 
-        void BuildArmyGallery(bool fort, int slot, string selected, Func<string, bool> allows, Action<string> choose, Action close)
+        void BuildArmyGallery(bool fort, int slot, string selected, Func<string, bool> allows, Action<string> choose, Action close,
+            bool editable = true)
         {
             var shade = Hud.Img(root, "UnitPickerShade", new Color(0, 0, 0, .85f));
             shade.rectTransform.Fill();
             shade.raycastTarget = true;
             string title = fort ? "ON THE FORT · SELECT CANNON" : "OUTSIDE THE FORT · SELECT UNIT";
             var panel = Panel(title + " · SLOT " + (slot % 4 + 1), 340, 180, 1240, 720);
+            if (OnlineRoomPage) FitSetupDialog(shade.rectTransform, panel, 1240, 720);
             var backing = Hud.Img(panel, "UnitPickerBackground", OzUi.GM950);
             backing.rectTransform.Fill();
             backing.transform.SetAsFirstSibling();
@@ -1116,7 +1138,7 @@ namespace OpenZ.Multiplayer
                 Category("ROBOTS", units.Where(ZBuildLists.IsRobot).ToArray(), 112);
                 Category("VEHICLES", units.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
             }
-            Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected));
+            Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected), enabled: editable);
 
             void Category(string name, string[] types, float y)
             {
@@ -1126,7 +1148,7 @@ namespace OpenZ.Multiplayer
                 {
                     string type = types[i];
                     var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138,
-                        () => choose(type), type == selected, height: 130);
+                        () => choose(type), type == selected, editable, height: 130);
                     button.name = "SELECT " + type;
                     Portrait(button, type, 29, 12, 80);
                 }
@@ -1364,7 +1386,9 @@ namespace OpenZ.Multiplayer
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
             if (!primary) b.LabelColor = LobbyStyle ? (Color)OzUi.Ink : OzForkOptions.Accent;
-            b.Rt.TL(x, y, w, height); b.Interactable = enabled; b.Refresh();
+            b.Rt.TL(x, y, w, height);
+            b.Interactable = enabled || primary && OnlineRoomPage && R.HostedRoom == null;
+            b.Refresh();
             if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
             if (text == "AI MAPS")
             {

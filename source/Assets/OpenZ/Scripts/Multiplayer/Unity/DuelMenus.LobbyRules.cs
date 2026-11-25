@@ -119,11 +119,13 @@ namespace OpenZ.Multiplayer
             var shade = Hud.Img(root, "Army presets shade", new Color(0, 0, 0, .94f));
             shade.rectTransform.Fill(); shade.raycastTarget = true;
             var panel = Panel("OUTSIDE THE FORT · PRESETS", 320, 165, 1280, 750);
+            if (OnlineRoomPage) FitSetupDialog(shade.rectTransform, panel, 1280, 750);
             dismiss ??= () => { lobbyDialog = LobbyDialog.None; dirty = true; };
             Button(panel, "CLOSE", 1030, 12, 225, dismiss);
             Label(panel, "Load a four-slot formation for both teams. Units disabled by the lobby roster leave their slots empty.", 24, 70, 1220, 17, OzUi.Muted);
-            Label(panel, "SAVE CURRENT FOUR SLOTS", 24, 123, 470, 17, OzUi.Ink);
-            Input(panel, "", 24, 155, 430, presetName, value => presetName = value, 32);
+            Label(panel, editable ? "SAVE CURRENT FOUR SLOTS" : "CURRENT FOUR SLOTS · READ ONLY", 24, 123, 470, 17, OzUi.Ink);
+            if (editable) Input(panel, "", 24, 155, 430, presetName, value => presetName = value, 32);
+            else Label(panel, string.Join("  /  ", rules.Common.StartingUnits.Select(UnitName)), 24, 164, 1080, 17, OzUi.Ink);
             Button(panel, "SAVE AS", 474, 155, 175, () =>
             {
                 string name = presetName.Trim();
@@ -142,9 +144,9 @@ namespace OpenZ.Multiplayer
                     presetName = "";
                 }
                 dirty = true;
-            });
-            Label(panel, presetStatus ?? "", 680, 167, 570, 16, OzUi.Amber);
-            var saved = ReadArmyPresets().entries?.Where(p => p != null && !string.IsNullOrWhiteSpace(p.name) &&
+            }, enabled: editable);
+            if (editable) Label(panel, presetStatus ?? "", 680, 167, 570, 16, OzUi.Amber);
+            var saved = (editable ? ReadArmyPresets().entries : null)?.Where(p => p != null && !string.IsNullOrWhiteSpace(p.name) &&
                 !p.name.Contains("<") && !p.name.Contains(">") && DuelMissionDefaults.IsOutsidePreset(p.units)).ToList() ?? new List<ArmyPreset>();
             saved.Insert(0, new ArmyPreset { name = "OpenZ-VK default", units = DuelMissionDefaults.OutsideUnits() });
             saved.Insert(1, new ArmyPreset { name = "Light and heavy assault", units = new[] { "light", "heavy", "pyro", "laser" } });
@@ -251,6 +253,7 @@ namespace OpenZ.Multiplayer
             var current = profiles.Find(profile => profile.Matches(tanks, robots));
             int buttonWidth = (width - 16) / 3;
             int customX = x + 2 * (buttonWidth + 8);
+            bool guestView = OnlineRoomPage && R.HostedRoom == null && !R.EndLobbyOpen;
             Label(panel, "DYNAMICS PROFILE", x, y, width, 19, OzUi.Amber);
             Hud.Label(panel, "Z Classic status", "Z CLASSIC · " + OzBehaviorLibrary.ClassicStatus, 15, OzUi.Amber)
                 .At(x + width, y + 2, OzH.R, false, width / 2f);
@@ -258,24 +261,62 @@ namespace OpenZ.Multiplayer
             var classicButton = Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1), classic, editable, 40);
             OzBehaviorLibrary.ExperimentalIcon(classicButton, 12, 10, classic ? OzUi.GM950 : OzUi.Ink);
             bool canChooseCustom = editable && profiles.Count > 0;
-            var custom = Button(panel, "CUSTOM", customX, y + 40, buttonWidth,
-                () => { combatDropdown = !combatDropdown; dirty = true; }, !native && !classic, canChooseCustom, 40);
-            if (canChooseCustom) Label(custom, "v", buttonWidth - 20, 20, 17, 12, !native && !classic ? OzUi.GM950 : OzUi.Ink);
+            bool canOpenCustom = canChooseCustom || guestView;
+            var custom = Button(panel, guestView ? "VIEW CUSTOM" : "CUSTOM", customX, y + 40, buttonWidth,
+                () => { PauseHostSetup(); combatDropdown = !combatDropdown; onlineProfileScroll = 1; dirty = true; },
+                !native && !classic, canOpenCustom, 40);
+            if (canOpenCustom) Label(custom, "v", buttonWidth - 20, 20, 17, 12, !native && !classic ? OzUi.GM950 : OzUi.Ink);
             string description = combatDropdown && canChooseCustom ? "Choose a saved Unit Editor profile." :
                 native ? "Standard OpenZ combat behavior." :
                 classic ? "Experimental: Z95-inspired dodging, speed boosts and combat movement." :
                 current == null ? "The lobby uses a custom combat profile." : "Saved combat profile: " + current.Name;
             Label(panel, description, x, y + 95, width, 15, OzUi.Muted);
-            if (!combatDropdown || !canChooseCustom) return null;
+            if (!combatDropdown || !canOpenCustom) return null;
+            if (guestView)
+            {
+                var names = FollowingHost ? displayedSetup?.Profiles : null;
+                if (names == null || names.Length == 0)
+                {
+                    var summary = Hud.Img(panel, "Read-only profile", OzUi.GM950);
+                    summary.rectTransform.TL(x, y + 114, width, 42);
+                    Label(summary.transform, !native && !classic ? "CUSTOM PROFILE ACTIVE" : "NO CUSTOM PROFILE ACTIVE",
+                        10, 7, width - 20, 15, OzUi.Muted);
+                    return summary.rectTransform;
+                }
+                var menu = BuildProfileList(names.Length);
+                for (int i = 0; i < names.Length; i++)
+                    Button(menu, names[i], 5, 5 + i * 42, width - 10, () => { }, enabled: false, height: 38);
+                return menu.parent as RectTransform;
+            }
+            if (OnlineRoomPage)
+                setupProfileNames = profiles.Take(20).Select(profile =>
+                    new string(profile.Name.Where(c => !char.IsControl(c) && c != '<' && c != '>').Take(50).ToArray()))
+                    .Where(name => name.Length > 0).ToArray();
             // The dropdown spans both columns so saved names have room even at the smaller lobby width.
-            float contentHeight = profiles.Count * 42 + 10;
-            var list = Scroll(panel, x, y + 114, width, Math.Min(222, contentHeight), false, contentHeight);
+            var list = BuildProfileList(profiles.Count);
             for (int i = 0; i < profiles.Count; i++)
             {
                 var profile = profiles[i];
                 Button(list, profile.Name, 5, 5 + i * 42, width - 10, () => Choose(profile, 2), profile == current, height: 38);
             }
             return list.parent as RectTransform;
+
+            RectTransform BuildProfileList(int count)
+            {
+                float contentHeight = count * 42 + 10;
+                var content = Scroll(panel, x, y + 114, width, Math.Min(222, contentHeight), false, contentHeight);
+                if (OnlineRoomPage)
+                {
+                    var scroll = content.parent.GetComponent<ScrollRect>();
+                    scroll.verticalNormalizedPosition = onlineProfileScroll;
+                    scroll.onValueChanged.AddListener(value =>
+                    {
+                        if (Mathf.Abs(value.y - onlineProfileScroll) > .007f) PauseHostSetup();
+                        onlineProfileScroll = value.y;
+                    });
+                }
+                return content;
+            }
 
             void Choose(OzBehaviorLibrary.CombatProfile profile, int kind)
             {

@@ -18,6 +18,74 @@ namespace OpenZ.Multiplayer
         {
             public LobbyPing[] Links;
             public string Change;
+            public RoomSetupView Setup;
+        }
+
+        internal enum SetupPanel { Rules, Maps, Units, AllowedUnits, AiHelp, Presets, CombatProfiles, Teams, ActivePlayers, Position }
+
+        [Serializable] internal sealed class RoomSetupView
+        {
+            public int Tab, Seat, Slot, Scroll, MapPage, MapSize, AiIdle, AiCapture, Click, TeamCount, ActivePlayers, BotGeneration, PositionSeat;
+            public SetupPanel Panel;
+            public bool Fort, Official, Pointer, AllForOne;
+            public int[] Teams;
+            public string[] Profiles;
+            public string World, Search, Map, Unit;
+            public int X, Y;
+
+            internal bool SameNavigation(RoomSetupView other) => other != null &&
+                Tab == other.Tab && Seat == other.Seat && Panel == other.Panel && Slot == other.Slot &&
+                Scroll == other.Scroll && Fort == other.Fort && Official == other.Official &&
+                MapPage == other.MapPage && MapSize == other.MapSize && World == other.World &&
+                Search == other.Search && Map == other.Map && Unit == other.Unit &&
+                AiIdle == other.AiIdle && AiCapture == other.AiCapture &&
+                TeamCount == other.TeamCount && AllForOne == other.AllForOne && ActivePlayers == other.ActivePlayers &&
+                BotGeneration == other.BotGeneration && PositionSeat == other.PositionSeat &&
+                SameItems(Teams, other.Teams) && SameItems(Profiles, other.Profiles);
+
+            static bool SameItems<T>(T[] first, T[] second) =>
+                first == null ? second == null : second != null && first.SequenceEqual(second);
+
+            internal bool IsValid() => Tab >= 0 && Tab < 5 && Seat >= 0 && Seat < 8 &&
+                Panel >= SetupPanel.Rules && Panel <= SetupPanel.Position &&
+                Slot >= 0 && Slot < 4 && Scroll >= 0 && Scroll <= 100 &&
+                MapPage >= 0 && MapPage < 128 && (MapSize == 0 || MapSize == 2 || MapSize == 3 || MapSize == 4 || MapSize == 6 || MapSize == 8) &&
+                AiIdle >= 0 && AiIdle <= 30 && AiCapture >= 0 && AiCapture <= 2 && Click >= 0 &&
+                BotGeneration >= 0 && BotGeneration <= 2 && PositionSeat >= 0 && PositionSeat < 8 &&
+                X >= 0 && X <= 1920 && Y >= 0 && Y < 766 &&
+                (Panel != SetupPanel.Teams || TeamCount >= 2 && TeamCount <= 8 &&
+                    Teams != null && Teams.Length >= 2 && Teams.Length <= 8 && Teams.All(team => team >= 0 && team < 8)) &&
+                (Profiles == null || Profiles.Length <= 20 &&
+                    Profiles.All(name => ValidText(name, 50) && !string.IsNullOrEmpty(name) && !name.Contains('<') && !name.Contains('>'))) &&
+                ValidText(World, 16) && ValidText(Search, 70) && ValidText(Map, 32) && ValidText(Unit, 32);
+
+            static bool ValidText(string value, int limit) =>
+                value == null || value.Length <= limit && !value.Any(char.IsControl);
+        }
+
+        RoomSetupView lastRoomSetupSent, receivedRoomSetup;
+        double nextRoomSetupSend, roomSetupHeartbeat, lastRoomSetupReceived;
+        internal RoomSetupView HostSetup => !session && JoinedRoom?.Launched == false &&
+            Now - lastRoomSetupReceived < 2.5 ? receivedRoomSetup : null;
+
+        internal void PublishRoomSetup(RoomSetupView view)
+        {
+            if (room == null || room.Launched || session || !Connected || view == null || Now < nextRoomSetupSend) return;
+            bool changed = !view.SameNavigation(lastRoomSetupSent) || view.Pointer != lastRoomSetupSent.Pointer ||
+                view.Pointer && (view.X != lastRoomSetupSent.X || view.Y != lastRoomSetupSent.Y || view.Click != lastRoomSetupSent.Click);
+            if (!changed && Now < roomSetupHeartbeat) return;
+            var packet = new DuelPacket(DuelMessage.RoomLobbyStatus,
+                System.Text.Encoding.UTF8.GetBytes(UnityEngine.JsonUtility.ToJson(new RoomLobbyStatus { Setup = view })));
+            nextRoomSetupSend = Now + .05;
+            if (!RoomTransport.Send(packet)) return;
+            lastRoomSetupSent = view;
+            roomSetupHeartbeat = Now + .75;
+        }
+
+        void ResetRoomSetup()
+        {
+            lastRoomSetupSent = receivedRoomSetup = null;
+            nextRoomSetupSend = roomSetupHeartbeat = lastRoomSetupReceived = 0;
         }
 
         internal LobbyPing[] RoomPings { get; private set; } = Array.Empty<LobbyPing>();
@@ -88,6 +156,11 @@ namespace OpenZ.Multiplayer
             if (packet.Payload.Length > 4096) return;
             var status = ReadJson<RoomLobbyStatus>(packet);
             if (status == null) return;
+            if (!session && JoinedRoom?.Launched == false && status.Setup?.IsValid() == true)
+            {
+                receivedRoomSetup = status.Setup;
+                lastRoomSetupReceived = Now;
+            }
             if (!session && status.Change?.Length > 0 && status.Change.Length <= 512 && !status.Change.Any(char.IsControl))
                 AddChat(RoomSettingsChatPrefix + status.Change);
             if (status.Links != null && status.Links.Length <= 8 && status.Links.All(link => link != null &&
@@ -141,6 +214,7 @@ namespace OpenZ.Multiplayer
 
         void ClearRoomLobbyStatus()
         {
+            ResetRoomSetup();
             previousLobbyRules = null;
             previousRoomMap = previousRoomSeats = null;
             RoomPings = Array.Empty<LobbyPing>();

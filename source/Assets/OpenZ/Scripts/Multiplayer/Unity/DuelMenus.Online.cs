@@ -15,6 +15,7 @@ namespace OpenZ.Multiplayer
         int onlineMapPage, onlineMapSize, onlinePlayerSeat, onlineUnitSlot, onlineAiIdle, onlineAiCapture;
         bool onlineOfficial, onlineShowSettings = true, onlineInviteShown;
         string onlineWorld = "", onlineMapSearch = "", onlineProposedMap;
+        string onlineRenderedSearch = "";
         Action<string> onlineUnitChoice;
         bool onlineUnitFort;
         string onlineUnitSelected;
@@ -39,6 +40,7 @@ namespace OpenZ.Multiplayer
 
         void ResetOnlineLobby()
         {
+            ResetSetupFollow();
             onlinePopup = OnlinePopup.None;
             onlineUnitChoice = null;
             onlineChatPosition = 0;
@@ -73,11 +75,17 @@ namespace OpenZ.Multiplayer
             for (int i = 0; i < tabs.Length; i++)
             {
                 int tab = i;
-                Button(root, tabs[i], 60 + i * 221, 125, 212, () => { roomTab = tab; combatDropdown = false; dirty = true; }, i == roomTab);
+                Button(root, tabs[i], 60 + i * 221, 125, 212, () => SelectOnlineSetupTab(tab), i == roomTab);
             }
             if (hosted != null && !R.InMatch)
                 Button(root, "INVITE PLAYERS", 1560, 41, 300, () => OpenOnlinePopup(OnlinePopup.Invite), true);
-            else Label(root, "Joined as " + local.Name, 1460, 52, 400, 18, OzUi.Muted);
+            else
+            {
+                Label(root, "Joined as " + local.Name, 1380, 52, 225, 18, OzUi.Muted);
+                if (!R.EndLobbyOpen) DrawFollowHost();
+                if (!FollowingHost && !R.EndLobbyOpen)
+                    Label(root, "HOST SETTINGS · READ ONLY", 1180, 138, 340, 16, OzUi.Muted);
+            }
             Button(root, "FREE FOR ALL", 1530, 125, 179, () => SetMode(true), rules.FreeForAll, editable);
             bool teamsSupported = MultiplayerRoom.CanFormTeams(map.Starts - closed.Length);
             Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable && teamsSupported);
@@ -100,7 +108,8 @@ namespace OpenZ.Multiplayer
 
             onlinePlayerAnchor = null; onlineMenuPerson = null;
             if (onlineTeams != null && onlineTeamsRevision != hosted?.Revision) onlineTeams = null;
-            if (onlineTeams != null) DrawOnlineEditTeams(people, bots, hosted.Starts);
+            if (onlineTeams != null || browseOnlineTeams && !rules.FreeForAll)
+                DrawOnlineEditTeams(people, bots, map.Starts, editable);
             else DrawOnlineRoster(map.Starts, people, bots, closed, rules.FreeForAll, editable);
             DrawOnlineChat();
             Button(root, "LEAVE LOBBY", 60, 998, 216, Leave);
@@ -121,18 +130,19 @@ namespace OpenZ.Multiplayer
             if (hosted != null)
                 Button(root, "LAUNCH MATCH", 1654, 998, 206, R.LaunchRoom, true, onlineTeams == null && R.RoomCanLaunch);
 
-            if (roomCustomUnits && editable) BuildRoomCustomUnits(rules, R.SetRoomRules);
-            if (roomPresets && editable) BuildRoomArmyPresets(rules, R.SetRoomRules);
+            if (roomCustomUnits) BuildRoomCustomUnits(rules, R.SetRoomRules, editable);
+            if (roomPresets) BuildRoomArmyPresets(rules, R.SetRoomRules, editable);
             DrawOnlinePlayerMenu();
             switch (onlinePopup)
             {
                 case OnlinePopup.Invite: DrawOnlineInvitation(); break;
-                case OnlinePopup.Maps: if (editable) DrawOnlineGallery(); break;
-                case OnlinePopup.ActivePlayers: if (editable) DrawOnlineActivePlayers(); break;
+                case OnlinePopup.Maps: DrawOnlineGallery(); break;
+                case OnlinePopup.ActivePlayers: DrawOnlineActivePlayers(editable); break;
                 case OnlinePopup.Units: DrawOnlineUnitPicker(rules, editable); break;
                 case OnlinePopup.AiHelp: DrawOnlineAiHelp(people, rules, editable); break;
                 case OnlinePopup.Connection: DrawOnlineConnection(people); break;
             }
+            DrawSetupMarker();
             TickOnlinePings();
         }
 
@@ -150,17 +160,20 @@ namespace OpenZ.Multiplayer
 
         void OpenOnlinePopup(OnlinePopup next)
         {
+            PauseHostSetup();
             onlinePopup = next;
             if (next != OnlinePopup.Units) onlineUnitChoice = null;
             dirty = true;
         }
 
-        RectTransform OnlineDialog(string title, float x, float y, float w, float h, string close = "CLOSE", Action closeAction = null)
+        RectTransform OnlineDialog(string title, float x, float y, float w, float h, string close = "CLOSE", Action closeAction = null,
+            bool setup = false)
         {
             var shade = Hud.Img(root, "Dialog backdrop", new Color(0, 0, 0, .80f));
             shade.rectTransform.Fill();
             shade.raycastTarget = true;
             var panel = Panel(title, x, y, w, h);
+            if (setup) FitSetupDialog(shade.rectTransform, panel, w, h);
             Button(panel, close, w - 238, 10, 214, closeAction ?? (() => OpenOnlinePopup(OnlinePopup.None)), height: 36);
             return panel;
         }
@@ -171,8 +184,8 @@ namespace OpenZ.Multiplayer
             if (!map.IsOfficial) OzAiMapBadge.Head(panel, new OzRect(24, 52, 22, 22));
             Label(panel, (map.IsOfficial ? "OpenZ Maps" : "AI Maps") + $" · {capacity} players",
                 map.IsOfficial ? 24 : 53, 54, 660, 17, OzUi.Muted);
-            if (editable)
-                Button(panel, "CHANGE MAP", 817, 16, 250, () =>
+            if (!R.EndLobbyOpen)
+                Button(panel, editable ? "CHANGE MAP" : "VIEW MAPS", 817, 16, 250, () =>
                 {
                     onlineMapPage = 0;
                     onlineMapSize = OnlineGalleryMaps(capacity, map.IsOfficial).Any(entry => entry.Id == map.Id) ? capacity : 6;
@@ -180,7 +193,7 @@ namespace OpenZ.Multiplayer
                     onlineMapSearch = onlineWorld = "";
                     onlineProposedMap = map.Id;
                     OpenOnlinePopup(OnlinePopup.Maps);
-                }, true, height: 39);
+                }, editable, height: 39);
             if (roomTechMap != map.Id) UpdateRoomMapData(map.Id);
             var mini = SkirmishMinimap(map);
             if (mini) DrawRoomMap(panel, mini, 24, 83, 592, 452);
@@ -205,6 +218,9 @@ namespace OpenZ.Multiplayer
             float height = 36 * (starts + observers.Length + waiting.Length) + 29 * (teams.Length +
                 (empty.Length > 0 ? 1 : 0) + (observers.Length > 0 ? 1 : 0) + (waiting.Length > 0 ? 1 : 0));
             var content = Scroll(panel, 22, 58, 646, 445, false, Mathf.Max(445, height));
+            var rosterScroll = content.parent.GetComponent<ScrollRect>();
+            rosterScroll.verticalNormalizedPosition = onlineRosterPosition;
+            rosterScroll.onValueChanged.AddListener(value => onlineRosterPosition = value.y);
             float y = 0;
             if (freeForAll)
                 foreach (int seat in occupied) SeatRow(seat);
@@ -235,6 +251,14 @@ namespace OpenZ.Multiplayer
                 Label(panel, AllForOneLabel(R.RoomRules.AllForOne), 24, 520, 410, 17, OzUi.Ink);
                 if (R.IsHost)
                     Button(panel, "EDIT TEAMS", 459, 516, 206, () => StartOnlineTeamEdit(starts, active, bots), enabled: editable, height: 35);
+                else if (!R.EndLobbyOpen)
+                    Button(panel, "VIEW TEAMS", 459, 516, 206, () =>
+                    {
+                        PauseHostSetup();
+                        browseOnlineTeams = true;
+                        onlineTeamsScroll = 1;
+                        dirty = true;
+                    }, height: 35);
             }
 
             void Group(string title, Color tint, bool ghost = false)
@@ -266,15 +290,15 @@ namespace OpenZ.Multiplayer
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
                     OzAiMapBadge.Head(row.transform, new OzRect(43, 5, 21, 21));
-                    Label(row.transform, "🤖 AI  ·  " + BotDifficultyName(bot.Difficulty), 70, 7, 350, 17, OzUi.Ink);
-                    if (editable && seat < R.HostedRoom.Capacity)
+                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 70, 7, 350, 17, OzUi.Ink);
+                    if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat);
                 }
                 else
                 {
                     bool isClosed = closed.Contains(seat);
                     Label(row.transform, isClosed ? "Closed" : "Open", 43, 8, 350, 17, OzUi.Muted);
-                    if (editable && seat < R.HostedRoom.Capacity)
+                    if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat);
                 }
                 y += 36;
@@ -331,6 +355,7 @@ namespace OpenZ.Multiplayer
         {
             var anchor = Button(parent, "...", 594, y, 47, () =>
             {
+                PauseHostSetup();
                 bool opened = onlinePlayerMenu == key;
                 CloseOnlinePlayerMenu();
                 if (!opened) onlinePlayerMenu = key;
@@ -364,8 +389,10 @@ namespace OpenZ.Multiplayer
             float above = root.rect.yMax - top.y - 4;
             var shield = Hud.Img(root, "Dismiss player menu", Color.clear);
             shield.rectTransform.Fill();
+            bool positionMenu = IsPositionSetupMenu(out int seat);
+            if (positionMenu) shield.rectTransform.TL(0, 117, 1920, 649);
             shield.raycastTarget = true;
-            shield.gameObject.AddComponent<Button>().onClick.AddListener(CloseOnlinePlayerMenu);
+            shield.gameObject.AddComponent<Button>().onClick.AddListener(() => { PauseHostSetup(); CloseOnlinePlayerMenu(); });
             var list = Hud.Node("Player menu", root);
             var background = Hud.Img(list, "Menu background", OzUi.GM950);
             background.rectTransform.Fill(); background.raycastTarget = true;
@@ -400,15 +427,15 @@ namespace OpenZ.Multiplayer
                 ActionButton("KICK PLAYER...", () => Confirm(false), close: false);
                 ActionButton("KICK AND BAN...", () => Confirm(true), close: false);
             }
-            else if (R.HostedRoom != null && OnlineEditing && onlinePlayerMenu.StartsWith("seat:", StringComparison.Ordinal) &&
-                int.TryParse(onlinePlayerMenu.Substring(5), out int seat))
+            else if (positionMenu)
             {
-                var room = R.HostedRoom;
-                ZBotDifficulty? difficulty = room.Bots.Where(entry => entry.Position == seat)
-                    .Select(entry => (ZBotDifficulty?)entry.Difficulty).FirstOrDefault();
+                bool editable = OnlineEditing;
+                ZBotDifficulty? difficulty = R.HostedRoom != null
+                    ? R.HostedRoom.Bots.Where(entry => entry.Position == seat).Select(entry => (ZBotDifficulty?)entry.Difficulty).FirstOrDefault()
+                    : R.JoinedRoom.Bots.Where(entry => entry.Position == seat).Select(entry => (ZBotDifficulty?)entry.Difficulty).FirstOrDefault();
                 bool bot = difficulty.HasValue;
-                bool closed = room.ClosedPositions.Contains(seat);
-                bool modern = onlineBotModern ?? (bot && ZAiDifficulty.IsModern(difficulty.Value));
+                bool closed = (R.HostedRoom?.ClosedPositions ?? R.JoinedRoom.Closed).Contains(seat);
+                bool modern = (editable || FollowingHost ? onlineBotModern : null) ?? (bot && ZAiDifficulty.IsModern(difficulty.Value));
                 Label(list, "BOT DIFFICULTY", 8, y + 6, width - 160, 16, OzUi.Muted);
                 BuildLobbyAiGeneration(list, new OzRect(width - 144, y, 136, 28), modern,
                     value =>
@@ -420,19 +447,21 @@ namespace OpenZ.Multiplayer
                         }
                         else onlineBotModern = value;
                         dirty = true;
-                    });
+                    }, enabled: editable);
                 y += 36;
                 var tip = Label(list, "", 8, y + 39, width - 16, 12, OzUi.Muted);
                 BuildLobbyAiDifficultyRow(list, new OzRect(8, y, width - 16, 36), modern, difficulty,
-                    level => { CloseOnlinePlayerMenu(); R.SetRoomBot(seat, level); }, tip);
+                    level => { CloseOnlinePlayerMenu(); R.SetRoomBot(seat, level); }, tip, enabled: editable);
                 y += 58;
-                ActionButton(bot ? "REMOVE BOT" : "OPEN POSITION", () => { if (bot) R.SetRoomBot(seat, null); else R.SetRoomClosed(seat, false); }, bot || closed);
-                ActionButton("CLOSE POSITION", () => R.SetRoomClosed(seat, true), !closed);
-                foreach (var member in room.Members.Where(member => member.Seat.Position < 0))
-                    ActionButton("PLACE " + member.Name, () => R.BringRoomPlayer(member.Id, seat));
+                ActionButton(bot ? "REMOVE BOT" : "OPEN POSITION", () => { if (bot) R.SetRoomBot(seat, null); else R.SetRoomClosed(seat, false); }, editable && (bot || closed));
+                ActionButton("CLOSE POSITION", () => R.SetRoomClosed(seat, true), editable && !closed);
+                if (editable)
+                    foreach (var member in R.HostedRoom.Members.Where(member => member.Seat.Position < 0))
+                        ActionButton("PLACE " + member.Name, () => R.BringRoomPlayer(member.Id, seat));
             }
             int height = y + 4;
-            list.TL(x, below + height <= root.rect.height - 20 ? below : Math.Max(8, above - height), width, height);
+            float bottomLimit = positionMenu ? 758 : root.rect.height - 20;
+            list.TL(x, below + height <= bottomLimit ? below : Math.Max(117, above - height), width, height);
 
             void ActionButton(string label, Action action, bool enabled = true, bool close = true, bool selected = false)
             {
@@ -466,33 +495,48 @@ namespace OpenZ.Multiplayer
             onlineTeamCount = Math.Max(2, onlineTeamCount);
             onlineTeamsRevision = R.HostedRoom.Revision;
             onlineAllForOne = R.RoomRules.AllForOne;
+            onlineTeamsScroll = 1;
             onlineDragSeat = -1;
             dirty = true;
         }
 
-        void DrawOnlineEditTeams(OnlinePerson[] people, RoomBot[] bots, int starts)
+        void DrawOnlineEditTeams(OnlinePerson[] people, RoomBot[] bots, int starts, bool editable)
         {
-            var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name))
-                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "🤖 AI · " + BotDifficultyName(bot.Difficulty)))).ToArray();
-            var panel = Panel("EDIT TEAMS", 1170, 185, 690, 568);
-            Button(panel, AllForOneLabel(onlineAllForOne), 24, 51, 280,
-                () => { onlineAllForOne = !onlineAllForOne; dirty = true; }, onlineAllForOne, height: 35);
+            var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name, person.Team))
+                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).ToArray();
+            var followed = FollowingHost && displayedSetup?.Panel == SetupPanel.Teams ? displayedSetup : null;
+            var assignments = editable ? onlineTeams : followed?.Teams;
+            int count = editable ? onlineTeamCount : followed?.TeamCount ?? Math.Max(2, roster.Select(person => person.Team).DefaultIfEmpty(0).Max() + 1);
+            bool allForOne = editable ? onlineAllForOne : followed?.AllForOne ?? R.RoomRules.AllForOne;
+            var panel = Panel(editable ? "EDIT TEAMS" : "TEAMS · READ ONLY", 1170, 185, 690, 568);
+            Button(panel, AllForOneLabel(allForOne), 24, 51, 280,
+                () => { onlineAllForOne = !onlineAllForOne; dirty = true; }, allForOne, editable, 35);
             Label(panel, AllForOneDescription, 24, 94, 640, 16, OzUi.Ink);
             Label(panel, "Drag a participant onto a team, or select a row and then a team.", 24, 124, 640, 16, OzUi.Muted);
-            var teams = Scroll(panel, 24, 152, 640, 343, false, Mathf.Max(343, onlineTeamCount * 48 + roster.Length * 37));
+            var teams = Scroll(panel, 24, 152, 640, 343, false, Mathf.Max(343, count * 48 + roster.Length * 37));
+            var scroll = teams.parent.GetComponent<ScrollRect>();
+            scroll.verticalNormalizedPosition = onlineTeamsScroll;
+            scroll.onValueChanged.AddListener(value =>
+            {
+                if (Mathf.Abs(value.y - onlineTeamsScroll) > .007f) PauseHostSetup();
+                onlineTeamsScroll = value.y;
+            });
             float y = 0;
-            for (int team = 0; team < onlineTeamCount; team++)
+            for (int team = 0; team < count; team++)
             {
                 int destination = team;
-                var assigned = roster.Where(person => onlineTeams[person.Seat] == destination).ToArray();
-                var target = Button(teams, $"TEAM {team + 1} · {assigned.Length}", 0, y, 640, () => Move(destination), height: 39);
-                AddOnlineEvent(target, EventTriggerType.Drop, _ => Move(destination));
+                var assigned = roster.Where(person => (assignments != null && person.Seat < assignments.Length
+                    ? assignments[person.Seat] : person.Team) == destination).ToArray();
+                var target = Button(teams, $"TEAM {team + 1} · {assigned.Length}", 0, y, 640, () => Move(destination), enabled: editable, height: 39);
+                if (editable) AddOnlineEvent(target, EventTriggerType.Drop, _ => Move(destination));
                 y += 43;
                 foreach (var person in assigned)
                 {
                     int moving = person.Seat;
                     var card = Button(teams, "::  " + person.Name, 22, y, 596, () => { onlineDragSeat = moving; dirty = true; },
-                        onlineDragSeat == moving, height: 33);
+                        onlineDragSeat == moving, editable, height: 33);
+                    y += 37;
+                    if (!editable) continue;
                     AddOnlineEvent(card, EventTriggerType.BeginDrag, evt =>
                     {
                         if (((PointerEventData)evt).button == PointerEventData.InputButton.Left) onlineDragSeat = moving;
@@ -500,19 +544,25 @@ namespace OpenZ.Multiplayer
                     AddOnlineEvent(card, EventTriggerType.Drag, _ => { });
                     AddOnlineEvent(card, EventTriggerType.Drop, _ => Move(destination));
                     AddOnlineEvent(card, EventTriggerType.EndDrag, _ => { onlineDragSeat = -1; dirty = true; });
-                    y += 37;
                 }
                 y += 5;
             }
-            Button(panel, "+ ADD TEAM", 24, 506, 161, () => { onlineTeamCount++; dirty = true; }, enabled: onlineTeamCount < starts, height: 43);
-            Button(panel, "CANCEL", 283, 506, 145, () => { onlineTeams = null; dirty = true; }, height: 43);
+            Button(panel, "+ ADD TEAM", 24, 506, 161, () => { onlineTeamCount++; dirty = true; },
+                enabled: editable && onlineTeamCount < starts, height: 43);
+            Button(panel, editable ? "CANCEL" : "CLOSE", 283, 506, 145, () =>
+            {
+                PauseHostSetup();
+                onlineTeams = null;
+                browseOnlineTeams = false;
+                dirty = true;
+            }, height: 43);
             Button(panel, "APPLY TEAMS", 439, 506, 225, () =>
             {
                 var next = onlineTeams;
                 onlineTeams = null;
                 R.ApplyRoomTeams(onlineTeamsRevision, next, onlineAllForOne);
                 dirty = true;
-            }, true, height: 43);
+            }, true, editable, height: 43);
 
             void Move(int destination)
             {
@@ -549,10 +599,12 @@ namespace OpenZ.Multiplayer
 
         void DrawOnlineGallery(bool inMatch = false)
         {
+            bool canApply = inMatch || OnlineEditing;
+            onlineRenderedSearch = new string(onlineMapSearch.Where(c => !char.IsControl(c)).ToArray());
             var panel = inMatch
                 ? OnlineDialog("SELECT MAP", 160, 108, 1600, 916, "BACK TO ASK TO CHANGE MAP",
                     () => { choosingRequestMap = false; dirty = true; })
-                : OnlineDialog("CHOOSE A MAP", 160, 82, 1600, 916, "BACK TO LOBBY");
+                : OnlineDialog(canApply ? "CHOOSE A MAP" : "BROWSE MAPS", 160, 82, 1600, 916, "BACK TO LOBBY", setup: true);
             Button(panel, "OPENZ MAPS", 24, 67, 250, () => SwitchCatalog(true), onlineOfficial,
                 !inMatch || Catalog(2, true).Length > 0);
             Button(panel, "AI MAPS", 284, 67, 250, () => SwitchCatalog(false), !onlineOfficial);
@@ -561,7 +613,7 @@ namespace OpenZ.Multiplayer
             {
                 int size = onlineMapSizes[i];
                 Button(panel, size.ToString(), 548 + i * 58, 67, 53, () =>
-                { onlineMapSize = size; onlineMapPage = 0; dirty = true; }, onlineMapSize == size,
+                { PauseHostSetup(); onlineMapSize = size; onlineMapPage = 0; dirty = true; }, onlineMapSize == size,
                     Catalog(size, false).Length > 0);
             }
             string[] worlds = { "", "desert", "volcanic", "arctic", "jungle", "city" };
@@ -569,11 +621,11 @@ namespace OpenZ.Multiplayer
             {
                 string world = worlds[i];
                 Button(panel, world.Length == 0 ? "ALL WORLDS" : world.ToUpperInvariant(), 24 + i * 258, 122, 250,
-                    () => { onlineWorld = world; onlineMapPage = 0; dirty = true; }, onlineWorld == world, height: 40);
+                    () => { PauseHostSetup(); onlineWorld = world; onlineMapPage = 0; dirty = true; }, onlineWorld == world, height: 40);
             }
-            var search = Input(panel, "", 1075, 67, 333, onlineMapSearch, value => onlineMapSearch = value, 70);
+            var search = Input(panel, "", 1075, 67, 333, onlineMapSearch, value => { PauseHostSetup(false); onlineMapSearch = value; }, 70);
             search.onSubmit.AddListener(_ => { onlineMapPage = 0; dirty = true; });
-            Button(panel, "SEARCH", 1418, 67, 158, () => { onlineMapPage = 0; dirty = true; });
+            Button(panel, "SEARCH", 1418, 67, 158, () => { PauseHostSetup(); onlineMapPage = 0; dirty = true; });
             var maps = Catalog(onlineMapSize, onlineOfficial).Where(map =>
                 (onlineWorld.Length == 0 || map.World == onlineWorld) &&
                 (string.IsNullOrWhiteSpace(onlineMapSearch) || map.Name.IndexOf(onlineMapSearch.Trim(), StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -587,7 +639,7 @@ namespace OpenZ.Multiplayer
                 var map = visible[i];
                 bool current = inMatch && map.Id == R.Game.level;
                 var card = Button(panel, current ? map.Name + " (CURRENT MAP)" : map.Name, 24 + i % 3 * 520, 173 + i / 3 * 316, 510,
-                    () => { onlineProposedMap = map.Id; dirty = true; }, map.Id == onlineProposedMap, !current, height: 304);
+                    () => { PauseHostSetup(); onlineProposedMap = map.Id; dirty = true; }, map.Id == onlineProposedMap, !current, height: 304);
                 var texture = SkirmishMinimap(map);
                 if (texture)
                 {
@@ -603,17 +655,21 @@ namespace OpenZ.Multiplayer
             if (maps.Length == 0) Label(panel, "No maps match these filters.", 32, 193, 1000, 23, OzUi.Ink);
             var candidate = maps.FirstOrDefault(map => map.Id == onlineProposedMap);
             var room = R.HostedRoom;
-            var active = inMatch ? Array.Empty<RoomMember>() :
+            var active = inMatch || room == null ? Array.Empty<RoomMember>() :
                 room.Members.Where(member => member.Seat.Role != MatchSeatRole.Observer).ToArray();
-            Button(panel, "<", 24, 833, 78, () => { onlineMapPage--; dirty = true; }, enabled: onlineMapPage > 0);
+            int activeCount = inMatch || room != null ? active.Length : R.JoinedRoom.Humans.Count(member => !member.Observer);
+            bool needsSelection = !inMatch && activeCount > onlineMapSize;
+            Button(panel, "<", 24, 833, 78, () => { PauseHostSetup(); onlineMapPage--; dirty = true; }, enabled: onlineMapPage > 0);
             Label(panel, $"Page {onlineMapPage + 1} / {last + 1}", 115, 850, 280, 18, OzUi.Muted);
-            Button(panel, ">", 260, 833, 78, () => { onlineMapPage++; dirty = true; }, enabled: onlineMapPage < last);
+            Button(panel, ">", 260, 833, 78, () => { PauseHostSetup(); onlineMapPage++; dirty = true; }, enabled: onlineMapPage < last);
             if (candidate != null)
-                Label(panel, active.Length > onlineMapSize ? $"Choose {onlineMapSize} active players. The others stay as ghosts." :
+                Label(panel, needsSelection ? $"Choose {onlineMapSize} active players. The others stay as ghosts." :
                     $"{candidate.Name} · {onlineMapSize} active positions", 360, 847, 850, 17, OzUi.Ink);
-            Button(panel, inMatch ? "CONFIRM MAP" : active.Length > onlineMapSize ? "CHOOSE ACTIVE PLAYERS" : "SELECT MAP", 1206, 829, 370, () =>
+            Button(panel, inMatch ? "CONFIRM MAP" : needsSelection ? (canApply ? "CHOOSE ACTIVE PLAYERS" : "VIEW ACTIVE PLAYERS") : "SELECT MAP",
+                1206, 829, 370, () =>
             {
                 if (inMatch) { SelectMapChangeDraft(candidate.Id); return; }
+                if (!canApply) { OpenOnlinePopup(OnlinePopup.ActivePlayers); return; }
                 if (active.Length <= onlineMapSize)
                 {
                     ApplyOnlineMap(active.Select(member => member.Id).ToArray());
@@ -626,7 +682,7 @@ namespace OpenZ.Multiplayer
                     onlineActives.Add(member.Id);
                 onlineRoleRevision = room.Revision;
                 OpenOnlinePopup(OnlinePopup.ActivePlayers);
-            }, true, candidate != null && (!inMatch || candidate.Id != R.Game.level), 53);
+            }, true, (canApply || needsSelection) && candidate != null && (!inMatch || candidate.Id != R.Game.level), 53);
 
             OzAiMap[] Catalog(int size, bool official)
             {
@@ -641,6 +697,7 @@ namespace OpenZ.Multiplayer
 
             void SwitchCatalog(bool official)
             {
+                PauseHostSetup();
                 onlineOfficial = official;
                 onlineMapSize = official ? 2 : Catalog(onlineMapSize, false).Length > 0 ? onlineMapSize :
                     inMatch ? onlineMapSizes.FirstOrDefault(size => Catalog(size, false).Length > 0) : 3;
@@ -659,47 +716,54 @@ namespace OpenZ.Multiplayer
             OpenOnlinePopup(OnlinePopup.None);
         }
 
-        void DrawOnlineActivePlayers()
+        void DrawOnlineActivePlayers(bool editable)
         {
             var room = R.HostedRoom;
-            if (room.Revision != onlineRoleRevision)
+            if (editable && room.Revision != onlineRoleRevision)
             {
                 onlinePopup = OnlinePopup.Maps;
                 DrawOnlineGallery();
                 return;
             }
             var map = OzAiMapCatalog.FindSkirmishMap(onlineProposedMap);
+            if (map == null) { onlinePopup = OnlinePopup.Maps; DrawOnlineGallery(); return; }
+            var followed = FollowingHost && displayedSetup?.Panel == SetupPanel.ActivePlayers ? displayedSetup : null;
+            var members = room != null
+                ? room.Members.Select(member => (member.Id, member.Name, member.Alliance, Host: member.Id == room.HostId,
+                    Playing: onlineActives.Contains(member.Id))).ToArray()
+                : R.JoinedRoom.Humans.Select((member, index) => (Id: "", member.Name, member.Alliance, member.Host,
+                    Playing: followed != null && index < 32 ? (followed.ActivePlayers & (1 << index)) != 0 : !member.Observer)).ToArray();
             var panel = OnlineDialog("CHOOSE WHO PLAYS", 340, 222, 1240, 630, "BACK TO GALLERY",
-                () => OpenOnlinePopup(OnlinePopup.Maps));
-            Label(panel, $"{map.Name} · {onlineMapSize} active positions · {room.Members.Length} people in the lobby", 25, 67, 1190, 21, OzUi.Ink);
+                () => OpenOnlinePopup(OnlinePopup.Maps), setup: true);
+            Label(panel, $"{map.Name} · {onlineMapSize} active positions · {members.Length} people in the lobby", 25, 67, 1190, 21, OzUi.Ink);
             Label(panel, "Ghosts stay connected and can watch. Only active players need to ready up.", 25, 106, 1190, 18, OzUi.Muted);
-            int active = onlineActives.Count;
+            int active = members.Count(member => member.Playing);
             Column(true, 25, $"ACTIVE PLAYERS   ·   {active} / {onlineMapSize}");
-            Column(false, 631, $"GHOSTS   ·   {room.Members.Length - active} watching");
+            Column(false, 631, $"GHOSTS   ·   {members.Length - active} watching");
             Button(panel, "CONFIRM MAP & PLAYERS", 784, 556, 430,
-                () => ApplyOnlineMap(onlineActives.ToArray()), true, active == onlineMapSize, 52);
+                () => ApplyOnlineMap(onlineActives.ToArray()), true, editable && active == onlineMapSize, 52);
 
             void Column(bool playing, int x, string title)
             {
                 if (!playing) DrawGhostIcon(panel, x, 152, 22);
                 Label(panel, title, playing ? x : x + 30, 153, 538, 19, OzUi.Amber);
                 float y = 190;
-                foreach (var member in room.Members.Where(member => onlineActives.Contains(member.Id) == playing))
+                foreach (var member in members.Where(member => member.Playing == playing))
                 {
                     var row = Hud.Img(panel, member.Name, OzUi.GM900);
                     row.rectTransform.TL(x, y, 583, 39);
                     row.raycastTarget = false;
                     if (!playing) DrawGhostIcon(row.transform, 7, 9, 22);
                     Label(row.transform, member.Name, playing ? 7 : 36, 9, 207, 18, OzUi.Ink);
-                    Label(row.transform, member.Id == room.HostId ? "HOST · PLAYS" : member.Alliance >= 0 ? "Team " + (member.Alliance + 1) : "",
+                    Label(row.transform, member.Host ? "HOST · PLAYS" : member.Alliance >= 0 ? "Team " + (member.Alliance + 1) : "",
                         254, 10, 124, 14, OzUi.Muted);
-                    if (member.Id != room.HostId)
+                    if (!member.Host)
                         Button(row.transform, playing ? "MOVE TO GHOSTS →" : "← MAKE ACTIVE", 377, 3, 201, () =>
                         {
                             if (playing) onlineActives.Remove(member.Id);
                             else onlineActives.Add(member.Id);
                             dirty = true;
-                        }, enabled: playing || onlineActives.Count < onlineMapSize, height: 33);
+                        }, enabled: editable && (playing || active < onlineMapSize), height: 33);
                     y += 43;
                 }
             }
@@ -762,8 +826,18 @@ namespace OpenZ.Multiplayer
             lobbyChatLog.verticalOverflow = VerticalWrapMode.Overflow;
             RefreshChatHistory();
             lobbyChatScroll.verticalNormalizedPosition = onlineChatPosition;
-            chatField = Input(panel, "", 24, 177, 1599, chat, value => chat = value, 240);
-            chatField.onSubmit.AddListener(_ => SendChat());
+            if (retainedLobbyChatInput)
+            {
+                chatField = retainedLobbyChatInput;
+                retainedLobbyChatInput = null;
+                chatField.transform.SetParent(panel, false);
+                ((RectTransform)chatField.transform).TL(24, 177, 1599, 46);
+            }
+            else
+            {
+                chatField = Input(panel, "", 24, 177, 1599, chat, value => chat = value, 240);
+                chatField.onSubmit.AddListener(_ => SendChat());
+            }
             Button(panel, "SEND", 1634, 177, 142, SendChat);
             var settings = Button(panel, "SETTINGS CHANGES", 1350, 12, 240, () =>
             {
@@ -866,7 +940,7 @@ namespace OpenZ.Multiplayer
         {
             var panel = Panel("PLAYER ADVANTAGE", 60, 185, 1092, 568);
             var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name, person.Team))
-                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "🤖 AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).OrderBy(member => member.Seat).ToArray();
+                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).OrderBy(member => member.Seat).ToArray();
             if (roster.Length == 0) return;
             if (!roster.Any(member => member.Seat == onlinePlayerSeat)) onlinePlayerSeat = roster[0].Seat;
             int selected = onlinePlayerSeat;
@@ -877,7 +951,7 @@ namespace OpenZ.Multiplayer
                     rules.AiFactoryCapture[member.Seat] != 0 || rules.Extras.Skip(member.Seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
                 Button(panel, $"{member.Seat + 1} · {member.Name} · {(modified ? "Modified" : "Standard")}",
                     24 + i % 4 * 263, 65 + i / 4 * 48, 251,
-                    () => { onlinePlayerSeat = member.Seat; dirty = true; }, selected == member.Seat, height: 42);
+                    () => { PauseHostSetup(); onlinePlayerSeat = member.Seat; dirty = true; }, selected == member.Seat, height: 42);
             }
             var chosen = roster.Single(member => member.Seat == selected);
             Label(panel, $"{chosen.Name} · Fort {selected + 1} · Team {chosen.Team + 1}", 24, 170, 600, 22, OzUi.Ink);
@@ -921,10 +995,10 @@ namespace OpenZ.Multiplayer
                     onlineUnitFort = fort;
                     onlineUnitSelected = unit;
                     onlineUnitSlot = index % 4;
-                    onlineUnitChoice = choose;
-                    onlineRoleRevision = R.HostedRoom.Revision;
+                    onlineUnitChoice = editable ? choose : null;
+                    onlineRoleRevision = R.HostedRoom?.Revision ?? 0;
                     OpenOnlinePopup(OnlinePopup.Units);
-                }, enabled: editable, height: 111);
+                }, height: 111);
                 if (!string.IsNullOrEmpty(unit))
                 {
                     Portrait(card, unit, 88, 6, 69);
@@ -935,7 +1009,7 @@ namespace OpenZ.Multiplayer
 
         void DrawOnlineUnitPicker(SkirmishRules rules, bool editable)
         {
-            if (!editable || R.HostedRoom.Revision != onlineRoleRevision)
+            if (editable && (R.HostedRoom.Revision != onlineRoleRevision || onlineUnitChoice == null))
             {
                 OpenOnlinePopup(OnlinePopup.None);
                 return;
@@ -947,15 +1021,18 @@ namespace OpenZ.Multiplayer
             {
                 OpenOnlinePopup(OnlinePopup.None);
                 if (OnlineEditing && R.HostedRoom.Revision == revision) choose(type);
-            }, () => OpenOnlinePopup(OnlinePopup.None));
+            }, () => OpenOnlinePopup(OnlinePopup.None), editable);
         }
 
         void DrawOnlineAiHelp(OnlinePerson[] people, SkirmishRules rules, bool editable)
         {
             if (editable && R.HostedRoom.Revision != onlineRoleRevision) { onlinePopup = OnlinePopup.None; return; }
             int seat = onlinePlayerSeat;
+            bool showDraft = editable || FollowingHost && displayedSetup?.Panel == SetupPanel.AiHelp;
+            int idleValue = showDraft ? onlineAiIdle : rules.AiIdleSeconds[seat];
+            int captureValue = showDraft ? onlineAiCapture : rules.AiFactoryCapture[seat];
             string name = people.FirstOrDefault(person => person.Seat == seat)?.Name ?? "Fort " + (seat + 1);
-            var panel = OnlineDialog("AI HELP · " + name, 440, 239, 1040, 604);
+            var panel = OnlineDialog("AI HELP · " + name, 440, 239, 1040, 604, setup: true);
             Label(panel, "IDLE UNITS", 24, 81, 980, 20, OzUi.Amber);
             Label(panel, "The AI can order idle units. A warning appears five seconds before it acts.", 24, 116, 980, 18, OzUi.Ink);
             Label(panel, "AFTER AN ENEMY CAPTURES A FACTORY", 24, 235, 980, 20, OzUi.Amber);
@@ -965,9 +1042,9 @@ namespace OpenZ.Multiplayer
                 int idle = i * 15, capture = i;
                 string[] captures = { "OFF", "REPLACE WEAK BUILD", "CANCEL PRODUCTION" };
                 Button(panel, idle == 0 ? "OFF" : $"AFTER {idle} s", 24 + i * 332, 157, 318,
-                    () => { onlineAiIdle = idle; dirty = true; }, onlineAiIdle == idle, editable);
+                    () => { onlineAiIdle = idle; dirty = true; }, idleValue == idle, editable);
                 Button(panel, captures[i], 24 + i * 332, 319, 318,
-                    () => { onlineAiCapture = capture; dirty = true; }, onlineAiCapture == capture, editable);
+                    () => { onlineAiCapture = capture; dirty = true; }, captureValue == capture, editable);
             }
             if (editable)
                 Button(panel, "APPLY AI HELP", 685, 499, 331, () =>
@@ -993,8 +1070,8 @@ namespace OpenZ.Multiplayer
             DrawOnlineUnitSlots(panel, rules.FortTurrets, 0, rules, editable, 151, R.SetRoomRules, fort: true);
             Label(panel, "ADDITIONAL UNITS NEAR THE FORT", 25, 307, 650, 20, OzUi.Amber);
             Label(panel, "Each participant receives these units. A robot slot adds one squad.", 25, 343, 700, 17, OzUi.Ink);
-            Button(panel, "LOAD / SAVE UNIT PRESET", 758, 310, 307, () =>
-                { roomPresets = true; presetStatus = presetName = ""; dirty = true; }, enabled: editable);
+            Button(panel, editable ? "LOAD / SAVE UNIT PRESET" : "VIEW UNIT PRESETS", 758, 310, 307, () =>
+                { PauseHostSetup(); roomPresets = true; presetStatus = presetName = ""; dirty = true; });
             DrawOnlineUnitSlots(panel, rules.Common, 0, rules, editable, 386, R.SetRoomRules);
         }
 

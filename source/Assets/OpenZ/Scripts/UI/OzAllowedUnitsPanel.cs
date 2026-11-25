@@ -37,7 +37,7 @@ namespace OpenZ
         static RectTransform Button(Transform parent,string text,float x,float y,float width,float height,Action action,bool selected,bool editable,bool solo)
         {
             var kit=HudButton.Make(parent,text,text,new Vector2(width,height),HudButtonKind.Large,17,.08f,selected?HudButtonStyle.Primary:HudButtonStyle.Normal);
-            kit.Rt.TL(x,y,width,height);kit.Interactable=editable;kit.LabelColor=solo?OzForkOptions.Accent:OzUi.Ink;kit.Refresh();kit.Bg.raycastTarget=true;
+            kit.Rt.TL(x,y,width,height);kit.Interactable=editable||selected;kit.LabelColor=solo?OzForkOptions.Accent:OzUi.Ink;kit.Refresh();kit.Bg.raycastTarget=true;
             if(kit.Label?.graphic is TMPro.TMP_Text fitted){fitted.enableAutoSizing=true;fitted.fontSizeMin=10;fitted.fontSizeMax=17;}
             if(height>70&&kit.Label!=null)kit.Label.rectTransform.TL(3,height-28,width-6,26);
             if(solo)OzForkOptions.Highlight(kit,OzSoloAllowedUnits.Label);

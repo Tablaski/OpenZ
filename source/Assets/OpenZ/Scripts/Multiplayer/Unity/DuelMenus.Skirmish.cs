@@ -232,7 +232,7 @@ namespace OpenZ.Multiplayer
             BuildRoomOpeningOrders(preview, 467, 535, 257, rules, true, SaveLocalRules);
         }
 
-        static string AllForOneLabel(bool enabled) => $"💪 ALL FOR ONE · {(enabled ? "ON" : "OFF")}";
+        static string AllForOneLabel(bool enabled) => $"ALL FOR ONE · {(enabled ? "ON" : "OFF")}";
         const string AllForOneDescription = "When an ally loses their fort, all allies lose immediately.";
 
         void BuildSkirmishTeams(SkirmishRules rules, float x, float width)

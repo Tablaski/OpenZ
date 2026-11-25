@@ -78,9 +78,9 @@ namespace OpenZ.Experimental
                     * Smooth(Math.Min(along, length - along) * .5f);
             }
 
-            // The solid tiles at the Arctic abutments still block movement. Their relief must
+            // The solid tiles at the abutments still block movement. Their relief must
             // fade past the four corners, independently of the trench under the span.
-            public float ArcticShoulderClearance(float worldX, float worldZ)
+            public float ShoulderClearance(float worldX, float worldZ)
             {
                 var (across, along) = LocalPosition(worldX, worldZ);
                 if (across <= -3f || across >= 11f || along <= -2.5f || along >= length + 2.5f) return 0;

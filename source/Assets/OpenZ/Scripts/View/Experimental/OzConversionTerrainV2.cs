@@ -42,6 +42,7 @@ namespace OpenZ.Experimental
             IsPaletteV4 = useV4;
             IsPaletteV5 = useV4 && OzAiTerrainV5.Active;
             bool arcticV5 = IsPaletteV5 && map.planet == "arctic";
+            bool clearHardBridgeShoulders = IsPaletteV5 && map.planet is "arctic" or "desert" or "volcanic";
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
@@ -135,8 +136,8 @@ namespace OpenZ.Experimental
                 foreach (var bridge in bridgeClearance)
                 {
                     clearance = Mathf.Max(clearance, bridge.Clearance(x, z));
-                    if (arcticV5)
-                        shoulderClearance = Mathf.Max(shoulderClearance, bridge.ArcticShoulderClearance(x, z));
+                    if (clearHardBridgeShoulders)
+                        shoulderClearance = Mathf.Max(shoulderClearance, bridge.ShoulderClearance(x, z));
                 }
                 float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
                 float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge, wetOverride,

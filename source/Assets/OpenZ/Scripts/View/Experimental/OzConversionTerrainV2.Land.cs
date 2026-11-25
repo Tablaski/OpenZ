@@ -17,7 +17,9 @@ namespace OpenZ.Experimental
             var weightsB = jungle ? new Color32[w * h] : null;
             var weightsC = jungle ? new Color32[w * h] : null;
             var leaves = jungle && palette != null ? new Color32[w * h] : null;
-            var roadEdges = RoadEdges(map);
+            var approaches = city && IsPaletteV5 ? OzAiTerrainV5.CityBridgeApproachRoads(map) : null;
+            TileRole surfaceRoad = approaches == null ? Road : (data, index) => Road(data, index) || approaches[index];
+            var roadEdges = RoadEdges(map, surfaceRoad);
             var groundColor = jungle ? new Color32(71, 105, 45, 255)
                 : city ? new Color32(141, 139, 130, 255) : new Color32(212, 158, 100, 255);
             var roadColor = jungle ? new Color32(110, 103, 74, 255)
@@ -31,7 +33,7 @@ namespace OpenZ.Experimental
                 float noise = Mathf.PerlinNoise(x * .12f, z * .12f);
                 float coarse = Mathf.PerlinNoise(z * .048f + 29, x * .048f);
                 float warp = (noise - .5f) * (city ? .06f : .16f);
-                float rawRoad = Mask(map, x + warp, z - warp, Road);
+                float rawRoad = Mask(map, x + warp, z - warp, surfaceRoad);
                 float road = RoadBlend(rawRoad, useV4, .21f, .58f);
                 float wet = Mask(map, x, z, Wet);
                 float solid = Mask(map, x, z, Solid);
@@ -123,18 +125,17 @@ namespace OpenZ.Experimental
         static float GridDistance(float value, float period) =>
             Mathf.Abs(Mathf.Repeat(value + period * .5f, period) - period * .5f);
 
-        static Color32[] RoadEdges(ZMapData map)
+        static Color32[] RoadEdges(ZMapData map, TileRole road)
         {
             var edge = new Color32[map.width * map.height];
+            bool At(int x, int y) => x >= 0 && x < map.width && y >= 0 && y < map.height && road(map, y * map.width + x);
             for (int y = 0; y < map.height; y++)
             for (int x = 0; x < map.width; x++)
             {
-                if (map.ClassAt(x, y) != ZClass.Road) continue;
+                if (!At(x, y)) continue;
                 edge[(map.height - y - 1) * map.width + x] =
-                    new Color(map.ClassAt(x, y - 1) == ZClass.Road ? 0 : 1,
-                        map.ClassAt(x, y + 1) == ZClass.Road ? 0 : 1,
-                        map.ClassAt(x - 1, y) == ZClass.Road ? 0 : 1,
-                        map.ClassAt(x + 1, y) == ZClass.Road ? 0 : 1);
+                    new Color(At(x, y - 1) ? 0 : 1, At(x, y + 1) ? 0 : 1,
+                        At(x - 1, y) ? 0 : 1, At(x + 1, y) ? 0 : 1);
             }
             return edge;
         }

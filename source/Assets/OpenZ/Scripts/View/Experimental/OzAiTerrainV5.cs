@@ -15,6 +15,34 @@ namespace OpenZ.Experimental
         public static bool ArcticIceAt(ZMapData map, int index) =>
             ArcticIceArt(map.tiles[index]) && map.classes[index] == (int)ZClass.Ground;
 
+        // Native City layouts leave a single unpainted tile between each road and ramp.
+        public static bool[] CityBridgeApproachRoads(ZMapData map)
+        {
+            var roads = new bool[map.width * map.height];
+            foreach (var bridge in map.objects)
+            {
+                bool vertical = bridge.Type == "bridge_vert";
+                if (!vertical && bridge.Type != "bridge_horz") continue;
+                int length = 5 + (bridge.extra_links < 100 ? bridge.extra_links : 0);
+                Join(-1, 1);
+                Join(length, -1);
+
+                void Join(int along, int towardDeck)
+                {
+                    for (int across = 1; across <= 2; across++)
+                    {
+                        int x = bridge.x + (vertical ? across : along);
+                        int y = bridge.y + (vertical ? along : across);
+                        int dx = vertical ? 0 : towardDeck, dy = vertical ? towardDeck : 0;
+                        if (map.ClassAt(x, y) == ZClass.Ground && map.ClassAt(x - dx, y - dy) == ZClass.Road &&
+                            map.ClassAt(x + dx, y + dy) == ZClass.Road)
+                            roads[y * map.width + x] = true;
+                    }
+                }
+            }
+            return roads;
+        }
+
         // The native deck tiles are road and solid. Reconnect the visible lava sheet only
         // where both banks of a bridge row lead into the same crossing.
         public static byte[] VolcanicBridgeLava(ZMapData map)

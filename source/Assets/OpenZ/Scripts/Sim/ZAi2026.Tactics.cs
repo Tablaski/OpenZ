@@ -5,19 +5,28 @@ namespace OpenZ.Sim
 {
     internal sealed partial class ZAi2026
     {
-        readonly Dictionary<int, (int Enemy, int X, int Y, double Since, double Delay)> withdrawals = new();
+        readonly Dictionary<int, (int Enemy, int X, int Y, int RetreatX, int RetreatY, double Since, double Delay)> withdrawals = new();
 
         bool HandleTactics(ZObject unit)
         {
             bool skilled = level >= ZBotDifficulty.Skilled;
             if (unit.Waypoints.Count > 0)
             {
-                var mode = unit.Waypoints[0].mode;
+                var waypoint = unit.Waypoints[0];
+                var mode = waypoint.mode;
                 if (mode != WpMode.Move && mode != WpMode.Attack && mode != WpMode.Agro) return false;
-                var target = world.Get(unit.Waypoints[0].refId);
-                if (level > ZBotDifficulty.Noob && mode != WpMode.Move &&
-                    target != null && target.IsUnit && enemies.Contains(target) &&
-                    !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
+                if (mode == WpMode.Move)
+                {
+                    if (waypoint.refId < 0 && withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
+                        world.Time < withdrawal.Since + withdrawal.Delay &&
+                        waypoint.x == withdrawal.RetreatX && waypoint.y == withdrawal.RetreatY) return true;
+                }
+                else if (level > ZBotDifficulty.Noob)
+                {
+                    var target = world.Get(waypoint.refId);
+                    if (target != null && target.IsUnit && enemies.Contains(target) &&
+                        !CanCommitAttack(unit, target) && BackOut(unit, target)) return true;
+                }
             }
 
             if (defenseThreat != null &&
@@ -123,7 +132,8 @@ namespace OpenZ.Sim
             if (withdrawals.TryGetValue(unit.Id, out var previous) && world.Time < previous.Since + 60 &&
                 (previous.Enemy == threat.Id || NearWithdrawalPoint(previous.X, previous.Y, threat.CenterX, threat.CenterY)))
                 delay = Math.Min(48, previous.Delay * 2);
-            withdrawals[unit.Id] = (threat.Id, threat.CenterX, threat.CenterY, world.Time, delay);
+            var retreat = unit.Waypoints.Count > 0 ? unit.Waypoints[0] : ZWaypoint.Cleared;
+            withdrawals[unit.Id] = (threat.Id, threat.CenterX, threat.CenterY, retreat.x, retreat.y, world.Time, delay);
             return true;
         }
 

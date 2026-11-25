@@ -78,7 +78,7 @@ namespace OpenZ.Sim
 
         bool CanFlankDriver(ZObject unit, ZObject tank) => CanSnipeFromFlank(unit) &&
             IsRobotAgainstTank(unit, tank) && tank.AttackObject != unit && tank.CanBeSniped() &&
-            !world.SnipeHeld(tank) && unit.CanAttackObject(tank) && Attending(unit) && SafeShot(unit, tank);
+            !world.SnipeSafeSpot(tank) && unit.CanAttackObject(tank) && Attending(unit) && SafeShot(unit, tank);
 
         bool HoldsTankFire(ZObject partner, ZObject tank) => partner != null && Alive(partner) &&
             world.AreAllied(team, partner.Owner) && CanSnipeFromFlank(partner) &&

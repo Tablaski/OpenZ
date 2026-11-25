@@ -349,6 +349,13 @@ namespace OpenZ
             }
             World.EvilLastDefenseTeam = ZWorld.EvilZodDeviation && ezLevel && ezHuman && player == Team.Red && blueBot ? Team.Blue : Team.Neutral;
             Debug.Log($"[OpenZ] EvilZod (DV165): retry after a defeat {(ezRetry ? "yes" : "no")}, blue's last defense {(World.EvilLastDefenseTeam == Team.Blue ? "watched from 10:00" : "off")}");
+            if (!OpenZ.Multiplayer.DuelRuntime.Active && localSkirmish == null && !demo && !OzUeHooks.Active &&
+                (skirmish || skirmishMap?.Solo == true || ZAiDifficulty.IsModern(SoloAi2026)))
+            {
+                World.LimitModernBotStartingUnits();
+                World.BalanceNeutralStartingUnits();
+                BindStartingArmyViews(false);
+            }
             SetupWalkable();
             if (!GetComponent<CombatView>()) gameObject.AddComponent<CombatView>();
             if (!FindFirstObjectByType<FxManager>()) new GameObject("FxManager").AddComponent<FxManager>();
@@ -449,7 +456,8 @@ namespace OpenZ
             foreach (var source in World.Map.objects)
             {
                 if (source.Category != "robot" && source.Category != "vehicle" && source.Category != "cannon") continue;
-                if (!World.DuelAllowsUnit(source.Type) || replaceCrewed && (source.owner == "red" || source.owner == "blue"))
+                if (!World.DuelAllowsUnit(source.Type) || World.RemovedStartingSources.Contains(source) ||
+                    replaceCrewed && (source.owner == "red" || source.owner == "blue"))
                     hidden.Add($"{source.Type}_{source.x}_{source.y}");
             }
             if (hidden.Count == 0) return;

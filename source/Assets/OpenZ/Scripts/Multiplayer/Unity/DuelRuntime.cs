@@ -1129,9 +1129,11 @@ namespace OpenZ
             RuleTicksLastFrame = Advance(World, ref acc, dt, 1);
             RuleMsLastFrame = (float)((System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
         }
-        public void DuelBindStartingViews()
+        public void DuelBindStartingViews() => BindStartingArmyViews(true);
+
+        void BindStartingArmyViews(bool replaceCrewed)
         {
-            HideReplacedStartingUnitViews(true);
+            HideReplacedStartingUnitViews(replaceCrewed);
             foreach (var pair in Views.ToArray()) if (World.Get(pair.Key) == null) { if (pair.Value) pair.Value.gameObject.SetActive(false); Views.Remove(pair.Key); }
             foreach (var o in World.Objects) if (o.IsUnit && !Views.ContainsKey(o.Id)) SpawnUnitView(o);
         }

@@ -49,6 +49,7 @@ namespace OpenZ.Sim
                     else SetOwnerZod(unit, Team.Neutral, false);
                 }
             }
+            BalanceNeutralStartingUnits();
             for (int seat = 0; seat < skirmishAlliances.Length; seat++)
             {
                 if (closed.Contains(seat)) continue;
@@ -56,20 +57,31 @@ namespace OpenZ.Sim
                 var fort = Objects.FirstOrDefault(unit => unit.IsFort && unit.Owner == team);
                 if (rules.OverrideFortTurrets && fort != null)
                     PlaceFortTurrets(fort, rules.FortTurrets, MAX_UNITS_PER_TEAM - Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed));
-                foreach (string type in rules.StartingUnits(seat))
-                {
-                    if (Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed) +
-                        (ZBuildLists.IsRobot(type) ? Math.Max(1, S.Unit(type)?.group_amount ?? 1) : 1) > MAX_UNITS_PER_TEAM) break;
-                    if (!ZBuildLists.IsRobot(type)) { AddHeadStart(team, type); continue; }
-                    var marker = AddHeadStart(team, "jeep").FirstOrDefault();
-                    if (marker == null) break;
-                    int x = marker.LocX, y = marker.LocY;
-                    DeleteObject(marker);
-                    CreateRobotGroup(type, x, y, team);
-                }
+                PlaceSkirmishStartingUnits(team, rules.Common);
             }
+            LimitModernBotStartingUnits();
+            for (int seat = 0; seat < skirmishAlliances.Length; seat++)
+                if (!closed.Contains(seat))
+                    PlaceSkirmishStartingUnits((Team)(seat + 1), rules.Extras.Skip(seat * 4).Take(4));
+
             ResetZoneOwnagePercentages();
             UpdateSkirmishProduction(true);
+        }
+
+        void PlaceSkirmishStartingUnits(Team team, System.Collections.Generic.IEnumerable<string> types)
+        {
+            foreach (string type in types.Where(type => !string.IsNullOrEmpty(type)))
+            {
+                bool robot = ZBuildLists.IsRobot(type);
+                if (Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed) +
+                    (robot ? Math.Max(1, S.Unit(type)?.group_amount ?? 1) : 1) > MAX_UNITS_PER_TEAM) break;
+                if (!robot) { AddHeadStart(team, type); continue; }
+                var marker = AddHeadStart(team, "jeep").FirstOrDefault();
+                if (marker == null) break;
+                int x = marker.LocX, y = marker.LocY;
+                DeleteObject(marker);
+                CreateRobotGroup(type, x, y, team);
+            }
         }
 
         internal bool SkirmishFriendlyFire => skirmishRules != null && !skirmishRules.FreeForAll && skirmishRules.FriendlyFire;

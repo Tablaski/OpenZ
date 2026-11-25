@@ -6,6 +6,11 @@ Play solo, invite friends online with a magic link, or start a local Skirmish ag
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.77 (25 Nov 2026)
+
+- Solo + 1 vs 1 — Empty guns and vehicles start at equal distances from the forts in comparable positions near roads, junctions, flags, factories and bridges. Unmatched units are removed. The OpenZ campaign with 1996 AI keeps its original setup.
+- Solo and Skirmish — 2026 AI starts with at most as many units as each human player. Extra starting units chosen in Player Balancing still apply.
+
 ## OpenZ-VK 1.5.76 (25 Nov 2026)
 
 - Local and online Skirmish — Switching an existing bot to 2026 AI immediately assigns a modern difficulty. With fog active, 2026 bots can scout toward known flags when they lack visible objectives.

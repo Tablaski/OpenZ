@@ -25,11 +25,13 @@ namespace OpenZ.Multiplayer
 
         [Serializable] internal sealed class RoomSetupView
         {
+            internal const float ScrollScale = 10000f;
             public int Tab, Seat, Slot, Scroll, MapPage, MapSize, AiIdle, AiCapture, Click, TeamCount, ActivePlayers, BotGeneration, PositionSeat;
+            public int ChoiceCount, ChoiceStart;
             public SetupPanel Panel;
             public bool Fort, Official, Pointer, AllForOne;
             public int[] Teams;
-            public string[] Profiles;
+            public string[] Choices, Formations;
             public string World, Search, Map, Unit;
             public int X, Y;
 
@@ -41,26 +43,32 @@ namespace OpenZ.Multiplayer
                 AiIdle == other.AiIdle && AiCapture == other.AiCapture &&
                 TeamCount == other.TeamCount && AllForOne == other.AllForOne && ActivePlayers == other.ActivePlayers &&
                 BotGeneration == other.BotGeneration && PositionSeat == other.PositionSeat &&
-                SameItems(Teams, other.Teams) && SameItems(Profiles, other.Profiles);
+                ChoiceCount == other.ChoiceCount && ChoiceStart == other.ChoiceStart &&
+                SameItems(Teams, other.Teams) && SameItems(Choices, other.Choices) && SameItems(Formations, other.Formations);
 
             static bool SameItems<T>(T[] first, T[] second) =>
                 first == null ? second == null : second != null && first.SequenceEqual(second);
 
             internal bool IsValid() => Tab >= 0 && Tab < 5 && Seat >= 0 && Seat < 8 &&
                 Panel >= SetupPanel.Rules && Panel <= SetupPanel.Position &&
-                Slot >= 0 && Slot < 4 && Scroll >= 0 && Scroll <= 100 &&
+                Slot >= 0 && Slot < 4 && Scroll >= 0 && Scroll <= ScrollScale &&
                 MapPage >= 0 && MapPage < 128 && (MapSize == 0 || MapSize == 2 || MapSize == 3 || MapSize == 4 || MapSize == 6 || MapSize == 8) &&
                 AiIdle >= 0 && AiIdle <= 30 && AiCapture >= 0 && AiCapture <= 2 && Click >= 0 &&
                 BotGeneration >= 0 && BotGeneration <= 2 && PositionSeat >= 0 && PositionSeat < 8 &&
                 X >= 0 && X <= 1920 && Y >= 0 && Y < 766 &&
                 (Panel != SetupPanel.Teams || TeamCount >= 2 && TeamCount <= 8 &&
                     Teams != null && Teams.Length >= 2 && Teams.Length <= 8 && Teams.All(team => team >= 0 && team < 8)) &&
-                (Profiles == null || Profiles.Length <= 20 &&
-                    Profiles.All(name => ValidText(name, 50) && !string.IsNullOrEmpty(name) && !name.Contains('<') && !name.Contains('>'))) &&
+                ChoiceCount >= 0 && ChoiceCount <= 4096 && ChoiceStart >= 0 && ChoiceStart <= ChoiceCount &&
+                (Choices == null || Choices.Length <= 12 && ChoiceStart + Choices.Length <= ChoiceCount &&
+                    Choices.All(name => ValidLabel(name, 50))) &&
+                (Formations == null || Choices != null && Formations.Length == Choices.Length &&
+                    Formations.All(formation => ValidLabel(formation, 90))) &&
                 ValidText(World, 16) && ValidText(Search, 70) && ValidText(Map, 32) && ValidText(Unit, 32);
 
             static bool ValidText(string value, int limit) =>
                 value == null || value.Length <= limit && !value.Any(char.IsControl);
+            static bool ValidLabel(string value, int limit) => value != null && ValidText(value, limit) &&
+                !value.Contains('<') && !value.Contains('>');
         }
 
         RoomSetupView lastRoomSetupSent, receivedRoomSetup;

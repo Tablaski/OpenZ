@@ -87,9 +87,9 @@ namespace OpenZ.Multiplayer
                 if (!FollowingHost && !R.EndLobbyOpen)
                     Label(root, "HOST SETTINGS · READ ONLY", 1180, 138, 340, 16, OzUi.Muted);
             }
-            Button(root, "FREE FOR ALL", 1530, 125, 179, () => SetMode(true), rules.FreeForAll, editable);
+            Button(root, "FREE FOR ALL", 1530, 125, 179, () => SetMode(true), rules.FreeForAll, editable, showSelection: true);
             bool teamsSupported = MultiplayerRoom.CanFormTeams(map.Starts - closed.Length);
-            Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable && teamsSupported);
+            Button(root, "TEAMS", 1718, 125, 142, () => SetMode(false), !rules.FreeForAll, editable && teamsSupported, showSelection: true);
             if (!teamsSupported)
                 Label(root, "Teams requires at least three positions.", 1136, 137, 380, 15, OzUi.Muted);
 
@@ -346,7 +346,7 @@ namespace OpenZ.Multiplayer
                 var level = levels[i];
                 string label = BotDifficultyName(level).ToUpperInvariant();
                 var button = Button(parent, label, rect.x + i * (cell + gap), rect.y, cell, () => select(level),
-                    level == selected, enabled, height: rect.h);
+                    level == selected, enabled, height: rect.h, showSelection: true);
                 button.name = namePrefix + label;
                 AddLobbyTip(button, tip, ZAiDifficulty.Hint(level));
             }
@@ -906,8 +906,8 @@ namespace OpenZ.Multiplayer
             PreviewTerritory(rules.TerritoryCap);
             LobbySlider(territory, "Territory cap", 17, 88, 1000, 10, 50, rules.TerritoryCap, "10% · Smaller bonus", "50% · Original OpenZ",
                 value => value + "%", 925, editable, value => { rules.TerritoryCap = value; save(rules); }, preview: PreviewTerritory);
-            Button(territory, (rules.ProgressiveTerritory ? "[X] " : "") + "PROGRESSIVE CAP", 17, 179, 270, () =>
-            { rules.ProgressiveTerritory = !rules.ProgressiveTerritory; save(rules); }, enabled: editable, height: 35);
+            Button(territory, "PROGRESSIVE CAP · " + (rules.ProgressiveTerritory ? "ON" : "OFF"), 17, 179, 270, () =>
+            { rules.ProgressiveTerritory = !rules.ProgressiveTerritory; save(rules); }, rules.ProgressiveTerritory, editable, 35, showSelection: true);
             Label(territory, "Fixed: same cap for everyone. Progressive: lowers it for the army pulling ahead.", 304, 188, 725, 15, OzUi.Muted);
             var fort = Section("FORT CATCH-UP", 309);
             Label(fort, "A trailing fort can catch up using a multiple of the opponent's speed bonus from flags.", 17, 50, 977, 17, OzUi.Ink);
@@ -924,8 +924,8 @@ namespace OpenZ.Multiplayer
             LobbySlider(fort, "Fort speedup", 17, 88, 1000, 0, 500, rules.FortSpeedup, "Off", "5× · Maximum",
                 value => value == 0 ? "Off" : (value / 100f).ToString("0.##") + "×", 925, editable,
                 value => { rules.FortSpeedup = value; save(rules); }, preview: PreviewFort);
-            Button(fort, (rules.ProgressiveFort ? "[X] " : "") + "PROGRESSIVE BONUS", 17, 179, 270, () =>
-            { rules.ProgressiveFort = !rules.ProgressiveFort; save(rules); }, enabled: editable, height: 35);
+            Button(fort, "PROGRESSIVE BONUS · " + (rules.ProgressiveFort ? "ON" : "OFF"), 17, 179, 270, () =>
+            { rules.ProgressiveFort = !rules.ProgressiveFort; save(rules); }, rules.ProgressiveFort, editable, 35, showSelection: true);
             Label(fort, "Fixed: full bonus as you fall behind. Progressive: ramps up to a 20% enemy army lead.", 304, 188, 725, 15, OzUi.Muted);
 
             RectTransform Section(string title, int y)
@@ -1043,9 +1043,9 @@ namespace OpenZ.Multiplayer
                 int idle = i * 15, capture = i;
                 string[] captures = { "OFF", "REPLACE WEAK BUILD", "CANCEL PRODUCTION" };
                 Button(panel, idle == 0 ? "OFF" : $"AFTER {idle} s", 24 + i * 332, 157, 318,
-                    () => { onlineAiIdle = idle; dirty = true; }, idleValue == idle, editable);
+                    () => { onlineAiIdle = idle; dirty = true; }, idleValue == idle, editable, showSelection: true);
                 Button(panel, captures[i], 24 + i * 332, 319, 318,
-                    () => { onlineAiCapture = capture; dirty = true; }, captureValue == capture, editable);
+                    () => { onlineAiCapture = capture; dirty = true; }, captureValue == capture, editable, showSelection: true);
             }
             if (editable)
                 Button(panel, "APPLY AI HELP", 685, 499, 331, () =>
@@ -1072,7 +1072,7 @@ namespace OpenZ.Multiplayer
             Label(panel, "ADDITIONAL UNITS NEAR THE FORT", 25, 307, 650, 20, OzUi.Amber);
             Label(panel, "Each participant receives these units. A robot slot adds one squad.", 25, 343, 700, 17, OzUi.Ink);
             Button(panel, editable ? "LOAD / SAVE UNIT PRESET" : "VIEW UNIT PRESETS", 758, 310, 307, () =>
-                { PauseHostSetup(); roomPresets = true; presetStatus = presetName = ""; dirty = true; });
+                { PauseHostSetup(); roomPresets = true; onlinePresetScroll = 1; presetStatus = presetName = ""; dirty = true; });
             DrawOnlineUnitSlots(panel, rules.Common, 0, rules, editable, 386, R.SetRoomRules);
         }
 

@@ -17,7 +17,8 @@ namespace OpenZ
                 var selected=preset;
                 Button(panel,DuelUnitRoster.Name(preset),24+index++*340,92,320,46,()=>{rules.SetUnitPreset(selected);changed();},rules.UnitPreset==preset,editable,solo);
             }
-            Label(panel,"Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply.",24,146,1410,16,OzUi.Ink);
+            Label(panel,editable ? "Starting armies, neutral map units and production. A unit toggle selects Custom. Original tech requirements still apply." :
+                "Starting armies, neutral map units and production. Original tech requirements still apply.",24,146,1410,16,OzUi.Ink);
             var roster = DuelUnitRoster.Lobby;
             Label(panel,roster.Count(rules.Allows)+"/"+roster.Length+" allowed · Mammoth and Bizon are map units on Bridge Game.",24,173,1410,14,OzUi.Muted);
             var viewport=Hud.Node("Allowed units viewport",panel);viewport.TL(24,205,1432,560);viewport.gameObject.AddComponent<RectMask2D>();

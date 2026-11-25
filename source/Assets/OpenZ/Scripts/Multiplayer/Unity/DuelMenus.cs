@@ -365,8 +365,8 @@ namespace OpenZ.Multiplayer
             if (roomTab == 4)
             {
                 Label(panel, "ALLOWED UNITS", 30, 81, 480, 20, OzUi.Amber);
-                Button(panel, "OPENZ", 30, 121, 155, () => SetRoster(false), !rules.ClassicUnits && !rules.CustomRoster, editable);
-                Button(panel, "Z CLASSIC", 196, 121, 155, () => SetRoster(true), rules.ClassicUnits, editable);
+                Button(panel, "OPENZ", 30, 121, 155, () => SetRoster(false), !rules.ClassicUnits && !rules.CustomRoster, editable, showSelection: true);
+                Button(panel, "Z CLASSIC", 196, 121, 155, () => SetRoster(true), rules.ClassicUnits, editable, showSelection: true);
                 Button(panel, editable ? "CUSTOM" : "VIEW UNIT LIST", 362, 121, 155,
                     () => { PauseHostSetup(); roomCustomUnits = true; dirty = true; }, rules.CustomRoster);
                 string tanks = rules.ClassicDynamics ? "zod-classic" : ZWorld.DuelProfile(rules.TankDynamics, ZBehaviorFamily.Tanks).id;
@@ -384,21 +384,21 @@ namespace OpenZ.Multiplayer
                 {
                     var radar = (RadarLossRule)i;
                     Button(panel, OzBattleOptions.RadarName(radar), 30 + i * 259, 228, 247,
-                        () => { rules.RadarLoss = radar; save(rules); }, rules.RadarLoss == radar, editable);
+                        () => { rules.RadarLoss = radar; save(rules); }, rules.RadarLoss == radar, editable, showSelection: true);
                     string[] help = { "Standard OpenZ behavior.", "Hide enemies outside your\nterritory and units’ sight.",
                         "Lock the camera in a\nwider overhead view.", "Hide unseen enemies and\nlock the camera wide." };
                     Label(panel, help[i], 32 + i * 259, 281, 235, 16, OzUi.Muted).Body(32 + i * 259, 281, 235);
                 }
                 Label(panel, "WIDER HOWITZER SPREAD", 30, 330, 750, 20, OzUi.Amber);
                 Label(panel, "On: only howitzers fire with wider spread, on the ground or mounted on a fort.", 30, 365, 790, 16, OzUi.Muted);
-                Button(panel, "OFF", 851, 329, 97, () => { rules.NerfedHowitzers = false; save(rules); }, !rules.NerfedHowitzers, editable);
-                Button(panel, "ON", 959, 329, 97, () => { rules.NerfedHowitzers = true; save(rules); }, rules.NerfedHowitzers, editable);
+                Button(panel, "OFF", 851, 329, 97, () => { rules.NerfedHowitzers = false; save(rules); }, !rules.NerfedHowitzers, editable, showSelection: true);
+                Button(panel, "ON", 959, 329, 97, () => { rules.NerfedHowitzers = true; save(rules); }, rules.NerfedHowitzers, editable, showSelection: true);
                 if (!rules.FreeForAll)
                 {
                     Label(panel, "FRIENDLY FIRE", 30, 412, 740, 20, OzUi.Amber);
                     Label(panel, "On: explosions can damage your units and your allies.", 30, 448, 740, 16, OzUi.Muted);
-                    Button(panel, "OFF", 851, 411, 97, () => { rules.FriendlyFire = false; save(rules); }, !rules.FriendlyFire, editable);
-                    Button(panel, "ON", 959, 411, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable);
+                    Button(panel, "OFF", 851, 411, 97, () => { rules.FriendlyFire = false; save(rules); }, !rules.FriendlyFire, editable, showSelection: true);
+                    Button(panel, "ON", 959, 411, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable, showSelection: true);
                 }
                 if (page == Page.Skirmish || starts == 2) Button(panel, page == Page.Skirmish ? "SWAP STARTING SIDES" : "SWAP FORTS 1 / 2", 554, 488, 502, () =>
                 {
@@ -1138,7 +1138,8 @@ namespace OpenZ.Multiplayer
                 Category("ROBOTS", units.Where(ZBuildLists.IsRobot).ToArray(), 112);
                 Category("VEHICLES", units.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
             }
-            Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected), enabled: editable);
+            Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected), enabled: editable,
+                showSelection: true);
 
             void Category(string name, string[] types, float y)
             {
@@ -1148,7 +1149,7 @@ namespace OpenZ.Multiplayer
                 {
                     string type = types[i];
                     var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138,
-                        () => choose(type), type == selected, editable, height: 130);
+                        () => choose(type), type == selected, editable, height: 130, showSelection: true);
                     button.name = "SELECT " + type;
                     Portrait(button, type, 29, 12, 80);
                 }
@@ -1382,12 +1383,13 @@ namespace OpenZ.Multiplayer
         bool LobbyStyle => page is Page.Lobby or Page.Skirmish || page == Page.Microphone && microphoneReturn == Page.Lobby ||
             R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0;
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
-        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false, bool enabled = true, float height = 46, bool centered = false, bool alignLeft = false, float rightPadding = 114)
+        RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false,
+            bool enabled = true, float height = 46, bool centered = false, bool alignLeft = false, float rightPadding = 114, bool showSelection = false)
         {
             var b = HudButton.Make(parent, text, text, new Vector2(w, height), HudButtonKind.Large, w < 120 ? 12 : 17, .08f, primary ? HudButtonStyle.Primary : HudButtonStyle.Normal);
             if (!primary) b.LabelColor = LobbyStyle ? (Color)OzUi.Ink : OzForkOptions.Accent;
             b.Rt.TL(x, y, w, height);
-            b.Interactable = enabled || primary && OnlineRoomPage && R.HostedRoom == null;
+            b.Interactable = enabled || primary && showSelection && OnlineRoomPage && R.HostedRoom == null;
             b.Refresh();
             if (b.Label?.graphic is TMPro.TMP_Text fitted) { fitted.enableAutoSizing = true; fitted.fontSizeMin = 10; fitted.fontSizeMax = w < 120 ? 12 : 17; }
             if (text == "AI MAPS")

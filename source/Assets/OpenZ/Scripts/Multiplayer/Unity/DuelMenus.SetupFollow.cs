@@ -15,8 +15,9 @@ namespace OpenZ.Multiplayer
         bool browseOnlineTeams;
         float onlineTeamsScroll = 1;
         float onlineProfileScroll = 1;
+        float onlinePresetScroll = 1;
         float onlineRosterPosition = 1;
-        string[] setupProfileNames;
+        string[] setupProfileNames, setupPresetNames, setupPresetFormations;
         float nextSetupSampleAt;
         int setupClick, observedSetupClick;
         SetupView displayedSetup;
@@ -33,7 +34,7 @@ namespace OpenZ.Multiplayer
         {
             followHost = PlayerPrefs.GetInt(FollowHostPreference, 1) != 0;
             followPaused = browseOnlineTeams = false;
-            onlineTeamsScroll = onlineProfileScroll = onlineRosterPosition = 1;
+            onlineTeamsScroll = onlineProfileScroll = onlinePresetScroll = onlineRosterPosition = 1;
             nextSetupSampleAt = 0;
             displayedSetup = null;
             observedSetupClick = setupClick = 0;
@@ -95,16 +96,17 @@ namespace OpenZ.Multiplayer
             roomPresets = view.Panel == SetupPanel.Presets;
             combatDropdown = view.Panel == SetupPanel.CombatProfiles;
             browseOnlineTeams = view.Panel == SetupPanel.Teams;
-            if (browseOnlineTeams) onlineTeamsScroll = view.Scroll / 100f;
-            if (combatDropdown) onlineProfileScroll = view.Scroll / 100f;
+            if (browseOnlineTeams) onlineTeamsScroll = view.Scroll / SetupView.ScrollScale;
+            if (combatDropdown) onlineProfileScroll = view.Scroll / SetupView.ScrollScale;
+            if (roomPresets) onlinePresetScroll = view.Scroll / SetupView.ScrollScale;
             if (view.Panel == SetupPanel.Position)
             {
                 onlinePlayerMenu = "seat:" + view.PositionSeat;
                 onlineBotModern = view.BotGeneration == 0 ? null : view.BotGeneration == 2;
-                onlineRosterPosition = view.Scroll / 100f;
+                onlineRosterPosition = view.Scroll / SetupView.ScrollScale;
             }
             else if (IsPositionSetupMenu(out _)) CloseOnlinePlayerMenu();
-            if (roomCustomUnits) roomRosterScroll = view.Scroll / 100f;
+            if (roomCustomUnits) roomRosterScroll = view.Scroll / SetupView.ScrollScale;
             onlineUnitFort = view.Fort;
             onlineUnitSlot = view.Slot;
             onlineUnitSelected = view.Unit;
@@ -217,7 +219,7 @@ namespace OpenZ.Multiplayer
                 view.Slot = onlineUnitSlot;
                 view.Unit = onlineUnitSelected;
             }
-            else if (panel == SetupPanel.AllowedUnits) view.Scroll = Mathf.RoundToInt(roomRosterScroll * 100);
+            else if (panel == SetupPanel.AllowedUnits) view.Scroll = QuantizeSetupScroll(roomRosterScroll);
             else if (panel == SetupPanel.AiHelp)
             {
                 view.AiIdle = onlineAiIdle;
@@ -228,20 +230,35 @@ namespace OpenZ.Multiplayer
                 view.Teams = (int[])onlineTeams.Clone();
                 view.TeamCount = onlineTeamCount;
                 view.AllForOne = onlineAllForOne;
-                view.Scroll = Mathf.RoundToInt(Mathf.Clamp01(onlineTeamsScroll) * 100);
+                view.Scroll = QuantizeSetupScroll(onlineTeamsScroll);
             }
             else if (panel == SetupPanel.CombatProfiles)
-            {
-                view.Profiles = setupProfileNames;
-                view.Scroll = Mathf.RoundToInt(Mathf.Clamp01(onlineProfileScroll) * 100);
-            }
+                ShareSetupChoices(view, setupProfileNames, null, onlineProfileScroll, 42, 222, 10);
+            else if (panel == SetupPanel.Presets)
+                ShareSetupChoices(view, setupPresetNames, setupPresetFormations, onlinePresetScroll, 64, 490, 0);
             else if (panel == SetupPanel.Position)
             {
                 view.PositionSeat = setupSeat;
                 view.BotGeneration = onlineBotModern == null ? 0 : onlineBotModern.Value ? 2 : 1;
-                view.Scroll = Mathf.RoundToInt(Mathf.Clamp01(onlineRosterPosition) * 100);
+                view.Scroll = QuantizeSetupScroll(onlineRosterPosition);
             }
             R.PublishRoomSetup(view);
+        }
+
+        static string SetupChoiceLabel(string value, int length) =>
+            new string((value ?? "").Where(c => !char.IsControl(c) && c != '<' && c != '>').Take(length).ToArray());
+
+        static int QuantizeSetupScroll(float scroll) => Mathf.RoundToInt(Mathf.Clamp01(scroll) * SetupView.ScrollScale);
+
+        static void ShareSetupChoices(SetupView view, string[] choices, string[] formations, float scroll, int row, int viewport, int padding)
+        {
+            view.Scroll = QuantizeSetupScroll(scroll);
+            if (choices == null) return;
+            view.ChoiceCount = choices.Length;
+            float offset = Mathf.Max(0, choices.Length * row + padding - viewport) * (1 - scroll);
+            view.ChoiceStart = Mathf.Max(0, Mathf.FloorToInt(offset / row) - 1);
+            view.Choices = choices.Skip(view.ChoiceStart).Take(12).ToArray();
+            view.Formations = formations?.Skip(view.ChoiceStart).Take(12).ToArray();
         }
 
         bool IsPositionSetupMenu(out int seat)

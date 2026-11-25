@@ -56,7 +56,8 @@ namespace OpenZ.Sim
                 return (x, y);
             }).ToArray();
             var occupied = Objects.Where(o => !o.Destroyed).ToList();
-            var slots = forts.Select((fort, seat) => NeutralStartSlots(forts, seat, gates[seat])).ToArray();
+            var walkRegions = NeutralStartWalkRegions();
+            var slots = forts.Select((fort, seat) => NeutralStartSlots(forts, seat, gates[seat], walkRegions)).ToArray();
             var commonRadii = slots[0].Keys.Where(d => slots.All(seat => seat.ContainsKey(d))).ToArray();
 
             foreach (var kind in pickups.GroupBy(o => (o.Type, o.Health)).OrderByDescending(group => group.First().IsShuttle))
@@ -100,26 +101,69 @@ namespace OpenZ.Sim
                 {
                     var candidates = remaining.Select(queue => queue.Dequeue()).ToArray();
                     var row = candidates.Select(p => p.unit).ToArray();
-                    var preferred = candidates.GroupBy(p => p.role).OrderByDescending(group => group.Count())
-                        .ThenByDescending(group => (group.Key & NeutralStartRole.Junction) != 0)
-                        .Select(group => group.Key).ToArray();
+                    int priority = candidates.Max(p => StrategicPriority(p.role));
+                    var preferred = candidates.Where(p => StrategicPriority(p.role) == priority)
+                        .GroupBy(p => p.role).OrderByDescending(group => group.Count()).Select(group => group.Key).ToArray();
                     if (!PlaceNeutralStartRow(forts, gates, terrain, preferred, occupied, slots, commonRadii, row))
                         foreach (var unit in row) RemoveStartingUnit(unit);
                 }
             }
         }
 
+        static int StrategicPriority(NeutralStartRole role)
+        {
+            if ((role & NeutralStartRole.Junction) != 0) return 5;
+            if ((role & NeutralStartRole.Bridge) != 0) return 4;
+            if ((role & NeutralStartRole.Flag) != 0) return 3;
+            if ((role & NeutralStartRole.Factory) != 0) return 2;
+            return (role & (NeutralStartRole.OnRoad | NeutralStartRole.Roadside)) != 0 ? 1 : 0;
+        }
+
+        // The pathfinder's original regions ignore blockers installed after it loads the terrain.
+        int[,] NeutralStartWalkRegions()
+        {
+            var regions = new int[Path.W, Path.H];
+            var visits = new Queue<(int x, int y)>();
+            int region = 0;
+            for (int y = 0; y < Path.H; y++)
+                for (int x = 0; x < Path.W; x++)
+                {
+                    if (regions[x, y] != 0 || !Path.TilePassable(x, y, true)) continue;
+                    region++;
+                    Visit(x, y);
+                    while (visits.Count > 0)
+                    {
+                        var (tx, ty) = visits.Dequeue();
+                        Visit(tx - 1, ty); Visit(tx + 1, ty);
+                        Visit(tx, ty - 1); Visit(tx, ty + 1);
+                    }
+                }
+            return regions;
+
+            void Visit(int x, int y)
+            {
+                if (!Path.TilePassable(x, y, true) || regions[x, y] != 0) return;
+                regions[x, y] = region;
+                visits.Enqueue((x, y));
+            }
+        }
+
         // Work in pixels because the two fort orientations can have different centre offsets within a tile.
-        Dictionary<int, List<(int x, int y)>> NeutralStartSlots(ZObject[] forts, int seat, (int x, int y) gate)
+        Dictionary<int, List<(int x, int y)>> NeutralStartSlots(ZObject[] forts, int seat, (int x, int y) gate, int[,] walkRegions)
         {
             var fort = forts[seat];
             var slots = new Dictionary<int, List<(int x, int y)>>();
+            int gateX = gate.x / ZConst.TILE, gateY = gate.y / ZConst.TILE;
+            if ((uint)gateX >= (uint)Path.W || (uint)gateY >= (uint)Path.H) return slots;
+            int region = walkRegions[gateX, gateY];
+            if (region == 0) return slots;
             for (int y = fort.CenterY % ZConst.TILE; y < Path.HeightPix; y += ZConst.TILE)
                 for (int x = fort.CenterX % ZConst.TILE; x < Path.WidthPix; x += ZConst.TILE)
                 {
+                    if (walkRegions[x / ZConst.TILE, y / ZConst.TILE] != region) continue;
                     int distance = FortDistance(x, y, fort);
                     if (forts.Any(other => other != fort && FortDistance(x, y, other) <= distance)) continue;
-                    if (!Path.ShouldBeAbleToMoveTo(gate.x, gate.y, x, y, true) || !NeutralStartGround(x, y)) continue;
+                    if (!NeutralStartGround(x, y)) continue;
                     if (!slots.TryGetValue(distance, out var positions))
                         slots.Add(distance, positions = new List<(int, int)>());
                     positions.Add((x, y));
@@ -142,7 +186,9 @@ namespace OpenZ.Sim
             List<ZObject> occupied, Dictionary<int, List<(int x, int y)>>[] slots, int[] commonRadii, ZObject[] row)
         {
             var distances = row.Select((unit, seat) => FortDistance(unit.CenterX, unit.CenterY, forts[seat])).ToArray();
-            if (roles.Length == 1 && distances.All(distance => distance == distances[0])) return true;
+            if (roles.Length == 1 && distances.All(distance => distance == distances[0]) &&
+                row.Select((unit, seat) => terrain.Role(unit, unit.CenterX, unit.CenterY, forts[seat], gates[seat]))
+                    .All(role => role == roles[0])) return true;
 
             foreach (var unit in row) occupied.Remove(unit);
             var planned = new (int x, int y, double heading)[row.Length];
@@ -151,27 +197,14 @@ namespace OpenZ.Sim
             foreach (var role in roles)
             foreach (int distance in radii)
             {
+                var candidates = new (int x, int y, double heading)[row.Length][];
                 int seat = 0;
                 for (; seat < row.Length; seat++)
                 {
-                    var unit = row[seat];
-                    var candidates = slots[seat][distance].OrderBy(p => FortDistance(p.x, p.y, unit));
-                    bool found = false;
-                    foreach (var (x, y) in candidates)
-                    {
-                        int gap = unit.IsShuttle ? 4 * ZConst.TILE : 2 * ZConst.TILE;
-                        if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
-                            planned.Take(seat).Any(p => Math.Abs(p.x - x) < gap && Math.Abs(p.y - y) < gap) ||
-                            !NeutralStartClear(unit, x, y, occupied)) continue;
-                        double heading = unit.ShuttleHeadingDeg;
-                        if (unit.IsShuttle && !ShuttleLandSpot(x, y, unit, heading, out heading, out _)) continue;
-                        planned[seat] = (x, y, heading);
-                        found = true;
-                        break;
-                    }
-                    if (!found) break;
+                    candidates[seat] = Positions(seat, distance, role).ToArray();
+                    if (candidates[seat].Length == 0) break;
                 }
-                if (seat != row.Length) continue;
+                if (seat != row.Length || !MatchSeat(0, candidates)) continue;
 
                 for (int i = 0; i < row.Length; i++)
                 {
@@ -186,6 +219,32 @@ namespace OpenZ.Sim
                 return true;
             }
             return false;
+
+            IEnumerable<(int x, int y, double heading)> Positions(int seat, int distance, NeutralStartRole role)
+            {
+                var unit = row[seat];
+                foreach (var (x, y) in slots[seat][distance].OrderBy(p => FortDistance(p.x, p.y, unit)))
+                {
+                    if (terrain.Role(unit, x, y, forts[seat], gates[seat]) != role ||
+                        !NeutralStartClear(unit, x, y, occupied)) continue;
+                    double heading = unit.ShuttleHeadingDeg;
+                    if (unit.IsShuttle && !ShuttleLandSpot(x, y, unit, heading, out heading, out _)) continue;
+                    yield return (x, y, heading);
+                }
+            }
+
+            bool MatchSeat(int seat, (int x, int y, double heading)[][] candidates)
+            {
+                if (seat == row.Length) return true;
+                int gap = row[seat].IsShuttle ? 4 * ZConst.TILE : 2 * ZConst.TILE;
+                foreach (var position in candidates[seat])
+                {
+                    if (planned.Take(seat).Any(p => Math.Abs(p.x - position.x) < gap && Math.Abs(p.y - position.y) < gap)) continue;
+                    planned[seat] = position;
+                    if (MatchSeat(seat + 1, candidates)) return true;
+                }
+                return false;
+            }
         }
 
         bool NeutralStartClear(ZObject unit, int x, int y, List<ZObject> occupied)
@@ -220,6 +279,10 @@ namespace OpenZ.Sim
             readonly ZWorld world;
             readonly (int x, int y)[] junctions;
             readonly ZObject[] flags, factories, bridges;
+            const int RoadSampleRadius = 3, RoadSampleWidth = 2 * RoadSampleRadius + 1;
+            readonly int[] sampledRoad = new int[RoadSampleWidth * RoadSampleWidth];
+            readonly int[] connectedRoad = new int[RoadSampleWidth * RoadSampleWidth];
+            int roadSample;
 
             internal NeutralStartTerrain(ZWorld world)
             {
@@ -238,21 +301,41 @@ namespace OpenZ.Sim
             bool Road(int x, int y) => x >= 0 && y >= 0 && x < world.Map.width && y < world.Map.height &&
                 world.Map.ClassAt(x, y) == ZClass.Road;
 
-            // Count separate road arms on the perimeter around a road tile, including diagonal approaches.
+            // Count distinct arms of the same road on the perimeter, including diagonal approaches.
             int RoadBranches(int x, int y)
             {
-                const int r = 3;
+                const int r = RoadSampleRadius, width = RoadSampleWidth;
+                int head = 0, tail = 0;
+                roadSample++;
+                Visit(r, r);
+                while (head < tail)
+                {
+                    int cell = connectedRoad[head++];
+                    int ix = cell % width, iy = cell / width;
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dx = -1; dx <= 1; dx++)
+                            Visit(ix + dx, iy + dy);
+                }
                 int arms = 0;
-                bool last = Road(x - r, y - r + 1);
-                for (int step = -r; step < r; step++) Count(x + step, y - r);
-                for (int step = -r; step < r; step++) Count(x + r, y + step);
-                for (int step = r; step > -r; step--) Count(x + step, y + r);
-                for (int step = r; step > -r; step--) Count(x - r, y + step);
+                bool last = sampledRoad[width] == roadSample;
+                for (int step = 0; step < width - 1; step++) Count(step, 0);
+                for (int step = 0; step < width - 1; step++) Count(width - 1, step);
+                for (int step = width - 1; step > 0; step--) Count(step, width - 1);
+                for (int step = width - 1; step > 0; step--) Count(0, step);
                 return arms;
+
+                void Visit(int tx, int ty)
+                {
+                    if ((uint)tx >= width || (uint)ty >= width) return;
+                    int cell = ty * width + tx;
+                    if (sampledRoad[cell] == roadSample || !Road(x + tx - r, y + ty - r)) return;
+                    sampledRoad[cell] = roadSample;
+                    connectedRoad[tail++] = cell;
+                }
 
                 void Count(int tx, int ty)
                 {
-                    bool road = Road(tx, ty);
+                    bool road = sampledRoad[ty * width + tx] == roadSample;
                     if (road && !last) arms++;
                     last = road;
                 }

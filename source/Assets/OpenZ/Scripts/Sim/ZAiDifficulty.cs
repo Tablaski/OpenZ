@@ -27,24 +27,24 @@ namespace OpenZ.Sim
         internal readonly int Apm, Burst, UnitsPerTurn;
         internal readonly double Opening, Tactics, Strategy, Memory, Attention, Help, AllForOne;
         internal readonly double MissProduction, MissVehicle, MissGrenades, IdleChance, BadFight, CancelChance, SalvageChance;
-        internal readonly double EngageRatio, ReengageRatio, WithdrawalChance, DefenseCheckChance, FlagCheckChance, ApproachSupportWeight;
+        internal readonly double EngageRatio, HoldRatio, ReengageRatio, WithdrawalChance, DefenseCheckChance, FlagCheckChance, ApproachSupportWeight;
         internal static ZAiTuning For(ZBotDifficulty level) => profiles[(int)level - (int)ZBotDifficulty.Noob];
 
         static readonly ZAiTuning[] profiles = {
             new ZAiTuning(16, 2, 2, 5, 1.20, 8, 5, 8, .25, .45, .40, .30, .35, .25, .35, 0, 0,
-                engageRatio: .78, reengageRatio: 1, withdrawalChance: 0, defenseCheckChance: 0, flagCheckChance: 0, approachSupportWeight: 0),
+                engageRatio: .78, holdRatio: .78, reengageRatio: 1, withdrawalChance: 0, defenseCheckChance: 0, flagCheckChance: 0, approachSupportWeight: 0),
             new ZAiTuning(35, 3, 4, 2, .80, 6, 12, 4, .60, .80, .15, .10, .15, .08, .15, .35, .25,
-                engageRatio: .78, reengageRatio: 1, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 0, approachSupportWeight: 0),
+                engageRatio: .78, holdRatio: .74, reengageRatio: 1, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 0, approachSupportWeight: 0),
             new ZAiTuning(80, 5, 7, .9, .45, 5, 24, 1.5, .95, 1, 0, 0, 0, 0, 0, .85, 1,
-                engageRatio: .96, reengageRatio: 1.2, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 1, approachSupportWeight: 1),
+                engageRatio: .96, holdRatio: .90, reengageRatio: 1.2, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 1, approachSupportWeight: 1),
             new ZAiTuning(140, 7, 10, .55, .25, 2, 35, .5, 1, 1, 0, 0, 0, 0, 0, 1, 1,
-                engageRatio: .96, reengageRatio: 1.2, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 1, approachSupportWeight: 1)
+                engageRatio: .96, holdRatio: .90, reengageRatio: 1.2, withdrawalChance: 1, defenseCheckChance: 1, flagCheckChance: 1, approachSupportWeight: 1)
         };
 
         ZAiTuning(int apm, int burst, int units, double opening, double tactics, double strategy, double memory,
             double attention, double help, double allForOne, double missProduction, double missVehicle,
             double missGrenades, double idleChance, double badFight, double cancelChance, double salvageChance,
-            double engageRatio, double reengageRatio, double withdrawalChance, double defenseCheckChance,
+            double engageRatio, double holdRatio, double reengageRatio, double withdrawalChance, double defenseCheckChance,
             double flagCheckChance, double approachSupportWeight)
         {
             Apm = apm; Burst = burst; UnitsPerTurn = units;
@@ -52,7 +52,7 @@ namespace OpenZ.Sim
             Help = help; AllForOne = allForOne;
             MissProduction = missProduction; MissVehicle = missVehicle; MissGrenades = missGrenades;
             IdleChance = idleChance; BadFight = badFight; CancelChance = cancelChance; SalvageChance = salvageChance;
-            EngageRatio = engageRatio; ReengageRatio = reengageRatio; WithdrawalChance = withdrawalChance;
+            EngageRatio = engageRatio; HoldRatio = holdRatio; ReengageRatio = reengageRatio; WithdrawalChance = withdrawalChance;
             DefenseCheckChance = defenseCheckChance; FlagCheckChance = flagCheckChance; ApproachSupportWeight = approachSupportWeight;
         }
     }

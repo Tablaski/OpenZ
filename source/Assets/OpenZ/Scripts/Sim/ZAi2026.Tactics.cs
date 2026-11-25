@@ -131,7 +131,8 @@ namespace OpenZ.Sim
         {
             if (UnsupportedRobotChase(unit, target)) return false;
             if (withdrawals.TryGetValue(unit.Id, out var withdrawal) &&
-                (withdrawal.Enemy == target.Id || world.Time < withdrawal.Since + 60 &&
+                world.Time < withdrawal.Since + 60 &&
+                (withdrawal.Enemy == target.Id ||
                     NearWithdrawalPoint(withdrawal.X, withdrawal.Y, target.CenterX, target.CenterY)))
                 return world.Time >= withdrawal.Since + withdrawal.Delay && exchange >= tuning.ReengageRatio;
             return exchange >= tuning.EngageRatio || Occasion(unit.Id, target.Id, 3) < tuning.BadFight;
@@ -142,7 +143,7 @@ namespace OpenZ.Sim
 
         bool ShouldWithdraw(ZObject unit, ZObject target, double exchange) =>
             Occasion(unit.Id, target.Id, 20) < tuning.WithdrawalChance &&
-            exchange < tuning.EngageRatio * .94 && Occasion(unit.Id, target.Id, 3) >= tuning.BadFight;
+            exchange < tuning.HoldRatio && Occasion(unit.Id, target.Id, 3) >= tuning.BadFight;
 
         internal static bool IsRobotAgainstTank(ZObject unit, ZObject target) => unit.IsRobot &&
             target.Kind == ZKind.Vehicle &&
@@ -151,8 +152,22 @@ namespace OpenZ.Sim
         static bool UnsupportedRobotChase(ZObject unit, ZObject target) =>
             IsRobotAgainstTank(unit, target) && !unit.WithinAttackRadius(target);
 
-        static bool CanOpenGap(ZObject unit, ZObject threat) => unit.CanMove &&
-            unit.AiTravelSpeed > 0 && unit.AiTravelSpeed > threat.AiTravelSpeed * 1.05;
+        bool CanOpenGap(ZObject unit, ZObject threat)
+        {
+            double speed = unit.AiTravelSpeed;
+            if (speed <= threat.AiTravelSpeed * 1.05) return false;
+            foreach (var enemy in enemies)
+            {
+                if (enemy == threat) continue;
+                bool pursuing = enemy.AttackObject == unit || enemy.AttackObject?.Leader == unit ||
+                    enemy.Waypoints.Count > 0 && enemy.Waypoints[0].refId == unit.Id &&
+                    enemy.Waypoints[0].mode is WpMode.Attack or WpMode.Agro;
+                if (pursuing && enemy.CanAttackObject(unit) &&
+                    ZAiGeometry.Distance(unit, enemy) <= enemy.RangeTo(unit) + 36 &&
+                    speed <= enemy.AiTravelSpeed * 1.05) return false;
+            }
+            return true;
+        }
 
         bool CanStandAndFight(ZObject unit, ZObject threat) => unit.CanAttackObject(threat) && SafeShot(unit, threat) &&
             (unit.WithinAttackRadius(threat) || !IsRobotAgainstTank(unit, threat) &&

@@ -132,7 +132,8 @@ namespace OpenZ.Multiplayer
             {
                 if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
                 { page = Page.Diagnostics; dirty = true; }
-                else if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
+                else if (page == Page.Entry && !(R.Game && R.Game.World.GameOver) &&
+                    !pauseOpen && !OzConfirm.Blocks && !IsTyping && !OzBuildKeys.TakesPriority(Keyboard.current, ChatKey) && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
                 { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
             }

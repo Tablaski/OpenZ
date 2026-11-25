@@ -136,7 +136,7 @@ namespace OpenZ
             if (!IsShown && W.GameOver && !OpenZVictory.HoldEndScreen) Show(W.Winner);   // fx_v2: after the nuke + celebration
             if (!IsShown) return;
             Animate();
-            if (lobbyCountdown != null && lastCountdownSecond != 0)
+            if (lobbyCountdown != null && Revealed && lastCountdownSecond != 0)
             {
                 var duel = OpenZ.Multiplayer.DuelRuntime.I;
                 if (lastCountdownSecond < 0) duel.StartEndLobbyCountdown();

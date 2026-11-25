@@ -50,6 +50,9 @@ namespace OpenZ
             else PlayerPrefs.SetInt(Preference(type), (int)key);
         }
 
+        internal static bool TakesPriority(Keyboard keyboard, Key key) =>
+            Modifier(keyboard) && OpenZHud.I && OpenZHud.I.Production && OpenZHud.I.Production.UsesBuildKey(key);
+
         internal static bool Modifier(Keyboard keyboard) => !keyboard.shiftKey.isPressed &&
             !keyboard.ctrlKey.isPressed && !keyboard.altKey.isPressed &&
             !keyboard.leftMetaKey.isPressed && !keyboard.rightMetaKey.isPressed;
@@ -121,9 +124,10 @@ namespace OpenZ
                 .Where(other => other != action && OzBuildKeys.Get(other) == key)
                 .Select(OzBuildKeys.Name).ToArray();
             var openZ = OzBindings.Defs.Where(def => def.action != OzAction.RestartProduction &&
-                !def.ctrl && OzBindings.KeyOf(def.action) == key).Select(def => def.label).ToArray();
+                !def.ctrl && OzBindings.KeyOf(def.action) == key).Select(def => def.label).ToList();
+            if (key == OzForkOptions.ChatKey) openZ.Add("Multiplayer chat");
             void Save() { OzBuildKeys.Set(action, key); Refresh(); }
-            if (key != Key.None && (build.Length > 0 || openZ.Length > 0))
+            if (key != Key.None && (build.Length > 0 || openZ.Count > 0))
                 OzConfirm.Ask("ASSIGN THIS KEY?",
                     $"{OzBindings.Cap(key)} is assigned to {string.Join(", ", build.Concat(openZ))}.\n" +
                     (build.Length > 0 ? "The previous build assignment will be cleared.\n" : "") +

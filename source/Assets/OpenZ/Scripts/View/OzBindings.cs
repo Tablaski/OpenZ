@@ -155,12 +155,7 @@ namespace OpenZ
             if (OzFpsView.On) return null;                                                   // 1.4 fps_view: no bound action while the first-person view is on (it reads its own W A S D; View/OzFpsView.cs)
             var key = KeyOf(a);
             if (key == Key.None || key == LongLeftClick) return null;
-            bool plain = OzBuildKeys.Modifier(kb);
-            if (a == OzAction.RestartProduction)
-            {
-                if (!plain) return null;
-            }
-            else if (plain && OpenZHud.I && OpenZHud.I.Production && OpenZHud.I.Production.UsesBuildKey(key)) return null;
+            if (a == OzAction.RestartProduction ? !OzBuildKeys.Modifier(kb) : OzBuildKeys.TakesPriority(kb, key)) return null;
             try { return kb[key]; } catch (ArgumentOutOfRangeException) { return null; }
         }
 

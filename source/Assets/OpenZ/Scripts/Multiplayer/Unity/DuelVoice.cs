@@ -94,6 +94,14 @@ namespace OpenZ.Multiplayer
                 retryMicrophoneAt = 0;
             }
         }
+        internal MicrophoneMode PreferredMode => Mode == MicrophoneMode.Mute ? lastLiveMode : Mode;
+
+        internal void ChooseLiveMode(MicrophoneMode mode)
+        {
+            if (Mode == MicrophoneMode.Mute) lastLiveMode = mode;
+            else SetMode(mode);
+        }
+
         public void CycleMode() => SetMode((MicrophoneMode)(((int)Mode + 1) % 3));
         public Key TalkKey => (Key)PlayerPrefs.GetInt("oz_duel_talk_key", (int)Key.V);
         public void ToggleMicrophone()
@@ -180,7 +188,7 @@ namespace OpenZ.Multiplayer
         void StartVoice(DuelRuntime runtime)
         {
             online = runtime.OnlinePeer;
-            skirmish = runtime.RoomTransport;
+            skirmish = runtime.RoomTransport?.TcpPeer == null ? runtime.RoomTransport : null;
             if (online == null && skirmish == null)
             {
                 token = Encoding.ASCII.GetBytes(runtime.VoiceSecret); expectedAddress = runtime.PeerAddress;

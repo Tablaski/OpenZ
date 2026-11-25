@@ -99,6 +99,13 @@ namespace OpenZ.Multiplayer
             Menus.Refresh();
         }
 
+        internal void SwapRoomForts(int source, int destination)
+        {
+            if (room == null || room.Launched || RoomHostReady) return;
+            room.SwapForts(RoomHostId, source, destination);
+            PublishRoom();
+        }
+
         void CreateSkirmishRoom(string name)
         {
             room = new MultiplayerRoom(RoomHostId, name, OzAiMapCatalog.ThreePlayerSkirmish.Id);
@@ -208,7 +215,7 @@ namespace OpenZ.Multiplayer
                     }
                     return true;
                 case DuelMessage.RoomSnapshot:
-                    if (IsHost || !OnlineMode || View != null) return true;
+                    if (IsHost || RoomTransport == null || View != null) return true;
                     var guest = roomGuest ?? new MultiplayerRoomGuestLink(peer);
                     if (!guest.Receive(packet)) return true;
                     roomGuest = guest;
@@ -313,6 +320,7 @@ namespace OpenZ.Multiplayer
             PingMs = (float)remotes.Select(link => link.Ping).DefaultIfEmpty().Max();
             if (!IsHost && roomGuest != null && remotes.Any(link => link.Ready)) Status = "Connected · " + transport.Route;
             if (IsHost && (!session || Playing)) PublishRoomLatency();
+            PublishLobbyPresence();
             if (IsHost && roomFinalStatsPending && !roomFullState && sentGameOver)
                 roomFinalStatsPending = !transport.Send(roomFinalStats);
             if (IsHost && room.Launched && Game && Game.World.GameOver)
@@ -394,6 +402,7 @@ namespace OpenZ.Multiplayer
                     else if (!Playing && room.Launched && member.Seat.MayUsePlayerCommands) { ReturnRoomToLobby(); ReturnToLobbyScene(); }
                     if (!room.Launched) room.RemoveHuman(RoomHostId, member.Id);
                     roomLinks.Remove(id);
+                    lobbyPresence.Remove(member.Id);
                     changed = true;
                 }
             }
@@ -453,7 +462,7 @@ namespace OpenZ.Multiplayer
                         NotifyRoomChat(chat);
                     return;
                 case DuelMessage.RoomLobbyStatus:
-                    if (!IsHost && sender.Id == 1) ReceiveRoomLobbyStatus(packet);
+                    if (IsHost || sender.Id == 1) ReceiveRoomLobbyStatus(packet, sender.Id);
                     return;
                 case DuelMessage.RoomGhostFollow:
                 case DuelMessage.RoomGhostView:

@@ -351,10 +351,19 @@ namespace OpenZ.Multiplayer
             InvalidateReady();
         }
 
-        public void SwapStartingSides(string sender)
+        public void SwapStartingSides(string sender) => RemapStartingSides(sender,
+            position => position >= 0 && (position ^ 1) < Starts ? position ^ 1 : position);
+
+        public void SwapForts(string sender, int source, int destination)
+        {
+            if (source == destination || source < 0 || destination < 0 || source >= Starts || destination >= Starts ||
+                closed.Contains(source) || closed.Contains(destination)) return;
+            RemapStartingSides(sender, position => position == source ? destination : position == destination ? source : position);
+        }
+
+        void RemapStartingSides(string sender, Func<int, int> Swap)
         {
             RequireHostSetup(sender);
-            int Swap(int position) => position >= 0 && (position ^ 1) < Starts ? position ^ 1 : position;
             foreach (var member in members.Values.Where(member => member.Seat.Position >= 0).ToArray())
             {
                 int seat = Swap(member.Seat.Position);
@@ -371,14 +380,16 @@ namespace OpenZ.Multiplayer
             var previousClosed = closed.ToArray();
             closed.Clear();
             foreach (int seat in previousClosed) closed.Add(Swap(seat));
-            for (int seat = 0; seat + 1 < Starts; seat += 2)
+            for (int seat = 0; seat < Starts; seat++)
             {
-                (rules.BuildPercent[seat], rules.BuildPercent[seat + 1]) = (rules.BuildPercent[seat + 1], rules.BuildPercent[seat]);
-                (rules.AiIdleSeconds[seat], rules.AiIdleSeconds[seat + 1]) = (rules.AiIdleSeconds[seat + 1], rules.AiIdleSeconds[seat]);
-                (rules.AiFactoryCapture[seat], rules.AiFactoryCapture[seat + 1]) = (rules.AiFactoryCapture[seat + 1], rules.AiFactoryCapture[seat]);
+                int destination = Swap(seat);
+                if (destination <= seat) continue;
+                (rules.BuildPercent[seat], rules.BuildPercent[destination]) = (rules.BuildPercent[destination], rules.BuildPercent[seat]);
+                (rules.AiIdleSeconds[seat], rules.AiIdleSeconds[destination]) = (rules.AiIdleSeconds[destination], rules.AiIdleSeconds[seat]);
+                (rules.AiFactoryCapture[seat], rules.AiFactoryCapture[destination]) = (rules.AiFactoryCapture[destination], rules.AiFactoryCapture[seat]);
                 for (int unit = 0; unit < 4; unit++)
                 {
-                    int x = seat * 4 + unit, y = x + 4;
+                    int x = seat * 4 + unit, y = destination * 4 + unit;
                     (rules.Extras[x], rules.Extras[y]) = (rules.Extras[y], rules.Extras[x]);
                 }
             }

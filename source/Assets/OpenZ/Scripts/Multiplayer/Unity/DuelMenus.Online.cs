@@ -11,9 +11,10 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus
     {
-        enum OnlinePopup { None, Invite, Maps, ActivePlayers, Units, AiHelp, Connection }
+        enum OnlinePopup { None, Invite, Maps, ActivePlayers, Units, AiHelp, Connection, Versions }
         OnlinePopup onlinePopup;
         int onlineMapPage, onlineMapSize, onlinePlayerSeat, onlineUnitSlot, onlineAiIdle, onlineAiCapture;
+        bool onlineVoiceModes;
         bool onlineOfficial, onlineShowSettings = true, onlineInviteShown;
         string onlineWorld = "", onlineMapSearch = "", onlineProposedMap;
         string onlineRenderedSearch = "";
@@ -24,13 +25,16 @@ namespace OpenZ.Multiplayer
         bool onlineAllForOne;
         int onlineTeamsRevision, onlineDragSeat = -1, onlineTeamCount;
         int onlineRoleRevision;
+        int onlineSelectedSeat = -1, onlineExtraTeam = -1;
         string onlinePlayerMenu;
         bool? onlineBotModern;
         RectTransform onlinePlayerAnchor;
         OnlinePerson onlineMenuPerson;
         bool onlineEditingName, onlineModerationNoteOpen;
         readonly HashSet<string> onlineActives = new HashSet<string>();
+        readonly Dictionary<string, OzText> onlineVoiceLabels = new Dictionary<string, OzText>();
         readonly Dictionary<int, OzText> onlinePingLabels = new Dictionary<int, OzText>();
+        readonly Dictionary<int, OzText> onlineDetailPingLabels = new Dictionary<int, OzText>();
         readonly Dictionary<int, OzText> onlineVariationLabels = new Dictionary<int, OzText>();
 
         bool OnlineEditing => !R.EndLobbyOpen && R.HostedRoom != null && !R.RoomHostReady;
@@ -42,6 +46,9 @@ namespace OpenZ.Multiplayer
         void ResetOnlineLobby()
         {
             ResetSetupFollow();
+            selectedFort = draggedFort = -1;
+            onlineVoiceModes = false;
+            onlineSelectedSeat = onlineExtraTeam = -1;
             onlinePopup = OnlinePopup.None;
             onlineUnitChoice = null;
             onlineChatPosition = 0;
@@ -57,6 +64,7 @@ namespace OpenZ.Multiplayer
             var map = OzAiMapCatalog.FindSkirmishMap(hosted?.Map ?? joined?.Map);
             var rules = hosted?.Rules ?? joined.Rules;
             bool editable = OnlineEditing;
+            if (hosted == null && joined == null) { BuildLobby(); return; }
             if (hosted != null && !onlineInviteShown && !R.EndLobbyOpen)
             {
                 onlineInviteShown = true;
@@ -67,7 +75,7 @@ namespace OpenZ.Multiplayer
             var people = hosted != null
                 ? hosted.Members.Select(member => new OnlinePerson(member.Id, member.Name, member.Seat.Position, member.Alliance,
                     member.Ready, member.Id == hosted.HostId, member.Id == hosted.HostId, member.Seat.Role == MatchSeatRole.Observer)).ToArray()
-                : joined.Humans.Select(member => new OnlinePerson(null, member.Name, member.Position, member.Alliance,
+                : joined.Humans.Select(member => new OnlinePerson(member.Id, member.Name, member.Position, member.Alliance,
                     member.Ready, member.Host, member.Local, member.Observer)).ToArray();
             var bots = hosted?.Bots ?? joined.Bots.Select(bot => new RoomBot(bot.Position, bot.Alliance, bot.Difficulty)).ToArray();
             var closed = hosted?.ClosedPositions ?? joined.Closed;
@@ -109,9 +117,7 @@ namespace OpenZ.Multiplayer
 
             onlinePlayerAnchor = null; onlineMenuPerson = null;
             if (onlineTeams != null && onlineTeamsRevision != hosted?.Revision) onlineTeams = null;
-            if (onlineTeams != null || browseOnlineTeams && !rules.FreeForAll)
-                DrawOnlineEditTeams(people, bots, map.Starts, editable);
-            else DrawOnlineRoster(map.Starts, people, bots, closed, rules.FreeForAll, editable);
+            DrawOnlineRoster(map.Starts, people, bots, closed, rules.FreeForAll, editable);
             DrawOnlineChat();
             Button(root, "LEAVE LOBBY", 60, 998, 216, Leave);
             int active = people.Count(person => person.Seat >= 0);
@@ -134,6 +140,7 @@ namespace OpenZ.Multiplayer
             if (roomCustomUnits) BuildRoomCustomUnits(rules, R.SetRoomRules, editable);
             if (roomPresets) BuildRoomArmyPresets(rules, R.SetRoomRules, editable);
             DrawOnlinePlayerMenu();
+            DrawVersionWarning(people);
             switch (onlinePopup)
             {
                 case OnlinePopup.Invite: DrawOnlineInvitation(); break;
@@ -142,9 +149,42 @@ namespace OpenZ.Multiplayer
                 case OnlinePopup.Units: DrawOnlineUnitPicker(rules, editable); break;
                 case OnlinePopup.AiHelp: DrawOnlineAiHelp(people, rules, editable); break;
                 case OnlinePopup.Connection: DrawOnlineConnection(people); break;
+                case OnlinePopup.Versions: DrawRoomVersions(people); break;
             }
             DrawSetupMarker();
             TickOnlinePings();
+        }
+
+        void DrawVersionWarning(OnlinePerson[] people)
+        {
+            if (people.Length >= 2 && people.Any(person => VersionStatus(person.Id) != "Match"))
+                Button(root, "CHECK VERSIONS / CLICK TO VIEW", 800, 998, 315,
+                    () => OpenOnlinePopup(OnlinePopup.Versions), true, height: 42);
+        }
+
+        string VersionStatus(string id)
+        {
+            if (!Version.TryParse(R.RoomPresence(id)?.Version, out var known)) return "Unknown";
+            int comparison = known.CompareTo(Version.Parse(OzForkVersion.Number));
+            return comparison < 0 ? "Older" : comparison > 0 ? "Newer" : "Match";
+        }
+
+        void DrawRoomVersions(OnlinePerson[] people)
+        {
+            var panel = OnlineDialog("GAME VERSIONS", 530, 230, 860, 580);
+            Label(panel, "Starting with different or unknown versions is strongly discouraged.", 24, 76, 800, 19, OzUi.Amber);
+            Label(panel, "PLAYER", 25, 125, 360, 16, OzUi.Muted);
+            Label(panel, "VERSION", 435, 125, 160, 16, OzUi.Muted);
+            Label(panel, "RELATIVE TO YOUR GAME", 605, 125, 239, 16, OzUi.Muted);
+            for (int i = 0; i < people.Length; i++)
+            {
+                var person = people[i];
+                int y = 162 + i * 41;
+                Label(panel, person.Name + (person.Host ? " / HOST" : ""), 25, y, 380, 19, OzUi.Ink);
+                Label(panel, R.RoomPresence(person.Id)?.Version ?? "Unknown", 435, y, 160, 19, OzUi.Ink);
+                string status = VersionStatus(person.Id);
+                Label(panel, status, 605, y, 165, 18, status == "Match" ? OzUi.Go : OzUi.Amber);
+            }
         }
 
         sealed class OnlinePerson
@@ -215,7 +255,7 @@ namespace OpenZ.Multiplayer
             var empty = positions.Except(occupied).ToArray();
             var teams = freeForAll ? Array.Empty<int>() :
                 occupied.Select(seat => humansBySeat.TryGetValue(seat, out var person) ? person.Team : botsBySeat[seat].Alliance)
-                    .Distinct().OrderBy(team => team).ToArray();
+                    .Concat(editable && onlineExtraTeam >= 0 && onlineExtraTeam < starts ? new[] { onlineExtraTeam } : Array.Empty<int>()).Distinct().OrderBy(team => team).ToArray();
             float height = 36 * (starts + observers.Length + waiting.Length) + 29 * (teams.Length +
                 (empty.Length > 0 ? 1 : 0) + (observers.Length > 0 ? 1 : 0) + (waiting.Length > 0 ? 1 : 0));
             var content = Scroll(panel, 22, 58, 646, 445, false, Mathf.Max(445, height));
@@ -228,7 +268,7 @@ namespace OpenZ.Multiplayer
             else
                 foreach (int team in teams)
                 {
-                    Group("TEAM " + (team + 1), OzUi.TeamText((Team)(team + 1)));
+                    Group("TEAM " + (team + 1), OzUi.TeamText((Team)(team + 1)), team: team);
                     foreach (int seat in occupied.Where(seat => humansBySeat.TryGetValue(seat, out var p) ? p.Team == team : botsBySeat[seat].Alliance == team))
                         SeatRow(seat);
                 }
@@ -247,23 +287,37 @@ namespace OpenZ.Multiplayer
                 Group("WAITING FOR A POSITION", OzUi.Muted);
                 foreach (var person in waiting) Unseated(person);
             }
-            if (!freeForAll)
+            if (editable)
+                Label(panel, freeForAll ? "Drag a fort number to move or swap." :
+                    "Drag a row into a team. Drag a fort number to move or swap.", 22, 41, 646, 14, OzUi.Muted);
+            if (!freeForAll && editable)
+                Button(panel, "+ NEW TEAM", 475, 517, 190, () =>
+                {
+                    onlineExtraTeam = Enumerable.Range(0, starts).First(team => !teams.Contains(team));
+                    dirty = true;
+                }, enabled: teams.Length < starts, height: 34);
+
+            void Move(int seat, int team)
             {
-                Label(panel, AllForOneLabel(R.RoomRules.AllForOne), 24, 520, 410, 17, OzUi.Ink);
-                if (R.IsHost)
-                    Button(panel, "EDIT TEAMS", 459, 516, 206, () => StartOnlineTeamEdit(starts, active, bots), enabled: editable, height: 35);
-                else if (!R.EndLobbyOpen)
-                    Button(panel, "VIEW TEAMS", 459, 516, 206, () =>
-                    {
-                        PauseHostSetup();
-                        browseOnlineTeams = true;
-                        onlineTeamsScroll = 1;
-                        dirty = true;
-                    }, height: 35);
+                if (!editable || seat < 0 || !occupied.Contains(seat)) return;
+                var assignments = positions.Select(position => humansBySeat.TryGetValue(position, out var person) ? person.Team :
+                    botsBySeat.TryGetValue(position, out var bot) ? bot.Alliance : position).ToArray();
+                if (assignments[seat] == team) return;
+                assignments[seat] = team;
+                onlineSelectedSeat = -1;
+                if (onlineExtraTeam == team) onlineExtraTeam = -1;
+                R.ApplyRoomTeams(R.HostedRoom.Revision, assignments, R.RoomRules.AllForOne);
             }
 
-            void Group(string title, Color tint, bool ghost = false)
+            void Group(string title, Color tint, bool ghost = false, int team = -1)
             {
+                if (editable && team >= 0)
+                {
+                    var target = Button(content, "", 0, y, 646, () => Move(onlineSelectedSeat, team), height: 26);
+                    AddOnlineEvent(target, EventTriggerType.Drop, _ => Move(onlineDragSeat, team));
+                    AddOnlineEvent(target, EventTriggerType.PointerEnter, _ => { if (onlineDragSeat >= 0) target.GetComponent<Button>().targetGraphic.color = OzUi.AmberLo; });
+                    AddOnlineEvent(target, EventTriggerType.PointerExit, _ => target.GetComponent<Button>().targetGraphic.color = Color.white);
+                }
                 if (ghost) DrawGhostIcon(content, 7, y + 3, 18);
                 Label(content, title, ghost ? 32 : 7, y + 4, 598, 15, tint);
                 y += 29;
@@ -274,24 +328,42 @@ namespace OpenZ.Multiplayer
                 var row = Hud.Img(content, "Position " + (seat + 1), OzUi.GM900);
                 row.rectTransform.TL(0, y, 646, 33);
                 row.raycastTarget = false;
+                if (!freeForAll && editable && occupied.Contains(seat))
+                {
+                    int team = humansBySeat.TryGetValue(seat, out var occupant) ? occupant.Team : botsBySeat[seat].Alliance;
+                    var handle = Button(row.transform, "::", 35, 2, 30, () => onlineSelectedSeat = seat,
+                        onlineSelectedSeat == seat, height: 29);
+                    AddOnlineEvent(handle, EventTriggerType.BeginDrag, evt =>
+                    {
+                        if (((PointerEventData)evt).button != PointerEventData.InputButton.Left) return;
+                        onlineDragSeat = seat;
+                        BeginSkirmishDrag(humansBySeat.TryGetValue(seat, out var participant) ? participant.Name : "AI");
+                    });
+                    AddOnlineEvent(handle, EventTriggerType.Drag, evt => UpdateSkirmishDrag((PointerEventData)evt));
+                    AddOnlineEvent(handle, EventTriggerType.EndDrag, _ => { onlineDragSeat = -1; ClearSkirmishDrag(); });
+                    AddOnlineEvent(handle, EventTriggerType.Drop, _ => Move(onlineDragSeat, team));
+                }
                 var badge = Hud.Img(row.transform, "Fort", OzUi.TeamText((Team)(seat + 1)));
                 badge.rectTransform.TL(6, 4, 26, 25);
                 badge.raycastTarget = false;
-                Hud.Label(badge.transform, "Fort", (seat + 1).ToString(), 14, OzUi.GM950).FillParent(OzH.C);
+                Hud.Label(badge.transform, "Fort", (seat + 1).ToString(), 14, OzUi.GM950).FillParent(OzH.C).graphic.raycastTarget = false;
+                if (editable && !closed.Contains(seat)) AddFortHandle(badge, seat, occupied.Contains(seat), R.SwapRoomForts);
                 if (humansBySeat.TryGetValue(seat, out var human))
                 {
-                    Label(row.transform, human.Name + (human.Local ? " · YOU" : human.Host ? " · HOST" : ""), 43, 8, 343, 17, OzUi.Ink);
+                    Label(row.transform, human.Name + (human.Local ? " / YOU" : human.Host ? " / HOST" : ""), 72, 8, HasAdvantages(seat) ? 102 : 272, 16, OzUi.Ink);
                     bool waitingForResults = R.WaitingForEndLobby(human.Local, seat);
                     bool ready = !R.EndLobbyOpen && human.Ready;
-                    Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", 387, 8, 100, 14, ready ? OzUi.Go : OzUi.Amber);
+                    Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", 354, 8, 91, 13, ready ? OzUi.Go : OzUi.Amber);
+                    if (!string.IsNullOrEmpty(human.Id))
+                        onlineVoiceLabels[human.Id] = Label(row.transform, "", 437, 8, 68, 12, OzUi.Ink);
                     if (!human.Host)
-                        onlinePingLabels[seat] = Label(row.transform, "", 494, 8, 88, 14, OzUi.Muted);
+                        onlinePingLabels[seat] = Label(row.transform, "", 506, 8, 86, 13, OzUi.Muted);
                     if (!R.EndLobbyOpen && (human.Local || R.IsHost && !human.Host)) AddPlayerMenu(row.transform, 2, human.Local ? "self" : human.Id, human);
                 }
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
-                    OzAiMapBadge.Head(row.transform, new OzRect(43, 5, 21, 21));
-                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 70, 7, 350, 17, OzUi.Ink);
+                    OzAiMapBadge.Head(row.transform, new OzRect(72, 5, 21, 21));
+                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 99, 7, HasAdvantages(seat) ? 76 : 230, 16, OzUi.Ink);
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat);
                 }
@@ -302,7 +374,27 @@ namespace OpenZ.Multiplayer
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat);
                 }
+                if (occupied.Contains(seat)) DrawAdvantages(row.transform, seat);
                 y += 36;
+            }
+
+            bool HasAdvantages(int seat) => R.RoomRules.BuildPercent[seat] != 100 || R.RoomRules.AiIdleSeconds[seat] != 0 ||
+                R.RoomRules.AiFactoryCapture[seat] != 0 || R.RoomRules.Extras.Skip(seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
+
+            void DrawAdvantages(Transform row, int seat)
+            {
+                var rules = R.RoomRules;
+                var details = new List<string>();
+                if (rules.BuildPercent[seat] != 100) details.Add("Build " + rules.BuildPercent[seat] + "%");
+                int units = rules.Extras.Skip(seat * 4).Take(4).Count(unit => !string.IsNullOrEmpty(unit));
+                if (units > 0) details.Add("+" + units + " units");
+                if (rules.AiIdleSeconds[seat] != 0 || rules.AiFactoryCapture[seat] != 0) details.Add("AI Help");
+                if (details.Count == 0) return;
+                Button(row, string.Join(" / ", details), 178, 2, 170, () =>
+                {
+                    SelectOnlineSetupTab(3);
+                    onlinePlayerSeat = seat;
+                }, height: 29);
             }
 
             void Unseated(OnlinePerson person)
@@ -398,8 +490,13 @@ namespace OpenZ.Multiplayer
             var background = Hud.Img(list, "Menu background", OzUi.GM950);
             background.rectTransform.Fill(); background.raycastTarget = true;
             Hud.Plate(list, "md", 0, OzUi.AmberLo);
-            int y = 8;
+            int y = 10;
             var person = onlineMenuPerson;
+            string heading = person != null ? person.Name : positionMenu ? "FORT " + (seat + 1) : "PLAYER";
+            Label(list, heading, 16, y + 2, width - 32, 21, OzUi.Amber);
+            if (person?.Seat >= 0)
+                Label(list, "FORT " + (person.Seat + 1), 16, y + 28, width - 32, 14, OzUi.Muted);
+            y += person?.Seat >= 0 ? 56 : 39;
             if (onlinePlayerMenu == "self")
             {
                 if (onlineEditingName)
@@ -416,7 +513,7 @@ namespace OpenZ.Multiplayer
             else if (person != null && R.IsHost)
             {
                 string id = person.Id;
-                ActionButton(R.RoomParticipantMuted(id) ? "RESTORE VOICE" : "MUTE VOICE", () => R.ModerateRoomPlayer(id, null, null));
+                ActionButton(R.RoomParticipantMuted(id) ? "RESTORE ROOM VOICE" : "MUTE VOICE FOR THE ROOM", () => R.ModerateRoomPlayer(id, null, null));
                 if (person.Seat >= 0) ActionButton("MOVE TO GHOSTS", () => R.SetRoomObserver(id), OnlineEditing);
                 ActionButton(onlineModerationNoteOpen ? "HIDE MESSAGE FIELD" : "ADD OPTIONAL MESSAGE",
                     () => { if (!onlineModerationNoteOpen) roomModerationNote = ""; onlineModerationNoteOpen = !onlineModerationNoteOpen; dirty = true; }, close: false);
@@ -425,6 +522,8 @@ namespace OpenZ.Multiplayer
                     Input(list, "", 8, y, width - 16, roomModerationNote, value => roomModerationNote = value, 160);
                     y += 49;
                 }
+                Label(list, "MODERATION", 16, y + 2, width - 32, 15, OzUi.AlertText);
+                y += 26;
                 ActionButton("KICK PLAYER...", () => Confirm(false), close: false);
                 ActionButton("KICK AND BAN...", () => Confirm(true), close: false);
             }
@@ -466,7 +565,7 @@ namespace OpenZ.Multiplayer
 
             void ActionButton(string label, Action action, bool enabled = true, bool close = true, bool selected = false)
             {
-                Button(list, label, 8, y, width - 16, () => { if (close) CloseOnlinePlayerMenu(); action(); }, selected, enabled, 36);
+                Button(list, label, 8, y, width - 16, () => { if (close) CloseOnlinePlayerMenu(); action(); }, selected, enabled, 36, alignLeft: true, rightPadding: 16);
                 y += 40;
             }
 
@@ -580,12 +679,13 @@ namespace OpenZ.Multiplayer
             var panel = OnlineDialog("INVITE PLAYERS", 490, 284, 940, 464, "BACK TO LOBBY");
             Label(panel, "Share the invitation link with the people you want to play with.", 32, 81, 876, 21, OzUi.Ink);
             Label(panel, "Add bots to fill open positions. Form teams for co-op or play free for all.", 32, 127, 876, 18, OzUi.Muted);
-            bool hasLink = !string.IsNullOrEmpty(R.OnlineRoom);
-            if (hasLink) Input(panel, "INVITATION LINK", 32, 210, 876, R.Invitation("", 0), _ => { }, 1000).readOnly = true;
+            bool hasLink = !R.OnlineMode || !string.IsNullOrEmpty(R.OnlineRoom);
+            string Link() => R.Invitation(R.OnlineMode ? "" : address, R.OnlineMode ? 0 : R.TcpPort);
+            if (hasLink) Input(panel, "INVITATION LINK", 32, 210, 876, Link(), _ => { }, 1000).readOnly = true;
             else Label(panel, R.ConnectionStatus, 32, 210, 876, 19, OzUi.Muted);
             Button(panel, "COPY INVITATION LINK", 32, 305, 876, () =>
             {
-                GUIUtility.systemCopyBuffer = R.Invitation("", 0);
+                GUIUtility.systemCopyBuffer = Link();
                 invitationNotice = "Invitation link copied.";
                 dirty = true;
             }, true, hasLink, 55);
@@ -783,7 +883,7 @@ namespace OpenZ.Multiplayer
             {
                 float y = 137 + i++ * 37;
                 Label(panel, person.Name, 24, y, 340, 18, OzUi.Ink);
-                onlinePingLabels[person.Seat] = Label(panel, "—", 374, y, 155, 18, OzUi.Ink);
+                onlineDetailPingLabels[person.Seat] = Label(panel, "—", 374, y, 155, 18, OzUi.Ink);
                 onlineVariationLabels[person.Seat] = Label(panel, "—", 551, y, 171, 18, OzUi.Ink);
             }
             Label(panel, "Ping measures the round trip to the host, including any relay.", 24, 414, 710, 15, OzUi.Muted);
@@ -791,15 +891,27 @@ namespace OpenZ.Multiplayer
 
         void TickOnlinePings()
         {
-            foreach (var label in onlinePingLabels)
+            foreach (var label in onlineVoiceLabels)
             {
-                var reading = R.RoomPings.FirstOrDefault(entry => entry.Seat == label.Key);
-                label.Value.Set(reading == null ? "—" : $"{reading.Ping} ms");
+                int? voice = R.RoomPresence(label.Key)?.Voice;
+                label.Value.Set(voice == 3 ? "MUTED" : voice == 2 ? "SPEAKING" : voice == 0 ? "MIC OFF" : "");
+                label.Value.graphic.color = voice == 2 ? (Color)OzUi.Go : voice == 3 ? (Color)OzUi.AlertText : OzUi.Muted;
             }
-            foreach (var label in onlineVariationLabels)
+            Refresh(onlinePingLabels, false, true);
+            Refresh(onlineDetailPingLabels, false, false);
+            Refresh(onlineVariationLabels, true, false);
+
+            void Refresh(Dictionary<int, OzText> labels, bool variation, bool showQuality)
             {
-                var reading = R.RoomPings.FirstOrDefault(entry => entry.Seat == label.Key);
-                label.Value.Set(reading == null ? "—" : $"{reading.Variation} ms");
+                foreach (var label in labels)
+                {
+                    var reading = R.HasFreshRoomLatency ? R.RoomPings.FirstOrDefault(entry => entry.Seat == label.Key) : null;
+                    string quality = reading == null ? "" : reading.Ping >= 160 || reading.Variation >= 35 ? "Poor" :
+                        reading.Ping >= 95 || reading.Variation >= 15 ? "Fair" : "Stable";
+                    label.Value.Set(reading?.Disconnected == true ? "Offline" :
+                        reading == null || reading.Ping <= 0 ? "Measuring" :
+                        variation ? $"{reading.Variation} ms" : showQuality ? $"{reading.Ping} ms / {quality}" : $"{reading.Ping} ms");
+                }
             }
         }
 
@@ -840,51 +952,40 @@ namespace OpenZ.Multiplayer
                 chatField.onSubmit.AddListener(_ => SendChat());
             }
             Button(panel, "SEND", 1634, 177, 142, SendChat);
-            var settings = Button(panel, "SETTINGS CHANGES", 1350, 12, 240, () =>
+            Button(panel, "SETTINGS CHANGES", 760, 12, 208, () =>
             {
                 onlineShowSettings = !onlineShowSettings;
                 RefreshChatHistory();
                 dirty = true;
             }, onlineShowSettings, height: 36);
-            var mic = Button(panel, "", 1598, 12, 51, () => { R.Voice.ToggleMicrophone(); dirty = true; },
-                R.Voice.MicrophoneEnabled, !R.RoomVoiceMuted, 36);
-            Color micInk = R.Voice.MicrophoneEnabled ? OzUi.GM950 : OzUi.Ink;
-            IconPart(mic, 21, 6, 9, 15, micInk); IconPart(mic, 16, 14, 3, 10, micInk);
-            IconPart(mic, 32, 14, 3, 10, micInk); IconPart(mic, 18, 23, 15, 3, micInk);
-            IconPart(mic, 24, 26, 3, 5, micInk); IconPart(mic, 20, 30, 11, 2, micInk);
-            var mode = Button(panel, "", 1657, 12, 51, () => { R.Voice.CycleMode(); dirty = true; }, enabled: !R.RoomVoiceMuted, height: 36);
-            IconPart(mode, 11, 14, 7, 9, OzUi.Ink); IconPart(mode, 18, 10, 7, 17, OzUi.Ink);
-            if (R.Voice.Mode != DuelVoice.MicrophoneMode.Mute)
+            var voice = R.Voice;
+            bool micOn = voice.Mode != DuelVoice.MicrophoneMode.Mute && !R.RoomVoiceMuted;
+            Button(panel, micOn ? "MIC ON" : "MIC OFF", 980, 12, 105,
+                () => { voice.ToggleMicrophone(); dirty = true; }, micOn, !R.RoomVoiceMuted, 36);
+            chatVoiceStatus = Label(panel, "", 1098, 12, 198, 13, OzUi.Ink);
+            chatGain = Label(panel, "", 1289, 12, 83, 12, OzUi.Muted);
+            var meter = Hud.Img(panel, "Audio input level", OzUi.GM950);
+            meter.rectTransform.TL(1098, 37, 267, 8);
+            chatInputMeter = Hud.Img(meter.transform, "Microphone input", OzUi.Go);
+            chatInputMeter.rectTransform.Fill();
+            string mode = voice.PreferredMode == DuelVoice.MicrophoneMode.AlwaysOn ? "ALWAYS ON" : "TAP TO SPEAK [" + voice.TalkKey + "]";
+            Button(panel, mode + "  v", 1380, 12, 205, () => { onlineVoiceModes = !onlineVoiceModes; dirty = true; },
+                enabled: !R.RoomVoiceMuted, height: 36);
+            Button(panel, "AUDIO SETTINGS", 1597, 12, 180, OpenMicrophone, height: 36);
+            if (onlineVoiceModes && !R.RoomVoiceMuted)
             {
-                IconPart(mode, 29, 13, 3, 11, OzUi.Ink);
-                if (R.Voice.Mode == DuelVoice.MicrophoneMode.AlwaysOn) IconPart(mode, 36, 9, 3, 19, OzUi.Ink);
-            }
-            var devices = Button(panel, "", 1716, 12, 60, OpenMicrophone, height: 36);
-            Hud.Kit(devices, "Audio settings icon", "Icons/ic_gear_48", new OzRect(18, 6, 24, 24), null, Image.Type.Simple).raycastTarget = false;
-            var tip = Hud.Img(panel, "Voice tooltip", OzUi.GM950);
-            tip.rectTransform.TL(1280, 51, 496, 38); tip.raycastTarget = false;
-            var help = Hud.Label(tip.transform, "Help", "", 16, OzUi.Ink).FillParent(OzH.C, 8, 0, 8, 0);
-            tip.gameObject.SetActive(false);
-            Hover(settings, onlineShowSettings ? "Hide game settings changes" : "Show game settings changes");
-            Hover(mic, R.RoomVoiceMuted ? "Microphone muted by host" : R.Voice.MicrophoneEnabled ? "Mute microphone" : "Unmute microphone");
-            Hover(mode, R.Voice.Mode == DuelVoice.MicrophoneMode.TapToSpeak ? $"Tap {R.Voice.TalkKey} to speak · click to change mode" :
-                R.Voice.ModeName + " · click to change mode");
-            Hover(devices, "Microphone and speakers settings");
-
-            void Hover(RectTransform target, string message)
-            {
-                var trigger = target.gameObject.AddComponent<EventTrigger>();
-                var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
-                enter.callback.AddListener(_ => { help.Set(message); tip.gameObject.SetActive(true); });
-                var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
-                exit.callback.AddListener(_ => tip.gameObject.SetActive(false));
-                trigger.triggers.Add(enter); trigger.triggers.Add(exit);
+                var modes = Hud.Img(panel, "Voice mode choices", OzUi.GM950).rectTransform;
+                modes.TL(1377, 52, 400, 115);
+                Button(modes, "TAP TO SPEAK [" + voice.TalkKey + "]", 8, 8, 384,
+                    () => ChooseVoiceMode(DuelVoice.MicrophoneMode.TapToSpeak), height: 44);
+                Button(modes, "ALWAYS ON", 8, 61, 384, () => ChooseVoiceMode(DuelVoice.MicrophoneMode.AlwaysOn), height: 44);
             }
 
-            static void IconPart(Transform parent, int x, int y, int w, int h, Color color)
+            void ChooseVoiceMode(DuelVoice.MicrophoneMode choice)
             {
-                var part = Hud.Img(parent, "Icon", color);
-                part.rectTransform.TL(x, y, w, h); part.raycastTarget = false;
+                voice.ChooseLiveMode(choice);
+                onlineVoiceModes = false;
+                dirty = true;
             }
         }
 

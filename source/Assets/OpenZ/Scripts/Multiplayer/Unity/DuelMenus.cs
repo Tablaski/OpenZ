@@ -216,6 +216,8 @@ namespace OpenZ.Multiplayer
             overlayRoot = root;
             if (page == Page.Skirmish || OnlineRoomPage) root = CreateSkirmishFrame(overlayRoot);
             onlinePingLabels.Clear();
+            onlineVoiceLabels.Clear();
+            onlineDetailPingLabels.Clear();
             onlineVariationLabels.Clear();
             if (!EventSystem.current)
             {
@@ -268,7 +270,7 @@ namespace OpenZ.Multiplayer
             wordmark.preserveAspect = true; wordmark.enabled = wordmark.sprite != null;
             if (!wordmark.sprite) Label(root, "OpenZ-VK", 80, 40, 370, 57, OzForkOptions.Brand);
             bool roomLobby = page == Page.Skirmish || page == Page.Lobby && R.SkirmishRoom;
-            Label(root, page == Page.Skirmish ? "Skirmish" : roomLobby ? "Multiplayer lobby" : page == Page.Connect ? "MULTIPLAYER" : "DUEL · 1 VS 1",
+            Label(root, page == Page.Skirmish ? "Skirmish" : roomLobby ? "Multiplayer lobby" : "Multiplayer",
                 roomLobby ? 395 : 80, roomLobby ? 43 : 108, 800, roomLobby ? 29 : 22, OzUi.Ink);
             if (page != Page.Skirmish && !OnlineRoomPage) ping = Label(root, "PING", 1570, 90, 250, 18, OzUi.Go);
             if (page == Page.Connect) BuildConnect();
@@ -312,7 +314,7 @@ namespace OpenZ.Multiplayer
                 BuildOnlineConnect();
                 return;
             }
-            Label(root, "TCP/IP (1 VS 1)", 80, 154, 850, 23, OzUi.Ink);
+            Label(root, "TCP/IP", 80, 154, 850, 23, OzUi.Ink);
             var left = Panel("HOST", 80, 210, 850, 650);
             var right = Panel("JOIN", 980, 210, 850, 650);
             Input(left, "PLAYER NAME", 30, 90, 760, name, v => name = v, 32);
@@ -335,9 +337,8 @@ namespace OpenZ.Multiplayer
             Label(left, "Invite players by link. Add bots and set up teams.", 34, 252, 870, 19, OzUi.Muted);
             Button(left, "SKIRMISH", 30, 301, 880, ShowSkirmish, enabled: HasSkirmishScene(OzAiMapCatalog.ThreePlayerSkirmish), height: 65);
             Label(left, "Play with bots, make teams, or go free for all.", 34, 376, 870, 19, OzUi.Muted);
-            Button(left, "TCP/IP (1 VS 1)", 30, 425, 880, () => { advanced = true; dirty = true; }, height: 65);
+            Button(left, "TCP/IP", 30, 425, 880, () => { advanced = true; dirty = true; }, height: 65);
             Label(left, "Host or join a direct connection for two players.", 34, 500, 870, 19, OzUi.Muted);
-            Button(left, "CLASSIC ONLINE DUEL", 30, 571, 420, () => { SaveName(); R.ConnectOnline(name, true, ""); });
             Input(right, "INVITATION LINK OR ROOM CODE", 30, 99, 725, invite, v => invite = v, 1000);
             Button(right, "PASTE", 30, 174, 190, () => { invite = GUIUtility.systemCopyBuffer.Trim(); dirty = true; });
             Button(right, "JOIN ONLINE GAME", 232, 174, 523, () => { SaveName(); R.ConnectOnline(name, false, invite); }, true);
@@ -400,11 +401,13 @@ namespace OpenZ.Multiplayer
                     Button(panel, "OFF", 851, 411, 97, () => { rules.FriendlyFire = false; save(rules); }, !rules.FriendlyFire, editable, showSelection: true);
                     Button(panel, "ON", 959, 411, 97, () => { rules.FriendlyFire = true; save(rules); }, rules.FriendlyFire, editable, showSelection: true);
                 }
-                if (page == Page.Skirmish || starts == 2) Button(panel, page == Page.Skirmish ? "SWAP STARTING SIDES" : "SWAP FORTS 1 / 2", 554, 488, 502, () =>
+                if (!rules.FreeForAll)
                 {
-                    if (page == Page.Skirmish) { localSkirmish.SwapStartingSides(LocalSkirmishHost); dirty = true; }
-                    else R.SwapRoomStartingSides();
-                }, enabled: editable);
+                    Label(panel, "TEAM DEFEAT", 30, 489, 740, 20, OzUi.Amber);
+                    Label(panel, AllForOneDescription, 30, 521, 740, 16, OzUi.Muted);
+                    Button(panel, "OFF", 851, 488, 97, () => { rules.AllForOne = false; save(rules); }, !rules.AllForOne, editable, showSelection: true);
+                    Button(panel, "ON", 959, 488, 97, () => { rules.AllForOne = true; save(rules); }, rules.AllForOne, editable, showSelection: true);
+                }
                 profileChoices?.SetAsLastSibling();
                 return;
 

@@ -269,20 +269,9 @@ namespace OpenZ.Multiplayer
                 }, hasBots, allowReselect: !modern && bots.Any(bot => ZAiDifficulty.IsModern(bot.Difficulty)));
             BuildLobbyAiDifficultyRow(panel, new OzRect(levelsX, 98, SkirmishDifficultyWidth, 37), modern, commonDifficulty,
                 SetSkirmishBotDifficulty, difficultyTip, hasBots, "ALL BOTS ");
-            Label(panel, rules.FreeForAll ? localSkirmish.SupportsTeams ? $"{active} players · each plays for their own side" :
-                "Teams requires at least three positions." :
-                "Drag a card onto a team, or select a card and team.", 24, 160, width - 48, 16, OzUi.Muted);
+            Label(panel, rules.FreeForAll ? "Drag a fort number to swap starting positions." :
+                "Drag a row into a team. Drag a fort number to swap.", 24, 160, width - 48, 16, OzUi.Muted);
             int listTop = 187;
-            if (!rules.FreeForAll)
-            {
-                Button(panel, AllForOneLabel(rules.AllForOne), 24, 187, 248, () =>
-                {
-                    rules.AllForOne = !rules.AllForOne;
-                    SaveLocalRules(rules);
-                }, rules.AllForOne, height: 35);
-                Label(panel, AllForOneDescription, 24, 226, width - 48, 15, OzUi.Ink);
-                listTop = 256;
-            }
             const int memberHeight = 48;
             float contentHeight = active * memberHeight + (rules.FreeForAll ? 0 : alliances.Length * 55);
             float listHeight = Mathf.Min(709 - listTop, contentHeight);
@@ -340,11 +329,11 @@ namespace OpenZ.Multiplayer
                 var row = Hud.Img(parent, name, OzUi.GM900);
                 row.rectTransform.TL(6, y, width - 12, 38);
                 row.raycastTarget = false;
-                Label(row.transform, name, 8, 9, cardWidth - 8, 17, OzUi.Ink);
+                Label(row.transform, name, 34, 9, cardWidth - 34, 17, OzUi.Ink);
             }
             else
             {
-                var card = Button(parent, "::   " + name, 6, y, cardWidth, () =>
+                var card = Button(parent, "::   " + name, 40, y, cardWidth - 34, () =>
                 {
                     if (skirmishDragGhost || skirmishDragFrame == Time.frameCount) return;
                     skirmishSelectedSeat = skirmishSelectedSeat == seat ? -1 : seat;
@@ -352,6 +341,14 @@ namespace OpenZ.Multiplayer
                 }, skirmishSelectedSeat == seat, height: 38, alignLeft: true, rightPadding: 0);
                 card.gameObject.AddComponent<SkirmishCardDrag>().Configure(this, seat, name);
             }
+            var fort = Hud.Img(parent, "Starting fort", OzUi.TeamText((Team)(seat + 1)));
+            fort.rectTransform.TL(8, y + 4, 28, 29);
+            Hud.Label(fort.transform, "Fort number", (seat + 1).ToString(), 15, OzUi.GM950).FillParent(OzH.C).graphic.raycastTarget = false;
+            AddFortHandle(fort, seat, true, (first, second) =>
+            {
+                localSkirmish.SwapForts(LocalSkirmishHost, first, second);
+                dirty = true;
+            });
             if (!difficulty.HasValue) return;
             bool modern = ZAiDifficulty.IsModern(difficulty.Value);
             BuildLobbyAiGeneration(parent, new OzRect(generationX, y + 6, SkirmishGenerationWidth, 26), modern,
@@ -381,6 +378,40 @@ namespace OpenZ.Multiplayer
             skirmishExtraTeam = skirmishSelectedSeat = -1;
             skirmishTeamScroll = 1;
             SaveLocalRules(rules);
+        }
+
+        int selectedFort = -1;
+        int draggedFort = -1;
+
+        void AddFortHandle(Image badge, int seat, bool occupied, Action<int, int> move)
+        {
+            badge.raycastTarget = true;
+            var original = badge.color;
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerClick, _ =>
+            {
+                int previous = selectedFort;
+                selectedFort = occupied && previous < 0 ? seat : -1;
+                if (previous >= 0 && previous != seat) move(previous, seat);
+            });
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerEnter, _ =>
+            {
+                if (draggedFort >= 0 && draggedFort != seat) badge.color = OzUi.Amber;
+            });
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.PointerExit, _ => badge.color = original);
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.Drop, _ =>
+            {
+                if (draggedFort >= 0 && draggedFort != seat) move(draggedFort, seat);
+            });
+            if (!occupied) return;
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.BeginDrag, evt =>
+            {
+                if (((PointerEventData)evt).button != PointerEventData.InputButton.Left) return;
+                draggedFort = seat;
+                selectedFort = -1;
+                BeginSkirmishDrag("Fort " + (seat + 1));
+            });
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.Drag, evt => UpdateSkirmishDrag((PointerEventData)evt));
+            AddOnlineEvent(badge.rectTransform, EventTriggerType.EndDrag, _ => { draggedFort = -1; ClearSkirmishDrag(); });
         }
 
         internal void MoveSkirmishMember(int seat, int team)

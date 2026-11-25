@@ -99,7 +99,7 @@ namespace OpenZ.Multiplayer
         public DuelMenus Menus { get; private set; }
         public DuelVoice Voice { get; private set; }
         public string VoiceSecret => secret;
-        public IPAddress PeerAddress => (peer as DuelTcpPeer)?.RemoteAddress;
+        public IPAddress PeerAddress => ((peer as DuelTcpPeer) ?? RoomTransport?.TcpPeer)?.RemoteAddress;
         public DuelRtcPeer OnlinePeer => peer as DuelRtcPeer;
         public bool OnlineMode { get; private set; }
         public string OnlineRoom => online?.RoomCode;
@@ -213,10 +213,10 @@ namespace OpenZ.Multiplayer
         {
             if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
             Close(); IsHost = true; TcpPort = port; localName = name; secret = DuelTcpPeer.NewInvitationSecret();
-            lobby = new DuelLobby(); lobby.Join(0, name); lobby.ChangeRules(0, HostDefaults()); View = DuelLobbyData.From(lobby);
+            CreateSkirmishRoom(name);
             cancellation = new CancellationTokenSource();
             try { listener = new TcpListener(IPAddress.Any, port); listener.Start(1); connectTask = AcceptTcp(); Status = "Waiting for the other player…"; }
-            catch (Exception error) { Fail(error.Message); }
+            catch (Exception error) { Fail(error.Message); return; }
             Menus.ShowLobby();
         }
         public void Join(string name, string invitation)
@@ -411,6 +411,7 @@ namespace OpenZ.Multiplayer
                 if (connectTask != null && connectTask.IsCompleted)
                 {
                     var task = connectTask; connectTask = null; peer = task.GetAwaiter().GetResult(); listener?.Stop(); listener = null;
+                    if (peer is DuelTcpPeer tcp) peer = new SkirmishOnline(tcp, IsHost, cancellation.Token);
                     lastReceive = Now; Status = RoomTransport != null ? "Waiting for players…" :
                         OnlinePeer != null ? (OnlinePeer.UsesRelay ? "Connected via relay" : "Connected directly") : "Connected";
                     if (RoomTransport != null) Menus.Refresh();

@@ -17,8 +17,47 @@ namespace OpenZ.Multiplayer
         [Serializable] sealed class RoomLobbyStatus
         {
             public LobbyPing[] Links;
+            public LobbyPresence[] Presence;
             public string Change;
             public RoomSetupView Setup;
+        }
+
+        [Serializable] internal sealed class LobbyPresence
+        {
+            public string Id, Version;
+            public int Voice;
+        }
+
+        readonly Dictionary<string, (LobbyPresence Value, double Seen)> lobbyPresence = new();
+        double nextLobbyPresence;
+
+        internal LobbyPresence RoomPresence(string id)
+        {
+            if (id == null) return null;
+            if (id == (IsHost ? RoomHostId : RoomGuest(RoomTransport?.Id ?? 0)))
+                return new LobbyPresence { Id = id, Version = OzForkVersion.Number,
+                    Voice = RoomVoiceMuted ? 3 : Voice.Transmitting ? 2 : Voice.Mode == DuelVoice.MicrophoneMode.Mute ? 0 : 1 };
+            if (!lobbyPresence.TryGetValue(id, out var entry)) return null;
+            return new LobbyPresence { Id = id, Version = entry.Value.Version,
+                Voice = IsHost && RoomParticipantMuted(id) ? 3 : Now - entry.Seen < 2 ? entry.Value.Voice : -1 };
+        }
+
+        void PublishLobbyPresence()
+        {
+            if (session || Now < nextLobbyPresence) return;
+            nextLobbyPresence = Now + .25;
+            var presence = IsHost ? room.Members.Select(member => RoomPresence(member.Id)).Where(item => item != null).ToArray() :
+                new[] { RoomPresence(RoomGuest(RoomTransport.Id)) };
+            SendJson(DuelMessage.RoomLobbyStatus, new RoomLobbyStatus { Presence = presence });
+        }
+
+        void StorePresence(string id, LobbyPresence item)
+        {
+            if (string.IsNullOrEmpty(id) || id.Length > 16 || item == null || item.Voice < -1 || item.Voice > 3) return;
+            string version = item.Version?.Length <= 20 && Version.TryParse(item.Version, out var parsed) ? parsed.ToString() : null;
+            bool changed = !lobbyPresence.TryGetValue(id, out var old) || old.Value.Version != version;
+            lobbyPresence[id] = (new LobbyPresence { Id = id, Version = version, Voice = item.Voice }, Now);
+            if (changed) Menus.Refresh();
         }
 
         internal enum SetupPanel { Rules, Maps, Units, AllowedUnits, AiHelp, Presets, CombatProfiles, Teams, ActivePlayers, Position }
@@ -159,11 +198,19 @@ namespace OpenZ.Multiplayer
             SendJson(DuelMessage.RoomLobbyStatus, new RoomLobbyStatus { Links = RoomPings });
         }
 
-        void ReceiveRoomLobbyStatus(DuelPacket packet)
+        void ReceiveRoomLobbyStatus(DuelPacket packet, int sender)
         {
             if (packet.Payload.Length > 4096) return;
             var status = ReadJson<RoomLobbyStatus>(packet);
             if (status == null) return;
+            if (!session && status.Presence?.Length <= 8)
+            {
+                if (IsHost && status.Presence.Length == 1 && roomLinks.ContainsKey(sender))
+                    StorePresence(RoomGuest(sender), status.Presence[0]);
+                else if (!IsHost && sender == 1)
+                    foreach (var item in status.Presence) StorePresence(item?.Id, item);
+            }
+            if (IsHost) return;
             if (!session && JoinedRoom?.Launched == false && status.Setup?.IsValid() == true)
             {
                 receivedRoomSetup = status.Setup;
@@ -223,6 +270,8 @@ namespace OpenZ.Multiplayer
         void ClearRoomLobbyStatus()
         {
             ResetRoomSetup();
+            lobbyPresence.Clear();
+            nextLobbyPresence = 0;
             previousLobbyRules = null;
             previousRoomMap = previousRoomSeats = null;
             RoomPings = Array.Empty<LobbyPing>();

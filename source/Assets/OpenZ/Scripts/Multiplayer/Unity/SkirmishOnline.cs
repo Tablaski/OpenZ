@@ -51,14 +51,15 @@ namespace OpenZ.Multiplayer
         public int Id { get; }
         public int Epoch => Volatile.Read(ref epoch);
         public bool IsHost => Id == 1;
-        public string Route => Volatile.Read(ref useSfu) ? "SFU" :
+        internal DuelTcpPeer TcpPeer { get; }
+        public string Route => TcpPeer != null ? "TCP" : Volatile.Read(ref useSfu) ? "SFU" :
             Remotes.Any(link => link.Ready && link.Rtc?.UsesRelay == true) ? "TURN" : "DIRECT";
         public Link[] Remotes => Volatile.Read(ref remotes);
-        public bool Closed => closed;
-        public string Failure => failure;
+        public bool Closed => closed || TcpPeer?.Closed == true;
+        public string Failure => failure ?? TcpPeer?.Failure;
         public string RemoteName => Remotes.FirstOrDefault()?.RemoteName ?? "";
-        public int PendingSendBytes => relay?.PendingBytes ?? Remotes.Select(link => link.Rtc?.PendingSendBytes ?? 0).DefaultIfEmpty().Max();
-        public int PendingReceiveBytes => Remotes.Sum(link => link.Input?.QueuedBytes ?? link.Rtc?.PendingReceiveBytes ?? 0);
+        public int PendingSendBytes => TcpPeer?.PendingSendBytes ?? relay?.PendingBytes ?? Remotes.Select(link => link.Rtc?.PendingSendBytes ?? 0).DefaultIfEmpty().Max();
+        public int PendingReceiveBytes => TcpPeer?.PendingReceiveBytes ?? Remotes.Sum(link => link.Input?.QueuedBytes ?? link.Rtc?.PendingReceiveBytes ?? 0);
         public long StatePayloadBytesSent => relay?.StateBytesSent ?? Remotes.Sum(link => link.Rtc?.StatePayloadBytesSent ?? 0);
 
         public SkirmishOnline(int id, string seat, string secret, string fingerprint, string name,
@@ -73,6 +74,15 @@ namespace OpenZ.Multiplayer
             this.name = name;
             stop = CancellationTokenSource.CreateLinkedTokenSource(cancel);
             socket.Options.SetRequestHeader("Authorization", "Bearer " + seat);
+        }
+
+        internal SkirmishOnline(DuelTcpPeer tcp, bool host, CancellationToken cancel)
+        {
+            TcpPeer = tcp;
+            Id = host ? 1 : 2;
+            stop = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+            epoch = 1;
+            remotes = new[] { new Link(this, new SkirmishSignal.Member { id = host ? 2 : 1, name = tcp.RemoteName }) };
         }
 
         public async Task Start(Uri address)
@@ -311,11 +321,19 @@ namespace OpenZ.Multiplayer
             finally { writer.Release(); }
         }
 
-        internal void Lock(bool locked) => _ = Write(new SkirmishSignal { type = locked ? "lock" : "unlock", epoch = Epoch })
+        internal void Lock(bool locked)
+        {
+            if (TcpPeer != null) return;
+            _ = Write(new SkirmishSignal { type = locked ? "lock" : "unlock", epoch = Epoch })
             .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+        }
 
-        internal void RemoveParticipant(int id, bool ban, string note) => _ = Write(new SkirmishSignal { type = "moderate", id = id, ban = ban, note = note, epoch = Epoch })
+        internal void RemoveParticipant(int id, bool ban, string note)
+        {
+            if (TcpPeer != null) { TcpPeer.Dispose(); return; }
+            _ = Write(new SkirmishSignal { type = "moderate", id = id, ban = ban, note = note, epoch = Epoch })
             .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
+        }
 
         internal bool IsVoiceMuted(int id) => voiceMuted.ContainsKey(id);
         internal void SetVoiceMuted(int id, bool muted)
@@ -327,6 +345,7 @@ namespace OpenZ.Multiplayer
         internal void ReportStalled(Link link)
         {
             if (link.Epoch != Epoch) return;
+            if (TcpPeer != null) { TcpPeer.Dispose(); return; }
             string action = link.Rtc == null ? "fallback" : "drop";
             if (!IsHost && action == "drop")
             {
@@ -414,6 +433,7 @@ namespace OpenZ.Multiplayer
         {
             closed = true;
             stop.Cancel();
+            if (TcpPeer != null) { TcpPeer.Dispose(); socket.Dispose(); }
         }
 
         internal sealed class Link : IDuelPeer
@@ -433,13 +453,13 @@ namespace OpenZ.Multiplayer
             public string RemoteName { get; }
             public string Failure => Rtc?.Failure;
             public bool Closed => Rtc?.Closed == true || Input?.Closed == true;
-            public bool Ready => !Closed && (Rtc?.Ready.Status == TaskStatus.RanToCompletion || Introduced && Input?.Ready == true);
+            public bool Ready => !Closed && (room.TcpPeer != null || Rtc?.Ready.Status == TaskStatus.RanToCompletion || Introduced && Input?.Ready == true);
             public long StatePayloadBytesSent => Rtc?.StatePayloadBytesSent ?? 0;
-            public bool Send(DuelPacket packet) => Rtc?.Send(packet) ?? room.relay?.Send(room.IsHost ? Id : 0, packet) == true;
+            public bool Send(DuelPacket packet) => room.TcpPeer?.Send(packet) ?? Rtc?.Send(packet) ?? room.relay?.Send(room.IsHost ? Id : 0, packet) == true;
             public bool TryReceive(out DuelPacket packet)
             {
                 packet = null;
-                return Rtc?.TryReceive(out packet) ?? Input?.TryReceive(out packet) == true;
+                return room.TcpPeer?.TryReceive(out packet) ?? Rtc?.TryReceive(out packet) ?? Input?.TryReceive(out packet) == true;
             }
             internal bool TryReceiveVoice(out byte[] frame)
             {

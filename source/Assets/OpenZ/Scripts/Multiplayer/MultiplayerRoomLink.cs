@@ -28,13 +28,13 @@ namespace OpenZ.Multiplayer
     {
         [Serializable] internal sealed class Human
         {
-            public string Name;
+            public string Id, Name;
             public int Position, Alliance;
             public bool Observer, Ready, Host, Local;
 
             internal static Human FromMember(RoomMember member, string host, string local) => new Human
             {
-                Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
+                Id = member.Id, Name = member.Name, Position = member.Seat.Position, Alliance = member.Alliance,
                 Observer = member.Seat.Role == MatchSeatRole.Observer, Ready = member.Ready,
                 Host = member.Id == host, Local = member.Id == local,
             };

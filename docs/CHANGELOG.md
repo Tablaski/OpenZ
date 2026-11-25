@@ -19,6 +19,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 - Solo + 1 vs 1 — Arctic, Desert and Volcanic AI Maps have smoother banks around bridge pillars. On Arctic maps, snow also sits lower around the foot of each ramp.
 - Solo + 1 vs 1 — Water and lava connect across bridge spans in Desert and Volcanic AI Maps, and roads meet the bridge ramps on City AI Maps.
+- Solo + 1 vs 1 — Arctic bridges keep their original design when damaged, destroyed or repaired.
 
 ## OpenZ-VK 1.5.72 (24 Nov 2026)
 

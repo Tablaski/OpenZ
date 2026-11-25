@@ -42,11 +42,14 @@ namespace OpenZ.Experimental
             IsPaletteV4 = useV4;
             IsPaletteV5 = useV4 && OzAiTerrainV5.Active;
             bool arcticV5 = IsPaletteV5 && map.planet == "arctic";
+            bool desertV5 = IsPaletteV5 && map.planet == "desert";
             bool clearHardBridgeShoulders = IsPaletteV5 && map.planet is "arctic" or "desert" or "volcanic";
+            var waterUnderBridge = render ? BridgeWater(map, desertV5) : null;
             var bridgeClearance = useV4 ? OzAiTerrainV4.Bridges(map) : System.Array.Empty<OzAiTerrainV4.Bridge>();
             var ridges = useV4 ? OzAiTerrainV4.StraightRidges(map) : null;
             var terraces = useV4 && map.planet == "jungle" ? new OzJungleTerracesV4(map) : null;
             bool UnderBridge(ZMapData data, int index) => bridgeSpans[index];
+            bool WaterUnderBridge(ZMapData data, int index) => waterUnderBridge[index];
             bool StraightRidge(ZMapData data, int index) => ridges[index];
             for (int row = 0; row <= height; row++)
             for (int col = 0; col <= width; col++)
@@ -116,7 +119,7 @@ namespace OpenZ.Experimental
             terrain.AddComponent<MeshRenderer>().sharedMaterials = cityV5
                 ? new[] { surfaceGround, rockFace, floor, CityBorderConcrete() }
                 : new[] { surfaceGround, rockFace, floor };
-            BuildWater(map, useV4, arcticEdges);
+            BuildWater(map, useV4, arcticEdges, waterUnderBridge);
             if (cityV5) BuildCityBorderRuins(map, Height);
             if (IsPaletteV5 && map.planet == "volcanic")
             {
@@ -139,6 +142,8 @@ namespace OpenZ.Experimental
                     if (clearHardBridgeShoulders)
                         shoulderClearance = Mathf.Max(shoulderClearance, bridge.ShoulderClearance(x, z));
                 }
+                if (desertV5 && shoulderClearance > 0)
+                    clearance = Mathf.Max(clearance, Mathf.SmoothStep(0, 1, Mask(map, x, z, WaterUnderBridge) * 2));
                 float ridge = useV4 ? Mask(map, x, z, StraightRidge) : 0;
                 float height = Elevation(map, x, z, Mask(map, x, z, UnderBridge), clearance, ridge, wetOverride,
                     shoulderClearance);
@@ -362,11 +367,10 @@ namespace OpenZ.Experimental
             return material;
         }
 
-        void BuildWater(ZMapData map, bool useV4, ArcticEdges arcticEdges)
+        void BuildWater(ZMapData map, bool useV4, ArcticEdges arcticEdges, bool[] underDeck)
         {
             var vertices = new List<Vector3>();
             var indices = new List<int>();
-            var underDeck = BridgeWater(map, IsPaletteV5 && map.planet == "desert");
             bool WetSurface(ZMapData data, int index) => Water(data, index) || underDeck[index];
             for (int y = 0; y < map.height * 2; y++)
             for (int x = 0; x < map.width * 2; x++)

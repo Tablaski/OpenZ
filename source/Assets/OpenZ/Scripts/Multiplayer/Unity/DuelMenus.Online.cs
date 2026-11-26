@@ -402,7 +402,7 @@ namespace OpenZ.Multiplayer
                 if (editable && !closed.Contains(seat)) AddFortHandle(badge, seat, occupied.Contains(seat), R.SwapRoomForts);
                 if (humansBySeat.TryGetValue(seat, out var human))
                 {
-                    Label(row.transform, human.Name + (human.Local ? " / YOU" : human.Host ? " / HOST" : ""), 72, 8, compact ? 111 : HasAdvantages(seat) ? 102 : 272, 16, OzUi.Ink);
+                    Label(row.transform, human.Name + (human.Local ? " / YOU" : human.Host ? " / HOST" : ""), 72, 8, compact ? 111 : HasAdvantages(seat) ? 240 : 272, 16, OzUi.Ink);
                     bool waitingForResults = R.WaitingForEndLobby(human.Local, seat);
                     bool ready = !R.EndLobbyOpen && human.Ready;
                     Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", compact ? 183 : 354, 8, compact ? 66 : 91, 13, ready ? OzUi.Go : OzUi.Amber);
@@ -415,7 +415,7 @@ namespace OpenZ.Multiplayer
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
                     OzAiMapBadge.Head(row.transform, new OzRect(72, 5, 21, 21));
-                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 99, 7, compact ? 147 : HasAdvantages(seat) ? 76 : 230, 16, OzUi.Ink);
+                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 99, 7, compact ? 147 : HasAdvantages(seat) ? 213 : 230, 16, OzUi.Ink);
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat, width: width);
                 }
@@ -426,27 +426,22 @@ namespace OpenZ.Multiplayer
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat, width: width);
                 }
-                if (occupied.Contains(seat)) DrawAdvantages(row.transform, seat, compact);
+                if (occupied.Contains(seat) && HasAdvantages(seat)) DrawAdvantageIndicator(row.transform, seat, width, compact);
                 y += compact ? teamRowHeight : 36;
             }
 
             bool HasAdvantages(int seat) => playerRules.BuildPercent[seat] != 100 || playerRules.AiIdleSeconds[seat] != 0 ||
                 playerRules.AiFactoryCapture[seat] != 0 || playerRules.Extras.Skip(seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
 
-            void DrawAdvantages(Transform row, int seat, bool compact)
+            void DrawAdvantageIndicator(Transform row, int seat, int width, bool compact)
             {
-                var rules = playerRules;
-                var details = new List<string>();
-                if (rules.BuildPercent[seat] != 100) details.Add("Build " + rules.BuildPercent[seat] + "%");
-                int units = rules.Extras.Skip(seat * 4).Take(4).Count(unit => !string.IsNullOrEmpty(unit));
-                if (units > 0) details.Add("+" + units + " units");
-                if (rules.AiIdleSeconds[seat] != 0 || rules.AiFactoryCapture[seat] != 0) details.Add("AI Help");
-                if (details.Count == 0) return;
-                Button(row, string.Join(" / ", details), compact ? 69 : 178, compact ? 43 : 2, compact ? 180 : 170, () =>
+                var indicator = Button(row, "", compact ? width - 44 : 318, compact ? 32 : 3, 28, () =>
                 {
                     SelectOnlineSetupTab(3);
                     onlinePlayerSeat = seat;
-                }, height: compact ? 17 : 29);
+                }, height: 26);
+                indicator.name = "Custom player advantage";
+                Hud.Icon(indicator, "Custom player advantage", "wrench", 5, 4, 18, OzUi.Amber).raycastTarget = false;
             }
 
             void Unseated(OnlinePerson person)

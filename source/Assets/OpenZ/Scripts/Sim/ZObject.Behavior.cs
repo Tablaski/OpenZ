@@ -406,7 +406,8 @@ namespace OpenZ.Sim
             if (BehaviorDodging && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical) && p[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection)
             {
                 double bearing = Math.Atan2(cur.y - cur.sy, cur.x - cur.sx);
-                var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, BehaviorActualSpeed,
+                double currentSpeed = CripplingHitActive || CripplingActive ? Math.Min(BehaviorActualSpeed, desired) : BehaviorActualSpeed;
+                var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, currentSpeed,
                     behaviorReverseUntil - World.Time, behaviorTravelSign);
                 StepRangeAwareDodge(p, ref drive, bearing, desired, DodgeCourseRemaining(bearing), dt,
                     dodgeAccelerationFactor, dodgePivotFactor, CripplingAcceleration, out vx, out vy);
@@ -492,7 +493,7 @@ namespace OpenZ.Sim
                 double ey = enemy.CenterY + enemy.BehaviorStepDy * lead;
                 double before = Math.Sqrt((ox - ex) * (ox - ex) + (oy - ey) * (oy - ey));
                 double after = Math.Sqrt((px - ex) * (px - ex) + (py - ey) * (py - ey));
-                rangeCost = Math.Min(1, (Math.Max(0, after - AttackRadius) - Math.Max(0, before - AttackRadius)) / Math.Max(1, radius));
+                rangeCost = Math.Clamp((Math.Max(0, after - AttackRadius) - Math.Max(0, before - AttackRadius)) / Math.Max(1, radius), -1, 1);
             }
             return safety - .04 * turn / (Math.PI / 2) - .24 * rangeCost;
         }

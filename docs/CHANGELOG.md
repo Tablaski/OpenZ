@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.98 (26 Nov 2026)
+
+- Unit Editor — The optional Range Aware direction strategy lets tanks accelerate while turning to dodge a shot, favoring routes that also keep their target in range.
+
 ## OpenZ-VK 1.5.97 (26 Nov 2026)
 
 - Solo + 1 vs 1 — Z Classic tanks accelerate sooner into a dodge and keep their escape direction through an incoming volley. Heavy tanks retain their defensive burst when damaged.

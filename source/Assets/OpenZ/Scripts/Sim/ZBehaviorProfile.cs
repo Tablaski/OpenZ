@@ -84,7 +84,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Distance,"Dodge distance multiplier","DODGING","x",0.1,4,1,1,"Multiplies the native time-to-impact times speed distance, including its random extension."),
             N(ZBehaviorKey.MinDistance,"Minimum dodge distance","DODGING","m",0,20,0,0,"Lower limit for a defensive step."),
             N(ZBehaviorKey.MaxDistance,"Maximum dodge distance (0 = unlimited)","DODGING","m",0,40,0,0,"Total actual dodge travel, including replans. Stops the dodge and resumes the interrupted order."),
-            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,ZBehaviorProfile.RangeAwareDirection,0,0,"Range aware predicts tank motion from its current speed and heading, weighs blast clearance against losing firing range, and accelerates while turning.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE","WEIGHTED CIRCLE","RANGE AWARE"}),
+            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,ZBehaviorProfile.RangeAwareDirection,0,0,"Predictive estimates blast clearance. Range Aware also uses the current motion of the tank and its opponent to help stay in firing range, and lets a physical tank accelerate during the turn. Weighted Circle uses one of 16 weighted headings.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE","WEIGHTED CIRCLE","RANGE AWARE"}),
             B(ZBehaviorKey.Forward,"Allow forward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Backward,"Allow backward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Sideways,"Allow sideways dodge","DODGING",true,true,"Allow directions predominantly across the current heading."),

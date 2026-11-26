@@ -31,6 +31,17 @@ export class SkirmishRoom {
 
   connected(room) { return room.players.filter(player => this.sockets(player.id).length); }
 
+  async renewHostOnlyLobby(room) {
+    if (room.hostClosed || room.locked) return false;
+    // Bots are local to the host and never occupy signaling seats.
+    const online = room.players.filter(player => this.sockets(player.id).some(socket => socket.readyState === 1));
+    if (online.length !== 1 || online[0].id !== 1) return false;
+    room.expires = Date.now() + LIFETIME;
+    await this.ctx.storage.put("room", room);
+    await this.ctx.storage.setAlarm(room.expires);
+    return true;
+  }
+
   roster(room) {
     const players = this.connected(room)
       .map(({ id, name, published }) => ({ id, name, published: !!published }));
@@ -38,7 +49,8 @@ export class SkirmishRoom {
   }
 
   async handle(room, path, data, request, validPlayer) {
-    if (Date.now() >= room.expires) return json({ error: "This invitation has expired." }, 404);
+    if (Date.now() >= room.expires && !await this.renewHostOnlyLobby(room))
+      return json({ error: "This invitation has expired." }, 404);
     if (path === "/join") {
       if (!validPlayer(data) || data.fingerprint !== room.fingerprint || data.skirmishProtocol !== (room.protocol ?? 1))
         return json({ error: "Use the same game version as the host." }, 409);
@@ -288,12 +300,15 @@ export class SkirmishRoom {
 
   async alarm(room) {
     if (room.expires <= Date.now()) {
+      if (await this.renewHostOnlyLobby(room)) return;
       for (const socket of this.sockets()) socket.close(1000, "Invitation expired.");
       await this.closePublications(room.players);
       await this.ctx.storage.deleteAll();
     } else if (room.sfu && !room.hostClosed) {
       if (!await this.hasBudget(true)) await this.fallback(room);
       else await this.ctx.storage.setAlarm(Math.min(room.expires, Date.now() + MONITOR_MS));
+    } else {
+      await this.ctx.storage.setAlarm(room.expires);
     }
   }
 }

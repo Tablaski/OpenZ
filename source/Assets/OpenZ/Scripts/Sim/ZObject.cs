@@ -732,9 +732,9 @@ namespace OpenZ.Sim
         }
 
         /// <summary>zobject.cpp:3657-3714 (called on the missile's target)</summary>
-        public bool DodgeMissile(int tx, int ty, double timeTillExplode, ZThreatKind kind = ZThreatKind.Shell, int damage = 0, int attacker = -1, bool nearby = false)
+        public bool DodgeMissile(int tx, int ty, double timeTillExplode, ZThreatKind kind = ZThreatKind.Shell, int damage = 0, int attacker = -1, bool nearby = false, int radius = 0)
         {
-            if (Behavior != null) return BehaviorDodge(tx, ty, timeTillExplode, kind, damage, attacker, nearby);
+            if (Behavior != null) return BehaviorDodge(tx, ty, timeTillExplode, kind, damage, attacker, nearby, radius);
             if (nearby) return false;
             if (Stunned) return false;                                                 // electrobot_v1 DV45: stunned, before any rand() draw
             if (ElectroSteady) return false;                                           // DV83: the Electrobot never steps aside for a shell (before any rand() draw; ZObject.ElectroSteady.cs)

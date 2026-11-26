@@ -84,7 +84,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Distance,"Dodge distance multiplier","DODGING","x",0.1,4,1,1,"Multiplies the native time-to-impact times speed distance, including its random extension."),
             N(ZBehaviorKey.MinDistance,"Minimum dodge distance","DODGING","m",0,20,0,0,"Lower limit for a defensive step."),
             N(ZBehaviorKey.MaxDistance,"Maximum dodge distance (0 = unlimited)","DODGING","m",0,40,0,0,"Total actual dodge travel, including replans. Stops the dodge and resumes the interrupted order."),
-            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,3,0,0,"Weighted circle draws one of 16 headings. Predictive samples reachable, unblocked trajectories against the predicted explosion.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE","WEIGHTED CIRCLE"}),
+            new ZBehaviorDef(ZBehaviorKey.Direction,"Direction strategy","DODGING","",0,ZBehaviorProfile.RangeAwareDirection,0,0,"Range aware predicts tank motion from its current speed and heading, weighs blast clearance against losing firing range, and accelerates while turning.",new[]{"ZOD RANDOM","AWAY FROM BLAST","PREDICTIVE","WEIGHTED CIRCLE","RANGE AWARE"}),
             B(ZBehaviorKey.Forward,"Allow forward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Backward,"Allow backward dodge","DODGING",true,true,"Direction relative to the current simulation heading."),
             B(ZBehaviorKey.Sideways,"Allow sideways dodge","DODGING",true,true,"Allow directions predominantly across the current heading."),
@@ -222,6 +222,7 @@ namespace OpenZ.Sim
     [Serializable] public sealed class ZBehaviorProfile
     {
         // Common light-tank and Tough explosions have a 40 px (5 m) radius.
+        public const int RangeAwareDirection = 4;
         public const double ClassicBlastRadiusPixels = 40;
         public const double ClassicDodgeLimitMetres = ClassicBlastRadiusPixels * ZConst.PX_TO_M * 1.25;
         public static ZBehaviorProfile Classic(ZBehaviorFamily family)

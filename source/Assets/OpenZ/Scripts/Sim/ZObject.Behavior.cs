@@ -41,7 +41,7 @@ namespace OpenZ.Sim
         double behaviorReactAt, behaviorPendingBlast, behaviorAttackReturnAt;
         int behaviorPendingX, behaviorPendingY, behaviorOriginX, behaviorOriginY, behaviorShots;
         ZThreatKind behaviorPendingKind;
-        int behaviorPendingDamage, behaviorPendingAttacker;
+        int behaviorPendingDamage, behaviorPendingAttacker, behaviorPendingRadius;
         bool behaviorPendingNearby;
         ZWaypoint behaviorPendingOrder;
         int behaviorPendingOrderCount;
@@ -72,7 +72,7 @@ namespace OpenZ.Sim
         bool BehaviorRefuse(string reason)
         { BehaviorDodgeReason = reason; BehaviorRefusals++; return false; }
 
-        bool BehaviorDodge(int tx, int ty, double time, ZThreatKind kind, int damage, int attacker, bool nearby, bool resumed = false)
+        bool BehaviorDodge(int tx, int ty, double time, ZThreatKind kind, int damage, int attacker, bool nearby, int radius, bool resumed = false)
         {
             var p = Behavior; if (p == null) return false;
             if (!resumed) BehaviorAlerts++;
@@ -130,14 +130,14 @@ namespace OpenZ.Sim
             {
                 if (!behaviorPending) behaviorReactAt = World.Time + delay;
                 behaviorPending = true; behaviorPendingX = tx; behaviorPendingY = ty; behaviorPendingBlast = World.Time + time;
-                behaviorPendingKind = kind; behaviorPendingDamage = damage; behaviorPendingAttacker = attacker; behaviorPendingNearby = nearby;
+                behaviorPendingKind = kind; behaviorPendingDamage = damage; behaviorPendingAttacker = attacker; behaviorPendingNearby = nearby; behaviorPendingRadius = radius;
                 behaviorPendingOrderCount = Waypoints.Count; behaviorPendingOrder = Waypoints.Count > 0 ? Waypoints[0] : ZWaypoint.Cleared;
                 BehaviorDodgeReason = "Reaction pending"; return true;
             }
-            return BehaviorStartDodge(tx, ty, time);
+            return BehaviorStartDodge(tx, ty, time, radius, from ?? AttackObject);
         }
 
-        bool BehaviorStartDodge(int tx, int ty, double time)
+        bool BehaviorStartDodge(int tx, int ty, double time, int radius, ZObject enemy)
         {
             var p = Behavior;
             if (p == null || !p.On(ZBehaviorKey.Enabled) || Stunned || Destroyed || Owner == Team.Neutral || time <= 0) return BehaviorRefuse("Reaction cancelled");
@@ -164,21 +164,31 @@ namespace OpenZ.Sim
                 (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : (Dx != 0 || Dy != 0 ? Math.Atan2(Dy, Dx) : FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2);
             int bestX = CenterX, bestY = CenterY; double best = double.NegativeInfinity;
             int strategy = (int)p[ZBehaviorKey.Direction];
+            bool rangeAware = strategy == ZBehaviorProfile.RangeAwareDirection && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical);
             int direction = strategy == 3 ? BehaviorWeightedDirection(p, World.Rng.Next(1000000) / 1000000.0) : -1;
             if (strategy == 3 && direction < 0) return BehaviorRefuse("No enabled direction weight");
-            int samples = strategy == 0 || strategy == 3 ? 1 : strategy == 1 ? 9 : 24;
+            int samples = rangeAware ? 32 : strategy == 0 || strategy == 3 ? 1 : strategy == 1 ? 9 : 24;
             for (int i = 0; i < samples; i++)
             {
-                double angle = strategy == 3 ? heading + direction * Math.PI / 8 : strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
+                double angle = rangeAware ? heading + (i % 16) * Math.PI / 8 : strategy == 3 ? heading + direction * Math.PI / 8 : strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
                 double off = WrapRadians(angle - heading), abs = Math.Abs(off);
                 var allow = abs < Math.PI / 4 ? ZBehaviorKey.Forward : abs > 3 * Math.PI / 4 ? ZBehaviorKey.Backward : ZBehaviorKey.Sideways;
                 if (strategy == 3 ? !BehaviorDirectionAllowed(p, direction) : !p.On(allow)) continue;
-                int x = (int)Math.Max(WidthPix / 2, Math.Min(World.Map.WidthPix - WidthPix / 2, CenterX + Math.Cos(angle) * length));
-                int y = (int)Math.Max(HeightPix / 2, Math.Min(World.Map.HeightPix - HeightPix / 2, CenterY + Math.Sin(angle) * length));
+                double courseLength = rangeAware && i >= 16 ? length * .65 : length;
+                int x = (int)Math.Max(WidthPix / 2, Math.Min(World.Map.WidthPix - WidthPix / 2, CenterX + Math.Cos(angle) * courseLength));
+                int y = (int)Math.Max(HeightPix / 2, Math.Min(World.Map.HeightPix - HeightPix / 2, CenterY + Math.Sin(angle) * courseLength));
                 int ox = BehaviorDodging ? behaviorOriginX : CenterX, oy = BehaviorDodging ? behaviorOriginY : CenterY;
                 if (p[ZBehaviorKey.MaxDeviation] > 0 && Dist(x, y, ox, oy) * ZConst.PX_TO_M > p[ZBehaviorKey.MaxDeviation]) continue;
                 if (Leader != null && p[ZBehaviorKey.Cohesion] > 0 && Dist(x, y, Leader.CenterX, Leader.CenterY) * ZConst.PX_TO_M > p[ZBehaviorKey.Cohesion]) continue;
                 if (strategy != 0 && !BehaviorClearLine(x, y)) continue;
+                if (rangeAware)
+                {
+                    if (x == CenterX && y == CenterY) continue;
+                    double predicted = RangeAwareDodgeScore(x, y, tx, ty, time,
+                        radius > 0 ? radius : enemy?.DamageRadius ?? 40, enemy, heading, speedFactor, acceleration, pivot, boostSpeed);
+                    if (predicted > best) { best = predicted; bestX = x; bestY = y; }
+                    continue;
+                }
                 double reachable = Math.Min(length, BehaviorBaseMoveSpeed * speedFactor * time * (p.On(ZBehaviorKey.Boost) ? boostSpeed : 1));
                 if (p.On(ZBehaviorKey.Physical) || p.On(ZBehaviorKey.DodgePhysical))
                 {
@@ -247,7 +257,7 @@ namespace OpenZ.Sim
                 behaviorPending = false;
                 // Recheck the current order/state without adding another reaction delay.
                 if (Waypoints.Count != behaviorPendingOrderCount || Waypoints.Count > 0 && !Waypoints[0].Equals(behaviorPendingOrder)) BehaviorRefuse("Order changed during reaction");
-                else BehaviorDodge(behaviorPendingX, behaviorPendingY, behaviorPendingBlast - World.Time, behaviorPendingKind, behaviorPendingDamage, behaviorPendingAttacker, behaviorPendingNearby, true);
+                else BehaviorDodge(behaviorPendingX, behaviorPendingY, behaviorPendingBlast - World.Time, behaviorPendingKind, behaviorPendingDamage, behaviorPendingAttacker, behaviorPendingNearby, behaviorPendingRadius, true);
             }
             if (BehaviorDodging && BehaviorBoostExhausted && !behaviorBoostSettled)
             {
@@ -393,6 +403,18 @@ namespace OpenZ.Sim
                     (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : angle;
                 BehaviorHeadingSet = true;
             }
+            if (BehaviorDodging && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical) && p[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection)
+            {
+                double bearing = Math.Atan2(cur.y - cur.sy, cur.x - cur.sx);
+                var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, BehaviorActualSpeed,
+                    behaviorReverseUntil - World.Time, behaviorTravelSign);
+                StepRangeAwareDodge(p, ref drive, bearing, desired, DodgeCourseRemaining(bearing), dt,
+                    dodgeAccelerationFactor, dodgePivotFactor, CripplingAcceleration, out vx, out vy);
+                BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
+                behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;
+                BehaviorMotionPhase = drive.Speed + 1e-6 < desired ? "Accelerating" : "Driving";
+                return;
+            }
             if (p.On(ZBehaviorKey.TurnFirst) || BehaviorDodging && p.On(ZBehaviorKey.DodgePhysical))
             { BehaviorTurnFirst(dt, desired, angle, ref vx, ref vy); return; }
             bool reverse = (!p.On(ZBehaviorKey.Lateral) || ZBehaviorSchema.IsTank(Type)) &&
@@ -426,6 +448,100 @@ namespace OpenZ.Sim
             double travel = p.On(ZBehaviorKey.Lateral) ? angle : BehaviorHeading + (reverse ? Math.PI : 0);
             vx = Math.Cos(travel) * speed; vy = Math.Sin(travel) * speed;
         }
+        double RangeAwareDodgeScore(int x, int y, int tx, int ty, double time, int radius, ZObject enemy,
+            double heading, double speedFactor, double acceleration, double pivot, double boost)
+        {
+            var p = Behavior;
+            double bearing = Math.Atan2(y - CenterY, x - CenterX);
+            double length = Dist(CenterX, CenterY, x, y);
+            double ux = Math.Cos(bearing), uy = Math.Sin(bearing);
+            double ox = PosX + WidthPix * .5, oy = PosY + HeightPix * .5;
+            double px = ox, py = oy;
+            double baseSpeed = BehaviorBaseMoveSpeed * speedFactor;
+            var drive = new DodgeDrive(heading, behaviorTurnSpeed, BehaviorHeadingSet || !IsMoving ? BehaviorActualSpeed :
+                Math.Sqrt(Dx * Dx + Dy * Dy), behaviorReverseUntil - World.Time, behaviorTravelSign);
+            double angle = Math.Abs(WrapRadians(bearing - heading));
+            double turn = p.On(ZBehaviorKey.Reverse) ? Math.Min(angle, Math.PI - angle) : angle;
+            // Most shells resolve in under a second. Bound the number of prediction steps for longer shots.
+            double duration = Math.Min(time, 3);
+            int steps = Math.Max(1, Math.Min(32, (int)Math.Ceiling(duration / .025)));
+            double dt = duration / steps;
+            bool eligible = p.On(ZBehaviorKey.Boost) && (!ShowDamaged || p.On(ZBehaviorKey.DamagedBoost)) &&
+                (!p.On(ZBehaviorKey.Endurance) || Stamina >= p[ZBehaviorKey.MinStamina]);
+            double boosted = eligible ? baseSpeed * (1 + (boost - 1) * (IsRunning ? 1 : p[ZBehaviorKey.BoostChance] / 100)) : baseSpeed;
+            double boostLimit = p[ZBehaviorKey.BoostMaxDistance] / ZConst.PX_TO_M;
+            double boostDuration = p[ZBehaviorKey.BoostDuration];
+            double travel = 0;
+            for (int i = 0; i < steps; i++)
+            {
+                double remaining = length - (px - ox) * ux - (py - oy) * uy;
+                if (remaining <= 1.5) break;
+                double speed = (boostLimit == 0 || travel < boostLimit) && (boostDuration == 0 || i * dt < boostDuration) ? boosted : baseSpeed;
+                StepRangeAwareDodge(p, ref drive, bearing, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy);
+                px += vx * dt; py += vy * dt;
+                travel += Math.Sqrt(vx * vx + vy * vy) * dt;
+            }
+            if (!BehaviorClearLine((int)Math.Round(px), (int)Math.Round(py))) return double.NegativeInfinity;
+            double distance = Math.Sqrt((px - tx) * (px - tx) + (py - ty) * (py - ty));
+            double safety = Math.Min(1, distance / Math.Max(1, radius));
+            double rangeCost = 0;
+            if (enemy != null && !enemy.Destroyed && AttackRadius > 0)
+            {
+                double lead = Math.Min(duration + .1, .8);
+                double ex = enemy.CenterX + enemy.BehaviorStepDx * lead;
+                double ey = enemy.CenterY + enemy.BehaviorStepDy * lead;
+                double before = Math.Sqrt((ox - ex) * (ox - ex) + (oy - ey) * (oy - ey));
+                double after = Math.Sqrt((px - ex) * (px - ex) + (py - ey) * (py - ey));
+                rangeCost = Math.Min(1, (Math.Max(0, after - AttackRadius) - Math.Max(0, before - AttackRadius)) / Math.Max(1, radius));
+            }
+            return safety - .04 * turn / (Math.PI / 2) - .24 * rangeCost;
+        }
+
+        struct DodgeDrive
+        {
+            internal double Heading, Turn, Speed, ReverseDelay;
+            internal int Sign;
+            internal DodgeDrive(double heading, double turn, double speed, double reverseDelay, int sign)
+            { Heading = heading; Turn = turn; Speed = speed; ReverseDelay = reverseDelay; Sign = sign; }
+        }
+
+        static void StepRangeAwareDodge(ZBehaviorValues p, ref DodgeDrive state, double bearing, double desired,
+            double remaining, double dt, double acceleration, double pivot, double damageRamp, out double vx, out double vy)
+        {
+            bool reverse = p.On(ZBehaviorKey.Reverse) && NearestHullReverse(state.Heading, bearing);
+            int sign = reverse ? -1 : 1;
+            double aim = WrapRadians(bearing + (reverse ? Math.PI : 0));
+            double delta = WrapRadians(aim - state.Heading);
+            double rate = p[ZBehaviorKey.TurnRate] * pivot * Math.PI / 180;
+            double angularRamp = p[ZBehaviorKey.TurnAcceleration] * pivot * Math.PI / 180;
+            double want = Math.Clamp(delta / dt, -rate, rate);
+            state.Turn = angularRamp > 0 ? Math.Clamp(Toward(state.Turn, want, angularRamp * dt), -rate, rate) : want;
+            double step = rate == 0 ? delta : state.Turn * dt;
+            if (step * delta < 0) step = 0;
+            if (Math.Abs(step) >= Math.Abs(delta)) { step = delta; state.Turn = 0; }
+            state.Heading = WrapRadians(state.Heading + step);
+
+            state.ReverseDelay -= dt;
+            bool braking = sign != state.Sign && state.Speed > 1e-6;
+            if (!braking && sign != state.Sign)
+            {
+                state.Sign = sign;
+                state.ReverseDelay = p[ZBehaviorKey.ReverseDelay];
+            }
+            desired *= reverse ? p[ZBehaviorKey.ReverseSpeed] / 100 : 1;
+            double brakingTime = p[ZBehaviorKey.Braking];
+            double target = braking || state.ReverseDelay > 0 ? 0 : desired * Math.Max(0, Math.Cos(WrapRadians(aim - state.Heading)));
+            if (brakingTime > 0) target = Math.Min(target, Math.Sqrt(2 * desired / brakingTime * Math.Max(0, remaining)));
+            double ramp = target < state.Speed ? brakingTime : p[ZBehaviorKey.Acceleration] * acceleration + damageRamp;
+            state.Speed = ramp > 0 ? Toward(state.Speed, target, Math.Max(1, desired) / ramp * dt) : target;
+            double speed = Math.Min(state.Speed, Math.Max(0, remaining) / dt) * state.Sign;
+            vx = Math.Cos(state.Heading) * speed; vy = Math.Sin(state.Heading) * speed;
+        }
+
+        double DodgeCourseRemaining(double bearing) => (cur.x - PosX - WidthPix * .5) * Math.Cos(bearing) +
+            (cur.y - PosY - HeightPix * .5) * Math.Sin(bearing);
+
+
         void BehaviorTurnFirst(double dt, double desired, double angle, ref double vx, ref double vy)
         {
             var p = Behavior;
@@ -478,7 +594,10 @@ namespace OpenZ.Sim
         {
             reached = false;
             if (!BehaviorSteersHull) return false;
-            reached = Dist(CenterX, CenterY, cur.x, cur.y) <= 1.5;
+            reached = BehaviorDodging && Kind == ZKind.Vehicle && Behavior.On(ZBehaviorKey.DodgePhysical) &&
+                Behavior[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection
+                ? DodgeCourseRemaining(Math.Atan2(cur.y - cur.sy, cur.x - cur.sx)) <= 1.5
+                : Dist(CenterX, CenterY, cur.x, cur.y) <= 1.5;
             return true;
         }
     }
@@ -487,7 +606,7 @@ namespace OpenZ.Sim
     {
         public void AlertBehaviorThreat(ZObject target, ZMissile missile, ZThreatKind kind)
         {
-            if (target != null) target.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId);
+            if (target != null) target.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId, radius: missile.radius);
             foreach (var o in Objects)
             {
                 if (o == target || o.Destroyed || o.Owner == missile.team || o.Owner == Team.Neutral) continue;
@@ -495,7 +614,7 @@ namespace OpenZ.Sim
                 if (p == null || !p.On(ZBehaviorKey.NearbyThreats)) continue;
                 double dx = o.CenterX - missile.x, dy = o.CenterY - missile.y;
                 if (dx * dx + dy * dy <= (double)missile.radius * missile.radius)
-                    o.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId, true);
+                    o.DodgeMissile(missile.x, missile.y, missile.explodeTime - Time, kind, missile.damage, missile.attackerId, true, missile.radius);
             }
         }
     }

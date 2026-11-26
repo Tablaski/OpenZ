@@ -5,7 +5,7 @@ namespace OpenZ.Sim
     /// <summary>
     /// Zod (brepair.cpp:487-563, zserver.cpp:1350-1373 / 1496-1571): the vehicle drives to the station centre, is deleted, and 5 s later a
     /// fresh full-health copy is created there and force-moves out. With DV62 the same trip (entrance, wait while the bay is taken, drive in
-    /// to the centre) ends ON the pad: the vehicle stays in the world (it can be shot and its passive engage still fires), the station heals
+    /// to the centre) ends ON the pad: the vehicle stays in the world and can take damage, but its weapons are disabled during repairs. The station heals
     /// it in ticks of 0.25 s, from its health at arrival to full in Zod's 5 s (hits taken on the pad add time), then it drives back out to
     /// the entrance. A human player's order while it stands on the pad calls it off at once (it drives out first, then follows the order);
     /// after a full repair a human team's vehicle drives back to where it was when the repair trip began, unless more orders are queued.
@@ -28,6 +28,22 @@ namespace OpenZ.Sim
         /// <summary>DV62: this vehicle stands on the pad of station `stationId` being repaired.</summary>
         public bool OnRepairPad(int stationId) => (Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId && cur.stage == Stage.Repairing)
                                                   || (IsShuttle && ShuttleOnRepairPad && ShuttleRepairTarget == stationId);   // item 271 (Sim/ZWorld.ShuttleRepair.cs)
+        bool RepairWeaponsLocked => ZWorld.RepairInPlaceDeviation &&
+            Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && cur.stage == Stage.Repairing;
+
+        internal void DiscardCapturedRepairOrders()
+        {
+            Disengage();
+            repairNoReturn = true;
+            if (IsShuttle)
+            {
+                shuttleRepairBack = false;
+                ShuttleViasClear();
+            }
+            if (Waypoints.Count <= 1) return;
+            Waypoints.RemoveRange(1, Waypoints.Count - 1);
+            UpdatedWaypoints = true;
+        }
         /// <summary>DV62: this vehicle is driving off the pad of station `stationId` (healed or called off).</summary>
         public bool LeavingRepairPad(int stationId) => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId && cur.stage == Stage.RepairLeave;
         /// <summary>DV62: this vehicle holds the bay of station `stationId`: driving in, on the pad, driving off, or backing out.</summary>
@@ -80,6 +96,8 @@ namespace OpenZ.Sim
             }
             StopMove();
             cur.stage = Stage.Repairing;
+            Disengage();
+            hpSecondAt = -1;
             t.RepairOccupantId = Id; t.RepairingUnit = true; t.RepairFromHealth = Health; t.RepairType = Type;
             t.repairNextTick = World.Time + ZWorld.RepairPadTick;
             t.RepairTime = World.Time + ZWorld.RepairPadSeconds;                                      // the countdown ring (BridgeRepairBadges)
@@ -165,9 +183,7 @@ namespace OpenZ.Sim
         public static bool RepairInPlaceDeviation = true;
         /// <summary>DV62: game seconds from the arrival health to full (Zod's flat repair time) and the heal tick.</summary>
         public const double RepairPadSeconds = 5.0, RepairPadTick = 0.25;
-        /// <summary>DV77: a vehicle fires out of its repair bay on its whole way in and out, not only while it stands on the pad or
-        /// drives off it: the sight line leaves the station's own walls out from the moment the vehicle drives in. The repair and its
-        /// time are untouched. OFF = DV62 alone. Needs DV62 and DV23; off in 'Zod exact'.</summary>
+        /// <summary>DV77: a vehicle can fire past the station's walls while entering or leaving the bay. Needs DV62 and DV23.</summary>
         public static bool RepairBayFireDeviation = false;
     }
 }

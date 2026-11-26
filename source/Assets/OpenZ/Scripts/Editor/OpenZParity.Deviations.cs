@@ -911,14 +911,14 @@ namespace OpenZ.EditorTools
                 got = $"L17, blue's repair station, a blue medium tank at 30 % health sent to it, a red grunt squad on hold {RepairBayProbePx} px north of the pad behind the station's wall: " +
                       $"the tank's shots while it drives in {on[0]} (without the switch {off[0]}), on the pad {on[1]} ({off[1]}), driving off {on[2]} ({off[2]}); " +
                       $"time on the pad {(on[4] < 0 ? "never left it" : (on[4] / 10.0).ToString("F1") + " s")} ({(off[4] < 0 ? "never left it" : (off[4] / 10.0).ToString("F1") + " s")}; Zod's repair time {ZWorld.RepairPadSeconds:F0} s, hits taken on the pad add to it), health when it is out again {on[3] / 10.0:F1} % ({off[3] / 10.0:F1} %)";
-                ok = on[0] > 0 && off[0] == 0 && on[1] > 0 && off[1] > 0 && on[4] > 0 && off[4] > 0 && on[3] > 900;
+                ok = on[0] > 0 && off[0] == 0 && on[1] == 0 && off[1] == 0 && on[4] > 0 && off[4] > 0 && on[3] > 900;
             }
             finally { ZWorld.RepairBayFireDeviation = was; ZWorld.RepairInPlaceDeviation = pad; ZWorld.LosDeviation = los; ZWorld.EndFreezeDeviation = ef; ZWorld.FortGunDeviation = fg; }
             return new Deviation
             {
-                id = "DV77", change = "A vehicle fires out of its repair bay on its whole way in and out",
+                id = "DV77", change = "A vehicle can fire entering or leaving its repair bay, with weapons locked during repairs",
                 zod = "no line of sight rule: a vehicle on its way into the repair station fires at anything in range; while it is repaired it is not in the world (deleted, a fresh copy 5 s later, brepair.cpp:487-563)",
-                openz = "a direct shot needs a clear line (DV23) and the station's own walls stood in it; DV62 left the station out of that line only while the vehicle stood on the pad or drove off it. Now the station is left out from the moment the vehicle drives in until it is out again (drive in, on the pad, drive off): it picks targets in range and fires the whole time, exactly as it would standing outside. The repair itself, its 5 s and the heal ticks are untouched (ZSight.ExemptOf)",
+                openz = "DV77 lets shots clear the station's own walls from the approach inside the bay through the exit (ZSight.ExemptOf). In OpenZ-VK a vehicle on the pad can still take damage, but its weapons are locked until it begins to leave. The 5 s repair and the heal ticks are unchanged.",
                 measured = got,
                 toggle = "ZWorld.RepairBayFireDeviation (code switch; ZGame: on, off in Zod exact; headless default off; needs DV62 and DV23)",
                 status = ok ? DevActive : DevCheck,

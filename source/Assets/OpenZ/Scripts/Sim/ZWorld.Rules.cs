@@ -167,7 +167,7 @@ namespace OpenZ.Sim
         }
 
         /// <summary>zserver.cpp:2009-2063: flag, linked buildings (default production if idle) and zone switch team;
-        /// units inside are untouched; build times re-scale to the new flag fractions.</summary>
+        /// an occupied repair pad transfers with its station; build times re-scale to the new flag fractions.</summary>
         public void AwardZone(ZObject flag, Team team, ZObject conqueror = null)
         {
             var z = ZoneOf(flag);
@@ -178,6 +178,16 @@ namespace OpenZ.Sim
             {
                 var previousOwner = b.Owner;
                 SetOwnerZod(b, team);
+                if (previousOwner != team && b.RepairingUnit && b.CanRepairUnit(team))
+                {
+                    var vehicle = Get(b.RepairOccupantId);
+                    if (vehicle != null && !vehicle.Destroyed && vehicle.KillAt < 0 && vehicle.Owner != Team.Neutral &&
+                        vehicle.Owner != team && vehicle.OnRepairPad(b.Id))
+                    {
+                        vehicle.DiscardCapturedRepairOrders();
+                        ResetObjectTeam(vehicle, team);
+                    }
+                }
                 if (!ApplyDuelAiOnCapture(b, previousOwner, team) && b.SetBuildingDefaultProduction())
                     Emit(ZEventType.ProductionChanged, b);
                 if (b.Type == "radar") radar = true;

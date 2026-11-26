@@ -8,6 +8,8 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 ## OpenZ-VK 1.5.89 (26 Nov 2026)
 
+- Solo, multiplayer and Skirmish — Vehicles stay visible and vulnerable while being repaired, and resume firing when they leave the repair pad. Capture the station's flag during the repair to take control of the vehicle as well.
+- Skirmish — Each human or bot seat has its own unit color and matching ground rings.
 - Online multiplayer and Skirmish — Team Defeat is now called All for One. Additional units near the fort follow the same unit roster presets as Solo, including access to the Mammoth and Bizon with the OpenZ preset.
 - Online multiplayer — Teams stack vertically and each player or bot has a full-width card you can drag as a block. Human cards show readiness, microphone state and available connection information. A wrench marks players with custom advantages.
 - Skirmish — Switch between the large Minimap and 3D Preview in the Map panel. Numbered fort markers match the colors and positions in the roster.

@@ -255,6 +255,7 @@ namespace OpenZ.Sim
                 }
             }
             ZRuleProf.Exit(rpOrders);   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
+            if (RepairWeaponsLocked) return;
             ChargeAfterOrders();                                                                       // DV121: a jeep's own run-over charge, the next robot, the drive back to its spot (Sim/ZObject.JeepCharge.cs)
             CheckWalkOverCrate();
             RamFireDrop(time);   // 1.5 DV188 (kit ram_polish): Sim/ZObject.RamPolish.cs: a barred target dropped, the next one picked this tick

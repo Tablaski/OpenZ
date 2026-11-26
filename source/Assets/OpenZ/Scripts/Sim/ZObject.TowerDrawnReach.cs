@@ -45,6 +45,9 @@ namespace OpenZ.Sim
         /// <summary>DV208: the drawn tower point of this fort tower gun (px), worked out once; int.MinValue = not yet, int.MaxValue = none.</summary>
         int towerDrawnX = int.MinValue, towerDrawnY;
 
+        // TowerMounts seat plus the scaled gun midpoint (OzTowerAim.Middle), in simulation pixels.
+        internal int TowerBlastHeight => Type == "missile_cannon" ? 79 : 80;
+
         /// <summary>DV208: where this fort tower gun is drawn (px, whole): the pad of its fort's corner tower (View/TowerMounts.PadLocal
         /// and PadForSpot, the fort model as OpenZSetup places it: centre of the fort's rectangle, fort_front turned 180 deg, fort_back 0).
         /// false (x, y = the rule centre): no fort tower gun, or not on a fort's turret spot.</summary>
@@ -131,6 +134,39 @@ namespace OpenZ.Sim
     {
         /// <summary>DV208 switch (code switch; View/ZGame.cs: on at every start, off in 'Zod exact'; headless default off).</summary>
         public static bool TowerDrawnReachDeviation = false;
+
+        void SetTowerBlastOrigin(ZMissile missile)
+        {
+            if (!TowerDrawnReachDeviation || missile.nuke || missile.targetId < 0 ||
+                Get(missile.targetId) is not ZObject target) return;
+            missile.blastAtFortBase = target.IsFort;
+            if (target.TowerDrawnAt(out int x, out int y))
+            {
+                // Match OzTowerAim's half scatter, capped at 0.9 m around the mounted gun.
+                double dx = (missile.x - target.CenterX) * 0.5, dy = (missile.y - target.CenterY) * 0.5;
+                double length = Math.Sqrt(dx * dx + dy * dy);
+                double scale = length > 7.2 ? 7.2 / length : 1.0;
+                missile.towerBlastX = x + dx * scale;
+                missile.towerBlastY = y + dy * scale;
+                missile.towerBlastHeight = target.TowerBlastHeight;
+            }
+            else if (target.IsFortDefender)
+            {
+                missile.towerBlastX = missile.x;
+                missile.towerBlastY = missile.y;
+                missile.towerBlastHeight = 60; // Representative fort roof height (7.5 m).
+            }
+        }
+
+        static float TowerBlastDistance(ZMissile missile, ZObject tower, int x, int y)
+        {
+            if (missile.blastAtFortBase) return float.PositiveInfinity;
+            int height = missile.towerBlastHeight;
+            double dx = (height > 0 ? missile.towerBlastX : missile.x) - x;
+            double dy = (height > 0 ? missile.towerBlastY : missile.y) - y;
+            int dz = height - tower.TowerBlastHeight;
+            return (float)Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
 
         /// <summary>DV208: the drawn tower pads from the centre of the fort's rectangle (px, 8 px = 1 m; View/TowerMounts.PadLocal x 8, the
         /// fort model turned as OpenZSetup places it): 56 px east / west; fort_front (turned 180 deg): north pads 53 px north, south pads

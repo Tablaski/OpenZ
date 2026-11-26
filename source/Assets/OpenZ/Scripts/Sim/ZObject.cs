@@ -1089,6 +1089,9 @@ namespace OpenZ.Sim
     /// <summary>damage_missile (zdamagemissile.h): only a timer and a point; it never collides on the way.</summary>
     public sealed class ZMissile
     {
+        internal bool blastAtFortBase;
+        internal double towerBlastX, towerBlastY;
+        internal int towerBlastHeight;
         public int x, y, damage, radius, attackerId = -1, targetId = -1;
         public Team team;
         public bool playerGiven, grenade, debris;

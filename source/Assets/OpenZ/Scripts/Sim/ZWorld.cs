@@ -528,11 +528,16 @@ namespace OpenZ.Sim
         internal void QueuePathResult(ZObject o, int id, List<(int x, int y)> pts) => pathResults.Add((o, id, pts));
         internal void AddMissile(ZMissile m)
         {
+            SetTowerBlastOrigin(m);
             newMissiles.Add(m);
             UnitTesting?.TrackProjectile(m);
             NoteIncoming(m); // DV150: note shells aimed at a medium tank.
         }
-        public void AddMissileForTest(ZMissile m) => newMissiles.Add(m);
+        public void AddMissileForTest(ZMissile m)
+        {
+            SetTowerBlastOrigin(m);
+            newMissiles.Add(m);
+        }
 
         /// <summary>zserver.cpp:974-1041, every 1 s: idle same-team units whose centres are within 6 px get a random nudge.</summary>
         void ScuffleUnits()
@@ -586,8 +591,14 @@ namespace OpenZ.Sim
                 if (ShuttleAirBlast(m, o)) continue;                               // DV118: up in the air only a blast aimed at the shuttle reaches it, and nobody below (Sim/ZWorld.Shuttle.cs)
                 int dx = m.x - o.CenterX, dy = m.y - o.CenterY;
                 bool walls = o.Id == m.targetId && o.ReachToWalls;                  // combat_nb_v1 DV26: the aimed building takes it from its walls
-                if (!walls && (Math.Abs(dx) > m.radius || Math.Abs(dy) > m.radius)) continue;
-                float mag = walls ? (float)o.WallBlastDistance(m.x, m.y) : (float)Math.Sqrt((float)(dx * dx + dy * dy));
+                float mag;
+                if (TowerDrawnReachDeviation && !m.nuke && o.TowerDrawnAt(out int towerX, out int towerY))
+                    mag = TowerBlastDistance(m, o, towerX, towerY);
+                else
+                {
+                    if (!walls && (Math.Abs(dx) > m.radius || Math.Abs(dy) > m.radius)) continue;
+                    mag = walls ? o.WallBlastDistance(m.x, m.y) : (float)Math.Sqrt((float)(dx * dx + dy * dy));
+                }
                 if (mag >= m.radius) continue;
                 if (o.MaxHealth <= 0) continue;                                     // flags: immune
                 if (m.nuke && !PlaygroundNukeReach(m, o)) continue;                  // 1.3 item 2: the Unit editor's NUKE: its wave front reaches each object once (Sim/ZWorld.Playground.cs)

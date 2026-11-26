@@ -274,7 +274,20 @@ namespace OpenZ.Sim
             if (BehaviorDodging && ((p[ZBehaviorKey.MaxDuration] > 0 && World.Time - behaviorDodgeStart >= p[ZBehaviorKey.MaxDuration]) ||
                 (p[ZBehaviorKey.MaxDistance] > 0 && behaviorDodgeTravel * ZConst.PX_TO_M >= p[ZBehaviorKey.MaxDistance] - 1e-8) ||
                 (p.On(ZBehaviorKey.EndAfterBlast) && World.Time > behaviorBlastAt + .1) ||
-                (returnToAttack && World.Time > behaviorAttackReturnAt))) KillWP();
+                (returnToAttack && World.Time > behaviorAttackReturnAt))) FinishBehaviorDodge();
+        }
+
+        bool BehaviorCombatFlow => Kind == ZKind.Vehicle && Behavior != null && Behavior.On(ZBehaviorKey.Physical) &&
+            Behavior.On(ZBehaviorKey.CombatManoeuvres) && Behavior[ZBehaviorKey.CombatFlowSpeed] > 0;
+
+        void FinishBehaviorDodge()
+        {
+            if (!BehaviorCombatFlow || Waypoints.Count < 2 ||
+                (Waypoints[1].mode != WpMode.Attack && Waypoints[1].mode != WpMode.Agro))
+            { KillWP(); return; }
+            UpdatedWaypoints = true;
+            Waypoints.RemoveAt(0);
+            lastWp = ZWaypoint.Cleared;
         }
 
         bool BehaviorHoldFire()
@@ -403,14 +416,19 @@ namespace OpenZ.Sim
                     (FaceX != 0 || FaceY != 0 ? Math.Atan2(FaceY, FaceX) : -Math.PI / 2) : angle;
                 BehaviorHeadingSet = true;
             }
-            if (BehaviorDodging && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical) && p[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection)
+            bool rangeDodge = BehaviorDodging && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical) &&
+                p[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection;
+            bool flowing = !BehaviorDodging && DuelKind != ZDuelKind.None && BehaviorCombatFlow;
+            if (rangeDodge || flowing)
             {
-                double bearing = Math.Atan2(cur.y - cur.sy, cur.x - cur.sx);
+                double bearing = rangeDodge ? Math.Atan2(cur.y - cur.sy, cur.x - cur.sx) : angle;
+                double remaining = rangeDodge ? DodgeCourseRemaining(bearing) : Dist(CenterX, CenterY, cur.x, cur.y);
+                if (flowing) desired *= p[ZBehaviorKey.CombatFlowSpeed];
                 double currentSpeed = CripplingHitActive || CripplingActive ? Math.Min(BehaviorActualSpeed, desired) : BehaviorActualSpeed;
                 var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, currentSpeed,
                     behaviorReverseUntil - World.Time, behaviorTravelSign);
-                StepRangeAwareDodge(p, ref drive, bearing, desired, DodgeCourseRemaining(bearing), dt,
-                    dodgeAccelerationFactor, dodgePivotFactor, CripplingAcceleration, out vx, out vy);
+                StepRangeAwareDodge(p, ref drive, bearing, desired, remaining, dt,
+                    rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy);
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
                 behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;
                 BehaviorMotionPhase = drive.Speed + 1e-6 < desired ? "Accelerating" : "Driving";

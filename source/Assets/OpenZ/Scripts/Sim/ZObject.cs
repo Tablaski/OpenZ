@@ -690,7 +690,7 @@ namespace OpenZ.Sim
             if (CalmDodgeOver()) { KillWP(); return; }                                 // b49: only with ZWorld.CalmDodgeEnds (off as shipped): the shell or grenade has gone off, the step aside ends here (ZObject.Calm.cs)
             if (!ProcessMoveOrKillWP(dt)) return;
             if (!ReachedTarget()) return;
-            KillWP();
+            FinishBehaviorDodge();
         }
 
         /// <summary>

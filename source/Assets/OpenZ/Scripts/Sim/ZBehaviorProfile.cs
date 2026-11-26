@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -187,6 +187,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.Agility,"Tank agility","","%",10,125,100,100,"Easy tuning percentage last applied to this tank."),
             N(ZBehaviorKey.PivotVariance,"Dodge pivot variance","","",0,1,.2,.2,"Total variation in hull pivot speed and turning acceleration during each dodge."),
             B(ZBehaviorKey.DodgePhysical,"Pivot before moving during a dodge","DODGING",false,false,"Apply the vehicle's turn rate and acceleration to the defensive step."),
+            N(ZBehaviorKey.CombatFlowSpeed,"Continuous tank manoeuvring (0 = off)","COMBAT","x",0,3,0,0,"With physical steering and offensive manoeuvres enabled, retain momentum between dodging and attacking. This multiplier sets offensive manoeuvre speed independently of the dodge boost."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };

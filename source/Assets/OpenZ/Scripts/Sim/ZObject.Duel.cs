@@ -145,7 +145,7 @@ namespace OpenZ.Sim
         {
             if (duel == null || !duel.active) return;
             EndDuel(duel, DuelEnd.Range);
-            if (replan) { StopMove(); ClearCur(); }
+            if (replan) { if (!BehaviorCombatFlow) StopMove(); ClearCur(); }
         }
 
         bool NearCurTarget() => Math.Abs(CenterX - cur.x) + Math.Abs(CenterY - cur.y) <= 3;
@@ -250,6 +250,16 @@ namespace OpenZ.Sim
                     hx = tx + rx * k; hy = ty + ry * k; break;
                 }
             }
+            if (BehaviorCombatFlow && d.kind != ZDuelKind.Reverse)
+            {
+                // Alternate short inward/outward feints within the larger committed arc.
+                // Bias back inside the ring near the edge. The normal route checks still apply.
+                double phase = ((World.Time - d.start) + (Id % 7) * .09) % 1.4;
+                double feint = phase < .7 ? .32 : -.32;
+                if (phase < .16 || phase >= .7 && phase < .86) feint *= 2;
+                if (dist > dMax) feint = Math.Min(0, feint);
+                hx += rx * feint; hy += ry * feint;
+            }
             double hl = Math.Sqrt(hx * hx + hy * hy); hx /= hl; hy /= hl;
             foreach (double deg in RotTry)
             {
@@ -262,7 +272,7 @@ namespace OpenZ.Sim
                     ex = (int)Math.Round(cx + ux * ZDuel.LookPx); ey = (int)Math.Round(cy + uy * ZDuel.LookPx);
                 }
                 SetTarget(ex, ey); SetVelocity();
-                d.nextAim = World.Time + ZDuel.AimInterval;
+                d.nextAim = World.Time + (BehaviorCombatFlow ? .16 : ZDuel.AimInterval);
                 return DuelEnd.Expired;
             }
             return DuelEnd.Blocked;

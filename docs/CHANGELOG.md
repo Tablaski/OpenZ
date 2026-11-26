@@ -10,6 +10,10 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 - Solo + 1 vs 1 — Fort tower guns are protected from explosions on the fort's base. Explosions near the guns now account for their position and height.
 
+## OpenZ-VK 1.5.99 (26 Nov 2026)
+
+- Unit Editor — Continuous tank manoeuvring is available for custom profiles. Tanks can carry speed from a dodge into an attack and feint while turning.
+
 ## OpenZ-VK 1.5.98 (26 Nov 2026)
 
 - Unit Editor — The optional Range Aware direction strategy lets tanks accelerate while turning to dodge a shot, favoring routes that also keep their target in range.

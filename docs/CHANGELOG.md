@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.90 (26 Nov 2026)
+
+- Large battles — Reduced the CPU work needed to manage units moving in crowds and near bridge approaches.
+
 ## OpenZ-VK 1.5.89 (26 Nov 2026)
 
 - Solo, multiplayer and Skirmish — Vehicles stay visible and vulnerable while being repaired, and resume firing when they leave the repair pad. Capture the station's flag during the repair to take control of the vehicle as well.

@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.93 (26 Nov 2026)
+
+- Solo — Options > Main shows the original OpenZ difficulty controls again. Choose between 1996 and 2026 AI on the mission selection screen.
+
 ## OpenZ-VK 1.5.92 (26 Nov 2026)
 
 - Multiplayer and Skirmish — The eight player colors now include mint green, lemon yellow, deep violet, cyan, white and chocolate brown alongside red and blue. Mammoth turrets carry a larger patch of team color, and the post-match chart uses the updated colors.

@@ -50,8 +50,7 @@ namespace OpenZ
         };
         static readonly float[] ModernCpuWidths = { .22f, .30f, .30f, .18f };
         readonly HudButton[] cpuModern = new HudButton[ZAiDifficulty.Modern.Length];
-        readonly HudButton[] optCpuModern = new HudButton[ZAiDifficulty.Modern.Length];
-        OzAiGenerationToggle cpuGeneration, optCpuGeneration;
+        OzAiGenerationToggle cpuGeneration;
 
         OzAiGenerationToggle BuildSoloAiGeneration(RectTransform parent, OzRect rect, View v, Side side, float fontSize)
         {
@@ -62,29 +61,29 @@ namespace OpenZ
             return toggle;
         }
 
-        void BuildModernCpuRow(RectTransform parent, OzRect row, View v, Side side, HudButton[] buttons, bool compact)
+        void BuildModernCpuRow(RectTransform parent, OzRect row)
         {
-            float gap = compact ? OzDeployBar.CpuGap : 4;
-            float room = row.w - gap * (buttons.Length - 1);
+            float gap = OzDeployBar.CpuGap;
+            float room = row.w - gap * (cpuModern.Length - 1);
             float x = row.x;
-            for (int i = 0; i < buttons.Length; i++)
+            for (int i = 0; i < cpuModern.Length; i++)
             {
                 var level = ZAiDifficulty.Modern[i];
-                float width = compact ? room * ModernCpuWidths[i] : room / buttons.Length;
-                var button = SmallButton(parent, (compact ? "Cpu" : "OptCpu") + level, level.ToString().ToUpperInvariant(),
-                    new OzRect(x, row.y, width, row.h), v, side, () => OzAiSoloChoice.Level = level,
-                    compact ? OzDeployBar.CpuText : OzLayout.OptRowText, compact ? OzDeployBar.CpuTrack : .14f);
+                float width = room * ModernCpuWidths[i];
+                var button = SmallButton(parent, "Cpu" + level, level.ToString().ToUpperInvariant(),
+                    new OzRect(x, row.y, width, row.h), View.Select, Side.Any, () => OzAiSoloChoice.Level = level,
+                    OzDeployBar.CpuText, OzDeployBar.CpuTrack);
                 button.LabelColor = OzForkOptions.Accent;
                 button.Refresh();
-                buttons[i] = button;
+                cpuModern[i] = button;
                 optTips[button.Rt] = ZAiDifficulty.Hint(level);
-                if (compact) SlidePart(button.Rt);
+                SlidePart(button.Rt);
                 x += width + gap;
             }
         }
 
         static void RefreshAiDifficulty(OzAiGenerationToggle toggle, OzText hint, HudButton[] modernButtons,
-            HudButton easy, HudButton medium, HudButton hard, HudButton mayhem, bool compact)
+            HudButton easy, HudButton medium, HudButton hard, HudButton mayhem)
         {
             var level = OzAiSoloChoice.Level;
             var difficulty = OpenZDifficulty.Choice;
@@ -98,13 +97,7 @@ namespace OpenZ
             for (int i = 0; i < modernButtons.Length; i++)
                 Refresh(modernButtons[i], modern, i == modernIndex);
 
-            if (modern)
-            {
-                string rules = OpenZDifficulty.Label(difficulty);
-                hint.Set(compact ? ModernCpuHints[modernIndex]
-                    : ZAiDifficulty.Hint(level).ToUpperInvariant() + "  ·  " + rules + " RULES");
-            }
-            else hint.Set(compact ? OzDeployBar.CpuHint(difficulty) : OpenZDifficulty.Hint(difficulty));
+            hint.Set(modern ? ModernCpuHints[modernIndex] : OzDeployBar.CpuHint(difficulty));
 
             static void Refresh(HudButton button, bool visible, bool selected)
             {

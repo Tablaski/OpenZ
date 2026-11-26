@@ -167,7 +167,7 @@ namespace OpenZ
             cpuNormal = SmallButton(p, "CpuHard", "HARD", new OzRect(cx + OzDeployBar.CpuCellX(bw, 2), ry, OzDeployBar.CpuCellW(bw, 2), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Hard), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuNormal.Rt);
             cpuMayhem = SmallButton(p, "CpuMayhem", "MAYHEM", new OzRect(cx + OzDeployBar.CpuCellX(bw, 3), ry, OzDeployBar.CpuCellW(bw, 3), rh), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Mayhem), OzDeployBar.CpuText, OzDeployBar.CpuTrack); SlidePart(cpuMayhem.Rt);
             cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0, OzStyle.Plain).At(cx, OzDeployBar.HintY, OzH.L, false, bw); SlidePart(cpuHint.rectTransform);
-            BuildModernCpuRow(p, new OzRect(cx, ry, bw, rh), View.Select, Side.Any, cpuModern, compact: true);
+            BuildModernCpuRow(p, new OzRect(cx, ry, bw, rh));
 
             // HEAD START: the switch row (menu_exe_v1's, in the shared row)
             float hx = L.X(1, 3);

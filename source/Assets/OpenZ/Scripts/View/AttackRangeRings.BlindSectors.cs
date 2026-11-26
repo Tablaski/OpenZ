@@ -202,7 +202,7 @@ namespace OpenZ
             }
             // the side lines: a pale tint with a little of the team colour (the ring's ground-disc colour)
             Team team = r.team;
-            Color tc = team == Team.Red ? TeamColors.DiscRed : team == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
+            Color tc = TeamColors.Disc(team);
             float mx = Mathf.Max(1f, Mathf.Max(tc.r, Mathf.Max(tc.g, tc.b)));
             var pale = new Color(0.93f, 0.95f, 1f);
             var lc = Color.Lerp(pale, new Color(tc.r / mx, tc.g / mx, tc.b / mx), blindLineTeam);

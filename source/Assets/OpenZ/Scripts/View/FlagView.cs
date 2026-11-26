@@ -340,7 +340,8 @@ namespace OpenZ
             Team.Red => new Color(1f, 0.34f, 0.22f),
             Team.Blue => new Color(0.36f, 0.52f, 1f),
             Team.Green => new Color(0.51f, 0.91f, 0.40f),
-            _ => new Color(0.95f, 0.92f, 0.85f),
+            Team.Neutral => new Color(0.95f, 0.92f, 0.85f),
+            _ => TeamColors.Disc(t),
         };
 
         // ================================================================== meshes

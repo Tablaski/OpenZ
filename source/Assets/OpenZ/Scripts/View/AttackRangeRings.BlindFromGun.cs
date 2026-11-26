@@ -68,7 +68,7 @@ namespace OpenZ
                 sum += arcRaw[(i + w + 1) % ArcBins] - arcRaw[(i - w + ArcBins) % ArcBins];
             }
             Team team = r.team;
-            Color tc = team == Team.Red ? TeamColors.DiscRed : team == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
+            Color tc = TeamColors.Disc(team);
             float mx = Mathf.Max(1f, Mathf.Max(tc.r, Mathf.Max(tc.g, tc.b)));
             var mc = Color.Lerp(new Color(0.93f, 0.95f, 1f), new Color(tc.r / mx, tc.g / mx, tc.b / mx), blindMarkTeam);
             b.markTint = new Color32((byte)(mc.r * 255f), (byte)(mc.g * 255f), (byte)(mc.b * 255f), 0);

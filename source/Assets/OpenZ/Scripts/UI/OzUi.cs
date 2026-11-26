@@ -36,7 +36,7 @@ namespace OpenZ
             Team.Neutral => Neutral, var owner => Color.Lerp(TeamColors.OriginalPaint(owner), Color.white, .25f),
         };
         /// <summary>Team paint for chips and strength bars: RED / BLUE / NEUTRAL_DEEP.</summary>
-        public static Color TeamPaint(Team t) => (t = TeamColors.Shown(t)) == Team.Red ? Red : t == Team.Blue ? Blue : t == Team.Green ? TeamColors.Green : NeutralDeep;
+        public static Color TeamPaint(Team t) => t == Team.Neutral ? (Color)NeutralDeep : TeamColors.Of(t);
         /// <summary>Team-coloured text (only for type >= 14 u, guide 2.1).</summary>
         public static Color TeamText(Team t) => OriginalTeamText(TeamColors.Shown(t));
         internal static Color OriginalTeamText(Team t) => t switch

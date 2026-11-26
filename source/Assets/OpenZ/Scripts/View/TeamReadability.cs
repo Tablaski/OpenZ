@@ -34,7 +34,7 @@ namespace OpenZ
         [Range(0, 2)] public float rimGain = 0.45f;
         [Range(0, 0.3f), Tooltip("Team panels glow faintly at night")] public float nightPanelLift = 0.10f;
         [Header("Ground discs")]
-        // The team discs are off (selection rings + the range rings are the only circles under owned units)
+        // Skirmish uses the team discs for all seats. Other modes keep the original settings.
         public bool discs = false;
         public bool robotDiscs = false;
         [Tooltip("Dashed grey ring under neutral (empty) vehicles and cannons")] public bool emptyMarkers = true;
@@ -77,7 +77,9 @@ namespace OpenZ
         Vector4 Rim => new Vector4(rimDay, rimNight, rimGain, nightPanelLift);
         Vector4 shownLook = new Vector4(-1, 0, 0, 0), shownRim;
         Mesh discMesh, dashMesh; float meshKey = -1f;
-        Material redMat, blueMat, robotRedMat, robotBlueMat, emptyMat, emptyBuildingMat; bool matsFailed;
+        readonly Material[] unitDiscs = new Material[(int)Team.Black + 1];
+        readonly Material[] robotTeamDiscs = new Material[(int)Team.Black + 1];
+        Material emptyMat, emptyBuildingMat; bool matsFailed;
         readonly List<UnitView> views = new List<UnitView>();
         readonly Dictionary<int, float> radii = new Dictionary<int, float>();
         readonly Dictionary<int, float> groundY = new Dictionary<int, float>();
@@ -155,7 +157,7 @@ namespace OpenZ
 
         bool EnsureMaterials()
         {
-            if (redMat) return true;
+            if (emptyMat) return true;
             if (matsFailed) return false;
             var so = FindAnyObjectByType<SelectionOverlay>();
             Material baseMat = so && so.overlayMaterial ? so.overlayMaterial : null;
@@ -166,7 +168,11 @@ namespace OpenZ
                 baseMat = new Material(sh);
             }
             Material Make(string n) { var m = new Material(baseMat) { name = n, renderQueue = 3049, hideFlags = HideFlags.DontSave }; m.SetFloat(ZTestId, 4f); return m; }
-            redMat = Make("TeamDiscRed"); blueMat = Make("TeamDiscBlue"); robotRedMat = Make("TeamDiscRobotRed"); robotBlueMat = Make("TeamDiscRobotBlue");
+            for (int i = 1; i < unitDiscs.Length; i++)
+            {
+                unitDiscs[i] = Make($"TeamDisc{i}");
+                robotTeamDiscs[i] = Make($"TeamDiscRobot{i}");
+            }
             emptyMat = Make("TeamEmptyRing"); emptyBuildingMat = Make("TeamEmptyRingBuilding");
             return true;
         }
@@ -179,18 +185,24 @@ namespace OpenZ
         {
             PushGlobals();
             var g = ZGame.I;
-            if (!discs || g == null || g.World == null) return;
+            if (g == null || g.World == null) return;
+            bool skirmish = g.World.Map.skirmish;
+            if (!discs && !skirmish) return;
             if (!EnsureMaterials()) return;
             EnsureMeshes();
             float n = NightGrade.NightK;
-            float gR = TeamColors.Swap ? nightGainBlue : nightGainRed, gB = TeamColors.Swap ? nightGainRed : nightGainBlue;
-            redMat.SetColor(ColorId, Lin(TeamColors.DiscRed, Mathf.Lerp(dayGain, gR, n), 1f));
-            blueMat.SetColor(ColorId, Lin(TeamColors.DiscBlue, Mathf.Lerp(dayGain, gB, n), 1f));
-            robotRedMat.SetColor(ColorId, Lin(TeamColors.DiscRed, Mathf.Lerp(dayGain, gR, n), robotAlpha));
-            robotBlueMat.SetColor(ColorId, Lin(TeamColors.DiscBlue, Mathf.Lerp(dayGain, gB, n), robotAlpha));
+            for (int i = 1; i < unitDiscs.Length; i++)
+            {
+                var team = (Team)i;
+                float nightGain = TeamColors.Shown(team) == Team.Blue ? nightGainBlue : nightGainRed;
+                float gain = Mathf.Lerp(dayGain, nightGain, n);
+                var color = TeamColors.Disc(team);
+                unitDiscs[i].SetColor(ColorId, Lin(color, gain, 1f));
+                robotTeamDiscs[i].SetColor(ColorId, Lin(color, gain, robotAlpha));
+            }
             emptyMat.SetColor(ColorId, Lin(TeamColors.DiscEmpty, Mathf.Lerp(dayGain, nightGainEmpty, n), emptyAlpha));
             emptyBuildingMat.SetColor(ColorId, Lin(TeamColors.DiscEmpty, Mathf.Lerp(dayGain, nightGainEmpty, n), emptyAlpha * buildingEmptyAlpha));
-            if (emptyMarkers && emptyBuildings) DrawNeutralBuildings(g);
+            if (discs && emptyMarkers && emptyBuildings) DrawNeutralBuildings(g);
 
             views.Clear();
             foreach (var kv in g.Views) if (kv.Value) views.Add(kv.Value);
@@ -212,14 +224,13 @@ namespace OpenZ
                 Material m; Mesh mesh;
                 if (o.Owner == Team.Neutral)
                 {
-                    if (robot || !emptyMarkers) continue;
+                    if (robot || !discs || !emptyMarkers) continue;
                     m = emptyMat; mesh = dashMesh;
                 }
                 else
                 {
-                    if (robot && !robotDiscs) continue;
-                    bool red = o.Owner == Team.Red;
-                    m = robot ? (red ? robotRedMat : robotBlueMat) : (red ? redMat : blueMat);
+                    if (robot && !robotDiscs && !skirmish) continue;
+                    m = (robot ? robotTeamDiscs : unitDiscs)[(int)o.Owner];
                     mesh = discMesh;
                 }
                 float r = Radius(v);

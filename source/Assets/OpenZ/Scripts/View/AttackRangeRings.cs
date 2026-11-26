@@ -116,7 +116,7 @@ namespace OpenZ
         Color DotColour(Team t)
         {
             if (inkDark) return OzUeHooks.DeepMark(t);
-            Color c = t == Team.Red ? TeamColors.DiscRed : t == Team.Blue ? TeamColors.DiscBlue : TeamColors.DiscEmpty;
+            Color c = TeamColors.Disc(t);
             return new Color(c.r * glow, c.g * glow, c.b * glow, 1f);
         }
         bool inkDark;

@@ -278,8 +278,6 @@ namespace OpenZ.Multiplayer
             int customX = x + 2 * (buttonWidth + 8);
             bool guestView = OnlineRoomPage && R.HostedRoom == null && !R.EndLobbyOpen;
             Label(panel, "DYNAMICS PROFILE", x, y, width, 19, OzUi.Amber);
-            Hud.Label(panel, "Z Classic status", "Z CLASSIC · " + OzBehaviorLibrary.ClassicStatus, 15, OzUi.Amber)
-                .At(x + width, y + 2, OzH.R, false, width / 2f);
             Button(panel, "OPENZ", x, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(false), 0), native, editable, 40, showSelection: true);
             var classicButton = Button(panel, "Z CLASSIC", x + buttonWidth + 8, y + 40, buttonWidth, () => Choose(OzBehaviorLibrary.Standard(true), 1),
                 classic, editable, 40, showSelection: true);

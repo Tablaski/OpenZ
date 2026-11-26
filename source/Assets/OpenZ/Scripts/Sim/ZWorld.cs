@@ -229,9 +229,9 @@ namespace OpenZ.Sim
                 int x = c.tx * 16, y = c.ty * 16;
                 if (type == ShuttleType)
                 {
-                    int cx = x + 16, cy = y + 16;
-                    if (!ShuttleLandSpot(cx, cy, null, ShuttleDropHeadingDeg, out double heading, out _)) continue;
-                    made.Add(CreatePlayableShuttle(cx, cy, empty ? Team.Neutral : team, (float)ZObject.ShuttleNormDeg(heading)));
+                    int shuttleX = x + 16, shuttleY = y + 16;
+                    if (!ShuttleLandSpot(shuttleX, shuttleY, null, ShuttleDropHeadingDeg, out double heading, out _)) continue;
+                    made.Add(CreatePlayableShuttle(shuttleX, shuttleY, empty ? Team.Neutral : team, (float)ZObject.ShuttleNormDeg(heading)));
                 }
                 else if (type == "heroes") made.Add(CreateHeroSquad(ZHeroSquads.AlanBrad, team, new[] { c.tx, c.ty }));
                 else if (ZBuildLists.IsRobot(type)) made.Add(CreateRobotGroup(type, c.tx * 16, c.ty * 16, team, 1));

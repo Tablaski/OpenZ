@@ -422,12 +422,12 @@ namespace OpenZ.Sim
             if (rangeDodge || flowing)
             {
                 double bearing = rangeDodge ? Math.Atan2(cur.y - cur.sy, cur.x - cur.sx) : angle;
-                double remaining = rangeDodge ? DodgeCourseRemaining(bearing) : Dist(CenterX, CenterY, cur.x, cur.y);
+                double courseRemaining = rangeDodge ? DodgeCourseRemaining(bearing) : Dist(CenterX, CenterY, cur.x, cur.y);
                 if (flowing) desired *= p[ZBehaviorKey.CombatFlowSpeed];
                 double currentSpeed = CripplingHitActive || CripplingActive ? Math.Min(BehaviorActualSpeed, desired) : BehaviorActualSpeed;
                 var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, currentSpeed,
                     behaviorReverseUntil - World.Time, behaviorTravelSign);
-                StepRangeAwareDodge(p, ref drive, bearing, desired, remaining, dt,
+                StepRangeAwareDodge(p, ref drive, bearing, desired, courseRemaining, dt,
                     rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy);
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
                 behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;

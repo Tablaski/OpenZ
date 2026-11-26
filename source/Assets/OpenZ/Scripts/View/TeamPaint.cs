@@ -12,9 +12,9 @@ namespace OpenZ
         // (Zod's raw sprite keys 223,0,0 / 19,55,251 / 115,115,115 read neon on lit 3D models.)
         public static readonly Color Red = new Color32(176, 40, 30, 255);
         public static readonly Color Blue = new Color32(47, 79, 168, 255);
-        public static readonly Color Green = new Color32(55, 128, 63, 255);
-        static readonly Color Yellow = new Color32(248, 229, 45, 255), Purple = new Color32(117, 55, 196, 255),
-            Cyan = new Color32(16, 185, 215, 255), Pink = new Color32(243, 110, 197, 255), Orange = new Color32(240, 118, 18, 255);
+        public static readonly Color Green = new Color32(73, 220, 140, 255);
+        static readonly Color Yellow = new Color32(245, 230, 53, 255), Purple = new Color32(173, 43, 198, 255),
+            Cyan = new Color32(56, 217, 245, 255), White = new Color32(247, 247, 247, 255), Brown = new Color32(97, 53, 45, 255);
         public static readonly Color Neutral = new Color32(122, 116, 106, 255);
 
         // default 0 = red). VIEW ONLY: the player's side (sim Red) is drawn blue and the CPU (sim Blue) red on every unit,
@@ -39,7 +39,7 @@ namespace OpenZ
         internal static string OriginalName(Team t) => t switch
         {
             Team.Red => "RED", Team.Blue => "BLUE", Team.Green => "GREEN", Team.Yellow => "YELLOW", Team.Purple => "PURPLE",
-            Team.Teal => "CYAN", Team.White => "PINK", Team.Black => "ORANGE", _ => "NEUTRAL",
+            Team.Teal => "CYAN", Team.White => "WHITE", Team.Black => "BROWN", _ => "NEUTRAL",
         };
         /// <summary>Kit / portrait key of the displayed colour: "red" / "blue" / "neutral".</summary>
         public static string Key(Team t) { var s = Shown(t); return s == Team.Red ? "red" : s == Team.Blue ? "blue" : "neutral"; }
@@ -88,7 +88,7 @@ namespace OpenZ
         internal static Color OriginalPaint(Team t) => t switch
         {
             Team.Red => Red, Team.Blue => Blue, Team.Green => Green, Team.Yellow => Yellow, Team.Purple => Purple,
-            Team.Teal => Cyan, Team.White => Pink, Team.Black => Orange, _ => Neutral,
+            Team.Teal => Cyan, Team.White => White, Team.Black => Brown, _ => Neutral,
         };
         public static Color Paint(Team t) => Of(t);
 
@@ -96,12 +96,10 @@ namespace OpenZ
         // royal blue), lighter so they read at 60-70 m. w of VividLinear: 1 = neutral, 2 = owned (0 = not set = v1 look).
         public static Vector4 VividLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.45f, 0.038f, 0.024f, 2f)
                                                     : t == Team.Blue ? new Vector4(0.035f, 0.14f, 0.60f, 2f)
-                                                    : t == Team.Green ? new Vector4(0.08f, 0.48f, 0.12f, 2f)
                                                     : t == Team.Neutral ? new Vector4(0f, 0f, 0f, 1f) : AccentLinear(t, 2f, 1f);
         /// <summary>Team rim by day / night and the faint night glow of the panels (linear; red lifted: dark red vanishes at night).</summary>
         public static Vector4 GlowLinear(Team t) => (t = Shown(t)) == Team.Red ? new Vector4(0.80f, 0.075f, 0.045f, 1f)
                                                    : t == Team.Blue ? new Vector4(0.06f, 0.22f, 0.85f, 1f)
-                                                   : t == Team.Green ? new Vector4(0.12f, 0.68f, 0.18f, 1f)
                                                    : t == Team.Neutral ? Vector4.zero : AccentLinear(t, 1f, 1.25f);
 
         static Vector4 AccentLinear(Team shown, float alpha, float gain)
@@ -217,6 +215,7 @@ namespace OpenZ
             if (team == Team.Neutral) { c *= 3.0f; c.a = 1; }   // x2.2 read khaki-brown under the warm key; toy-clean light warm grey
             c = FillPaint(c);                                                         // 1.5 vehicle_colour_fill: a vehicle's fill (TeamPaint.Fill.cs), else K389's ease (TeamPaint.Ease.cs; unchanged without one)
             float k = 1f - 0.78f * charred;
+            bool match = OpenZ.Multiplayer.DuelRuntime.Active || (ZGame.I && ZGame.I.World?.Map.skirmish == true);
             foreach (var r in GetComponentsInChildren<Renderer>(true))
             {
                 var mats = r.sharedMaterials;
@@ -235,6 +234,7 @@ namespace OpenZ
                     block.SetFloat(HeatId, robot ? heat : 0f);                                           // DV152 level 7: a robot in lava glows redder from the feet up (TeamLit _OZHeat, TeamPaint.Heat.cs); 0 on everything else
                     PanelFor(r, mats[i], out var panelRect, out var panelY);
                     block.SetVector(PanelId, panelRect); block.SetVector(PanelYId, panelY);
+                    block.SetFloat(TeamArmorId, match && r.name == "Mammoth_turret" && mats[i] && mats[i].name == "MammothV2_head" ? 1f : 0f);
                     var fc = FortCream.linear; bool mine = host == this;   /* not the gunner under the gun */
                     bool towerGun = fortPalette && mine && TowerGunNightAsFort;                                          // 1.5 fort_guns_night
                     if (towerGun) fc *= TowerGunCreamK;
@@ -277,7 +277,7 @@ namespace OpenZ
         // ---------------------------------------------------------------- teamcolor_v2 team panels
         static readonly int VividId = Shader.PropertyToID("_OZTeamVivid"), GlowId = Shader.PropertyToID("_OZTeamGlow"),
                             PanelId = Shader.PropertyToID("_OZPanel"), PanelYId = Shader.PropertyToID("_OZPanelY"),
-                            FortPaintId = Shader.PropertyToID("_OZFortPaint");
+                            FortPaintId = Shader.PropertyToID("_OZFortPaint"), TeamArmorId = Shader.PropertyToID("_OZTeamArmor");
         /// <summary>Renderer (or material) name -> a team panel where the RTS camera looks: the part's mesh-space xz bounds inset by
         /// (ix, iz), from yFrom of its mesh height, edge softness (fraction of the mesh height), corner radius (fraction of the
         /// smaller half size), mode: 1 = a surface panel on the up-facing metal (turret tops, roofs of vehicles / cannons), -1 =

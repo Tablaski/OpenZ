@@ -300,8 +300,12 @@ namespace OpenZ
             for (int i = 0; i < chartTeams.Length; i++)
             {
                 var team = chartTeams[i];
+                var paint = OzUi.TeamPaint(team);
+                var linear = paint.linear;
+                float luminance = 0.2126f * linear.r + 0.7152f * linear.g + 0.0722f * linear.b;
+                var ink = luminance > 0.18f ? OzUi.HazardInk : OzUi.Ink;
                 Hud.Chip(chartRt, team.ToString(), new OzRect(chartHome.w - 16 - (chartTeams.Length - i) * 76, 12, 70, 16),
-                    TeamColors.Name(team), OzUi.TeamPaint(team), OzUi.Ink, 9, 0.10f);
+                    TeamColors.Name(team), paint, ink, 9, 0.10f);
             }
             var gr = OzLayout.EndChartGraph;
             gr = new OzRect(gr.x, gr.y, gr.w, gr.h + chartHome.h - OzLayout.EndChartH);

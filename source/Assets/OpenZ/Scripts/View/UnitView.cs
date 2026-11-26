@@ -101,10 +101,11 @@ namespace OpenZ
             game = g; Obj = o;
             anim = GetComponentInChildren<Animator>();
             paint = GetComponent<TeamPaint>();
-            if (g.World?.Map.skirmish == true)
+            if (g.World?.Map.skirmish == true || OpenZ.Multiplayer.DuelRuntime.Active)
             {
                 if (!paint) paint = gameObject.AddComponent<TeamPaint>();
                 if (paint.Team != o.Owner) paint.Team = o.Owner;
+                else paint.Apply();
             }
             // unit models have their front (head, rifle, gun, barrel, muzzle) at -z: the view's yaw means "front direction", so
             // those models are drawn 180 deg around; keep the placed look at bind (U3/U4 bug: they drove and aimed backwards)

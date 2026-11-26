@@ -32,7 +32,7 @@ namespace OpenZ
         public static Color Mark(Team t) => OriginalMark(TeamColors.Shown(t));
         internal static Color OriginalMark(Team t) => t switch
         {
-            Team.Red => RedHi, Team.Blue => BlueHi, Team.Green => new Color32(135, 207, 106, 255),
+            Team.Red => RedHi, Team.Blue => BlueHi,
             Team.Neutral => Neutral, var owner => Color.Lerp(TeamColors.OriginalPaint(owner), Color.white, .25f),
         };
         /// <summary>Team paint for chips and strength bars: RED / BLUE / NEUTRAL_DEEP.</summary>
@@ -41,7 +41,7 @@ namespace OpenZ
         public static Color TeamText(Team t) => OriginalTeamText(TeamColors.Shown(t));
         internal static Color OriginalTeamText(Team t) => t switch
         {
-            Team.Red => RedText, Team.Blue => BlueText, Team.Green => new Color32(166, 218, 135, 255),
+            Team.Red => RedText, Team.Blue => BlueText,
             Team.Neutral => NeutralText, var owner => Color.Lerp(TeamColors.OriginalPaint(owner), Color.white, .45f),
         };
         public static string Hex(Color32 c) => $"#{c.r:X2}{c.g:X2}{c.b:X2}";

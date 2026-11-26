@@ -90,6 +90,7 @@ Shader "OpenZ/TeamLit"
         [HideInInspector] _OZHeatInBand ("Robot in lava: 1 = its own heat (_OZHeat) glows only inside the lava band (per renderer from OzLavaWade)", Range(0, 1)) = 0
         _OZPanel ("Team panel rect, mesh space (cx, cz, half x, half z)", Vector) = (0, 0, 0, 0)
         _OZPanelY ("Team panel: from mesh y, edge soft, corner, strength", Vector) = (0, 0, 0, 0)
+        _OZTeamArmor ("Full armor team paint", Float) = 0
         _OZFortPaint ("TG2 fort palette on tower guns: cream (linear) + w: reference luminance, 0 = off", Vector) = (0, 0, 0, 0)
         [HideInInspector] _OZEmptyV1 ("k98b empty v2 like v1: x 0 off / 1 vehicle / 2 gun (per renderer, TeamPaint)", Vector) = (0, 0, 0, 0)
         [HideInInspector] _OZEmptyDisc ("item 198: a round lighter part of the empty v2 look: mesh x, z, radius, step (per renderer)", Vector) = (0, 0, 0, 0)
@@ -171,6 +172,7 @@ Shader "OpenZ/TeamLit"
             half _OZHeatInBand;   // 1.3 row 17 tail: 1 on a robot OzLavaWade writes: its own heat glows only inside the lava band
             float4 _OZPanel;
             float4 _OZPanelY;
+            float _OZTeamArmor;
             float4 _OZFortPaint;   // TG2 (TeamPaint.FortPalette)
             half _FlatShade;
             half _NightClass;   // night_v2
@@ -716,6 +718,14 @@ Shader "OpenZ/TeamLit"
                     albedo = lerp(hOwn, hGrey, hNeutral) * hBase;
                     teamMask = max(hTeam, hTop) * hOwned;
                     panel = teamMask;
+                }
+                if (_OZTeamArmor > 0.5)
+                {
+                    half armorShare = saturate(_OZTeamVivid.w - 1.0);
+                    half armorShade = lerp(0.78, 1.12, saturate(RgbToHsv(preTeam).z * 2.0));
+                    albedo = lerp(albedo, (half3)_OZTeamVivid.rgb * armorShade, armorShare);
+                    panel = max(panel, armorShare);
+                    teamMask = max(teamMask, armorShare);
                 }
                 half ozRust = 0;
                 if (_Rust > 0.001)

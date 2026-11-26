@@ -24,9 +24,10 @@ The **Zod Local (idle only)** reference also prevents dodges during active order
 The built-in **Z Classic** tank preset gives Light, Medium and Heavy physical
 steering during defensive dodges. The tracks can reverse to use the nearer
 hull axis, so a shot directly behind the tank requires no pivot. Light has
-the strongest burst and quickest response. Medium and Heavy turn, accelerate
-and brake more slowly. The profile keeps randomized dodge directions and
-stamina-limited sprinting.
+the fastest burst and quickest response. Medium and Heavy turn, accelerate
+and brake more slowly. Each tank keeps its chosen escape direction until
+the first threat passes, then resumes its attack. The Heavy can still boost
+while damaged. Dodge directions remain random and sprinting uses stamina.
 
 Numeric parameters interpolate; discrete fields change at 50%. Parameters not
 implemented in Zod are explicitly disabled, instantaneous or use the corresponding

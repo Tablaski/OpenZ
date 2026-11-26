@@ -256,31 +256,22 @@ namespace OpenZ.Multiplayer
                     .Concat(editable && onlineExtraTeam >= 0 && onlineExtraTeam < starts ? new[] { onlineExtraTeam } : Array.Empty<int>()).Distinct().OrderBy(team => team).ToArray();
             var teamMembers = teams.Select(team => occupied.Where(seat =>
                 humansBySeat.TryGetValue(seat, out var person) ? person.Team == team : botsBySeat[seat].Alliance == team).ToArray()).ToArray();
-            const int teamWidth = 315, teamGap = 12, teamRowHeight = 65;
-            int TeamHeight(int index) => 34 + Math.Max(1, teamMembers[index].Length) * teamRowHeight;
-            var gridHeight = Enumerable.Range(0, (teams.Length + 1) / 2).Sum(pair =>
-                Math.Max(TeamHeight(2 * pair), 2 * pair + 1 < teams.Length ? TeamHeight(2 * pair + 1) : 0) + teamGap);
-            float height = gridHeight + 36 * (empty.Length + observers.Length + waiting.Length + (freeForAll ? occupied.Length : 0)) +
+            const int rosterWidth = 646, teamGap = 8, regularRow = 40, botRow = 80;
+            int RowHeight(int seat) => !freeForAll && botsBySeat.ContainsKey(seat) ? botRow : regularRow;
+            int TeamHeight(int index) => 36 + Math.Max(regularRow, teamMembers[index].Sum(RowHeight));
+            int teamHeight = Enumerable.Range(0, teams.Length).Sum(index => TeamHeight(index) + teamGap);
+            float height = teamHeight + regularRow * (empty.Length + observers.Length + waiting.Length + (freeForAll ? occupied.Length : 0)) +
                 29 * ((empty.Length > 0 ? 1 : 0) + (observers.Length > 0 ? 1 : 0) + (waiting.Length > 0 ? 1 : 0));
-            var content = Scroll(panel, 22, 58, 646, 445, false, Mathf.Max(445, height));
+            var content = Scroll(panel, 22, 58, rosterWidth, 445, false, Mathf.Max(445, height));
             var rosterScroll = content.parent.GetComponent<ScrollRect>();
+            skirmishTeamViewport = rosterScroll;
             rosterScroll.verticalNormalizedPosition = onlineRosterPosition;
             rosterScroll.onValueChanged.AddListener(value => onlineRosterPosition = value.y);
             float y = 0;
             if (freeForAll)
                 foreach (int seat in occupied) SeatRow(seat);
             else
-                for (int index = 0; index < teams.Length; index += 2)
-                {
-                    float top = y;
-                    DrawTeam(index, 0);
-                    if (index + 1 < teams.Length)
-                    {
-                        y = top;
-                        DrawTeam(index + 1, teamWidth + teamGap);
-                    }
-                    y = top + Math.Max(TeamHeight(index), index + 1 < teams.Length ? TeamHeight(index + 1) : 0) + teamGap;
-                }
+                for (int index = 0; index < teams.Length; index++) DrawTeam(index);
             if (empty.Length > 0)
             {
                 Group("AVAILABLE POSITIONS", OzUi.Muted);
@@ -328,30 +319,37 @@ namespace OpenZ.Multiplayer
                 undoTeamRevision = R.HostedRoom.Revision;
             }
 
-            void DrawTeam(int index, float x)
+            void DrawTeam(int index)
             {
                 int team = teams[index];
-                var background = Hud.Img(content, "Team " + (team + 1), OzUi.GM950);
-                background.rectTransform.TL(x, y, teamWidth, TeamHeight(index));
+                float bottom = y + TeamHeight(index);
+                var background = Hud.Img(content, "Team " + (team + 1), OzUi.GM900);
+                background.rectTransform.TL(0, y, rosterWidth, TeamHeight(index));
                 background.raycastTarget = editable;
                 var tint = OzUi.TeamText((Team)(team + 1));
-                var stripe = Hud.Img(content, "Team color", tint);
-                stripe.rectTransform.TL(x + 6, y + 4, 4, 22);
+                var heading = Hud.Img(content, "Team heading", OzUi.GM800);
+                heading.rectTransform.TL(5, y + 4, rosterWidth - 10, 27);
+                heading.raycastTarget = false;
+                var stripe = Hud.Img(heading.transform, "Team color", tint);
+                stripe.rectTransform.TL(5, 4, 4, 19);
                 stripe.raycastTarget = false;
-                var header = Label(content, $"TEAM {team + 1} / {teamMembers[index].Length}", x + 17, y + 4, teamWidth - 24, 16, tint);
+                int count = teamMembers[index].Length;
+                var header = Label(heading.transform, $"TEAM {team + 1}   ·   {count} {(count == 1 ? "PLAYER" : "PLAYERS")}",
+                    17, 4, rosterWidth - 30, 16, OzUi.Ink);
                 header.graphic.raycastTarget = false;
                 if (editable)
                 {
                     AddOnlineEvent(background.rectTransform, EventTriggerType.PointerClick, _ => Move(onlineSelectedSeat, team));
                     AddTeamDrop(background, team);
                 }
-                y += 30;
-                if (teamMembers[index].Length == 0)
+                y += 34;
+                if (count == 0)
                 {
-                    var hint = Label(content, "Drop a player here", x + 16, y + 21, teamWidth - 30, 16, OzUi.Muted);
+                    var hint = Label(content, "Drop a player here", 16, y + 8, rosterWidth - 30, 16, OzUi.Muted);
                     hint.graphic.raycastTarget = false;
                 }
-                foreach (int seat in teamMembers[index]) SeatRow(seat, x + 5, teamWidth - 10);
+                foreach (int seat in teamMembers[index]) SeatRow(seat, 5, rosterWidth - 10);
+                y = bottom + teamGap;
             }
 
             void AddTeamDrop(Image surface, int team)
@@ -374,25 +372,35 @@ namespace OpenZ.Multiplayer
 
             void SeatRow(int seat, float x = 0, int width = 646)
             {
-                bool compact = width < 400;
+                int rowHeight = RowHeight(seat);
                 var row = Hud.Img(content, "Position " + (seat + 1), OzUi.GM900);
-                row.rectTransform.TL(x, y, width, compact ? teamRowHeight - 4 : 33);
-                row.raycastTarget = editable && !freeForAll;
-                if (!freeForAll && editable && occupied.Contains(seat))
+                row.rectTransform.TL(x, y, width, rowHeight - 4);
+                row.raycastTarget = false;
+                bool canDrag = editable && !freeForAll && occupied.Contains(seat);
+                if (canDrag)
+                    Button(row.transform, "", 0, 0, width, () => { onlineSelectedSeat = seat; dirty = true; }, height: rowHeight - 4);
+                else if (occupied.Contains(seat))
+                    Hud.Chip(row.transform, "Player card", new OzRect(0, 0, width, rowHeight - 4), "", OzUi.GM900, OzUi.Ink, edge: OzUi.GM500);
+                if (canDrag)
                 {
                     int team = humansBySeat.TryGetValue(seat, out var occupant) ? occupant.Team : botsBySeat[seat].Alliance;
-                    var handle = Button(row.transform, "", 35, 2, 30, () => { onlineSelectedSeat = seat; dirty = true; },
-                        onlineSelectedSeat == seat, height: 29);
+                    var handle = Hud.Node("Team drag grip", row.transform);
+                    handle.TL(35, 2, 30, 29);
                     DrawGrip(handle);
-                    AddOnlineEvent(handle, EventTriggerType.BeginDrag, evt =>
+                    if (onlineSelectedSeat == seat)
+                    {
+                        var selected = Hud.Img(row.transform, "Selected player", OzUi.Amber);
+                        selected.rectTransform.TL(3, 4, 2, rowHeight - 12);
+                        selected.raycastTarget = false;
+                    }
+                    AddOnlineEvent(row.rectTransform, EventTriggerType.BeginDrag, evt =>
                     {
                         if (((PointerEventData)evt).button != PointerEventData.InputButton.Left) return;
                         onlineDragSeat = seat;
-                        BeginSkirmishDrag(humansBySeat.TryGetValue(seat, out var participant) ? participant.Name : "AI");
+                        BeginSkirmishDrag(occupant?.Name ?? "AI", row.rectTransform);
                     });
-                    AddOnlineEvent(handle, EventTriggerType.Drag, evt => UpdateSkirmishDrag((PointerEventData)evt));
-                    AddOnlineEvent(handle, EventTriggerType.EndDrag, _ => { onlineDragSeat = -1; ClearSkirmishDrag(); });
-                    AddOnlineEvent(handle, EventTriggerType.Drop, _ => Move(onlineDragSeat, team));
+                    AddOnlineEvent(row.rectTransform, EventTriggerType.Drag, evt => UpdateSkirmishDrag((PointerEventData)evt));
+                    AddOnlineEvent(row.rectTransform, EventTriggerType.EndDrag, _ => { onlineDragSeat = -1; ClearSkirmishDrag(); });
                     AddTeamDrop(row, team);
                 }
                 var badge = Hud.Img(row.transform, "Fort", OzUi.TeamText((Team)(seat + 1)));
@@ -402,20 +410,32 @@ namespace OpenZ.Multiplayer
                 if (editable && !closed.Contains(seat)) AddFortHandle(badge, seat, occupied.Contains(seat), R.SwapRoomForts);
                 if (humansBySeat.TryGetValue(seat, out var human))
                 {
-                    Label(row.transform, human.Name + (human.Local ? " / YOU" : human.Host ? " / HOST" : ""), 72, 8, compact ? 111 : HasAdvantages(seat) ? 240 : 272, 16, OzUi.Ink);
+                    Label(row.transform, human.Name + (human.Local ? " / YOU" : human.Host ? " / HOST" : ""), 72, 10, 198, 16, OzUi.Ink);
                     bool waitingForResults = R.WaitingForEndLobby(human.Local, seat);
                     bool ready = !R.EndLobbyOpen && human.Ready;
-                    Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", compact ? 183 : 354, 8, compact ? 66 : 91, 13, ready ? OzUi.Go : OzUi.Amber);
+                    Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", 315, 10, 91, 13, ready ? OzUi.Go : OzUi.Amber);
                     if (!string.IsNullOrEmpty(human.Id))
-                        onlineVoiceLabels[human.Id] = Label(row.transform, "", compact ? 72 : 437, compact ? 28 : 8, 68, 12, OzUi.Ink);
+                        onlineVoiceLabels[human.Id] = Label(row.transform, "", 408, 10, 68, 12, OzUi.Ink);
                     if (!human.Host)
-                        onlinePingLabels[seat] = Label(row.transform, "", compact ? 153 : 506, compact ? 28 : 8, 95, 13, OzUi.Muted);
+                        onlinePingLabels[seat] = Label(row.transform, "", 479, 10, width - 533, 13, OzUi.Muted);
                     if (!R.EndLobbyOpen && (human.Local || R.IsHost && !human.Host)) AddPlayerMenu(row.transform, 2, human.Local ? "self" : human.Id, human, width);
                 }
                 else if (botsBySeat.TryGetValue(seat, out var bot))
                 {
                     OzAiMapBadge.Head(row.transform, new OzRect(72, 5, 21, 21));
-                    Label(row.transform, "AI · " + BotDifficultyName(bot.Difficulty), 99, 7, compact ? 147 : HasAdvantages(seat) ? 213 : 230, 16, OzUi.Ink);
+                    Label(row.transform, freeForAll ? "AI · " + BotDifficultyName(bot.Difficulty) : "AI Bot " + (seat + 1),
+                        99, 9, 171, 16, OzUi.Ink);
+                    if (!freeForAll)
+                    {
+                        bool modern = ZAiDifficulty.IsModern(bot.Difficulty);
+                        BuildLobbyAiGeneration(row.transform, new OzRect(width - 169, 5, 107, 26), modern,
+                            value => R.SetRoomBot(seat, ZAiDifficulty.InGeneration(bot.Difficulty, value)), editable);
+                        var divider = Hud.Img(row.transform, "Difficulty divider", OzUi.GM500);
+                        divider.rectTransform.TL(8, 36, width - 16, 1);
+                        divider.raycastTarget = false;
+                        BuildLobbyAiDifficultyRow(row.transform, new OzRect(8, 41, width - 16, 29), modern, bot.Difficulty,
+                            level => R.SetRoomBot(seat, level), null, enabled: editable);
+                    }
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat, width: width);
                 }
@@ -426,16 +446,13 @@ namespace OpenZ.Multiplayer
                     if (!R.EndLobbyOpen && seat < (R.HostedRoom?.Capacity ?? R.JoinedRoom.Capacity))
                         AddPlayerMenu(row.transform, 2, "seat:" + seat, width: width);
                 }
-                if (occupied.Contains(seat) && HasAdvantages(seat)) DrawAdvantageIndicator(row.transform, seat, width, compact);
-                y += compact ? teamRowHeight : 36;
+                if (occupied.Contains(seat) && HasPlayerAdvantage(playerRules, seat)) DrawAdvantageIndicator(row.transform, seat);
+                y += rowHeight;
             }
 
-            bool HasAdvantages(int seat) => playerRules.BuildPercent[seat] != 100 || playerRules.AiIdleSeconds[seat] != 0 ||
-                playerRules.AiFactoryCapture[seat] != 0 || playerRules.Extras.Skip(seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
-
-            void DrawAdvantageIndicator(Transform row, int seat, int width, bool compact)
+            void DrawAdvantageIndicator(Transform row, int seat)
             {
-                var indicator = Button(row, "", compact ? width - 44 : 318, compact ? 32 : 3, 28, () =>
+                var indicator = Button(row, "", 277, 5, 28, () =>
                 {
                     SelectOnlineSetupTab(3);
                     onlinePlayerSeat = seat;
@@ -449,9 +466,13 @@ namespace OpenZ.Multiplayer
                 if (person.Observer) DrawGhostIcon(content, 8, y + 6, 19);
                 Label(content, person.Name + (person.Local ? " · YOU" : ""), person.Observer ? 36 : 9, y + 7, 500, 17, OzUi.Ink);
                 if (!R.EndLobbyOpen && (person.Local || R.IsHost)) AddPlayerMenu(content, y, person.Local ? "self" : person.Id, person);
-                y += 36;
+                y += regularRow;
             }
         }
+
+        static bool HasPlayerAdvantage(SkirmishRules rules, int seat) => rules.BuildPercent[seat] != 100 ||
+            rules.AiIdleSeconds[seat] != 0 || rules.AiFactoryCapture[seat] != 0 ||
+            rules.Extras.Skip(seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
 
         static string BotDifficultyName(ZBotDifficulty difficulty) => difficulty == ZBotDifficulty.Normal ? "Medium" : difficulty.ToString();
         static readonly ZBotDifficulty[] LobbyBotDifficulties = { ZBotDifficulty.Easy, ZBotDifficulty.Normal, ZBotDifficulty.Hard };
@@ -487,7 +508,7 @@ namespace OpenZ.Multiplayer
                 var button = Button(parent, label, rect.x + i * (cell + gap), rect.y, cell, () => select(level),
                     level == selected, enabled, height: rect.h, showSelection: true);
                 button.name = namePrefix + label;
-                AddLobbyTip(button, tip, ZAiDifficulty.Hint(level));
+                if (tip != null) AddLobbyTip(button, tip, ZAiDifficulty.Hint(level));
             }
         }
 
@@ -858,7 +879,7 @@ namespace OpenZ.Multiplayer
             foreach (var label in onlineVoiceLabels)
             {
                 int? voice = R.RoomPresence(R.RoomPresenceId(label.Key))?.Voice;
-                label.Value.Set(voice == 3 ? "MUTED" : voice == 2 ? "SPEAKING" : voice == 0 ? "MIC OFF" : "");
+                label.Value.Set(voice == 3 ? "MUTED" : voice == 2 ? "SPEAKING" : voice == 0 ? "MIC OFF" : voice == 1 ? "MIC ON" : "");
                 label.Value.graphic.color = voice == 2 ? (Color)OzUi.Go : voice == 3 ? (Color)OzUi.AlertText : OzUi.Muted;
             }
             Refresh(onlinePingLabels, false, true);
@@ -1005,19 +1026,31 @@ namespace OpenZ.Multiplayer
         void DrawOnlineAdvantage(int starts, OnlinePerson[] people, RoomBot[] bots, SkirmishRules rules, bool editable)
         {
             var panel = Panel("PLAYER ADVANTAGE", 60, 185, 1092, 568);
-            var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name, person.Team))
-                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI · " + BotDifficultyName(bot.Difficulty), Team: bot.Alliance))).OrderBy(member => member.Seat).ToArray();
+            var roster = people.Where(person => person.Seat >= 0).Select(person => (person.Seat, person.Name, person.Team, Bot: false))
+                .Concat(bots.Select(bot => (Seat: bot.Position, Name: "AI Bot " + (bot.Position + 1), Team: bot.Alliance, Bot: true)))
+                .OrderBy(member => member.Seat).ToArray();
             if (roster.Length == 0) return;
             if (!roster.Any(member => member.Seat == onlinePlayerSeat)) onlinePlayerSeat = roster[0].Seat;
             int selected = onlinePlayerSeat;
             for (int i = 0; i < roster.Length; i++)
             {
                 var member = roster[i];
-                bool modified = rules.BuildPercent[member.Seat] != 100 || rules.AiIdleSeconds[member.Seat] != 0 ||
-                    rules.AiFactoryCapture[member.Seat] != 0 || rules.Extras.Skip(member.Seat * 4).Take(4).Any(unit => !string.IsNullOrEmpty(unit));
-                Button(panel, $"{member.Seat + 1} · {member.Name} · {(modified ? "Modified" : "Standard")}",
-                    24 + i % 4 * 263, 65 + i / 4 * 48, 251,
-                    () => { PauseHostSetup(); onlinePlayerSeat = member.Seat; dirty = true; }, selected == member.Seat, height: 42);
+                bool modified = HasPlayerAdvantage(rules, member.Seat);
+                bool activeCard = selected == member.Seat;
+                var card = Button(panel, "", 24 + i % 4 * 263, 65 + i / 4 * 48, 251,
+                    () => { PauseHostSetup(); onlinePlayerSeat = member.Seat; dirty = true; }, activeCard, height: 42);
+                card.name = member.Name + " / Fort " + (member.Seat + 1);
+                var badge = Hud.Img(card, "Fort", OzUi.TeamText((Team)(member.Seat + 1)));
+                badge.rectTransform.TL(10, 8, 26, 26);
+                badge.raycastTarget = false;
+                Hud.Label(badge.transform, "Fort number", (member.Seat + 1).ToString(), 15, OzUi.GM950)
+                    .FillParent(OzH.C).graphic.raycastTarget = false;
+                if (member.Bot) OzAiMapBadge.Head(card, new OzRect(43, 11, 20, 20));
+                int nameX = member.Bot ? 70 : 44;
+                Color ink = activeCard ? OzUi.GM950 : OzUi.Ink;
+                Label(card, member.Name, nameX, 12, (modified ? 219 : 241) - nameX, 17, ink).graphic.raycastTarget = false;
+                if (modified)
+                    Hud.Icon(card, "Custom player advantage", "wrench", 224, 12, 18, activeCard ? ink : OzUi.Amber).raycastTarget = false;
             }
             var chosen = roster.Single(member => member.Seat == selected);
             Label(panel, $"{chosen.Name} · Fort {selected + 1} · Team {chosen.Team + 1}", 24, 170, 600, 22, OzUi.Ink);

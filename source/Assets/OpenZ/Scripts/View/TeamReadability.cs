@@ -218,9 +218,10 @@ namespace OpenZ
             {
                 if (!v.isActiveAndEnabled || !v.gameObject.activeInHierarchy || v.Dying || ZodBriefing.EndingHides(v)) continue;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs)
                 var o = v.Obj;
-                if (o == null || o.Destroyed) continue;
+                if (o == null || o.Destroyed || OzFogOfWar.Covers(o)) continue;
                 bool robot = o.Kind == ZKind.Robot;
                 if (!robot && o.Kind != ZKind.Vehicle && o.Kind != ZKind.Cannon) continue;
+                if (robot && !BoardingView.FigureShown(o)) continue;
                 Material m; Mesh mesh;
                 if (o.Owner == Team.Neutral)
                 {

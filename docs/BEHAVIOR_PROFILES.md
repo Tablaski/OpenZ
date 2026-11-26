@@ -21,7 +21,12 @@ flanks/arcs/reverses: in-range units stop and fire, as in Zod. This reference do
 mode or replace weapon statistics, collision/pathing, or other game systems.
 The **Zod Local (idle only)** reference also prevents dodges during active orders.
 
-The built-in **Z Classic** tank preset also gives Light, Medium and Heavy a physical chassis. They brake, pivot toward the next movement direction and build speed again. Light responds first, while Heavy takes the longest to turn, accelerate and brake. The profile keeps the randomized dodge and its stamina-limited sprint.
+The built-in **Z Classic** tank preset gives Light, Medium and Heavy physical
+steering during defensive dodges. The tracks can reverse to use the nearer
+hull axis, so a shot directly behind the tank requires no pivot. Light has
+the strongest burst and quickest response. Medium and Heavy turn, accelerate
+and brake more slowly. The profile keeps randomized dodge directions and
+stamina-limited sprinting.
 
 Numeric parameters interpolate; discrete fields change at 50%. Parameters not
 implemented in Zod are explicitly disabled, instantaneous or use the corresponding

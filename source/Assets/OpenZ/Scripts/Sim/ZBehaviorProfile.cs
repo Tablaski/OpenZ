@@ -234,9 +234,15 @@ namespace OpenZ.Sim
                 foreach (string type in ZBehaviorSchema.TankTypes) profile.ApplyTankAgility(type, ClassicTankAgility(type));
             return profile;
         }
+        const double ClassicLightAgility = 95;
+        const double ClassicMediumRelativeAgility = .84180790960452;
+        const double ClassicHeavyRelativeAgility = .638418079096045;
         public static double ClassicTankAgility(string type) => type switch
         {
-            "jeep" => 115, "apc" => 85, ZMTank.Type => 70, "medium" => 60, "heavy" => 50,
+            "light" => ClassicLightAgility,
+            ZMTank.Type => ClassicLightAgility * ClassicMediumRelativeAgility,
+            "heavy" => ClassicLightAgility * ClassicHeavyRelativeAgility,
+            "jeep" => 115, "apc" => 85, "medium" => 60,
             "missile_launcher" => 30, "crane" => 45, _ => 100
         };
         public void ApplyTankAgility(string type, double percent)
@@ -248,40 +254,19 @@ namespace OpenZ.Sim
             Set(type, ZBehaviorKey.MaxDistance, ClassicDodgeLimitMetres * factor);
             Set(type, ZBehaviorKey.BoostMaxDistance, ClassicDodgeLimitMetres * factor);
             Set(type, ZBehaviorKey.DodgePhysical, 1);
-            if (type == "light" || type == ZMTank.Type || type == "heavy")
-            {
-                ApplyTrackedAgility(type, percent / ClassicTankAgility(type));
-                return;
-            }
             Set(type, ZBehaviorKey.DodgeSpeed, factor);
             Set(type, ZBehaviorKey.BoostSpeed, 1 + 4 * factor);
-            Set(type, ZBehaviorKey.TurnRate, 360 * factor);
-            Set(type, ZBehaviorKey.TurnAcceleration, 3000 * factor);
-            Set(type, ZBehaviorKey.Acceleration, .12 / factor);
-        }
-        void ApplyTrackedAgility(string type, double relativeAgility)
-        {
-            // Keep the Zod running burst and size-dependent dodge limits while
-            // letting the chassis finish most of its turn before it travels.
-            var (turn, turnAcceleration, acceleration, braking) = type switch
-            {
-                "light" => (330.0, 2500.0, .16, .12),
-                ZMTank.Type => (225.0, 1750.0, .22, .16),
-                _ => (175.0, 1350.0, .30, .22),
-            };
-            Set(type, ZBehaviorKey.Physical, 1);
-            Set(type, ZBehaviorKey.TurnFirst, 1);
-            Set(type, ZBehaviorKey.Lateral, 0);
-            Set(type, ZBehaviorKey.Reverse, 0);
-            Set(type, ZBehaviorKey.PivotSpeed, 0);
-            Set(type, ZBehaviorKey.AlignmentTolerance, 18);
-            Set(type, ZBehaviorKey.Distance, relativeAgility);
-            Set(type, ZBehaviorKey.DodgeSpeed, relativeAgility);
-            Set(type, ZBehaviorKey.BoostSpeed, 1 + .8 * relativeAgility);
-            Set(type, ZBehaviorKey.TurnRate, turn * relativeAgility);
-            Set(type, ZBehaviorKey.TurnAcceleration, turnAcceleration * relativeAgility);
-            Set(type, ZBehaviorKey.Acceleration, acceleration / relativeAgility);
-            Set(type, ZBehaviorKey.Braking, braking / relativeAgility);
+
+            // Use the pre-calibration Light as the anchor. The two heavier tracked
+            // chassis build and shed speed more slowly during their defensive steps.
+            bool heavyChassis = type == ZMTank.Type || type == "heavy";
+            double steering = factor * (heavyChassis ? .9 : 1);
+            double acceleration = .12 / steering;
+            Set(type, ZBehaviorKey.TurnRate, 360 * steering);
+            Set(type, ZBehaviorKey.TurnAcceleration, 3000 * steering);
+            Set(type, ZBehaviorKey.Acceleration, acceleration);
+            if (heavyChassis)
+                Set(type, ZBehaviorKey.Braking, Math.Max(0, acceleration - .12 / (ClassicLightAgility / 100)));
         }
         public string id = "", name = "Custom";
         public ZBehaviorFamily family;

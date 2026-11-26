@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.96 (26 Nov 2026)
+
+- Solo + 1 vs 1 — Z Classic tanks can reverse to dodge a shot, turning their hull toward the nearer direction of travel. The Light has the strongest burst and quickest response. The Medium and Heavy pivot, accelerate and brake more slowly.
+
 ## OpenZ-VK 1.5.95 (26 Nov 2026)
 
 - Solo + 1 vs 1 — Reduce movement slowdowns in large battles, including traffic at bridges and narrow passages.

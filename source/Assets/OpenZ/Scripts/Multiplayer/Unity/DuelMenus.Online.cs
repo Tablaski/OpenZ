@@ -413,9 +413,8 @@ namespace OpenZ.Multiplayer
                     bool waitingForResults = R.WaitingForEndLobby(human.Local, seat);
                     bool ready = !R.EndLobbyOpen && human.Ready;
                     Label(row.transform, waitingForResults ? "WAITING" : ready ? "READY" : "NOT READY", 315, 10, 91, 13, ready ? OzUi.Go : OzUi.Amber);
-                    if (!string.IsNullOrEmpty(human.Id))
                     if (!human.Host)
-                        onlinePingLabels[seat] = Label(row.transform, "", 479, 10, width - 533, 13, OzUi.Muted);
+                        onlinePingLabels[seat] = Label(row.transform, "", 408, 10, width - 462, 13, OzUi.Muted);
                     if (!R.EndLobbyOpen && (human.Local || R.IsHost && !human.Host)) AddPlayerMenu(row.transform, 2, human.Local ? "self" : human.Id, human, width);
                 }
                 else if (botsBySeat.TryGetValue(seat, out var bot))

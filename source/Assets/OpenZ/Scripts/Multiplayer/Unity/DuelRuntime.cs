@@ -97,7 +97,6 @@ namespace OpenZ.Multiplayer
         public static bool Active => I && I.session;
         public static bool CapturesInput => I && I.Menus && I.Menus.CapturesInput;
         public DuelMenus Menus { get; private set; }
-        public IPAddress PeerAddress => ((peer as DuelTcpPeer) ?? RoomTransport?.TcpPeer)?.RemoteAddress;
         public DuelRtcPeer OnlinePeer => peer as DuelRtcPeer;
         public bool OnlineMode { get; private set; }
         public string OnlineRoom => online?.RoomCode;
@@ -211,7 +210,7 @@ namespace OpenZ.Multiplayer
 
         public void Host(string name, int port)
         {
-            if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
+            if (port < 1 || port > IPEndPoint.MaxPort) throw new ArgumentOutOfRangeException(nameof(port));
             Close(); IsHost = true; TcpPort = port; localName = name; secret = DuelTcpPeer.NewInvitationSecret();
             CreateSkirmishRoom(name, 2);
             cancellation = new CancellationTokenSource();
@@ -228,7 +227,7 @@ namespace OpenZ.Multiplayer
                 if (uri.Scheme != "openz" || uri.Host != "join") throw new ArgumentException("Expected an OpenZ invitation.");
                 var args = uri.Query.TrimStart('?').Split('&').Select(p => p.Split(new[] { '=' }, 2)).ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1]));
                 secret = args["invite"]; int port = int.Parse(args["port"]);
-                if (port < 1 || port > 65534) throw new ArgumentOutOfRangeException(nameof(port));
+                if (port < 1 || port > IPEndPoint.MaxPort) throw new ArgumentOutOfRangeException(nameof(port));
                 TcpPort = port;
                 reconnectTcpAddress = args["address"];
                 connectTask = ConnectTcp(reconnectTcpAddress, port, name);

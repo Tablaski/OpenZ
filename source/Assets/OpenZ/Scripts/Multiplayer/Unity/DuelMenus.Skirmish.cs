@@ -20,7 +20,7 @@ namespace OpenZ.Multiplayer
         int skirmishDragFrame = -1;
         float skirmishTeamScroll = 1;
         ScrollRect skirmishTeamViewport;
-        Image skirmishDragGhost;
+        RectTransform skirmishDragGhost;
         SkirmishTeamDrop skirmishDropTarget;
 
         RectTransform CreateSkirmishFrame(RectTransform parent)
@@ -271,8 +271,8 @@ namespace OpenZ.Multiplayer
             fortDragFeedback = Label(panel, rules.FreeForAll ? "Drag a fort number to swap starting positions." :
                 "Drag a row into a team. Drag a fort number to swap.", 24, 160, width - 48, 16, OzUi.Muted);
             int listTop = 187;
-            const int memberHeight = 48;
-            float contentHeight = active * memberHeight + (rules.FreeForAll ? 0 : alliances.Length * 55);
+            const int humanHeight = 48, botHeight = 84;
+            float contentHeight = humanHeight + bots.Length * botHeight + (rules.FreeForAll ? 0 : alliances.Length * 55);
             float listHeight = Mathf.Min(709 - listTop, contentHeight);
             var list = Scroll(panel, 24, listTop, width - 48, listHeight, false, contentHeight);
             skirmishTeamViewport = list.parent.GetComponent<ScrollRect>();
@@ -284,7 +284,7 @@ namespace OpenZ.Multiplayer
                 foreach (var member in roster)
                 {
                     BuildSkirmishMember(list, member.Seat, member.Label, member.Level, width - 48, y, true, difficultyTip);
-                    y += memberHeight;
+                    y += member.Level.HasValue ? botHeight : humanHeight;
                 }
                 return;
             }
@@ -292,7 +292,8 @@ namespace OpenZ.Multiplayer
             foreach (int team in alliances)
             {
                 int count = roster.Count(member => member.Team == team);
-                float groupHeight = 47 + count * memberHeight;
+                float groupHeight = 47 + roster.Where(member => member.Team == team)
+                    .Sum(member => member.Level.HasValue ? botHeight : humanHeight);
                 var group = Hud.Img(list, $"Team {team + 1}", OzUi.GM900);
                 group.rectTransform.TL(0, y, width - 48, groupHeight);
                 group.raycastTarget = true;
@@ -306,7 +307,7 @@ namespace OpenZ.Multiplayer
                 foreach (var member in roster.Where(member => member.Team == team))
                 {
                     BuildSkirmishMember(group.transform, member.Seat, member.Label, member.Level, width - 48, row, false, difficultyTip);
-                    row += memberHeight;
+                    row += member.Level.HasValue ? botHeight : humanHeight;
                 }
                 y += groupHeight + 8;
             }
@@ -320,28 +321,33 @@ namespace OpenZ.Multiplayer
 
         void BuildSkirmishMember(Transform parent, int seat, string name, ZBotDifficulty? difficulty, float width, float y, bool freeForAll, OzText tip)
         {
-            float levelsX = width - 6 - SkirmishDifficultyWidth;
-            float generationX = levelsX - SkirmishDifficultyGap - SkirmishGenerationWidth;
-            float cardWidth = difficulty.HasValue ? generationX - 10 : width - 12;
+            const float nameX = 40, rightInset = 8;
+            float cardWidth = width - 12;
+            float cardHeight = difficulty.HasValue ? 80 : 38;
+            float generationX = cardWidth - rightInset - SkirmishGenerationWidth;
+            var card = Hud.Node(name, parent);
+            card.TL(6, y, cardWidth, cardHeight);
             if (freeForAll)
             {
-                var row = Hud.Img(parent, name, OzUi.GM900);
-                row.rectTransform.TL(6, y, width - 12, 38);
-                row.raycastTarget = false;
-                Label(row.transform, name, 34, 9, cardWidth - 34, 17, OzUi.Ink);
+                var background = Hud.Img(card, "Background", OzUi.GM900);
+                background.rectTransform.Fill();
+                background.raycastTarget = false;
             }
             else
             {
-                var card = Button(parent, "::   " + name, 40, y, cardWidth - 34, () =>
+                Button(card, "", 0, 0, cardWidth, () =>
                 {
                     if (skirmishDragGhost || skirmishDragFrame == Time.frameCount) return;
                     skirmishSelectedSeat = skirmishSelectedSeat == seat ? -1 : seat;
                     dirty = true;
-                }, skirmishSelectedSeat == seat, height: 38, alignLeft: true, rightPadding: 0);
+                }, skirmishSelectedSeat == seat, height: cardHeight);
                 card.gameObject.AddComponent<SkirmishCardDrag>().Configure(this, seat, name);
             }
-            var fort = Hud.Img(parent, "Starting fort", OzUi.TeamText((Team)(seat + 1)));
-            fort.rectTransform.TL(8, y + 4, 28, 29);
+            var caption = Label(card, freeForAll ? name : "::   " + name, nameX, 9, generationX - nameX - 8, 17,
+                !freeForAll && skirmishSelectedSeat == seat ? (Color)OzUi.GM950 : OzUi.Ink);
+            caption.graphic.raycastTarget = false;
+            var fort = Hud.Img(card, "Starting fort", OzUi.TeamText((Team)(seat + 1)));
+            fort.rectTransform.TL(7, 4, 28, 29);
             Hud.Label(fort.transform, "Fort number", (seat + 1).ToString(), 15, OzUi.GM950).FillParent(OzH.C).graphic.raycastTarget = false;
             AddFortHandle(fort, seat, true, (first, second) =>
             {
@@ -350,9 +356,9 @@ namespace OpenZ.Multiplayer
             });
             if (!difficulty.HasValue) return;
             bool modern = ZAiDifficulty.IsModern(difficulty.Value);
-            BuildLobbyAiGeneration(parent, new OzRect(generationX, y + 6, SkirmishGenerationWidth, 26), modern,
+            BuildLobbyAiGeneration(card, new OzRect(generationX, 6, SkirmishGenerationWidth, 26), modern,
                 value => ApplyLevel(ZAiDifficulty.InGeneration(difficulty.Value, value)));
-            BuildLobbyAiDifficultyRow(parent, new OzRect(levelsX, y + 2, SkirmishDifficultyWidth, 34), modern, difficulty, ApplyLevel, tip);
+            BuildLobbyAiDifficultyRow(card, new OzRect(nameX, 40, cardWidth - nameX - rightInset, 32), modern, difficulty, ApplyLevel, tip);
 
             void ApplyLevel(ZBotDifficulty level)
             {
@@ -450,12 +456,22 @@ namespace OpenZ.Multiplayer
             dirty = true;
         }
 
-        internal void BeginSkirmishDrag(string name)
+        internal void BeginSkirmishDrag(string name, RectTransform card = null)
         {
             ClearSkirmishDrag();
-            skirmishDragGhost = Hud.Img(root, "Dragged participant", OzUi.GM900);
-            skirmishDragGhost.raycastTarget = false;
-            var label = Hud.Label(skirmishDragGhost.transform, "Participant", name, 18, OzUi.Ink).FillParent(OzH.C);
+            if (card)
+            {
+                skirmishDragGhost = Instantiate(card, root, false);
+                var group = skirmishDragGhost.gameObject.AddComponent<CanvasGroup>();
+                group.blocksRaycasts = false;
+                group.interactable = false;
+                return;
+            }
+            var badge = Hud.Img(root, "Dragged fort", OzUi.GM900);
+            skirmishDragGhost = badge.rectTransform;
+            skirmishDragGhost.sizeDelta = new Vector2(190, 45);
+            badge.raycastTarget = false;
+            var label = Hud.Label(skirmishDragGhost, "Fort", name, 18, OzUi.Ink).FillParent(OzH.C);
             label.graphic.raycastTarget = false;
         }
 
@@ -464,7 +480,8 @@ namespace OpenZ.Multiplayer
             if (!skirmishDragGhost) return;
             skirmishDragFrame = Time.frameCount;
             if (RectTransformUtility.ScreenPointToLocalPointInRectangle(root, pointer.position, pointer.pressEventCamera, out var point))
-                skirmishDragGhost.rectTransform.TL(point.x - root.rect.xMin + 15, root.rect.yMax - point.y + 15, 190, 45);
+                skirmishDragGhost.TL(point.x - root.rect.xMin + 15, root.rect.yMax - point.y + 15,
+                    skirmishDragGhost.sizeDelta.x, skirmishDragGhost.sizeDelta.y);
             var target = pointer.pointerCurrentRaycast.gameObject?.GetComponentInParent<SkirmishTeamDrop>();
             if (skirmishDropTarget != target)
             {
@@ -512,7 +529,7 @@ namespace OpenZ.Multiplayer
         public void OnBeginDrag(PointerEventData eventData)
         {
             if (eventData.button != PointerEventData.InputButton.Left) return;
-            menu.BeginSkirmishDrag(participant);
+            menu.BeginSkirmishDrag(participant, (RectTransform)transform);
             menu.UpdateSkirmishDrag(eventData);
         }
 

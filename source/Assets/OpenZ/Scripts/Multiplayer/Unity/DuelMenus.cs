@@ -190,7 +190,7 @@ namespace OpenZ.Multiplayer
             if (page != Page.Lobby)
             {
                 lobbyDraft = null;
-                pickerGroup = -1;
+                if (page != Page.Skirmish) pickerGroup = -1;
                 lobbyDialog = LobbyDialog.None;
             }
             if (lobbyChatScroll && OnlineRoomPage)
@@ -409,7 +409,7 @@ namespace OpenZ.Multiplayer
                 }
                 if (!rules.FreeForAll)
                 {
-                    Label(panel, "TEAM DEFEAT", 30, 489, 740, 20, OzUi.Amber);
+                    Label(panel, "ALL FOR ONE", 30, 489, 740, 20, OzUi.Amber);
                     Label(panel, AllForOneDescription, 30, 521, 740, 16, OzUi.Muted);
                     Button(panel, "OFF", 851, 488, 97, () => { rules.AllForOne = false; save(rules); }, !rules.AllForOne, editable, showSelection: true);
                     Button(panel, "ON", 959, 488, 97, () => { rules.AllForOne = true; save(rules); }, rules.AllForOne, editable, showSelection: true);
@@ -448,22 +448,16 @@ namespace OpenZ.Multiplayer
                 LobbySlider(panel, "Construction time", 30, 175, 780, 50, 100, rules.BuildPercent[seat], "50%", "100% · standard",
                     value => value + "%", 600, editable, value => { rules.BuildPercent[seat] = value; save(rules); }, preview: Preview);
             }
-            else Label(panel, "Each starting position receives these additions to its map army.", 30, 82, 790, 19, OzUi.Ink);
-            var slots = individual ? rules.Extras : rules.Common;
-            for (int i = 0; i < 4; i++)
-            {
-                int slot = individual ? seat * 4 + i : i;
-                Button(panel, UnitName(slots[slot]), 30 + i % 2 * 400, (individual ? 318 : 132) + i / 2 * 54, 388,
-                    () => OpenArmyPicker(individual ? 2 : 1, slot), enabled: editable);
-            }
             if (!individual) return;
-            Button(panel, roomArmyTotal ? "HIDE STARTING ARMY" : "VIEW STARTING ARMY", 30, 438, 450, () => { roomArmyTotal = !roomArmyTotal; dirty = true; });
-            Button(panel, "RESET PLAYER", 495, 438, 315, () =>
+            Label(panel, "ADDITIONAL UNITS NEAR THE FORT", 30, 321, 800, 18, OzUi.Amber);
+            BuildRoomArmyCards(panel, rules.Extras, 2, seat * 4, 30, 350, 1040, editable);
+            Button(panel, roomArmyTotal ? "HIDE STARTING ARMY" : "VIEW STARTING ARMY", 30, 468, 450, () => { roomArmyTotal = !roomArmyTotal; dirty = true; });
+            Button(panel, "RESET PLAYER", 495, 468, 315, () =>
             { Array.Clear(rules.Extras, seat * 4, 4); rules.BuildPercent[seat] = 100; save(rules); }, enabled: editable);
             if (roomArmyTotal)
             {
                 var totals = rules.StartingUnits(seat).GroupBy(unit => unit).Select(group => group.Count() + " × " + group.Key.Replace('_', ' '));
-                Label(panel, "Map army + " + (totals.Any() ? string.Join(", ", totals) : "no additions"), 30, 506, 790, 18, OzUi.Ink);
+                Label(panel, "Map army + " + (totals.Any() ? string.Join(", ", totals) : "no additions"), 30, 528, 1000, 18, OzUi.Ink);
             }
         }
 
@@ -486,7 +480,7 @@ namespace OpenZ.Multiplayer
                 Array.Clear(rules.FortTurrets, 0, rules.FortTurrets.Length);
                 save(rules);
             }, enabled: editable && rules.OverrideFortTurrets, height: 40);
-            ArmyCards(turrets, rules.FortTurrets, 0);
+            BuildRoomArmyCards(turrets, rules.FortTurrets, 0, 0, 18, 83, 1008, editable);
 
             var units = Hud.Img(panel, "Additional units", OzUi.GM950).rectTransform;
             units.TL(24, 284, 1044, 248);
@@ -494,19 +488,20 @@ namespace OpenZ.Multiplayer
             Label(units, "Each participant receives these units beside their starting fort.", 18, 50, 690, 17, OzUi.Muted);
             Button(units, "LOAD / SAVE UNIT PRESET", 712, 12, 313, () => { roomPresets = true; presetStatus = presetName = ""; dirty = true; },
                 enabled: editable, height: 40);
-            ArmyCards(units, rules.Common, 1);
+            BuildRoomArmyCards(units, rules.Common, 1, 0, 18, 83, 1008, editable);
             Label(units, "One robot slot adds one squad.", 18, 199, 850, 16, OzUi.Muted);
+        }
 
-            void ArmyCards(RectTransform parent, string[] slots, int group)
+        void BuildRoomArmyCards(RectTransform parent, string[] slots, int group, int offset, float x, float y, float width, bool editable)
+        {
+            float step = (width + 8) / 4;
+            for (int i = 0; i < 4; i++)
             {
-                for (int i = 0; i < 4; i++)
-                {
-                    int slot = i;
-                    string unit = slots[i] ?? "";
-                    var card = Button(parent, UnitName(unit), 18 + i * 254, 83, 246,
-                        () => OpenArmyPicker(group, slot), enabled: editable, height: 102);
-                    if (unit != "") Portrait(card, unit, 94, 8, 58);
-                }
+                int slot = offset + i;
+                string unit = slots[slot] ?? "";
+                var card = Button(parent, UnitName(unit), x + i * step, y, step - 8,
+                    () => OpenArmyPicker(group, slot), enabled: editable, height: 102);
+                if (unit != "") Portrait(card, unit, (step - 8 - 58) / 2, 8, 58);
             }
         }
 
@@ -546,8 +541,8 @@ namespace OpenZ.Multiplayer
             }
             OzAllowedUnitsPanel.Build(panel, roster, editable, () =>
             {
-                rules.CustomRoster = true;
-                rules.ClassicUnits = false;
+                rules.CustomRoster = roster.UnitPreset == DuelUnitPreset.Custom;
+                rules.ClassicUnits = roster.UnitPreset == DuelUnitPreset.Z1996;
                 rules.CustomUnits = roster.AllowedUnits.ToArray();
                 rules.ExcludeMammoth = roster.ExcludeMammoth;
                 rules.ExcludeBizon = roster.ExcludeBizon;
@@ -1139,13 +1134,14 @@ namespace OpenZ.Multiplayer
             backing.transform.SetAsFirstSibling();
             backing.raycastTarget = true;
             Button(panel, "CLOSE", 1030, 14, 180, close);
-            Label(panel, fort ? "Fort mounts accept cannons only." : "One robot squad or vehicle per slot.", 24, 72, 1150, 18, OzUi.Muted);
+            Label(panel, fort ? "Fort mounts accept cannons only." : "One squad, vehicle or cannon per slot.", 24, 72, 1150, 18, OzUi.Muted);
             if (fort) Category("TURRETS", DuelRules.AllowedFortTurrets.Where(allows).ToArray(), 112);
             else
             {
-                var units = DuelRules.AllowedExtras.Where(allows);
-                Category("ROBOTS", units.Where(ZBuildLists.IsRobot).ToArray(), 112);
-                Category("VEHICLES", units.Where(t => !ZBuildLists.IsRobot(t)).ToArray(), 292);
+                var units = DuelRules.AllowedExtras.Where(allows).ToArray();
+                Category("ROBOTS", units.Where(t => ZBuildLists.IsRobot(t) || t == "heroes").ToArray(), 112);
+                Category("VEHICLES", units.Where(t => !ZBuildLists.IsRobot(t) && t != "heroes" && !ZBuildLists.IsCannon(t)).ToArray(), 280);
+                Category("CANNONS", units.Where(ZBuildLists.IsCannon).ToArray(), 448);
             }
             Button(panel, "EMPTY SLOT", 24, 625, 360, () => choose(""), primary: string.IsNullOrEmpty(selected), enabled: editable,
                 showSelection: true);
@@ -1154,13 +1150,15 @@ namespace OpenZ.Multiplayer
             {
                 var category = Hud.Node(name, panel); category.TL(24, y, 1190, 310);
                 Label(category, name, 0, 0, 1150, 18, OzUi.Amber);
+                float pitch = Mathf.Min(148, 1190f / Mathf.Max(1, types.Length));
+                float cardWidth = pitch - 8;
                 for (int i = 0; i < types.Length; i++)
                 {
                     string type = types[i];
-                    var button = Button(category, UnitName(type), i % 8 * 148, 30 + i / 8 * 140, 138,
+                    var button = Button(category, UnitName(type), i * pitch, 30, cardWidth,
                         () => choose(type), type == selected, editable, height: 130, showSelection: true);
                     button.name = "SELECT " + type;
-                    Portrait(button, type, 29, 12, 80);
+                    Portrait(button, type, (cardWidth - 72) / 2, 12, 72);
                 }
             }
         }
@@ -1437,6 +1435,21 @@ namespace OpenZ.Multiplayer
             return content;
         }
     }
+    internal sealed class DuelLobbyTooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        OzText label;
+        string tip;
+
+        internal void Configure(OzText target, string text)
+        {
+            label = target;
+            tip = text;
+        }
+
+        public void OnPointerEnter(PointerEventData eventData) => label.Set(tip);
+        public void OnPointerExit(PointerEventData eventData) => label.Set("");
+    }
+
     internal sealed class DuelLobbySlider : Slider
     {
         internal Action<float> Commit;

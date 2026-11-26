@@ -196,10 +196,7 @@ namespace OpenZ.Multiplayer
                     throw new ArgumentException("Unknown fort turret.");
         }
 
-        public static readonly string[] AllowedExtras =
-        {
-            "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "jeep", "light", "medium", "mtank", "heavy", "missile_launcher", "crane", "apc"
-        };
+        public static readonly string[] AllowedExtras = DuelUnitRoster.Lobby;
 
         public static readonly string[] AllowedFortTurrets = { "gun", "gatling", "howitzer", "missile_cannon" };
 

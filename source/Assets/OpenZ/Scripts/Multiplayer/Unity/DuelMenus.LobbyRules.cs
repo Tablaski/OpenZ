@@ -264,13 +264,7 @@ namespace OpenZ.Multiplayer
         }
         static void AddLobbyTip(RectTransform target, OzText label, string text)
         {
-            var trigger = target.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
-            var enter = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter };
-            enter.callback.AddListener(_ => label.Set(text));
-            trigger.triggers.Add(enter);
-            var exit = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit };
-            exit.callback.AddListener(_ => label.Set(""));
-            trigger.triggers.Add(exit);
+            target.gameObject.AddComponent<DuelLobbyTooltip>().Configure(label, text);
         }
 
         RectTransform BuildCombatProfileChoices(RectTransform panel, int x, int y, int width,

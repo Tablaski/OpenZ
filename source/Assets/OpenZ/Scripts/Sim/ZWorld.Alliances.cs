@@ -74,7 +74,7 @@ namespace OpenZ.Sim
             {
                 bool robot = ZBuildLists.IsRobot(type);
                 if (Objects.Count(unit => unit.IsUnit && unit.Owner == team && !unit.Destroyed) +
-                    (robot ? Math.Max(1, S.Unit(type)?.group_amount ?? 1) : 1) > MAX_UNITS_PER_TEAM) break;
+                    StartingUnitCount(type) > MAX_UNITS_PER_TEAM) break;
                 if (!robot) { AddHeadStart(team, type); continue; }
                 var marker = AddHeadStart(team, "jeep").FirstOrDefault();
                 if (marker == null) break;

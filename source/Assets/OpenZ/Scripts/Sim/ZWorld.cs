@@ -225,10 +225,19 @@ namespace OpenZ.Sim
             {
                 if (k >= types.Length) break;
                 if (!Free(c.tx, c.ty, types[k])) continue;
-                string type = types[k++];
-                if (ZBuildLists.IsRobot(type)) made.Add(CreateRobotGroup(type, c.tx * 16, c.ty * 16, team, 1));
+                string type = types[k];
+                int x = c.tx * 16, y = c.ty * 16;
+                if (type == ShuttleType)
+                {
+                    int cx = x + 16, cy = y + 16;
+                    if (!ShuttleLandSpot(cx, cy, null, ShuttleDropHeadingDeg, out double heading, out _)) continue;
+                    made.Add(CreatePlayableShuttle(cx, cy, empty ? Team.Neutral : team, (float)ZObject.ShuttleNormDeg(heading)));
+                }
+                else if (type == "heroes") made.Add(CreateHeroSquad(ZHeroSquads.AlanBrad, team, new[] { c.tx, c.ty }));
+                else if (ZBuildLists.IsRobot(type)) made.Add(CreateRobotGroup(type, c.tx * 16, c.ty * 16, team, 1));
                 else if (ZBuildLists.IsCannon(type)) made.Add(CreateObject("cannon", type, c.tx * 16, c.ty * 16, team));
                 else made.Add(CreateObject("vehicle", type, c.tx * 16, c.ty * 16, empty ? Team.Neutral : team));
+                k++;
             }
             return made;
         }

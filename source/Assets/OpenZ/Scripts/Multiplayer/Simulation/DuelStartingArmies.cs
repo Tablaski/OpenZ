@@ -40,11 +40,17 @@ namespace OpenZ.Sim
                 var army = duelRules.EffectiveFor(seat);
                 var fort = Objects.First(o => o.IsFort && o.Owner == team);
                 PlaceFortTurrets(fort, army.FortTurrets, MAX_UNITS_PER_TEAM);
-                int budget = army.StartingUnits.Sum(t => ZBuildLists.IsRobot(t) ? Math.Max(1, S.Unit(t)?.group_amount ?? 1) : 1);
+                int budget = army.StartingUnits.Sum(StartingUnitCount);
                 if (budget + army.FortTurrets.Count(t => !string.IsNullOrEmpty(t)) > MAX_UNITS_PER_TEAM)
                     throw new InvalidOperationException("Starting army exceeds the 70 unit limit.");
                 foreach (string type in army.StartingUnits)
                 {
+                    if (type == ShuttleType || type == "heroes")
+                    {
+                        if (AddHeadStart(team, type).Count != 1)
+                            throw new InvalidOperationException("Not enough space in front of the fort.");
+                        continue;
+                    }
                     // Reuse the game's placement search, then replace its vehicle placeholder for robots/guns.
                     var placed = AddHeadStart(team, "jeep");
                     if (placed.Count != 1) throw new InvalidOperationException("Not enough space in front of the fort.");
@@ -56,6 +62,9 @@ namespace OpenZ.Sim
             }
             Events.Clear();
         }
+
+        int StartingUnitCount(string type) => type == "heroes" ? ZHeroSquads.Get(ZHeroSquads.AlanBrad).Members.Length :
+            ZBuildLists.IsRobot(type) ? Math.Max(1, S.Unit(type)?.group_amount ?? 1) : 1;
 
         void PlaceFortTurrets(ZObject fort, string[] types, int budget)
         {

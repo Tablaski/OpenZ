@@ -6,6 +6,11 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.89 (26 Nov 2026)
+
+- Online multiplayer and Skirmish — Team Defeat is now called All for One. Additional units near the fort follow the same unit roster presets as Solo, including access to the Mammoth and Bizon with the OpenZ preset.
+- Skirmish — Select fort turrets and additional units in Starting Armies, or use the same unit cards to give a specific player extra units under Player Advantage. Each bot row shows its full name, AI generation and difficulty choices.
+
 ## OpenZ-VK 1.5.88 (26 Nov 2026)
 
 - Solo and Skirmish — AI 2026 holds its ground in even fights and fights back when a damaged or slower unit cannot get away. Skilled and Zod look for covering fire when they withdraw and can counterattack with nearby reinforcements.

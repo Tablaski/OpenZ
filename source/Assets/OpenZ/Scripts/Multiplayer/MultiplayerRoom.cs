@@ -53,7 +53,8 @@ namespace OpenZ.Multiplayer
         }
 
         internal bool Allows(string unit) => ClassicUnits ? DuelUnitRoster.Z1996.Contains(unit) :
-            !CustomRoster || CustomUnits.Contains(unit);
+            !CustomRoster || (unit == ZBigTanks.Mammoth ? !ExcludeMammoth :
+                unit == ZBigTanks.Bizon ? !ExcludeBizon : CustomUnits.Contains(unit));
 
         internal SkirmishRules Copy()
         {

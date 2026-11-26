@@ -97,8 +97,6 @@ namespace OpenZ.Multiplayer
         public static bool Active => I && I.session;
         public static bool CapturesInput => I && I.Menus && I.Menus.CapturesInput;
         public DuelMenus Menus { get; private set; }
-        public DuelVoice Voice { get; private set; }
-        public string VoiceSecret => secret;
         public IPAddress PeerAddress => ((peer as DuelTcpPeer) ?? RoomTransport?.TcpPeer)?.RemoteAddress;
         public DuelRtcPeer OnlinePeer => peer as DuelRtcPeer;
         public bool OnlineMode { get; private set; }
@@ -181,7 +179,7 @@ namespace OpenZ.Multiplayer
             if (I) return;
             var go = new GameObject("OpenZ_1v1"); DontDestroyOnLoad(go); I = go.AddComponent<DuelRuntime>();
         }
-        void Awake() { I = this; Menus = gameObject.AddComponent<DuelMenus>(); Voice = gameObject.AddComponent<DuelVoice>(); SceneManager.sceneLoaded += SceneLoaded; }
+        void Awake() { I = this; Menus = gameObject.AddComponent<DuelMenus>(); SceneManager.sceneLoaded += SceneLoaded; }
         void Start()
         {
             if (!Environment.GetCommandLineArgs().Any(a => a.StartsWith("-oz-duel-", StringComparison.Ordinal))) DuelInvitationLinks.Register();
@@ -201,7 +199,7 @@ namespace OpenZ.Multiplayer
         }
         string Fingerprint()
         {
-            var text = new StringBuilder("OpenZ-VK-duel-16-team-chat\n" + DuelReplica.SchemaHash);
+            var text = new StringBuilder("OpenZ-VK-duel-17-text-chat\n" + DuelReplica.SchemaHash);
             text.Append(Resources.Load<TextAsset>("OpenZ/default_settings").text);
             var maps = OzLevelDef.All.Select(m => m.Id).Where(DuelRules.IsMapAllowed)
                 .Concat(OzAiMapCatalog.All.Where(m => m.Duel).Select(m => m.Id));

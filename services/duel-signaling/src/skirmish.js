@@ -2,11 +2,6 @@ import { json, peerIce, randomToken } from "./worker.js";
 
 const LIFETIME = 6 * 60 * 60 * 1000;
 const MONITOR_MS = 60_000;
-const CHANNELS = [
-  { dataChannelName: "openz-game", ordered: true },
-  { dataChannelName: "openz-voice", ordered: false, maxRetransmits: 0 }
-];
-
 export class SkirmishRoom {
   constructor(ctx, env) { this.ctx = ctx; this.env = env; }
 
@@ -234,14 +229,11 @@ export class SkirmishRoom {
   validId(id) { return Number.isInteger(id) && id >= 0 && id <= 65534; }
 
   async allocate(suffix, location, sessionId) {
-    const dataChannels = CHANNELS.map(channel => ({ ...channel, location, sessionId }));
+    const dataChannels = [{ dataChannelName: "openz-game", ordered: true, location, sessionId }];
     const response = await this.api(suffix + "/datachannels/new", { dataChannels });
-    const ids = CHANNELS.map(channel => response.dataChannels?.find(result => result.dataChannelName === channel.dataChannelName && !result.errorCode)?.id);
-    if (ids.some(id => !this.validId(id)) || ids[0] === ids[1]) {
-      await this.closeChannels(suffix, ids.filter(id => this.validId(id)));
-      throw new Error("Incomplete SFU channel allocation.");
-    }
-    return { game: ids[0], voice: ids[1] };
+    const game = response.dataChannels?.find(channel => channel.dataChannelName === "openz-game" && !channel.errorCode)?.id;
+    if (!this.validId(game)) throw new Error("Incomplete SFU channel allocation.");
+    return { game };
   }
 
   async closeChannels(suffix, ids) {
@@ -252,7 +244,7 @@ export class SkirmishRoom {
 
   closePublications(players) {
     return Promise.all(players.filter(player => player.session).map(player => {
-      const ids = player.published ? [player.published.game, player.published.voice] : [];
+      const ids = Object.values(player.published ?? {}).filter(id => this.validId(id));
       return this.closeChannels(`/sessions/${encodeURIComponent(player.session)}`, ids);
     }));
   }
@@ -263,7 +255,7 @@ export class SkirmishRoom {
     if (!channels) return;
     delete host.subscriptions[id];
     await this.ctx.storage.put("room", room);
-    await this.closeChannels(`/sessions/${encodeURIComponent(host.session)}`, [channels.game, channels.voice]);
+    await this.closeChannels(`/sessions/${encodeURIComponent(host.session)}`, Object.values(channels).filter(id => this.validId(id)));
   }
 
   async updateRoute(room) {

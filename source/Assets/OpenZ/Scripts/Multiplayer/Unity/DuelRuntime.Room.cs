@@ -61,8 +61,6 @@ namespace OpenZ.Multiplayer
         bool TeamChatMatch => Playing && Game && Game.World.SkirmishHasTeams;
         internal bool CanChooseChatAudience => TeamChatMatch && !LocalMatchGhost;
         internal bool ChatToAll { get; set; }
-        internal bool RoomVoiceMuted { get; private set; }
-        internal bool RoomParticipantMuted(string id) => int.TryParse(id, out int number) && RoomTransport?.IsVoiceMuted(number) == true;
 
         internal void SetRoomRules(SkirmishRules rules)
         {
@@ -92,20 +90,12 @@ namespace OpenZ.Multiplayer
             PublishRoom();
         }
 
-        internal void ModerateRoomPlayer(string id, bool? ban, string note)
+        internal void ModerateRoomPlayer(string id, bool ban, string note)
         {
             if (room == null || !int.TryParse(id, out int number) || !room.Members.Any(member => member.Id == id)) return;
-            if (ban.HasValue)
-            {
-                if (RoomTransport.TcpPeer != null && ban.Value)
-                    lock (tcpRoomBans) tcpRoomBans.Add(RoomTransport.TcpPeer.RemoteAddress);
-                RoomTransport.RemoveParticipant(number, ban.Value, note);
-                return;
-            }
-            bool muted = !RoomTransport.IsVoiceMuted(number);
-            RoomTransport.SetVoiceMuted(number, muted);
-            RoomTransport.Remotes.FirstOrDefault(link => link.Id == number)?.Send(new DuelPacket(DuelMessage.RoomVoiceMute, new[] { (byte)(muted ? 1 : 0) }));
-            Menus.Refresh();
+            if (RoomTransport.TcpPeer != null && ban)
+                lock (tcpRoomBans) tcpRoomBans.Add(RoomTransport.TcpPeer.RemoteAddress);
+            RoomTransport.RemoveParticipant(number, ban, note);
         }
 
         internal void SwapRoomForts(int source, int destination)
@@ -452,7 +442,6 @@ namespace OpenZ.Multiplayer
                 roomLinks.Add(link.Id, hostLink);
                 if (Playing && lastRoomVoteState?.Revision == room.Revision)
                     (newLinks ??= new List<SkirmishOnline.Link>()).Add(link);
-                if (RoomTransport.IsVoiceMuted(link.Id)) link.Send(new DuelPacket(DuelMessage.RoomVoiceMute, new byte[] { 1 }));
                 changed = true;
             }
             if (Now - roomRouteChangedAt > 2)
@@ -534,13 +523,6 @@ namespace OpenZ.Multiplayer
                 case DuelMessage.RoomGhostFollow:
                 case DuelMessage.RoomGhostView:
                     ReadGhostPacket(sender, packet);
-                    return;
-                case DuelMessage.RoomVoiceMute:
-                    if (!IsHost && sender.Id == 1 && packet.Payload.Length == 1)
-                    {
-                        RoomVoiceMuted = packet.Payload[0] != 0;
-                        Menus.Refresh();
-                    }
                     return;
                 case DuelMessage.Surrender:
                     if (IsHost && Playing && Game && !MapChangeActive && room.HumanTeam(RoomGuest(sender.Id)) != Team.Neutral)
@@ -666,7 +648,6 @@ namespace OpenZ.Multiplayer
             roomEpoch = roomDrainIndex = 0;
             ResetEndLobby();
             roomLoadedScene = false;
-            RoomVoiceMuted = false;
             roomReplicaChanged = false;
             roomCapture = null;
             roomFinalStats = null;
@@ -706,7 +687,6 @@ namespace OpenZ.Multiplayer
             startAt = -1;
             loadedRoomRevision = revision;
             session = loadStarted = true;
-            if (IsHost) RoomTransport.IsSpectatorVoice = id => session && IsRoomGhost(id);
             Status = "Loading the battlefield…";
             OzPlayBlue.Disarm("multiplayer skirmish");
             BeginBattlefieldLoad(map.Id, map.ScenePath);

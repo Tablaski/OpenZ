@@ -12,7 +12,7 @@ namespace OpenZ.Multiplayer
         Command, Delta, Ping, Pong, Disconnect, Surrender, RestartRequest, RestartReply, RestartBegin, RestartNotice, MatchStats, EndReady, ReturnLobby, ProposeRules, DiagnosticsReport,
         DeltaBinaryEvents, DeltaCompressed, Rename, MatchRequest, MatchRequestState, MatchReconnectState, MatchReconnectReady, MatchPause,
         RoomCommand, RoomSnapshot, RoomOrder, RoomBattlefield, RoomVoteRequest, RoomVoteState, RoomBattlefieldCompressed,
-        RoomChat, RoomVoiceMute, RoomLobbyStatus, RoomGhostFollow, RoomGhostView
+        RoomChat, RoomLobbyStatus = 42, RoomGhostFollow, RoomGhostView
     }
 
     public sealed class DuelPacket

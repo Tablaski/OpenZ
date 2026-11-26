@@ -8,20 +8,19 @@ using System.Threading.Tasks;
 
 namespace OpenZ.Multiplayer
 {
-    /// <summary>Encrypted WebRTC data channels: reliable ordered game frames and separate lossy voice.</summary>
+    /// <summary>Encrypted WebRTC transport for reliable, ordered game frames.</summary>
     public sealed class DuelRtcPeer : IDuelPeer
     {
         const int Budget = 8 * 1024 * 1024, ChunkSize = 12000;
         static readonly ConcurrentDictionary<int, TaskCompletionSource<bool>> Gatherings = new ConcurrentDictionary<int, TaskCompletionSource<bool>>();
         static readonly DuelRtcNative.GatheringCallback Gathering = OnGathering;
         readonly ConcurrentQueue<DuelPacket> incoming = new ConcurrentQueue<DuelPacket>(), outgoing = new ConcurrentQueue<DuelPacket>();
-        readonly ConcurrentQueue<byte[]> voiceIn = new ConcurrentQueue<byte[]>(), voiceOut = new ConcurrentQueue<byte[]>();
         readonly CancellationTokenSource stop = new CancellationTokenSource();
         readonly TaskCompletionSource<bool> gathered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         readonly TaskCompletionSource<bool> authenticated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         readonly string secret, fingerprint, name;
         readonly bool relayOnly;
-        int pc = -1, game = -1, voice = -1, disposed, cleanupQueued, queuedBytes, receivedBytes, voiceInCount, voiceOutCount;
+        int pc = -1, game = -1, disposed, cleanupQueued, queuedBytes, receivedBytes;
         Task pump;
         int nativeBuffered;
         long statePayloadBytesSent;
@@ -44,8 +43,6 @@ namespace OpenZ.Multiplayer
                 DuelRtcNative.Check(DuelRtcNative.rtcSetGatheringStateChangeCallback(pc, Gathering));
                 var init = new DuelRtcNative.ChannelInit { Negotiated = true, ManualStream = true, Stream = 0 };
                 game = DuelRtcNative.Check(DuelRtcNative.rtcCreateDataChannelEx(pc, "openz-game-v1", ref init));
-                init.Stream = 1; init.Reliability = new DuelRtcNative.Reliability { Unordered = true, Unreliable = true, MaxRetransmits = 0 };
-                voice = DuelRtcNative.Check(DuelRtcNative.rtcCreateDataChannelEx(pc, "openz-voice-v1", ref init));
             }
             catch { Dispose(); throw; }
         }
@@ -82,19 +79,11 @@ namespace OpenZ.Multiplayer
             if (!incoming.TryDequeue(out packet)) return false;
             Interlocked.Add(ref receivedBytes, -packet.Payload.Length - 12); return true;
         }
-        public bool SendVoice(byte[] data)
-        {
-            if (Closed || data == null || data.Length != DuelVoiceCodec.FrameSamples) return false;
-            if (Interlocked.Increment(ref voiceOutCount) > 16) { Interlocked.Decrement(ref voiceOutCount); return false; }
-            voiceOut.Enqueue((byte[])data.Clone()); return true;
-        }
-        public bool TryReceiveVoice(out byte[] data)
-        { if (!voiceIn.TryDequeue(out data)) return false; Interlocked.Decrement(ref voiceInCount); return true; }
         async Task Pump()
         {
             try
             {
-                while (!DuelRtcNative.rtcIsOpen(game) || !DuelRtcNative.rtcIsOpen(voice))
+                while (!DuelRtcNative.rtcIsOpen(game))
                 { if (DuelRtcNative.rtcIsClosed(game)) throw new IOException("Unable to connect. Try again or use Advanced TCP/IP."); await Task.Delay(10, stop.Token).ConfigureAwait(false); }
                 var localCandidate = new StringBuilder(2048); var remoteCandidate = new StringBuilder(2048);
                 DuelRtcNative.Check(DuelRtcNative.rtcGetSelectedCandidatePair(pc, localCandidate, localCandidate.Capacity, remoteCandidate, remoteCandidate.Capacity));
@@ -102,7 +91,6 @@ namespace OpenZ.Multiplayer
                 if (relayOnly && !UsesRelay) throw new IOException("The relay check did not select a relay.");
                 Send(new DuelPacket(DuelMessage.Hello, DuelTcpPeer.EncodeHello(secret, fingerprint, name)));
                 byte[] sending = null; int offset = 0, stateBytesInFlight = 0;
-                int voiceSequence = 0, receivedVoiceSequence = 0;
                 var receive = new byte[65536]; var decoder = new DuelRtcFrameDecoder();
                 while (!Closed)
                 {
@@ -159,30 +147,6 @@ namespace OpenZ.Multiplayer
                             }
                         }
                     }
-                    if (authenticated.Task.IsCompletedSuccessfully)
-                    {
-                        if (voiceOut.TryDequeue(out var samples))
-                        {
-                            Interlocked.Decrement(ref voiceOutCount);
-                            if (DuelRtcNative.rtcGetBufferedAmount(voice) < 16000)
-                            {
-                                var frame = new byte[samples.Length + 4]; BitConverter.GetBytes(++voiceSequence).CopyTo(frame, 0); Array.Copy(samples, 0, frame, 4, samples.Length);
-                                DuelRtcNative.Check(DuelRtcNative.rtcSendMessage(voice, frame, frame.Length));
-                            }
-                        }
-                        for (int i = 0; i < 16; i++)
-                        {
-                            int size = receive.Length, result = DuelRtcNative.rtcReceiveMessage(voice, receive, ref size);
-                            if (result == -3) break;
-                            DuelRtcNative.Check(result);
-                            if (size != DuelVoiceCodec.FrameSamples + 4) continue;
-                            int sequence = BitConverter.ToInt32(receive, 0);
-                            if (sequence <= receivedVoiceSequence) continue;
-                            receivedVoiceSequence = sequence;
-                            if (Interlocked.Increment(ref voiceInCount) > 16) { Interlocked.Decrement(ref voiceInCount); continue; }
-                            var samplesIn = new byte[DuelVoiceCodec.FrameSamples]; Array.Copy(receive, 4, samplesIn, 0, samplesIn.Length); voiceIn.Enqueue(samplesIn);
-                        }
-                    }
                     await Task.Delay(2, stop.Token).ConfigureAwait(false);
                 }
             }
@@ -204,7 +168,6 @@ namespace OpenZ.Multiplayer
             Gatherings.TryRemove(id, out _);
             DuelRtcNative.rtcClosePeerConnection(id);
             if (game >= 0) DuelRtcNative.rtcDeleteDataChannel(game);
-            if (voice >= 0) DuelRtcNative.rtcDeleteDataChannel(voice);
             DuelRtcNative.rtcDeletePeerConnection(id);
         }
     }

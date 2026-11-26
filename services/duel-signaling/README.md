@@ -1,7 +1,7 @@
 # OpenZ online invitations
 
 This service handles magic invitations for 1 vs 1 and up to eight humans in
-Skirmish. Game and voice traffic use encrypted libdatachannel WebRTC. Duels
+Skirmish. Game traffic uses encrypted libdatachannel WebRTC. Duels
 retain direct connections with TURN as a fallback. Skirmish uses the same
 peer-to-peer routing with two connected humans. With three or more connected
 humans it prefers Realtime SFU when available and switches back to peer-to-peer
@@ -117,13 +117,12 @@ reporting delay without guaranteeing zero billing.
 - Game frames use reliable ordered SCTP. Existing snapshots are fragmented into
   12,000-byte messages with bounded reassembly and queue limits. Simulation and
   host authority stay unchanged. The build fingerprint is checked before play.
-- Voice retains the existing 16 kHz mu-law codec, carried on a separate lossy,
-  unordered encrypted data channel. No raw voice UDP port is used online.
+- Skirmish SFU allocates one reliable, ordered game data channel per publication or subscription.
 - This libjuice-backed build supports **TURN over UDP**, not TURN over TCP/TLS.
   Networks blocking all UDP can still fail. No universal connectivity guarantee
   is claimed. Adding TCP/TLS relay transport requires a compatible ICE backend.
 - Full ICE gathering precedes SDP exchange. Signaling is closed once connected;
-  no game or voice packets pass through Workers. Rooms expire after 30 minutes.
+  no gameplay packets pass through Workers. Rooms expire after 30 minutes.
   Existing peer connections continue after room deletion.
 - TURN credentials expire after six hours. No credential refresh or ICE
   restart during a match is implemented. Start a new invitation for another
@@ -135,7 +134,8 @@ reporting delay without guaranteeing zero billing.
 - The endpoint is pinned in the build or explicit local settings. Invitations
   do not redirect room credentials to arbitrary servers.
 - Direct connections reveal network addresses to peers. STUN does not hide IPs.
-- Advanced TCP/IP and its existing UDP voice are preserved as a separate mode.
+- Advanced TCP/IP is available as a separate mode.
+- Coordinate Worker rollout with the compiled game update. Earlier compiled games expect a second SFU channel and fall back to direct connections with this Worker.
 
 ## Validate
 

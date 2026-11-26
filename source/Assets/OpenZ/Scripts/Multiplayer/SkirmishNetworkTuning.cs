@@ -5,7 +5,7 @@ namespace OpenZ.Multiplayer
     internal sealed class SkirmishNetworkTuning
     {
         internal const int InitialHz = 15, MinHz = 6, MaxHz = 20;
-        // Target aggregate paid egress for state, leaving room for voice, control and protocol overhead.
+        // Target aggregate paid egress for state, leaving room for control and protocol overhead.
         internal const int SfuStateTarget = 96 * 1024;
         internal int Hz { get; private set; } = InitialHz;
         int clearWindows;

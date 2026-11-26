@@ -144,7 +144,7 @@ namespace OpenZ
             buttons.Clear();
         }
 
-        void OnDestroy() { if (OpenZ.Multiplayer.DuelRuntime.I) OpenZ.Multiplayer.DuelRuntime.I.Voice.HudMonitoring = false; if (I == this) I = null; if (input && gatedByUs) input.enabled = true; }
+        void OnDestroy() { if (I == this) I = null; if (input && gatedByUs) input.enabled = true; }
 
         bool prebuilt;
         Behaviour[] SubParts => new Behaviour[] { Rally, Minimap, Production, Overlay, Cursors, Pause, EndScreen, Help };

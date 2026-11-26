@@ -19,11 +19,10 @@ namespace OpenZ.Multiplayer
         readonly object gate = new object();
         readonly Dictionary<int, Subscription> subscriptions = new Dictionary<int, Subscription>();
         readonly ConcurrentQueue<(int target, DuelPacket packet)> outgoing = new ConcurrentQueue<(int, DuelPacket)>();
-        readonly ConcurrentQueue<byte[]> voice = new ConcurrentQueue<byte[]>();
         readonly byte[] receive = new byte[65536];
         readonly byte[] chunk = new byte[FrameChunk + sizeof(int)];
         readonly int localId;
-        int pc = -1, setup = -1, game = -1, microphone = -1, backlog, buffered, voiceCount;
+        int pc = -1, setup = -1, game = -1, backlog, buffered;
         volatile int connectionState;
         volatile bool gathered, failed;
         byte[] writing;
@@ -63,7 +62,7 @@ namespace OpenZ.Multiplayer
         {
             if (string.IsNullOrEmpty(offer) || offer.Length > 60000) throw new IOException("Invalid SFU connection offer.");
             DuelRtcNative.Check(DuelRtcNative.rtcSetRemoteDescription(pc, offer, "offer"));
-            setup = Create("server-events", setupId, false);
+            setup = Create("server-events", setupId);
             DuelRtcNative.Check(DuelRtcNative.rtcSetLocalDescription(pc, "answer"));
             var sdp = new StringBuilder(65536);
             while (!gathered) await Task.Delay(20, cancel).ConfigureAwait(false);
@@ -82,23 +81,22 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        public void Publish(int gameId, int voiceId)
+        public void Publish(int gameId)
         {
             lock (gate)
             {
-                game = Create("openz-game", gameId, false);
-                microphone = Create("openz-voice", voiceId, true);
+                game = Create("openz-game", gameId);
             }
         }
 
-        public Subscription Subscribe(int id, int gameId, int voiceId)
+        public Subscription Subscribe(int id, int gameId)
         {
             lock (gate)
             {
-                int channel = Create("openz-game", gameId, false);
+                int channel = Create("openz-game", gameId);
                 try
                 {
-                    var result = new Subscription(channel, Create("openz-voice", voiceId, true));
+                    var result = new Subscription(channel);
                     subscriptions.Add(id, result);
                     return result;
                 }
@@ -113,16 +111,14 @@ namespace OpenZ.Multiplayer
                 if (!subscriptions.TryGetValue(id, out var subscription)) return;
                 subscriptions.Remove(id);
                 Delete(subscription.Game);
-                Delete(subscription.Voice);
                 subscription.Closed = true;
             }
         }
 
-        int Create(string label, int stream, bool lossy)
+        int Create(string label, int stream)
         {
             if (stream < 0 || stream >= ushort.MaxValue) throw new IOException("Invalid SFU channel allocation.");
             var init = new DuelRtcNative.ChannelInit { Negotiated = true, ManualStream = true, Stream = (ushort)stream };
-            if (lossy) init.Reliability = new DuelRtcNative.Reliability { Unordered = true, Unreliable = true, MaxRetransmits = 0 };
             return DuelRtcNative.Check(DuelRtcNative.rtcCreateDataChannelEx(pc, label, ref init));
         }
 
@@ -137,21 +133,6 @@ namespace OpenZ.Multiplayer
             }
             Interlocked.Add(ref backlog, -length);
             return false;
-        }
-
-        public bool SendVoice(byte[] frame, int route)
-        {
-            if (Failed || frame?.Length != DuelVoiceCodec.FrameSamples) return false;
-            if (Interlocked.Increment(ref voiceCount) > 8)
-            {
-                Interlocked.Decrement(ref voiceCount);
-                return false;
-            }
-            var packet = new byte[sizeof(int) + frame.Length / 2];
-            Buffer.BlockCopy(BitConverter.GetBytes(route), 0, packet, 0, sizeof(int));
-            for (int i = 0; i < frame.Length / 2; i++) packet[sizeof(int) + i] = frame[i * 2];
-            voice.Enqueue(packet);
-            return true;
         }
 
         public async Task Pump(CancellationToken cancel)
@@ -173,7 +154,7 @@ namespace OpenZ.Multiplayer
         {
             if (connectionState >= 3 || (game >= 0 && DuelRtcNative.rtcIsClosed(game)))
                 throw new IOException("The SFU connection closed.");
-            bool published = game >= 0 && DuelRtcNative.rtcIsOpen(game) && DuelRtcNative.rtcIsOpen(microphone);
+            bool published = game >= 0 && DuelRtcNative.rtcIsOpen(game);
             if (published)
             {
                 long now = Stopwatch.GetTimestamp();
@@ -214,21 +195,14 @@ namespace OpenZ.Multiplayer
                     }
                 }
                 Volatile.Write(ref buffered, nativeBytes + (writing == null ? 0 : writing.Length - offset));
-                while (voice.TryDequeue(out var frame))
-                {
-                    Interlocked.Decrement(ref voiceCount);
-                    if (DuelRtcNative.rtcGetBufferedAmount(microphone) < 4096)
-                        DuelRtcNative.Check(DuelRtcNative.rtcSendMessage(microphone, frame, frame.Length));
-                }
             }
             foreach (var subscription in subscriptions.Values)
             {
                 if (subscription.Closed) continue;
                 if (DuelRtcNative.rtcIsClosed(subscription.Game)) { subscription.Closed = true; continue; }
-                subscription.Ready = published && DuelRtcNative.rtcIsOpen(subscription.Game) && DuelRtcNative.rtcIsOpen(subscription.Voice);
+                subscription.Ready = published && DuelRtcNative.rtcIsOpen(subscription.Game);
                 if (!subscription.Ready) continue;
                 ReadGame(subscription);
-                ReadVoice(subscription);
             }
         }
 
@@ -255,25 +229,6 @@ namespace OpenZ.Multiplayer
             }
         }
 
-        void ReadVoice(Subscription subscription)
-        {
-            for (int i = 0; i < 8; i++)
-            {
-                int count = receive.Length;
-                int result = DuelRtcNative.rtcReceiveMessage(subscription.Voice, receive, ref count);
-                if (result == -3) return;
-                DuelRtcNative.Check(result);
-                if (count != DuelVoiceCodec.FrameSamples / 2 + sizeof(int)) continue;
-                int route = BitConverter.ToInt32(receive, 0);
-                // Positive routes exclude a sender, while a negative route addresses one recipient.
-                if (route == localId || route < 0 && route != -localId) continue;
-                var frame = new byte[DuelVoiceCodec.FrameSamples];
-                for (int j = 0; j < frame.Length / 2; j++) frame[2 * j] = frame[2 * j + 1] = receive[sizeof(int) + j];
-                if (subscription.VoiceFrames.Count >= 8) subscription.VoiceFrames.TryDequeue(out _);
-                subscription.VoiceFrames.Enqueue(frame);
-            }
-        }
-
         static void Delete(int channel) { if (channel >= 0) DuelRtcNative.rtcDeleteDataChannel(channel); }
 
         public void Dispose()
@@ -287,10 +242,8 @@ namespace OpenZ.Multiplayer
                 {
                     subscription.Closed = true;
                     Delete(subscription.Game);
-                    Delete(subscription.Voice);
                 }
                 Delete(game);
-                Delete(microphone);
                 Delete(setup);
                 DuelRtcNative.rtcClosePeerConnection(pc);
                 DuelRtcNative.rtcDeletePeerConnection(pc);
@@ -300,14 +253,13 @@ namespace OpenZ.Multiplayer
 
         internal sealed class Subscription
         {
-            internal readonly int Game, Voice;
+            internal readonly int Game;
             internal readonly ConcurrentQueue<DuelPacket> Packets = new ConcurrentQueue<DuelPacket>();
-            internal readonly ConcurrentQueue<byte[]> VoiceFrames = new ConcurrentQueue<byte[]>();
             internal readonly DuelRtcFrameDecoder Decoder = new DuelRtcFrameDecoder();
             internal volatile bool Ready, Closed;
             internal int QueuedBytes;
 
-            internal Subscription(int game, int voice) { Game = game; Voice = voice; }
+            internal Subscription(int game) { Game = game; }
 
             internal bool TryReceive(out DuelPacket packet)
             {

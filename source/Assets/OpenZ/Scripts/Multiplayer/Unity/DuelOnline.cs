@@ -36,7 +36,7 @@ namespace OpenZ.Multiplayer
     [Serializable] sealed class DuelIceResponse { public DuelIceServer[] iceServers; public bool relay; public string relayReason, relayRemainingBytes, error; }
     [Serializable] sealed class DuelSignal { public string type, sdp; }
 
-    /// <summary>Small HTTPS/WebSocket signaling client. Game and voice never pass through the lobby.</summary>
+    /// <summary>Small HTTPS/WebSocket signaling client. Gameplay traffic travels over separate peer connections.</summary>
     public sealed class DuelOnline : IDisposable
     {
         static readonly HttpClient Http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };

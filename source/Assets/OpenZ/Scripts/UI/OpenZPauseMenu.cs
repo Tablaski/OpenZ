@@ -384,19 +384,18 @@ namespace OpenZ
         const int RoomyRows = 9;
         void BuildOptTabs(RectTransform p)
         {
-            bool duel = OpenZ.Multiplayer.DuelRuntime.Active;
             float x = OzLayout.OptX, w = OzLayout.PauseW - 2 * OzLayout.OptX;
-            int n = OzSettingTips.TabNames.Length + (duel ? 1 : 0);
+            int n = OzSettingTips.TabNames.Length;
             float unitWidth = (w - OzLayout.OptTabGap * (n - 1)) / n;
-            float[] weights = duel ? new[] { .68f, .68f, .95f, 1f, 1.69f } : new[] { .86f, .86f, 1.09f, 1.19f };
+            float[] weights = new[] { .86f, .86f, 1.09f, 1.19f };
             optTabBtns.Clear();
             float tabX = x;
             for (int i = 0; i < n; i++)
             {
                 int id = i;
                 float bw = unitWidth * weights[i];
-                string label = i == MicrophoneTab ? OzForkOptions.AudioDevicesLabel : OzSettingTips.TabNames[i];
-                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, i == MicrophoneTab && duel ? 9 : 11, 0.06f);
+                string label = OzSettingTips.TabNames[i];
+                var b = HudButton.Make(p, "Tab" + i, label, new Vector2(bw, OzLayout.OptTabH), HudButtonKind.Small, 11, 0.06f);
                 b.Label.At(bw * .5f, OzLayout.OptTabH * .5f, OzH.C, true, bw - 8f);
                 OzForkOptions.Highlight(b, label);
                 b.Rt.Place(new OzRect(tabX, OzLayout.OptTabY, bw, OzLayout.OptTabH));
@@ -414,7 +413,6 @@ namespace OpenZ
                 if (rows.Count > RoomyRows) { step = OzLayout.OptToggleStep * (RoomyRows - 1) / (rows.Count - 1); rowH = Mathf.Min(rowH, step - 4f); }   // v1.3: more rows than fit the 600 panel: the tab keeps a 9-row tab's height
                 for (int k = 0; k < rows.Count; k++) rows[k].row.Rt.Place(new OzRect(x, top + step * k, w, rowH));
             }
-            if (duel) BuildMicrophoneTab();
             ShowOptTab(Mathf.Clamp(optTab, 0, n - 1));
         }
 
@@ -422,7 +420,6 @@ namespace OpenZ
         void ShowOptTab(int tab)
         {
             optTab = tab; dragging = null;
-            SetMicrophoneTabVisible(tab == MicrophoneTab);
             foreach (var t in toggles) t.row.Rt.gameObject.SetActiveFast(t.tab == tab && OzSettingTips.Visible(t.label));
             if (tab == OzSettingTips.TabGraphics) graphicsQuality.Refresh();
             if (optMainPage) optMainPage.gameObject.SetActiveFast(tab == OzSettingTips.TabMain);
@@ -535,7 +532,6 @@ namespace OpenZ
             if (!IsOpen) return;
             IsOpen = false; closing = true; closeAt = OzMotion.Now;
             buildKeyOptions?.Cancel();
-            microphoneBinding = false; if (microphonePage && MicrophoneVoice) MicrophoneVoice.Monitoring = false;
             PlayerPrefs.Save();                                                                              // menu_exe_v1: sliders / speed saved when the menu closes
             game.paused = wasPaused;
             Time.timeScale = Multiplayer.DuelRuntime.MatchPlayPaused ? 0f : prevScale > 0f ? prevScale : 1f;
@@ -599,7 +595,6 @@ namespace OpenZ
             if (OzFpsView.EscTaken) esc = false;                                                     // 1.4 fps_view: Esc leaves the first-person view, never opens this menu (View/OzFpsView.cs)
             if (OzForkOptions.CaptureChatBinding()) esc = false;
             if (IsOpen && showControls && showBuildKeys && !OzConfirm.Blocks && buildKeyOptions?.Capture() == true) esc = false;
-            if (microphoneBinding) { TickMicrophoneBinding(); esc = false; }
             if (Multiplayer.DuelRuntime.Active && Multiplayer.DuelRuntime.I.Playing) esc = DuelEscape(kb, esc);
             else
             {
@@ -611,7 +606,6 @@ namespace OpenZ
                 if (IsOpen) Close();
                 else if (CanOpenFromEscape) Open();
             }
-            TickMicrophone();
             ApplyShake();
             if (Time.unscaledTime < audioRetryUntil && Time.unscaledTime > nextAudioRetry) { nextAudioRetry = Time.unscaledTime + 2f; OzAudio.Apply(); }   // the audio table may load after the HUD
             if (IsOpen)

@@ -14,13 +14,9 @@ namespace OpenZ.Multiplayer
 {
     public sealed partial class DuelMenus : MonoBehaviour
     {
-        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Microphone, Error, End, Diagnostics, MatchRequest, Reconnect, Skirmish, RoomVote, RoomPlayers, SkirmishLoading }
+        enum Page { Entry, Connect, Lobby, Loading, Game, Chat, Error, End, Diagnostics, MatchRequest, Reconnect, Skirmish, RoomVote, RoomPlayers, SkirmishLoading }
         Page page, builtPage;
-        Page microphoneReturn;
-        bool deviceList;
         bool pauseWasOpen;
-        Image inputMeter;
-        OzText meterValue, gainValue, speakerValue, windowsOutput;
         readonly List<(string text, double expires, bool chat)> notices = new List<(string, double, bool)>();
         DuelRuntime R => DuelRuntime.I;
         Canvas canvas;
@@ -31,22 +27,18 @@ namespace OpenZ.Multiplayer
         string previewKey;
         Texture2D mapPreview;
         string name = "PLAYER", address = "127.0.0.1", port = "27888", invite = "", chat = "";
-        OzText ping, lobbyConnectionStatus, voiceStatus, planningTime;
+        OzText ping, lobbyConnectionStatus, planningTime;
         Image planningProgress;
         InputField chatField;
         OzText chatHistory;
         int chatHistoryLines;
-        Image chatMicrophoneCapsule, chatMicrophoneMuted, chatInputMeter;
-        OzText chatVoiceStatus, chatGain;
         ScrollRect lobbyChatScroll;
         Text lobbyChatLog;
         float onlineChatPosition;
-        bool bindingChat, bindingTalk;
         bool advanced;
         string lastConnectionStatus, lastRoom;
         double endedAt = -1;
-        public bool IsTyping => OzForkOptions.BindingChat || bindingChat || bindingTalk ||
-            (OpenZHud.I && OpenZHud.I.Pause && OpenZHud.I.Pause.MicrophoneBinding) ||
+        public bool IsTyping => OzForkOptions.BindingChat ||
             (EventSystem.current && EventSystem.current.currentSelectedGameObject &&
              EventSystem.current.currentSelectedGameObject.TryGetComponent<InputField>(out var input) && input.isFocused);
         Key ChatKey => (Key)PlayerPrefs.GetInt("oz_duel_chat_key", (int)Key.Enter);
@@ -93,7 +85,6 @@ namespace OpenZ.Multiplayer
             if (page == Page.Entry) dirty = true;
         }
         public void OpenChat() { if (R.MatchMenusBlocked) return; FindFirstObjectByType<OpenZPauseMenu>()?.Close(); page = Page.Chat; dirty = true; }
-        void OpenMicrophone() { if (R.Playing) { CloseOverlay(); FindFirstObjectByType<OpenZPauseMenu>()?.OpenOptions(OpenZPauseMenu.MicrophoneTab); return; } microphoneReturn = page; deviceList = false; page = Page.Microphone; dirty = true; }
         void Awake() { name = PlayerPrefs.GetString("oz_duel_name", "PLAYER"); }
         void Update()
         {
@@ -130,26 +121,17 @@ namespace OpenZ.Multiplayer
             }
             else endedAt = -1;
             if (page == Page.Diagnostics && !R.Playing) { page = Page.Entry; dirty = true; }
-            bool wasBinding = bindingChat || bindingTalk;
-            if (wasBinding && Keyboard.current != null)
-                foreach (var key in Keyboard.current.allKeys)
-                    if (key.wasPressedThisFrame)
-                    {
-                        if (key.keyCode != Key.Escape) PlayerPrefs.SetInt(bindingTalk ? "oz_duel_talk_key" : "oz_duel_chat_key", (int)key.keyCode);
-                        bindingChat = bindingTalk = false; PlayerPrefs.Save(); dirty = true; break;
-                    }
-            if (!R.EndLobbyOpen && !R.MatchMenusBlocked && ((R.InMatch && R.Playing) || page == Page.Microphone) && Keyboard.current != null && !wasBinding)
+            if (!R.EndLobbyOpen && !R.MatchMenusBlocked && R.InMatch && R.Playing && Keyboard.current != null)
             {
                 if (page == Page.Entry && !pauseOpen && !OzConfirm.Blocks && !IsTyping && DiagnosticsGesture())
                 { page = Page.Diagnostics; dirty = true; }
                 else if (page == Page.Entry && !(R.Game && R.Game.World.GameOver) &&
                     !pauseOpen && !OzConfirm.Blocks && !IsTyping && !OzBuildKeys.TakesPriority(Keyboard.current, ChatKey) && Keyboard.current[ChatKey].wasPressedThisFrame) OpenChat();
                 else if (page != Page.Entry && !OzConfirm.Blocks && Keyboard.current.escapeKey.wasPressedThisFrame)
-                { page = page == Page.Microphone ? microphoneReturn : Page.Entry; dirty = true; }
+                { page = Page.Entry; dirty = true; }
             }
             FollowSetupNavigation();
             if (dirty) { dirty = false; Build(); }
-            R.Voice.ChatMonitoring = chatInputMeter && R.Connected;
             if (page == Page.Diagnostics) UpdateDiagnosticsPanel();
             if ((page == Page.MatchRequest || page == Page.RoomVote) && R.MapChangeActive)
                 requestTime?.Set(Math.Ceiling(R.MapChangeSeconds) + " s");
@@ -158,13 +140,6 @@ namespace OpenZ.Multiplayer
             if (page == Page.Reconnect) requestTime?.Set(Math.Ceiling(R.ReconnectSeconds).ToString());
             ping?.Set("PING " + R.PingMs.ToString("0") + " MS");
             lobbyConnectionStatus?.Set(R.ConnectionStatus);
-            voiceStatus?.Set(R.Voice.Status);
-            if (inputMeter) { inputMeter.rectTransform.anchorMax = new Vector2(R.Voice.InputLevel, 1); inputMeter.color = R.Voice.InputLevel > .95f ? OzUi.AlertText : OzUi.Go; }
-            meterValue?.Set("INPUT LEVEL: " + Mathf.RoundToInt(R.Voice.InputLevel * 100) + "%");
-            gainValue?.Set("MICROPHONE GAIN: " + Mathf.RoundToInt(R.Voice.Gain * 100) + "%");
-            speakerValue?.Set("VOICE PLAYBACK: " + Mathf.RoundToInt(R.Voice.SpeakerVolume * 100) + "%");
-            windowsOutput?.Set(OzWindowsSound.OutputStatus);
-            if (chatInputMeter) UpdateChatMicrophone();
             if (planningTime != null)
             {
                 var game = ZGame.I;
@@ -206,11 +181,8 @@ namespace OpenZ.Multiplayer
             if (overlayRoot) { overlayRoot.gameObject.SetActive(false); Destroy(overlayRoot.gameObject); }
             if (page != Page.Lobby && page != Page.Skirmish) ReleaseLobbyFlyby();
             lobbyFlybyImage = null;
-            ping = lobbyConnectionStatus = voiceStatus = meterValue = gainValue = planningTime = null; inputMeter = planningProgress = null; chatField = null;
-            speakerValue = windowsOutput = chatVoiceStatus = null;
-            chatHistory = chatGain = null; lobbyChatScroll = null; lobbyChatLog = null;
-            chatMicrophoneCapsule = chatMicrophoneMuted = chatInputMeter = null;
-            R.Voice.Monitoring = page == Page.Microphone;
+            ping = lobbyConnectionStatus = planningTime = null; planningProgress = null; chatField = null;
+            chatHistory = null; lobbyChatScroll = null; lobbyChatLog = null;
             if (!canvas)
             {
                 var go = new GameObject("DuelCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -222,7 +194,6 @@ namespace OpenZ.Multiplayer
             overlayRoot = root;
             if (page == Page.Skirmish || OnlineRoomPage) root = CreateSkirmishFrame(overlayRoot);
             onlinePingLabels.Clear();
-            onlineVoiceLabels.Clear();
             onlineDetailPingLabels.Clear();
             onlineVariationLabels.Clear();
             if (!EventSystem.current)
@@ -284,7 +255,6 @@ namespace OpenZ.Multiplayer
             else if (page == Page.Lobby) { if (R.SkirmishRoom) BuildOnlineRoom(); else BuildLobby(); }
             else if (page == Page.Game) BuildGameMenu();
             else if (page == Page.RoomPlayers) BuildInMatchRoomPlayers();
-            else if (page == Page.Microphone) BuildMicrophone();
             else if (page == Page.End)
             {
                 bool won = R.Game.World.IsWinningSeat(R.LocalTeam);
@@ -560,18 +530,16 @@ namespace OpenZ.Multiplayer
         void BuildRoomModeration(int x, int y, int width)
         {
             var member = R.HostedRoom.Members.FirstOrDefault(player => player.Id == roomModeration);
-            var panel = Panel("MANAGE PLAYER", x, y, width, 465);
+            var panel = Panel("MANAGE PLAYER", x, y, width, 393);
             Button(panel, "CLOSE", width - 146, 11, 125, () => { roomModeration = null; dirty = true; }, height: 36);
             if (member.Id == null) return;
             Label(panel, member.Name, 30, 55, width - 60, 24, OzUi.Ink);
-            Button(panel, R.RoomParticipantMuted(member.Id) ? "RESTORE VOICE" : "MUTE VOICE", 30, 103, 380,
-                () => R.ModerateRoomPlayer(member.Id, null, null));
-            Input(panel, "Optional message to this player", 30, 175, width - 60, roomModerationNote, value => roomModerationNote = value, 160);
-            Button(panel, "KICK PLAYER", 30, 244, (width - 75) / 2, () => Confirm(false));
-            Button(panel, "KICK AND BAN", (width - 75) / 2 + 45, 244, (width - 75) / 2, () => Confirm(true));
-            Label(panel, "A ban applies to this lobby and blocks rejoins from the same network.", 30, 320, width - 60, 16, OzUi.Muted);
+            Input(panel, "Optional message to this player", 30, 103, width - 60, roomModerationNote, value => roomModerationNote = value, 160);
+            Button(panel, "KICK PLAYER", 30, 172, (width - 75) / 2, () => Confirm(false));
+            Button(panel, "KICK AND BAN", (width - 75) / 2 + 45, 172, (width - 75) / 2, () => Confirm(true));
+            Label(panel, "A ban applies to this lobby and blocks rejoins from the same network.", 30, 248, width - 60, 16, OzUi.Muted);
             if (OnlineRoomPage && member.Seat.Role == MatchSeatRole.Human)
-                Button(panel, "MOVE TO GHOSTS", 30, 368, width - 60, () =>
+                Button(panel, "MOVE TO GHOSTS", 30, 296, width - 60, () =>
                 {
                     R.SetRoomObserver(member.Id);
                     roomModeration = null;
@@ -1202,50 +1170,6 @@ namespace OpenZ.Multiplayer
         {
             OpenChat();
         }
-        void BuildMicrophone()
-        {
-            var panel = Panel(OzForkOptions.AudioDevicesLabel, 420, 143, 1080, 790);
-            Button(panel, R.RoomVoiceMuted ? "VOICE MUTED BY HOST" : "MICROPHONE: " + R.Voice.ModeName + " · CLICK TO CHANGE", 30, 70, 1020,
-                () => { R.Voice.CycleMode(); dirty = true; }, enabled: !R.RoomVoiceMuted);
-            Button(panel, "MICROPHONE: " + R.Voice.Device + "  v", 30, 140, 1020, () => { deviceList = !deviceList; dirty = true; });
-            gainValue = Label(panel, "", 30, 214, 1020, 20, OzUi.Ink);
-            AudioSlider(panel, "MicrophoneGain", 245, 4, R.Voice.Gain, v => R.Voice.Gain = v);
-            meterValue = Label(panel, "INPUT LEVEL", 30, 291, 1020, 20, OzUi.Ink);
-            var meter = Hud.Img(panel, "InputMeterTrack", OzUi.GM950); meter.rectTransform.TL(30, 320, 1020, 20);
-            inputMeter = Hud.Img(meter.transform, "InputMeter", OzUi.Go); inputMeter.rectTransform.Fill(); inputMeter.rectTransform.anchorMax = new Vector2(0, 1); inputMeter.raycastTarget = false;
-            voiceStatus = Label(panel, R.Voice.Status, 30, 354, 1020, 18, OzUi.Muted);
-            Button(panel, bindingTalk ? "PRESS A KEY… (ESC TO CANCEL)" : "TAP TO SPEAK: " + R.Voice.TalkKey, 30, 390, 1020, () => { bindingTalk = true; dirty = true; });
-            speakerValue = Label(panel, "", 30, 471, 1020, 20, OzUi.Ink);
-            AudioSlider(panel, "SpeakerVolume", 502, 1, R.Voice.SpeakerVolume, v => R.Voice.SpeakerVolume = v);
-            if (OzWindowsSound.Available)
-            {
-                windowsOutput = Label(panel, "", 30, 552, 1020, 18, OzUi.Muted);
-                Button(panel, "−", 30, 590, 75, () => OzWindowsSound.StepVolume(-.1f));
-                Button(panel, "+", 115, 590, 75, () => OzWindowsSound.StepVolume(.1f));
-                Button(panel, "TOGGLE WINDOWS MUTE", 200, 590, 340, OzWindowsSound.ToggleMute);
-                Button(panel, "CHOOSE OUTPUT IN WINDOWS", 550, 590, 300, OzWindowsSound.OpenSettings);
-                Button(panel, "WINDOWS MIXER", 860, 590, 190, OzWindowsSound.OpenMixer);
-            }
-            Button(panel, "BACK", 30, 695, 1020, () => { PlayerPrefs.Save(); page = microphoneReturn; dirty = true; });
-            if (deviceList)
-            {
-                var devices = new[] { "System default" }.Concat(Microphone.devices).ToArray();
-                var content = Scroll(panel, 30, 190, 1020, 330, false, Math.Max(330, devices.Length * 52));
-                for (int i = 0; i < devices.Length; i++)
-                {
-                    string selected = i == 0 ? null : devices[i];
-                    Button(content, devices[i], 0, i * 52, 1000, () => { R.Voice.SelectDevice(selected); deviceList = false; dirty = true; });
-                }
-            }
-        }
-        static void AudioSlider(RectTransform panel, string name, float y, float max, float value, Action<float> changed)
-        {
-            var track = Hud.Img(panel, name, OzUi.GM950); track.rectTransform.TL(30, y, 1020, 20); track.raycastTarget = true;
-            var fill = Hud.Img(track.transform, "Fill", OzUi.Amber); fill.rectTransform.Fill(); fill.raycastTarget = false;
-            var handle = Hud.Img(track.transform, "Handle", OzUi.Ink); handle.rectTransform.sizeDelta = new Vector2(20, 28); handle.raycastTarget = true;
-            var slider = track.gameObject.AddComponent<Slider>(); slider.fillRect = fill.rectTransform; slider.handleRect = handle.rectTransform; slider.targetGraphic = handle;
-            slider.maxValue = max; slider.value = value; slider.onValueChanged.AddListener(v => changed(v));
-        }
         void BuildChat()
         {
             BuildChatPanel(70, 750, 920, 290);
@@ -1260,7 +1184,7 @@ namespace OpenZ.Multiplayer
         void BuildLobbyChat()
         {
             var panel = Panel("LOBBY CHAT", 80, 776, 1740, 211);
-            var content = Scroll(panel, 24, 52, 903, 86, false, 86);
+            var content = Scroll(panel, 24, 52, 1692, 86, false, 86);
             lobbyChatScroll = content.parent.GetComponent<ScrollRect>();
             lobbyChatLog = Hud.Node("Chat history", content).gameObject.AddComponent<Text>();
             lobbyChatLog.rectTransform.Fill(10, 4, 10, 4);
@@ -1268,51 +1192,14 @@ namespace OpenZ.Multiplayer
             lobbyChatLog.color = OzUi.Ink; lobbyChatLog.supportRichText = false; lobbyChatLog.raycastTarget = false;
             lobbyChatLog.verticalOverflow = VerticalWrapMode.Overflow;
             RefreshChatHistory();
-            chatField = Input(panel, "", 24, 151, 746, chat, value => chat = value, 240);
+            chatField = Input(panel, "", 24, 151, 1535, chat, value => chat = value, 240);
             chatField.onSubmit.AddListener(_ => SendChat());
-            Button(panel, "SEND", 785, 151, 142, SendChat);
-
-            var line = Hud.Img(panel, "Voice separator", new Color(.43f, .44f, .39f, .5f));
-            line.rectTransform.TL(952, 20, 1, 173); line.raycastTarget = false;
-            Label(panel, "MICROPHONE", 976, 20, 250, 19, OzUi.Amber);
-            chatVoiceStatus = Label(panel, "", 1408, 20, 310, 16, OzUi.Ink);
-            Label(panel, "INPUT LEVEL", 976, 62, 158, 15, OzUi.Muted);
-            chatGain = Label(panel, "", 976, 99, 220, 15, OzUi.Muted);
-            var meter = Hud.Img(panel, "ChatInputTrack", OzUi.GM950);
-            meter.rectTransform.TL(1133, 66, 580, 15); meter.raycastTarget = false;
-            chatInputMeter = Hud.Img(meter.transform, "ChatInputLevel", OzUi.Amber);
-            chatInputMeter.rectTransform.Fill(); chatInputMeter.raycastTarget = false;
-            var mode = R.Voice.Mode;
-            MicrophoneModeButton("MUTE", 976, 118, DuelVoice.MicrophoneMode.Mute);
-            MicrophoneModeButton("ALWAYS ON", 1107, 144, DuelVoice.MicrophoneMode.AlwaysOn);
-            MicrophoneModeButton("TAP TO SPEAK  [" + R.Voice.TalkKey + "]", 1264, 202, DuelVoice.MicrophoneMode.TapToSpeak);
-            Button(panel, OzForkOptions.AudioDevicesLabel, 1480, 151, 235, OpenMicrophone);
-            UpdateChatMicrophone();
-
-            void MicrophoneModeButton(string title, int x, int width, DuelVoice.MicrophoneMode next) =>
-                Button(panel, title, x, 151, width, () =>
-                {
-                    if (mode == next) return;
-                    R.Voice.SetMode(next); dirty = true;
-                }, mode == next, !R.RoomVoiceMuted);
+            Button(panel, "SEND", 1574, 151, 142, SendChat);
         }
 
         void BuildChatPanel(float x, float y, float w, float h)
         {
             var panel = Panel("TEXT CHAT", x, y, w, h);
-            var mic = Button(panel, "", w - 276, 5, 65, () => { R.Voice.ToggleMicrophone(); UpdateChatMicrophone(); }, enabled: !R.RoomVoiceMuted);
-            mic.name = "Toggle microphone";
-            // A microphone silhouette uses UI primitives so it needs no external font or texture.
-            chatMicrophoneCapsule = Hud.Img(mic, "Microphone capsule", OzUi.Muted); chatMicrophoneCapsule.rectTransform.TL(27, 8, 10, 18); chatMicrophoneCapsule.raycastTarget = false;
-            var baseLine = Hud.Img(mic, "Microphone base", OzUi.Ink); baseLine.rectTransform.TL(21, 33, 22, 3); baseLine.raycastTarget = false;
-            var stem = Hud.Img(mic, "Microphone stem", OzUi.Ink); stem.rectTransform.TL(30, 26, 4, 9); stem.raycastTarget = false;
-            chatMicrophoneMuted = Hud.Img(mic, "Muted", OzUi.AlertText); chatMicrophoneMuted.rectTransform.TL(15, 22, 35, 3); chatMicrophoneMuted.rectTransform.localRotation = Quaternion.Euler(0, 0, 45); chatMicrophoneMuted.raycastTarget = false;
-            chatVoiceStatus = Label(panel, "", w - 460, 10, 174, 12, OzUi.Muted);
-            var meter = Hud.Img(panel, "ChatInputTrack", OzUi.GM950);
-            meter.rectTransform.TL(w - 460, 31, 165, 6);
-            chatInputMeter = Hud.Img(meter.transform, "ChatInputLevel", OzUi.Amber);
-            chatInputMeter.rectTransform.Fill();
-            Button(panel, OzForkOptions.AudioDevicesLabel, w - 201, 5, 186, OpenMicrophone);
             chatHistoryLines = h > 200 ? 5 : 2;
             float historyY = 48;
             if (R.CanChooseChatAudience)
@@ -1328,25 +1215,6 @@ namespace OpenZ.Multiplayer
             chatField.onSubmit.AddListener(_ => SendChat());
             Button(panel, "SEND", w - 175, h - 62, 150, SendChat);
         }
-        void UpdateChatMicrophone()
-        {
-            var voice = R.Voice;
-            bool enabled = !R.RoomVoiceMuted && voice.Mode != DuelVoice.MicrophoneMode.Mute;
-            if (chatMicrophoneCapsule) chatMicrophoneCapsule.color = voice.Transmitting ? OzUi.Go : enabled ? (Color)OzUi.Amber : OzUi.Muted;
-            if (chatMicrophoneMuted) chatMicrophoneMuted.enabled = !enabled;
-            chatInputMeter.rectTransform.anchorMax = new Vector2(voice.InputLevel, 1);
-            chatInputMeter.color = voice.InputLevel > .95f ? OzUi.AlertText : voice.Transmitting ? (Color)OzUi.Go : OzUi.Amber;
-            string state = R.RoomVoiceMuted ? "VOICE MUTED BY HOST" : voice.Transmitting ? "TRANSMITTING" : !enabled ? "MIC MUTED" :
-                !voice.MicrophoneEnabled ? "MIC UNAVAILABLE" : voice.Mode == DuelVoice.MicrophoneMode.TapToSpeak ? "TAP " + voice.TalkKey : "MIC ON";
-            int gain = Mathf.RoundToInt(voice.Gain * 100);
-            chatVoiceStatus.Set(chatGain != null ? state : state + " · " + gain + "%");
-            if (chatGain != null)
-            {
-                chatGain.Set("GAIN " + gain + "%");
-                chatVoiceStatus.graphic.color = voice.Transmitting ? (Color)OzUi.Go : enabled ? (Color)OzUi.Amber : OzUi.Muted;
-            }
-        }
-
         internal void RefreshChatHistory()
         {
             chatHistory?.Set(string.Join("\n", R.Chat.Skip(Math.Max(0, R.Chat.Count - chatHistoryLines))));
@@ -1400,7 +1268,7 @@ namespace OpenZ.Multiplayer
             var panel = Hud.Node(title, root); panel.TL(x, y, w, h); Hud.Plate(panel, "lg", 0, LobbyStyle ? (Color)OzUi.AmberLo : OzForkOptions.Accent);
             Label(panel, title, 24, 20, w - 48, 20, title.Contains("⚠") ? OzUi.AlertText : LobbyStyle ? (Color)OzUi.Amber : OzForkOptions.Accent); return panel;
         }
-        bool LobbyStyle => page is Page.Lobby or Page.Skirmish || page == Page.Microphone && microphoneReturn == Page.Lobby ||
+        bool LobbyStyle => page is Page.Lobby or Page.Skirmish ||
             R.Planning || ZGame.I && ZGame.I.SkirmishPlanningSeconds > 0;
         static OzText Label(Transform parent, string text, float x, float y, float width, float size, Color color) => Hud.Label(parent, text, text, size, color).At(x, y, OzH.L, false, width);
         RectTransform Button(Transform parent, string text, float x, float y, float w, Action action, bool primary = false,

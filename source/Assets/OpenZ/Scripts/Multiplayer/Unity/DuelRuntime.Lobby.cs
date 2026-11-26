@@ -25,10 +25,9 @@ namespace OpenZ.Multiplayer
         [Serializable] internal sealed class LobbyPresence
         {
             public string Id, Version;
-            public int Voice;
         }
 
-        readonly Dictionary<string, (LobbyPresence Value, double Seen)> lobbyPresence = new();
+        readonly Dictionary<string, LobbyPresence> lobbyPresence = new();
         double nextLobbyPresence;
 
         internal string RoomPresenceId(string member) => IsHost ? room?.RosterId(member) : member;
@@ -39,12 +38,8 @@ namespace OpenZ.Multiplayer
         {
             if (id == null) return null;
             if (id == LocalPresenceId)
-                return new LobbyPresence { Id = id, Version = OzForkVersion.Number,
-                    Voice = RoomVoiceMuted ? 3 : Voice.Transmitting ? 2 : Voice.Mode == DuelVoice.MicrophoneMode.Mute ? 0 : 1 };
-            if (!lobbyPresence.TryGetValue(id, out var entry)) return null;
-            return new LobbyPresence { Id = id, Version = entry.Value.Version,
-                Voice = IsHost && room.Members.Any(member => room.RosterId(member.Id) == id && RoomParticipantMuted(member.Id)) ? 3 :
-                    Now - entry.Seen < 2 ? entry.Value.Voice : -1 };
+                return new LobbyPresence { Id = id, Version = OzForkVersion.Number };
+            return lobbyPresence.TryGetValue(id, out var entry) ? entry : null;
         }
 
         void PublishLobbyPresence()
@@ -58,10 +53,10 @@ namespace OpenZ.Multiplayer
 
         void StorePresence(string id, LobbyPresence item)
         {
-            if (string.IsNullOrEmpty(id) || id.Length > 16 || item == null || item.Voice < -1 || item.Voice > 3) return;
+            if (string.IsNullOrEmpty(id) || id.Length > 16 || item == null) return;
             string version = item.Version?.Length <= 20 && Version.TryParse(item.Version, out var parsed) ? parsed.ToString() : null;
-            bool changed = !lobbyPresence.TryGetValue(id, out var old) || old.Value.Version != version;
-            lobbyPresence[id] = (new LobbyPresence { Id = id, Version = version, Voice = item.Voice }, Now);
+            bool changed = !lobbyPresence.TryGetValue(id, out var old) || old.Version != version;
+            lobbyPresence[id] = new LobbyPresence { Id = id, Version = version };
             if (changed) Menus.Refresh();
         }
 

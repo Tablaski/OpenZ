@@ -27,8 +27,7 @@ sizes and radar intervals use new keys. Earlier radar intervals and the 1x and
 2x flag choices carry forward. The former 4x flag choice is read as 3x, and the
 legacy value remains available to earlier versions.
 The territory-border key retains 0=OFF and 1=x1 and now also accepts 2 and 4.
-Already-saved choices are preserved. Microphone mode is saved; Tap to speak starts
-with transmission stopped and requires a fresh tap after losing focus/connection.
+Already-saved choices are preserved.
 
 OzForkPreferences tracks schema 2 and snapshots changed non-sensitive settings
 on startup, every 30 seconds, focus loss and shutdown. Snapshots are stored in
@@ -75,8 +74,7 @@ Braking, Pivoting, Accelerating or Driving plus actual simulation speed.
 Only fork additions are violet (#D570FF), with a left accent stripe, and sort after
 upstream options on each tab. The shared registry currently includes FORCE BAR,
 FLAG SIZE, DOTTED TERRITORY BORDERS, TANK BEHAVIOR, ROBOT BEHAVIOR and CHAT SHORTCUT.
-Microphone controls and VK lobby balance options also use this accent. New options
-must be registered as fork additions rather than mixed into upstream rows.
+The online lobby uses its orange and neutral presentation. Register new fork options in the shared registry.
 
 ## Territorial advantage and optional cap
 
@@ -107,10 +105,7 @@ asks the opponent and reloads the same map/rules after consent, using the normal
 two-player loading barrier. Decline/expiry leaves the game running and notifies
 both peers. Both peers must run compatible builds.
 
-Chat and the microphone menu sit to the right of the RVBG/1–0 command bar. Chat's
-shortcut is bound in OPTIONS > GAME. Microphone offers Always on, Tap to speak
-and Mute; the local meter shows post-gain input even while muted and sends no
-muted audio. Shortcut/device/gain settings remain in microphone options.
+Text chat sits to the right of the RVBG/1–0 command bar. Set its shortcut in Options > Game.
 
 At match end, both peers see the solo-style statistics and chart, using final
 counters published by the host. Duel scores do not enter solo high-score tables.

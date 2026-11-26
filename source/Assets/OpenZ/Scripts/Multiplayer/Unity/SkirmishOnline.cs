@@ -22,7 +22,7 @@ namespace OpenZ.Multiplayer
         }
 
         public string type, sdp, note;
-        public int id, epoch, game, voice;
+        public int id, epoch, game;
         public bool sfu, ban;
         public Member[] players;
     }
@@ -38,7 +38,6 @@ namespace OpenZ.Multiplayer
         readonly Func<int, Task<string[]>> getIce;
         string[] directServers;
         readonly Dictionary<int, Link> links = new Dictionary<int, Link>();
-        readonly ConcurrentDictionary<int, byte> voiceMuted = new ConcurrentDictionary<int, byte>();
         readonly string secret, fingerprint, name;
         Link[] remotes = Array.Empty<Link>();
         SkirmishSfu relay;
@@ -167,7 +166,7 @@ namespace OpenZ.Multiplayer
                             SkirmishSignal channels;
                             try { channels = await Call("subscribe", member.id).ConfigureAwait(false); }
                             catch (IOException error) when (error.Message == "The publisher has left.") { continue; }
-                            link.Input = relay.Subscribe(member.id, channels.game, channels.voice);
+                            link.Input = relay.Subscribe(member.id, channels.game);
                         }
                     }
                     catch (Exception error) when (error is IOException || error is HttpRequestException || error is InvalidOperationException || error is OperationCanceledException)
@@ -206,7 +205,7 @@ namespace OpenZ.Multiplayer
             await Call("answer", sdp: answer).ConfigureAwait(false);
             await relay.WaitConnected(limit.Token).ConfigureAwait(false);
             var published = await Call("publish").ConfigureAwait(false);
-            relay.Publish(published.game, published.voice);
+            relay.Publish(published.game);
             pump = relay.Pump(stop.Token);
         }
 
@@ -343,13 +342,6 @@ namespace OpenZ.Multiplayer
             .ContinueWith(task => { _ = task.Exception; }, TaskScheduler.Default);
         }
 
-        internal bool IsVoiceMuted(int id) => voiceMuted.ContainsKey(id);
-        internal void SetVoiceMuted(int id, bool muted)
-        {
-            if (muted) voiceMuted.TryAdd(id, 0);
-            else voiceMuted.TryRemove(id, out _);
-        }
-
         internal void ReportStalled(Link link)
         {
             if (link.Epoch != Epoch) return;
@@ -397,46 +389,6 @@ namespace OpenZ.Multiplayer
             return false;
         }
 
-        internal Func<int, bool> IsSpectatorVoice { get; set; }
-
-        public bool SendVoice(byte[] frame, int exclude = 0)
-        {
-            var ready = Remotes.Where(link => link.Ready && link.Id != exclude).ToArray();
-            if (ready.Length == 0) return false;
-            bool sent = false;
-            bool grouped = IsHost && IsSpectatorVoice != null && Remotes.Any(link => IsSpectatorVoice(link.Id));
-            if (Volatile.Read(ref useSfu))
-            {
-                if (!IsHost) return relay?.SendVoice(frame, -1) == true;
-                if (!grouped) return relay?.SendVoice(frame, exclude) == true;
-                foreach (var link in ready.Where(link => IsSpectatorVoice(link.Id) == IsSpectatorVoice(exclude)))
-                    sent |= relay?.SendVoice(frame, -link.Id) == true;
-                return sent;
-            }
-            foreach (var link in ready)
-                if (!grouped || IsSpectatorVoice(link.Id) == IsSpectatorVoice(exclude))
-                    sent |= link.Rtc?.SendVoice(frame) == true;
-            return sent;
-        }
-
-        public bool TryReceiveVoice(out byte[] frame)
-        {
-            foreach (var link in Remotes)
-            {
-                if (!link.Ready || !link.TryReceiveVoice(out frame)) continue;
-                if (IsHost && IsVoiceMuted(link.Id)) continue;
-                if (IsHost)
-                {
-                    SendVoice(frame, link.Id);
-                    if (IsSpectatorVoice?.Invoke(link.Id) == true) continue;
-                }
-                else if (link.Id != 1) continue;
-                return true;
-            }
-            frame = null;
-            return false;
-        }
-
         public void Dispose()
         {
             closed = true;
@@ -468,11 +420,6 @@ namespace OpenZ.Multiplayer
             {
                 packet = null;
                 return room.TcpPeer?.TryReceive(out packet) ?? Rtc?.TryReceive(out packet) ?? Input?.TryReceive(out packet) == true;
-            }
-            internal bool TryReceiveVoice(out byte[] frame)
-            {
-                frame = null;
-                return Rtc?.TryReceiveVoice(out frame) ?? Input?.VoiceFrames.TryDequeue(out frame) == true;
             }
             public void Dispose()
             {

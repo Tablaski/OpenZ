@@ -88,6 +88,8 @@ namespace OpenZ.Experimental
             return assigned[index];
         }
 
+        internal bool IsRavineFloor(int index) => assigned[index] && elevation[index] == Floor;
+
         void Set(int index, float value)
         {
             if (!assigned[index] || value < 0 || (elevation[index] >= 0 && value > elevation[index]))

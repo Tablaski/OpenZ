@@ -87,6 +87,7 @@ namespace OpenZ.Sim
         void InitPathfinding()
         {
             Path.Reset(Map.width, Map.height);
+            Path.JungleRavineFloor = JungleRavineFloor();
             Path.WaterCost = CrocPathWaterCost();                                   // level 16: a swamp tile weighs double for robots (ZWorld.Crocodiles.cs); 1 everywhere else
             for (int j = 0; j < Map.height; j++)
                 for (int i = 0; i < Map.width; i++)
@@ -97,6 +98,29 @@ namespace OpenZ.Sim
                 }
             Path.SetTileWideWeights();
             BigTankGridsInit();   // 1.5 DV192 / DV193 (kit sim_notes11): lava open in the Bizon's grid, its 2x2 weights (Sim/ZBigTanks.Ground.cs)
+        }
+
+        bool[] JungleRavineFloor()
+        {
+            if (!Map.aiMap || Map.planet != "jungle") return null;
+            var terraces = new OpenZ.Experimental.OzJungleTerracesV4(Map);
+            if (!terraces.HasTerraces) return null;
+
+            var blocked = new bool[Map.width * Map.height];
+            for (int i = 0; i < blocked.Length; i++)
+                blocked[i] = terraces.IsRavineFloor(i);
+
+            // The deck spans the ravine. The bridge itself controls passability when destroyed or repaired.
+            foreach (var obj in Map.objects)
+            {
+                bool vertical = obj.kind == "building:bridge_vert";
+                if (!vertical && obj.kind != "building:bridge_horz") continue;
+                var (width, height) = BuildingSize(obj.Type, obj.extra_links);
+                for (int y = obj.y + (vertical ? 0 : 1); y < obj.y + height - (vertical ? 0 : 1); y++)
+                    for (int x = obj.x + (vertical ? 1 : 0); x < obj.x + width - (vertical ? 1 : 0); x++)
+                        if (Path.TileOnMap(x, y)) blocked[y * Map.width + x] = false;
+            }
+            return blocked;
         }
 
         // ------------------------------------------------------------------ object creation (zserver.cpp:623-833)

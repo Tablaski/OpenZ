@@ -21,6 +21,9 @@ namespace OpenZ.Sim
         Info[,] robot, vehicle, robotNoRocks, vehicleNoRocks;
         int[,] robotRegion, vehicleRegion;
         int nextThreadId;
+        internal bool[] JungleRavineFloor { get; set; }
+
+        bool IsJungleRavineFloor(int x, int y) => JungleRavineFloor != null && JungleRavineFloor[y * W + x];
         /// <summary>OpenZ pathing layer: bumped on every passability change (ZReach components and lanes are cached by it).</summary>
         public int Version { get; private set; }
         /// <summary>OpenZ pathing layer: the next FindPath skips the straight-line shortcut and runs the A* (set when the unit's
@@ -36,6 +39,7 @@ namespace OpenZ.Sim
         {
             Version++;
             W = w; H = h; WidthPix = w * 16; HeightPix = h * 16;
+            JungleRavineFloor = null;
             robot = new Info[w, h]; vehicle = new Info[w, h]; robotNoRocks = new Info[w, h]; vehicleNoRocks = new Info[w, h];
             robotRegion = new int[w, h]; vehicleRegion = new int[w, h];
             KindReset(w, h);   // 1.5 DV192 / DV193 (kit sim_notes11): the Bizon's and the heavy tanks' grids (Sim/ZBigTanks.Ground.cs)
@@ -45,6 +49,7 @@ namespace OpenZ.Sim
         public void SetTileInfo(int x, int y, PfTile t)
         {
             if (x < 0 || y < 0 || x >= W || y >= H) return;
+            if (IsJungleRavineFloor(x, y)) t = PfTile.Impassable;
             Version++;
             float speed = 1.0f; bool r = true, v = true;
             switch (t)
@@ -88,7 +93,7 @@ namespace OpenZ.Sim
         /// <summary>zpath_finding.cpp:608-627</summary>
         public void SetImpassable(int x, int y, bool impassable = true, bool destroyable = false)
         {
-            if (x < 0 || y < 0 || x >= W || y >= H) return;
+            if (!TileOnMap(x, y) || IsJungleRavineFloor(x, y)) return;
             Version++;
             robot[x, y].passable = !impassable;
             vehicle[x, y].passable = !impassable;
@@ -100,7 +105,7 @@ namespace OpenZ.Sim
         public bool TileOnMap(int tx, int ty) => tx >= 0 && ty >= 0 && tx < W && ty < H;
         public void RestoreTerrainPassability(int x, int y, bool robots, bool vehicles)
         {
-            if (!TileOnMap(x, y)) return;
+            if (!TileOnMap(x, y) || IsJungleRavineFloor(x, y)) return;
             Version++;
             robot[x, y].passable = robotNoRocks[x, y].passable = robots;
             vehicle[x, y].passable = vehicleNoRocks[x, y].passable = vehicles;

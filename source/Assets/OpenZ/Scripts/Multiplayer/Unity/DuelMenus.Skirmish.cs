@@ -326,11 +326,13 @@ namespace OpenZ.Multiplayer
                 y += groupHeight + 8;
             }
 
-            Button(panel, "+ ADD TEAM", 24, listTop + 10 + listHeight, 160, () =>
+            float actionsY = listTop + 10 + listHeight;
+            Button(panel, "+ ADD TEAM", 24, actionsY, 160, () =>
             {
                 skirmishExtraTeam = Enumerable.Range(0, active).First(team => !alliances.Contains(team));
                 dirty = true;
             }, enabled: skirmishExtraTeam < 0 && Enumerable.Range(0, active).Any(team => !alliances.Contains(team)), height: 40);
+            DrawAllForOneButton(panel, 196, actionsY, 40, rules, SaveLocalRules);
         }
 
         void BuildSkirmishMember(Transform parent, int seat, string name, ZBotDifficulty? difficulty, float width, float y, bool freeForAll, OzText tip)

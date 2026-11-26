@@ -290,6 +290,8 @@ namespace OpenZ.Multiplayer
             if (editable)
                 fortDragFeedback = Label(panel, freeForAll ? "Drag a fort number to move or swap." :
                     "Drag a row into a team. Drag a fort number to move or swap.", 22, 41, 646, 14, OzUi.Muted);
+            if (!freeForAll)
+                DrawAllForOneButton(panel, 22, 517, 34, playerRules, R.SetRoomRules, editable);
             if (!freeForAll && editable)
                 Button(panel, "+ NEW TEAM", 475, 517, 190, () =>
                 {

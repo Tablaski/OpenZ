@@ -596,6 +596,14 @@ namespace OpenZ.Multiplayer
             Button(root, "BACK TO MATCH", 980, 795, 320, CloseOverlay);
         }
 
+        void DrawAllForOneButton(Transform panel, float x, float y, float height, SkirmishRules rules,
+            Action<SkirmishRules> save, bool editable = true)
+        {
+            Button(panel, rules.AllForOne ? "ALL FOR ONE: ON" : "ALL FOR ONE: OFF", x, y, 180,
+                () => { rules.AllForOne = !rules.AllForOne; save(rules); },
+                rules.AllForOne, editable, height: height, showSelection: true);
+        }
+
         void SaveLocalRules(SkirmishRules rules)
         {
             localSkirmish.SetRules(LocalSkirmishHost, rules);

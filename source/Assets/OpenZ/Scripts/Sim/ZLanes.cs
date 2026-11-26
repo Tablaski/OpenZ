@@ -220,17 +220,18 @@ namespace OpenZ.Sim
             foreach (var o in units)
             {
                 if (Static(o)) continue;
-                if (!Moving(o))
-                {                                                                          // held in the approach with an order into the lane
-                    if (o.Waypoints.Count > 0) foreach (var L in LanesAt(o)) CountApproach(L, o);   // (only a lane whose zone its box touches counts it)
-                    continue;
-                }
+                bool moving = Moving(o);
+                if (!moving && o.Waypoints.Count == 0) continue;
+                double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
                 foreach (var L in LanesAt(o))
                 {
-                    double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
                     if (!BoxInZone(L, lx, ly, o.WidthPix, o.HeightPix)) continue;
-                    CountApproach(L, o);
-                    if (!BoxInCorridor(L, lx, ly, o.WidthPix, o.HeightPix) && !PathUsesCorridor(L, o, NearLook)) continue;   // beside the lane, not in it
+                    if (!BoxInCorridor(L, lx, ly, o.WidthPix, o.HeightPix))
+                    {
+                        if (!PathUsesCorridor(L, o, NearLook)) continue;
+                        RecordApproach(L, o);
+                    }
+                    if (!moving) continue;
                     int d = TravelDir(L, o); if (d < 0) continue;
                     if (o.Kind == ZKind.Vehicle) L.veh[d]++; else { L.rob[d]++; L.robOf[d * 3 + TeamSlot(o)]++; }
                     if (L.occ[d] == null) L.occ[d] = o;
@@ -239,10 +240,8 @@ namespace OpenZ.Sim
         }
 
         /// <summary>A unit in the approach part of the zone (not yet in the corridor) whose path goes into the corridor.</summary>
-        void CountApproach(ZLane L, ZObject o)
+        static void RecordApproach(ZLane L, ZObject o)
         {
-            double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
-            if (!BoxInZone(L, lx, ly, o.WidthPix, o.HeightPix) || BoxInCorridor(L, lx, ly, o.WidthPix, o.HeightPix) || !PathUsesCorridor(L, o, NearLook)) return;
             int d = EntryDir(L, o);
             if (o.Kind == ZKind.Vehicle) L.apprVeh[d]++; else { L.apprRob[d]++; L.apprRobOf[d * 3 + TeamSlot(o)]++; }
             if (L.apprOcc[d] == null) L.apprOcc[d] = o;

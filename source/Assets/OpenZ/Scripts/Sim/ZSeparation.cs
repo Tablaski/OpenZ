@@ -443,8 +443,11 @@ namespace OpenZ.Sim
                 if (Static(a) || !Separable(a) || a.PathInBuildingStage || a.FortRushOn) continue;   // boarding_nb_v1 DV34
                 Near(a.CenterX, a.CenterY, MaxQuery, near);
                 ZObject b = null;
+                double ax = CX(a), ay = CY(a);
+                // Vehicles have priority over their own team's robots.
                 foreach (var c in near)
-                    if (c != a && c.Id < a.Id && Separable(c) && !PairExempt(a, c) && !OwnHull(a, c) && !PassesOwn(c, a) && Math.Abs(CX(c) - CX(a)) < 1.5 && Math.Abs(CY(c) - CY(a)) < 1.5) { b = c; break; }   // (vehicles first: a vehicle on the pixel of a robot of its team is never the one that is moved off it, ZYield.cs)
+                    if (c.Id < a.Id && Math.Abs(CX(c) - ax) < 1.5 && Math.Abs(CY(c) - ay) < 1.5 &&
+                        Separable(c) && !PairExempt(a, c) && !OwnHull(a, c) && !PassesOwn(c, a)) { b = c; break; }
                 if (b == null) continue;
                 double vl = Math.Sqrt((float)((float)(a.Dx * a.Dx) + (float)(a.Dy * a.Dy))), hx = vl > 1e-6 ? a.Dx / vl : 0, hy = vl > 1e-6 ? a.Dy / vl : -1;
                 double r = GateSpacing(a, b) + 1;
@@ -485,12 +488,20 @@ namespace OpenZ.Sim
             foreach (var o in units) { o.PS.pushX = o.PS.carryX; o.PS.pushY = o.PS.carryY; o.PS.carryX = o.PS.carryY = 0; }   // + pressure handed on last tick
             foreach (var a in units)
             {
+                if (!Separable(a)) continue;
                 Near(a.CenterX, a.CenterY, MaxQuery, near);
+                double ax = CX(a), ay = CY(a);
+                int radius = Radius(a);
                 foreach (var b in near)
                 {
-                    if (b.Id <= a.Id || !Separable(a) || !Separable(b) || PairExempt(a, b)) continue;
+                    if (b.Id <= a.Id) continue;
+                    double dx = ax - CX(b), dy = ay - CY(b), d2 = dx * dx + dy * dy;
+                    int spacing = radius + Radius(b);
+                    // CloseShare is at most one and push hysteresis adds at most PushClear.
+                    double reach = spacing + PushClear;
+                    if (d2 >= reach * reach || !Separable(b) || PairExempt(a, b)) continue;
                     if (MinionsTogether(a, b) && !MatesOverlap(a, b)) continue;                // DV44: spaced by the squad's follow (MateCap); a real overlap is still pushed
-                    double min = MinSpacing(a, b) * CloseShare(a, b), dx = CX(a) - CX(b), dy = CY(a) - CY(b), d2 = dx * dx + dy * dy;   // b49 (ZCalm.cs)
+                    double min = spacing * CloseShare(a, b);                                 // b49 (ZCalm.cs)
                     double lim = PushStart(a, b, min);                                       // DV44: dead-band + hysteresis (ZCommit.Settle.cs); off: min - 0.25
                     if (d2 >= lim * lim) continue;
                     double wa = PushShare(a, b), wb = PushShare(b, a);

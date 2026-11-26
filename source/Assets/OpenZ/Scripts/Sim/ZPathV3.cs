@@ -205,8 +205,7 @@ namespace OpenZ.Sim
                 bool squad = SqueezeFor(u);
                 int nc = t >= 0 ? nNear[t] : -1;
                 int ad = R3(8192) && t >= 0 ? ActiveDist(t, now) : int.MaxValue;
-                int ghostDistance = R3(16384) ? GhostDist(t, now) : int.MaxValue;
-                ad = Math.Min(ad, ghostDistance);
+                if (R3(16384)) ad = Math.Min(ad, GhostDist(t, now));
                 if (ad <= NarrowReach) pin = true; else if (ad <= NarrowReach + ZoneExitGrow) pband = true;   // review round 2: any active passage in reach
                 c.passActive = ad <= NarrowReach + ZoneExitGrow;
                 if (R3(8192))
@@ -222,7 +221,7 @@ namespace OpenZ.Sim
                     if (nComp[t] == nc) pin = true; else if (nDist[t] <= NarrowReach + ZoneExitGrow) pband = true;   // in it, or (hold) near it
                 }
                 bool innerTile = inner, pinTile = pin, innerAhead = false, pinAhead = false;
-                c.tightNow = TightFor(u, t) || (t >= 0 && nComp[t] >= 0) || ghostDistance <= NarrowReach + ZoneExitGrow;
+                c.tightNow = TightFor(u, t) || (t >= 0 && nComp[t] >= 0) || (R3(16384) && GhostDist(t, now) <= NarrowReach + ZoneExitGrow);   // (a ghost passage is still tight)
                 c.zCls = TileCls(u, u.CenterX, u.CenterY);                                // (its tile's kind: zone, band, tight place, passage)
                 if (c.tightNow || (R3(262144) && TightNear(u, t, ConfineBand))) c.tightLastIn = now;   // (R3 262144: spatial hysteresis, ConfineBand tiles)
                 bool oppAhead = false;
@@ -1122,7 +1121,6 @@ namespace OpenZ.Sim
         public int SqueezeCount { get; private set; }
         public bool SqueezeAt(int tx, int ty) { EnsureZoneMap(); int t = ZIdx(tx, ty); return t >= 0 && nComp[t] >= 0 && nSqueeze[nComp[t]]; }
         readonly List<(int c, ZObject u, double dx, double dy)> nRec = new List<(int c, ZObject u, double dx, double dy)>();
-        int[] nPassageHead, nPassageNext = Array.Empty<int>();
         bool[] nOpp, nKeep; bool ghostKeep;
         /// <summary>Checks: passages (bottleneck components), activations so far.</summary>
         public int PassageCount => nComps;
@@ -1215,7 +1213,6 @@ namespace OpenZ.Sim
                 }
             }
             nOpp = new bool[nComps]; nKeep = new bool[nComps];
-            nPassageHead = new int[nComps];
         }
 
         /// <summary>BeginTick: a passage becomes active when two units of different squads with orders, within NarrowSense tiles of it and
@@ -1247,33 +1244,13 @@ namespace OpenZ.Sim
                 nRec.Add((c, u, dx / l, dy / l));
             }
             double cosOpp = Math.Cos(NarrowOppose * Math.PI / 180);
-            int count = nRec.Count;
-            if (count > nPassageNext.Length)
-                Array.Resize(ref nPassageNext, Math.Max(count, nPassageNext.Length * 2));
-            if (count > 1)
-            {
-                Array.Fill(nPassageHead, -1);
-                // Link candidates in their original order within each passage.
-                for (int i = count - 1; i >= 0; i--)
+            for (int i = 0; i < nRec.Count; i++)
+                for (int j = i + 1; j < nRec.Count; j++)
                 {
-                    int passage = nRec[i].c;
-                    nPassageNext[i] = nPassageHead[passage];
-                    nPassageHead[passage] = i;
+                    var a = nRec[i]; var b = nRec[j];
+                    if (a.c != b.c || nOpp[a.c] || SameSquad(a.u, b.u)) continue;
+                    if (a.dx * b.dx + a.dy * b.dy < cosOpp) { nOpp[a.c] = true; if (nActive[a.c] < now) LastPassageNote = $"{now:0.00} passage {a.c}: {a.u.Type}#{a.u.Id} ({a.u.CenterX >> 4},{a.u.CenterY >> 4}) vs {b.u.Type}#{b.u.Id} ({b.u.CenterX >> 4},{b.u.CenterY >> 4})"; }
                 }
-            }
-            for (int i = 0; i + 1 < count; i++)
-            {
-                var a = nRec[i];
-                if (nOpp[a.c]) continue;
-                for (int j = nPassageNext[i]; j >= 0; j = nPassageNext[j])
-                {
-                    var b = nRec[j];
-                    if (SameSquad(a.u, b.u) || !(a.dx * b.dx + a.dy * b.dy < cosOpp)) continue;
-                    nOpp[a.c] = true;
-                    if (nActive[a.c] < now) LastPassageNote = $"{now:0.00} passage {a.c}: {a.u.Type}#{a.u.Id} ({a.u.CenterX >> 4},{a.u.CenterY >> 4}) vs {b.u.Type}#{b.u.Id} ({b.u.CenterX >> 4},{b.u.CenterY >> 4})";
-                    break;
-                }
-            }
             if (ghostKeep) ghostUntil = Math.Max(ghostUntil, now);
             for (int c = 0; c < nComps; c++)
             {

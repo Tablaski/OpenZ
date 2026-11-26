@@ -1110,11 +1110,6 @@ namespace OpenZ.Sim
         /// <summary>The unit's path runs through the deck within maxLen px of path (the last segment cut at the budget).</summary>
         static bool PathCrossesWithin(ZLane L, ZObject a, double maxLen)
         {
-            double x = CX(a), y = CY(a);
-            // Any point along this much path lies within maxLen of the start on both axes.
-            double reachX = maxLen + a.WidthPix * 0.5, reachY = maxLen + a.HeightPix * 0.5;
-            if (x + reachX < L.X0 || x - reachX > L.X1 || y + reachY < L.Y0 || y - reachY > L.Y1)
-                return false;
             double left = maxLen, px = a.PathTargetX, py = a.PathTargetY;
             bool Seg(double sx, double sy, double ex, double ey)
             {
@@ -1123,7 +1118,7 @@ namespace OpenZ.Sim
                 left -= l;
                 return SegmentHits(L, a, sx, sy, ex, ey);
             }
-            if (Seg(x, y, px, py)) return true;
+            if (Seg(CX(a), CY(a), px, py)) return true;
             if (left <= 0 || a.PathPoints == null) return false;
             foreach (var p in a.PathPoints)
             {

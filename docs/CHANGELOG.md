@@ -6,18 +6,15 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
-## OpenZ-VK 1.5.90 (26 Nov 2026)
+## OpenZ-VK 1.5.91 (26 Nov 2026)
 
-- Large battles — Reduced the CPU work needed to manage units moving in crowds and near bridge approaches.
-
-## OpenZ-VK 1.5.89 (26 Nov 2026)
-
-- Solo, multiplayer and Skirmish — Vehicles stay visible and vulnerable while being repaired, and resume firing when they leave the repair pad. Capture the station's flag during the repair to take control of the vehicle as well.
-- Skirmish — Each human or bot seat has its own unit color and matching ground rings.
-- Online multiplayer and Skirmish — Team Defeat is now called All for One. Additional units near the fort follow the same unit roster presets as Solo, including access to the Mammoth and Bizon with the OpenZ preset.
-- Online multiplayer — Teams stack vertically and each player or bot has a full-width card you can drag as a block. Human cards show readiness, microphone state and available connection information. A wrench marks players with custom advantages.
-- Skirmish — Switch between the large Minimap and 3D Preview in the Map panel. Numbered fort markers match the colors and positions in the roster.
-- Skirmish — Select fort turrets and additional units in Starting Armies, or use the same unit cards to give a specific player extra units under Player Advantage. Each bot row shows its full name, AI generation and difficulty choices.
+- Solo + 1 vs 1 — Vehicles stay visible and vulnerable while being repaired, but stop firing until they leave the pad. Capture the station's flag during a repair to take control of the vehicle; its previous orders are cleared.
+- Skirmish — Each human or bot seat has its own unit color and matching ground rings. Rings no longer reveal units hidden by fog or robots inside vehicles.
+- 1 vs 1 — A Skirmish invitation remains available while the host is alone in the lobby.
+- Solo + 1 vs 1 — Additional starting units follow the available roster, including Mammoth and Bizon where allowed. Starting shuttles and hero squads are placed correctly and count toward the unit limit.
+- 1 vs 1 — Online teams stack vertically, with full-width draggable cards for players and bots. Human cards show readiness, microphone state and available connection information; a wrench marks custom advantages.
+- Solo + 1 vs 1 — In Skirmish, switch between the large Minimap and 3D Preview. Numbered fort markers match roster colors and starting positions.
+- Solo + 1 vs 1 — Skirmish groups bot AI and difficulty choices on each row. Choose fort turrets and additional units for the match or for individual players. Team Defeat is now called All for One.
 
 ## OpenZ-VK 1.5.88 (26 Nov 2026)
 

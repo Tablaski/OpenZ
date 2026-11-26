@@ -380,7 +380,7 @@ namespace OpenZ.Multiplayer
                 if (canDrag)
                     Button(row.transform, "", 0, 0, width, () => { onlineSelectedSeat = seat; dirty = true; }, height: rowHeight - 4);
                 else if (occupied.Contains(seat))
-                    Hud.Chip(row.transform, "Player card", new OzRect(0, 0, width, rowHeight - 4), "", OzUi.GM900, OzUi.Ink, edge: OzUi.GM500);
+                    Hud.Chip(row.transform, "Player card", new OzRect(0, 0, width, rowHeight - 4), "", OzUi.GM900, OzUi.Ink, outline: OzUi.GM500);
                 if (canDrag)
                 {
                     int team = humansBySeat.TryGetValue(seat, out var occupant) ? occupant.Team : botsBySeat[seat].Alliance;

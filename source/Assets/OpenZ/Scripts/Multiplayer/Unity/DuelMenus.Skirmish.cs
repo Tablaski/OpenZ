@@ -13,9 +13,11 @@ namespace OpenZ.Multiplayer
         const int SkirmishCardsPerPage = 6;
         const float SkirmishDifficultyWidth = 240, SkirmishGenerationWidth = 84, SkirmishDifficultyGap = 8;
         static readonly int[] SkirmishCapacities = { 2, 3, 4, 6, 8 };
-        readonly Dictionary<string, Texture2D> skirmishGeneratedMinimaps = new Dictionary<string, Texture2D>();
+        readonly Dictionary<(string MapId, bool FixedTeamColors), Texture2D> skirmishGeneratedMinimaps =
+            new Dictionary<(string, bool), Texture2D>();
         OzAiMap[] skirmishOfficialMaps, skirmishAiMaps;
         string skirmishOfficialSelection, skirmishAiSelection;
+        bool skirmishShowFlyby;
         int skirmishAiSize, skirmishMapPage, skirmishSelectedSeat = -1, skirmishExtraTeam = -1;
         int skirmishDragFrame = -1;
         float skirmishTeamScroll = 1;
@@ -182,7 +184,7 @@ namespace OpenZ.Multiplayer
                     () => SelectSkirmishMap(map, selected.IsOfficial ? map.Starts : skirmishAiSize),
                     map.Id == selected.Id, height: 158);
                 card.name = "MAP " + map.Id;
-                var texture = SkirmishMinimap(map);
+                var texture = map.IsOfficial ? GeneratedSkirmishMinimap(map.Id, fixedTeamColors: true) : SkirmishMinimap(map);
                 if (texture)
                 {
                     var mini = Hud.Node("Complete minimap", card).gameObject.AddComponent<RawImage>();
@@ -209,25 +211,37 @@ namespace OpenZ.Multiplayer
             return GeneratedSkirmishMinimap(map.Id);
         }
 
-        Texture2D GeneratedSkirmishMinimap(string mapId)
+        Texture2D GeneratedSkirmishMinimap(string mapId, bool fixedTeamColors = false)
         {
             if (string.IsNullOrEmpty(mapId)) return null;
-            if (!skirmishGeneratedMinimaps.TryGetValue(mapId, out var texture))
-                skirmishGeneratedMinimaps[mapId] = texture = OzLevelInfo.Load(mapId).Mini;
+            var key = (mapId, fixedTeamColors);
+            if (!skirmishGeneratedMinimaps.TryGetValue(key, out var texture))
+                skirmishGeneratedMinimaps[key] = texture = OzLevelInfo.Load(mapId, fixedTeamColors).Mini;
             return texture;
         }
 
         void BuildSkirmishPreview(OzAiMap map, SkirmishRules rules)
         {
-            var preview = Panel("3D PREVIEW", 620, 185, 748, 780);
-            BuildLobbyFlyby(preview, map.Id, new OzRect(24, 60, 700, 394), mute: true);
+            var preview = Panel("MAP", 620, 185, 748, 780);
+            Button(preview, "MINIMAP", 350, 14, 182, () => { skirmishShowFlyby = false; dirty = true; },
+                !skirmishShowFlyby, height: 36);
+            Button(preview, "3D PREVIEW", 542, 14, 182, () => { skirmishShowFlyby = true; dirty = true; },
+                skirmishShowFlyby, height: 36);
+            if (roomTechMap != map.Id) UpdateRoomMapData(map.Id);
+            if (skirmishShowFlyby)
+                BuildLobbyFlyby(preview, map.Id, new OzRect(24, 60, 700, 394), mute: true);
+            else
+            {
+                ReleaseLobbyFlyby();
+                var texture = GeneratedSkirmishMinimap(map.Id, fixedTeamColors: true);
+                if (texture) DrawRoomMap(preview, texture, 24, 60, 700, 394, localSkirmish.ClosedPositions);
+            }
             Label(preview, map.Name, 24, 463, 700, 28, OzUi.Ink);
             int active = map.Starts - localSkirmish.ClosedPositions.Length;
             string size = active < map.Starts ? $"{active} players · {map.Starts - active} starts closed" : $"{active} players";
             if (!map.IsOfficial) OzAiMapBadge.Head(preview, new OzRect(24, 499, 22, 22));
             Label(preview, (map.IsOfficial ? "OpenZ Maps" : "AI Maps") + " · " + size,
                 map.IsOfficial ? 24 : 52, 501, 650, 17, OzUi.Muted);
-            if (roomTechMap != map.Id) UpdateRoomMapData(map.Id);
             BuildRoomMapTech(preview, 24, 535, roomMapTech, rules, true, SaveLocalRules, compact: true);
             BuildRoomOpeningOrders(preview, 467, 535, 257, rules, true, SaveLocalRules);
         }
@@ -300,7 +314,7 @@ namespace OpenZ.Multiplayer
                 group.gameObject.AddComponent<SkirmishTeamDrop>().Configure(team, group, this);
                 var heading = Button(group.transform, $"TEAM {team + 1}   ·   {count} {(count == 1 ? "PLAYER" : "PLAYERS")}", 6, 5, width - 60,
                     () => MoveSkirmishMember(skirmishSelectedSeat, team), height: 34);
-                var stripe = Hud.Img(heading, "Team color", OzUi.TeamText((Team)(team + 1)));
+                var stripe = Hud.Img(heading, "Team color", OzUi.OriginalTeamText((Team)(team + 1)));
                 stripe.rectTransform.TL(5, 5, 4, 24);
                 stripe.raycastTarget = false;
                 float row = 41;
@@ -346,7 +360,7 @@ namespace OpenZ.Multiplayer
             var caption = Label(card, freeForAll ? name : "::   " + name, nameX, 9, generationX - nameX - 8, 17,
                 !freeForAll && skirmishSelectedSeat == seat ? (Color)OzUi.GM950 : OzUi.Ink);
             caption.graphic.raycastTarget = false;
-            var fort = Hud.Img(card, "Starting fort", OzUi.TeamText((Team)(seat + 1)));
+            var fort = Hud.Img(card, "Starting fort", OzUi.OriginalTeamText((Team)(seat + 1)));
             fort.rectTransform.TL(7, 4, 28, 29);
             Hud.Label(fort.transform, "Fort number", (seat + 1).ToString(), 15, OzUi.GM950).FillParent(OzH.C).graphic.raycastTarget = false;
             AddFortHandle(fort, seat, true, (first, second) =>
@@ -358,7 +372,10 @@ namespace OpenZ.Multiplayer
             bool modern = ZAiDifficulty.IsModern(difficulty.Value);
             BuildLobbyAiGeneration(card, new OzRect(generationX, 6, SkirmishGenerationWidth, 26), modern,
                 value => ApplyLevel(ZAiDifficulty.InGeneration(difficulty.Value, value)));
-            BuildLobbyAiDifficultyRow(card, new OzRect(nameX, 40, cardWidth - nameX - rightInset, 32), modern, difficulty, ApplyLevel, tip);
+            var divider = Hud.Img(card, "Difficulty divider", OzUi.GM500);
+            divider.rectTransform.TL(rightInset, 36, cardWidth - 2 * rightInset, 1);
+            divider.raycastTarget = false;
+            BuildLobbyAiDifficultyRow(card, new OzRect(rightInset, 40, cardWidth - 2 * rightInset, 32), modern, difficulty, ApplyLevel, tip);
 
             void ApplyLevel(ZBotDifficulty level)
             {

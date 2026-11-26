@@ -45,7 +45,7 @@ namespace OpenZ
 
         public string[] Chips(OzLevelDef d) => !Ok ? d.FallbackChips : new[] { $"{Zones} ZONES", $"{Flags} FLAGS", $"{Forts} FORTS", $"{Width}×{Height} TILES" };
 
-        public static OzLevelInfo Load(string level)
+        public static OzLevelInfo Load(string level, bool fixedTeamColors = false)
         {
             var info = new OzLevelInfo();
             try
@@ -59,7 +59,7 @@ namespace OpenZ
                 int forts = 0;
                 foreach (var o in w.Objects) if (o.Kind == ZKind.Building && (o.Type == "fort_front" || o.Type == "fort_back")) forts++;
                 info.Forts = forts;
-                info.Mini = Bake(w, level);
+                info.Mini = Bake(w, level, fixedTeamColors: fixedTeamColors);
             }
             catch (Exception e) { Debug.LogWarning($"[OpenZ Menu] {level}: could not read the map ({e.Message}), card uses its fallback facts"); info.Zones = -1; }
             return info;
@@ -70,9 +70,11 @@ namespace OpenZ
         static float Hash(int x, int y) { unchecked { int h = x * 374761393 + y * 668265263; h = (h ^ (h >> 13)) * 1274126177; return ((h ^ (h >> 16)) & 1023) / 1023f; } }
 
         /// <summary>Same palette and zone tint as the in-game minimap (OpenZMinimap.Palette / RebuildZones), 3 texels per tile.</summary>
-        public static Texture2D Bake(ZWorld W, string level, bool includeUnits = false)
+        public static Texture2D Bake(ZWorld W, string level, bool includeUnits = false, bool fixedTeamColors = false)
         {
             const int k = 3; const float zoneTint = 0.3f;
+            Color Mark(Team team) => fixedTeamColors ? OzUi.OriginalMark(team) : OzUi.Mark(team);
+            Color Paint(Team team) => fixedTeamColors ? TeamColors.OriginalPaint(team) : TeamColors.Of(team);
             int mw = W.Map.width, mh = W.Map.height, tw = mw * k, th = mh * k;
             bool city = W.Map.planet == "city";
             Color32 ground = city ? new Color32(86, 86, 84, 255) : new Color32(158, 120, 80, 255), road = city ? new Color32(118, 116, 110, 255) : new Color32(126, 124, 118, 255),
@@ -120,7 +122,7 @@ namespace OpenZ
                             if (owner != Team.Neutral)
                             {
                                 bool border = (zN && sy == 0) || (zS && sy == k - 1) || (zW && sx == 0) || (zE && sx == k - 1);
-                                q = border ? Mix(q, OzUi.Mark(owner), 0.85f) : Mix(q, TeamColors.Of(owner), zoneTint);
+                                q = border ? Mix(q, Mark(owner), 0.85f) : Mix(q, Paint(owner), zoneTint);
                             }
                             px[Idx(tx * k + sx, ty * k + sy)] = q;
                         }
@@ -128,7 +130,7 @@ namespace OpenZ
             foreach (var o in W.Objects)                                                                  // building footprints: forts / factories / radar / repair
             {
                 if (o.Kind != ZKind.Building || o.Type.StartsWith("bridge")) continue;
-                Color32 bc = o.Owner == Team.Neutral ? new Color32(200, 194, 180, 255) : (Color32)OzUi.Mark(o.Owner);
+                Color32 bc = o.Owner == Team.Neutral ? new Color32(200, 194, 180, 255) : (Color32)Mark(o.Owner);
                 int x0 = o.LocX * k / 16, y0 = o.LocY * k / 16, x1 = (o.LocX + o.WidthPix) * k / 16, y1 = (o.LocY + o.HeightPix) * k / 16;
                 for (int y = Mathf.Max(0, y0); y < Mathf.Min(th, y1); y++)
                     for (int x = Mathf.Max(0, x0); x < Mathf.Min(tw, x1); x++)
@@ -137,7 +139,7 @@ namespace OpenZ
             foreach (var f in W.Flags)                                                                    // flags: INK dot with a dark rim (owned: team mark)
             {
                 int cx = (f.LocX + 8) * k / 16, cy = (f.LocY + 8) * k / 16;
-                Color32 fc = f.Owner == Team.Neutral ? (Color32)OzUi.Ink : (Color32)OzUi.Mark(f.Owner);
+                Color32 fc = f.Owner == Team.Neutral ? (Color32)OzUi.Ink : (Color32)Mark(f.Owner);
                 for (int y = cy - 2; y <= cy + 2; y++)
                     for (int x = cx - 2; x <= cx + 2; x++)
                         if (x >= 0 && y >= 0 && x < tw && y < th) px[Idx(x, y)] = Mathf.Abs(x - cx) == 2 || Mathf.Abs(y - cy) == 2 ? new Color32(11, 13, 12, 255) : fc;
@@ -147,7 +149,7 @@ namespace OpenZ
                 {
                     if (!o.IsUnit || o.Destroyed) continue;
                     int cx = o.CenterX * k / 16, cy = o.CenterY * k / 16;
-                    Color32 mark = o.Owner == Team.Neutral ? (Color32)OzUi.NeutralText : (Color32)OzUi.Mark(o.Owner);
+                    Color32 mark = o.Owner == Team.Neutral ? (Color32)OzUi.NeutralText : (Color32)Mark(o.Owner);
                     for (int y = cy - 1; y <= cy + 1; y++)
                         for (int x = cx - 1; x <= cx + 1; x++)
                             if (x >= 0 && y >= 0 && x < tw && y < th) px[Idx(x, y)] = mark;

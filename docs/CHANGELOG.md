@@ -9,6 +9,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 ## OpenZ-VK 1.5.89 (26 Nov 2026)
 
 - Online multiplayer and Skirmish — Team Defeat is now called All for One. Additional units near the fort follow the same unit roster presets as Solo, including access to the Mammoth and Bizon with the OpenZ preset.
+- Skirmish — Switch between the large Minimap and 3D Preview in the Map panel. Numbered fort markers match the colors and positions in the roster.
 - Skirmish — Select fort turrets and additional units in Starting Armies, or use the same unit cards to give a specific player extra units under Player Advantage. Each bot row shows its full name, AI generation and difficulty choices.
 
 ## OpenZ-VK 1.5.88 (26 Nov 2026)

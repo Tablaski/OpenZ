@@ -438,7 +438,7 @@ namespace OpenZ.Multiplayer
                 for (int i = 0; i < starts; i++)
                 {
                     int index = i;
-                    Button(panel, TeamColors.Name((Team)(i + 1)).ToUpperInvariant(), 30 + i % 4 * 200, 55 + i / 4 * 42, 190,
+                    Button(panel, TeamColors.OriginalName((Team)(i + 1)), 30 + i % 4 * 200, 55 + i / 4 * 42, 190,
                         () => { roomSelectedSeat = index; roomArmyTotal = false; dirty = true; }, seat == i, height: 35);
                 }
                 Label(panel, "Construction time", 30, 146, 450, 19, OzUi.Ink);
@@ -698,12 +698,14 @@ namespace OpenZ.Multiplayer
             return roomGeneratedPreview;
         }
 
-        void DrawRoomMap(RectTransform panel, Texture2D preview, int x, int y, int width, int height)
+        void DrawRoomMap(RectTransform panel, Texture2D preview, int x, int y, int width, int height, int[] closedSkirmishSeats = null)
         {
             var image = Hud.Node("Tactical map", panel).gameObject.AddComponent<RawImage>();
             image.texture = preview;
             float scale = Mathf.Min((float)width / preview.width, (float)height / preview.height);
-            image.rectTransform.TL(x + (width - preview.width * scale) / 2, y, preview.width * scale, preview.height * scale);
+            float mapWidth = preview.width * scale, mapHeight = preview.height * scale;
+            float top = closedSkirmishSeats == null ? y : y + (height - mapHeight) / 2;
+            image.rectTransform.TL(x + (width - mapWidth) / 2, top, mapWidth, mapHeight);
             image.raycastTarget = false;
             if (roomGrid == null) return;
             int pinSize = height > 300 ? 27 : 16;
@@ -712,12 +714,15 @@ namespace OpenZ.Multiplayer
             foreach (var team in forts.Where(team => team.Key != Team.Neutral))
             {
                 var fort = team.First();
-                var pin = Hud.Img(image.transform, "Fort " + (int)team.Key, OzUi.TeamText(team.Key));
-                float px = (fort.x + 4f) / roomGrid.width * preview.width * scale;
-                float py = (fort.y + 4f) / roomGrid.height * preview.height * scale;
+                int number = (int)team.Key;
+                Color pinColor = closedSkirmishSeats == null ? OzUi.TeamText(team.Key) :
+                    closedSkirmishSeats.Contains(number - 1) ? OzUi.Muted : OzUi.OriginalTeamText(team.Key);
+                var pin = Hud.Img(image.transform, "Fort " + number, pinColor);
+                float px = (fort.x + 4f) / roomGrid.width * mapWidth;
+                float py = (fort.y + 4f) / roomGrid.height * mapHeight;
                 pin.rectTransform.TL(px - pinSize / 2f, py - pinSize / 2f, pinSize, pinSize);
                 pin.raycastTarget = false;
-                Hud.Label(pin.transform, "Fort number", ((int)team.Key).ToString(), pinSize - 4, OzUi.GM950).FillParent(OzH.C);
+                Hud.Label(pin.transform, "Fort number", number.ToString(), pinSize - 4, OzUi.GM950).FillParent(OzH.C);
             }
         }
 

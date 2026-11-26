@@ -35,7 +35,8 @@ namespace OpenZ
         /// human is blue (PLAY AS BLUE, View/OzPlayBlue.cs). Then the texts are turned (Words) and voice takes that name a colour are left out.</summary>
         public static bool WordsFlip => Swap || OzPlayBlue.Active;
         /// <summary>"RED" / "BLUE" as displayed (neutral: "NEUTRAL").</summary>
-        public static string Name(Team t) => Shown(t) switch
+        public static string Name(Team t) => OriginalName(Shown(t));
+        internal static string OriginalName(Team t) => t switch
         {
             Team.Red => "RED", Team.Blue => "BLUE", Team.Green => "GREEN", Team.Yellow => "YELLOW", Team.Purple => "PURPLE",
             Team.Teal => "TEAL", Team.White => "WHITE", Team.Black => "BLACK", _ => "NEUTRAL",

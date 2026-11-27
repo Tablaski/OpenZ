@@ -8,7 +8,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 ## OpenZ-VK 1.5.108 (28 Nov 2026)
 
-- Solo + 1 vs 1 — Experimental tanks can take a route around obstacles to reach an open firing position. They steer through turns while moving and can resume the same route after a dodge.
+- Solo + 1 vs 1 — Experimental tanks can take a route around obstacles to reach an open firing position and resume it after a dodge. Tanks with more health can press closer, and threatened tanks favor smaller corrections when a shot is likely to arrive quickly.
 
 ## OpenZ-VK 1.5.107 (27 Nov 2026)
 

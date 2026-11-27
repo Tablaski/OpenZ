@@ -565,9 +565,9 @@ namespace OpenZ.Sim
                 separationCost = Math.Max(0, gap - Math.Sqrt(dx * dx + dy * dy)) / Math.Max(1, gap);
             }
             double openRoute = radar ? .12 * Math.Min(1, travel / Math.Max(1, length)) * (.35 + .65 * room / 24) : 0;
-            double approachCost = radar ? .62 * RadarApproach(px, py, enemy ?? threat) : 0;
+            double approachCost = radar ? TacticalApproachPenalty * RadarApproach(px, py, enemy ?? threat) : 0;
             double followupCost = double.IsNaN(tacticalPreferredDodge) ? 0 :
-                .32 * Math.Abs(WrapRadians(bearing - tacticalPreferredDodge)) / Math.PI;
+                tacticalFollowupWeight * Math.Abs(WrapRadians(bearing - tacticalPreferredDodge)) / Math.PI;
             return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost - approachCost - followupCost +
                 (radar ? TacticalDodgeProgress(px, py) : 0);
         }

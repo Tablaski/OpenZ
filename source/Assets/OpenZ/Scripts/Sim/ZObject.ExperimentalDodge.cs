@@ -225,7 +225,9 @@ namespace OpenZ.Sim
             {
                 double current = World.Time - tacticalPreviousDodgeAt < 3.5 && !double.IsNaN(tacticalPreviousDodge) ?
                     tacticalPreviousDodge : recentTravel ? Math.Atan2(tacticalTravelY, tacticalTravelX) : double.NaN;
-                double bend = TacticalFollowupAngle(DodgeVariation(1, unchecked((uint)(enemy.Id * 617 + cadence.Samples * 331))) - .5);
+                double room = Math.Clamp((flight - .20) / .65, 0, 1);
+                double bend = TacticalFollowupAngle(DodgeVariation(1, unchecked((uint)(enemy.Id * 617 + cadence.Samples * 331))) - .5, room);
+                tacticalFollowupWeight = .52 - .25 * room;
                 tacticalPreferredDodge = current + (sample < 0 ? -bend : bend);
             }
             try

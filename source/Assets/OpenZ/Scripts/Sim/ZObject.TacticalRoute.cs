@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             internal readonly sbyte[] Passable = new sbyte[TacticalWidth * TacticalWidth];
             internal readonly int[] Queue = new int[TacticalWidth * TacticalWidth];
             internal int Enemy = -1, EnemyX, EnemyY, Index, Anchor, AimX, AimY, WorldVersion;
-            internal double Expiry, Retry, NextAim, MovedAt;
+            internal double Expiry, Retry, NextAim, MovedAt, Pressure;
             internal int MovedX, MovedY;
             internal bool ResumeAfterDodge;
             internal readonly ZDuelState Feint = new ZDuelState { active = true };
@@ -30,6 +30,7 @@ namespace OpenZ.Sim
         bool tacticalDriving;
         int tacticalGear;
         double tacticalPreviousDodge = double.NaN, tacticalPreferredDodge = double.NaN;
+        double tacticalFollowupWeight;
         double tacticalPreviousDodgeAt, tacticalTravelAt, tacticalTravelX, tacticalTravelY;
         public int TacticalRoutePlans { get; private set; }
         public int TacticalRoutePointsReached { get; private set; }
@@ -43,11 +44,18 @@ namespace OpenZ.Sim
         public (int x, int y) TacticalDestination => HasTacticalRoute ? tactical.Points[tactical.Points.Count - 1] : (CenterX, CenterY);
         bool TacticalFeintInProgress => HasTacticalRoute && tactical.Feint.feintCounted && tactical.Feint.feintEnd > World.Time;
 
-        internal static double TacticalFollowupAngle(double sample)
+        internal static double TacticalFollowupAngle(double sample, double room)
         {
-            // Most follow-ups continue the departure. A smaller share make a more pronounced turn.
-            double degrees = sample < .65 ? 12 + 14 * sample / .65 : 40 + 24 * (sample - .65) / .35;
+            double shallow = .94 - .40 * room;
+            double degrees = sample < shallow ? 7 + 5 * room + (11 + 3 * room) * sample / shallow :
+                25 + 15 * room + (12 + 12 * room) * (sample - shallow) / (1 - shallow);
             return degrees * Math.PI / 180;
+        }
+
+        internal static double TacticalPressure(int health, int opposingHealth, int id, int opponentId)
+        {
+            double advantage = (health - (double)opposingHealth) / Math.Max(1, Math.Max(health, opposingHealth));
+            return Math.Abs(advantage) >= .08 ? Math.Clamp(advantage * 2.4, -1, 1) : id < opponentId ? .22 : -.22;
         }
 
         bool TacticalRouteStep(ZObject enemy, double dt, bool agro)
@@ -158,6 +166,8 @@ namespace OpenZ.Sim
             Array.Clear(route.Passable, 0, route.Passable.Length);
             int originX = CenterX, originY = CenterY, range = RangeTo(enemy);
             double gap = ExperimentalDuelGap(enemy), startDistance = Dist(originX, originY, enemy.CenterX, enemy.CenterY);
+            route.Pressure = TacticalPressure(Health, enemy.Health, Id, enemy.Id);
+            double preferredRange = Math.Max(gap + 12, range * (.81 - route.Pressure * .13));
             double floor = Math.Min(startDistance, gap);
             int start = TacticalRadius * TacticalWidth + TacticalRadius;
             int head = 0, tail = 1, best = -1;
@@ -182,7 +192,7 @@ namespace OpenZ.Sim
                         if (TacticalPointFree(x + step.x * 14, y + step.y * 14) &&
                             TacticalPointFree(x + step.x * 28, y + step.y * 28)) open++;
                     double lateral = ((y - originY) * rx - (x - originX) * ry) * side;
-                    double score = 8 * open + .13 * lateral - .35 * Math.Abs(distance - range * .80) - 3 * route.Depth[cell];
+                    double score = 8 * open + .13 * lateral - .5 * Math.Abs(distance - preferredRange) - 3 * route.Depth[cell];
                     if (BehaviorHeadingSet)
                     {
                         var initial = TacticalSteps[route.FirstStep[cell]];
@@ -292,5 +302,7 @@ namespace OpenZ.Sim
             var next = tactical.Points[tactical.Index];
             return .16 * Math.Clamp((Dist(CenterX, CenterY, next.x, next.y) - RadarDistance(x, y, next.x, next.y)) / 30, -1, 1);
         }
+
+        double TacticalApproachPenalty => HasTacticalRoute ? .65 - tactical.Pressure * .22 : .62;
     }
 }

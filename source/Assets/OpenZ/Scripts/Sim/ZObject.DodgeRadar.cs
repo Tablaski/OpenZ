@@ -21,7 +21,7 @@ namespace OpenZ.Sim
         List<RadarContact> radarContacts;
         long radarTick = -1;
         bool DodgeRadar => ExperimentalDodging && Behavior.On(ZBehaviorKey.ExperimentalDodgeRadar);
-        bool RadarMoving => DodgeRadar && (BehaviorDodging || duel?.active == true);
+        bool RadarMoving => DodgeRadar && (BehaviorDodging || DuelKind != ZDuelKind.None);
         public int ExperimentalRadarStops { get; private set; }
 
         static double RadarDistance(double x, double y, double ox, double oy) =>

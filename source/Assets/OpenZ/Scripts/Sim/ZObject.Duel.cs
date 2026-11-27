@@ -237,7 +237,12 @@ namespace OpenZ.Sim
             double dist = Dist(CenterX, CenterY, t.CenterX, t.CenterY);
             int R = RangeTo(t);
             double P = R - ZDuel.Margin(Type), dMax = R - ZDuel.CloseBand;
-            if (d.kind == ZDuelKind.Reverse)
+            double gap = ExperimentalDodging ? ExperimentalDuelGap(t) : 0;
+            bool separating = gap > 0 && dist < gap + (d.separating ? 6 : 0);
+            d.experimentalGear = 0;
+            if (ExperimentalDodging && !separating && TryExperimentalFeint(d, t, agro)) return DuelEnd.Expired;
+            if (separating) d.feintEnd = World.Time;
+            if (!separating && d.kind == ZDuelKind.Reverse)
             {                                                                                // backs up to the edge of the band, never out of range
                 if (dist >= dMax - 2) return DuelEnd.Range;
                 look = Math.Max(6, Math.Min(look, (int)(dMax - dist)));
@@ -288,6 +293,8 @@ namespace OpenZ.Sim
                     double cx = PosX + (WidthPix >> 1), cy = PosY + (HeightPix >> 1);
                     ex = (int)Math.Round(cx + ux * ZDuel.LookPx); ey = (int)Math.Round(cy + uy * ZDuel.LookPx);
                 }
+                if (separating && !d.separating) ExperimentalSeparations++;
+                d.separating = separating;
                 SetTarget(ex, ey); SetVelocity();
                 d.nextAim = World.Time + (BehaviorCombatFlow ? .16 : ZDuel.AimInterval);
                 return DuelEnd.Expired;
@@ -318,17 +325,17 @@ namespace OpenZ.Sim
             double de = Dist(ex, ey, t.CenterX, t.CenterY);
             if (de > RangeTo(t) - ZDuel.EndSlack) return false;
             double hardGap = ZPathing.MinSpacing(this, t) + 8;
-            double startGap = Dist(CenterX, CenterY, t.CenterX, t.CenterY);
             double desiredGap = ExperimentalDodging ? ExperimentalDuelGap(t) : 0;
-            if (de < hardGap && (desiredGap <= 0 || de <= startGap)) return false;
             if (desiredGap > 0)
             {
-                if (de < desiredGap && de <= startGap) return false;
+                double startGap = Dist(CenterX, CenterY, t.CenterX, t.CenterY);
+                if (de < Math.Max(hardGap, desiredGap) && de <= startGap) return false;
                 double closest = Math.Clamp((t.CenterX - cx) * ux + (t.CenterY - cy) * uy, 0, look);
                 double ax = cx + ux * closest - t.CenterX, ay = cy + uy * closest - t.CenterY;
                 double floor = Math.Max(0, Math.Min(startGap, desiredGap) - 1);
                 if (ax * ax + ay * ay < floor * floor) return false;
             }
+            else if (de < hardGap) return false;
             if (!t.IsDestroyableImpass && !t.ShuttleAirborne && World.EngageBarrierBetween(ex, ey, t.CenterX, t.CenterY)) return false;   // DV118: not for the flying shuttle
             if (LosActive && !World.Sight.ClearFrom(ex, ey, 0, t)) return false;          // DV23: the end point keeps a clear line
             if (agro)

@@ -449,7 +449,7 @@ namespace OpenZ.Sim
                     rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy,
                     experimental: rangeDodge && experimental && !HasTacticalRoute, brakeFirst: rangeDodge && experimentalBrake && World.Time < experimentalBrakeUntil,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
-                    gear: tacticalDriving ? tacticalGear : flowing && experimental ? duel.experimentalGear : 0,
+                    gear: flowing && !tacticalDriving && experimental ? duel.experimentalGear : 0,
                     rollingTurn: tacticalDriving || rangeDodge && HasTacticalRoute);
                 if (experimental && drive.Sign != previousGear) ExperimentalGearChanges++;
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
@@ -586,7 +586,9 @@ namespace OpenZ.Sim
             double remaining, double dt, double acceleration, double pivot, double damageRamp, out double vx, out double vy,
             bool experimental = false, bool brakeFirst = false, double smoothing = 0, int gear = 0, bool rollingTurn = false)
         {
-            bool reverse = p.On(ZBehaviorKey.Reverse) && (gear == 0 ? NearestHullReverse(state.Heading, bearing) : gear < 0);
+            bool reverse = p.On(ZBehaviorKey.Reverse) && (rollingTurn ?
+                TacticalTravelGear(state.Heading, bearing, state.Sign) < 0 :
+                gear == 0 ? NearestHullReverse(state.Heading, bearing) : gear < 0);
             int sign = reverse ? -1 : 1;
             double aim = WrapRadians(bearing + (reverse ? Math.PI : 0));
             double delta = WrapRadians(aim - state.Heading);

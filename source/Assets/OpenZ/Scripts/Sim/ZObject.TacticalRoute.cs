@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             internal readonly sbyte[] Passable = new sbyte[TacticalWidth * TacticalWidth];
             internal readonly int[] Queue = new int[TacticalWidth * TacticalWidth];
             internal int Enemy = -1, EnemyX, EnemyY, Index, Anchor, AimX, AimY, WorldVersion;
-            internal double Expiry, Retry, NextAim, MovedAt, Pressure;
+            internal double Expiry, Retry, NextAim, MovedAt, Pressure, WeavePhase;
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
@@ -30,7 +30,6 @@ namespace OpenZ.Sim
 
         TacticalRoute tactical;
         bool tacticalDriving;
-        int tacticalGear;
         double tacticalPreviousDodge = double.NaN, tacticalPreferredDodge = double.NaN;
         double tacticalFollowupWeight;
         double tacticalPreviousDodgeAt, tacticalTravelAt, tacticalTravelX, tacticalTravelY;
@@ -45,6 +44,13 @@ namespace OpenZ.Sim
 
         public (int x, int y) TacticalDestination => HasTacticalRoute ? tactical.Points[tactical.Points.Count - 1] : (CenterX, CenterY);
         bool TacticalFeintInProgress => HasTacticalRoute && tactical.Feint.feintCounted && tactical.Feint.feintEnd > World.Time;
+
+        internal static int TacticalTravelGear(double heading, double travel, int current)
+        {
+            double angle = Math.Abs(WrapRadians(travel - heading));
+            if (Math.Abs(angle - Math.PI / 2) < 1e-10) return current;
+            return angle > Math.PI / 2 ? -1 : 1;
+        }
 
         internal static double TacticalFollowupAngle(double sample, double room)
         {
@@ -133,23 +139,23 @@ namespace OpenZ.Sim
             tacticalDriving = true;
             try
             {
-                int gear = tacticalGear;
                 bool feint = (TacticalFeintInProgress || route.Expiry - World.Time > 1 &&
                     Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12) &&
                     TryExperimentalFeint(route.Feint, enemy, agro);
-                if (feint) tacticalGear = route.Feint.experimentalGear;
-                else { SetTarget(route.AimX, route.AimY); SetVelocity(); }
+                if (!feint) { SetTarget(route.AimX, route.AimY); SetVelocity(); }
                 double heading = BehaviorHeading;
                 bool moved = ProcessMove(dt, true, out _, out _);
-                tacticalGear = gear;
-                if (BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy > 16)
+                double paceSquared = BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy;
+                if (!feint && moved)
+                    route.WeavePhase = (route.WeavePhase + Math.Sqrt(paceSquared) * dt * .104) % (2 * Math.PI);
+                if (paceSquared > 16)
                 {
                     tacticalTravelAt = World.Time;
                     tacticalTravelX = BehaviorStepDx;
                     tacticalTravelY = BehaviorStepDy;
                 }
                 if (Math.Abs(WrapRadians(BehaviorHeading - heading)) > dt * .35 &&
-                    BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy < 16) TacticalPivotSeconds += dt;
+                    paceSquared < 16) TacticalPivotSeconds += dt;
                 if (!moved) return AbandonTacticalRoute(route);
             }
             finally { tacticalDriving = false; }
@@ -339,16 +345,9 @@ namespace OpenZ.Sim
                 int cornerY = (int)Math.Round(goal.y + (next.y - goal.y) * blend);
                 if (TacticalSegment(CenterX, CenterY, cornerX, cornerY)) goal = (cornerX, cornerY);
             }
-            if (route.Anchor != anchor)
-            {
-                double bearing = Math.Atan2(goal.y - CenterY, goal.x - CenterX);
-                double facing = BehaviorHeadingSet ? Math.Cos(BehaviorHeading - bearing) : 1;
-                if (tacticalGear == 0 || facing * tacticalGear < -.19)
-                    tacticalGear = facing < 0 ? -1 : 1;
-                route.Anchor = anchor;
-            }
+            route.Anchor = anchor;
             double dx = goal.x - CenterX, dy = goal.y - CenterY, length = Dist(CenterX, CenterY, goal.x, goal.y);
-            double weave = Math.Sin(World.Time * 4 + Id) * Math.Min(7, length * .16) *
+            double weave = Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(16, length * .35) *
                 Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100;
             int x = goal.x - (int)Math.Round(dy * weave / Math.Max(1, length));
             int y = goal.y + (int)Math.Round(dx * weave / Math.Max(1, length));

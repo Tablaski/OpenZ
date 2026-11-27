@@ -151,7 +151,9 @@ namespace OpenZ.Sim
             double heading = BehaviorHeadingSet ? BehaviorHeading : bearing;
             var drive = new DodgeDrive(heading, behaviorTurnSpeed, BehaviorActualSpeed,
                 behaviorReverseUntil - World.Time, behaviorTravelSign);
-            int preferred = gear != 0 ? gear : Behavior.On(ZBehaviorKey.Reverse) && NearestHullReverse(heading, bearing) ? -1 : 1;
+            int preferred = !Behavior.On(ZBehaviorKey.Reverse) ? 1 :
+                tacticalDriving ? TacticalTravelGear(heading, bearing, behaviorTravelSign) :
+                gear != 0 ? gear : NearestHullReverse(heading, bearing) ? -1 : 1;
             bool blind = RadarMissesTerrain(preferred);
             double x = PosX + (WidthPix >> 1), y = PosY + (HeightPix >> 1), travel = 0, room = 24;
             double speed = Math.Max(1, RealMoveSpeed * Behavior[ZBehaviorKey.CombatFlowSpeed]);

@@ -22,7 +22,7 @@ namespace OpenZ.Sim
         long radarTick = -1;
         double radarBlockedUntil, radarBlockedBearing;
         bool DodgeRadar => ExperimentalDodging && Behavior.On(ZBehaviorKey.ExperimentalDodgeRadar);
-        bool RadarMoving => DodgeRadar && (BehaviorDodging || DuelKind != ZDuelKind.None);
+        bool RadarMoving => DodgeRadar && (BehaviorDodging || tacticalDriving || DuelKind != ZDuelKind.None);
         internal bool UsesDodgeRadar => DodgeRadar;
         public int ExperimentalRadarStops { get; private set; }
 
@@ -117,7 +117,7 @@ namespace OpenZ.Sim
             if (!DuelBoxFree((int)Math.Floor(x) - (WidthPix >> 1), (int)Math.Floor(y) - (HeightPix >> 1)) &&
                 (!missesTerrain || distance <= 6 || x < WidthPix / 2 || y < HeightPix / 2 ||
                     x >= World.Map.WidthPix - WidthPix / 2 || y >= World.Map.HeightPix - HeightPix / 2)) return false;
-            if (World.Pathing?.Enabled == true && World.Pathing.DuelLaneAt((int)x, (int)y)) return false;
+            if (!tacticalDriving && World.Pathing?.Enabled == true && World.Pathing.DuelLaneAt((int)x, (int)y)) return false;
             foreach (var contact in radarContacts)
             {
                 double lead = Math.Min(time, .55);

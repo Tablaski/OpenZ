@@ -192,7 +192,8 @@ namespace OpenZ.Sim
         void CheckExperimentalAnticipation()
         {
             if (!ExperimentalDodging || experimentalCadences == null || BehaviorDodging || HoldPosition ||
-                World.Time < experimentalNextCheck || duel != null && duel.feintEnd > World.Time) return;
+                World.Time < experimentalNextCheck || duel != null && duel.feintEnd > World.Time ||
+                HasTacticalRoute && tactical.Feint.feintEnd > World.Time) return;
             experimentalNextCheck = World.Time + .05;
             var enemy = ExperimentalFocus(ExperimentalAttackTarget());
             if (!ExperimentalCanShoot(enemy) || !experimentalCadences.TryGetValue(enemy.Id, out var cadence) ||

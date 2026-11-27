@@ -517,6 +517,7 @@ namespace OpenZ.Sim
             else if (cur.stage != Stage.Attack) { cur.stage = Stage.Attack; SetTarget(t.CenterX, t.CenterY); SetVelocity(); }
             if (cur.stage == Stage.Attack)
             {
+                if (TacticalRouteStep(t, dt, true)) return;
                 if (!CanSee(t)) { KillWP(); return; }
                 if (RamFirstStep(t, dt, false)) return;   // 1.5 DV189 (kit ram_first): Sim/ZObject.RamFirst.cs: a RAM-FIRST target in gun range: drive in, the gun on it
                 int dm = WithinAttackRadius(t) && !ElectroCloseIn(t) && !SniperCloseIn(t) ? DuelStep(t, dt, true) : -1;   // DV9 (ZObject.Duel.cs): manoeuvre / approach engaged / Zod; DV83: the Electrobot closes in on a target that moves away first; DV120: a sniper closes in 16 px inside its range
@@ -595,6 +596,7 @@ namespace OpenZ.Sim
             if (!FortGunAnswering(t) && CalmNoChase(t)) { KillWP(); return; }                                   // b49: an attack on the way of the player's order ends when its target is out of range (ZObject.Calm.cs)
             if (IsEvilZod && EvilDashOrder(wp, t, isNew)) return;                       // DV161: on a given attack order the power dash before any walking step (Sim/ZEvilZod.cs)
             if (RamFirstStep(t, dt, true)) return;   // 1.5 DV189 (kit ram_first): Sim/ZObject.RamFirst.cs: a RAM-FIRST target in gun range: drive in, the gun on it
+            if (TacticalRouteStep(t, dt, false)) return;
             if (WithinAttackRadius(t))
             {                                                                           // DV9 (ZObject.Duel.cs): a vehicle duel manoeuvres and fires; at the
                 int dm = DuelStep(t, dt, false);                                        // very edge of range it keeps driving its approach, engaged

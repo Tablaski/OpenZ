@@ -293,6 +293,11 @@ namespace OpenZ.Sim
             if (!BehaviorCombatFlow || Waypoints.Count < 2 ||
                 (Waypoints[1].mode != WpMode.Attack && Waypoints[1].mode != WpMode.Agro))
             { KillWP(); return; }
+            if (HasTacticalRoute && Waypoints[1].refId == tactical.Enemy)
+            {
+                tactical.ResumeAfterDodge = true;
+                tactical.Feint.feintEnd = World.Time;
+            }
             UpdatedWaypoints = true;
             Waypoints.RemoveAt(0);
             lastWp = ZWaypoint.Cleared;
@@ -426,7 +431,7 @@ namespace OpenZ.Sim
             }
             bool rangeDodge = BehaviorDodging && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical) &&
                 p[ZBehaviorKey.Direction] == ZBehaviorProfile.RangeAwareDirection;
-            bool flowing = !BehaviorDodging && DuelKind != ZDuelKind.None && BehaviorCombatFlow;
+            bool flowing = !BehaviorDodging && (tacticalDriving || DuelKind != ZDuelKind.None) && BehaviorCombatFlow;
             if (rangeDodge || flowing)
             {
                 double bearing = rangeDodge ? Math.Atan2(cur.y - cur.sy, cur.x - cur.sx) : angle;
@@ -439,9 +444,9 @@ namespace OpenZ.Sim
                 bool experimental = ExperimentalDodging;
                 StepRangeAwareDodge(p, ref drive, bearing, desired, courseRemaining, dt,
                     rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy,
-                    experimental: rangeDodge && experimental, brakeFirst: rangeDodge && experimentalBrake && World.Time < experimentalBrakeUntil,
+                    experimental: rangeDodge && experimental && !HasTacticalRoute, brakeFirst: rangeDodge && experimentalBrake && World.Time < experimentalBrakeUntil,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
-                    gear: flowing && experimental ? duel.experimentalGear : 0);
+                    gear: tacticalDriving ? tacticalGear : flowing && experimental ? duel.experimentalGear : 0);
                 if (experimental && drive.Sign != previousGear) ExperimentalGearChanges++;
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
                 behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;
@@ -516,7 +521,7 @@ namespace OpenZ.Sim
                 if (remaining <= 1.5) break;
                 double speed = (boostLimit == 0 || travel < boostLimit) && (boostDuration == 0 || i * dt < boostDuration) ? boosted : baseSpeed;
                 StepRangeAwareDodge(p, ref drive, bearing, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy,
-                    experimental, brake && i * dt < .08,
+                    experimental && !HasTacticalRoute, brake && i * dt < .08,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0);
                 double step = Math.Sqrt(vx * vx + vy * vy) * dt;
                 if (radar)
@@ -558,7 +563,8 @@ namespace OpenZ.Sim
             }
             double openRoute = radar ? .12 * Math.Min(1, travel / Math.Max(1, length)) * (.35 + .65 * room / 24) : 0;
             double approachCost = radar ? .62 * RadarApproach(px, py, enemy ?? threat) : 0;
-            return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost - approachCost;
+            return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost - approachCost +
+                (radar ? TacticalDodgeProgress(px, py) : 0);
         }
 
         struct DodgeDrive

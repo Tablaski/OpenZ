@@ -330,6 +330,15 @@ namespace OpenZ.Sim
             }
             var goal = route.Points[anchor];
             if (!TacticalSegment(CenterX, CenterY, goal.x, goal.y)) return false;
+            double distanceToCorner = Dist(CenterX, CenterY, goal.x, goal.y);
+            if (anchor + 1 < route.Points.Count && distanceToCorner < 26)
+            {
+                var next = route.Points[anchor + 1];
+                double blend = .4 * (1 - distanceToCorner / 26);
+                int cornerX = (int)Math.Round(goal.x + (next.x - goal.x) * blend);
+                int cornerY = (int)Math.Round(goal.y + (next.y - goal.y) * blend);
+                if (TacticalSegment(CenterX, CenterY, cornerX, cornerY)) goal = (cornerX, cornerY);
+            }
             if (route.Anchor != anchor)
             {
                 double bearing = Math.Atan2(goal.y - CenterY, goal.x - CenterX);

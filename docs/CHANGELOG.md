@@ -8,7 +8,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 ## OpenZ-VK 1.5.109 (28 Nov 2026)
 
-- Solo + 1 vs 1 — Experimental tanks try to find firing positions with room to lead a moving target. They can change position when obstacles keep cutting off that firing angle.
+- Solo + 1 vs 1 — Experimental tanks try to find firing positions with room to lead a moving target. They can change position when obstacles keep cutting off that firing angle, and they slow into turns to keep rolling through more corners.
 
 ## OpenZ-VK 1.5.108 (28 Nov 2026)
 

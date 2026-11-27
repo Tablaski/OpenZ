@@ -449,7 +449,8 @@ namespace OpenZ.Sim
                     rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy,
                     experimental: rangeDodge && experimental && !HasTacticalRoute, brakeFirst: rangeDodge && experimentalBrake && World.Time < experimentalBrakeUntil,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
-                    gear: tacticalDriving ? tacticalGear : flowing && experimental ? duel.experimentalGear : 0);
+                    gear: tacticalDriving ? tacticalGear : flowing && experimental ? duel.experimentalGear : 0,
+                    rollingTurn: tacticalDriving || rangeDodge && HasTacticalRoute);
                 if (experimental && drive.Sign != previousGear) ExperimentalGearChanges++;
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
                 behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;
@@ -525,7 +526,8 @@ namespace OpenZ.Sim
                 double speed = (boostLimit == 0 || travel < boostLimit) && (boostDuration == 0 || i * dt < boostDuration) ? boosted : baseSpeed;
                 StepRangeAwareDodge(p, ref drive, bearing, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy,
                     experimental && !HasTacticalRoute, brake && i * dt < .08,
-                    smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0);
+                    smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
+                    rollingTurn: HasTacticalRoute);
                 double step = Math.Sqrt(vx * vx + vy * vy) * dt;
                 if (radar)
                 {
@@ -582,7 +584,7 @@ namespace OpenZ.Sim
 
         static void StepRangeAwareDodge(ZBehaviorValues p, ref DodgeDrive state, double bearing, double desired,
             double remaining, double dt, double acceleration, double pivot, double damageRamp, out double vx, out double vy,
-            bool experimental = false, bool brakeFirst = false, double smoothing = 0, int gear = 0)
+            bool experimental = false, bool brakeFirst = false, double smoothing = 0, int gear = 0, bool rollingTurn = false)
         {
             bool reverse = p.On(ZBehaviorKey.Reverse) && (gear == 0 ? NearestHullReverse(state.Heading, bearing) : gear < 0);
             int sign = reverse ? -1 : 1;
@@ -613,9 +615,18 @@ namespace OpenZ.Sim
             }
             desired *= reverse ? p[ZBehaviorKey.ReverseSpeed] / 100 : 1;
             double brakingTime = p[ZBehaviorKey.Braking];
-            double target = braking || brakeFirst || pauseForTurn || state.ReverseDelay > 0 ? 0 : desired * Math.Max(0, Math.Cos(turnRemaining));
+            bool stop = braking || brakeFirst || pauseForTurn || state.ReverseDelay > 0;
+            double cornerPace = Math.Max(0, Math.Cos(turnRemaining));
+            if (rollingTurn)
+            {
+                double creep = .22 * Math.Clamp((Math.PI * .59 - turnRemaining) / (Math.PI * .12), 0, 1);
+                cornerPace = Math.Max(creep, cornerPace);
+            }
+            double target = stop ? 0 : desired * cornerPace;
             if (brakingTime > 0) target = Math.Min(target, Math.Sqrt(2 * desired / brakingTime * Math.Max(0, remaining)));
-            double ramp = target < state.Speed ? (brakeFirst ? Math.Min(.035, brakingTime) : brakingTime) :
+            double slowTime = brakeFirst ? Math.Min(.035, brakingTime) :
+                rollingTurn && !stop && turnRemaining > .15 ? Math.Max(.12, brakingTime) : brakingTime;
+            double ramp = target < state.Speed ? slowTime :
                 p[ZBehaviorKey.Acceleration] * acceleration + damageRamp;
             state.Speed = ramp > 0 ? Toward(state.Speed, target, Math.Max(1, desired) / ramp * dt) : target;
             double speed = Math.Min(state.Speed, Math.Max(0, remaining) / dt) * state.Sign;

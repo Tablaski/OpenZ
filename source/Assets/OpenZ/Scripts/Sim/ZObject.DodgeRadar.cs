@@ -159,7 +159,8 @@ namespace OpenZ.Sim
             for (int i = 0; i < 35 && travel < look; i++)
             {
                 StepRangeAwareDodge(Behavior, ref drive, bearing, speed, look - travel, dt, 1, 1, CripplingAcceleration,
-                    out double vx, out double vy, smoothing: Behavior[ZBehaviorKey.ExperimentalSteeringTime], gear: gear);
+                    out double vx, out double vy, smoothing: Behavior[ZBehaviorKey.ExperimentalSteeringTime], gear: gear,
+                    rollingTurn: tacticalDriving);
                 double step = Math.Sqrt(vx * vx + vy * vy) * dt;
                 int probes = Math.Max(1, (int)Math.Ceiling(step / 4));
                 for (int n = 1; n <= probes; n++)

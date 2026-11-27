@@ -117,7 +117,7 @@ namespace OpenZ.Sim
 
             double certainty = Behavior[ZBehaviorKey.ExperimentalAimPrediction] / 100;
             double sample = DodgeVariation(1, unchecked((uint)(target.Id * 193 + World.TickIndex * 149))) - .5;
-            double rate = sample + .5 < certainty ? aimRotation : 0;
+            double rate = sample < certainty ? aimRotation : 0;
             double flight = Math.Min(1.6, Dist(CenterX, CenterY, tx, ty) / projectileSpeed);
             for (int i = 0; i < 3; i++)
             {

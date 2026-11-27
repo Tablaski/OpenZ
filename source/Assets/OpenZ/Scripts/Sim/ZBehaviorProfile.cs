@@ -243,7 +243,7 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalDodging, 1);
                 profile.Set(type, ZBehaviorKey.Direction, RangeAwareDirection);
                 profile.Set(type, ZBehaviorKey.CombatManoeuvres, 1);
-                profile.Set(type, ZBehaviorKey.CombatFlowSpeed, 1.75);
+                profile.Set(type, ZBehaviorKey.CombatFlowSpeed, 1.45);
                 profile.Set(type, ZBehaviorKey.ExperimentalSteeringTime, .085);
                 profile.Set(type, ZBehaviorKey.ExperimentalCurveVariance, 72);
                 profile.Set(type, ZBehaviorKey.ExperimentalFeintChance, 62);
@@ -251,7 +251,8 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalAimPrediction, 68);
                 profile.Set(type, ZBehaviorKey.ExperimentalDodgeRadar, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalRadarError, 5);
-                profile.Set(type, ZBehaviorKey.BoostSpeed, 5.6 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
+                profile.Set(type, ZBehaviorKey.BoostSpeed, 4.0 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
+                profile.Set(type, ZBehaviorKey.BoostVariance, 0);
                 profile.Set(type, ZBehaviorKey.DamagedBoost, 1);
                 profile.Set(type, ZBehaviorKey.MaxDistance, 9 * relative);
                 profile.Set(type, ZBehaviorKey.BoostMaxDistance, 9 * relative);

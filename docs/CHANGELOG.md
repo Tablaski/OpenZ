@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.107 (27 Nov 2026)
+
+- Solo + 1 vs 1 — Experimental tank dodges favor sideways and outward routes. Tanks use shorter bursts, try a different direction after getting blocked, and can fire as soon as an obstructed shot opens up.
+
 ## OpenZ-VK 1.5.106 (27 Nov 2026)
 
 - Solo + 1 vs 1 — zExperimentalDodging tanks look for room to dodge around obstacles and leave more space around allies. They can break away through an open route when crowded and drive through enemy infantry when run-over is enabled. They sometimes miss an obstacle, especially in reverse.

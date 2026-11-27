@@ -20,8 +20,10 @@ namespace OpenZ.Sim
 
         List<RadarContact> radarContacts;
         long radarTick = -1;
+        double radarBlockedUntil, radarBlockedBearing;
         bool DodgeRadar => ExperimentalDodging && Behavior.On(ZBehaviorKey.ExperimentalDodgeRadar);
         bool RadarMoving => DodgeRadar && (BehaviorDodging || DuelKind != ZDuelKind.None);
+        internal bool UsesDodgeRadar => DodgeRadar;
         public int ExperimentalRadarStops { get; private set; }
 
         static double RadarDistance(double x, double y, double ox, double oy) =>
@@ -39,7 +41,8 @@ namespace OpenZ.Sim
                     Math.Abs(other.CenterX - CenterX) > 2 * RadarLook || Math.Abs(other.CenterY - CenterY) > 2 * RadarLook ||
                     ZWorld.CanRunOver(this, other)) continue;
                 double buffer = other.Owner == Owner || World.AreAllied(Owner, other.Owner) ? AllyBuffer : 3;
-                radarContacts.Add(new RadarContact(other, ZPathing.MinSpacing(this, other) + buffer));
+                radarContacts.Add(new RadarContact(other, ZPathing.MinSpacing(this, other) + buffer +
+                    (other.Kind == ZKind.Cannon ? 6 : 0)));
             }
         }
 
@@ -52,6 +55,23 @@ namespace OpenZ.Sim
         }
 
         static readonly double[] EscapeAngles = { 75, -75, 100, -100, 135, -135, 180 };
+
+        double RadarApproach(double x, double y, ZObject enemy)
+        {
+            if (enemy == null || !enemy.IsUnit || enemy.Destroyed) return 0;
+            double move = RadarDistance(CenterX, CenterY, x, y);
+            if (move < 1) return 0;
+            double start = Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY);
+            double end = RadarDistance(x, y, enemy.CenterX, enemy.CenterY);
+            return Math.Clamp((start - end) / move, 0, 1);
+        }
+
+        void NoteRadarStop(double vx, double vy)
+        {
+            ExperimentalRadarStops++;
+            radarBlockedBearing = Math.Atan2(vy, vx);
+            radarBlockedUntil = World.Time + .8;
+        }
 
         DuelEnd RadarDuelAim(ZDuelState d, ZObject enemy, bool agro, double hx, double hy, int look, bool separating)
         {
@@ -70,9 +90,15 @@ namespace OpenZ.Sim
                     if (pass == 0 && !DuelHeadingOk(enemy, ux, uy, step, agro, out x, out y)) continue;
                     if (pass == 1 && agro && Dist(x, y, cur.agroX, cur.agroY) >
                         Math.Max(World.S.agro_distance + ZDuel.AgroLeash, Dist(CenterX, CenterY, cur.agroX, cur.agroY))) continue;
+                    double approach = RadarApproach(x, y, enemy);
+                    if (pass == 0 && approach > (d.kind == ZDuelKind.Close ? .85 : .55)) continue;
+                    if (pass == 1 && Dist(x, y, enemy.CenterX, enemy.CenterY) <
+                        Math.Min(Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY), ExperimentalDuelGap(enemy))) continue;
                     double runway = RadarRunway(ux, uy, RadarLook, 0);
-                    if (runway < (pass == 0 ? step : 5)) continue;
-                    double score = Math.Min(runway, 64) - Math.Abs(offset) * .34;
+                    if (runway < (pass == 0 ? step : 4)) continue;
+                    double blocked = World.Time < radarBlockedUntil ?
+                        Math.Max(0, Math.Cos(angle - radarBlockedBearing)) * 38 : 0;
+                    double score = Math.Min(runway, 64) - Math.Abs(offset) * .27 - approach * 38 - blocked;
                     if (score <= best) continue;
                     best = score; bestX = x; bestY = y;
                 }

@@ -356,13 +356,16 @@ namespace OpenZ.Sim
             BehaviorVelocity(dt, ref vx, ref vy);
             BehaviorLimitStep(dt, ref vx, ref vy);
             double nx = LocX + (vx * dt) + XOver, ny = LocY + (vy * dt) + YOver;
+            var pathing = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;
+            bool guardMinion = pathing != null && IsMinion && stoppable;
+            if (pathing != null && !pathing.Gate(this, ref nx, ref ny)) { if (IsRobot) WalkDisengage(); return true; }
             if (stoppable && RadarMoving && (!IsZ(vx) || !IsZ(vy)))
             {
                 bool blockedTerrain = World.Path.WithinImpassable((int)Math.Floor(nx) + 1, (int)Math.Floor(ny) + 1,
                     WidthPix - 2, HeightPix - 2, out _, out _, false);
                 if (blockedTerrain || !RadarActualStep(nx, ny))
                 {
-                    ExperimentalRadarStops++;
+                    NoteRadarStop(vx, vy);
                     if (BehaviorDodging)
                     {
                         FinishBehaviorDodge();
@@ -372,9 +375,6 @@ namespace OpenZ.Sim
                     return false;
                 }
             }
-            var pathing = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;                // OpenZ pathing layer
-            bool guardMinion = pathing != null && IsMinion && stoppable;
-            if (pathing != null && !pathing.Gate(this, ref nx, ref ny)) { if (IsRobot) WalkDisengage(); return true; }   // held by traffic / a lane this tick (still walking: no firing at an old target)
             int inx = (int)Math.Floor(nx), iny = (int)Math.Floor(ny);
             if (IsMinion) stoppable = false;                                           // minions never stoppable
             if (guardMinion && ((pathing.MinionWouldClip(this, inx, iny, out stopX, out stopY) && !pathing.SoftStep(this, inx, iny)) || pathing.SoftHardStep(this, inx, iny, ref stopX, ref stopY))) return ReachedTarget();   // (pathing v3 DV47: on debris never into a hard tile)   // research 11.9
@@ -925,6 +925,7 @@ namespace OpenZ.Sim
             if (IsEvilZod) { EvilFire(time); return; }                                                // DV161: his shot: no roll, the damage by range (Sim/ZEvilZod.cs)
             if (time < nextDamageTime) return;
             if (WalkShotOutOfRange(t)) { Disengage(); return; }                        // DV57: a walker's target left its range (no cooldown used)
+            if (DodgeRadar && CanAttackObject(t) && LosHoldShot(t)) return;             // A blocked shot leaves the gun ready for the next opening.
             nextDamageTime = time + AttackSpeed;
             if (!CanAttackObject(t)) { Disengage(); return; }
             if (LosHoldShot(t)) return;                                                 // DV23: never a direct shot into a wall

@@ -58,9 +58,11 @@ namespace OpenZ.Sim
                 var v = Objects[i];
                 if (v.Kind != ZKind.Vehicle || v.Destroyed || v.KillAt >= 0 || v.Owner == Team.Neutral || v.Drivers.Count == 0) continue;
                 if (!ZPathing.Moving(v) || v.PathHeld || v.RealMoveSpeed <= 0) continue;
-                double dl = Math.Sqrt((double)v.Dx * v.Dx + (double)v.Dy * v.Dy);
+                double vx = v.UsesDodgeRadar ? v.BehaviorStepDx : v.Dx;
+                double vy = v.UsesDodgeRadar ? v.BehaviorStepDy : v.Dy;
+                double dl = Math.Sqrt(vx * vx + vy * vy);
                 if (dl < 1e-6) continue;
-                double hx = v.Dx / dl, hy = v.Dy / dl, px = -hy, py = hx;
+                double hx = vx / dl, hy = vy / dl, px = -hy, py = hx;
                 double halfLen = ZPathing.VehicleRadiusOf(v.Type), halfW = halfLen * RunOverHalfWidth;
                 bool listed = fast && roRemoves == objRemoves;                           // (nothing leaves Objects during the pass; if it ever did, Objects itself as before)
                 var nbl = NbRunOverNear(v, n);                                           // 1.4 speed-up 5 (Sim/ZWorld.NeighbourGrid.cs): only the units in the 40 px box of the hull, same order
@@ -68,7 +70,8 @@ namespace OpenZ.Sim
                 for (int j = 0; j < m && (nbl != null || listed || j < Objects.Count); j++)
                 {
                     var r = nbl != null ? nbl[j] : listed ? roRobots[j] : Objects[j];
-                    if (r.Kind != ZKind.Robot || r.Destroyed || r.KillAt >= 0 || r.Health <= 0 || r.Owner == Team.Neutral || AreAllied(v.Owner, r.Owner)) continue;
+                    if (r.Kind != ZKind.Robot || r.Destroyed || r.KillAt >= 0 || r.Health <= 0 || r.Owner == Team.Neutral ||
+                        v.Owner == r.Owner || AreAllied(v.Owner, r.Owner)) continue;
                     if (r.IsFortDefender || r.PathInBuildingStage || r.FortRushOn || r.IsEvilZod) continue;
                     if (r.DriverOutOnHull) continue;                                                       // 1.4 DV171 final fix: a driver held while he climbs out of a tank is on its hull, not on the ground: not run over until his hold ends (Sim/ZObject.VehicleExit.cs)
                     double rx = r.CenterX - v.CenterX, ry = r.CenterY - v.CenterY;

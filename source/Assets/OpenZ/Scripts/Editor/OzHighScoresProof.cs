@@ -49,7 +49,7 @@ namespace OpenZ.EditorTools
             Check("no fight, no zones = no points for them", OzHighScores.Score(true, 0, 0, 0, 0, 0).total == 19000, OzHighScores.Score(true, 0, 0, 0, 0, 0).total.ToString());
 
             // 2 + 3. the table, on a file of its own
-            string tmp = Path.Combine(Application.temporaryCachePath, "oz_highscores_proof.json");
+            string tmp = Path.Combine(Application.temporaryCachePath, "oz_highscores_proof_" + System.Guid.NewGuid().ToString("N") + ".json");
             try
             {
                 if (File.Exists(tmp)) File.Delete(tmp);
@@ -77,11 +77,11 @@ namespace OpenZ.EditorTools
             finally
             {
                 OzHighScores.UseFile(null);
-                try { if (File.Exists(tmp)) File.Delete(tmp); } catch (System.Exception) { }
+                try { File.Delete(tmp); File.Delete(tmp + ".bak"); File.Delete(tmp + ".tmp"); } catch (System.Exception) { }
             }
 
             // 4. a table file written by an earlier build: a name with every entry
-            string older = Path.Combine(Application.temporaryCachePath, "oz_highscores_proof_older.json");
+            string older = Path.Combine(Application.temporaryCachePath, "oz_highscores_proof_older_" + System.Guid.NewGuid().ToString("N") + ".json");
             try
             {
                 File.WriteAllText(older, "{\"version\":1,\"tables\":[{\"level\":\"L02\",\"difficulty\":\"" + OpenZDifficulty.Label(GameDifficulty.Medium) + "\",\"entries\":["
@@ -90,15 +90,24 @@ namespace OpenZ.EditorTools
                 OzHighScores.UseFile(older);
                 var had = OzHighScores.Top("L02", GameDifficulty.Medium); int hadCount = had.Count;
                 bool read = hadCount == 2 && had[0].score == 19901 && had[0].seconds == 754 && had[0].kills == 42 && had[0].losses == 18 && had[0].built == 30 && had[0].zones == 6 && had[0].zonesTotal == 7 && had[1].score == 13750;
+                string backup = File.ReadAllText(older + ".bak");
+                Check("opening an older score file backs it up", backup == File.ReadAllText(older), "legacy score file");
                 int place = OzHighScores.Submit("L02", GameDifficulty.Medium, new OzScoreEntry { score = 15000, seconds = 900 });   // the next write of the file
                 string written = File.ReadAllText(older);
                 Check("an older file with names is read; the next write holds no name", read && place == 2 && !written.Contains("name") && written.Contains("19901") && written.Contains("15000") && written.Contains("13750"),
                       $"{hadCount} entries read, the new result at place {place}, the written file {(written.Contains("name") ? "still holds a name" : "holds no name")}");
+                File.Delete(older);
+                OzHighScores.UseFile(older);
+                Check("a missing score file is recovered from backup", OzHighScores.Top("L02", GameDifficulty.Medium).Count == 2, "previous score table");
+                File.WriteAllText(older, "broken");
+                OzHighScores.UseFile(older);
+                Check("a corrupt score file is recovered from backup", OzHighScores.Top("L02", GameDifficulty.Medium).Count == 2, "previous score table");
+                Check("saving after recovery keeps the good backup", OzHighScores.Save() && File.ReadAllText(older + ".bak") == backup && File.ReadAllText(older + ".bad") == "broken", "recovery files");
             }
             finally
             {
                 OzHighScores.UseFile(null);
-                try { if (File.Exists(older)) File.Delete(older); } catch (System.Exception) { }
+                try { File.Delete(older); File.Delete(older + ".bak"); File.Delete(older + ".bad"); File.Delete(older + ".tmp"); } catch (System.Exception) { }
             }
 
             return $"[OpenZ high scores proof] {ok}/{checks} checks. {(ok == checks ? "PASS" : "FAIL")}{bad}";

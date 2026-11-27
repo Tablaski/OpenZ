@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.104 (27 Nov 2026)
+
+- Solo — Local high scores carry over between versions. The game keeps a backup and loads it if the main score file is missing or unreadable.
+
 ## OpenZ-VK 1.5.103 (27 Nov 2026)
 
 - Solo + 1 vs 1 — zExperimentalDodging tanks steer through smoother, more varied curves. They can feint forward and reverse, and pull away when an opponent gets too close. Gunners try to predict whether the target will continue its curve.

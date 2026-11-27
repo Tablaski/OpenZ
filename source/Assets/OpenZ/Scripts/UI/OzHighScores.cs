@@ -140,6 +140,7 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ the file
         static OzScoreFile data; static string pathOverride;
+        static bool primaryReadFailed;
         /// <summary>Bumped whenever a table changes (the level cards refresh on it).</summary>
         public static int Version { get; private set; }
         /// <summary>The editor's own table file, in the same folder as the game's. The editor and a game installed on the same
@@ -151,27 +152,50 @@ namespace OpenZ
         /// <summary>Checks: work on another file (null = back to the player's own). The tables are read again.</summary>
         public static void UseFile(string path) { pathOverride = path; data = null; Version++; }
 
+        static OzScoreFile ReadScores(string path, out bool failed)
+        {
+            failed = false;
+            try
+            {
+                var scores = JsonUtility.FromJson<OzScoreFile>(File.ReadAllText(path, Encoding.UTF8));
+                if (scores == null || scores.tables == null)
+                    throw new InvalidDataException("Missing score tables.");
+                return scores;
+            }
+            catch (FileNotFoundException) { return null; }
+            catch (DirectoryNotFoundException) { return null; }
+            catch (Exception e)
+            {
+                failed = true;
+                Debug.LogWarning("[OpenZ Scores] could not read " + path + ": " + e.Message);
+                return null;
+            }
+        }
+
+        static void EnsureBackup(string path)
+        {
+            try
+            {
+                if (!File.Exists(path + ".bak"))
+                    File.Copy(path, path + ".bak");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[OpenZ Scores] could not create a backup: " + e.Message);
+            }
+        }
+
         static OzScoreFile Data
         {
             get
             {
                 if (data != null) return data;
-                var d = new OzScoreFile();
                 string p = FilePath;
-                try
-                {
-                    if (File.Exists(p))
-                    {
-                        var read = JsonUtility.FromJson<OzScoreFile>(File.ReadAllText(p, Encoding.UTF8));
-                        if (read != null && read.tables != null) d = read;
-                    }
-                }
-                catch (Exception e)
-                {   // an unreadable file is kept under another name and a new table starts: the end screen never fails on it
-                    Debug.LogWarning("[OpenZ Scores] the table file could not be read (" + e.Message + "): it is kept as " + FileName + ".bad and a new table starts");
-                    try { if (File.Exists(p)) { string badPath = p + ".bad"; if (File.Exists(badPath)) File.Delete(badPath); File.Move(p, badPath); } } catch (Exception) { }
-                    d = new OzScoreFile();
-                }
+                var d = ReadScores(p, out primaryReadFailed);
+                if (d == null)
+                    d = ReadScores(p + ".bak", out _) ?? new OzScoreFile();
+                else
+                    EnsureBackup(p);
                 d.tables.RemoveAll(t => t == null || string.IsNullOrEmpty(t.level) || string.IsNullOrEmpty(t.difficulty));
                 foreach (var t in d.tables)
                 {
@@ -253,8 +277,17 @@ namespace OpenZ
                 string dir = Path.GetDirectoryName(p);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
                 File.WriteAllText(tmp, JsonUtility.ToJson(Data, true), new UTF8Encoding(false));
-                if (File.Exists(p)) File.Delete(p);
-                File.Move(tmp, p);
+                if (File.Exists(p))
+                {
+                    // Preserve the recovery copy when replacing an unreadable primary file.
+                    File.Replace(tmp, p, primaryReadFailed ? p + ".bad" : p + ".bak");
+                }
+                else
+                {
+                    File.Move(tmp, p);
+                    EnsureBackup(p);
+                }
+                primaryReadFailed = false;
                 Version++;
                 return true;
             }

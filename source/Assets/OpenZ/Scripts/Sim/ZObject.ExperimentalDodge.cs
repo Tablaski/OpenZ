@@ -18,6 +18,57 @@ namespace OpenZ.Sim
         public int ExperimentalAnticipations { get; private set; }
         public int ExperimentalBrakeDodges { get; private set; }
 
+        public int ExperimentalFeints { get; private set; }
+        public int ExperimentalGearChanges { get; private set; }
+        public int ExperimentalSeparations { get; private set; }
+
+        double ExperimentalDuelGap(ZObject enemy)
+        {
+            double minimum = ZPathing.MinSpacing(this, enemy) + 8;
+            double requested = Behavior[ZBehaviorKey.ExperimentalDuelGap] / ZConst.PX_TO_M;
+            return requested <= 0 ? 0 : Math.Max(minimum, Math.Min(requested, RangeTo(enemy) - 12));
+        }
+
+        bool TryExperimentalFeint(ZDuelState d, ZObject enemy, bool agro)
+        {
+            double chance = Behavior[ZBehaviorKey.ExperimentalFeintChance];
+            if (!d.active || chance <= 0 || !BehaviorHeadingSet) return false;
+            double now = World.Time;
+            if (d.feintEnd <= now)
+            {
+                if (now < d.nextFeint) return false;
+                var rng = World.DuelRandom;
+                d.nextFeint = now + .85 + rng.Next(51) * .01;
+                if (rng.Next(10000) >= chance * 100) return false;
+                d.feintAxis = BehaviorHeading;
+                d.feintTurn = (.12 + rng.Next(36) * .01) * d.sign;
+                d.feintSwitch = now + .23 + rng.Next(9) * .01;
+                d.feintEnd = d.feintSwitch + .44 + rng.Next(21) * .01;
+                d.feintCounted = false;
+            }
+
+            bool forward = now < d.feintSwitch;
+            double travel = d.feintAxis + (forward ? d.feintTurn : -d.feintTurn + Math.PI);
+            double ux = Math.Cos(travel), uy = Math.Sin(travel);
+            if (!DuelHeadingOk(enemy, ux, uy, forward ? 8 : 14, agro, out int x, out int y))
+            {
+                d.feintEnd = now;
+                return false;
+            }
+
+            d.experimentalGear = forward ? 1 : -1;
+            if (forward && !d.feintCounted) { d.feintCounted = true; ExperimentalFeints++; }
+            SetTarget(x, y);
+            SetVelocity();
+            d.nextAim = Math.Min(now + .08, forward ? d.feintSwitch : d.feintEnd);
+            return true;
+        }
+
+        static double ExperimentalCurvePulse(double phase) =>
+            Math.Sin(phase) * .72 + Math.Sin(phase * 2) * .28;
+
+
+
         bool ExperimentalDodging => Kind == ZKind.Vehicle && Behavior != null &&
             Behavior.On(ZBehaviorKey.ExperimentalDodging);
 

@@ -65,6 +65,9 @@ namespace OpenZ.Sim
     {
         public bool active; public ZDuelKind kind, lastKind; public int sign, lastSign, targetId = -1, seq, sameSign;
         public double start, until, lastTime = -100, nextAim, retryAt = -100, fx, fy, movedX, movedY, movedAt, endedAt = -100;
+        internal double curveVariation, nextFeint, feintAxis, feintTurn, feintSwitch, feintEnd;
+        internal int experimentalGear;
+        internal bool feintCounted, separating;
         // counters
         public int Manoeuvres, Expired, AbortBlocked, AbortHeld, AbortRange, AbortTarget, AbortOther, ShortAborts, SignFlips, Stands, Resumes;
         public readonly int[] ByKind = new int[5];
@@ -104,7 +107,7 @@ namespace OpenZ.Sim
             bool resumed = false;
             if (d.active)
             {
-                if (d.targetId != t.Id) EndDuel(d, DuelEnd.Target);
+                if (d.targetId != t.Id) { d.feintEnd = 0; EndDuel(d, DuelEnd.Target); }
                 else if (now - d.lastTime > ZDuel.ResumeGap) EndDuel(d, DuelEnd.Other);
                 else if (now - d.lastTime > 0.015)
                 {                                                                            // back from a Zod dodge: the same manoeuvre goes on, for at
@@ -115,7 +118,8 @@ namespace OpenZ.Sim
             d.lastTime = now;
             Engage(t);                                                                       // fire (Zod's ProcessAttackDamage, own cooldown)
             if (d.active && now >= d.until) EndDuel(d, DuelEnd.Expired);
-            if (d.active && (resumed || now >= d.nextAim || NearCurTarget()))
+            bool needsSeparation = ExperimentalDodging && ExperimentalDuelGap(t) > Dist(CenterX, CenterY, t.CenterX, t.CenterY);
+            if (d.active && (resumed || now >= d.nextAim || NearCurTarget() || needsSeparation && !d.separating))
             {
                 var why = DuelAim(d, t, agro, ZDuel.LookPx);
                 if (why == DuelEnd.Blocked && now - d.start < ZDuel.CommitMin)
@@ -179,6 +183,7 @@ namespace OpenZ.Sim
             if (d.sign == 0) d.sign = r1 == 0 ? 1 : -1;
             int s0 = d.sign;
             if (d.sameSign >= ZDuel.FlipAfter && r2 < ZDuel.FlipPct) s0 = -s0;
+            if (ExperimentalDodging) d.curveVariation = r4 / 100.0;
             double dur = ZDuel.CommitMin + (ZDuel.CommitMax - ZDuel.CommitMin) * r4 / 100.0;
             bool roomBack = (dMax - dist) / (ZDuel.ReverseRoom * v) >= ZDuel.CommitMin;   // room to back up 1 s even if the target backs away too
             var list = new (ZDuelKind k, int s)[5];
@@ -250,7 +255,19 @@ namespace OpenZ.Sim
                     hx = tx + rx * k; hy = ty + ry * k; break;
                 }
             }
-            if (BehaviorCombatFlow && d.kind != ZDuelKind.Reverse)
+            if (separating)
+            {
+                hx = rx + tx * .35; hy = ry + ty * .35;
+            }
+            else if (ExperimentalDodging && Behavior[ZBehaviorKey.ExperimentalCurveVariance] > 0 && d.kind != ZDuelKind.Reverse)
+            {
+                double variety = Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100;
+                double phase = (World.Time - d.start) * (3.6 + d.curveVariation * 2.2) + (Id % 7) * .31;
+                double bend = variety * (.22 + .66 * d.curveVariation) * ExperimentalCurvePulse(phase);
+                if (dist > dMax) bend = Math.Min(0, bend);
+                hx += rx * bend; hy += ry * bend;
+            }
+            else if (BehaviorCombatFlow && d.kind != ZDuelKind.Reverse)
             {
                 // Alternate short inward/outward feints within the larger committed arc.
                 // Bias back inside the ring near the edge. The normal route checks still apply.
@@ -300,7 +317,18 @@ namespace OpenZ.Sim
             }
             double de = Dist(ex, ey, t.CenterX, t.CenterY);
             if (de > RangeTo(t) - ZDuel.EndSlack) return false;
-            if (de < ZPathing.MinSpacing(this, t) + 8) return false;
+            double hardGap = ZPathing.MinSpacing(this, t) + 8;
+            double startGap = Dist(CenterX, CenterY, t.CenterX, t.CenterY);
+            double desiredGap = ExperimentalDodging ? ExperimentalDuelGap(t) : 0;
+            if (de < hardGap && (desiredGap <= 0 || de <= startGap)) return false;
+            if (desiredGap > 0)
+            {
+                if (de < desiredGap && de <= startGap) return false;
+                double closest = Math.Clamp((t.CenterX - cx) * ux + (t.CenterY - cy) * uy, 0, look);
+                double ax = cx + ux * closest - t.CenterX, ay = cy + uy * closest - t.CenterY;
+                double floor = Math.Max(0, Math.Min(startGap, desiredGap) - 1);
+                if (ax * ax + ay * ay < floor * floor) return false;
+            }
             if (!t.IsDestroyableImpass && !t.ShuttleAirborne && World.EngageBarrierBetween(ex, ey, t.CenterX, t.CenterY)) return false;   // DV118: not for the flying shuttle
             if (LosActive && !World.Sight.ClearFrom(ex, ey, 0, t)) return false;          // DV23: the end point keeps a clear line
             if (agro)

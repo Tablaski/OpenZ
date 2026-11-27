@@ -48,7 +48,7 @@ namespace OpenZ.Sim
             else if (interval > cadence.Period * 1.65)
             { cadence.Period = period; cadence.Samples = 0; cadence.Planned = 0; }
             cadence.Last = now;
-            cadence.Samples = Math.Min(20, cadence.Samples + 1);
+            cadence.Samples++;
         }
 
         ZObject ExperimentalFocus(ZObject assigned)

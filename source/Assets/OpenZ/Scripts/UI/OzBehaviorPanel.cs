@@ -178,7 +178,12 @@ namespace OpenZ
                     FinishFields(); agilityDraft.Clear();
                     foreach (var draft in drafts)
                     {
-                        draft.overrides = draft.id == "zod-classic" ? ZBehaviorProfile.Classic(draft.family).overrides : new List<ZBehaviorOverride>();
+                        draft.overrides = draft.id switch
+                        {
+                            "zod-classic" => ZBehaviorProfile.Classic(draft.family).overrides,
+                            ZBehaviorProfile.ExperimentalDodgeId => ZBehaviorProfile.ExperimentalTankDodging().overrides,
+                            _ => new List<ZBehaviorOverride>()
+                        };
                         Apply((int)draft.family);
                     }
                     dirty = true; rebuild = true;

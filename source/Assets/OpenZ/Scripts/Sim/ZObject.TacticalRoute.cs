@@ -29,6 +29,8 @@ namespace OpenZ.Sim
         TacticalRoute tactical;
         bool tacticalDriving;
         int tacticalGear;
+        double tacticalPreviousDodge = double.NaN, tacticalPreferredDodge = double.NaN;
+        double tacticalPreviousDodgeAt, tacticalTravelAt, tacticalTravelX, tacticalTravelY;
         public int TacticalRoutePlans { get; private set; }
         public int TacticalRoutePointsReached { get; private set; }
         public int TacticalRouteDodgeResumes { get; private set; }
@@ -39,6 +41,14 @@ namespace OpenZ.Sim
                 (Waypoints[0].mode == WpMode.Attack || Waypoints[0].mode == WpMode.Agro));
 
         public (int x, int y) TacticalDestination => HasTacticalRoute ? tactical.Points[tactical.Points.Count - 1] : (CenterX, CenterY);
+        bool TacticalFeintInProgress => HasTacticalRoute && tactical.Feint.feintCounted && tactical.Feint.feintEnd > World.Time;
+
+        internal static double TacticalFollowupAngle(double sample)
+        {
+            // Most follow-ups continue the departure. A smaller share make a more pronounced turn.
+            double degrees = sample < .65 ? 12 + 14 * sample / .65 : 40 + 24 * (sample - .65) / .35;
+            return degrees * Math.PI / 180;
+        }
 
         bool TacticalRouteStep(ZObject enemy, double dt, bool agro)
         {
@@ -52,10 +62,11 @@ namespace OpenZ.Sim
             }
 
             var route = tactical ??= new TacticalRoute();
-            if (route.Enemy != enemy.Id || route.WorldVersion != World.Path.Version ||
-                Dist(route.EnemyX, route.EnemyY, enemy.CenterX, enemy.CenterY) > 56)
+            if (route.Enemy != enemy.Id || !TacticalFeintInProgress && (route.WorldVersion != World.Path.Version ||
+                Dist(route.EnemyX, route.EnemyY, enemy.CenterX, enemy.CenterY) > 56))
             {
                 route.Points.Clear();
+                if (route.Enemy != enemy.Id) tacticalPreviousDodge = double.NaN;
                 route.Enemy = enemy.Id;
                 route.ResumeAfterDodge = false;
             }
@@ -79,20 +90,20 @@ namespace OpenZ.Sim
                 route.MovedAt = World.Time;
                 TacticalRouteDodgeResumes++;
             }
-            if (route.Anchor >= route.Index &&
+            if (!TacticalFeintInProgress && route.Anchor >= route.Index &&
                 Dist(CenterX, CenterY, route.Points[route.Anchor].x, route.Points[route.Anchor].y) <= 9)
             {
                 TacticalRoutePointsReached += route.Anchor + 1 - route.Index;
                 route.Index = route.Anchor + 1;
             }
-            while (route.Index < route.Points.Count &&
+            while (!TacticalFeintInProgress && route.Index < route.Points.Count &&
                 Dist(CenterX, CenterY, route.Points[route.Index].x, route.Points[route.Index].y) <= 9)
             {
                 route.Index++;
                 TacticalRoutePointsReached++;
             }
             if (!HasTacticalRoute) return false;
-            if (route.Anchor < route.Index || World.Time >= route.NextAim)
+            if (!TacticalFeintInProgress && (route.Anchor < route.Index || World.Time >= route.NextAim))
             {
                 if (!AimTacticalRoute(route, enemy))
                     return AbandonTacticalRoute(route);
@@ -103,18 +114,25 @@ namespace OpenZ.Sim
                 route.MovedX = CenterX;
                 route.MovedY = CenterY;
             }
-            if (World.Time - route.MovedAt > .75) return AbandonTacticalRoute(route);
+            if (!TacticalFeintInProgress && World.Time - route.MovedAt > .75) return AbandonTacticalRoute(route);
             tacticalDriving = true;
             try
             {
                 int gear = tacticalGear;
-                bool feint = Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12 &&
+                bool feint = (TacticalFeintInProgress || route.Expiry - World.Time > 1 &&
+                    Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12) &&
                     TryExperimentalFeint(route.Feint, enemy, agro);
                 if (feint) tacticalGear = route.Feint.experimentalGear;
                 else { SetTarget(route.AimX, route.AimY); SetVelocity(); }
                 double heading = BehaviorHeading;
                 bool moved = ProcessMove(dt, true, out _, out _);
                 tacticalGear = gear;
+                if (BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy > 16)
+                {
+                    tacticalTravelAt = World.Time;
+                    tacticalTravelX = BehaviorStepDx;
+                    tacticalTravelY = BehaviorStepDy;
+                }
                 if (Math.Abs(WrapRadians(BehaviorHeading - heading)) > dt * .35 &&
                     BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy < 16) TacticalPivotSeconds += dt;
                 if (!moved) return AbandonTacticalRoute(route);

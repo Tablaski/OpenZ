@@ -81,6 +81,7 @@ namespace OpenZ.Sim
             if (Destroyed || Stunned || Owner == Team.Neutral || MoveSpeed <= 0 || RealMoveSpeed <= 0 || IsEvilZod || IsFortDefender)
                 return BehaviorRefuse("Unit cannot move");
             if (time <= 0) return BehaviorRefuse("Impact already due");
+            if (TacticalFeintInProgress) return BehaviorRefuse("Tactical feint committed");
             if (fortRush || FortRunOn || UnmannedHeld) return BehaviorRefuse("Protected transition");
             var threatKey = kind == ZThreatKind.Grenade ? ZBehaviorKey.ThreatGrenade : kind == ZThreatKind.Rocket ? ZBehaviorKey.ThreatRocket : ZBehaviorKey.ThreatShell;
             if (!p.On(threatKey) || (nearby && !p.On(ZBehaviorKey.NearbyThreats))) return BehaviorRefuse("Threat filter");
@@ -297,6 +298,8 @@ namespace OpenZ.Sim
             {
                 tactical.ResumeAfterDodge = true;
                 tactical.Feint.feintEnd = World.Time;
+                tacticalPreviousDodge = Math.Atan2(cur.y - cur.sy, cur.x - cur.sx);
+                tacticalPreviousDodgeAt = World.Time;
             }
             UpdatedWaypoints = true;
             Waypoints.RemoveAt(0);
@@ -563,7 +566,9 @@ namespace OpenZ.Sim
             }
             double openRoute = radar ? .12 * Math.Min(1, travel / Math.Max(1, length)) * (.35 + .65 * room / 24) : 0;
             double approachCost = radar ? .62 * RadarApproach(px, py, enemy ?? threat) : 0;
-            return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost - approachCost +
+            double followupCost = double.IsNaN(tacticalPreferredDodge) ? 0 :
+                .32 * Math.Abs(WrapRadians(bearing - tacticalPreferredDodge)) / Math.PI;
+            return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost - approachCost - followupCost +
                 (radar ? TacticalDodgeProgress(px, py) : 0);
         }
 

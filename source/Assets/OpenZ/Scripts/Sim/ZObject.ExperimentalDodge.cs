@@ -62,8 +62,12 @@ namespace OpenZ.Sim
             bool forward = now < d.feintSwitch;
             double travel = d.feintAxis + (forward ? d.feintTurn : -d.feintTurn + Math.PI);
             double ux = Math.Cos(travel), uy = Math.Sin(travel);
-            if (!DuelHeadingOk(enemy, ux, uy, forward ? 8 : 14, agro, out int x, out int y, forward ? 1 : -1) ||
-                DodgeRadar && RadarApproach(x, y, enemy) > .55)
+            int look = forward ? 8 : 14;
+            int x = (int)Math.Round(PosX + (WidthPix >> 1) + ux * look);
+            int y = (int)Math.Round(PosY + (HeightPix >> 1) + uy * look);
+            if (!(TacticalFeintInProgress && d == tactical.Feint) &&
+                (!DuelHeadingOk(enemy, ux, uy, look, agro, out x, out y, forward ? 1 : -1) ||
+                    DodgeRadar && RadarApproach(x, y, enemy) > .55))
             {
                 d.feintEnd = now;
                 return false;
@@ -200,7 +204,8 @@ namespace OpenZ.Sim
                 cadence.Planned == cadence.Samples) return;
 
             // The first intervals are uncertain. Familiar opponents get a narrower prediction.
-            double uncertainty = .32 / (1 + (cadence.Samples - 1) * 1.5);
+            bool routing = HasTacticalRoute;
+            double uncertainty = (routing ? .18 : .32) / (1 + (cadence.Samples - 1) * 1.5);
             double sample = DodgeVariation(2, unchecked((uint)(enemy.Id * 131 + cadence.Samples * 151))) - 1;
             double lead = Math.Clamp(cadence.Period * .14, .13, .36);
             double launch = cadence.Last + cadence.Period + uncertainty * sample;
@@ -209,18 +214,30 @@ namespace OpenZ.Sim
             double distance = Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY);
             double flight = distance / Math.Max(1, enemy.MissileSpeed);
             double horizon = Math.Min(1.25, Math.Max(.05, until) + flight);
-            int tx = (int)Math.Round(CenterX + BehaviorStepDx * horizon);
-            int ty = (int)Math.Round(CenterY + BehaviorStepDy * horizon);
+            bool recentTravel = routing && World.Time - tacticalTravelAt < .18;
+            int tx = (int)Math.Round(CenterX + (recentTravel ? tacticalTravelX : BehaviorStepDx) * horizon);
+            int ty = (int)Math.Round(CenterY + (recentTravel ? tacticalTravelY : BehaviorStepDy) * horizon);
             double proximity = distance / Math.Max(1, RangeTo(enemy));
-            bool brake = BehaviorActualSpeed >= Math.Max(1, BehaviorBaseMoveSpeed) * 1.45 &&
+            bool brake = !routing && BehaviorActualSpeed >= Math.Max(1, BehaviorBaseMoveSpeed) * 1.45 &&
                 sample < (proximity < .55 ? -.86 : -.64);
             cadence.Planned = cadence.Samples;
-            if (BehaviorDodge(tx, ty, horizon, ZThreatKind.Shell, enemy.Damage, enemy.Id, false,
-                enemy.DamageRadius, anticipateBrake: brake))
+            if (routing)
             {
-                ExperimentalAnticipations++;
-                if (experimentalBrake) ExperimentalBrakeDodges++;
+                double current = World.Time - tacticalPreviousDodgeAt < 3.5 && !double.IsNaN(tacticalPreviousDodge) ?
+                    tacticalPreviousDodge : recentTravel ? Math.Atan2(tacticalTravelY, tacticalTravelX) : double.NaN;
+                double bend = TacticalFollowupAngle(DodgeVariation(1, unchecked((uint)(enemy.Id * 617 + cadence.Samples * 331))) - .5);
+                tacticalPreferredDodge = current + (sample < 0 ? -bend : bend);
             }
+            try
+            {
+                if (BehaviorDodge(tx, ty, horizon, ZThreatKind.Shell, enemy.Damage, enemy.Id, false,
+                    enemy.DamageRadius, anticipateBrake: brake))
+                {
+                    ExperimentalAnticipations++;
+                    if (experimentalBrake) ExperimentalBrakeDodges++;
+                }
+            }
+            finally { tacticalPreferredDodge = double.NaN; }
         }
     }
 }

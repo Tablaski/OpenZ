@@ -73,7 +73,7 @@ namespace OpenZ
             Hud.Label(panel, "Help", "These settings apply to your next solo mission.", 18, OzUi.Ink).At(28, 113, OzH.L, false, 1044);
             string tanks = OzBehaviorLibrary.SelectedId(ZBehaviorFamily.Tanks);
             string robots = OzBehaviorLibrary.SelectedId(ZBehaviorFamily.Robots);
-            var customs = OzBehaviorLibrary.CustomProfiles();
+            var customs = OzBehaviorLibrary.AvailableCustomProfiles();
             const int width = 310;
             ProfileButton("OPENZ", "native", 158, "Standard OpenZ combat behavior.", false);
             ProfileButton("Z CLASSIC", "zod-classic", 222, ClassicGoal, true);
@@ -86,7 +86,7 @@ namespace OpenZ
                 () => Open(options => { options.choosingCustom = !choosingCustom; options.BuildGaming(); }),
                 selected: activeCustom != null, enabled: customs.Count > 0);
             string help = customs.Count == 0 ? "Save a profile in Unit Editor > Dynamics to enable Custom." :
-                "Choose a combat profile saved in the Unit Editor.";
+                "Choose an experimental or saved combat profile.";
             Hud.Label(panel, "Custom help", help, 17, OzUi.Ink).At(360, 303, OzH.L, false, 708);
             if (legacySelection && activeCustom == null)
                 Hud.Label(panel, "Legacy selection", "Your earlier combat settings remain active.", 17, OzUi.Ink)

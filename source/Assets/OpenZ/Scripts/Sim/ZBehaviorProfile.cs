@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -188,6 +188,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.PivotVariance,"Dodge pivot variance","","",0,1,.2,.2,"Total variation in hull pivot speed and turning acceleration during each dodge."),
             B(ZBehaviorKey.DodgePhysical,"Pivot before moving during a dodge","DODGING",false,false,"Apply the vehicle's turn rate and acceleration to the defensive step."),
             N(ZBehaviorKey.CombatFlowSpeed,"Continuous tank manoeuvring (0 = off)","COMBAT","x",0,3,0,0,"With physical steering and offensive manoeuvres enabled, retain momentum between dodging and attacking. This multiplier sets offensive manoeuvre speed independently of the dodge boost."),
+            B(ZBehaviorKey.ExperimentalDodging,"Anticipate enemy shots","DODGING",false,false,"Learn the firing cadence of nearby opponents. Range Aware tank dodges favor quick curved departures, with occasional braking feints."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
@@ -224,6 +225,26 @@ namespace OpenZ.Sim
     {
         // Common light-tank and Tough explosions have a 40 px (5 m) radius.
         public const int RangeAwareDirection = 4;
+        public const string ExperimentalDodgeId = "zExperimentalDodging";
+
+        public static ZBehaviorProfile ExperimentalTankDodging()
+        {
+            var profile = Classic(ZBehaviorFamily.Tanks);
+            profile.id = profile.name = ExperimentalDodgeId;
+            foreach (var (type, relative) in new[] { ("light", 1d), (ZMTank.Type, .842), ("heavy", .638) })
+            {
+                profile.Set(type, ZBehaviorKey.ExperimentalDodging, 1);
+                profile.Set(type, ZBehaviorKey.Direction, RangeAwareDirection);
+                profile.Set(type, ZBehaviorKey.CombatManoeuvres, 1);
+                profile.Set(type, ZBehaviorKey.CombatFlowSpeed, 1.75);
+                profile.Set(type, ZBehaviorKey.BoostSpeed, 5.6 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
+                profile.Set(type, ZBehaviorKey.DamagedBoost, 1);
+                profile.Set(type, ZBehaviorKey.MaxDistance, 9 * relative);
+                profile.Set(type, ZBehaviorKey.BoostMaxDistance, 9 * relative);
+            }
+            return profile;
+        }
+
         public const double ClassicBlastRadiusPixels = 40;
         public const double ClassicDodgeLimitMetres = ClassicBlastRadiusPixels * ZConst.PX_TO_M * 1.25;
         public static ZBehaviorProfile Classic(ZBehaviorFamily family)

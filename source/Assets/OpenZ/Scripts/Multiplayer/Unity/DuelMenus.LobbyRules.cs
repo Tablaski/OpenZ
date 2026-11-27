@@ -272,7 +272,7 @@ namespace OpenZ.Multiplayer
         {
             bool native = tanks == "native" && robots == "native";
             bool classic = tanks == "zod-classic" && robots == "zod-classic";
-            var profiles = OzBehaviorLibrary.CustomProfiles();
+            var profiles = OzBehaviorLibrary.AvailableCustomProfiles();
             var current = profiles.Find(profile => profile.Matches(tanks, robots));
             int buttonWidth = (width - 16) / 3;
             int customX = x + 2 * (buttonWidth + 8);
@@ -288,10 +288,10 @@ namespace OpenZ.Multiplayer
                 () => { PauseHostSetup(); combatDropdown = !combatDropdown; onlineProfileScroll = 1; dirty = true; },
                 !native && !classic, canOpenCustom, 40);
             if (canOpenCustom) Label(custom, "v", buttonWidth - 20, 20, 17, 12, !native && !classic ? OzUi.GM950 : OzUi.Ink);
-            string description = combatDropdown && canChooseCustom ? "Choose a saved Unit Editor profile." :
+            string description = combatDropdown && canChooseCustom ? "Choose an experimental or saved combat profile." :
                 native ? "Standard OpenZ combat behavior." :
                 classic ? "Experimental: Z95-inspired dodging, speed boosts and combat movement." :
-                current == null ? "The lobby uses a custom combat profile." : "Saved combat profile: " + current.Name;
+                current == null ? "The lobby uses a custom combat profile." : "Combat profile: " + current.Name;
             Label(panel, description, x, y + 95, width, 15, OzUi.Muted);
             if (!combatDropdown || !canOpenCustom) return null;
             if (guestView)

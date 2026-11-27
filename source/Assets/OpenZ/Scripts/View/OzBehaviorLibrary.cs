@@ -68,6 +68,7 @@ namespace OpenZ
             string id = SelectedId(f);
             if (id == "native") return "OpenZ  v";
             if (id == "zod-classic") return "Z Classic  v";
+            if (id == ZBehaviorProfile.ExperimentalDodgeId && f == ZBehaviorFamily.Tanks) return id + "  v";
             if (id == "zod-local") return "Zod Local (idle only)  v";
             if (id == "retreat-dodge" && f == ZBehaviorFamily.Robots) return "Retreat Dodge  v";
             return (SavedProfiles.Find(p => p.id == id && p.family == f)?.name ?? "OpenZ Native") + "  v";
@@ -103,6 +104,16 @@ namespace OpenZ
         internal static CombatProfile Standard(bool classic) => Pair(
             classic ? Zod(ZBehaviorFamily.Tanks) : Native(ZBehaviorFamily.Tanks),
             classic ? Zod(ZBehaviorFamily.Robots) : Native(ZBehaviorFamily.Robots));
+
+        internal static CombatProfile ExperimentalDodging() =>
+            Pair(ZBehaviorProfile.ExperimentalTankDodging(), Native(ZBehaviorFamily.Robots));
+
+        internal static List<CombatProfile> AvailableCustomProfiles()
+        {
+            var profiles = CustomProfiles();
+            profiles.Insert(0, ExperimentalDodging());
+            return profiles;
+        }
 
         internal static CombatProfile Pair(ZBehaviorProfile tanks, ZBehaviorProfile robots) => new CombatProfile(tanks, robots);
 

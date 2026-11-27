@@ -375,7 +375,7 @@ namespace OpenZ
             else if (profiles)
             {
                 var presets = OzBehaviorLibrary.CustomProfiles();
-                foreach (var preset in new[] { OzBehaviorLibrary.Standard(false), OzBehaviorLibrary.Standard(true) }.Concat(presets))
+                foreach (var preset in new[] { OzBehaviorLibrary.Standard(false), OzBehaviorLibrary.Standard(true), OzBehaviorLibrary.ExperimentalDodging() }.Concat(presets))
                 {
                     var row = Row(preset.Name, y, 36);
                     string tip = "Load this combat profile into the playground.";

@@ -6,6 +6,11 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.105 (27 Nov 2026)
+
+- Solo — AI 2026 can pick a safer direction when retreating from one enemy would expose a unit to another. Zod checks every retreat, Skilled usually checks, and Alright sometimes overlooks the danger.
+- Solo — AI 2026 can avoid enemy fire along the way to repairs. It gives extra priority to safe bridge repairs when allied units are nearby.
+
 ## OpenZ-VK 1.5.104 (27 Nov 2026)
 
 - Solo — Local high scores carry over between versions. The game keeps a backup and loads it if the main score file is missing or unreadable.

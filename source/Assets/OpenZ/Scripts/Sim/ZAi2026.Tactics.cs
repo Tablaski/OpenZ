@@ -272,12 +272,15 @@ namespace OpenZ.Sim
             if (!CanOpenGap(unit, threat)) return false;
             if (AlreadyRetreating(unit, threat)) return true;
 
+            bool checkSafety = Occasion(unit.Id, threat.Id, 24) < tuning.RetreatSafetyChance;
+
             double dx = unit.CenterX - threat.CenterX, dy = unit.CenterY - threat.CenterY;
             double length = Math.Max(1, Math.Sqrt(dx * dx + dy * dy));
             dx /= length;
             dy /= length;
             int bestX = 0, bestY = 0;
             double best = double.NegativeInfinity;
+            double leastExposure = double.PositiveInfinity;
             for (int turn = -1; turn <= 1; turn++)
             {
                 int x = unit.CenterX + (int)(dx * 92 - dy * turn * 52);
@@ -298,13 +301,37 @@ namespace OpenZ.Sim
                     - Math.Sqrt(ZAiGeometry.DistanceSquared(home, x, y)) / 28;
                 if (cover) value += 25;
                 if (!unit.IsRobot) value += 8 * world.Map.TileWalkSpeed(x, y);
-                if (value <= best) continue;
+                double exposure = checkSafety ? RetreatExposure(unit, threat, x, y) : 0;
+                if (exposure > leastExposure) continue;
+                if (exposure == leastExposure && value <= best) continue;
+                leastExposure = exposure;
                 best = value; bestX = x; bestY = y;
             }
             if (best == double.NegativeInfinity || !IssueMove(unit, bestX, bestY)) return false;
             unit.Disengage();
             foreach (var member in unit.Minions) member.Disengage();
             return true;
+        }
+
+        double RetreatExposure(ZObject unit, ZObject pursuer, int x, int y)
+        {
+            double dx = x - unit.CenterX, dy = y - unit.CenterY;
+            double lengthSquared = dx * dx + dy * dy;
+            double exposure = 0;
+            foreach (var enemy in enemies)
+            {
+                if (enemy == pursuer || !enemy.CanAttackObject(unit) || !enemy.CanAttack()) continue;
+                double ex = enemy.CenterX - unit.CenterX, ey = enemy.CenterY - unit.CenterY;
+                double range = enemy.RangeTo(unit), start = ex * ex + ey * ey;
+                if (range <= 0) continue;
+                double t = Math.Clamp((ex * dx + ey * dy) / Math.Max(1, lengthSquared), 0, 1);
+                double sx = ex - t * dx, sy = ey - t * dy;
+                double closest = sx * sx + sy * sy;
+                // Already exposed units can still take an exit that increases separation.
+                double addedDepth = Math.Min(range, Math.Sqrt(start)) - Math.Min(range, Math.Sqrt(closest));
+                if (addedDepth > 0) exposure += addedDepth * Math.Max(1, ZAiCombat.Power(enemy));
+            }
+            return exposure;
         }
 
         ZObject PickObjective(ZObject unit, out WpMode mode)
@@ -343,17 +370,20 @@ namespace OpenZ.Sim
                     value = 67;
                 }
                 else if (target.Type == "repair" && unit.CanBeRepaired() && !target.RepairingUnit && target.CanRepairUnit(team) &&
-                    (level < ZBotDifficulty.Skilled || DangerousFor(target) == null) &&
+                    (level < ZBotDifficulty.Skilled || DangerousFor(target) == null) && SafeRepairApproach(unit, target) &&
                     unit.Health < unit.MaxHealth * (level >= ZBotDifficulty.Skilled ? .72 : .42) && level > ZBotDifficulty.Noob)
                 {
                     option = WpMode.UnitRepair;
                     value = 190 * (1 - (double)unit.Health / unit.MaxHealth);
                 }
                 else if (unit.Type == "crane" && target.CanBeRepairedByCrane(team) && level >= ZBotDifficulty.Skilled &&
-                    target.IsBridge && target.Destroyed && DangerousFor(target) == null)
+                    target.IsBridge && target.Destroyed && DangerousFor(target) == null && SafeRepairApproach(unit, target))
                 {
                     option = WpMode.CraneRepair;
                     value = 55;
+                    foreach (var ally in allies)
+                        if (ally != unit && ally.CanMove && ZAiGeometry.DistanceSquared(ally, target.CenterX, target.CenterY) <= 180L * 180)
+                        { value += 15; break; }
                 }
                 else if (level >= ZBotDifficulty.Skilled && target.IsProducer && !target.IsFort && unit.CanAttackObject(target) &&
                     !world.AreAllied(team, target.Owner) && target.Owner != Team.Neutral && SafeShot(unit, target) &&
@@ -373,6 +403,10 @@ namespace OpenZ.Sim
         bool NeedsPassengers(ZObject target, ZObject unit) => level >= ZBotDifficulty.Skilled && target.Type == "apc" &&
             (unit.Type == "sniper" || unit.Type == "pyro" || unit.Type == "laser") && target.CanTakePassengers(unit) &&
             ZAiGeometry.DistanceSquared(target, unit.CenterX, unit.CenterY) <= 280L * 280;
+
+        bool SafeRepairApproach(ZObject unit, ZObject site) =>
+            Occasion(unit.Id, site.Id, 25) >= tuning.RetreatSafetyChance ||
+            RetreatExposure(unit, null, site.CenterX, site.CenterY) <= 0;
 
         ZObject DangerousFor(ZObject position)
         {

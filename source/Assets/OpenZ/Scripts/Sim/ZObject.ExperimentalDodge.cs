@@ -37,12 +37,24 @@ namespace OpenZ.Sim
             if (d.feintEnd <= now)
             {
                 if (now < d.nextFeint) return false;
+                double expectedShot = double.PositiveInfinity;
+                if (experimentalCadences != null && experimentalCadences.TryGetValue(enemy.Id, out var cadence))
+                {
+                    expectedShot = cadence.Last + cadence.Period;
+                    if (expectedShot > now + .43 && expectedShot < now + cadence.Period)
+                    {
+                        d.nextFeint = expectedShot - .38;
+                        return false;
+                    }
+                }
                 var rng = World.DuelRandom;
                 d.nextFeint = now + .85 + rng.Next(51) * .01;
                 if (rng.Next(10000) >= chance * 100) return false;
                 d.feintAxis = BehaviorHeading;
                 d.feintTurn = (.12 + rng.Next(36) * .01) * d.sign;
-                d.feintSwitch = now + .23 + rng.Next(9) * .01;
+                double nominalSwitch = now + .23 + rng.Next(9) * .01;
+                d.feintSwitch = expectedShot >= now && expectedShot <= now + .43 ?
+                    Math.Clamp(expectedShot + .05, now + .19, now + .40) : nominalSwitch;
                 d.feintEnd = d.feintSwitch + .44 + rng.Next(21) * .01;
                 d.feintCounted = false;
             }
@@ -68,6 +80,56 @@ namespace OpenZ.Sim
             Math.Sin(phase) * .72 + Math.Sin(phase * 2) * .28;
 
 
+
+        int aimOpponent = -1;
+        double aimObservedAt, aimVx, aimVy, aimRotation;
+
+        void ObserveExperimentalMotion(ZObject target)
+        {
+            if (Behavior[ZBehaviorKey.ExperimentalAimPrediction] <= 0 || target.Kind != ZKind.Vehicle) return;
+            double now = World.Time;
+            double vx = target.BehaviorStepDx, vy = target.BehaviorStepDy;
+            if (aimOpponent != target.Id)
+            {
+                aimOpponent = target.Id;
+                aimObservedAt = now;
+                aimVx = vx; aimVy = vy; aimRotation = 0;
+                return;
+            }
+            double interval = now - aimObservedAt;
+            if (interval < .08) return;
+            double motion = vx * vx + vy * vy;
+            double previous = aimVx * aimVx + aimVy * aimVy;
+            double delta = motion > 1 && previous > 1 ?
+                WrapRadians(Math.Atan2(vy, vx) - Math.Atan2(aimVy, aimVx)) : 0;
+            // A sudden reversal is evidence of a new course, not a continuous half-circle.
+            double rate = Math.Abs(delta) < Math.PI / 2 ? Math.Clamp(delta / interval, -1.8, 1.8) : 0;
+            aimRotation = aimRotation * .45 + rate * .55;
+            aimVx = vx; aimVy = vy; aimObservedAt = now;
+        }
+
+        bool TryExperimentalAim(ZObject target, int projectileSpeed, out int tx, out int ty)
+        {
+            ObserveExperimentalMotion(target);
+            double vx = aimVx, vy = aimVy;
+            tx = target.CenterX; ty = target.CenterY;
+            if (vx * vx + vy * vy < 1) return false;
+
+            double certainty = Behavior[ZBehaviorKey.ExperimentalAimPrediction] / 100;
+            double sample = DodgeVariation(1, unchecked((uint)(target.Id * 193 + World.TickIndex * 149))) - .5;
+            double rate = sample + .5 < certainty ? aimRotation : 0;
+            double flight = Math.Min(1.6, Dist(CenterX, CenterY, tx, ty) / projectileSpeed);
+            for (int i = 0; i < 3; i++)
+            {
+                double turn = rate * flight;
+                double along = Math.Abs(rate) < .01 ? flight : Math.Sin(turn) / rate;
+                double across = Math.Abs(rate) < .01 ? 0 : (1 - Math.Cos(turn)) / rate;
+                tx = (int)Math.Round(target.CenterX + vx * along - vy * across);
+                ty = (int)Math.Round(target.CenterY + vy * along + vx * across);
+                flight = Math.Min(1.6, Dist(CenterX, CenterY, tx, ty) / projectileSpeed);
+            }
+            return true;
+        }
 
         bool ExperimentalDodging => Kind == ZKind.Vehicle && Behavior != null &&
             Behavior.On(ZBehaviorKey.ExperimentalDodging);
@@ -129,7 +191,7 @@ namespace OpenZ.Sim
         void CheckExperimentalAnticipation()
         {
             if (!ExperimentalDodging || experimentalCadences == null || BehaviorDodging || HoldPosition ||
-                World.Time < experimentalNextCheck) return;
+                World.Time < experimentalNextCheck || duel != null && duel.feintEnd > World.Time) return;
             experimentalNextCheck = World.Time + .05;
             var enemy = ExperimentalFocus(ExperimentalAttackTarget());
             if (!ExperimentalCanShoot(enemy) || !experimentalCadences.TryGetValue(enemy.Id, out var cadence) ||

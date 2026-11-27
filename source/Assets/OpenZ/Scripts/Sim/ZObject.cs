@@ -969,6 +969,8 @@ namespace OpenZ.Sim
         {
             tx = ty = 0;
             if (missileSpeed <= 0) return false;
+            if (ExperimentalDodging && target.Kind == ZKind.Vehicle && Behavior[ZBehaviorKey.ExperimentalAimPrediction] > 0)
+                return TryExperimentalAim(target, missileSpeed, out tx, out ty);
             if (IsZ(target.Dx) && IsZ(target.Dy)) return false;
             double dx = target.Dx, dy = target.Dy, xo = target.CenterX, yo = target.CenterY, x2o = CenterX, y2o = CenterY;
             double Cu = yo - y2o, Cd = xo - x2o, ms = missileSpeed;

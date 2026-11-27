@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -193,6 +193,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.ExperimentalCurveVariance,"Experimental curve variation","COMBAT","%",0,100,0,0,"Vary how much the tank turns inward or outward over a committed combat arc."),
             N(ZBehaviorKey.ExperimentalFeintChance,"Experimental forward-reverse feint chance","COMBAT","%",0,100,0,0,"Chance at each manoeuvre opportunity to make a short forward move followed by a longer reverse."),
             N(ZBehaviorKey.ExperimentalDuelGap,"Experimental minimum duel distance","COMBAT","m",0,16,0,0,"Prefer to keep this center-to-center distance from an attack target, and pull away when closer."),
+            N(ZBehaviorKey.ExperimentalAimPrediction,"Predict the target's curve","COMBAT","%",0,100,0,0,"Chance to anticipate a continuation of the observed curve instead of leading straight along the target's recent movement."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
@@ -245,6 +246,7 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalCurveVariance, 72);
                 profile.Set(type, ZBehaviorKey.ExperimentalFeintChance, 62);
                 profile.Set(type, ZBehaviorKey.ExperimentalDuelGap, 7);
+                profile.Set(type, ZBehaviorKey.ExperimentalAimPrediction, 68);
                 profile.Set(type, ZBehaviorKey.BoostSpeed, 5.6 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
                 profile.Set(type, ZBehaviorKey.DamagedBoost, 1);
                 profile.Set(type, ZBehaviorKey.MaxDistance, 9 * relative);

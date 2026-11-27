@@ -116,6 +116,7 @@ namespace OpenZ.Sim
                 }
             }
             d.lastTime = now;
+            if (ExperimentalDodging) ObserveExperimentalMotion(t);
             Engage(t);                                                                       // fire (Zod's ProcessAttackDamage, own cooldown)
             if (d.active && now >= d.until) EndDuel(d, DuelEnd.Expired);
             bool needsSeparation = ExperimentalDodging && ExperimentalDuelGap(t) > Dist(CenterX, CenterY, t.CenterX, t.CenterY);

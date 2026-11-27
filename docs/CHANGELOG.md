@@ -8,7 +8,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 ## OpenZ-VK 1.5.103 (27 Nov 2026)
 
-- Solo + 1 vs 1 — zExperimentalDodging tanks steer through smoother, more varied curves. They can feint forward and reverse, and pull away when an opponent gets too close.
+- Solo + 1 vs 1 — zExperimentalDodging tanks steer through smoother, more varied curves. They can feint forward and reverse, and pull away when an opponent gets too close. Gunners try to predict whether the target will continue its curve.
 
 ## OpenZ-VK 1.5.102 (27 Nov 2026)
 

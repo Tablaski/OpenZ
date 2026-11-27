@@ -45,6 +45,11 @@ namespace OpenZ.Sim
             if (!DodgeRadar || !Behavior.On(ZBehaviorKey.ExperimentalTacticalRoute) || !BehaviorCombatFlow ||
                 !BehaviorSteersHull || !ZWorld.DuelDeviation || !DuelCapable ||
                 enemy.Kind != ZKind.Vehicle && enemy.Kind != ZKind.Cannon) return false;
+            if (Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) < ExperimentalDuelGap(enemy))
+            {
+                tactical?.Points.Clear();
+                return false; // Point-blank separation takes priority over the planned firing position.
+            }
 
             var route = tactical ??= new TacticalRoute();
             if (route.Enemy != enemy.Id || route.WorldVersion != World.Path.Version ||

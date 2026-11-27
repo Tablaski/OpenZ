@@ -166,24 +166,25 @@ namespace OpenZ.Sim
             int strategy = (int)p[ZBehaviorKey.Direction];
             bool rangeAware = strategy == ZBehaviorProfile.RangeAwareDirection && Kind == ZKind.Vehicle && p.On(ZBehaviorKey.DodgePhysical);
             bool experimental = rangeAware && ExperimentalDodging;
+            bool radar = experimental && DodgeRadar;
             bool brake = experimental && (replan ? experimentalBrake : anticipateBrake);
             var attack = experimental ? ExperimentalAttackTarget() : null;
             int direction = strategy == 3 ? BehaviorWeightedDirection(p, World.Rng.Next(1000000) / 1000000.0) : -1;
             if (strategy == 3 && direction < 0) return BehaviorRefuse("No enabled direction weight");
-            int samples = rangeAware ? 32 : strategy == 0 || strategy == 3 ? 1 : strategy == 1 ? 9 : 24;
+            int samples = radar ? 48 : rangeAware ? 32 : strategy == 0 || strategy == 3 ? 1 : strategy == 1 ? 9 : 24;
             for (int i = 0; i < samples; i++)
             {
                 double angle = rangeAware ? heading + (i % 16) * Math.PI / 8 : strategy == 3 ? heading + direction * Math.PI / 8 : strategy == 0 ? random : strategy == 1 ? Math.Atan2(CenterY - ty, CenterX - tx) + (i == 0 ? 0 : ((i + 1) / 2) * (i % 2 == 0 ? -1 : 1) * Math.PI / 8) : heading + i * Math.PI / 12;
                 double off = WrapRadians(angle - heading), abs = Math.Abs(off);
                 var allow = abs < Math.PI / 4 ? ZBehaviorKey.Forward : abs > 3 * Math.PI / 4 ? ZBehaviorKey.Backward : ZBehaviorKey.Sideways;
                 if (strategy == 3 ? !BehaviorDirectionAllowed(p, direction) : !p.On(allow)) continue;
-                double courseLength = rangeAware && i >= 16 ? length * .65 : length;
+                double courseLength = radar && i >= 32 ? length * .36 : rangeAware && i >= 16 ? length * .65 : length;
                 int x = (int)Math.Max(WidthPix / 2, Math.Min(World.Map.WidthPix - WidthPix / 2, CenterX + Math.Cos(angle) * courseLength));
                 int y = (int)Math.Max(HeightPix / 2, Math.Min(World.Map.HeightPix - HeightPix / 2, CenterY + Math.Sin(angle) * courseLength));
                 int ox = BehaviorDodging ? behaviorOriginX : CenterX, oy = BehaviorDodging ? behaviorOriginY : CenterY;
                 if (p[ZBehaviorKey.MaxDeviation] > 0 && Dist(x, y, ox, oy) * ZConst.PX_TO_M > p[ZBehaviorKey.MaxDeviation]) continue;
                 if (Leader != null && p[ZBehaviorKey.Cohesion] > 0 && Dist(x, y, Leader.CenterX, Leader.CenterY) * ZConst.PX_TO_M > p[ZBehaviorKey.Cohesion]) continue;
-                if (strategy != 0 && !BehaviorClearLine(x, y)) continue;
+                if (!radar && strategy != 0 && !BehaviorClearLine(x, y)) continue;
                 if (rangeAware)
                 {
                     if (x == CenterX && y == CenterY || brake && abs < Math.PI / 3) continue;
@@ -496,6 +497,8 @@ namespace OpenZ.Sim
             double angle = Math.Abs(WrapRadians(bearing - heading));
             double turn = p.On(ZBehaviorKey.Reverse) ? Math.Min(angle, Math.PI - angle) : angle;
             // Most shells resolve in under a second. Bound the number of prediction steps for longer shots.
+            bool radar = experimental && DodgeRadar;
+            if (radar) ScanDodgeRadar();
             double duration = Math.Min(time, 3);
             int steps = Math.Max(1, Math.Min(32, (int)Math.Ceiling(duration / .025)));
             double dt = duration / steps;
@@ -504,8 +507,10 @@ namespace OpenZ.Sim
             double boosted = eligible ? baseSpeed * (1 + (boost - 1) * (IsRunning ? 1 : p[ZBehaviorKey.BoostChance] / 100)) : baseSpeed;
             double boostLimit = p[ZBehaviorKey.BoostMaxDistance] / ZConst.PX_TO_M;
             double boostDuration = p[ZBehaviorKey.BoostDuration];
-            double travel = 0;
-            for (int i = 0; i < steps; i++)
+            double travel = 0, room = 24, impactX = ox, impactY = oy;
+            bool blind = radar && RadarMissesTerrain(p.On(ZBehaviorKey.Reverse) && NearestHullReverse(heading, bearing) ? -1 : 1);
+            int totalSteps = radar ? steps + Math.Min(24, (int)Math.Ceiling(.6 / Math.Max(.025, dt))) : steps;
+            for (int i = 0; i < totalSteps; i++)
             {
                 double remaining = length - (px - ox) * ux - (py - oy) * uy;
                 if (remaining <= 1.5) break;
@@ -513,11 +518,23 @@ namespace OpenZ.Sim
                 StepRangeAwareDodge(p, ref drive, bearing, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy,
                     experimental, brake && i * dt < .08,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0);
+                double step = Math.Sqrt(vx * vx + vy * vy) * dt;
+                if (radar)
+                {
+                    int probes = Math.Max(1, (int)Math.Ceiling(step / 4));
+                    for (int n = 1; n <= probes; n++)
+                    {
+                        double f = n / (double)probes;
+                        if (!RadarStep(px + vx * dt * f, py + vy * dt * f, (i + f) * dt, travel + step * f, blind, ref room))
+                            return double.NegativeInfinity;
+                    }
+                }
                 px += vx * dt; py += vy * dt;
-                travel += Math.Sqrt(vx * vx + vy * vy) * dt;
+                travel += step;
+                if (i < steps) { impactX = px; impactY = py; }
             }
-            if (!BehaviorClearLine((int)Math.Round(px), (int)Math.Round(py))) return double.NegativeInfinity;
-            double distance = Math.Sqrt((px - tx) * (px - tx) + (py - ty) * (py - ty));
+            if (!radar && !BehaviorClearLine((int)Math.Round(px), (int)Math.Round(py))) return double.NegativeInfinity;
+            double distance = RadarDistance(impactX, impactY, tx, ty);
             double safety = Math.Min(1, distance / Math.Max(1, radius));
             double rangeCost = 0;
             if (enemy != null && !enemy.Destroyed && AttackRadius > 0)
@@ -539,7 +556,8 @@ namespace OpenZ.Sim
                 double dx = px - threat.CenterX, dy = py - threat.CenterY;
                 separationCost = Math.Max(0, gap - Math.Sqrt(dx * dx + dy * dy)) / Math.Max(1, gap);
             }
-            return safety - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost;
+            double openRoute = radar ? .12 * Math.Min(1, travel / Math.Max(1, length)) * (.35 + .65 * room / 24) : 0;
+            return safety + openRoute - pivotCost * turn / (Math.PI / 2) - (experimental ? .42 : .24) * rangeCost - .5 * separationCost;
         }
 
         struct DodgeDrive

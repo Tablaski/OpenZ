@@ -284,6 +284,7 @@ namespace OpenZ.Sim
                 hx += rx * feint; hy += ry * feint;
             }
             double hl = Math.Sqrt(hx * hx + hy * hy); hx /= hl; hy /= hl;
+            if (DodgeRadar) return RadarDuelAim(d, t, agro, hx, hy, look, separating);
             foreach (double deg in RotTry)
             {
                 double a = deg * Math.PI / 180 * d.sign, c = Math.Cos(a), s = Math.Sin(a);
@@ -310,12 +311,13 @@ namespace OpenZ.Sim
         /// <summary>A heading is valid when the unit's box swept `look` px along it stays on free vehicle tiles (water, cliffs,
         /// rocks, buildings and the map edge are walls) and out of bridge / lane keep-clear areas, and the end point keeps the
         /// target in range with a clear line of fire, does not close on another unit and (AGRO) stays in Zod's agro leash.</summary>
-        bool DuelHeadingOk(ZObject t, double ux, double uy, int look, bool agro, out int ex, out int ey)
+        bool DuelHeadingOk(ZObject t, double ux, double uy, int look, bool agro, out int ex, out int ey, int gear = 0)
         {
             double cx = PosX + (WidthPix >> 1), cy = PosY + (HeightPix >> 1);
             ex = (int)Math.Round(cx + ux * look); ey = (int)Math.Round(cy + uy * look);
             var lanes = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;
-            for (int s = 4; ; s += 4)
+            if (DodgeRadar && (gear != 0 && RadarRunway(ux, uy, look, gear) < look * .55)) return false;
+            for (int s = 4; !DodgeRadar; s += 4)
             {
                 if (s > look) s = look;
                 double px = cx + ux * s, py = cy + uy * s;
@@ -344,6 +346,7 @@ namespace OpenZ.Sim
                 double lim = World.S.agro_distance + ZDuel.AgroLeash, dn = Dist(CenterX, CenterY, cur.agroX, cur.agroY), dl = Dist(ex, ey, cur.agroX, cur.agroY);
                 if (dl > lim && dl > dn) return false;
             }
+            if (DodgeRadar) return true; // The curved forecast already sweeps the moving units and terrain.
             foreach (var o in World.Objects)
             {
                 if (o == this || o == t || !o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;

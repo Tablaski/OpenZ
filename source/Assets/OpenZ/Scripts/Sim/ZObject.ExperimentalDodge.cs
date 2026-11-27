@@ -62,7 +62,7 @@ namespace OpenZ.Sim
             bool forward = now < d.feintSwitch;
             double travel = d.feintAxis + (forward ? d.feintTurn : -d.feintTurn + Math.PI);
             double ux = Math.Cos(travel), uy = Math.Sin(travel);
-            if (!DuelHeadingOk(enemy, ux, uy, forward ? 8 : 14, agro, out int x, out int y))
+            if (!DuelHeadingOk(enemy, ux, uy, forward ? 8 : 14, agro, out int x, out int y, forward ? 1 : -1))
             {
                 d.feintEnd = now;
                 return false;

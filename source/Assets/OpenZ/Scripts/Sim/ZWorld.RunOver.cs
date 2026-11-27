@@ -40,8 +40,11 @@ namespace OpenZ.Sim
 
         /// <summary>DV65: v may drive into r (and r walk into v) without the spacing gate: a moving crewed vehicle and an enemy robot.</summary>
         public static bool RunOverPair(ZObject v, ZObject r) =>
+            CanRunOver(v, r) && ZPathing.Moving(v);
+
+        internal static bool CanRunOver(ZObject v, ZObject r) =>
             RunOverDeviation && v != null && r != null && v.Kind == ZKind.Vehicle && r.Kind == ZKind.Robot && v.Owner != Team.Neutral && r.Owner != Team.Neutral
-            && v.Owner != r.Owner && v.World?.AreAllied(v.Owner, r.Owner) != true && v.Drivers.Count > 0 && ZPathing.Moving(v) && !r.IsFortDefender && !r.IsEvilZod;
+            && v.Owner != r.Owner && v.World?.AreAllied(v.Owner, r.Owner) != true && v.Drivers.Count > 0 && !r.IsFortDefender && !r.IsEvilZod;
 
         /// <summary>ZWorld.Tick after the pathing layer's end of tick: hull contacts of moving crewed vehicles with enemy robots.</summary>
         void RunOverTick()

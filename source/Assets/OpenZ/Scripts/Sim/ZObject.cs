@@ -356,6 +356,22 @@ namespace OpenZ.Sim
             BehaviorVelocity(dt, ref vx, ref vy);
             BehaviorLimitStep(dt, ref vx, ref vy);
             double nx = LocX + (vx * dt) + XOver, ny = LocY + (vy * dt) + YOver;
+            if (stoppable && RadarMoving && (!IsZ(vx) || !IsZ(vy)))
+            {
+                bool blockedTerrain = World.Path.WithinImpassable((int)Math.Floor(nx) + 1, (int)Math.Floor(ny) + 1,
+                    WidthPix - 2, HeightPix - 2, out _, out _, false);
+                if (blockedTerrain || !RadarActualStep(nx, ny))
+                {
+                    ExperimentalRadarStops++;
+                    if (BehaviorDodging)
+                    {
+                        FinishBehaviorDodge();
+                        StopMove();
+                        return true;
+                    }
+                    return false;
+                }
+            }
             var pathing = World.Pathing != null && World.Pathing.Enabled ? World.Pathing : null;                // OpenZ pathing layer
             bool guardMinion = pathing != null && IsMinion && stoppable;
             if (pathing != null && !pathing.Gate(this, ref nx, ref ny)) { if (IsRobot) WalkDisengage(); return true; }   // held by traffic / a lane this tick (still walking: no firing at an old target)

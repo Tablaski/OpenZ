@@ -126,14 +126,20 @@ namespace OpenZ.Sim
             double flight = Math.Min(1.6, Dist(CenterX, CenterY, tx, ty) / projectileSpeed);
             for (int i = 0; i < 3; i++)
             {
-                double turn = rate * flight;
-                double along = Math.Abs(rate) < .01 ? flight : Math.Sin(turn) / rate;
-                double across = Math.Abs(rate) < .01 ? 0 : (1 - Math.Cos(turn)) / rate;
-                tx = (int)Math.Round(target.CenterX + vx * along - vy * across);
-                ty = (int)Math.Round(target.CenterY + vy * along + vx * across);
+                var (x, y) = ProjectExperimentalMotion(target, vx, vy, rate, flight);
+                tx = (int)Math.Round(x);
+                ty = (int)Math.Round(y);
                 flight = Math.Min(1.6, Dist(CenterX, CenterY, tx, ty) / projectileSpeed);
             }
             return true;
+        }
+
+        static (double x, double y) ProjectExperimentalMotion(ZObject target, double vx, double vy, double rate, double flight)
+        {
+            double turn = rate * flight;
+            double along = Math.Abs(rate) < .01 ? flight : Math.Sin(turn) / rate;
+            double across = Math.Abs(rate) < .01 ? 0 : (1 - Math.Cos(turn)) / rate;
+            return (target.CenterX + vx * along - vy * across, target.CenterY + vy * along + vx * across);
         }
 
         bool ExperimentalDodging => Kind == ZKind.Vehicle && Behavior != null &&

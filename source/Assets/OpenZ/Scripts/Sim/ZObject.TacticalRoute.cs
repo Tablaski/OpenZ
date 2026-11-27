@@ -21,6 +21,8 @@ namespace OpenZ.Sim
             internal readonly int[] Queue = new int[TacticalWidth * TacticalWidth];
             internal int Enemy = -1, EnemyX, EnemyY, Index, Anchor, AimX, AimY, WorldVersion;
             internal double Expiry, Retry, NextAim, MovedAt, Pressure;
+            internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
+            internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
             internal bool ResumeAfterDodge;
             internal readonly ZDuelState Feint = new ZDuelState { active = true };
@@ -62,7 +64,7 @@ namespace OpenZ.Sim
         {
             if (!DodgeRadar || !Behavior.On(ZBehaviorKey.ExperimentalTacticalRoute) || !BehaviorCombatFlow ||
                 !BehaviorSteersHull || !ZWorld.DuelDeviation || !DuelCapable ||
-                enemy.Kind != ZKind.Vehicle && enemy.Kind != ZKind.Cannon) return false;
+                enemy.Type == "howitzer" || enemy.Kind != ZKind.Vehicle && enemy.Kind != ZKind.Cannon) return false;
             if (Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) < ExperimentalDuelGap(enemy))
             {
                 tactical?.Points.Clear();
@@ -70,6 +72,7 @@ namespace OpenZ.Sim
             }
 
             var route = tactical ??= new TacticalRoute();
+            ObserveExperimentalMotion(enemy);
             if (route.Enemy != enemy.Id || !TacticalFeintInProgress && (route.WorldVersion != World.Path.Version ||
                 Dist(route.EnemyX, route.EnemyY, enemy.CenterX, enemy.CenterY) > 56))
             {
@@ -77,6 +80,11 @@ namespace OpenZ.Sim
                 if (route.Enemy != enemy.Id) tacticalPreviousDodge = double.NaN;
                 route.Enemy = enemy.Id;
                 route.ResumeAfterDodge = false;
+            }
+            if (HasTacticalRoute && !TacticalFeintInProgress && World.Time >= route.CheckFiringAt)
+            {
+                route.CheckFiringAt = World.Time + .25;
+                RecheckTacticalFiringPosition(route, enemy);
             }
             if (!HasTacticalRoute)
             {
@@ -86,7 +94,6 @@ namespace OpenZ.Sim
                 if (!PlanTacticalRoute(route, enemy, agro)) return false;
             }
 
-            if (ExperimentalDodging) ObserveExperimentalMotion(enemy);
             if (WithinAttackRadius(enemy)) Engage(enemy);
             else Disengage();
             ScanDodgeRadar();
@@ -184,15 +191,18 @@ namespace OpenZ.Sim
                 int x = originX + (col - TacticalRadius) * TacticalCell, y = originY + (row - TacticalRadius) * TacticalCell;
                 double distance = Dist(x, y, enemy.CenterX, enemy.CenterY);
                 if (route.Depth[cell] >= 3 && distance >= gap && distance <= range - 4 &&
-                    !World.EngageBarrierBetween(x, y, enemy.CenterX, enemy.CenterY) &&
-                    (!LosActive || World.Sight.ClearFrom(x, y, 0, enemy)))
+                    TacticalShotClear(x, y, enemy.CenterX, enemy.CenterY, range))
                 {
+                    int firing = TacticalFiringWindow(x, y, enemy);
                     int open = 0;
                     foreach (var step in TacticalSteps)
                         if (TacticalPointFree(x + step.x * 14, y + step.y * 14) &&
                             TacticalPointFree(x + step.x * 28, y + step.y * 28)) open++;
                     double lateral = ((y - originY) * rx - (x - originX) * ry) * side;
-                    double score = 8 * open + .13 * lateral - .5 * Math.Abs(distance - preferredRange) - 3 * route.Depth[cell];
+                    double score = 11 * firing + 6 * open + .13 * lateral -
+                        .5 * Math.Abs(distance - preferredRange) - 3 * route.Depth[cell];
+                    if (World.Time < route.RejectedUntil && Dist(x, y, route.RejectedX, route.RejectedY) <= 20)
+                        score -= 38;
                     if (BehaviorHeadingSet)
                     {
                         var initial = TacticalSteps[route.FirstStep[cell]];
@@ -236,6 +246,7 @@ namespace OpenZ.Sim
             route.WorldVersion = World.Path.Version;
             route.Index = 0; route.Anchor = -1; route.NextAim = World.Time;
             route.Expiry = World.Time + 8; route.MovedAt = World.Time;
+            route.PoorFiringSince = -1; route.CheckFiringAt = World.Time + .5;
             route.MovedX = originX; route.MovedY = originY;
             if (duel != null && duel.active) EndDuel(duel, DuelEnd.Other);
             route.Feint.sign = side;
@@ -244,6 +255,48 @@ namespace OpenZ.Sim
             ClearCur();
             TacticalRoutePlans++;
             return true;
+        }
+
+        bool TacticalShotClear(int x, int y, int tx, int ty, int range) =>
+            Dist(x, y, tx, ty) <= range && World.Path.TilePassable(tx >> 4, ty >> 4, false) &&
+            !World.EngageBarrierBetween(x, y, tx, ty) && (!LosActive || World.Sight.Clear(x, y, 0, tx, ty, 0));
+
+        internal int TacticalFiringWindow(int x, int y, ZObject enemy)
+        {
+            int range = RangeTo(enemy);
+            bool direct = TacticalShotClear(x, y, enemy.CenterX, enemy.CenterY, range);
+            int score = direct ? 2 : 0;
+            double flight = Math.Min(.65, Dist(x, y, enemy.CenterX, enemy.CenterY) / Math.Max(1, MissileSpeed));
+            var (px, py) = aimOpponent == enemy.Id
+                ? ProjectExperimentalMotion(enemy, aimVx, aimVy, aimRotation, flight)
+                : (enemy.CenterX + enemy.BehaviorStepDx * flight, enemy.CenterY + enemy.BehaviorStepDy * flight);
+            double distance = Math.Max(1, RadarDistance(px, py, x, y));
+            double sideX = -(py - y) / distance, sideY = (px - x) / distance;
+            double spread = Math.Clamp(distance * .18, 10, 27) * .5;
+            for (int ray = -2; ray <= 2; ray++)
+            {
+                int tx = (int)Math.Round(px + sideX * spread * ray);
+                int ty = (int)Math.Round(py + sideY * spread * ray);
+                if (TacticalShotClear(x, y, tx, ty, range)) score++;
+            }
+            return direct ? score : Math.Min(score, 4);
+        }
+
+        void RecheckTacticalFiringPosition(TacticalRoute route, ZObject enemy)
+        {
+            if (TacticalFiringWindow(CenterX, CenterY, enemy) >= 5)
+            {
+                route.PoorFiringSince = -1;
+                return;
+            }
+            if (route.PoorFiringSince < 0) route.PoorFiringSince = World.Time;
+            if (World.Time - route.PoorFiringSince < .8) return;
+
+            var goal = route.Points[route.Points.Count - 1];
+            if (TacticalFiringWindow(goal.x, goal.y, enemy) >= 5) return;
+            route.RejectedUntil = World.Time + 2;
+            route.RejectedX = goal.x; route.RejectedY = goal.y;
+            route.Points.Clear();
         }
 
         bool TacticalPointFree(int x, int y)

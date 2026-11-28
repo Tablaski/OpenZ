@@ -196,7 +196,7 @@ namespace OpenZ.Sim
             N(ZBehaviorKey.ExperimentalAimPrediction,"Predict the target's curve","COMBAT","%",0,100,0,0,"Chance to anticipate a continuation of the observed curve instead of leading straight along the target's recent movement."),
             B(ZBehaviorKey.ExperimentalDodgeRadar,"Dodge radar","COMBAT",false,false,"Scan nearby ground and units for reachable dodge routes and leave extra room around allies."),
             N(ZBehaviorKey.ExperimentalRadarError,"Dodge radar error","COMBAT","%",0,33,0,0,"Chance of overlooking a terrain obstacle ahead. This chance triples in reverse."),
-            B(ZBehaviorKey.ExperimentalTacticalRoute,"Tactical routes","COMBAT",false,false,"Seek open fighting positions around obstacles and resume the route after dodging."),
+            B(ZBehaviorKey.ExperimentalTacticalRoute,"Tactical routes","COMBAT",false,false,"Give the main route more weight when room is limited. Attack orders favor exits with a clear shot; defenders can give ground."),
             B(ZBehaviorKey.ExperimentalArcEntry,"Rolling combat arcs","COMBAT",false,false,"Favor oblique departures and bend across nearby route turns before changing gear."),
             B(ZBehaviorKey.ExperimentalOrbitalFlow,"Accelerate along open combat arcs","COMBAT",false,false,"Follow a multi-point arc around the opponent and accelerate through clear turns."),
             B(ZBehaviorKey.ExperimentalBoostSteering,"Steer during defensive boosts","DODGING",false,false,"Allow the tank to boost through a committed curve or S-shaped dodge if the swept route stays clear."),

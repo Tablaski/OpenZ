@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             internal readonly sbyte[] Passable = new sbyte[TacticalWidth * TacticalWidth];
             internal readonly int[] Queue = new int[TacticalWidth * TacticalWidth];
             internal int Enemy = -1, EnemyX, EnemyY, Index, Anchor, AimX, AimY, WorldVersion;
-            internal double Expiry, Retry, NextAim, MovedAt, Pressure, WeavePhase, TravelSinceFeint;
+            internal double Expiry, Retry, NextAim, MovedAt, Pressure, Confinement, WeavePhase, TravelSinceFeint;
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
@@ -109,7 +109,14 @@ namespace OpenZ.Sim
             if (HasTacticalRoute && !TacticalFeintInProgress && World.Time >= route.CheckFiringAt)
             {
                 route.CheckFiringAt = World.Time + .25;
-                RecheckTacticalFiringPosition(route, enemy);
+                ScanDodgeRadar();
+                route.Confinement = TacticalConfinement(TacticalOpenDirections(CenterX, CenterY, sweep: true));
+                if (route.Orbital && route.Confinement >= .5)
+                {
+                    route.Points.Clear();
+                    route.Retry = World.Time;
+                }
+                else if (route.Confinement == 0) RecheckTacticalFiringPosition(route, enemy);
             }
             if (!HasTacticalRoute)
             {
@@ -161,6 +168,7 @@ namespace OpenZ.Sim
             {
                 bool continuingFeint = TacticalFeintInProgress;
                 bool feint = (continuingFeint || !route.Orbital && route.Expiry - World.Time > 1 &&
+                    route.Confinement < .5 &&
                     (!TacticalArcEntry || route.TravelSinceFeint >= 42) &&
                     Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12) &&
                     TryExperimentalFeint(route.Feint, enemy, agro);
@@ -211,6 +219,8 @@ namespace OpenZ.Sim
             Array.Fill(route.Parent, (short)-1);
             Array.Clear(route.Passable, 0, route.Passable.Length);
             int originX = CenterX, originY = CenterY, range = RangeTo(enemy);
+            int originOpen = TacticalOpenDirections(originX, originY, sweep: true);
+            double confinement = route.Confinement = TacticalConfinement(originOpen);
             double gap = ExperimentalDuelGap(enemy), startDistance = Dist(originX, originY, enemy.CenterX, enemy.CenterY);
             route.Pressure = TacticalPressure(Health, enemy.Health, Id, enemy.Id);
             double preferredRange = Math.Max(gap + 12, range * (.81 - route.Pressure * (TacticalArcEntry ? .18 : .13)));
@@ -226,7 +236,7 @@ namespace OpenZ.Sim
             if (TacticalArcEntry) side = ((Id ^ enemy.Id) & 2) == 0 ? 1 : -1;
             else if (side == 0) side = Id % 2 == 0 ? 1 : -1;
             route.Orbital = false;
-            if (Behavior.On(ZBehaviorKey.ExperimentalOrbitalFlow) && enemy.Kind == ZKind.Vehicle &&
+            if (confinement < .5 && Behavior.On(ZBehaviorKey.ExperimentalOrbitalFlow) && enemy.Kind == ZKind.Vehicle &&
                 DodgeVariation(1, unchecked((uint)(TacticalRoutePlans * 743 + enemy.Id * 131))) - .5 < .82)
             {
                 int orbitSide = side;
@@ -239,36 +249,39 @@ namespace OpenZ.Sim
                     return true;
                 }
             }
+            double maxRange = agro && confinement > 0 ? range + 32 :
+                Math.Max(range - 4, confinement > 0 ? startDistance : 0);
             while (head < tail)
             {
                 int cell = route.Queue[head++], col = cell % TacticalWidth, row = cell / TacticalWidth;
                 int x = originX + (col - TacticalRadius) * TacticalCell, y = originY + (row - TacticalRadius) * TacticalCell;
                 double distance = Dist(x, y, enemy.CenterX, enemy.CenterY);
-                if (route.Depth[cell] >= 3 && distance >= gap && distance <= range - 4 &&
-                    TacticalShotClear(x, y, enemy.CenterX, enemy.CenterY, range))
+                if (route.Depth[cell] >= 3 && distance >= gap && distance <= maxRange)
                 {
-                    int firing = TacticalFiringWindow(x, y, enemy);
-                    int open = 0;
-                    foreach (var step in TacticalSteps)
-                        if (TacticalPointFree(x + step.x * 14, y + step.y * 14) &&
-                            TacticalPointFree(x + step.x * 28, y + step.y * 28)) open++;
-                    double lateral = ((y - originY) * rx - (x - originX) * ry) * side;
-                    double score = 11 * firing + 6 * open + .13 * lateral -
-                        .5 * Math.Abs(distance - preferredRange) - 3 * route.Depth[cell];
-                    if (World.Time < route.RejectedUntil && Dist(x, y, route.RejectedX, route.RejectedY) <= 20)
-                        score -= 38;
-                    if (BehaviorHeadingSet)
+                    bool clearShot = TacticalShotClear(x, y, enemy.CenterX, enemy.CenterY, range);
+                    int open = clearShot || confinement > 0 ? TacticalOpenDirections(x, y) : 0;
+                    if (clearShot || confinement > 0 && open > originOpen)
                     {
-                        var initial = TacticalSteps[route.FirstStep[cell]];
-                        double bearing = Math.Atan2(initial.y, initial.x);
-                        double facing = Math.Cos(BehaviorHeading - bearing);
-                        score += TacticalArcEntry ?
-                            19 * Math.Abs(facing) + 4 * facing * behaviorTravelSign :
-                            12 * Math.Abs(facing) + 6 * facing * behaviorTravelSign;
-                        if (World.Time < radarBlockedUntil)
-                            score -= 26 * Math.Max(0, Math.Cos(bearing - radarBlockedBearing));
+                        int firing = TacticalFiringWindow(x, y, enemy);
+                        double lateral = ((y - originY) * rx - (x - originX) * ry) * side;
+                        double firingWeight = agro ? 11 - 5 * confinement : 11 + 3 * confinement;
+                        double score = firingWeight * firing + (6 + 19 * confinement) * open + .13 * lateral -
+                            .5 * Math.Abs(distance - preferredRange) - 3 * route.Depth[cell];
+                        if (World.Time < route.RejectedUntil && Dist(x, y, route.RejectedX, route.RejectedY) <= 20)
+                            score -= 38;
+                        if (BehaviorHeadingSet)
+                        {
+                            var initial = TacticalSteps[route.FirstStep[cell]];
+                            double bearing = Math.Atan2(initial.y, initial.x);
+                            double facing = Math.Cos(BehaviorHeading - bearing);
+                            score += TacticalArcEntry ?
+                                19 * Math.Abs(facing) + 4 * facing * behaviorTravelSign :
+                                12 * Math.Abs(facing) + 6 * facing * behaviorTravelSign;
+                            if (World.Time < radarBlockedUntil)
+                                score -= 26 * Math.Max(0, Math.Cos(bearing - radarBlockedBearing));
+                        }
+                        if (score > bestScore) { bestScore = score; best = cell; }
                     }
-                    if (score > bestScore) { bestScore = score; best = cell; }
                 }
                 for (byte step = 0; step < TacticalSteps.Length; step++)
                 {
@@ -396,6 +409,17 @@ namespace OpenZ.Sim
             return true;
         }
 
+        static double TacticalConfinement(int openDirections) => Math.Clamp((5 - openDirections) / 5.0, 0, 1);
+
+        int TacticalOpenDirections(int x, int y, bool sweep = false)
+        {
+            int open = 0;
+            foreach (var (dx, dy) in TacticalSteps)
+                if (sweep ? TacticalSegment(x, y, x + dx * 28, y + dy * 28) :
+                    TacticalPointFree(x + dx * 14, y + dy * 14) && TacticalPointFree(x + dx * 28, y + dy * 28)) open++;
+            return open;
+        }
+
         bool TacticalSegment(int x, int y, int ex, int ey)
         {
             int count = Math.Max(1, (int)Math.Ceiling(Dist(x, y, ex, ey) / 4));
@@ -430,7 +454,7 @@ namespace OpenZ.Sim
             bool longWeave = TacticalLongWeave;
             double weave =
                 Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(longWeave ? 24 : 16, length * (longWeave ? .62 : .35)) *
-                Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100;
+                Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100 * (1 - .75 * route.Confinement);
             int x = goal.x - (int)Math.Round(dy * weave / Math.Max(1, length));
             int y = goal.y + (int)Math.Round(dx * weave / Math.Max(1, length));
             bool safe = TacticalSegment(CenterX, CenterY, x, y) && RadarApproach(x, y, enemy) < .65;
@@ -498,12 +522,13 @@ namespace OpenZ.Sim
         {
             if (!HasTacticalRoute) return 0;
             var next = tactical.Points[tactical.Index];
-            double progress = .16 * Math.Clamp((Dist(CenterX, CenterY, next.x, next.y) - RadarDistance(x, y, next.x, next.y)) / 30, -1, 1);
+            double progress = (.16 + .40 * tactical.Confinement) *
+                Math.Clamp((Dist(CenterX, CenterY, next.x, next.y) - RadarDistance(x, y, next.x, next.y)) / 30, -1, 1);
             if (TacticalLongWeave && tactical.HasWeaveAim)
             {
                 double aim = Math.Atan2(tactical.AimY - CenterY, tactical.AimX - CenterX);
                 double travel = Math.Atan2(y - CenterY, x - CenterX);
-                progress += .12 * Math.Cos(WrapRadians(travel - aim));
+                progress += .12 * (1 - tactical.Confinement) * Math.Cos(WrapRadians(travel - aim));
             }
             return progress;
         }

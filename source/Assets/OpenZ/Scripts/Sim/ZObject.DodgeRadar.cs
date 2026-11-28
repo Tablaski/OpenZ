@@ -37,6 +37,7 @@ namespace OpenZ.Sim
             radarTick = World.TickIndex;
             radarContacts ??= new List<RadarContact>();
             radarContacts.Clear();
+            // A robot eligible for run-over contributes neither a collision penalty nor a route bonus.
             foreach (var other in World.NearUnits(CenterX, CenterY, 2 * RadarLook, World.Objects))
             {
                 if (other == this || !other.IsUnit || other.Destroyed || other.KillAt >= 0 || other.ShuttleAirborne ||

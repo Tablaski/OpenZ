@@ -35,6 +35,33 @@ namespace OpenZ
             Transform hull = null, swivel = null;
             foreach (var part in view.GetComponentsInChildren<Transform>(true))
             {
+                if (part.name == "MLRS_hull") hull = part;
+                if (part.name == "MLRSRackYaw") swivel = part;
+            }
+            if (!hull || !swivel)
+            {
+                Debug.LogWarning("The classic missile launcher needs a production MLRS model.", view);
+                return;
+            }
+
+            var model = view.gameObject.AddComponent<OzClassicMlrsModel>();
+            model.Build(hull.parent, swivel, unit);
+        }
+
+        void Build(Transform hullSpace, Transform swivel, ZObject owner)
+        {
+            unit = owner;
+            paint = new MaterialPropertyBlock();
+            EnsureAssets();
+            foreach (var part in swivel.GetComponentsInChildren<Transform>(true))
+            {
+                if (part.TryGetComponent<Renderer>(out var renderer)) renderer.enabled = false;
+                if (part.name.Contains("Muzzle_") || part.name == "MLRSRackPitch")
+                    part.name = "UnusedClassicMlrsPart";
+            }
+
+            foreach (var part in hullSpace.GetComponentsInChildren<Transform>(true))
+            {
                 if (!part.TryGetComponent<Renderer>(out var renderer)) continue;
                 bool wheel = part.name.StartsWith("MLRS_wheel_", StringComparison.Ordinal);
                 renderer.enabled = wheel || part.name.StartsWith("MLRS_RegularTread_", StringComparison.Ordinal);

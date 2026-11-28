@@ -201,7 +201,7 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.ExperimentalOrbitalFlow,"Accelerate along open combat arcs","COMBAT",false,false,"Follow a multi-point arc around the opponent and accelerate through clear turns."),
             B(ZBehaviorKey.ExperimentalBoostSteering,"Steer during defensive boosts","DODGING",false,false,"Allow the tank to boost through a committed curve or S-shaped dodge if the swept route stays clear."),
             N(ZBehaviorKey.ExperimentalZigzagSpacing,"Zigzag spacing","DODGING","x",.6,1.4,1,1,"Scale the distance between changes of bend in a defensive zigzag. One reproduces the original single S."),
-            B(ZBehaviorKey.ExperimentalLongBoostWeave,"Full-length defensive S","DODGING",false,false,"Use two broad bends across the planned boost distance. Keep route steering smooth between defensive moves."),
+            B(ZBehaviorKey.ExperimentalLongBoostWeave,"Continuous defensive curves","DODGING",false,false,"Follow broad secondary curves across ordinary movement and boosts. Off-route dodges can still use a full-length S."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };

@@ -112,9 +112,18 @@ namespace OpenZ.Sim
             return DuelEnd.Expired;
         }
 
+        bool RadarTerrainClear(int x, int y)
+        {
+            if (!Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave)) return DuelBoxFree(x, y);
+            // Leave room for the visual hull corners when the tank turns on the tile grid.
+            const int cornerMargin = 4;
+            return DuelBoxFree(x, y, cornerMargin) ||
+                (!DuelBoxFree(LocX, LocY, cornerMargin) && DuelBoxFree(x, y));
+        }
+
         bool RadarStep(double x, double y, double time, double distance, bool missesTerrain, ref double room)
         {
-            if (!DuelBoxFree((int)Math.Floor(x) - (WidthPix >> 1), (int)Math.Floor(y) - (HeightPix >> 1)) &&
+            if (!RadarTerrainClear((int)Math.Floor(x) - (WidthPix >> 1), (int)Math.Floor(y) - (HeightPix >> 1)) &&
                 (!missesTerrain || distance <= 6 || x < WidthPix / 2 || y < HeightPix / 2 ||
                     x >= World.Map.WidthPix - WidthPix / 2 || y >= World.Map.HeightPix - HeightPix / 2)) return false;
             if (!tacticalDriving && World.Pathing?.Enabled == true && World.Pathing.DuelLaneAt((int)x, (int)y)) return false;
@@ -132,6 +141,8 @@ namespace OpenZ.Sim
 
         bool RadarActualStep(double x, double y)
         {
+            if (Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave) && !RadarTerrainClear((int)Math.Floor(x), (int)Math.Floor(y)))
+                return false;
             ScanDodgeRadar();
             foreach (var contact in radarContacts)
             {

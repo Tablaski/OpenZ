@@ -21,6 +21,7 @@ namespace OpenZ.Sim
         double behaviorTurnSpeed, behaviorReverseUntil, behaviorDodgeStart = -100, behaviorBlastAt,
             behaviorLastDodge = -100, behaviorFireUntil, behaviorRegroupUntil;
         double behaviorDodgeTravel, behaviorBoostTravel, behaviorBoostStart;
+        double dodgeRoutePhase = double.NaN, dodgeRouteTravelStart;
         double dodgeSpeedFactor = 1, dodgeAccelerationFactor = 1, dodgeBoostFactor = 1, dodgeDistanceFactor = 1, dodgePivotFactor = 1;
         double dodgeBend;
         bool dodgeWeave;
@@ -177,7 +178,8 @@ namespace OpenZ.Sim
             bool brake = experimental && (replan ? experimentalBrake : anticipateBrake);
             bool boostSteering = radar && !brake && p.On(ZBehaviorKey.Boost) && p.On(ZBehaviorKey.ExperimentalBoostSteering) &&
                 DodgeVariation(1, 2257) - .5 < .78;
-            bool weave = replan ? dodgeWeave : DodgeVariation(1, 1819) - .5 < .60;
+            bool weave = replan ? dodgeWeave : !TacticalLongWeave && DodgeVariation(1, 1819) - .5 < .60;
+            double routePhase = TacticalLongWeave ? tactical.WeavePhase + Id * 1.7 : double.NaN;
             bool fullWeave = weave && p.On(ZBehaviorKey.ExperimentalLongBoostWeave);
             double bend = (.38 + (DodgeVariation(1, 823) - .5) * .28);
             double bestBend = 0;
@@ -211,7 +213,7 @@ namespace OpenZ.Sim
                         {
                             double curved = RangeAwareDodgeScore(x, y, tx, ty, time,
                                 radius > 0 ? radius : enemy?.DamageRadius ?? 40, attack,
-                                heading, speedFactor, acceleration, pivot, boostSpeed, true, false, enemy, bend * sign, weave);
+                                heading, speedFactor, acceleration, pivot, boostSpeed, true, false, enemy, bend * sign, weave, routePhase);
                             if (curved > best) { best = curved; bestX = x; bestY = y; bestBend = bend * sign; }
                         }
                     }
@@ -258,6 +260,8 @@ namespace OpenZ.Sim
             experimentalBrake = brake;
             dodgeBend = bestBend;
             dodgeWeave = weave;
+            dodgeRoutePhase = routePhase;
+            dodgeRouteTravelStart = behaviorDodgeTravel;
             dodgeCurveGear = p.On(ZBehaviorKey.Reverse) ?
                 TacticalTravelGear(heading, Math.Atan2(bestY - CenterY, bestX - CenterX), behaviorTravelSign) : 1;
             if (!replan) experimentalBrakeUntil = brake ? World.Time + .08 : 0;
@@ -415,6 +419,7 @@ namespace OpenZ.Sim
         // Count accepted travel across turns and replans.
         void BehaviorRecordTravel(double distance)
         {
+            AdvanceTacticalWeave(distance);
             var p = Behavior;
             if (!BehaviorDodging || p == null) return;
             behaviorDodgeTravel += distance;
@@ -467,8 +472,11 @@ namespace OpenZ.Sim
                 double courseRemaining = rangeDodge ? DodgeCourseRemaining(bearing) : Dist(CenterX, CenterY, cur.x, cur.y);
                 bool curved = rangeDodge && dodgeBend != 0;
                 if (curved)
-                    bearing = PlannedDodgeBearing(p, bearing, BehaviorHeading, dodgeCurveGear, behaviorDodgeTravel,
-                        Dist(cur.sx, cur.sy, cur.x, cur.y), dodgeBend, dodgeWeave);
+                    bearing = double.IsNaN(dodgeRoutePhase)
+                        ? PlannedDodgeBearing(p, bearing, BehaviorHeading, dodgeCurveGear, behaviorDodgeTravel,
+                            Dist(cur.sx, cur.sy, cur.x, cur.y), dodgeBend, dodgeWeave)
+                        : TacticalWeaveDodgeBearing(bearing, BehaviorHeading, dodgeCurveGear,
+                            behaviorDodgeTravel - dodgeRouteTravelStart, dodgeBend, dodgeRoutePhase);
                 if (flowing) desired *= p[ZBehaviorKey.CombatFlowSpeed];
                 bool orbital = tacticalDriving && TacticalOrbiting;
                 if (orbital) desired *= 1.18;
@@ -525,7 +533,7 @@ namespace OpenZ.Sim
         }
         double RangeAwareDodgeScore(int x, int y, int tx, int ty, double time, int radius, ZObject enemy,
             double heading, double speedFactor, double acceleration, double pivot, double boost,
-            bool experimental, bool brake, ZObject threat, double bend, bool weave)
+            bool experimental, bool brake, ZObject threat, double bend, bool weave, double routePhase = double.NaN)
         {
             var p = Behavior;
             double bearing = Math.Atan2(y - CenterY, x - CenterX);
@@ -558,8 +566,11 @@ namespace OpenZ.Sim
                 double remaining = length - (px - ox) * ux - (py - oy) * uy;
                 if (remaining <= 1.5) break;
                 double speed = (boostLimit == 0 || travel < boostLimit) && (boostDuration == 0 || i * dt < boostDuration) ? boosted : baseSpeed;
-                double course = bend == 0 ? bearing : PlannedDodgeBearing(p, bearing, drive.Heading, curveGear, travel,
-                    length, bend, weave);
+                double course = bearing;
+                if (bend != 0)
+                    course = double.IsNaN(routePhase)
+                        ? PlannedDodgeBearing(p, bearing, drive.Heading, curveGear, travel, length, bend, weave)
+                        : TacticalWeaveDodgeBearing(bearing, drive.Heading, curveGear, travel, bend, routePhase);
                 StepRangeAwareDodge(p, ref drive, course, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy,
                     experimental && !HasTacticalRoute && bend == 0, brake && i * dt < .08,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,

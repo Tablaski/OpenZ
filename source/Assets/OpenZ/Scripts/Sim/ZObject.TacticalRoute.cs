@@ -24,7 +24,7 @@ namespace OpenZ.Sim
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
-            internal bool ResumeAfterDodge, Orbital;
+            internal bool ResumeAfterDodge, Orbital, HasWeaveAim;
             internal readonly ZDuelState Feint = new ZDuelState { active = true };
         }
 
@@ -46,6 +46,7 @@ namespace OpenZ.Sim
 
         public (int x, int y) TacticalDestination => HasTacticalRoute ? tactical.Points[tactical.Points.Count - 1] : (CenterX, CenterY);
         bool TacticalFeintInProgress => HasTacticalRoute && tactical.Feint.feintCounted && tactical.Feint.feintEnd > World.Time;
+        bool TacticalLongWeave => HasTacticalRoute && Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave);
         bool TacticalArcEntry => Behavior.On(ZBehaviorKey.ExperimentalArcEntry);
 
         internal static int TacticalTravelGear(double heading, double travel, int current)
@@ -96,7 +97,12 @@ namespace OpenZ.Sim
                 Dist(route.EnemyX, route.EnemyY, enemy.CenterX, enemy.CenterY) > 56))
             {
                 route.Points.Clear();
-                if (route.Enemy != enemy.Id) tacticalPreviousDodge = double.NaN;
+                if (route.Enemy != enemy.Id)
+                {
+                    tacticalPreviousDodge = double.NaN;
+                    route.WeavePhase = 0;
+                    route.HasWeaveAim = false;
+                }
                 route.Enemy = enemy.Id;
                 route.ResumeAfterDodge = false;
             }
@@ -162,11 +168,15 @@ namespace OpenZ.Sim
                 double heading = BehaviorHeading;
                 bool moved = ProcessMove(dt, true, out _, out _);
                 double paceSquared = BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy;
-                if (!feint && moved)
+                if (moved)
                 {
                     double step = Math.Sqrt(paceSquared) * dt;
-                    route.TravelSinceFeint = Math.Min(64, route.TravelSinceFeint + step);
-                    route.WeavePhase = (route.WeavePhase + step * .104) % (2 * Math.PI);
+                    if (TacticalLongWeave) AdvanceTacticalWeave(step);
+                    if (!feint)
+                    {
+                        route.TravelSinceFeint = Math.Min(64, route.TravelSinceFeint + step);
+                        if (!TacticalLongWeave) route.WeavePhase = (route.WeavePhase + step * .104) % (2 * Math.PI);
+                    }
                 }
                 if (paceSquared > 16)
                 {
@@ -194,6 +204,7 @@ namespace OpenZ.Sim
         bool PlanTacticalRoute(TacticalRoute route, ZObject enemy, bool agro)
         {
             route.Points.Clear();
+            route.HasWeaveAim = false;
             ScanDodgeRadar();
             Array.Fill(route.Parent, (short)-1);
             Array.Clear(route.Passable, 0, route.Passable.Length);
@@ -373,7 +384,7 @@ namespace OpenZ.Sim
 
         bool TacticalPointFree(int x, int y)
         {
-            if (!DuelBoxFree(x - (WidthPix >> 1), y - (HeightPix >> 1))) return false;
+            if (!RadarTerrainClear(x - (WidthPix >> 1), y - (HeightPix >> 1))) return false;
             foreach (var other in radarContacts)
             {
                 if (RadarDistance(x, y, other.X, other.Y) + .25 <
@@ -413,12 +424,14 @@ namespace OpenZ.Sim
             }
             route.Anchor = anchor;
             double dx = goal.x - CenterX, dy = goal.y - CenterY, length = Dist(CenterX, CenterY, goal.x, goal.y);
-            double weave = Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave) ? 0 :
-                Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(16, length * .35) *
+            bool longWeave = TacticalLongWeave;
+            double weave =
+                Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(longWeave ? 24 : 16, length * (longWeave ? .62 : .35)) *
                 Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100;
             int x = goal.x - (int)Math.Round(dy * weave / Math.Max(1, length));
             int y = goal.y + (int)Math.Round(dx * weave / Math.Max(1, length));
             bool safe = TacticalSegment(CenterX, CenterY, x, y) && RadarApproach(x, y, enemy) < .65;
+            route.HasWeaveAim = longWeave && safe && (x != goal.x || y != goal.y);
             if (!safe) (x, y) = goal;
             if (TacticalArcEntry && BehaviorHeadingSet)
             {
@@ -444,11 +457,35 @@ namespace OpenZ.Sim
                 TacticalSegment(CenterX, CenterY, point.x, point.y);
         }
 
+        double TacticalWeaveRate => 2 * Math.PI / (288 + Id % 5 * 16);
+
+        void AdvanceTacticalWeave(double distance)
+        {
+            if (!TacticalLongWeave && (!BehaviorDodging || double.IsNaN(dodgeRoutePhase))) return;
+            // Carry the secondary route through boosts, coasting and primary route replans.
+            tactical.WeavePhase = (tactical.WeavePhase + distance * TacticalWeaveRate) % (2 * Math.PI);
+        }
+
+        double TacticalWeaveDodgeBearing(double bearing, double heading, int gear, double distance, double bend, double phase)
+        {
+            double travelAxis = WrapRadians(heading + (gear < 0 ? Math.PI : 0));
+            double change = Math.Sin(phase + distance * TacticalWeaveRate) - Math.Sin(phase);
+            double offset = WrapRadians(bearing + bend * change - travelAxis);
+            return WrapRadians(travelAxis + Math.Clamp(offset, -Math.PI / 2, Math.PI / 2));
+        }
+
         double TacticalDodgeProgress(double x, double y)
         {
             if (!HasTacticalRoute) return 0;
             var next = tactical.Points[tactical.Index];
-            return .16 * Math.Clamp((Dist(CenterX, CenterY, next.x, next.y) - RadarDistance(x, y, next.x, next.y)) / 30, -1, 1);
+            double progress = .16 * Math.Clamp((Dist(CenterX, CenterY, next.x, next.y) - RadarDistance(x, y, next.x, next.y)) / 30, -1, 1);
+            if (TacticalLongWeave && tactical.HasWeaveAim)
+            {
+                double aim = Math.Atan2(tactical.AimY - CenterY, tactical.AimX - CenterX);
+                double travel = Math.Atan2(y - CenterY, x - CenterX);
+                progress += .12 * Math.Cos(WrapRadians(travel - aim));
+            }
+            return progress;
         }
 
         double TacticalApproachPenalty => HasTacticalRoute ? .65 - tactical.Pressure * .22 : .62;

@@ -362,10 +362,11 @@ namespace OpenZ.Sim
         }
 
         /// <summary>ZReach.BoxFree on the vehicle grid with rocks (box shrunk by 1 px like Zod's WithinImpassable, on the map).</summary>
-        bool DuelBoxFree(int x, int y)
+        bool DuelBoxFree(int x, int y, int margin = 0)
         {
             var pf = World.Path;
-            int w = WidthPix - 2, h = HeightPix - 2; x += 1; y += 1;
+            int w = WidthPix - 2 + 2 * margin, h = HeightPix - 2 + 2 * margin;
+            x += 1 - margin; y += 1 - margin;
             if (x < 0 || y < 0 || x + w >= pf.WidthPix || y + h >= pf.HeightPix) return false;
             for (int j = y >> 4; j <= (y + h - 1) >> 4; j++)
                 for (int i = x >> 4; i <= (x + w - 1) >> 4; i++)

@@ -440,8 +440,9 @@ namespace OpenZ
                 Count(eu, 0f, false, "kill shot, no hold"); Mark(p, ballistic, T, g); return false;
             }
             float err0 = ErrorTo(p, ballistic, T, g, grenade);
-            // Keep a field howitzer's displayed shot on the same clock as its reload across crew changes.
-            if (ballistic && obj.Kind == ZKind.Cannon && obj.Type == "howitzer" && obj.Ejectable)
+            // A classic MLRS salvo cannot shorten its visible flight without changing its constant rocket speed.
+            // Field howitzers keep their displayed shot on the same clock as the reload across crew changes.
+            if (obj.UsesClassicMissileLauncher || (ballistic && obj.Kind == ZKind.Cannon && obj.Type == "howitzer" && obj.Ejectable))
             {
                 if (err0 > slew.tol && Snap(p, ballistic, T, g)) err0 = ErrorTo(p, ballistic, T, g, grenade);
                 Count(err0, 0f, false, "howitzer shot, no hold");

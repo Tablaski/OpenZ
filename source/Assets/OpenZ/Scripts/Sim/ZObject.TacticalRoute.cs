@@ -378,19 +378,24 @@ namespace OpenZ.Sim
             {
                 double wanted = Math.Atan2(y - CenterY, x - CenterX);
                 double travel = WrapRadians(BehaviorHeading + (behaviorTravelSign < 0 ? Math.PI : 0));
-                double arcBearing = TacticalArcBearing(travel, wanted, BehaviorActualSpeed > 8);
-                if (arcBearing != wanted)
-                {
-                    double arcLook = Math.Clamp(length, 12, 23);
-                    int ax = CenterX + (int)Math.Round(Math.Cos(arcBearing) * arcLook);
-                    int ay = CenterY + (int)Math.Round(Math.Sin(arcBearing) * arcLook);
-                    if (TacticalSegment(CenterX, CenterY, ax, ay) && RadarApproach(ax, ay, enemy) < .55)
-                        (x, y) = (ax, ay);
-                }
+                bool moving = BehaviorActualSpeed > 8;
+                double arcLook = Math.Clamp(length, 12, 23);
+                if (TryTacticalArc(enemy, wanted, travel, moving, arcLook, out var bend) ||
+                    !moving && Behavior.On(ZBehaviorKey.Reverse) &&
+                    TryTacticalArc(enemy, wanted, WrapRadians(travel + Math.PI), false, arcLook, out bend))
+                    (x, y) = bend;
             }
             route.AimX = x; route.AimY = y;
             route.NextAim = World.Time + .19;
             return true;
+        }
+
+        bool TryTacticalArc(ZObject enemy, double wanted, double travel, bool moving, double look, out (int x, int y) point)
+        {
+            double bearing = TacticalArcBearing(travel, wanted, moving);
+            point = (CenterX + (int)Math.Round(Math.Cos(bearing) * look), CenterY + (int)Math.Round(Math.Sin(bearing) * look));
+            return bearing != wanted && RadarApproach(point.x, point.y, enemy) < .55 &&
+                TacticalSegment(CenterX, CenterY, point.x, point.y);
         }
 
         double TacticalDodgeProgress(double x, double y)

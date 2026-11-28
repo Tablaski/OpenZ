@@ -23,6 +23,10 @@ namespace OpenZ
         MaterialPropertyBlock paint;
         MeshRenderer cab, launcher, tray, tubes;
         Transform rack;
+        readonly List<Light> lamps = new List<Light>(4);
+        static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
+        static readonly Color LampColor = new Color(1f, 0.76f, 0.29f);
+        bool lampsOn;
         ZObject unit;
         Team shown = (Team)(-1);
 
@@ -59,13 +63,27 @@ namespace OpenZ
 
             foreach (var part in hullSpace.GetComponentsInChildren<Transform>(true))
             {
-                if ((part.name.StartsWith("mlrs_Hatch", StringComparison.Ordinal) ||
+                if (part.name == "MLRS_hull" && part.TryGetComponent<Renderer>(out var hullRenderer))
+                {
+                    var slots = hullRenderer.sharedMaterials;
+                    for (int i = 0; i < slots.Length; i++) slots[i] = materials[(int)Surface.Steel];
+                    hullRenderer.sharedMaterials = slots;
+                }
+                if ((part.name.IndexOf("ladder", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    part.name.StartsWith("mlrs_Entry", StringComparison.Ordinal) ||
+                    part.name.StartsWith("MLRS_headlamp", StringComparison.Ordinal) ||
+                    part.name.StartsWith("mlrs_Hatch", StringComparison.Ordinal) ||
                     part.name.StartsWith("MLRS_OwnerGlow_Cab", StringComparison.Ordinal)) &&
                     part.TryGetComponent<Renderer>(out var renderer))
                     renderer.enabled = false;
             }
 
             cab = AddMesh(hullSpace, "Classic MLRS cabin", cabMesh);
+            foreach (int side in new[] { -1, 1 })
+            {
+                AddLamp(hullSpace, new Vector3(side * 0.646f, 1.39f, -2.27f), true);
+                AddLamp(hullSpace, new Vector3(side * 0.65f, 1.13f, 2.30f), false);
+            }
             swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
             rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
@@ -100,7 +118,33 @@ namespace OpenZ
             return renderer;
         }
 
-        void LateUpdate() => ApplyPaint();
+        void AddLamp(Transform parent, Vector3 position, bool front)
+        {
+            var node = Node(parent, front ? "Classic MLRS front lamp" : "Classic MLRS rear lamp", position);
+            node.localRotation = Quaternion.LookRotation(new Vector3(0f, -0.22f, front ? -1f : 1f));
+            var lamp = node.gameObject.AddComponent<Light>();
+            lamp.type = LightType.Spot;
+            lamp.color = LampColor;
+            lamp.range = front ? 13f : 8f;
+            lamp.spotAngle = front ? 51f : 65f;
+            lamp.innerSpotAngle = lamp.spotAngle * 0.45f;
+            lamp.intensity = front ? 4.0f : 2.6f;
+            lamp.enabled = false;
+            lamps.Add(lamp);
+        }
+
+        void LateUpdate()
+        {
+            ApplyPaint();
+            bool on = NightGrade.NightK > 0.35f && unit.Owner != Team.Neutral && !unit.Destroyed;
+            if (on == lampsOn) return;
+            lampsOn = on;
+            foreach (var lamp in lamps) lamp.enabled = on;
+            cab.GetPropertyBlock(paint, (int)Surface.Lamp);
+            paint.SetColor(EmissionColor, on ? LampColor * 3f : Color.black);
+            cab.SetPropertyBlock(paint, (int)Surface.Lamp);
+            paint.Clear();
+        }
 
         void ApplyPaint()
         {
@@ -153,15 +197,16 @@ namespace OpenZ
                 MaterialFor(new Color32(36, 62, 74, 255), 0.32f, 0.67f),
                 MaterialFor(new Color32(224, 165, 83, 255), 0.1f, 0.48f)
             };
+            materials[(int)Surface.Lamp].EnableKeyword("_EMISSION");
             var body = new Geometry();
             body.Box(0, 1.81f, -1.36f, 1.76f, 1.14f, 1.63f, Surface.Armor);
             body.Box(0, 2.39f, -1.36f, 1.86f, 0.12f, 1.66f, Surface.Armor);
             body.Box(0, 2.463f, -1.48f, 1.34f, 0.045f, 1.05f, Surface.Team);
             body.Box(0, 2.505f, -1.48f, 0.24f, 0.045f, 0.06f, Surface.Dark);
             body.Box(0, 2.03f, -2.173f, 1.53f, 0.37f, 0.07f, Surface.Team);
-            body.Box(0, 1.44f, -2.168f, 0.63f, 0.17f, 0.055f, Surface.Dark);
+            body.Box(0, 1.50f, -2.168f, 0.63f, 0.34f, 0.055f, Surface.Dark);
             for (int i = -2; i <= 2; i++)
-                body.Box(i * 0.105f, 1.44f, -2.201f, 0.028f, 0.099f, 0.015f, Surface.Steel);
+                body.Box(i * 0.105f, 1.50f, -2.201f, 0.028f, 0.198f, 0.015f, Surface.Steel);
             foreach (int side in new[] { -1, 1 })
             {
                 body.Box(side * 0.358f, 2.036f, -2.215f, 0.655f, 0.245f, 0.057f, Surface.Glass);
@@ -171,6 +216,8 @@ namespace OpenZ
                 body.Box(side * 0.96f, 1.61f, -1.36f, 0.05f, 0.19f, 0.64f, Surface.Armor);
                 body.Box(side * 0.646f, 1.39f, -2.20f, 0.172f, 0.192f, 0.095f, Surface.Dark);
                 body.Box(side * 0.646f, 1.39f, -2.251f, 0.105f, 0.13f, 0.028f, Surface.Lamp);
+                body.Box(side * 0.65f, 1.13f, 2.237f, 0.183f, 0.194f, 0.088f, Surface.Dark);
+                body.Box(side * 0.65f, 1.13f, 2.286f, 0.113f, 0.131f, 0.027f, Surface.Lamp);
                 foreach (float z in new[] { -0.75f, -1.93f })
                     body.Box(side * 0.771f, 2.463f, z, 0.06f, 0.035f, 0.06f, Surface.Rim);
             }

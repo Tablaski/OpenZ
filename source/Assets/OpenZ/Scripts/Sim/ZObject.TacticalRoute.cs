@@ -24,7 +24,7 @@ namespace OpenZ.Sim
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
-            internal bool ResumeAfterDodge;
+            internal bool ResumeAfterDodge, Orbital;
             internal readonly ZDuelState Feint = new ZDuelState { active = true };
         }
 
@@ -36,6 +36,8 @@ namespace OpenZ.Sim
         public int TacticalRoutePlans { get; private set; }
         public int TacticalRoutePointsReached { get; private set; }
         public int TacticalRouteDodgeResumes { get; private set; }
+        public int TacticalOrbitPlans { get; private set; }
+        public bool TacticalOrbiting => HasTacticalRoute && tactical.Orbital;
         public double TacticalPivotSeconds { get; private set; }
         public bool HasTacticalRoute => UsesDodgeRadar && Behavior.On(ZBehaviorKey.ExperimentalTacticalRoute) &&
             tactical != null && tactical.Index < tactical.Points.Count && World.Time < tactical.Expiry &&
@@ -151,7 +153,7 @@ namespace OpenZ.Sim
             try
             {
                 bool continuingFeint = TacticalFeintInProgress;
-                bool feint = (continuingFeint || route.Expiry - World.Time > 1 &&
+                bool feint = (continuingFeint || !route.Orbital && route.Expiry - World.Time > 1 &&
                     (!TacticalArcEntry || route.TravelSinceFeint >= 42) &&
                     Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12) &&
                     TryExperimentalFeint(route.Feint, enemy, agro);
@@ -210,6 +212,19 @@ namespace OpenZ.Sim
             int side = duel?.sign ?? 0;
             if (TacticalArcEntry) side = ((Id ^ enemy.Id) & 2) == 0 ? 1 : -1;
             else if (side == 0) side = Id % 2 == 0 ? 1 : -1;
+            route.Orbital = false;
+            if (Behavior.On(ZBehaviorKey.ExperimentalOrbitalFlow) && enemy.Kind == ZKind.Vehicle)
+            {
+                int orbitSide = side;
+                if (!BuildTacticalOrbit(route, enemy, orbitSide, preferredRange, agro)) orbitSide = -side;
+                if (route.Points.Count > 0 || BuildTacticalOrbit(route, enemy, orbitSide, preferredRange, agro))
+                {
+                    route.Orbital = true;
+                    TacticalOrbitPlans++;
+                    CommitTacticalRoute(route, enemy, orbitSide);
+                    return true;
+                }
+            }
             while (head < tail)
             {
                 int cell = route.Queue[head++], col = cell % TacticalWidth, row = cell / TacticalWidth;
@@ -269,19 +284,48 @@ namespace OpenZ.Sim
                 route.Points.Add((originX + (cell % TacticalWidth - TacticalRadius) * TacticalCell,
                     originY + (cell / TacticalWidth - TacticalRadius) * TacticalCell));
             route.Points.Reverse();
+            CommitTacticalRoute(route, enemy, side);
+            return true;
+        }
+
+        bool BuildTacticalOrbit(TacticalRoute route, ZObject enemy, int side, double preferredRange, bool agro)
+        {
+            route.Points.Clear();
+            int ex = enemy.CenterX, ey = enemy.CenterY;
+            int x = CenterX, y = CenterY, range = RangeTo(enemy);
+            double radius = Dist(x, y, ex, ey), angle = Math.Atan2(y - ey, x - ex);
+            if (radius > range + 10 || !TacticalShotClear(x, y, ex, ey, range)) return false;
+            for (int i = 0; i < 5; i++)
+            {
+                angle += side * (.24 + .035 * i);
+                radius = Toward(radius, preferredRange, 5 + i * .6);
+                int nx = ex + (int)Math.Round(Math.Cos(angle) * radius);
+                int ny = ey + (int)Math.Round(Math.Sin(angle) * radius);
+                if (!TacticalSegment(x, y, nx, ny) || !TacticalShotClear(nx, ny, ex, ey, range) ||
+                    agro && Dist(nx, ny, cur.agroX, cur.agroY) > World.S.agro_distance + ZDuel.AgroLeash ||
+                    World.Time < route.RejectedUntil && Dist(nx, ny, route.RejectedX, route.RejectedY) < 20) break;
+                route.Points.Add((nx, ny));
+                x = nx; y = ny;
+            }
+            if (route.Points.Count >= 3 && TacticalFiringWindow(x, y, enemy) >= 5) return true;
+            route.Points.Clear();
+            return false;
+        }
+
+        void CommitTacticalRoute(TacticalRoute route, ZObject enemy, int side)
+        {
             route.EnemyX = enemy.CenterX; route.EnemyY = enemy.CenterY;
             route.WorldVersion = World.Path.Version;
             route.Index = 0; route.Anchor = -1; route.NextAim = World.Time;
             route.Expiry = World.Time + 8; route.MovedAt = World.Time;
             route.PoorFiringSince = -1; route.CheckFiringAt = World.Time + .5;
-            route.MovedX = originX; route.MovedY = originY;
+            route.MovedX = CenterX; route.MovedY = CenterY;
             if (duel != null && duel.active) EndDuel(duel, DuelEnd.Other);
             route.Feint.sign = side;
             route.Feint.feintEnd = 0;
             route.Feint.nextFeint = World.Time + .65;
             ClearCur();
             TacticalRoutePlans++;
-            return true;
         }
 
         bool TacticalShotClear(int x, int y, int tx, int ty, int range) =>
@@ -348,7 +392,7 @@ namespace OpenZ.Sim
         bool AimTacticalRoute(TacticalRoute route, ZObject enemy)
         {
             int anchor = route.Index;
-            for (int i = route.Index; i < route.Points.Count && i < route.Index + 4; i++)
+            for (int i = route.Index; i < route.Points.Count && i < route.Index + (route.Orbital ? 2 : 4); i++)
             {
                 var point = route.Points[i];
                 if (Dist(CenterX, CenterY, point.x, point.y) > 46 ||

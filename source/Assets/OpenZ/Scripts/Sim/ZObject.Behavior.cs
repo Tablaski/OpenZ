@@ -440,17 +440,19 @@ namespace OpenZ.Sim
                 double bearing = rangeDodge ? Math.Atan2(cur.y - cur.sy, cur.x - cur.sx) : angle;
                 double courseRemaining = rangeDodge ? DodgeCourseRemaining(bearing) : Dist(CenterX, CenterY, cur.x, cur.y);
                 if (flowing) desired *= p[ZBehaviorKey.CombatFlowSpeed];
+                bool orbital = tacticalDriving && TacticalOrbiting;
+                if (orbital) desired *= 1.18;
                 double currentSpeed = CripplingHitActive || CripplingActive ? Math.Min(BehaviorActualSpeed, desired) : BehaviorActualSpeed;
                 var drive = new DodgeDrive(BehaviorHeading, behaviorTurnSpeed, currentSpeed,
                     behaviorReverseUntil - World.Time, behaviorTravelSign);
                 int previousGear = drive.Sign;
                 bool experimental = ExperimentalDodging;
                 StepRangeAwareDodge(p, ref drive, bearing, desired, courseRemaining, dt,
-                    rangeDodge ? dodgeAccelerationFactor : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy,
+                    rangeDodge ? dodgeAccelerationFactor : orbital ? .55 : 1, rangeDodge ? dodgePivotFactor : 1, CripplingAcceleration, out vx, out vy,
                     experimental: rangeDodge && experimental && !HasTacticalRoute, brakeFirst: rangeDodge && experimentalBrake && World.Time < experimentalBrakeUntil,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
                     gear: flowing && !tacticalDriving && experimental ? duel.experimentalGear : 0,
-                    rollingTurn: tacticalDriving || rangeDodge && HasTacticalRoute);
+                    rollingTurn: tacticalDriving || rangeDodge && HasTacticalRoute, carrySpeed: orbital);
                 if (experimental && drive.Sign != previousGear) ExperimentalGearChanges++;
                 BehaviorHeading = drive.Heading; behaviorTurnSpeed = drive.Turn; BehaviorActualSpeed = drive.Speed;
                 behaviorTravelSign = drive.Sign; behaviorReverseUntil = World.Time + drive.ReverseDelay;
@@ -584,7 +586,8 @@ namespace OpenZ.Sim
 
         static void StepRangeAwareDodge(ZBehaviorValues p, ref DodgeDrive state, double bearing, double desired,
             double remaining, double dt, double acceleration, double pivot, double damageRamp, out double vx, out double vy,
-            bool experimental = false, bool brakeFirst = false, double smoothing = 0, int gear = 0, bool rollingTurn = false)
+            bool experimental = false, bool brakeFirst = false, double smoothing = 0, int gear = 0, bool rollingTurn = false,
+            bool carrySpeed = false)
         {
             bool reverse = p.On(ZBehaviorKey.Reverse) && (rollingTurn ?
                 TacticalTravelGear(state.Heading, bearing, state.Sign) < 0 :
@@ -619,6 +622,7 @@ namespace OpenZ.Sim
             double brakingTime = p[ZBehaviorKey.Braking];
             bool stop = braking || brakeFirst || pauseForTurn || state.ReverseDelay > 0;
             double cornerPace = Math.Max(0, Math.Cos(turnRemaining));
+            if (carrySpeed) cornerPace = Math.Sqrt(cornerPace);
             if (rollingTurn)
             {
                 double creep = .22 * Math.Clamp((Math.PI * .59 - turnRemaining) / (Math.PI * .12), 0, 1);

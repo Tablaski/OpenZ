@@ -142,7 +142,7 @@ namespace OpenZ.Sim
             if (Math.Abs(PosX - d.movedX) + Math.Abs(PosY - d.movedY) >= ZDuel.HeldPx) { d.movedX = PosX; d.movedY = PosY; d.movedAt = now; }
             else if (now - d.movedAt > ZDuel.HeldWindow)
             {
-                if (DodgeRadar) NoteRadarStop(cur.x - CenterX, cur.y - CenterY);
+                if (DodgeRadar) NoteRadarStop(cur.x - CenterX, cur.y - CenterY, terrain: false);
                 EndDuel(d, DuelEnd.Held); d.sign = -d.sign; d.sameSign = 0;
             }
             return ZDuel.Manoeuvre;

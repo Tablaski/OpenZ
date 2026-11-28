@@ -10,7 +10,7 @@ namespace OpenZ.Sim
     public partial class ZObject
     {
         public const float ClassicMissileTubeSpacing = 0.85f;
-        public const float ClassicMissileMuzzleReach = 0.61f;
+        public const float ClassicMissileMuzzleReach = 1.15f;
 
         public bool UsesClassicMissileLauncher =>
             Kind == ZKind.Vehicle && Type == "missile_launcher" && World?.ClassicMissileLauncher == true;

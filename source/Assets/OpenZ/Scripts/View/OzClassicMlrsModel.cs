@@ -5,16 +5,14 @@ using UnityEngine;
 
 namespace OpenZ
 {
-    /// <summary>The three-tube launcher uses the production MLRS hull, drivetrain, crew and animation.</summary>
+    /// <summary>The three-tube launcher uses the symmetric armored hull and production MLRS drivetrain.</summary>
     public sealed class OzClassicMlrsModel : MonoBehaviour
     {
         const float RestElevation = 4f;
-        // At -6 degrees the forward extension of every tube still clears the cabin over the whole yaw sweep.
-        const float MinimumElevation = -6f, MaximumElevation = 7f;
-        const float TubeHeight = 3.11f;
-        const float TurretHeight = 2.71f;
-        const float TurretPivotZ = 0.62f;
-        const float TubeMouth = ZObject.ClassicMissileMuzzleReach;
+        const float MinimumElevation = -17f, MaximumElevation = 14f;
+        const float TurretHeight = 2.24f;
+        const float TurretPivotZ = 0.10f;
+        const float TubeMouth = 0.61f;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         enum Surface { Armor, Steel, Rim, Dark, Team, Glass, Lamp, Count }
         static Mesh cabMesh, turretMesh, trayMesh, tubeMesh;
@@ -37,53 +35,27 @@ namespace OpenZ
             Transform hull = null, swivel = null;
             foreach (var part in view.GetComponentsInChildren<Transform>(true))
             {
-                if (part.name == "MLRS_hull") hull = part;
-                if (part.name == "MLRSRackYaw") swivel = part;
-            }
-            if (!hull || !swivel)
-            {
-                Debug.LogWarning("The classic missile launcher needs a production MLRS model.", view);
-                return;
-            }
-
-            var model = view.gameObject.AddComponent<OzClassicMlrsModel>();
-            model.Build(hull.parent, swivel, unit);
-        }
-
-        void Build(Transform hullSpace, Transform swivel, ZObject owner)
-        {
-            unit = owner;
-            paint = new MaterialPropertyBlock();
-            EnsureAssets();
-            foreach (var part in swivel.GetComponentsInChildren<Transform>(true))
-            {
-                if (part.TryGetComponent<Renderer>(out var renderer)) renderer.enabled = false;
-                if (part.name.Contains("Muzzle_") || part.name == "MLRSRackPitch")
-                    part.name = "UnusedClassicMlrsPart";
-            }
-
-            foreach (var part in hullSpace.GetComponentsInChildren<Transform>(true))
-            {
-                if (part.name == "MLRS_hull" && part.TryGetComponent<Renderer>(out var hullRenderer))
+                if (!part.TryGetComponent<Renderer>(out var renderer)) continue;
+                bool wheel = part.name.StartsWith("MLRS_wheel_", StringComparison.Ordinal);
+                renderer.enabled = wheel || part.name.StartsWith("MLRS_RegularTread_", StringComparison.Ordinal);
+                if (wheel && int.TryParse(part.name.Substring("MLRS_wheel_".Length), out int index))
                 {
-                    var slots = hullRenderer.sharedMaterials;
-                    for (int i = 0; i < slots.Length; i++) slots[i] = materials[(int)Surface.Steel];
-                    hullRenderer.sharedMaterials = slots;
+                    int slot = index % 5;
+                    renderer.enabled = slot != 2;
+                    if (slot != 2 && part.parent)
+                    {
+                        var position = part.parent.localPosition;
+                        position.z = (slot < 2 ? slot - 1.5f : slot - 2.5f) * 1.09f;
+                        part.parent.localPosition = position;
+                    }
                 }
-                if ((part.name.IndexOf("ladder", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    part.name.StartsWith("mlrs_Entry", StringComparison.Ordinal) ||
-                    part.name.StartsWith("MLRS_headlamp", StringComparison.Ordinal) ||
-                    part.name.StartsWith("mlrs_Hatch", StringComparison.Ordinal) ||
-                    part.name.StartsWith("MLRS_OwnerGlow_Cab", StringComparison.Ordinal)) &&
-                    part.TryGetComponent<Renderer>(out var renderer))
-                    renderer.enabled = false;
             }
 
             cab = AddMesh(hullSpace, "Classic MLRS cabin", cabMesh);
             foreach (int side in new[] { -1, 1 })
             {
-                AddLamp(hullSpace, new Vector3(side * 0.646f, 1.39f, -2.27f), true);
-                AddLamp(hullSpace, new Vector3(side * 0.65f, 1.13f, 2.30f), false);
+                AddLamp(hullSpace, new Vector3(side * 0.752f, 0.94f, -2.40f), true);
+                AddLamp(hullSpace, new Vector3(side * 0.752f, 0.94f, 2.40f), false);
             }
             swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
@@ -91,9 +63,7 @@ namespace OpenZ
             var rest = Quaternion.AngleAxis(RestElevation, Vector3.right);
             rack.localRotation = rest;
             tray = AddMesh(rack, "Classic MLRS tray", trayMesh);
-            // Keep the approved tube position at rest while the hinge sits in the tray.
-            var cradle = Node(rack, "Classic MLRS tube mount",
-                Quaternion.Inverse(rest) * new Vector3(0f, TubeHeight - TurretHeight, -TurretPivotZ));
+            var cradle = Node(rack, "Classic MLRS tube mount", new Vector3(0f, 0.32f, -0.64f));
             tubes = AddMesh(cradle, "Classic MLRS three tubes", tubeMesh);
             for (int i = 0; i < sockets.Length; i++)
             {
@@ -190,54 +160,105 @@ namespace OpenZ
             return material;
         }
 
+        static Texture2D MetalFinish()
+        {
+            const int size = 512;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
+            { name = "MSLR 1996 brushed steel", wrapMode = TextureWrapMode.Repeat, anisoLevel = 8 };
+            var pixels = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float cloud = Mathf.PerlinNoise(x * .018f + 23f, y * .018f);
+                float pits = Mathf.PerlinNoise(x * .17f, y * .17f + 7f);
+                float brush = Mathf.PerlinNoise(x * .029f - y * .033f + 16f, y * .83f);
+                uint grit = unchecked((uint)(x * 73856093 ^ y * 19349663));
+                grit = (grit ^ (grit >> 13)) * 1274126177u;
+                float value = 224f + (cloud - .5f) * 41f + ((grit & 255) / 255f - .5f) * 13f
+                    - Mathf.Max(0f, pits - .53f) * 100f + Mathf.Max(0f, brush - .60f) * 100f;
+                byte gray = (byte)Mathf.Clamp(Mathf.RoundToInt(value), 0, 255);
+                pixels[y * size + x] = new Color32(gray, gray, gray, 255);
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(true, true);
+            return texture;
+        }
+
         static void EnsureAssets()
         {
             if (cabMesh && turretMesh && trayMesh && tubeMesh) return;
             materials = new[]
             {
-                MaterialFor(new Color32(98, 104, 105, 255), 0.39f, 0.31f),
-                MaterialFor(new Color32(105, 115, 120, 255), 0.46f, 0.39f),
-                MaterialFor(new Color32(133, 141, 143, 255), 0.53f, 0.43f),
+                MaterialFor(new Color32(146, 143, 136, 255), 0.39f, 0.31f),
+                MaterialFor(new Color32(153, 153, 151, 255), 0.46f, 0.39f),
+                MaterialFor(new Color32(171, 168, 158, 255), 0.53f, 0.43f),
                 MaterialFor(new Color32(43, 46, 48, 255), 0.22f, 0.26f),
                 MaterialFor(new Color32(176, 40, 30, 255), 0.14f, 0.38f),
                 MaterialFor(new Color32(36, 62, 74, 255), 0.32f, 0.67f),
                 MaterialFor(new Color32(224, 165, 83, 255), 0.1f, 0.48f)
             };
             materials[(int)Surface.Lamp].EnableKeyword("_EMISSION");
+            var finish = MetalFinish();
+            foreach (var slot in new[] { Surface.Armor, Surface.Steel, Surface.Rim, Surface.Dark, Surface.Team })
+                materials[(int)slot].SetTexture("_BaseMap", finish);
+
             var body = new Geometry();
-            body.Box(0, 1.81f, -1.36f, 1.76f, 1.14f, 1.63f, Surface.Armor);
-            body.Box(0, 2.39f, -1.36f, 1.86f, 0.12f, 1.66f, Surface.Armor);
-            body.Box(0, 2.463f, -1.48f, 1.34f, 0.045f, 1.05f, Surface.Team);
-            body.Box(0, 2.505f, -1.48f, 0.24f, 0.045f, 0.06f, Surface.Dark);
-            body.Box(0, 2.03f, -2.173f, 1.53f, 0.37f, 0.07f, Surface.Team);
-            body.Box(0, 1.50f, -2.168f, 0.63f, 0.34f, 0.055f, Surface.Dark);
+            body.Box(0, .73f, 0, 2.23f, .83f, 4.44f, Surface.Armor);
+            body.Box(0, .42f, 0, 2.12f, .24f, 4.17f, Surface.Dark);
+            body.Box(0, 1.31f, .29f, 2.72f, .48f, 3.14f, Surface.Armor);
+            body.Box(0, 1.50f, .10f, 2.33f, .16f, 2.20f, Surface.Steel);
+            body.Box(0, 1.28f, -1.53f, 1.96f, .28f, 1.23f, Surface.Armor, -27f);
+            body.Box(0, 1.57f, -1.16f, 1.67f, .075f, .47f, Surface.Team, -6f);
+            body.Box(0, 1.62f, -1.16f, .33f, .055f, .089f, Surface.Dark);
+            body.Box(0, .895f, -2.17f, 1.97f, .57f, .32f, Surface.Armor);
+            body.Box(0, .92f, -2.345f, .55f, .32f, .041f, Surface.Dark);
+            body.Box(0, .94f, 2.10f, 1.95f, .65f, .45f, Surface.Armor);
             for (int i = -2; i <= 2; i++)
-                body.Box(i * 0.105f, 1.50f, -2.201f, 0.028f, 0.198f, 0.015f, Surface.Steel);
+                body.Box(i * .105f, .92f, -2.373f, .035f, .26f, .034f, Surface.Rim);
+
             foreach (int side in new[] { -1, 1 })
             {
-                body.Box(side * 0.358f, 2.036f, -2.215f, 0.655f, 0.245f, 0.057f, Surface.Glass);
-                body.Box(side * 0.901f, 2.02f, -1.71f, 0.07f, 0.249f, 0.56f, Surface.Dark);
-                body.Box(side * 0.945f, 2.025f, -1.71f, 0.04f, 0.157f, 0.46f, Surface.Glass);
-                body.Box(side * 0.9f, 1.62f, -1.36f, 0.09f, 0.25f, 0.74f, Surface.Dark);
-                body.Box(side * 0.96f, 1.61f, -1.36f, 0.05f, 0.19f, 0.64f, Surface.Armor);
-                body.Box(side * 0.646f, 1.39f, -2.20f, 0.172f, 0.192f, 0.095f, Surface.Dark);
-                body.Box(side * 0.646f, 1.39f, -2.251f, 0.105f, 0.13f, 0.028f, Surface.Lamp);
-                body.Box(side * 0.65f, 1.13f, 2.237f, 0.183f, 0.194f, 0.088f, Surface.Dark);
-                body.Box(side * 0.65f, 1.13f, 2.286f, 0.113f, 0.131f, 0.027f, Surface.Lamp);
-                foreach (float z in new[] { -0.75f, -1.93f })
-                    body.Box(side * 0.771f, 2.463f, z, 0.06f, 0.035f, 0.06f, Surface.Rim);
+                body.Box(side * .457f, 1.428f, -1.68f, .814f, .072f, .61f, Surface.Dark, -27f);
+                body.Box(side * .457f, 1.459f, -1.706f, .695f, .072f, .49f, Surface.Glass, -27f);
+                body.Box(side * 1.37f, 1.24f, 0f, .57f, .39f, 3.43f, Surface.Armor);
+                body.Box(side * 1.37f, 1.28f, -1.87f, .60f, .22f, .76f, Surface.Steel, -28f);
+                body.Box(side * 1.37f, 1.28f, 1.87f, .60f, .22f, .76f, Surface.Steel, 25f);
+                body.Box(side * 1.661f, 1.18f, 0, .036f, .11f, 3.15f, Surface.Team);
+                body.Box(side * 1.676f, 1.35f, .50f, .077f, .245f, .86f, Surface.Steel);
+                body.Box(side * 1.719f, 1.35f, .50f, .032f, .187f, .69f, Surface.Dark);
+                for (int i = -2; i <= 2; i++)
+                    body.Box(side * 1.745f, 1.35f, .50f + i * .113f, .032f, .183f, .047f, Surface.Rim);
+
+                body.Box(side * .76f, .63f, -2.255f, .34f, .27f, .28f, Surface.Steel, -16f);
+                foreach (int end in new[] { -1, 1 })
+                {
+                    body.Box(side * .752f, .94f, end * 2.30f, .269f, .209f, .101f, Surface.Dark);
+                    body.Box(side * .752f, .94f, end * 2.359f, .195f, .133f, .032f, Surface.Lamp);
+                }
+
+                body.Box(side * .31f, .965f, 2.343f, .46f, .30f, .045f, Surface.Dark);
+                for (int i = -1; i <= 1; i++)
+                {
+                    body.Box(side * .31f, .965f + i * .072f, 2.374f, .41f, .025f, .025f, Surface.Steel);
+                    body.Box(side * .31f + i * .107f, .965f, 2.376f, .027f, .242f, .026f, Surface.Steel);
+                }
+                foreach (float z in new[] { -1.42f, -.74f, -.10f, .58f, 1.32f })
+                {
+                    body.Box(side * 1.22f, 1.446f, z, .049f, .031f, .049f, Surface.Rim);
+                    body.Box(side * 1.53f, 1.446f, z, .044f, .031f, .044f, Surface.Rim);
+                }
+                foreach (float z in new[] { -1.26f, -1.03f })
+                    body.Box(side * .695f, 1.622f, z, .045f, .033f, .045f, Surface.Rim);
             }
-            body.Box(0, 1.48f, 0.62f, 2.73f, 0.23f, 2.21f, Surface.Armor);
-            body.Box(0, 1.622f, 0.62f, 2.24f, 0.18f, 1.81f, Surface.Dark);
-            cabMesh = body.Mesh("OG Z cabin and turret deck");
+            cabMesh = body.Mesh("MSLR 1996 symmetric armored hull");
 
             var turret = new Geometry();
-            turret.RoundBase(-0.94f, 0.23f, 1.025f, Surface.Steel);
-            turret.RoundBase(-0.63f, 0.53f, 0.89f, Surface.Armor);
-            turret.RoundBase(-0.286f, 0.22f, 0.92f, Surface.Armor);
-            turret.Box(0, -0.109f, 0f, 1.86f, 0.19f, 0.39f, Surface.Dark);
+            turret.RoundBase(-.62f, .15f, 1.14f, Surface.Dark);
+            turret.RoundBase(-.51f, .16f, 1.09f, Surface.Rim);
+            turret.RoundBase(-.35f, .22f, .97f, Surface.Armor);
+            turret.Box(0, -.145f, 0, 1.84f, .28f, .66f, Surface.Dark);
             var platform = new Geometry();
-            platform.Box(0, 0f, 0f, 2.53f, 0.082f, 1.56f, Surface.Steel);
+            platform.Box(0, -.035f, .03f, 2.57f, .18f, 1.88f, Surface.Steel);
             var rack = new Geometry();
             for (int i = -1; i <= 1; i++)
             {
@@ -248,8 +269,10 @@ namespace OpenZ
             }
             foreach (int side in new[] { -1, 1 })
             {
-                turret.Box(side * 0.74f, -0.42f, 0f, 0.47f, 0.65f, 0.57f, Surface.Steel);
-                turret.Box(side * 0.995f, -0.205f, 0f, 0.076f, 0.28f, 0.38f, Surface.Rim);
+                platform.Box(side * 1.02f, .03f, .08f, .46f, .34f, 1.82f, Surface.Armor);
+                platform.Box(side * 1.252f, .03f, .08f, .043f, .193f, 1.35f, Surface.Dark);
+                for (int i = -4; i <= 4; i++)
+                    platform.Box(side * 1.279f, .03f, .08f + i * .14f, .033f, .181f, .047f, Surface.Rim);
                 foreach (float z in new[] { -0.64f, -0.40f, 0.40f, 0.64f })
                     platform.Box(side * 1.185f, 0.049f, z, 0.066f, 0.026f, 0.066f, Surface.Rim);
             }
@@ -262,6 +285,7 @@ namespace OpenZ
         {
             readonly List<Vector3> vertices = new List<Vector3>();
             readonly List<Vector3> normals = new List<Vector3>();
+            readonly List<Vector2> uvs = new List<Vector2>();
             readonly List<int>[] indices = new List<int>[(int)Surface.Count];
 
             public Geometry()
@@ -274,6 +298,11 @@ namespace OpenZ
                 int i = vertices.Count;
                 vertices.Add(a); vertices.Add(b); vertices.Add(c); vertices.Add(d);
                 normals.Add(normalA); normals.Add(normalB); normals.Add(normalB); normals.Add(normalA);
+                Vector3 n = normalA + normalB;
+                n = new Vector3(Mathf.Abs(n.x), Mathf.Abs(n.y), Mathf.Abs(n.z));
+                Vector2 Project(Vector3 v) => n.y >= n.x && n.y >= n.z ? new Vector2(v.x, v.z) :
+                    n.x > n.z ? new Vector2(v.z, v.y) : new Vector2(v.x, v.y);
+                uvs.Add(Project(a)); uvs.Add(Project(b)); uvs.Add(Project(c)); uvs.Add(Project(d));
                 var list = indices[(int)surface];
                 Vector3 winding = Vector3.Cross(b - a, c - a);
                 if (winding.sqrMagnitude < 1e-12f) winding = Vector3.Cross(c - a, d - a);
@@ -290,11 +319,12 @@ namespace OpenZ
                 Face(a, b, c, d, surface, n, n);
             }
 
-            public void Box(float x, float y, float z, float width, float height, float length, Surface surface)
+            public void Box(float x, float y, float z, float width, float height, float length, Surface surface, float tilt = 0f)
             {
                 float bevel = Mathf.Min(0.061f, Mathf.Min(width, Mathf.Min(height, length)) * 0.23f);
                 var rings = new Vector3[4][];
                 var center = new Vector3(x, y, z);
+                var rotation = Quaternion.AngleAxis(tilt, Vector3.right);
                 for (int level = 0; level < rings.Length; level++)
                 {
                     float inset = level == 0 || level == 3 ? bevel * 0.7f : 0f;
@@ -302,7 +332,7 @@ namespace OpenZ
                     float up = (level < 2 ? -1f : 1f) * (height * 0.5f - (inset == 0f ? bevel : 0f));
                     rings[level] = new[] { At(-a + bevel, -b), At(a - bevel, -b), At(a, -b + bevel), At(a, b - bevel),
                         At(a - bevel, b), At(-a + bevel, b), At(-a, b - bevel), At(-a, -b + bevel) };
-                    Vector3 At(float side, float fore) => center + new Vector3(side, up, fore);
+                    Vector3 At(float side, float fore) => center + rotation * new Vector3(side, up, fore);
                 }
                 for (int i = 0; i < 8; i++)
                 {
@@ -313,8 +343,8 @@ namespace OpenZ
                         var c = rings[k + 1][j]; var d = rings[k + 1][i];
                         Flat(a, b, c, d, surface, (a + b + c + d) * 0.25f - center);
                     }
-                    Vector3 top = center + Vector3.up * (height * 0.5f);
-                    Vector3 bottom = center - Vector3.up * (height * 0.5f);
+                    Vector3 top = center + rotation * Vector3.up * (height * 0.5f);
+                    Vector3 bottom = center - rotation * Vector3.up * (height * 0.5f);
                     Flat(top, rings[3][i], rings[3][j], top, surface, Vector3.up);
                     Flat(bottom, rings[0][i], rings[0][j], bottom, surface, Vector3.down);
                 }
@@ -380,6 +410,7 @@ namespace OpenZ
                 var mesh = new Mesh { name = name, subMeshCount = indices.Length };
                 mesh.SetVertices(vertices);
                 mesh.SetNormals(normals);
+                mesh.SetUVs(0, uvs);
                 for (int i = 0; i < indices.Length; i++) mesh.SetTriangles(indices[i], i);
                 mesh.RecalculateBounds();
                 return mesh;

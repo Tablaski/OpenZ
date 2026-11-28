@@ -9,8 +9,8 @@ namespace OpenZ
     public sealed class OzClassicMlrsModel : MonoBehaviour
     {
         const float RestElevation = 4f;
-        // At -8 degrees the forward extension of every tube still clears the cabin over the whole yaw sweep.
-        const float MinimumElevation = -8f;
+        // At -6 degrees the forward extension of every tube still clears the cabin over the whole yaw sweep.
+        const float MinimumElevation = -6f, MaximumElevation = 7f;
         const float TubeHeight = 3.11f;
         const float TurretHeight = 2.71f;
         const float TurretPivotZ = 0.62f;
@@ -27,6 +27,7 @@ namespace OpenZ
         static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
         static readonly Color LampColor = new Color(1f, 0.76f, 0.29f);
         bool lampsOn;
+        Transform rack;
         ZObject unit;
         Team shown = (Team)(-1);
 
@@ -86,7 +87,7 @@ namespace OpenZ
             }
             swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
-            var rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
+            rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
             var rest = Quaternion.AngleAxis(RestElevation, Vector3.right);
             rack.localRotation = rest;
             tray = AddMesh(rack, "Classic MLRS tray", trayMesh);
@@ -136,6 +137,18 @@ namespace OpenZ
         void LateUpdate()
         {
             ApplyPaint();
+            var target = unit.AttackObject;
+            float wanted = RestElevation;
+            if (target != null && !target.Destroyed && ZGame.I)
+            {
+                Vector3 local = rack.parent.InverseTransformPoint(ZGame.I.CenterWorld(target) + Vector3.up * 0.50f);
+                Vector3 outlet = rack.parent.InverseTransformPoint(CenterOutlet);
+                float distance = new Vector2(local.x - outlet.x, local.z - outlet.z).magnitude;
+                wanted = Mathf.Clamp(Mathf.Atan2(local.y - outlet.y, distance) * Mathf.Rad2Deg,
+                    MinimumElevation, MaximumElevation);
+            }
+            rack.localRotation = Quaternion.RotateTowards(rack.localRotation,
+                Quaternion.AngleAxis(wanted, Vector3.right), 42f * Time.deltaTime);
             bool on = NightGrade.NightK > 0.35f && unit.Owner != Team.Neutral && !unit.Destroyed;
             if (on == lampsOn) return;
             lampsOn = on;
@@ -182,9 +195,9 @@ namespace OpenZ
             if (cabMesh && turretMesh && trayMesh && tubeMesh) return;
             materials = new[]
             {
-                MaterialFor(new Color32(163, 158, 144, 255), 0.20f, 0.36f),
-                MaterialFor(new Color32(155, 173, 181, 255), 0.43f, 0.44f),
-                MaterialFor(new Color32(194, 198, 192, 255), 0.55f, 0.55f),
+                MaterialFor(new Color32(98, 104, 105, 255), 0.39f, 0.31f),
+                MaterialFor(new Color32(105, 115, 120, 255), 0.46f, 0.39f),
+                MaterialFor(new Color32(133, 141, 143, 255), 0.53f, 0.43f),
                 MaterialFor(new Color32(43, 46, 48, 255), 0.22f, 0.26f),
                 MaterialFor(new Color32(176, 40, 30, 255), 0.14f, 0.38f),
                 MaterialFor(new Color32(36, 62, 74, 255), 0.32f, 0.67f),
@@ -219,9 +232,9 @@ namespace OpenZ
             cabMesh = body.Mesh("OG Z cabin and turret deck");
 
             var turret = new Geometry();
-            turret.Box(0, -0.94f, 0f, 2.09f, 0.23f, 1.72f, Surface.Steel);
-            turret.Box(0, -0.63f, 0f, 1.80f, 0.53f, 1.52f, Surface.Armor);
-            turret.Box(0, -0.286f, 0f, 1.88f, 0.22f, 1.36f, Surface.Armor);
+            turret.RoundBase(-0.94f, 0.23f, 1.025f, Surface.Steel);
+            turret.RoundBase(-0.63f, 0.53f, 0.89f, Surface.Armor);
+            turret.RoundBase(-0.286f, 0.22f, 0.92f, Surface.Armor);
             turret.Box(0, -0.109f, 0f, 1.86f, 0.19f, 0.39f, Surface.Dark);
             var platform = new Geometry();
             platform.Box(0, 0f, 0f, 2.53f, 0.082f, 1.56f, Surface.Steel);
@@ -235,8 +248,8 @@ namespace OpenZ
             }
             foreach (int side in new[] { -1, 1 })
             {
-                turret.Box(side * 0.82f, -0.42f, 0f, 0.47f, 0.65f, 0.57f, Surface.Steel);
-                turret.Box(side * 1.072f, -0.205f, 0f, 0.076f, 0.28f, 0.38f, Surface.Rim);
+                turret.Box(side * 0.74f, -0.42f, 0f, 0.47f, 0.65f, 0.57f, Surface.Steel);
+                turret.Box(side * 0.995f, -0.205f, 0f, 0.076f, 0.28f, 0.38f, Surface.Rim);
                 foreach (float z in new[] { -0.64f, -0.40f, 0.40f, 0.64f })
                     platform.Box(side * 1.185f, 0.049f, z, 0.066f, 0.026f, 0.066f, Surface.Rim);
             }
@@ -304,6 +317,28 @@ namespace OpenZ
                     Vector3 bottom = center - Vector3.up * (height * 0.5f);
                     Flat(top, rings[3][i], rings[3][j], top, surface, Vector3.up);
                     Flat(bottom, rings[0][i], rings[0][j], bottom, surface, Vector3.down);
+                }
+            }
+
+            public void RoundBase(float y, float height, float radius, Surface surface)
+            {
+                const int sides = 48;
+                float low = y - height * 0.5f, high = y + height * 0.5f;
+                const float bevel = 0.045f;
+                Vector3 At(Vector3 dir, float r, float level) => dir * r + Vector3.up * level;
+                for (int i = 0; i < sides; i++)
+                {
+                    float a = i * 2f * Mathf.PI / sides, b = (i + 1) * 2f * Mathf.PI / sides;
+                    var u = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                    var v = new Vector3(Mathf.Cos(b), 0f, Mathf.Sin(b));
+                    Face(At(u, radius, low + bevel), At(v, radius, low + bevel),
+                        At(v, radius, high - bevel), At(u, radius, high - bevel), surface, u, v);
+                    Flat(At(u, radius, high - bevel), At(v, radius, high - bevel),
+                        At(v, radius - bevel, high), At(u, radius - bevel, high), surface, u + Vector3.up);
+                    Flat(At(u, radius - bevel, high), At(v, radius - bevel, high),
+                        Vector3.up * high, Vector3.up * high, surface, Vector3.up);
+                    Flat(At(v, radius, low + bevel), At(u, radius, low + bevel),
+                        At(u, radius - bevel, low), At(v, radius - bevel, low), surface, u + Vector3.down);
                 }
             }
 

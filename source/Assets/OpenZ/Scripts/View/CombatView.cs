@@ -439,9 +439,14 @@ namespace OpenZ
                 for (int i = 0; i < 3; i++)
                 {
                     Vector3 outlet = classic.Outlet(i);
-                    if (fxPlayer) fxPlayer.Launch(outlet, outlet + line, delay, FxWeapon.Mlrs, straight: true);
+                    if (fxPlayer)
+                    {
+                        fxPlayer.ClassicMlrsExhaust(classic.Exhaust(i), classic.RearDirection);
+                        fxPlayer.Launch(outlet, outlet + line, delay, FxWeapon.Mlrs, straight: true);
+                    }
                     else if (fx)
                     {
+                        LegacyMatch.BackBlast(classic.Exhaust(i), -classic.RearDirection, fx);
                         fx.LaunchFlash(outlet, line, 0.9f);
                         fx.Projectile(outlet, outlet + line, "rocket", OpenZFxPlayer.RealFlight(delay, game.gameSpeed), 0f);
                     }

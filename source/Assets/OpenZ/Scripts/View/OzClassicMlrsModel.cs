@@ -12,7 +12,7 @@ namespace OpenZ
         const float MinimumElevation = -17f, MaximumElevation = 14f;
         const float TurretHeight = 2.24f;
         const float TurretPivotZ = 0.10f;
-        const float TubeMouth = 0.61f;
+        const float TubeMouth = 0.61f, TubeRear = 1.969f;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         enum Surface { Armor, Steel, Rim, Dark, Team, Glass, Lamp, Count }
         static Mesh cabMesh, turretMesh, trayMesh, tubeMesh;
@@ -177,6 +177,8 @@ namespace OpenZ
         }
         public Vector3 CenterOutlet => sockets[1].position;
         public Vector3 Outlet(int index) => sockets[index].position;
+        public Vector3 RearDirection => rack.forward;
+        public Vector3 Exhaust(int index) => sockets[index].TransformPoint(Vector3.forward * (TubeMouth + TubeRear + 0.036f));
 
         static Material MaterialFor(Color32 color, float metal, float smoothness)
         {
@@ -404,7 +406,7 @@ namespace OpenZ
                 // Each profile step gives its axial position, radius and the finish leading to the next ring.
                 var profile = new (float z, float radius, Surface surface)[]
                 {
-                    (1.969f, 0, Surface.Steel), (1.969f, 0.245f, Surface.Steel), (1.950f, 0.292f, Surface.Rim), (1.940f, 0.315f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
+                    (TubeRear, 0, Surface.Steel), (TubeRear, 0.245f, Surface.Steel), (1.950f, 0.292f, Surface.Rim), (1.940f, 0.315f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
                     (1.78f, 0.35f, Surface.Rim), (1.73f, 0.34f, Surface.Steel),
                     (1.17f, 0.334f, Surface.Rim), (1.15f, 0.353f, Surface.Team), (0.96f, 0.353f, Surface.Rim),
                     (0.935f, 0.334f, Surface.Steel), (-0.38f, 0.334f, Surface.Steel), (-0.415f, 0.37f, Surface.Rim),

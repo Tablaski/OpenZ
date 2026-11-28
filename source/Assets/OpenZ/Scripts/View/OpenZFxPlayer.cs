@@ -1281,6 +1281,20 @@ namespace OpenZ
         }
 
         /// <summary>Tough bazooka back-blast (CombatView.cs:130-135): launch flash out of the rear + dust + pop.</summary>
+        internal void ClassicMlrsExhaust(Vector3 port, Vector3 aft)
+        {
+            var smoke = Ch(OpenZFxCatalog.TrailCh);
+            var right = Vector3.Cross(Vector3.up, aft).normalized;
+            for (int i = 0; i < 8; i++)
+            {
+                float t = i / 7f;
+                var velocity = aft * Mathf.Lerp(4.9f, 1.6f, t) + Vector3.up * (.12f + t * .65f)
+                    + right * (i % 2 == 0 ? .22f : -.22f);
+                EmitP(smoke, port + aft * (t * .22f), velocity, .54f + t * .52f,
+                    .32f + t * .51f, OpenZFxCatalog.TrailColor, .82f, t * .075f);
+            }
+        }
+
         public void BackBlast(Vector3 back, Vector3 backwards)
         {
             LaunchFlash(back, backwards, 0.6f);

@@ -21,6 +21,8 @@ namespace OpenZ.Sim
         List<RadarContact> radarContacts;
         long radarTick = -1;
         double radarBlockedUntil, radarBlockedBearing;
+        int radarReverseStops, radarReverseStopX, radarReverseStopY;
+        double radarReverseBlockedBearing;
         bool DodgeRadar => ExperimentalDodging && Behavior.On(ZBehaviorKey.ExperimentalDodgeRadar);
         bool RadarMoving => DodgeRadar && (BehaviorDodging || tacticalDriving || DuelKind != ZDuelKind.None);
         internal bool UsesDodgeRadar => DodgeRadar;
@@ -48,6 +50,7 @@ namespace OpenZ.Sim
 
         bool RadarMissesTerrain(int gear)
         {
+            if (gear < 0 && RadarReverseLimitReached) return false;
             // A single deterministic reading persists across candidate headings and quick re-aims.
             uint glance = unchecked((uint)(World.TickIndex / 75 * 2654435761L + Id * 97L));
             double sample = DodgeVariation(1, glance) - .5;
@@ -66,11 +69,31 @@ namespace OpenZ.Sim
             return Math.Clamp((start - end) / move, 0, 1);
         }
 
-        void NoteRadarStop(double vx, double vy)
+        bool RadarReverseLimitReached => radarReverseStops >= 2 &&
+            Dist(CenterX, CenterY, radarReverseStopX, radarReverseStopY) < 64;
+
+        bool RadarRepeatsBlockedReverse(double x, double y)
+        {
+            if (!RadarReverseLimitReached) return false;
+            double dx = x - CenterX, dy = y - CenterY;
+            return dx * dx + dy * dy >= 16 &&
+                Math.Abs(WrapRadians(Math.Atan2(dy, dx) - radarReverseBlockedBearing)) < Math.PI / 6;
+        }
+
+        void NoteRadarStop(double vx, double vy, bool terrain)
         {
             ExperimentalRadarStops++;
             radarBlockedBearing = Math.Atan2(vy, vx);
             radarBlockedUntil = World.Time + .8;
+            if (!terrain || behaviorTravelSign >= 0) return;
+            if (radarReverseStops == 0 || Dist(CenterX, CenterY, radarReverseStopX, radarReverseStopY) >= 64)
+            {
+                radarReverseStops = 0;
+                radarReverseStopX = CenterX;
+                radarReverseStopY = CenterY;
+            }
+            radarReverseStops = Math.Min(2, radarReverseStops + 1);
+            radarReverseBlockedBearing = radarBlockedBearing;
         }
 
         DuelEnd RadarDuelAim(ZDuelState d, ZObject enemy, bool agro, double hx, double hy, int look, bool separating)
@@ -123,6 +146,7 @@ namespace OpenZ.Sim
 
         bool RadarStep(double x, double y, double time, double distance, bool missesTerrain, ref double room)
         {
+            if (RadarRepeatsBlockedReverse(x, y)) return false;
             if (!RadarTerrainClear((int)Math.Floor(x) - (WidthPix >> 1), (int)Math.Floor(y) - (HeightPix >> 1)) &&
                 (!missesTerrain || distance <= 6 || x < WidthPix / 2 || y < HeightPix / 2 ||
                     x >= World.Map.WidthPix - WidthPix / 2 || y >= World.Map.HeightPix - HeightPix / 2)) return false;
@@ -139,10 +163,21 @@ namespace OpenZ.Sim
             return true;
         }
 
+        bool RadarTerrainStep(double x, double y)
+        {
+            double dx = x - PosX, dy = y - PosY;
+            int probes = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * dx + dy * dy) / 4));
+            for (int i = 1; i <= probes; i++)
+            {
+                int px = (int)Math.Floor(PosX + dx * i / probes), py = (int)Math.Floor(PosY + dy * i / probes);
+                if (World.Path.WithinImpassable(px + 1, py + 1, WidthPix - 2, HeightPix - 2, out _, out _, false) ||
+                    Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave) && !RadarTerrainClear(px, py)) return false;
+            }
+            return true;
+        }
+
         bool RadarActualStep(double x, double y)
         {
-            if (Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave) && !RadarTerrainClear((int)Math.Floor(x), (int)Math.Floor(y)))
-                return false;
             ScanDodgeRadar();
             foreach (var contact in radarContacts)
             {

@@ -325,7 +325,7 @@ namespace OpenZ.Sim
             if (stoppable && BoxInTheWay()) return false;                                // 1.5 N29 (kit ue_boxes_range_n29, DV194): a box in the way is attacked from the weapon range, not at the contact (Sim/ZWorld.UeBoxRange.cs)
             if (!ProcessMove(dt, stoppable, out int sx, out int sy))
             {
-                if (DoAttackImpassableAtCoords(sx, sy)) return false;                   // blast the rock in the way
+                if (sx >= 0 && sy >= 0 && DoAttackImpassableAtCoords(sx, sy)) return false; // blast the rock in the way
                 if (World.Pathing != null && World.Pathing.OnBlocked(this, sx, sy)) return false;   // OpenZ pathing: re-path before giving up
                 KillWP();
                 return false;
@@ -361,17 +361,17 @@ namespace OpenZ.Sim
             if (pathing != null && !pathing.Gate(this, ref nx, ref ny)) { if (IsRobot) WalkDisengage(); return true; }
             if (stoppable && RadarMoving && (!IsZ(vx) || !IsZ(vy)))
             {
-                bool blockedTerrain = World.Path.WithinImpassable((int)Math.Floor(nx) + 1, (int)Math.Floor(ny) + 1,
-                    WidthPix - 2, HeightPix - 2, out _, out _, false);
+                bool blockedTerrain = !RadarTerrainStep(nx, ny);
                 if (blockedTerrain || !RadarActualStep(nx, ny))
                 {
-                    NoteRadarStop(vx, vy);
+                    NoteRadarStop(vx, vy, blockedTerrain);
                     if (BehaviorDodging)
                     {
                         FinishBehaviorDodge();
                         StopMove();
                         return true;
                     }
+                    stopX = stopY = -1; // A combat manoeuvre stops without creating an attack order for the blocker.
                     return false;
                 }
             }

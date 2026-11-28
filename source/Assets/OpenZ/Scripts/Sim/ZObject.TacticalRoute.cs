@@ -24,7 +24,7 @@ namespace OpenZ.Sim
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
-            internal bool ResumeAfterDodge, Orbital, HasWeaveAim;
+            internal bool ResumeAfterDodge, Orbital, HasWeaveAim, HasSteeringAim;
             internal readonly ZDuelState Feint = new ZDuelState { active = true };
         }
 
@@ -127,6 +127,7 @@ namespace OpenZ.Sim
                 route.ResumeAfterDodge = false;
                 route.NextAim = World.Time;
                 route.Anchor = -1;
+                route.HasSteeringAim = false;
                 route.MovedAt = World.Time;
                 TacticalRouteDodgeResumes++;
             }
@@ -205,6 +206,7 @@ namespace OpenZ.Sim
         {
             route.Points.Clear();
             route.HasWeaveAim = false;
+            route.HasSteeringAim = false;
             ScanDodgeRadar();
             Array.Fill(route.Parent, (short)-1);
             Array.Clear(route.Passable, 0, route.Passable.Length);
@@ -384,6 +386,7 @@ namespace OpenZ.Sim
 
         bool TacticalPointFree(int x, int y)
         {
+            if (RadarRepeatsBlockedReverse(x, y)) return false;
             if (!RadarTerrainClear(x - (WidthPix >> 1), y - (HeightPix >> 1))) return false;
             foreach (var other in radarContacts)
             {
@@ -444,9 +447,26 @@ namespace OpenZ.Sim
                     TryTacticalArc(enemy, wanted, WrapRadians(travel + Math.PI), false, arcLook, out bend))
                     (x, y) = bend;
             }
+            if (longWeave && route.HasSteeringAim && KeepTacticalSteering(route, enemy, x, y))
+                (x, y) = (route.AimX, route.AimY);
             route.AimX = x; route.AimY = y;
-            route.NextAim = World.Time + .19;
+            route.HasSteeringAim = true;
+            route.NextAim = World.Time + (longWeave ? .26 : .19);
             return true;
+        }
+
+        bool KeepTacticalSteering(TacticalRoute route, ZObject enemy, int x, int y)
+        {
+            if (!BehaviorHeadingSet || Math.Abs(behaviorTurnSpeed) < .2 ||
+                Dist(CenterX, CenterY, route.AimX, route.AimY) < 10) return false;
+            double travel = WrapRadians(BehaviorHeading + (behaviorTravelSign < 0 ? Math.PI : 0));
+            double oldTurn = WrapRadians(Math.Atan2(route.AimY - CenterY, route.AimX - CenterX) - travel);
+            double newTurn = WrapRadians(Math.Atan2(y - CenterY, x - CenterX) - travel);
+            // Let a safe, modest turn finish before asking the hull to turn the other way.
+            return Math.Abs(oldTurn) < Math.PI / 3 && oldTurn * behaviorTurnSpeed > 0 && newTurn * oldTurn < 0 &&
+                Math.Abs(newTurn - oldTurn) <= Math.PI / 6 &&
+                RadarApproach(route.AimX, route.AimY, enemy) < .55 &&
+                TacticalSegment(CenterX, CenterY, route.AimX, route.AimY);
         }
 
         bool TryTacticalArc(ZObject enemy, double wanted, double travel, bool moving, double look, out (int x, int y) point)

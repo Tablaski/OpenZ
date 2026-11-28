@@ -433,7 +433,7 @@ namespace OpenZ
             }
             if (a.UsesClassicMissileLauncher && av && av.TryGetComponent<OzClassicMlrsModel>(out var classic))
             {
-                Vector3 line = to - classic.CenterOutlet;
+                Vector3 line = classic.AimSalvo(to);
                 var fxPlayer = OpenZFxPlayer.I;
                 for (int i = 0; i < 3; i++)
                 {

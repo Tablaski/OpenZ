@@ -9,16 +9,20 @@ namespace OpenZ
     public sealed class OzClassicMlrsModel : MonoBehaviour
     {
         const float RestElevation = 4f;
+        // At -8 degrees the forward extension of every tube still clears the cabin over the whole yaw sweep.
+        const float MinimumElevation = -8f;
         const float TubeHeight = 3.11f;
-        const float TurretHeight = 2.65f;
+        const float TurretHeight = 2.71f;
+        const float TurretPivotZ = 0.62f;
         const float TubeMouth = 0.61f;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         enum Surface { Armor, Steel, Rim, Dark, Team, Glass, Lamp, Count }
-        static Mesh cabMesh, turretMesh, tubeMesh;
+        static Mesh cabMesh, turretMesh, trayMesh, tubeMesh;
         static Material[] materials;
         readonly Transform[] sockets = new Transform[3];
         readonly MaterialPropertyBlock paint = new MaterialPropertyBlock();
-        MeshRenderer cab, launcher, tubes;
+        MeshRenderer cab, launcher, tray, tubes;
+        Transform rack;
         ZObject unit;
         Team shown = (Team)(-1);
 
@@ -61,15 +65,20 @@ namespace OpenZ
             }
 
             cab = AddMesh(hullSpace, "Classic MLRS cabin", cabMesh);
-            swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, 0.62f));
+            swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
-            var rack = Node(swivel, "Classic MLRS tube mount", new Vector3(0f, TubeHeight - TurretHeight, 0f));
-            rack.localRotation = Quaternion.AngleAxis(RestElevation, Vector3.right);
-            tubes = AddMesh(rack, "Classic MLRS three tubes", tubeMesh);
+            rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
+            var rest = Quaternion.AngleAxis(RestElevation, Vector3.right);
+            rack.localRotation = rest;
+            tray = AddMesh(rack, "Classic MLRS tray", trayMesh);
+            // Keep the approved tube position at rest while the hinge sits in the tray.
+            var cradle = Node(rack, "Classic MLRS tube mount",
+                Quaternion.Inverse(rest) * new Vector3(0f, TubeHeight - TurretHeight, -TurretPivotZ));
+            tubes = AddMesh(cradle, "Classic MLRS three tubes", tubeMesh);
             for (int i = 0; i < sockets.Length; i++)
             {
                 float x = (i - 1) * ZObject.ClassicMissileTubeSpacing;
-                sockets[i] = Node(rack, i == 1 ? "Muzzle" : "Classic MLRS outlet", new Vector3(x, 0f, -TubeMouth));
+                sockets[i] = Node(cradle, i == 1 ? "Muzzle" : "Classic MLRS outlet", new Vector3(x, 0f, -TubeMouth));
             }
             ApplyPaint();
         }
@@ -101,7 +110,22 @@ namespace OpenZ
             paint.SetColor(BaseColor, TeamColors.OriginalPaint(shown));
             cab.SetPropertyBlock(paint, (int)Surface.Team);
             launcher.SetPropertyBlock(paint, (int)Surface.Team);
+            tray.SetPropertyBlock(paint, (int)Surface.Team);
             tubes.SetPropertyBlock(paint, (int)Surface.Team);
+        }
+
+        public Vector3 AimSalvo(Vector3 target)
+        {
+            Vector3 line = target - CenterOutlet;
+            float run = new Vector2(line.x, line.z).magnitude;
+            float elevation = Mathf.Clamp(Mathf.Atan2(line.y, run) * Mathf.Rad2Deg,
+                MinimumElevation, RestElevation);
+            rack.localRotation = Quaternion.AngleAxis(elevation, Vector3.right);
+            line = target - CenterOutlet;
+            Vector3 axis = sockets[1].TransformDirection(Vector3.back);
+            float axisRun = new Vector2(axis.x, axis.z).magnitude;
+            line.y = new Vector2(line.x, line.z).magnitude * axis.y / Mathf.Max(0.01f, axisRun);
+            return line;
         }
 
         public Vector3 CenterOutlet => sockets[1].position;
@@ -118,7 +142,7 @@ namespace OpenZ
 
         static void EnsureAssets()
         {
-            if (cabMesh && turretMesh && tubeMesh) return;
+            if (cabMesh && turretMesh && trayMesh && tubeMesh) return;
             materials = new[]
             {
                 MaterialFor(new Color32(163, 158, 144, 255), 0.20f, 0.36f),
@@ -150,24 +174,34 @@ namespace OpenZ
                 foreach (float z in new[] { -0.75f, -1.93f })
                     body.Box(side * 0.771f, 2.463f, z, 0.06f, 0.035f, 0.06f, Surface.Rim);
             }
-            cabMesh = body.Mesh("OG Z cabin");
+            body.Box(0, 1.48f, 0.62f, 2.73f, 0.23f, 2.21f, Surface.Armor);
+            body.Box(0, 1.622f, 0.62f, 2.24f, 0.18f, 1.81f, Surface.Dark);
+            cabMesh = body.Mesh("OG Z cabin and turret deck");
 
             var turret = new Geometry();
-            turret.Box(0, -0.69f, 0f, 1.63f, 0.93f, 1.38f, Surface.Armor);
-            turret.Box(0, -0.53f, 0f, 1.73f, 0.12f, 1.46f, Surface.Dark);
-            turret.Box(0, 0f, 0f, 2.53f, 0.19f, 1.68f, Surface.Armor);
+            turret.Box(0, -0.94f, 0f, 2.09f, 0.23f, 1.72f, Surface.Steel);
+            turret.Box(0, -0.63f, 0f, 1.80f, 0.53f, 1.52f, Surface.Armor);
+            turret.Box(0, -0.286f, 0f, 1.88f, 0.22f, 1.36f, Surface.Armor);
+            turret.Box(0, -0.109f, 0f, 1.86f, 0.19f, 0.39f, Surface.Dark);
+            var platform = new Geometry();
+            platform.Box(0, 0f, 0f, 2.53f, 0.082f, 1.56f, Surface.Steel);
             var rack = new Geometry();
             for (int i = -1; i <= 1; i++)
             {
                 float x = i * ZObject.ClassicMissileTubeSpacing;
-                turret.Box(x, 0.137f, -0.38f, 0.34f, 0.24f, 0.39f, Surface.Dark);
-                turret.Box(x, 0.113f, 0.59f, 0.34f, 0.19f, 0.39f, Surface.Dark);
+                platform.Box(x, 0.047f, -0.39f, 0.40f, 0.086f, 0.30f, Surface.Dark);
+                platform.Box(x, 0.047f, 0.49f, 0.40f, 0.086f, 0.30f, Surface.Dark);
                 rack.Tube(x);
             }
             foreach (int side in new[] { -1, 1 })
-                foreach (float z in new[] { -0.66f, -0.44f, 0.45f, 0.68f })
-                    turret.Box(side * 1.185f, 0.104f, z, 0.07f, 0.038f, 0.07f, Surface.Rim);
-            turretMesh = turret.Mesh("OG Z turret");
+            {
+                turret.Box(side * 0.82f, -0.42f, 0f, 0.47f, 0.65f, 0.57f, Surface.Steel);
+                turret.Box(side * 1.072f, -0.205f, 0f, 0.076f, 0.28f, 0.38f, Surface.Rim);
+                foreach (float z in new[] { -0.64f, -0.40f, 0.40f, 0.64f })
+                    platform.Box(side * 1.185f, 0.049f, z, 0.066f, 0.026f, 0.066f, Surface.Rim);
+            }
+            turretMesh = turret.Mesh("OG Z turret pedestal");
+            trayMesh = platform.Mesh("OG Z tilting tray");
             tubeMesh = rack.Mesh("OG Z three parallel tubes");
         }
 

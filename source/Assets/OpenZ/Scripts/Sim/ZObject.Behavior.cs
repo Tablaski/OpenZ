@@ -26,6 +26,7 @@ namespace OpenZ.Sim
         bool dodgeWeave;
         int dodgeCurveGear;
         public bool BehaviorCurvedBoost => BehaviorDodging && dodgeBend != 0 && IsRunning;
+        public int BehaviorDodgeShape => !BehaviorDodging || dodgeBend == 0 ? 0 : dodgeWeave ? 2 : 1;
         public bool BehaviorSteersHull => Behavior != null && (Behavior.On(ZBehaviorKey.Physical) || BehaviorDodging && Behavior.On(ZBehaviorKey.DodgePhysical));
         uint dodgeBoostRoll;
 
@@ -173,7 +174,8 @@ namespace OpenZ.Sim
             bool experimental = rangeAware && ExperimentalDodging;
             bool radar = experimental && DodgeRadar;
             bool brake = experimental && (replan ? experimentalBrake : anticipateBrake);
-            bool boostSteering = radar && !brake && p.On(ZBehaviorKey.Boost) && p.On(ZBehaviorKey.ExperimentalBoostSteering);
+            bool boostSteering = radar && !brake && p.On(ZBehaviorKey.Boost) && p.On(ZBehaviorKey.ExperimentalBoostSteering) &&
+                DodgeVariation(1, 2257) - .5 < .78;
             bool weave = replan ? dodgeWeave : DodgeVariation(1, 1819) - .5 < .60;
             double bend = (.38 + (DodgeVariation(1, 823) - .5) * .28);
             double bestBend = 0;

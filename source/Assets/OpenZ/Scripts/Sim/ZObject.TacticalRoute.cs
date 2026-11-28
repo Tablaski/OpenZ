@@ -213,7 +213,8 @@ namespace OpenZ.Sim
             if (TacticalArcEntry) side = ((Id ^ enemy.Id) & 2) == 0 ? 1 : -1;
             else if (side == 0) side = Id % 2 == 0 ? 1 : -1;
             route.Orbital = false;
-            if (Behavior.On(ZBehaviorKey.ExperimentalOrbitalFlow) && enemy.Kind == ZKind.Vehicle)
+            if (Behavior.On(ZBehaviorKey.ExperimentalOrbitalFlow) && enemy.Kind == ZKind.Vehicle &&
+                DodgeVariation(1, unchecked((uint)(TacticalRoutePlans * 743 + enemy.Id * 131))) - .5 < .82)
             {
                 int orbitSide = side;
                 if (!BuildTacticalOrbit(route, enemy, orbitSide, preferredRange, agro)) orbitSide = -side;

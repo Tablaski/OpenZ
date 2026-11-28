@@ -44,6 +44,14 @@ namespace OpenZ.Sim
                 radarContacts.Add(new RadarContact(other, ZPathing.MinSpacing(this, other) + buffer +
                     (other.Kind == ZKind.Cannon ? 6 : 0)));
             }
+            // Ammo pickups stay passable for normal movement. Keep the hull clear during combat manoeuvres.
+            foreach (var crate in World.GrenadeCratesOr(World.Objects))
+            {
+                if (crate.Type != "grenades" || crate.Destroyed || crate.KillAt >= 0 ||
+                    Math.Abs(crate.CenterX - CenterX) > 2 * RadarLook || Math.Abs(crate.CenterY - CenterY) > 2 * RadarLook) continue;
+                double crateRadius = Math.Sqrt(crate.WidthPix * crate.WidthPix + crate.HeightPix * crate.HeightPix) * .5;
+                radarContacts.Add(new RadarContact(crate, ZPathing.Radius(this) + crateRadius + 6));
+            }
         }
 
         bool RadarMissesTerrain(int gear)

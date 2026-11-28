@@ -8,7 +8,7 @@ OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspi
 
 ## OpenZ-VK 1.5.111 (28 Nov 2026)
 
-- Solo + 1 vs 1 — Experimental tanks can follow a longer arc around an opponent in open terrain and accelerate through the turn. They look for another route if an obstacle cuts the arc off.
+- Solo + 1 vs 1 — Experimental tanks can accelerate along longer routes around an opponent. During a defensive boost they can curve or weave through an opening that the dodge radar has checked.
 
 ## OpenZ-VK 1.5.110 (28 Nov 2026)
 

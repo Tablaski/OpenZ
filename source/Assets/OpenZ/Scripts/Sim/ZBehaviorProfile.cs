@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, ExperimentalArcEntry, ExperimentalOrbitalFlow, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, ExperimentalArcEntry, ExperimentalOrbitalFlow, ExperimentalBoostSteering, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -199,6 +199,7 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.ExperimentalTacticalRoute,"Tactical routes","COMBAT",false,false,"Seek open fighting positions around obstacles and resume the route after dodging."),
             B(ZBehaviorKey.ExperimentalArcEntry,"Rolling combat arcs","COMBAT",false,false,"Favor oblique departures and bend across nearby route turns before changing gear."),
             B(ZBehaviorKey.ExperimentalOrbitalFlow,"Accelerate along open combat arcs","COMBAT",false,false,"Follow a multi-point arc around the opponent and accelerate through clear turns."),
+            B(ZBehaviorKey.ExperimentalBoostSteering,"Steer during defensive boosts","DODGING",false,false,"Allow the tank to boost through a committed curve or S-shaped dodge if the swept route stays clear."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
@@ -257,6 +258,7 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalTacticalRoute, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalArcEntry, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalOrbitalFlow, 1);
+                profile.Set(type, ZBehaviorKey.ExperimentalBoostSteering, 1);
                 profile.Set(type, ZBehaviorKey.BoostSpeed, 4.0 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
                 profile.Set(type, ZBehaviorKey.BoostVariance, 0);
                 profile.Set(type, ZBehaviorKey.DamagedBoost, 1);

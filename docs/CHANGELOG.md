@@ -6,6 +6,10 @@ Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invit
 
 OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
 
+## OpenZ-VK 1.5.110 (28 Nov 2026)
+
+- Solo + 1 vs 1 — Experimental tanks favor angled departures in duels and carry their movement through more turns. They leave more room to maneuver between forward-and-reverse feints.
+
 ## OpenZ-VK 1.5.109 (28 Nov 2026)
 
 - Solo + 1 vs 1 — Experimental tanks try to find firing positions with room to lead a moving target. They can change position when obstacles keep cutting off that firing angle, and they slow into turns to keep rolling through more corners.

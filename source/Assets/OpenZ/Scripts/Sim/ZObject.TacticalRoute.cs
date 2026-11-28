@@ -20,7 +20,7 @@ namespace OpenZ.Sim
             internal readonly sbyte[] Passable = new sbyte[TacticalWidth * TacticalWidth];
             internal readonly int[] Queue = new int[TacticalWidth * TacticalWidth];
             internal int Enemy = -1, EnemyX, EnemyY, Index, Anchor, AimX, AimY, WorldVersion;
-            internal double Expiry, Retry, NextAim, MovedAt, Pressure, WeavePhase;
+            internal double Expiry, Retry, NextAim, MovedAt, Pressure, WeavePhase, TravelSinceFeint;
             internal double CheckFiringAt, PoorFiringSince = -1, RejectedUntil;
             internal int RejectedX, RejectedY;
             internal int MovedX, MovedY;
@@ -44,12 +44,23 @@ namespace OpenZ.Sim
 
         public (int x, int y) TacticalDestination => HasTacticalRoute ? tactical.Points[tactical.Points.Count - 1] : (CenterX, CenterY);
         bool TacticalFeintInProgress => HasTacticalRoute && tactical.Feint.feintCounted && tactical.Feint.feintEnd > World.Time;
+        bool TacticalArcEntry => Behavior.On(ZBehaviorKey.ExperimentalArcEntry);
 
         internal static int TacticalTravelGear(double heading, double travel, int current)
         {
             double angle = Math.Abs(WrapRadians(travel - heading));
             if (Math.Abs(angle - Math.PI / 2) < 1e-10) return current;
             return angle > Math.PI / 2 ? -1 : 1;
+        }
+
+        internal static double TacticalArcBearing(double travel, double wanted, bool moving)
+        {
+            double change = WrapRadians(wanted - travel);
+            // An oblique bend keeps making progress; a genuine rearward request still reverses.
+            double magnitude = Math.Abs(change);
+            double limit = (moving ? 57 : 46) * Math.PI / 180;
+            return magnitude > limit && magnitude < Math.PI * .64 ?
+                WrapRadians(travel + Math.Sign(change) * limit) : wanted;
         }
 
         internal static double TacticalFollowupAngle(double sample, double room)
@@ -139,15 +150,22 @@ namespace OpenZ.Sim
             tacticalDriving = true;
             try
             {
-                bool feint = (TacticalFeintInProgress || route.Expiry - World.Time > 1 &&
+                bool continuingFeint = TacticalFeintInProgress;
+                bool feint = (continuingFeint || route.Expiry - World.Time > 1 &&
+                    (!TacticalArcEntry || route.TravelSinceFeint >= 42) &&
                     Dist(CenterX, CenterY, enemy.CenterX, enemy.CenterY) > ExperimentalDuelGap(enemy) + 12) &&
                     TryExperimentalFeint(route.Feint, enemy, agro);
+                if (feint && !continuingFeint) route.TravelSinceFeint = 0;
                 if (!feint) { SetTarget(route.AimX, route.AimY); SetVelocity(); }
                 double heading = BehaviorHeading;
                 bool moved = ProcessMove(dt, true, out _, out _);
                 double paceSquared = BehaviorStepDx * BehaviorStepDx + BehaviorStepDy * BehaviorStepDy;
                 if (!feint && moved)
-                    route.WeavePhase = (route.WeavePhase + Math.Sqrt(paceSquared) * dt * .104) % (2 * Math.PI);
+                {
+                    double step = Math.Sqrt(paceSquared) * dt;
+                    route.TravelSinceFeint = Math.Min(64, route.TravelSinceFeint + step);
+                    route.WeavePhase = (route.WeavePhase + step * .104) % (2 * Math.PI);
+                }
                 if (paceSquared > 16)
                 {
                     tacticalTravelAt = World.Time;
@@ -180,7 +198,7 @@ namespace OpenZ.Sim
             int originX = CenterX, originY = CenterY, range = RangeTo(enemy);
             double gap = ExperimentalDuelGap(enemy), startDistance = Dist(originX, originY, enemy.CenterX, enemy.CenterY);
             route.Pressure = TacticalPressure(Health, enemy.Health, Id, enemy.Id);
-            double preferredRange = Math.Max(gap + 12, range * (.81 - route.Pressure * .13));
+            double preferredRange = Math.Max(gap + 12, range * (.81 - route.Pressure * (TacticalArcEntry ? .18 : .13)));
             double floor = Math.Min(startDistance, gap);
             int start = TacticalRadius * TacticalWidth + TacticalRadius;
             int head = 0, tail = 1, best = -1;
@@ -190,7 +208,8 @@ namespace OpenZ.Sim
             route.Depth[start] = 0;
             Radial(enemy, out double rx, out double ry);
             int side = duel?.sign ?? 0;
-            if (side == 0) side = Id % 2 == 0 ? 1 : -1;
+            if (TacticalArcEntry) side = ((Id ^ enemy.Id) & 2) == 0 ? 1 : -1;
+            else if (side == 0) side = Id % 2 == 0 ? 1 : -1;
             while (head < tail)
             {
                 int cell = route.Queue[head++], col = cell % TacticalWidth, row = cell / TacticalWidth;
@@ -214,7 +233,9 @@ namespace OpenZ.Sim
                         var initial = TacticalSteps[route.FirstStep[cell]];
                         double bearing = Math.Atan2(initial.y, initial.x);
                         double facing = Math.Cos(BehaviorHeading - bearing);
-                        score += 12 * Math.Abs(facing) + 6 * facing * behaviorTravelSign;
+                        score += TacticalArcEntry ?
+                            19 * Math.Abs(facing) + 4 * facing * behaviorTravelSign :
+                            12 * Math.Abs(facing) + 6 * facing * behaviorTravelSign;
                         if (World.Time < radarBlockedUntil)
                             score -= 26 * Math.Max(0, Math.Cos(bearing - radarBlockedBearing));
                     }
@@ -352,7 +373,22 @@ namespace OpenZ.Sim
             int x = goal.x - (int)Math.Round(dy * weave / Math.Max(1, length));
             int y = goal.y + (int)Math.Round(dx * weave / Math.Max(1, length));
             bool safe = TacticalSegment(CenterX, CenterY, x, y) && RadarApproach(x, y, enemy) < .65;
-            route.AimX = safe ? x : goal.x; route.AimY = safe ? y : goal.y;
+            if (!safe) (x, y) = goal;
+            if (TacticalArcEntry && BehaviorHeadingSet)
+            {
+                double wanted = Math.Atan2(y - CenterY, x - CenterX);
+                double travel = WrapRadians(BehaviorHeading + (behaviorTravelSign < 0 ? Math.PI : 0));
+                double arcBearing = TacticalArcBearing(travel, wanted, BehaviorActualSpeed > 8);
+                if (arcBearing != wanted)
+                {
+                    double arcLook = Math.Clamp(length, 12, 23);
+                    int ax = CenterX + (int)Math.Round(Math.Cos(arcBearing) * arcLook);
+                    int ay = CenterY + (int)Math.Round(Math.Sin(arcBearing) * arcLook);
+                    if (TacticalSegment(CenterX, CenterY, ax, ay) && RadarApproach(ax, ay, enemy) < .55)
+                        (x, y) = (ax, ay);
+                }
+            }
+            route.AimX = x; route.AimY = y;
             route.NextAim = World.Time + .19;
             return true;
         }

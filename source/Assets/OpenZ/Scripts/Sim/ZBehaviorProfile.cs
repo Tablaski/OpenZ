@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, ExperimentalArcEntry, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -197,6 +197,7 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.ExperimentalDodgeRadar,"Dodge radar","COMBAT",false,false,"Scan nearby ground and units for reachable dodge routes and leave extra room around allies."),
             N(ZBehaviorKey.ExperimentalRadarError,"Dodge radar error","COMBAT","%",0,33,0,0,"Chance of overlooking a terrain obstacle ahead. This chance triples in reverse."),
             B(ZBehaviorKey.ExperimentalTacticalRoute,"Tactical routes","COMBAT",false,false,"Seek open fighting positions around obstacles and resume the route after dodging."),
+            B(ZBehaviorKey.ExperimentalArcEntry,"Rolling combat arcs","COMBAT",false,false,"Favor oblique departures and bend across nearby route turns before changing gear."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
@@ -253,6 +254,7 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalDodgeRadar, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalRadarError, 5);
                 profile.Set(type, ZBehaviorKey.ExperimentalTacticalRoute, 1);
+                profile.Set(type, ZBehaviorKey.ExperimentalArcEntry, 1);
                 profile.Set(type, ZBehaviorKey.BoostSpeed, 4.0 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
                 profile.Set(type, ZBehaviorKey.BoostVariance, 0);
                 profile.Set(type, ZBehaviorKey.DamagedBoost, 1);

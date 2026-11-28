@@ -25,7 +25,8 @@ namespace OpenZ.Sim
         double dodgeBend;
         bool dodgeWeave;
         int dodgeCurveGear;
-        public bool BehaviorCurvedBoost => BehaviorDodging && dodgeBend != 0 && IsRunning;
+        public bool BehaviorDodgeBoostActive => BehaviorDodging && IsRunning && Behavior is ZBehaviorValues p && BehaviorBoostMultiplier(p) > 1;
+        public bool BehaviorCurvedBoost => dodgeBend != 0 && BehaviorDodgeBoostActive;
         public int BehaviorDodgeShape => !BehaviorDodging || dodgeBend == 0 ? 0 : dodgeWeave ? 2 : 1;
         public bool BehaviorSteersHull => Behavior != null && (Behavior.On(ZBehaviorKey.Physical) || BehaviorDodging && Behavior.On(ZBehaviorKey.DodgePhysical));
         uint dodgeBoostRoll;
@@ -466,7 +467,7 @@ namespace OpenZ.Sim
                 bool curved = rangeDodge && dodgeBend != 0;
                 if (curved)
                     bearing = CurvedDodgeBearing(bearing, BehaviorHeading, dodgeCurveGear, behaviorDodgeTravel,
-                        Dist(cur.sx, cur.sy, cur.x, cur.y), dodgeBend, dodgeWeave);
+                        Dist(cur.sx, cur.sy, cur.x, cur.y), dodgeBend, dodgeWeave, p[ZBehaviorKey.ExperimentalZigzagSpacing]);
                 if (flowing) desired *= p[ZBehaviorKey.CombatFlowSpeed];
                 bool orbital = tacticalDriving && TacticalOrbiting;
                 if (orbital) desired *= 1.18;
@@ -556,7 +557,8 @@ namespace OpenZ.Sim
                 double remaining = length - (px - ox) * ux - (py - oy) * uy;
                 if (remaining <= 1.5) break;
                 double speed = (boostLimit == 0 || travel < boostLimit) && (boostDuration == 0 || i * dt < boostDuration) ? boosted : baseSpeed;
-                double course = bend == 0 ? bearing : CurvedDodgeBearing(bearing, drive.Heading, curveGear, travel, length, bend, weave);
+                double course = bend == 0 ? bearing : CurvedDodgeBearing(bearing, drive.Heading, curveGear, travel, length,
+                    bend, weave, p[ZBehaviorKey.ExperimentalZigzagSpacing]);
                 StepRangeAwareDodge(p, ref drive, course, speed, remaining, dt, acceleration, pivot, CripplingAcceleration, out double vx, out double vy,
                     experimental && !HasTacticalRoute && bend == 0, brake && i * dt < .08,
                     smoothing: experimental ? p[ZBehaviorKey.ExperimentalSteeringTime] : 0,
@@ -610,9 +612,11 @@ namespace OpenZ.Sim
         }
 
         internal static double CurvedDodgeBearing(double bearing, double heading, int gear, double traveled,
-            double length, double bend, bool weave)
+            double length, double bend, bool weave, double spacing = 1)
         {
-            double progress = Math.Clamp(traveled / Math.Clamp(length * .75, 16, 42), 0, 1);
+            double scale = weave ? Math.Clamp(spacing, .6, 1.4) : 1;
+            double progress = traveled / (Math.Clamp(length * .75, 16, 42) * scale);
+            if (scale >= 1) progress = Math.Min(1, progress);
             double wave = weave ? Math.Sin(2 * Math.PI * progress) : 1.5 * progress - .38;
             double travelAxis = WrapRadians(heading + (gear < 0 ? Math.PI : 0));
             double offset = WrapRadians(bearing + bend * wave - travelAxis);

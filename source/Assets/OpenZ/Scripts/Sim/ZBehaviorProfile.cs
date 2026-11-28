@@ -24,7 +24,7 @@ namespace OpenZ.Sim
         YellowShake, YellowSpeed, YellowAcceleration, YellowSmoke, YellowOil, YellowOilLife,
         RedShake, RedSpeed, RedAcceleration, RedSmoke, RedOil, RedOilLife,
         Impact, ImpactMin, ImpactSpeed, ImpactDuration, HeavyImpactMin, HeavyImpactSpeed, HeavyImpactDuration, BoostMaxDistance, DodgeWeight0, DodgeWeight1, DodgeWeight2, DodgeWeight3, DodgeWeight4, DodgeWeight5, DodgeWeight6, DodgeWeight7, DodgeWeight8, DodgeWeight9, DodgeWeight10, DodgeWeight11, DodgeWeight12, DodgeWeight13, DodgeWeight14, DodgeWeight15,
-        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, ExperimentalArcEntry, ExperimentalOrbitalFlow, ExperimentalBoostSteering, ExperimentalZigzagSpacing, Count
+        DodgeSpeed, DistanceVariance, SpeedVariance, AccelerationVariance, BoostVariance, Agility, PivotVariance, DodgePhysical, CombatFlowSpeed, ExperimentalDodging, ExperimentalSteeringTime, ExperimentalCurveVariance, ExperimentalFeintChance, ExperimentalDuelGap, ExperimentalAimPrediction, ExperimentalDodgeRadar, ExperimentalRadarError, ExperimentalTacticalRoute, ExperimentalArcEntry, ExperimentalOrbitalFlow, ExperimentalBoostSteering, ExperimentalZigzagSpacing, ExperimentalLongBoostWeave, Count
     }
 
     /// <summary>One schema drives validation, simulation, the editor and exported presets. Zero acceleration means instant.</summary>
@@ -201,6 +201,7 @@ namespace OpenZ.Sim
             B(ZBehaviorKey.ExperimentalOrbitalFlow,"Accelerate along open combat arcs","COMBAT",false,false,"Follow a multi-point arc around the opponent and accelerate through clear turns."),
             B(ZBehaviorKey.ExperimentalBoostSteering,"Steer during defensive boosts","DODGING",false,false,"Allow the tank to boost through a committed curve or S-shaped dodge if the swept route stays clear."),
             N(ZBehaviorKey.ExperimentalZigzagSpacing,"Zigzag spacing","DODGING","x",.6,1.4,1,1,"Scale the distance between changes of bend in a defensive zigzag. One reproduces the original single S."),
+            B(ZBehaviorKey.ExperimentalLongBoostWeave,"Full-length defensive S","DODGING",false,false,"Use two broad bends across the planned boost distance. Keep route steering smooth between defensive moves."),
         };
         public static ZBehaviorDef Def(ZBehaviorKey key) => All[(int)key];
         public static readonly string[] TankTypes = { "light", ZMTank.Type, "heavy", "medium", "apc", "missile_launcher", "jeep", "crane" };
@@ -260,7 +261,7 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.ExperimentalArcEntry, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalOrbitalFlow, 1);
                 profile.Set(type, ZBehaviorKey.ExperimentalBoostSteering, 1);
-                profile.Set(type, ZBehaviorKey.ExperimentalZigzagSpacing, .78);
+                profile.Set(type, ZBehaviorKey.ExperimentalLongBoostWeave, 1);
                 profile.Set(type, ZBehaviorKey.BoostChance, 96);
                 profile.Set(type, ZBehaviorKey.MinStamina, .12);
                 profile.Set(type, ZBehaviorKey.Drain, .65);
@@ -268,8 +269,8 @@ namespace OpenZ.Sim
                 profile.Set(type, ZBehaviorKey.BoostSpeed, 4.0 * ClassicTrackedSpeed("light") * relative / ClassicTrackedSpeed(type));
                 profile.Set(type, ZBehaviorKey.BoostVariance, 0);
                 profile.Set(type, ZBehaviorKey.DamagedBoost, 1);
-                profile.Set(type, ZBehaviorKey.MaxDistance, 9 * relative);
-                profile.Set(type, ZBehaviorKey.BoostMaxDistance, 9 * relative);
+                profile.Set(type, ZBehaviorKey.MaxDistance, 11 * relative);
+                profile.Set(type, ZBehaviorKey.BoostMaxDistance, 11 * relative);
             }
             return profile;
         }

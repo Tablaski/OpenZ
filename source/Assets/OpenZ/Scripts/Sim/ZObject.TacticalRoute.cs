@@ -413,7 +413,8 @@ namespace OpenZ.Sim
             }
             route.Anchor = anchor;
             double dx = goal.x - CenterX, dy = goal.y - CenterY, length = Dist(CenterX, CenterY, goal.x, goal.y);
-            double weave = Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(16, length * .35) *
+            double weave = Behavior.On(ZBehaviorKey.ExperimentalLongBoostWeave) ? 0 :
+                Math.Sin(route.WeavePhase + Id * 1.7) * Math.Min(16, length * .35) *
                 Behavior[ZBehaviorKey.ExperimentalCurveVariance] / 100;
             int x = goal.x - (int)Math.Round(dy * weave / Math.Max(1, length));
             int y = goal.y + (int)Math.Round(dx * weave / Math.Max(1, length));

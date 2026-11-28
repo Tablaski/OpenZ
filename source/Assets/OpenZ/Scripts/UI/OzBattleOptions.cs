@@ -7,6 +7,13 @@ namespace OpenZ
     internal static class OzBattleOptions
     {
         internal const string SoloLabel = "GAMING OPTIONS", RadarLabel = "RADAR LOSS", SoloRadarKey = "oz_vk_solo_radar_loss";
+        internal const string ClassicMissileLabel = "MISSILE LAUNCHER", ClassicMissileKey = "oz_vk_solo_classic_missile_launcher";
+        internal static bool ClassicMissileLauncher
+        {
+            get => PlayerPrefs.GetInt(ClassicMissileKey, 0) == 1;
+            set { PlayerPrefs.SetInt(ClassicMissileKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
         internal static RadarLossRule SoloRadar
         {
             get

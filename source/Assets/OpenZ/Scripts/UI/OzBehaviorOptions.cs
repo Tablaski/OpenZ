@@ -106,6 +106,13 @@ namespace OpenZ
                 }
                 else Hud.Label(panel, name + " help", helpText, 17, OzUi.Ink).At(360, y + 17, OzH.L, false, 708);
             }
+            Hud.Label(panel, "Missile launcher", OzBattleOptions.ClassicMissileLabel, 22, OzForkOptions.Accent).At(28, 349, OzH.L, false, 325);
+            MakeButton(panel, "Standard missile launcher", "OPENZ", 28, 376, 145, 38,
+                () => { OzBattleOptions.ClassicMissileLauncher = false; ShowGaming(); }, selected: !OzBattleOptions.ClassicMissileLauncher);
+            MakeButton(panel, "Classic missile launcher", "OG Z", 183, 376, 155, 38,
+                () => { OzBattleOptions.ClassicMissileLauncher = true; ShowGaming(); }, selected: OzBattleOptions.ClassicMissileLauncher);
+            Hud.Label(panel, "Missile launcher help", "OG Z fires three unguided rockets side by side.", 17, OzUi.Ink)
+                .At(360, 386, OzH.L, false, 708);
             Hud.Label(panel, "Radar", "WHEN YOU HAVE NO WORKING RADAR", 22, OzForkOptions.Accent).At(28, 427, OzH.L, false, 1044);
             for (int i = 0; i < 4; i++)
             {

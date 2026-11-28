@@ -50,7 +50,7 @@ namespace OpenZ
             label == OzBehaviorLibrary.TanksLabel || label == OzBehaviorLibrary.RobotsLabel || label == OzForceBarOption.Label ||
             label == ChatLabel || label == AiGenerationLabel ||
             label == OzSoloAllowedUnits.Label || label == OzSoloMapTech.Label || label == RestartProductionLabel || label == OzBuildKeys.Label ||
-            label == OzBattleOptions.DamageLabel || label == OzBattleOptions.SoloLabel ||
+            label == OzBattleOptions.DamageLabel || label == OzBattleOptions.SoloLabel || label == OzBattleOptions.ClassicMissileLabel ||
             label == OzBattleOptions.RadarLabel || label == ProjectileAvoidanceLabel || label == InfiniteCombatTestingLabel ||
             label == DuelDiagnosticsLabel || label == DuelSnapshotRateLabel || label == DuelReceiveBudgetLabel ||
             label == DuelInterpolationLabel || label == DuelInterpolationDelayLabel ||

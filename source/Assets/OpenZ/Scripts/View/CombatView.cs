@@ -431,6 +431,23 @@ namespace OpenZ
                 var back = BS01Stance.BackBlast(av, from - dir * 1.3f);                                // robot_models_v2: the v2 bazooka's BazookaBackBlast socket
                 LegacyMatch.BackBlast(back, dir, fx);
             }
+            if (a.UsesClassicMissileLauncher && av && av.TryGetComponent<OzClassicMlrsModel>(out var classic))
+            {
+                Vector3 line = to - classic.CenterOutlet;
+                var fxPlayer = OpenZFxPlayer.I;
+                for (int i = 0; i < 3; i++)
+                {
+                    Vector3 outlet = classic.Outlet(i);
+                    if (fxPlayer) fxPlayer.Launch(outlet, outlet + line, delay, FxWeapon.Mlrs, straight: true);
+                    else if (fx)
+                    {
+                        fx.LaunchFlash(outlet, line, 0.9f);
+                        fx.Projectile(outlet, outlet + line, "rocket", OpenZFxPlayer.RealFlight(delay, game.gameSpeed), 0f);
+                    }
+                }
+                LegacyMatch.LaunchSound(type, classic.CenterOutlet, e.objId, au);
+                return;
+            }
             if (type == "medium") from = MechRockets.LeftMuzzle(game, av, a.Id, from);
             if (type == "missile_cannon") from = MissileCannonSalvo.LeftMuzzle(game, av, a.Id, from);  // MC1: rocket 1 from the left pod, side kick
             OpenZFxPlayer.NextSimEnd = e.end;

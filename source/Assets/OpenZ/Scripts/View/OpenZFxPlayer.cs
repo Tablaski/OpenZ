@@ -1230,14 +1230,14 @@ namespace OpenZ
         /// <summary>A projectile flying over the sim's missile delay (M12 projectile(): v = (target - from) / t, v.y += g t / 2) with
         /// its launch flash. Rockets: continuous exhaust flame x15, M12 smoke puffs every .05 s, LEG halo + sparkle trail. Shells:
         /// dark body, hot rear tracer, tank x2.2. Grenades: spinning grenade.glb x1.55. The sim's detonation calls Blast().</summary>
-        public void Launch(Vector3 from, Vector3 to, float duration, FxWeapon w, bool ease = false, bool arc = false)
+        public void Launch(Vector3 from, Vector3 to, float duration, FxWeapon w, bool ease = false, bool arc = false, bool straight = false)
         {
             var spec = OpenZFxCatalog.ProjectileOf(w);
             // the sim's missile delay (ZEvent.value = explodeTime - time) is in sim seconds; ZGame runs the sim at gameSpeed
             // (ZGame.cs:106, the bot match plays at 4x), so the flight must last delay / gameSpeed real seconds to land on the blast
             duration = RealFlight(duration, ZGame.I ? ZGame.I.gameSpeed : 1f);
-            float g = OpenZFxCatalog.GravityOf(w);
-            float lifted = ShotClearance.LiftGravity(from, to, duration, g, w == FxWeapon.Grenade ? 0.3f : ShotClearance.Margin);
+            float g = straight ? 0f : OpenZFxCatalog.GravityOf(w);
+            float lifted = straight ? 0f : ShotClearance.LiftGravity(from, to, duration, g, w == FxWeapon.Grenade ? 0.3f : ShotClearance.Margin);
             bool over = !arc && w != FxWeapon.Grenade && w != FxWeapon.Mlrs && ShotLine.FlightOver(from, to, g * duration * duration * 0.5f);   // shots_over_walls: its own arc, no lift, drawn over the wall
             if (arc || (!over && ShotLine.RaisesArc(w, from, g, lifted, duration))) g = lifted;       // arcing fire only (bullets_straight: a direct shell or rocket ends on what it meets, View/ShotLine.cs)
             var dir = to - from; var heading = dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.forward;
@@ -1255,7 +1255,7 @@ namespace OpenZ
             p.simEnd = p.ease ? NextSimEnd : -1; NextSimEnd = -1;
             if (p.ease) p.vel *= RocketEaseStart / (1f - RocketEaseRamp * (1f - RocketEaseStart) * 0.5f);   // out of the tube slower
             p.smokeRemainder = 0f; p.legTimer = 0f; p.legStep = 0; p.spinX = Rand() * 6.28f; p.spinZ = Rand() * 6.28f; p.index = serial++;
-            TubeLaunch(p, from);                                                                       // k87b, item 148: an MLRS rocket is bound to the tube it leaves (View/OpenZFxPlayer.TubeExit.cs)
+            if (!straight) TubeLaunch(p, from);                                                                       // k87b, item 148: an MLRS rocket is bound to the tube it leaves (View/OpenZFxPlayer.TubeExit.cs)
             if (OzAirShots.On) OnAirLaunch(p, to);                                                     // K337: bound to its round at the flying shuttle (OpenZFxPlayer.AirShots.cs)
         }
 

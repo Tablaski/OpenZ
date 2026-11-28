@@ -261,6 +261,8 @@ namespace OpenZ
                 World.ModernBotSoloRadar = OzBattleOptions.SoloRadar;
             }
             if (!skirmish) OzSoloAllowedUnits.Apply(this);
+            World.ClassicMissileLauncher = !OpenZ.Multiplayer.DuelRuntime.Active && !demo &&
+                (!skirmish || skirmishMap?.Solo == true) && OzBattleOptions.ClassicMissileLauncher;
             if (!skirmish && !OpenZ.Multiplayer.DuelRuntime.Active &&
                 (skirmishMap?.Solo == true || OzLevelDef.All.Any(definition => definition.Id == level)))
             {

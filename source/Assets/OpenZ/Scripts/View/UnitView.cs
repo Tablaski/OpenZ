@@ -99,6 +99,7 @@ namespace OpenZ
         public void Bind(ZGame g, ZObject o)
         {
             game = g; Obj = o;
+            OzClassicMlrsModel.Fit(this, o);
             anim = GetComponentInChildren<Animator>();
             paint = GetComponent<TeamPaint>();
             if (g.World?.Map.skirmish == true || OpenZ.Multiplayer.DuelRuntime.Active)

@@ -942,6 +942,11 @@ namespace OpenZ.Sim
             {
                 if (!EstimateMissileTarget(t, MissileSpeed, out int tx, out int ty)) { tx = t.CenterX; ty = t.CenterY; }
                 if (t.ReachToWalls) WallAim(t, out tx, out ty);                          // combat_nb_v1 DV26: the nearest wall section
+                if (!nades && UsesClassicMissileLauncher)
+                {
+                    FireClassicMissileSalvo(t, tx, ty, time, playerGiven);
+                    return;
+                }
                 var m = new ZMissile { team = Owner, attackerId = Id, targetId = t.Id, playerGiven = playerGiven, onlyId = HeavyRockShell(t) };
                 if (nades)
                 {

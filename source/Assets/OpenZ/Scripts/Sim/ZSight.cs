@@ -262,7 +262,7 @@ namespace OpenZ.Sim
         /// <summary>DV23: this unit's current attack flies over obstacles: howitzer, Mobile Missile (MLRS), the fort gun, and a
         /// robot whose squad carries grenades (it throws them, ProcessAttackDamage).</summary>
         public bool ArcingFire =>
-            (Kind == ZKind.Cannon && Type == "howitzer") || (Kind == ZKind.Vehicle && Type == "missile_launcher") || IsFort ||
+            (Kind == ZKind.Cannon && Type == "howitzer") || (Kind == ZKind.Vehicle && Type == "missile_launcher" && !UsesClassicMissileLauncher) || IsFort ||
             (Kind == ZKind.Robot && (Grenades > 0 || (Leader != null && Leader.Grenades > 0)));
         /// <summary>DV23 applies to this unit's fire right now (deviation on, direct fire).</summary>
         public bool LosActive => ZWorld.LosDeviation && World != null && !ArcingFire;

@@ -4,7 +4,11 @@ OpenZ-VK is an experimental OpenZ fork developed by ValKognito. It aims to bring
 
 Play solo against the classic 1996 AI or one of four AI 2026 difficulties. Invite friends with a magic link, connect through TCP/IP or set up a local Skirmish. Choose teams or free-for-all, explore AI Maps, and try optional production rules and player advantages. Follow the host's setup in the online lobby, chat and propose rules for the host to accept. Teammates share vision and radar information; ghost spectators can use the free camera or follow a human player.
 
-OpenZ is the default combat profile. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
+OpenZ is the default combat profile. Solo Gaming Options also lets you choose the OG Z three-tube missile launcher. Try Z Classic (NOT READY YET) for Z95-inspired movement and dodging, or create and share your own combat profiles in the Unit Editor. [Join the OpenZ / ZZone Discord](https://discord.gg/WjFqg35PsE).
+
+## OpenZ-VK 1.5.115 (28 Nov 2026)
+
+- Solo: Choose the OG Z missile launcher in Gaming Options. It has a taller cabin and fires three unguided rockets side by side in a straight line.
 
 ## OpenZ-VK 1.5.113 (28 Nov 2026)
 

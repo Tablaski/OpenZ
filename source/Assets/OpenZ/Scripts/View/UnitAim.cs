@@ -423,7 +423,7 @@ namespace OpenZ
             if (grenade && !robot) return false;
             var p = missile ? OzShuttleAim.AirAim(t, GroundAt(e.x, e.y) + Vector3.up * 0.25f, e.value) : t != null ? AimPointOf(t) : holdPoint;   // DV118: up to the flying shuttle
             if (missile && BoardingView.HatchExitAimAt(t, out var hatchShellAim)) p = hatchShellAim;           // 1.4 DV171 final fix: a held shell, rocket or grenade at a driver climbing out of a tank: aimed at his figure, as AimPointOf (View/BoardingView.VehicleExit.cs)
-            bool ballistic = missile && !grenade;
+            bool ballistic = missile && !grenade && !obj.UsesClassicMissileLauncher;
             float T = missile ? Mathf.Max(0.05f, e.value) : 0f, g = ballistic ? ProjectileGravity(wtype, IsRocket(wtype)) : 0f;
             float flightReal = T / Speed;
             float maxWait = grenade ? Mathf.Min(0.3f, 0.3f * flightReal) : missile ? Mathf.Min(0.8f, 0.6f * flightReal) : robot ? 0.5f : 0.35f;
@@ -586,7 +586,7 @@ namespace OpenZ
                 if (obj.MissileSpeed > 0)
                 {
                     float dx = t.CenterX - obj.CenterX, dy = t.CenterY - obj.CenterY;
-                    ballistic = true; g = ProjectileGravity(wtype, IsRocket(wtype));
+                    ballistic = !obj.UsesClassicMissileLauncher; g = ballistic ? ProjectileGravity(wtype, IsRocket(wtype)) : 0f;
                     T = Mathf.Max(0.05f, Mathf.Sqrt(dx * dx + dy * dy) / obj.MissileSpeed);         // zdamagemissile.h CalcExplodeTime
                 }
             }

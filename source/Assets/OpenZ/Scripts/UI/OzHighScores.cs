@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -23,7 +24,16 @@ namespace OpenZ
     public class OzScoreTable
     {
         public string level, difficulty;
+        [SerializeField] internal OzSoloProgress progress;
         public List<OzScoreEntry> entries = new List<OzScoreEntry>();
+    }
+
+    [Serializable]
+    internal sealed class OzSoloProgress
+    {
+        public long wins, defeats, draws, seconds, kills, losses, built;
+
+        internal string Results => $"{wins} W / {defeats} L / {draws} D";
     }
 
     [Serializable]
@@ -133,14 +143,15 @@ namespace OpenZ
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Init()
         {
-            Unranked = null; data = null; pathOverride = null;
+            Unranked = null; UseFile(null);
             SceneManager.sceneLoaded -= OnScene; SceneManager.sceneLoaded += OnScene;
         }
         static void OnScene(Scene s, LoadSceneMode m) { Unranked = null; }
 
         // ------------------------------------------------------------------ the file
-        static OzScoreFile data; static string pathOverride;
-        static bool primaryReadFailed;
+        static readonly ScoreStore classic = new ScoreStore();
+        static readonly ScoreStore modern = new ScoreStore();
+        static string pathOverride;
         /// <summary>Bumped whenever a table changes (the level cards refresh on it).</summary>
         public static int Version { get; private set; }
         /// <summary>The editor's own table file, in the same folder as the game's. The editor and a game installed on the same
@@ -150,7 +161,44 @@ namespace OpenZ
         public static string FilePath => pathOverride ?? Path.Combine(Application.persistentDataPath, Application.isEditor ? EditorFileName : FileName);
 
         /// <summary>Checks: work on another file (null = back to the player's own). The tables are read again.</summary>
-        public static void UseFile(string path) { pathOverride = path; data = null; Version++; }
+        public static void UseFile(string path)
+        {
+            pathOverride = path;
+            classic.Reset(FilePath);
+            modern.Reset(path == null ? ModernFilePath : path + ".ai-2026");
+            Version++;
+        }
+
+        static string ModernFilePath => Path.Combine(Application.persistentDataPath,
+            Application.isEditor ? "solo-ai-2026-editor.json" : "solo-ai-2026.json");
+
+        static ScoreStore Store(ZBotDifficulty ai) => ZAiDifficulty.IsModern(ai) ? modern : classic;
+
+        internal static string DifficultyLabel(GameDifficulty difficulty, ZBotDifficulty ai) =>
+            ZAiDifficulty.IsModern(ai) ? ai.ToString().ToUpperInvariant() + " / " + OpenZDifficulty.Label(difficulty)
+                : OpenZDifficulty.Label(difficulty);
+
+        static string DifficultyKey(GameDifficulty difficulty, ZBotDifficulty ai)
+        {
+            // These identifiers are part of the save format and must stay stable across releases.
+            string profile = ai switch
+            {
+                ZBotDifficulty.Noob => "noob",
+                ZBotDifficulty.Alright => "alright",
+                ZBotDifficulty.Skilled => "skilled",
+                ZBotDifficulty.Zod => "zod",
+                _ => null
+            };
+            if (profile == null) return OpenZDifficulty.Label(difficulty);
+            string rules = difficulty switch
+            {
+                GameDifficulty.Easy => "easy",
+                GameDifficulty.Medium => "medium",
+                GameDifficulty.Mayhem => "mayhem",
+                _ => "hard"
+            };
+            return profile + "/" + rules;
+        }
 
         static OzScoreFile ReadScores(string path, out bool failed)
         {
@@ -185,60 +233,118 @@ namespace OpenZ
             }
         }
 
-        static OzScoreFile Data
+        sealed class ScoreStore
         {
-            get
+            OzScoreFile data;
+            string path;
+            bool primaryReadFailed;
+            string Path => path ?? (this == modern ? ModernFilePath : FilePath);
+
+            internal void Reset(string filePath)
             {
-                if (data != null) return data;
-                string p = FilePath;
-                var d = ReadScores(p, out primaryReadFailed);
-                if (d == null)
-                    d = ReadScores(p + ".bak", out _) ?? new OzScoreFile();
-                else
-                    EnsureBackup(p);
-                d.tables.RemoveAll(t => t == null || string.IsNullOrEmpty(t.level) || string.IsNullOrEmpty(t.difficulty));
-                foreach (var t in d.tables)
+                path = filePath;
+                data = null;
+            }
+
+            internal OzScoreFile Data
+            {
+                get
                 {
-                    if (t.entries == null) t.entries = new List<OzScoreEntry>();
-                    t.entries.RemoveAll(x => x == null);
-                    var sorted = new List<OzScoreEntry>(t.entries.Count);                                   // best first; equal entries keep the file's order (a stable pass)
-                    foreach (var x in t.entries) { int at = sorted.Count; while (at > 0 && Better(x, sorted[at - 1])) at--; sorted.Insert(at, x); }
-                    t.entries = sorted;
-                    if (t.entries.Count > TableSize) t.entries.RemoveRange(TableSize, t.entries.Count - TableSize);
+                    if (data != null) return data;
+                    string p = Path;
+                    var d = ReadScores(p, out primaryReadFailed);
+                    if (d == null)
+                        d = ReadScores(p + ".bak", out _) ?? new OzScoreFile();
+                    else
+                        EnsureBackup(p);
+                    d.tables.RemoveAll(t => t == null || string.IsNullOrEmpty(t.level) || string.IsNullOrEmpty(t.difficulty));
+                    foreach (var t in d.tables)
+                    {
+                        if (t.entries == null) t.entries = new List<OzScoreEntry>();
+                        t.entries.RemoveAll(x => x == null);
+                        var sorted = new List<OzScoreEntry>(t.entries.Count);                                   // best first; equal entries keep the file's order (a stable pass)
+                        foreach (var x in t.entries) { int at = sorted.Count; while (at > 0 && Better(x, sorted[at - 1])) at--; sorted.Insert(at, x); }
+                        t.entries = sorted;
+                        if (t.entries.Count > TableSize) t.entries.RemoveRange(TableSize, t.entries.Count - TableSize);
+                    }
+                    data = d;
+                    return data;
                 }
-                data = d;
-                return data;
+            }
+
+            internal bool Save()
+            {
+                try
+                {
+                    string p = Path, tmp = p + ".tmp";
+                    string dir = System.IO.Path.GetDirectoryName(p);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    File.WriteAllText(tmp, JsonUtility.ToJson(Data, true), new UTF8Encoding(false));
+                    if (File.Exists(p))
+                    {
+                        // Preserve the recovery copy when replacing an unreadable primary file.
+                        File.Replace(tmp, p, primaryReadFailed ? p + ".bad" : p + ".bak");
+                    }
+                    else
+                    {
+                        File.Move(tmp, p);
+                        EnsureBackup(p);
+                    }
+                    primaryReadFailed = false;
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("[OpenZ Scores] the table file could not be written (" + e.Message + "); the table stays in memory for this session");
+                    return false;
+                }
             }
         }
 
         static int Compare(OzScoreEntry a, OzScoreEntry b) => a.score != b.score ? b.score.CompareTo(a.score) : a.seconds.CompareTo(b.seconds);
         static bool Better(OzScoreEntry a, OzScoreEntry b) => Compare(a, b) < 0;
 
-        static OzScoreTable Table(string level, GameDifficulty d, bool create)
+        static OzScoreTable Table(string level, GameDifficulty d, bool create, ZBotDifficulty ai)
         {
-            string diff = OpenZDifficulty.Label(d);
-            foreach (var t in Data.tables) if (t.level == level && t.difficulty == diff) return t;
+            string diff = DifficultyKey(d, ai);
+            var tables = Store(ai).Data.tables;
+            foreach (var t in tables) if (t.level == level && t.difficulty == diff) return t;
             if (!create) return null;
             var made = new OzScoreTable { level = level, difficulty = diff };
-            Data.tables.Add(made);
+            tables.Add(made);
             return made;
         }
 
         static readonly List<OzScoreEntry> none = new List<OzScoreEntry>();
         /// <summary>The table of a level on a difficulty, best first (0 .. 10 entries).</summary>
-        public static IReadOnlyList<OzScoreEntry> Top(string level, GameDifficulty d) { var t = Table(level, d, false); return t != null ? t.entries : none; }
-        /// <summary>The best entry, or null when the level was never won on that difficulty.</summary>
-        public static OzScoreEntry Best(string level, GameDifficulty d) { var t = Table(level, d, false); return t != null && t.entries.Count > 0 ? t.entries[0] : null; }
+        public static IReadOnlyList<OzScoreEntry> Top(string level, GameDifficulty d) => Top(level, d, default);
+        internal static IReadOnlyList<OzScoreEntry> Top(string level, GameDifficulty d, ZBotDifficulty ai)
+        {
+            var table = Table(level, d, false, ai);
+            return table != null ? table.entries : none;
+        }
+
+        public static OzScoreEntry Best(string level, GameDifficulty d) => Best(level, d, default);
+        internal static OzScoreEntry Best(string level, GameDifficulty d, ZBotDifficulty ai)
+        {
+            var list = Top(level, d, ai);
+            return list.Count > 0 ? list[0] : null;
+        }
+
+        internal static OzSoloProgress Progress(string level, GameDifficulty d, ZBotDifficulty ai) =>
+            ZAiDifficulty.IsModern(ai) ? Table(level, d, false, ai)?.progress : null;
 
         /// <summary>The title of a level's table: "TOP 10 · L02 · MEDIUM".</summary>
-        public static string TableTitle(string level, GameDifficulty d) => "TOP " + TableSize + " · " + level + " · " + OpenZDifficulty.Label(d);
+        public static string TableTitle(string level, GameDifficulty d) => TableTitle(level, d, default);
+        internal static string TableTitle(string level, GameDifficulty d, ZBotDifficulty ai) => "TOP " + TableSize + " · " + level + " · " + DifficultyLabel(d, ai);
 
         /// <summary>
         /// colour, rank, score, mission time); the entry `mark` (the result of the match just played) gets an arrow. Empty text = no entry yet. Shown by the
         /// TOP 10 tooltip of the end screen's strip.</summary>
-        public static string TableLines(string level, GameDifficulty d, OzScoreEntry mark = null)
+        public static string TableLines(string level, GameDifficulty d, OzScoreEntry mark = null) => TableLines(level, d, mark, default);
+        internal static string TableLines(string level, GameDifficulty d, OzScoreEntry mark, ZBotDifficulty ai)
         {
-            var list = Top(level, d);
+            var list = Top(level, d, ai);
             var sb = new StringBuilder();
             for (int i = 0; i < list.Count; i++)
             {
@@ -253,49 +359,50 @@ namespace OpenZ
 
         /// <summary>Adds a result. Returns its place 1 .. 10, or 0 when it did not make the table. Written at once.</summary>
         // duel separate from solo scores
-            public static int Submit(string level, GameDifficulty d, OzScoreEntry e)
+        public static int Submit(string level, GameDifficulty d, OzScoreEntry e)
         {
             if (OpenZ.Multiplayer.DuelRuntime.Active) return 0;
             if (e == null || string.IsNullOrEmpty(level)) return 0;
-            var t = Table(level, d, true);
+            int place = Insert(Table(level, d, true, default), e);
+            if (place > 0) Save();
+            return place;
+        }
+
+        internal static int RecordModern(string level, GameDifficulty d, ZBotDifficulty ai, OzScoreEntry entry, string outcome)
+        {
+            if (!ZAiDifficulty.IsModern(ai) || OpenZ.Multiplayer.DuelRuntime.Active || entry == null || string.IsNullOrEmpty(level))
+                return 0;
+            var table = Table(level, d, true, ai);
+            var progress = table.progress ??= new OzSoloProgress();
+            if (outcome == "victory") progress.wins++;
+            else if (outcome == "defeat") progress.defeats++;
+            else progress.draws++;
+            progress.seconds += entry.seconds;
+            progress.kills += entry.kills;
+            progress.losses += entry.losses;
+            progress.built += entry.built;
+            int place = outcome == "victory" ? Insert(table, entry) : 0;
+            modern.Save();
+            Version++;
+            return place;
+        }
+
+        static int Insert(OzScoreTable t, OzScoreEntry e)
+        {
             int at = 0;
             while (at < t.entries.Count && !Better(e, t.entries[at])) at++;                              // an equal older entry stays above
             if (at >= TableSize) return 0;
             t.entries.Insert(at, e);
             if (t.entries.Count > TableSize) t.entries.RemoveRange(TableSize, t.entries.Count - TableSize);
-            Version++;
-            Save();
             return at + 1;
         }
 
         /// <summary>Write the tables (a new entry). False = the file could not be written (logged; the tables stay in memory).</summary>
         public static bool Save()
         {
-            try
-            {
-                string p = FilePath, tmp = p + ".tmp";
-                string dir = Path.GetDirectoryName(p);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                File.WriteAllText(tmp, JsonUtility.ToJson(Data, true), new UTF8Encoding(false));
-                if (File.Exists(p))
-                {
-                    // Preserve the recovery copy when replacing an unreadable primary file.
-                    File.Replace(tmp, p, primaryReadFailed ? p + ".bad" : p + ".bak");
-                }
-                else
-                {
-                    File.Move(tmp, p);
-                    EnsureBackup(p);
-                }
-                primaryReadFailed = false;
-                Version++;
-                return true;
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("[OpenZ Scores] the table file could not be written (" + e.Message + "); the table stays in memory for this session");
-                return false;
-            }
+            bool saved = classic.Save();
+            Version++;
+            return saved;
         }
     }
 }

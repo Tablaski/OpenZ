@@ -48,15 +48,14 @@ namespace OpenZ
         public bool ProofScoreLive => scoreTableHot != null && scoreTableHot.Alive;
 
         /// <summary>null = this ending enters the table; else the line the strip shows instead.</summary>
-        string UnrankedWhy()
+        string UnrankedWhy(bool modern)
         {
             if (OpenZ.Multiplayer.DuelRuntime.Active) return OpenZ.Multiplayer.DuelRuntime.I.SkirmishRoom
                 ? "MULTIPLAYER SKIRMISH" : "ONLINE DUEL · NOT IN THE SOLO TABLE";
             if (game.World.Map.skirmish) return "LOCAL SKIRMISH";
-            if (ZAiDifficulty.IsModern(game.SoloAi2026)) return "2026 AI · SEPARATE FROM THE 1996 TABLE";
             var customStats = OzLevelStats.UnrankedWhy(); if (customStats != null) return customStats;      // 1.2 item 60: a Custom stats match, won or lost, is not compared with the others (CUSTOM STATS · NOT IN THE TABLE)
-            if (kind == "defeat") return "WIN THE LEVEL TO ENTER THE TABLE";
-            if (kind != "victory") return "A DRAW DOES NOT ENTER THE TABLE";
+            if (!modern && kind == "defeat") return "WIN THE LEVEL TO ENTER THE TABLE";
+            if (!modern && kind != "victory") return "A DRAW DOES NOT ENTER THE TABLE";
             var W = game.World;
             foreach (var b in W.Bots) if (b.Team == hud.Player) return "THE CPU PLAYED YOUR SIDE · NOT IN THE TABLE";
             // owner items 144 / 144b: a blue match (GENERAL EVILZOD) is entered as a red one is; its entry keeps the side (OzScoreSides)
@@ -71,14 +70,17 @@ namespace OpenZ
             int zonesTotal = W.Zones.Count, zonesMine = 0; foreach (var z in W.Zones) if (z.Owner == me) zonesMine++;
             int kills = OpenZMatchStats.Get(st.Kills, me), losses = OpenZMatchStats.Get(st.Losses, me), built = OpenZMatchStats.Get(st.Built, me);
             scoreParts = OzHighScores.Score(win, W.Time, kills, losses, zonesMine, zonesTotal);
-            scoreWhy = UnrankedWhy();
+            bool modern = ZAiDifficulty.IsModern(game.SoloAi2026);
+            string exclusion = UnrankedWhy(modern);
+            scoreWhy = exclusion ?? (modern && !win ? "2026 AI SOLO PROGRESS" : null);
             if (!scoreSubmitted)
             {
                 scoreSubmitted = true; scorePlace = 0; scoreEntry = null;
-                if (scoreWhy == null)
+                if (exclusion == null)
                 {
                     scoreEntry = OzScoreSides.Entry(scoreParts.total, W.Time, kills, losses, built, zonesMine, zonesTotal, me);
-                    scorePlace = OzHighScores.Submit(game.level, game.ShownDifficulty, scoreEntry);
+                    scorePlace = modern ? OzHighScores.RecordModern(game.level, game.ShownDifficulty, game.SoloAi2026, scoreEntry, kind)
+                        : OzHighScores.Submit(game.level, game.ShownDifficulty, scoreEntry);
                     if (scorePlace == 0) scoreEntry = null;
                 }
                 Debug.Log($"[OpenZ] end screen score: {scoreParts.total} = victory {scoreParts.victory} + speed {scoreParts.speed} + combat {scoreParts.combat} + territory {scoreParts.territory} "
@@ -133,10 +135,10 @@ namespace OpenZ
 
         string NoteText()
         {
-            var best = OzHighScores.Best(game.level, game.ShownDifficulty);
+            var best = OzHighScores.Best(game.level, game.ShownDifficulty, game.SoloAi2026);
             string bestText = best != null ? " · BEST " + OzHighScores.Group(best.score) : "";
             if (scoreWhy != null) return scoreWhy + (kind == "victory" ? "" : bestText);
-            if (scorePlace == 1) return "NEW RECORD · " + game.level + " · " + OpenZDifficulty.Label(game.ShownDifficulty);   // 1.4 MAYHEM: "NEW RECORD · L02 · MAYHEM"
+            if (scorePlace == 1) return "NEW RECORD · " + game.level + " · " + OzHighScores.DifficultyLabel(game.ShownDifficulty, game.SoloAi2026);   // 1.4 MAYHEM: "NEW RECORD · L02 · MAYHEM"
             if (scorePlace > 1) return "PLACE " + scorePlace + " OF THE TOP " + OzHighScores.TableSize + bestText;
             return "OUTSIDE THE TOP " + OzHighScores.TableSize + bestText;
         }
@@ -155,8 +157,14 @@ namespace OpenZ
         /// <summary>The level's table for the hover of the right half (OzHighScores.TableLines: place, rank, score, mission time).</summary>
         string TableTip()
         {
-            string lines = OzHighScores.TableLines(game.level, game.ShownDifficulty, scoreEntry);
-            return OzHighScores.TableTitle(game.level, game.ShownDifficulty) + "|" + (lines.Length > 0 ? lines : "No victory on this level at this difficulty yet.") + "|";
+            var difficulty = game.ShownDifficulty;
+            var ai = game.SoloAi2026;
+            string lines = OzHighScores.TableLines(game.level, difficulty, scoreEntry, ai);
+            if (lines.Length == 0) lines = "No victory on this level at this difficulty yet.";
+            var progress = OzHighScores.Progress(game.level, difficulty, ai);
+            if (progress != null)
+                lines += $"\n{progress.Results}\n{progress.kills} killed / {progress.losses} lost / {progress.built} built";
+            return OzHighScores.TableTitle(game.level, difficulty, ai) + "|" + lines + "|";
         }
 
         // ------------------------------------------------------------------ reveal (Animate)

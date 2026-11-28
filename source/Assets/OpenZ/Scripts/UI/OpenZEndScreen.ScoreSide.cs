@@ -11,6 +11,6 @@ namespace OpenZ
         /// <summary>Checks: the entry this ending put into the table (null: none, or it did not make the top 10).</summary>
         public OzScoreEntry ProofScoreEntry => scoreEntry;
         /// <summary>Checks: the text of the TOP 10 tooltip's table (the level's rows with their sides; the new entry marked).</summary>
-        public string ProofScoreTableTip => game ? OzHighScores.TableLines(game.level, game.ShownDifficulty, scoreEntry) : "";
+        public string ProofScoreTableTip => game ? OzHighScores.TableLines(game.level, game.ShownDifficulty, scoreEntry, game.SoloAi2026) : "";
     }
 }

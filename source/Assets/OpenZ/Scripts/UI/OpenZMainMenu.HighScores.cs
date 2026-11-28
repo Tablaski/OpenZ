@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using OpenZ.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -65,6 +66,7 @@ namespace OpenZ
 
         HudButton hsBtn; RectTransform hsRoot, hsPanel, hsView, hsContent, hsTrack, hsClose; Canvas hsCanvas; CanvasGroup hsCg; Image hsScrim, hsThumb;
         readonly List<HudButton> hsTabBtns = new List<HudButton>(); readonly List<OzText> hsTexts = new List<OzText>(); HsBlock[] hsBlocks;
+        bool hsModern; OzText hsTabNote;
         bool hsOpen; int hsTab = -1, hsShownVersion = -1; float hsAt = -10f, hsViewAt, hsScroll, hsTarget;
 
         // ---------------------------------------------------------------- build
@@ -127,7 +129,7 @@ namespace OpenZ
                 AddHot(b.Rt, View.Select, () => ShowHighScoresTab(id), null, b, "ui_tab_switch");
                 hsTabBtns.Add(b);
             }
-            HsLabel(hsPanel, "TabNote", "THE " + OzHighScores.TableSize + " BEST VICTORIES OF EACH LEVEL", 9, OzUi.Muted, 0.2f).At(HsW - HsPad, HsTabY + HsTabH * 0.5f, OzH.R, true, 380);
+            hsTabNote = HsLabel(hsPanel, "TabNote", "", 9, OzUi.Muted, 0.2f).At(HsW - HsPad, HsTabY + HsTabH * 0.5f, OzH.R, true, 380);
             Hud.Img(hsPanel, "TabRule", OzUi.A(OzUi.Amber, 0.35f)).rectTransform.Place(new OzRect(HsPad, HsTabY + HsTabH + 5f, HsW - 2 * HsPad, 1f));
 
             // the view: one block per level, scrolling when the blocks are taller than it
@@ -196,7 +198,12 @@ namespace OpenZ
             hsRoot.gameObject.SetActive(true);
             hsCanvas.overrideSorting = true; hsCanvas.sortingOrder = canvas.sortingOrder + HsSortAbove;       // set on the shown popup: its own sorting, above this screen
             if (!hsPanel) BuildHighScoresPanel();
-            if (!instant || hsTab < 0) hsTab = System.Array.IndexOf(HsTabs, OpenZDifficulty.Choice);            // opens on the difficulty chosen on this screen
+            if (!instant || hsTab < 0)
+            {
+                var ai = OzAiSoloChoice.Level;
+                hsModern = ZAiDifficulty.IsModern(ai);
+                hsTab = hsModern ? System.Array.IndexOf(ZAiDifficulty.Modern, ai) : System.Array.IndexOf(HsTabs, OpenZDifficulty.Choice);
+            }            // opens on the difficulty chosen on this screen
             if (hsTab < 0) hsTab = 1;
             if (!instant) hsScroll = hsTarget = 0f;
             FillHighScores();
@@ -239,15 +246,24 @@ namespace OpenZ
         {
             if (hsBlocks == null) return;
             hsShownVersion = OzHighScores.Version;
-            var d = HsTabs[Mathf.Clamp(hsTab, 0, HsTabs.Length - 1)]; string diff = OpenZDifficulty.Label(d);
-            for (int i = 0; i < hsTabBtns.Count; i++) SetSelected(hsTabBtns[i], i == hsTab);
+            var d = hsModern ? OpenZDifficulty.Choice : HsTabs[hsTab];
+            var ai = hsModern ? ZAiDifficulty.Modern[hsTab] : ZBotDifficulty.Normal;
+            string diff = OzHighScores.DifficultyLabel(d, ai);
+            hsTabNote.Set(hsModern ? "2026 AI / " + OpenZDifficulty.Label(d) + " CAMPAIGN RULES"
+                : "THE " + OzHighScores.TableSize + " BEST VICTORIES OF EACH LEVEL");
+            for (int i = 0; i < hsTabBtns.Count; i++)
+            {
+                hsTabBtns[i].Label.Set(hsModern ? ZAiDifficulty.Modern[i].ToString().ToUpperInvariant() : OpenZDifficulty.Label(HsTabs[i]));
+                SetSelected(hsTabBtns[i], i == hsTab);
+            }
             float y = HsContentPad;
             for (int i = 0; i < hsBlocks.Length; i++)
             {
-                var b = hsBlocks[i]; var list = OzHighScores.Top(levels[i].Id, d);
+                var b = hsBlocks[i]; var list = OzHighScores.Top(levels[i].Id, d, ai);
+                var progress = OzHighScores.Progress(levels[i].Id, d, ai);
                 int n = Mathf.Min(list.Count, b.rows.Length);
                 b.shown = n;
-                b.count.Set(n > 0 ? OzText.Tab(n + " OF " + OzHighScores.TableSize) : "");
+                b.count.Set(progress != null ? progress.Results : n > 0 ? OzText.Tab(n + " OF " + OzHighScores.TableSize) : "");
                 b.cols.gameObject.SetActiveFast(n > 0);
                 b.empty.SetActive(n == 0);
                 if (n == 0) b.empty.Set("NO VICTORY ON THIS LEVEL ON " + diff + " YET");

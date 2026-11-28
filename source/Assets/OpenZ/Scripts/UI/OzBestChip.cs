@@ -1,3 +1,4 @@
+using OpenZ.Sim;
 using UnityEngine;
 
 namespace OpenZ
@@ -18,7 +19,7 @@ namespace OpenZ
     {
         public const float X = 24f, FromPictureBottom = 38f, H = 22f, TextPad = 18f;
         string level; OzText text; RectTransform rt;
-        int shownVersion = -1; int shownDiff = -1; float next;
+        int shownVersion = -1; int shownDiff = -1; ZBotDifficulty shownAi; float next;
 
         /// <summary>Checks: what the chip says.</summary>
         public string Shown => text != null ? text.text : "";
@@ -43,10 +44,12 @@ namespace OpenZ
         {
             if (text == null || !rt) return;
             var d = OpenZDifficulty.Choice;                                                                  // 1.4 MAYHEM: MAYHEM has its own table ("BEST · MAYHEM · ...")
-            if ((int)d == shownDiff && OzHighScores.Version == shownVersion) return;
+            var ai = OzAiSoloChoice.Level;
+            if (ai == shownAi && (int)d == shownDiff && OzHighScores.Version == shownVersion) return;
+            shownAi = ai;
             shownDiff = (int)d; shownVersion = OzHighScores.Version;
-            var e = OzHighScores.Best(level, d);
-            string diff = OpenZDifficulty.Label(d);
+            var e = OzHighScores.Best(level, d, ai);
+            string diff = OzHighScores.DifficultyLabel(d, ai);
             if (e != null)
             {
                 string result = OzHighScores.Group(e.score) + " · " + OzHighScores.Rank(e.score);

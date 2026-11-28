@@ -1233,6 +1233,7 @@ namespace OpenZ
         public void Launch(Vector3 from, Vector3 to, float duration, FxWeapon w, bool ease = false, bool arc = false, bool straight = false)
         {
             var spec = OpenZFxCatalog.ProjectileOf(w);
+            if (straight && w == FxWeapon.Mlrs) spec.legTrail = false;
             // the sim's missile delay (ZEvent.value = explodeTime - time) is in sim seconds; ZGame runs the sim at gameSpeed
             // (ZGame.cs:106, the bot match plays at 4x), so the flight must last delay / gameSpeed real seconds to land on the blast
             duration = RealFlight(duration, ZGame.I ? ZGame.I.gameSpeed : 1f);

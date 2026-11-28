@@ -14,7 +14,7 @@ namespace OpenZ
         const float TubeHeight = 3.11f;
         const float TurretHeight = 2.71f;
         const float TurretPivotZ = 0.62f;
-        const float TubeMouth = 0.61f;
+        const float TubeMouth = ZObject.ClassicMissileMuzzleReach;
         static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         enum Surface { Armor, Steel, Rim, Dark, Team, Glass, Lamp, Count }
         static Mesh cabMesh, turretMesh, trayMesh, tubeMesh;

@@ -134,7 +134,7 @@ namespace OpenZ
                         var at = OzShuttleAim.AirAim(b, PxGround(e.x, e.y), 0f);                                          // DV118: a blast at the flying shuttle bursts up at its hull
                         BoardingView.HatchExitBlastAt(b, ref at);                                                     // 1.4 DV171 fix round 4: and bursts there (View/BoardingView.VehicleExit.cs)
                         if (b != null && b.IsFortDefender) at = FortDefenderView.RoofPoint(at);             // fort_defender_v1 DV41: on the roof where he stands
-                        if (b != null && !b.Destroyed && !OzBridgeDeckHits.OnDeck(b, a, at) && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))   // 1.5 DV210 (kit bridge_aim_further_r6): a blast at a bridge bursts on its deck at the sim's point (View/OzBridgeDeckHits.cs)
+                        if (a?.UsesClassicMissileLauncher != true && b != null && !b.Destroyed && !OzBridgeDeckHits.OnDeck(b, a, at) && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))   // 1.5 DV210 (kit bridge_aim_further_r6): a blast at a bridge bursts on its deck at the sim's point (View/OzBridgeDeckHits.cs)
                         {   // bug #13: a shell that lands inside a building / vehicle footprint bursts on the wall facing the shooter
                             var src = a != null ? (ViewOf(a.Id) ? ViewOf(a.Id).transform.position : game.CenterWorld(a)) + Vector3.up * 1.2f : at + Vector3.up * 8f;
                             at = OnSurface(b, src, at + Vector3.up * 1f);                             // IM1: on the drawn wall
@@ -433,7 +433,8 @@ namespace OpenZ
             }
             if (a.UsesClassicMissileLauncher && av && av.TryGetComponent<OzClassicMlrsModel>(out var classic))
             {
-                Vector3 line = classic.AimSalvo(to);
+                Vector3 blastCenter = OzShuttleAim.AirAim(t, PxGround(e.x, e.y) + Vector3.up * 0.08f, e.value);
+                Vector3 line = classic.AimSalvo(blastCenter);
                 var fxPlayer = OpenZFxPlayer.I;
                 for (int i = 0; i < 3; i++)
                 {

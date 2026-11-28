@@ -20,7 +20,7 @@ namespace OpenZ
         static Mesh cabMesh, turretMesh, trayMesh, tubeMesh;
         static Material[] materials;
         readonly Transform[] sockets = new Transform[3];
-        readonly MaterialPropertyBlock paint = new MaterialPropertyBlock();
+        MaterialPropertyBlock paint;
         MeshRenderer cab, launcher, tray, tubes;
         Transform rack;
         ZObject unit;
@@ -48,6 +48,7 @@ namespace OpenZ
         void Build(Transform hullSpace, Transform swivel, ZObject owner)
         {
             unit = owner;
+            paint = new MaterialPropertyBlock();
             EnsureAssets();
             foreach (var part in swivel.GetComponentsInChildren<Transform>(true))
             {
@@ -80,7 +81,6 @@ namespace OpenZ
                 float x = (i - 1) * ZObject.ClassicMissileTubeSpacing;
                 sockets[i] = Node(cradle, i == 1 ? "Muzzle" : "Classic MLRS outlet", new Vector3(x, 0f, -TubeMouth));
             }
-            ApplyPaint();
         }
 
         static Transform Node(Transform parent, string name, Vector3 at)

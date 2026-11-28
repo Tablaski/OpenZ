@@ -442,7 +442,13 @@ namespace OpenZ
             float err0 = ErrorTo(p, ballistic, T, g, grenade);
             // A classic MLRS salvo cannot shorten its visible flight without changing its constant rocket speed.
             // Field howitzers keep their displayed shot on the same clock as the reload across crew changes.
-            if (obj.UsesClassicMissileLauncher || (ballistic && obj.Kind == ZKind.Cannon && obj.Type == "howitzer" && obj.Ejectable))
+            if (obj.UsesClassicMissileLauncher)
+            {
+                Count(ErrorTo(p, ballistic, T, g, grenade), 0f, false, "classic salvo");
+                Mark(p, ballistic, T, g);
+                return false;
+            }
+            if (ballistic && obj.Kind == ZKind.Cannon && obj.Type == "howitzer" && obj.Ejectable)
             {
                 if (err0 > slew.tol && Snap(p, ballistic, T, g)) err0 = ErrorTo(p, ballistic, T, g, grenade);
                 Count(err0, 0f, false, "howitzer shot, no hold");

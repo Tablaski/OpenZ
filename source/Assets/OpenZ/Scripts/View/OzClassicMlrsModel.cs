@@ -22,7 +22,7 @@ namespace OpenZ
         readonly Transform[] sockets = new Transform[3];
         MaterialPropertyBlock paint;
         MeshRenderer cab, launcher, tray, tubes;
-        Transform rack;
+
         readonly List<Light> lamps = new List<Light>(4);
         static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
         static readonly Color LampColor = new Color(1f, 0.76f, 0.29f);
@@ -86,7 +86,7 @@ namespace OpenZ
             }
             swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
-            rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
+            var rack = Node(swivel, "Classic MLRS tilting tray", Vector3.zero);
             var rest = Quaternion.AngleAxis(RestElevation, Vector3.right);
             rack.localRotation = rest;
             tray = AddMesh(rack, "Classic MLRS tray", trayMesh);
@@ -162,16 +162,9 @@ namespace OpenZ
         {
             Vector3 line = target - CenterOutlet;
             float run = new Vector2(line.x, line.z).magnitude;
-            float elevation = Mathf.Clamp(Mathf.Atan2(line.y, run) * Mathf.Rad2Deg,
-                MinimumElevation, RestElevation);
-            rack.localRotation = Quaternion.AngleAxis(elevation, Vector3.right);
-            line = target - CenterOutlet;
-            Vector3 axis = sockets[1].TransformDirection(Vector3.back);
-            float axisRun = new Vector2(axis.x, axis.z).magnitude;
-            line.y = new Vector2(line.x, line.z).magnitude * axis.y / Mathf.Max(0.01f, axisRun);
+            line.y = Mathf.Max(line.y, run * Mathf.Tan(MinimumElevation * Mathf.Deg2Rad));
             return line;
         }
-
         public Vector3 CenterOutlet => sockets[1].position;
         public Vector3 Outlet(int index) => sockets[index].position;
 
@@ -319,7 +312,7 @@ namespace OpenZ
                 // Each profile step gives its axial position, radius and the finish leading to the next ring.
                 var profile = new (float z, float radius, Surface surface)[]
                 {
-                    (1.94f, 0, Surface.Dark), (1.94f, 0.31f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
+                    (1.969f, 0, Surface.Steel), (1.969f, 0.245f, Surface.Steel), (1.950f, 0.292f, Surface.Rim), (1.940f, 0.315f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
                     (1.78f, 0.35f, Surface.Rim), (1.73f, 0.34f, Surface.Steel),
                     (1.17f, 0.334f, Surface.Rim), (1.15f, 0.353f, Surface.Team), (0.96f, 0.353f, Surface.Rim),
                     (0.935f, 0.334f, Surface.Steel), (-0.38f, 0.334f, Surface.Steel), (-0.415f, 0.37f, Surface.Rim),

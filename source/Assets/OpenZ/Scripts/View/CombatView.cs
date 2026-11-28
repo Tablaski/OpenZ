@@ -442,7 +442,9 @@ namespace OpenZ
                     if (fxPlayer)
                     {
                         fxPlayer.ClassicMlrsExhaust(classic.Exhaust(i), classic.RearDirection);
-                        fxPlayer.Launch(outlet, outlet + line, delay, FxWeapon.Mlrs, straight: true);
+                        OpenZFxPlayer.NextSimEnd = e.end;
+                        try { fxPlayer.Launch(outlet, outlet + line, delay, FxWeapon.Mlrs, ease: LegacyMatch.Eased(type), straight: true); }
+                        finally { OpenZFxPlayer.NextSimEnd = -1; }
                     }
                     else if (fx)
                     {

@@ -235,12 +235,13 @@ namespace OpenZ
             foreach (var kv in game.Views)
             {
                 var v = kv.Value;
-                if (!v || v.Obj == null || v.Obj.Kind != ZKind.Vehicle || rigOf.ContainsKey(v) || v.GetComponent<OzClassicMlrsModel>()) continue;
+                if (!v || v.Obj == null || v.Obj.Kind != ZKind.Vehicle || rigOf.ContainsKey(v)) continue;
                 if (!specs.TryGetValue(OzV2Units.LightsKey(v, specs.ContainsKey), out var spec))   // 1.2 v2 units: a v2 view takes its own entry ("light@v2")
                 {
                     if (unknownTypes.Add(v.Obj.Type)) Debug.LogWarning($"[OpenZ] VehicleLights: no sockets for vehicle type '{v.Obj.Type}' (vehicle_lights.json)");
                     rigOf[v] = null; continue;
                 }
+                if (v.TryGetComponent<OzClassicMlrsModel>(out var classic)) spec = classic.Lighting(spec);
                 var r = Build(v, spec);
                 rigOf[v] = r; if (r != null) rigs.Add(r);
             }

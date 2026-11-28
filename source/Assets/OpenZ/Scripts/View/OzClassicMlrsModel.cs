@@ -81,8 +81,7 @@ namespace OpenZ
             cab = AddMesh(hullSpace, "Classic MLRS cabin", cabMesh);
             foreach (int side in new[] { -1, 1 })
             {
-                AddLamp(hullSpace, new Vector3(side * 0.752f, 0.94f, -2.40f), true);
-                AddLamp(hullSpace, new Vector3(side * 0.752f, 0.94f, 2.40f), false);
+                AddLamp(hullSpace, new Vector3(side * 0.752f, 0.94f, 2.40f));
             }
             swivel.position = hullSpace.TransformPoint(new Vector3(0f, TurretHeight, TurretPivotZ));
             launcher = AddMesh(swivel, "Classic MLRS turret", turretMesh);
@@ -116,17 +115,43 @@ namespace OpenZ
             return renderer;
         }
 
-        void AddLamp(Transform parent, Vector3 position, bool front)
+        internal VLVehicle Lighting(VLVehicle template)
         {
-            var node = Node(parent, front ? "Classic MLRS front lamp" : "Classic MLRS rear lamp", position);
-            node.localRotation = Quaternion.LookRotation(new Vector3(0f, -0.22f, front ? -1f : 1f));
+            var lampsAtFront = new VLSocket[2];
+            for (int i = 0; i < lampsAtFront.Length; i++)
+            {
+                var lens = new[] { i == 0 ? -.752f : .752f, .94f, -2.397f };
+                lampsAtFront[i] = new VLSocket
+                {
+                    id = i == 0 ? "head_L" : "head_R", kind = "head", node = cab.name,
+                    pos = lens, root = lens, nrm = new[] { 0f, 0f, -1f }, rootNrm = new[] { 0f, 0f, -1f },
+                    rgb = new[] { 1f, .76f, .29f }, size = .17f, halo = .44f
+                };
+            }
+            var lamp = template.headlight;
+            return new VLVehicle
+            {
+                type = "missile_launcher@classic", sockets = lampsAtFront, headlight = lamp != null ? new VLHeadlight
+                {
+                    rgb = new[] { 1f, .76f, .29f }, pitch = lamp.pitch, spotAngle = lamp.spotAngle,
+                    range = lamp.range, intensity = lamp.intensity, beamLength = lamp.beamLength,
+                    beamAngle = lamp.beamAngle, pitchBeam = lamp.pitchBeam, pool = lamp.pool
+                } : null
+            };
+        }
+
+        void AddLamp(Transform parent, Vector3 position)
+        {
+            var node = Node(parent, "Classic MLRS rear lamp", position);
+            node.localRotation = Quaternion.LookRotation(new Vector3(0f, -0.34f, 1f));
             var lamp = node.gameObject.AddComponent<Light>();
             lamp.type = LightType.Spot;
             lamp.color = LampColor;
-            lamp.range = front ? 13f : 8f;
-            lamp.spotAngle = front ? 51f : 65f;
+            lamp.range = 9f;
+            lamp.spotAngle = 62f;
             lamp.innerSpotAngle = lamp.spotAngle * 0.45f;
-            lamp.intensity = front ? 4.0f : 2.6f;
+            lamp.intensity = 9f;
+            lamp.renderMode = LightRenderMode.ForcePixel;
             lamp.enabled = false;
             lamps.Add(lamp);
         }
@@ -232,16 +257,16 @@ namespace OpenZ
                 materials[(int)slot].SetTexture("_BaseMap", finish);
 
             var body = new Geometry();
-            body.Box(0, .73f, 0, 2.23f, .83f, 4.44f, Surface.Armor);
-            body.Box(0, .42f, 0, 2.12f, .24f, 4.17f, Surface.Dark);
-            body.Box(0, 1.31f, .29f, 2.72f, .48f, 3.14f, Surface.Armor);
+            body.Box(0, .73f, 0, 1.77f, .83f, 4.44f, Surface.Armor);
+            body.Box(0, .42f, 0, 1.76f, .24f, 4.17f, Surface.Dark);
+            body.Box(0, 1.31f, .29f, 1.79f, .48f, 3.14f, Surface.Armor);
             body.Box(0, 1.50f, .10f, 2.33f, .16f, 2.20f, Surface.Steel);
             body.Box(0, 1.28f, -1.53f, 1.96f, .28f, 1.23f, Surface.Armor, -27f);
             body.Box(0, 1.57f, -1.16f, 1.67f, .075f, .47f, Surface.Team, -6f);
             body.Box(0, 1.62f, -1.16f, .33f, .055f, .089f, Surface.Dark);
-            body.Box(0, .895f, -2.17f, 1.97f, .57f, .32f, Surface.Armor);
+            body.Box(0, .895f, -2.17f, 1.78f, .57f, .32f, Surface.Armor);
             body.Box(0, .92f, -2.345f, .55f, .32f, .041f, Surface.Dark);
-            body.Box(0, .94f, 2.10f, 1.95f, .65f, .45f, Surface.Armor);
+            body.Box(0, .94f, 2.10f, 1.78f, .65f, .45f, Surface.Armor);
             for (int i = -2; i <= 2; i++)
                 body.Box(i * .105f, .92f, -2.373f, .035f, .26f, .034f, Surface.Rim);
 
@@ -249,16 +274,16 @@ namespace OpenZ
             {
                 body.Box(side * .457f, 1.428f, -1.68f, .814f, .072f, .61f, Surface.Dark, -27f);
                 body.Box(side * .457f, 1.459f, -1.706f, .695f, .072f, .49f, Surface.Glass, -27f);
-                body.Box(side * 1.37f, 1.24f, 0f, .57f, .39f, 3.43f, Surface.Armor);
-                body.Box(side * 1.37f, 1.28f, -1.87f, .60f, .22f, .76f, Surface.Steel, -28f);
-                body.Box(side * 1.37f, 1.28f, 1.87f, .60f, .22f, .76f, Surface.Steel, 25f);
-                body.Box(side * 1.661f, 1.18f, 0, .036f, .11f, 3.15f, Surface.Team);
-                body.Box(side * 1.676f, 1.35f, .50f, .077f, .245f, .86f, Surface.Steel);
-                body.Box(side * 1.719f, 1.35f, .50f, .032f, .187f, .69f, Surface.Dark);
+                body.Box(side * 1.37f, 1.49f, 0f, .57f, .18f, 3.43f, Surface.Armor);
+                body.Box(side * 1.37f, 1.55f, -1.85f, .60f, .12f, .57f, Surface.Steel, -18f);
+                body.Box(side * 1.37f, 1.55f, 1.85f, .60f, .12f, .57f, Surface.Steel, 18f);
+                body.Box(side * 1.661f, 1.469f, 0, .036f, .073f, 3.15f, Surface.Team);
+                body.Box(side * 1.676f, 1.485f, .50f, .077f, .164f, .86f, Surface.Steel);
+                body.Box(side * 1.719f, 1.485f, .50f, .032f, .122f, .69f, Surface.Dark);
                 for (int i = -2; i <= 2; i++)
-                    body.Box(side * 1.745f, 1.35f, .50f + i * .113f, .032f, .183f, .047f, Surface.Rim);
+                    body.Box(side * 1.745f, 1.485f, .50f + i * .113f, .032f, .115f, .047f, Surface.Rim);
 
-                body.Box(side * .76f, .63f, -2.255f, .34f, .27f, .28f, Surface.Steel, -16f);
+                body.Box(side * .732f, .63f, -2.255f, .34f, .27f, .28f, Surface.Steel, -16f);
                 foreach (int end in new[] { -1, 1 })
                 {
                     body.Box(side * .752f, .94f, end * 2.30f, .269f, .209f, .101f, Surface.Dark);
@@ -273,8 +298,8 @@ namespace OpenZ
                 }
                 foreach (float z in new[] { -1.42f, -.74f, -.10f, .58f, 1.32f })
                 {
-                    body.Box(side * 1.22f, 1.446f, z, .049f, .031f, .049f, Surface.Rim);
-                    body.Box(side * 1.53f, 1.446f, z, .044f, .031f, .044f, Surface.Rim);
+                    body.Box(side * 1.22f, 1.589f, z, .049f, .031f, .049f, Surface.Rim);
+                    body.Box(side * 1.53f, 1.589f, z, .044f, .031f, .044f, Surface.Rim);
                 }
                 foreach (float z in new[] { -1.26f, -1.03f })
                     body.Box(side * .695f, 1.622f, z, .045f, .033f, .045f, Surface.Rim);
@@ -287,23 +312,23 @@ namespace OpenZ
             turret.RoundBase(-.35f, .22f, .97f, Surface.Armor);
             turret.Box(0, -.145f, 0, 1.84f, .28f, .66f, Surface.Dark);
             var platform = new Geometry();
-            platform.Box(0, -.035f, .03f, 2.57f, .18f, 1.88f, Surface.Steel);
+            platform.Box(0, -.11f, .03f, 2.57f, .18f, 1.88f, Surface.Steel);
             var rack = new Geometry();
             for (int i = -1; i <= 1; i++)
             {
                 float x = i * ZObject.ClassicMissileTubeSpacing;
-                platform.Box(x, 0.047f, -0.39f, 0.40f, 0.086f, 0.30f, Surface.Dark);
-                platform.Box(x, 0.047f, 0.49f, 0.40f, 0.086f, 0.30f, Surface.Dark);
+                platform.Box(x, -.019f, -0.39f, 0.40f, 0.074f, 0.30f, Surface.Dark);
+                platform.Box(x, -.019f, 0.49f, 0.40f, 0.074f, 0.30f, Surface.Dark);
                 rack.Tube(x);
             }
             foreach (int side in new[] { -1, 1 })
             {
-                platform.Box(side * 1.02f, .03f, .08f, .46f, .34f, 1.82f, Surface.Armor);
-                platform.Box(side * 1.252f, .03f, .08f, .043f, .193f, 1.35f, Surface.Dark);
+                platform.Box(side * 1.02f, -.117f, .08f, .46f, .26f, 1.82f, Surface.Armor);
+                platform.Box(side * 1.252f, -.117f, .08f, .043f, .19f, 1.35f, Surface.Dark);
                 for (int i = -4; i <= 4; i++)
-                    platform.Box(side * 1.279f, .03f, .08f + i * .14f, .033f, .181f, .047f, Surface.Rim);
+                    platform.Box(side * 1.279f, -.117f, .08f + i * .14f, .033f, .181f, .047f, Surface.Rim);
                 foreach (float z in new[] { -0.64f, -0.40f, 0.40f, 0.64f })
-                    platform.Box(side * 1.185f, 0.049f, z, 0.066f, 0.026f, 0.066f, Surface.Rim);
+                    platform.Box(side * 1.185f, -.012f, z, 0.066f, 0.026f, 0.066f, Surface.Rim);
             }
             turretMesh = turret.Mesh("OG Z turret pedestal");
             trayMesh = platform.Mesh("OG Z tilting tray");
@@ -406,13 +431,13 @@ namespace OpenZ
                 // Each profile step gives its axial position, radius and the finish leading to the next ring.
                 var profile = new (float z, float radius, Surface surface)[]
                 {
-                    (TubeRear, 0, Surface.Steel), (TubeRear, 0.245f, Surface.Steel), (1.950f, 0.292f, Surface.Rim), (1.940f, 0.315f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
+                    (TubeRear, 0.286f, Surface.Rim), (TubeRear, 0.308f, Surface.Rim), (1.940f, 0.345f, Surface.Rim), (1.91f, 0.35f, Surface.Steel),
                     (1.78f, 0.35f, Surface.Rim), (1.73f, 0.34f, Surface.Steel),
                     (1.17f, 0.334f, Surface.Rim), (1.15f, 0.353f, Surface.Team), (0.96f, 0.353f, Surface.Rim),
                     (0.935f, 0.334f, Surface.Steel), (-0.38f, 0.334f, Surface.Steel), (-0.415f, 0.37f, Surface.Rim),
                     (-0.455f, 0.37f, Surface.Steel), (-0.555f, 0.37f, Surface.Rim), (-TubeMouth, 0.345f, Surface.Rim),
                     (-TubeMouth, 0.287f, Surface.Dark), (-0.55f, 0.263f, Surface.Dark),
-                    (0.13f, 0.26f, Surface.Dark), (0.14f, 0, Surface.Dark)
+                    (1.91f, 0.264f, Surface.Dark), (TubeRear, 0.286f, Surface.Dark)
                 };
                 const int sides = 40;
                 for (int j = 0; j < profile.Length - 1; j++)
